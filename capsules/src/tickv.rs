@@ -35,7 +35,7 @@ use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 
@@ -389,7 +389,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
             Result<(), ErrorCode>,
         ),
     > {
-        if let Err((e, buf)) = self.hasher.add_data(LeasableBuffer::new(unhashed_key)) {
+        if let Err((e, buf)) = self.hasher.add_data(LeasableMutableBuffer::new(unhashed_key)) {
             return Err((buf, key_buf, Err(e)));
         }
 

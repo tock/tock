@@ -30,7 +30,7 @@ use kernel::dynamic_deferred_call::{
 };
 use kernel::hil::hasher::{Client, Hasher, SipHash};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 pub struct SipHasher24<'a> {
@@ -193,7 +193,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
 
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
+        data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let length = data.len();
         let msg = data.take();

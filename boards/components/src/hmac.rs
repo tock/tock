@@ -45,11 +45,11 @@ macro_rules! hmac_mux_component_helper {
     };};
 }
 
-pub struct HmacMuxComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
+pub struct HmacMuxComponent<A: 'static + digest::DigestMut<'static, L>, const L: usize> {
     hmac: &'static A,
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacMuxComponent<A, L> {
+impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> HmacMuxComponent<A, L> {
     pub fn new(hmac: &'static A) -> HmacMuxComponent<A, L> {
         HmacMuxComponent { hmac }
     }
@@ -57,7 +57,7 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacMuxComponent<A
 
 impl<
         A: 'static
-            + digest::Digest<'static, L>
+            + digest::DigestMut<'static, L>
             + digest::HMACSha256
             + digest::HMACSha384
             + digest::HMACSha512,
@@ -89,7 +89,7 @@ macro_rules! hmac_component_helper {
     };};
 }
 
-pub struct HmacComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
+pub struct HmacComponent<A: 'static + digest::DigestMut<'static, L>, const L: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     mux_hmac: &'static MuxHmac<'static, A, L>,
@@ -98,7 +98,7 @@ pub struct HmacComponent<A: 'static + digest::Digest<'static, L>, const L: usize
     dest_buffer: &'static mut [u8; L],
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> HmacComponent<A, L> {
+impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> HmacComponent<A, L> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -123,7 +123,7 @@ impl<
             + digest::HMACSha384
             + digest::HMACSha512
             + 'static
-            + digest::Digest<'static, L>,
+            + digest::DigestMut<'static, L>,
         const L: usize,
     > Component for HmacComponent<A, L>
 {

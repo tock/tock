@@ -7,7 +7,7 @@
 //! let hmac = &earlgrey::hmac::HMAC;
 //!
 //! let mux_hmac = static_init!(MuxHmac<'static, lowrisc::hmac::Hmac>, MuxHmac::new(hmac));
-//! digest::Digest::set_client(&earlgrey::hmac::HMAC, mux_hmac);
+//! digest::DigestMut::set_client(&earlgrey::hmac::HMAC, mux_hmac);
 //!
 //! let virtual_hmac_user = static_init!(
 //!     VirtualMuxHmac<'static, lowrisc::hmac::Hmac>,
@@ -20,7 +20,7 @@
 //!         board_kernel.create_grant(&memory_allocation_cap),
 //!     )
 //! );
-//! digest::Digest::set_client(virtual_hmac_user, hmac);
+//! digest::DigestMut::set_client(virtual_hmac_user, hmac);
 //! ```
 
 use crate::driver;
@@ -51,7 +51,7 @@ use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
@@ -65,7 +65,7 @@ enum ShaOperation {
 // Needs to be able to accomodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+pub struct HmacDriver<'a, H: digest::DigestMut<'a, L>, const L: usize> {
     hmac: &'a H,
 
     active: Cell<bool>,
@@ -85,7 +85,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::DigestMut<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
     > HmacDriver<'a, H, L>
 {
@@ -167,7 +167,7 @@ impl<
                                 });
 
                                 // Add the data from the static buffer to the HMAC
-                                let mut lease_buf = LeasableBuffer::new(
+                                let mut lease_buf = LeasableMutableBuffer::new(
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
@@ -245,9 +245,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::DigestMut<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
-    > digest::ClientData<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientDataMut<'a, L> for HmacDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -306,7 +306,7 @@ impl<
                             self.data_copied.set(copied_data + static_buffer_len);
 
                             let mut lease_buf =
-                                LeasableBuffer::new(self.data_buffer.take().unwrap());
+                                LeasableMutableBuffer::new(self.data_buffer.take().unwrap());
 
                             // Add the data from the static buffer to the HMAC
                             if data_len < (copied_data + static_buffer_len) {
@@ -379,7 +379,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::DigestMut<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
     > digest::ClientHash<'a, L> for HmacDriver<'a, H, L>
 {
@@ -431,7 +431,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::DigestMut<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
     > digest::ClientVerify<'a, L> for HmacDriver<'a, H, L>
 {
@@ -481,7 +481,7 @@ impl<
 ///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::DigestMut<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
         const L: usize,
     > SyscallDriver for HmacDriver<'a, H, L>
 {

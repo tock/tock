@@ -7,7 +7,7 @@
 //! let sha = &earlgrey::sha::HMAC;
 //!
 //! let mux_sha = static_init!(MuxSha<'static, lowrisc::sha::Sha>, MuxSha::new(sha));
-//! digest::Digest::set_client(&earlgrey::sha::HMAC, mux_sha);
+//! digest::DigestMut::set_client(&earlgrey::sha::HMAC, mux_sha);
 //!
 //! let virtual_sha_user = static_init!(
 //!     VirtualMuxSha<'static, lowrisc::sha::Sha>,
@@ -20,7 +20,7 @@
 //!         board_kernel.create_grant(&memory_allocation_cap),
 //!     )
 //! );
-//! digest::Digest::set_client(virtual_sha_user, sha);
+//! digest::DigestMut::set_client(virtual_sha_user, sha);
 //! ```
 
 use crate::driver;
@@ -50,7 +50,7 @@ use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
@@ -59,7 +59,7 @@ enum ShaOperation {
     Sha512,
 }
 
-pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+pub struct ShaDriver<'a, H: digest::DigestMut<'a, L>, const L: usize> {
     sha: &'a H,
 
     active: Cell<bool>,
@@ -79,7 +79,7 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > ShaDriver<'a, H, L>
 {
@@ -143,7 +143,7 @@ impl<
                                 });
 
                                 // Add the data from the static buffer to the HMAC
-                                let mut lease_buf = LeasableBuffer::new(
+                                let mut lease_buf = LeasableMutableBuffer::new(
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
@@ -221,9 +221,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::ClientData<'a, L> for ShaDriver<'a, H, L>
+    > digest::ClientDataMut<'a, L> for ShaDriver<'a, H, L>
 {
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
@@ -283,7 +283,7 @@ impl<
                             self.data_copied.set(copied_data + static_buffer_len);
 
                             let mut lease_buf =
-                                LeasableBuffer::new(self.data_buffer.take().unwrap());
+                                LeasableMutableBuffer::new(self.data_buffer.take().unwrap());
 
                             // Add the data from the static buffer to the HMAC
                             if data_len < (copied_data + static_buffer_len) {
@@ -356,7 +356,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientHash<'a, L> for ShaDriver<'a, H, L>
 {
@@ -410,7 +410,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientVerify<'a, L> for ShaDriver<'a, H, L>
 {
@@ -445,7 +445,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > SyscallDriver for ShaDriver<'a, H, L>
 {

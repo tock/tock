@@ -4,14 +4,14 @@
 use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::digest::{self, ClientData, ClientHash, ClientVerify, DigestData};
+use kernel::hil::digest::{self, ClientDataMut, ClientHash, ClientVerify, DigestDataMut};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 use crate::virtual_digest::{Mode, Operation};
 
-pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
+pub struct VirtualMuxSha<'a, A: digest::DigestMut<'a, L>, const L: usize> {
     mux: &'a MuxSha<'a, A, L>,
     next: ListLink<'a, VirtualMuxSha<'a, A, L>>,
     client: OptionalCell<&'a dyn digest::Client<'a, L>>,
@@ -23,7 +23,7 @@ pub struct VirtualMuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
     id: u32,
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxSha<'a, A, L>>
+impl<'a, A: digest::DigestMut<'a, L>, const L: usize> ListNode<'a, VirtualMuxSha<'a, A, L>>
     for VirtualMuxSha<'a, A, L>
 {
     fn next(&self) -> &'a ListLink<VirtualMuxSha<'a, A, L>> {
@@ -31,7 +31,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxSha<'a
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
+impl<'a, A: digest::DigestMut<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
     pub fn new(mux_sha: &'a MuxSha<'a, A, L>) -> VirtualMuxSha<'a, A, L> {
         let id = mux_sha.next_id.get();
         mux_sha.next_id.set(id + 1);
@@ -50,7 +50,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxSha<'a, A, L> {
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
+impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestDataMut<'a, L>
     for VirtualMuxSha<'a, A, L>
 {
     /// Add data to the sha IP.
@@ -58,7 +58,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     /// Returns the number of bytes written on success
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
+        data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
@@ -88,7 +88,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
+impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestHash<'a, L>
     for VirtualMuxSha<'a, A, L>
 {
     /// Request the hardware block to generate a SHA
@@ -114,7 +114,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
+impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestVerify<'a, L>
     for VirtualMuxSha<'a, A, L>
 {
     fn verify(
@@ -138,12 +138,12 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
     }
 }
 
-impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
+impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestMut<'a, L>
     for VirtualMuxSha<'a, A, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+    fn set_client(&'a self, client: &'a dyn digest::ClientMut<'a, L>) {
         let node = self.mux.users.iter().find(|node| node.id == self.id);
         if node.is_none() {
             self.mux.users.push_head(self);
@@ -154,9 +154,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
 
 impl<
         'a,
-        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        A: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::ClientData<'a, L> for VirtualMuxSha<'a, A, L>
+    > digest::ClientDataMut<'a, L> for VirtualMuxSha<'a, A, L>
 {
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.client
@@ -167,7 +167,7 @@ impl<
 
 impl<
         'a,
-        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        A: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientHash<'a, L> for VirtualMuxSha<'a, A, L>
 {
@@ -183,7 +183,7 @@ impl<
 
 impl<
         'a,
-        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        A: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientVerify<'a, L> for VirtualMuxSha<'a, A, L>
 {
@@ -197,7 +197,7 @@ impl<
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::Sha256, const L: usize> digest::Sha256
+impl<'a, A: digest::DigestMut<'a, L> + digest::Sha256, const L: usize> digest::Sha256
     for VirtualMuxSha<'a, A, L>
 {
     fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
@@ -214,7 +214,7 @@ impl<'a, A: digest::Digest<'a, L> + digest::Sha256, const L: usize> digest::Sha2
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::Sha384, const L: usize> digest::Sha384
+impl<'a, A: digest::DigestMut<'a, L> + digest::Sha384, const L: usize> digest::Sha384
     for VirtualMuxSha<'a, A, L>
 {
     fn set_mode_sha384(&self) -> Result<(), ErrorCode> {
@@ -231,7 +231,7 @@ impl<'a, A: digest::Digest<'a, L> + digest::Sha384, const L: usize> digest::Sha3
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::Sha512, const L: usize> digest::Sha512
+impl<'a, A: digest::DigestMut<'a, L> + digest::Sha512, const L: usize> digest::Sha512
     for VirtualMuxSha<'a, A, L>
 {
     fn set_mode_sha512(&self) -> Result<(), ErrorCode> {
@@ -248,7 +248,7 @@ impl<'a, A: digest::Digest<'a, L> + digest::Sha512, const L: usize> digest::Sha5
     }
 }
 
-pub struct MuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
+pub struct MuxSha<'a, A: digest::DigestMut<'a, L>, const L: usize> {
     sha: &'a A,
     running: Cell<bool>,
     running_id: Cell<u32>,
@@ -258,7 +258,7 @@ pub struct MuxSha<'a, A: digest::Digest<'a, L>, const L: usize> {
 
 impl<
         'a,
-        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        A: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > MuxSha<'a, A, L>
 {
@@ -298,7 +298,7 @@ impl<
             }
 
             if node.data.is_some() {
-                let mut lease = LeasableBuffer::new(node.data.take().unwrap());
+                let mut lease = LeasableMutableBuffer::new(node.data.take().unwrap());
                 lease.slice(0..node.data_len.get());
 
                 if let Err((err, digest)) = self.sha.add_data(lease) {

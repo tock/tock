@@ -1,6 +1,6 @@
 //! Interface for Hasher
 
-use crate::utilities::leasable_buffer::LeasableBuffer;
+use crate::utilities::leasable_buffer::LeasableMutableBuffer;
 use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
@@ -46,7 +46,7 @@ pub trait Hasher<'a, const L: usize> {
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
+        data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])>;
 
     /// Request the implementation to generate a hash and stores the returned

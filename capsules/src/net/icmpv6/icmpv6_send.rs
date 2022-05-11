@@ -14,7 +14,7 @@ use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::NetworkCapability;
 
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 /// A trait for a client of an `ICMP6Sender`.
@@ -88,7 +88,7 @@ impl<'a, T: IP6Sender<'a>> ICMP6Sender<'a> for ICMP6SendStruct<'a, T> {
         icmp_header.set_len(total_len as u16);
         let transport_header = TransportHeader::ICMP(icmp_header);
         self.ip_send_struct
-            .send_to(dest, transport_header, &LeasableBuffer::new(buf), net_cap)
+            .send_to(dest, transport_header, &LeasableMutableBuffer::new(buf), net_cap)
     }
 }
 
