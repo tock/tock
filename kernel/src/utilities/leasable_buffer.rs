@@ -211,4 +211,3 @@ where
         &self.internal[self.active_range.clone()][idx]
     }
 }
-

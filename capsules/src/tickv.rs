@@ -389,7 +389,10 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
             Result<(), ErrorCode>,
         ),
     > {
-        if let Err((e, buf)) = self.hasher.add_data(LeasableMutableBuffer::new(unhashed_key)) {
+        if let Err((e, buf)) = self
+            .hasher
+            .add_data(LeasableMutableBuffer::new(unhashed_key))
+        {
             return Err((buf, key_buf, Err(e)));
         }
 

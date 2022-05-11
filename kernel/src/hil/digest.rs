@@ -39,7 +39,6 @@ pub trait ClientHash<'a, const L: usize> {
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]);
 }
 
-
 /// Implement this trait and use `set_client()` in order to receive callbacks when
 /// a digest is completed and whether it matches the value to compare with.
 ///
@@ -68,7 +67,6 @@ impl<'a, T: ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>, const L
 {
 }
 
-
 impl<'a, T: ClientDataMut<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>, const L: usize>
     ClientMut<'a, L> for T
 {
@@ -84,11 +82,20 @@ impl<'a, T: ClientData<'a, L> + ClientVerify<'a, L>, const L: usize> ClientDataV
 
 pub trait ClientDataMutHash<'a, const L: usize>: ClientDataMut<'a, L> + ClientHash<'a, L> {}
 
-impl<'a, T: ClientDataMut<'a, L> + ClientHash<'a, L>, const L: usize> ClientDataMutHash<'a, L> for T {}
+impl<'a, T: ClientDataMut<'a, L> + ClientHash<'a, L>, const L: usize> ClientDataMutHash<'a, L>
+    for T
+{
+}
 
-pub trait ClientDataMutVerify<'a, const L: usize>: ClientDataMut<'a, L> + ClientVerify<'a, L> {}
+pub trait ClientDataMutVerify<'a, const L: usize>:
+    ClientDataMut<'a, L> + ClientVerify<'a, L>
+{
+}
 
-impl<'a, T: ClientDataMut<'a, L> + ClientVerify<'a, L>, const L: usize> ClientDataMutVerify<'a, L> for T {}
+impl<'a, T: ClientDataMut<'a, L> + ClientVerify<'a, L>, const L: usize> ClientDataMutVerify<'a, L>
+    for T
+{
+}
 
 /// Computes a digest (cryptographic hash) over mutable data.
 ///
@@ -224,7 +231,6 @@ pub trait Digest<'a, const L: usize>:
     fn set_client(&'a self, client: &'a dyn Client<'a, L>);
 }
 
-
 /// Computes a digest (cryptographic hash) or performs verification
 /// over mutable data
 ///
@@ -244,13 +250,15 @@ pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a,
 
 impl<'a, T: DigestData<'a, L> + DigestHash<'a, L>, const L: usize> DigestDataHash<'a, L> for T {}
 
-
 /// Computes a digest (cryptographic hash) over mutable data
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestDataHashMut<'a, const L: usize>: DigestDataMut<'a, L> + DigestHash<'a, L> {}
 
-impl<'a, T: DigestDataMut<'a, L> + DigestHash<'a, L>, const L: usize> DigestDataHashMut<'a, L> for T {}
+impl<'a, T: DigestDataMut<'a, L> + DigestHash<'a, L>, const L: usize> DigestDataHashMut<'a, L>
+    for T
+{
+}
 
 /// Performs a verification on data
 ///
@@ -259,13 +267,18 @@ pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify
 
 impl<'a, T: DigestData<'a, L> + DigestVerify<'a, L>, const L: usize> DigestDataVerify<'a, L> for T {}
 
-
 /// Performs a verification on data
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait DigestDataVerifyMut<'a, const L: usize>: DigestDataMut<'a, L> + DigestVerify<'a, L> {}
+pub trait DigestDataVerifyMut<'a, const L: usize>:
+    DigestDataMut<'a, L> + DigestVerify<'a, L>
+{
+}
 
-impl<'a, T: DigestDataMut<'a, L> + DigestVerify<'a, L>, const L: usize> DigestDataVerifyMut<'a, L> for T {}
+impl<'a, T: DigestDataMut<'a, L> + DigestVerify<'a, L>, const L: usize> DigestDataVerifyMut<'a, L>
+    for T
+{
+}
 
 pub trait Sha224 {
     /// Call before `Digest::run()` to perform Sha224

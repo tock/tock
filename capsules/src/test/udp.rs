@@ -189,7 +189,11 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
-    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: LeasableMutableBuffer<'static, u8>) {
+    fn send_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        mut dgram: LeasableMutableBuffer<'static, u8>,
+    ) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
         self.udp_dgram.replace(dgram);

@@ -561,7 +561,11 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: LeasableMutableBuffer<'static, u8>) {
+    fn send_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        mut dgram: LeasableMutableBuffer<'static, u8>,
+    ) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

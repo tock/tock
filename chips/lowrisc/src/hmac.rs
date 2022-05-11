@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::digest::{self, DigestHash};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -73,7 +73,7 @@ pub struct Hmac<'a> {
 
     client: OptionalCell<&'a dyn hil::digest::Client<'a, 32>>,
 
-    data: Cell<Option<LeasableBuffer<'static, u8>>>,
+    data: Cell<Option<LeasableMutableBuffer<'static, u8>>>,
     data_len: Cell<usize>,
     data_index: Cell<usize>,
 
@@ -108,7 +108,7 @@ impl Hmac<'_> {
 
                 for i in 0..(data_len / 4) {
                     if regs.status.is_set(STATUS::FIFO_FULL) {
-                        self.data.set(Some(LeasableBuffer::new(slice)));
+                        self.data.set(Some(LeasableMutableBuffer::new(slice)));
                         return false;
                     }
 
@@ -134,7 +134,7 @@ impl Hmac<'_> {
                     }
                 }
             }
-            self.data.set(Some(LeasableBuffer::new(slice)));
+            self.data.set(Some(LeasableMutableBuffer::new(slice)));
             true
         })
     }
@@ -223,7 +223,7 @@ impl Hmac<'_> {
 impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
+        data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let regs = self.registers;
 

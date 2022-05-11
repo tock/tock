@@ -383,7 +383,11 @@ impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
 }
 
 impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
-    fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableMutableBuffer<'static, u8>) {
+    fn input_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        buffer: LeasableMutableBuffer<'static, u8>,
+    ) {
         // A call to `input` has finished. This can mean that either
         // we have processed the entire buffer passed in, or it was
         // truncated by the CRC unit as it was too large. In the first
