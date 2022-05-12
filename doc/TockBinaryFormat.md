@@ -272,10 +272,9 @@ The `Main` element has three 32-bit fields:
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
     execute (typically the `_start` symbol).
-  * `protected_size` the size of the protected region in bytes. The protected
-    region begins at the start of the app image and ends just before the
-    compiled app binary. Processes may not write to the protected region. The
-    TBF headers should be contained within the protected region.
+  * `protected_size` the size of the protected region in bytes. Processes do not
+    have write access to the protected region. TBF headers are contained in the
+    protected region.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
 
