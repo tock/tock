@@ -252,16 +252,16 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                 }
                 buffer[position] = END_CMD;
 
-                if (position % 4) != 0 {
-                    position = (position / 4) * position + 1;
-                }
+                // if (position % 4) != 0 {
+                //     position = (position / 4) * position + 1;
+                // }
                 self.spi.release_low();
 
                 self.spi
-                    .read_write_bytes(buffer, None, position as usize)
-                    .map_err(|(err, write_buffer, _)| {
+                    .read_write_bytes(buffer, self.read_buffer.take(), (position + 1) as usize)
+                    .map_err(|(err, write_buffer, read_buffer)| {
                         self.write_buffer.replace(write_buffer);
-                        // read_buffer.map(|buffer| self.read_buffer.replace(buffer));
+                        read_buffer.map(|buffer| self.read_buffer.replace(buffer));
                         err
                     })?;
 
@@ -271,6 +271,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                 Ok(())
             })
             .map_err(|err| {
+                debug!("First, we got here!");
                 self.cs.set();
                 err
             })
@@ -293,6 +294,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                     .map_or(Err(ErrorCode::NOMEM), move |read_buffer| {
                         self.status.set(Status::Receive(command, position, timeout));
                         self.spi.hold_low();
+                        debug!("We got here");
                         self.spi
                             .read_write_bytes(buffer, Some(read_buffer), 1)
                             .map_err(|(err, write_buffer, read_buffer)| {
@@ -303,6 +305,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                     })
             })
             .map_err(|err| {
+                debug!("Second, we got here!");
                 self.cs.set();
                 err
             })
@@ -318,7 +321,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     }
 
     fn process_buffer(&self, command: Command) -> Result<(), ErrorCode> {
-        // debug!("Process buffer for command {:?}", command);
+        debug!("Process buffer for command {:?}", command);
         self.read_buffer
             .map_or(Err(ErrorCode::NOMEM), |read_buffer| {
                 if read_buffer[0] == START_CMD {
@@ -481,6 +484,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
             match self.status.get() {
                 Status::Send(command) => {
                     self.write_buffer.replace(write_buffer);
+                    // read_buffer.map(|buffer| self.read_buffer.replace(buffer));
                     if let Err(error) = self.receive_command(command) {
                         self.schedule_callback_error(command, error);
                         self.status.set(Status::Idle);
@@ -489,9 +493,10 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                 Status::Receive(command, position, timeout) => {
                     self.status.set(Status::Idle);
                     self.write_buffer.replace(write_buffer);
+                    // debug!("In status::Receive");
                     read_buffer
                         .map_or(Err(ErrorCode::NOMEM), |buffer| {
-                            //debug!("byte {}", buffer[0]);
+                            debug!("byte {:x}", buffer[0]);
                             let byte = buffer[0];
 
                             self.one_byte_read_buffer.replace(buffer);
@@ -529,6 +534,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                             }
                         })
                         .map_err(|error| {
+                            debug!("Lastly we got here!");
                             self.schedule_callback_error(command, error);
                             self.status.set(Status::Idle);
                         })
@@ -564,10 +570,11 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
                     self.gpio0.clear();
                     self.gpio0.make_input();
                     self.status.set(Status::Idle);
-                    let test_ssid = "Galaxy A70";
-                    let test_psk = "12345678";
+                    let test_ssid = "Valex";
+                    let test_psk = "iubescpepsi69";
                     //self.get_mac_address();
-                    self.set_passphrase(test_ssid.as_bytes(), test_psk.as_bytes());
+                    self.get_firmware_version();
+                    // self.set_passphrase(test_ssid.as_bytes(), test_psk.as_bytes());
                 }
             },
 
