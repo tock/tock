@@ -28,9 +28,11 @@ by a binary blob which is executed directly, followed by optional padding.
 ```
 Tock App Binary:
 
-Start of app -> +-------------------+
-                | TBF Header        |
-                +-------------------+
+Start of app -> +-------------------+---
+                | TBF Header        | ^
+                +-------------------+ | Protected region
+                | Optional padding  | V
+                +-------------------+---
                 | Compiled app      |
                 | binary            |
                 |                   |
@@ -270,8 +272,9 @@ The `Main` element has three 32-bit fields:
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
     execute (typically the `_start` symbol).
-  * `protected_size` the amount of flash, in bytes, after the header, to
-    prevent the process from writing to.
+  * `protected_size` the size of the protected region in bytes. Processes do not
+    have write access to the protected region. TBF headers are contained in the
+    protected region.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
 
