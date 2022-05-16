@@ -40,6 +40,11 @@ callback when the write has completed.
     shared, or NOMEM if the driver failed to allocate memory for the
     transaction.
 
+    **Additional notes:** A process may call this command with a write size of
+    `0` to cancel a write transaction, if one is ongoing. Unless an error
+    occurs, this will generate a write transaction completed event, regardless
+    of whether or not a write transaction was already in progress.
+
   * ### Command number: `2`
 
     **Description**: Initiate a read transaction into a buffer shared using `allow`.
