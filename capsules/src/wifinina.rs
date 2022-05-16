@@ -8,6 +8,9 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::{debug, hil};
 use kernel::{ErrorCode, ProcessId};
 
+use enum_primitive::cast::FromPrimitive;
+use enum_primitive::enum_from_primitive;
+
 use crate::driver;
 use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
 pub const DRIVER_NUM: usize = driver::NUM::WiFiNina as usize;
@@ -27,6 +30,21 @@ mod rw_allow {
     pub const PSK: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: usize = 1;
+}
+
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Clone, Copy)]
+    /// This enum defines the command syscalls that are supported by this capsule
+    pub enum Cmd {
+        /// Check if driver is present
+        Ping = 0,
+        /// Scan network for wifis
+        ScanNetworks = 1,
+        /// Connect to network
+        NetworkConnect = 2,
+        /// Get IP Address
+        IpAddress = 3
+    }
 }
 
 #[derive(Default)]
@@ -115,29 +133,6 @@ impl hil::wifinina::ScannerClient for WiFiChip<'_> {
 // }
 
 impl SyscallDriver for WiFiChip<'_> {
-    // fn allow_readwrite(
-    //     &self,
-    //     appid: ProcessId,
-    //     allow_num: usize,
-    //     mut slice: ReadWriteProcessBuffer,
-    // ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-    //     match allow_num {
-    //         0 => {
-    //             let res = self
-    //                 .apps
-    //                 .enter(appid, |app, _| {
-    //                     mem::swap(&mut app.wifi_networks_buffer, &mut slice);
-    //                 })
-    //                 .map_err(ErrorCode::from);
-    //             match res {
-    //                 Err(e) => Err((slice, e)),
-    //                 Ok(_) => Ok(slice),
-    //             }
-    //         }
-    //         _ => Err((slice, ErrorCode::NOSUPPORT)),
-    //     }
-    // }
-
     fn command(
         &self,
         command_num: usize,
@@ -145,13 +140,21 @@ impl SyscallDriver for WiFiChip<'_> {
         _data2: usize,
         process_id: ProcessId,
     ) -> CommandReturn {
-        if command_num == 0 {
-            return CommandReturn::success();
-        }
-
-        if self.current_process.is_none() {
-            match command_num {
-                1 => {
+        if let Some(cmd) = Cmd::from_usize(command_num) {
+            match cmd {
+                Cmd::Ping => {
+                    debug!("Wifina driver available!");
+                    CommandReturn::success()
+                }
+                Cmd::ScanNetworks => {
+                    if let Err(_err) = self.driver.scan() {
+                        CommandReturn::failure(ErrorCode::FAIL)
+                    } else {
+                        self.current_process.replace(process_id);
+                        CommandReturn::success()
+                    }
+                }
+                Cmd::NetworkConnect => {
                     if let Err(_err) = self.driver.scan() {
                         CommandReturn::failure(ErrorCode::FAIL)
                     } else {
@@ -162,8 +165,24 @@ impl SyscallDriver for WiFiChip<'_> {
                 _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
             }
         } else {
-            CommandReturn::failure(ErrorCode::BUSY)
+            CommandReturn::failure(ErrorCode::NOSUPPORT)
         }
+
+        // if self.current_process.is_none() {
+        //     match command_num {
+        //         1 => {
+        //             if let Err(_err) = self.driver.scan() {
+        //                 CommandReturn::failure(ErrorCode::FAIL)
+        //             } else {
+        //                 self.current_process.replace(process_id);
+        //                 CommandReturn::success()
+        //             }
+        //         }
+        //         _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+        //     }
+        // } else {
+        //     CommandReturn::failure(ErrorCode::BUSY)
+        // }
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
