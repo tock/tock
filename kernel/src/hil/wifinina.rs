@@ -11,7 +11,7 @@
 
 use crate::ErrorCode;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Security {
     Wep,
     Wpa,
@@ -19,6 +19,7 @@ pub enum Security {
     Wpa3,
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum StationStatus {
     // the device is not a station
     // it might be an access point
@@ -51,7 +52,7 @@ pub enum AccessPointStatus {
     Stopping,
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct Ssid {
     // The max length of an SSID is 32
     pub value: [u8; 32],
@@ -59,7 +60,7 @@ pub struct Ssid {
     // the actual length of the SSID
     pub len: u8,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Psk {
     // The max length of an SSID is 32
     pub value: [u8; 63],
@@ -77,7 +78,7 @@ impl Default for Psk {
     }
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Network {
     pub ssid: Ssid,
     // 802.11 defines RSSI as a value from 0 to 255

@@ -12,8 +12,16 @@ use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 
 use crate::driver;
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 pub const DRIVER_NUM: usize = driver::NUM::WiFiNina as usize;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const SSID: usize = 0;
+    pub const PSK: usize = 1;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 2;
+}
 
 /// Ids for read-write allow buffers
 mod rw_allow {
@@ -47,19 +55,31 @@ enum_from_primitive! {
     }
 }
 
+pub trait WiFi<'a>: hil::wifinina::Scanner<'a> + hil::wifinina::Station<'a> {}
+impl<'a, W: hil::wifinina::Scanner<'a> + hil::wifinina::Station<'a>> WiFi<'a> for W {}
 #[derive(Default)]
 pub struct App {}
 
 pub struct WiFiChip<'a> {
-    driver: &'a dyn hil::wifinina::Scanner<'a>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
+    driver: &'a (dyn WiFi<'a> + 'a),
+    apps: Grant<
+        App,
+        UpcallCount<3>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     current_process: OptionalCell<ProcessId>,
 }
 
 impl<'a> WiFiChip<'a> {
     pub fn new(
-        driver: &'a dyn hil::wifinina::Scanner<'a>,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
+        driver: &'a (dyn WiFi<'a> + 'a),
+        grant: Grant<
+            App,
+            UpcallCount<3>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
     ) -> WiFiChip<'a> {
         WiFiChip {
             driver: driver,
@@ -103,7 +123,7 @@ impl hil::wifinina::ScannerClient for WiFiChip<'_> {
                                         len = len + 1;
                                     }
                                     kernel_data
-                                        .schedule_upcall(0, (0, len, networks.len()))
+                                        .schedule_upcall(1, (0, len, networks.len()))
                                         .ok()
                                 })
                             })
@@ -114,7 +134,7 @@ impl hil::wifinina::ScannerClient for WiFiChip<'_> {
                     self.apps
                         .enter(*process_id, |_app, upcalls| {
                             upcalls
-                                .schedule_upcall(0, (into_statuscode(Err(error)), 0, 0))
+                                .schedule_upcall(1, (into_statuscode(Err(error)), 0, 0))
                                 .ok()
                         })
                         .ok();
@@ -125,64 +145,126 @@ impl hil::wifinina::ScannerClient for WiFiChip<'_> {
     }
 }
 
-// impl hil::wifinina::StationClient for WiFiChip<'_> {
+use kernel::hil::wifinina::{Station, StationClient, StationStatus};
+impl hil::wifinina::StationClient for WiFiChip<'_> {
+    fn command_complete(&self, status: Result<StationStatus, ErrorCode>) {
+        self.current_process.map(|process_id| {
+            let _ = self
+                .apps
+                .enter(*process_id, |app, kernel_data| match status {
+                    Ok(station_status) => {
+                        kernel_data
+                            .schedule_upcall(
+                                2,
+                                (
+                                    match station_status {
+                                        StationStatus::Off => 0,
+                                        StationStatus::Connected(_) => 1,
+                                        StationStatus::Connecting(_) => 2,
+                                        StationStatus::Disconnected => 3,
+                                        StationStatus::Disconnecting => 4,
+                                    },
+                                    0,
+                                    0,
+                                ),
+                            )
+                            .ok();
+                    }
+                    Err(e) => {
+                        debug!("Error at command_complete: {:?}", e)
+                    }
+                });
+        });
+    }
+}
 
-//     fn command_complete(&self, status: Result<StationStatus, ErrorCode>) {
-
-//     }
-// }
-
+use kernel::hil::wifinina::{Psk, Ssid};
 impl SyscallDriver for WiFiChip<'_> {
     fn command(
         &self,
         command_num: usize,
-        _data1: usize,
-        _data2: usize,
-        process_id: ProcessId,
+        data1: usize,
+        data2: usize,
+        appid: ProcessId,
     ) -> CommandReturn {
-        if let Some(cmd) = Cmd::from_usize(command_num) {
-            match cmd {
-                Cmd::Ping => {
-                    debug!("Wifina driver available!");
-                    CommandReturn::success()
-                }
-                Cmd::ScanNetworks => {
-                    if let Err(_err) = self.driver.scan() {
-                        CommandReturn::failure(ErrorCode::FAIL)
-                    } else {
-                        self.current_process.replace(process_id);
+        let res = self.apps.enter(appid, |app, kernel_data| {
+            if let Some(cmd) = Cmd::from_usize(command_num) {
+                match cmd {
+                    Cmd::Ping => {
+                        debug!("Wifina driver available!");
                         CommandReturn::success()
                     }
-                }
-                Cmd::NetworkConnect => {
-                    if let Err(_err) = self.driver.scan() {
-                        CommandReturn::failure(ErrorCode::FAIL)
-                    } else {
-                        self.current_process.replace(process_id);
-                        CommandReturn::success()
+                    Cmd::ScanNetworks => {
+                        if let Err(_err) = self.driver.scan() {
+                            CommandReturn::failure(ErrorCode::FAIL)
+                        } else {
+                            self.current_process.replace(appid);
+                            CommandReturn::success()
+                        }
                     }
-                }
-                _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-            }
-        } else {
-            CommandReturn::failure(ErrorCode::NOSUPPORT)
-        }
+                    Cmd::NetworkConnect => {
+                        let ssid_len = data1;
+                        let psk_len = data2;
+                        if ssid_len > 32 || psk_len > 63 {
+                            CommandReturn::failure(ErrorCode::INVAL)
+                        } else {
+                            if let Ok(c) = kernel_data
+                                .get_readonly_processbuffer(ro_allow::SSID)
+                                .and_then(|ssid_buffer| {
+                                    ssid_buffer.enter(|data| {
+                                        let mut buff: [u8; 32] = [0; 32];
+                                        for (i, c) in data[0..ssid_len].iter().enumerate() {
+                                            buff[i] = c.get();
+                                        }
+                                        let mut ssid: Ssid = Ssid {
+                                            len: ssid_len as u8,
+                                            value: buff,
+                                        };
 
-        // if self.current_process.is_none() {
-        //     match command_num {
-        //         1 => {
-        //             if let Err(_err) = self.driver.scan() {
-        //                 CommandReturn::failure(ErrorCode::FAIL)
-        //             } else {
-        //                 self.current_process.replace(process_id);
-        //                 CommandReturn::success()
-        //             }
-        //         }
-        //         _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        //     }
-        // } else {
-        //     CommandReturn::failure(ErrorCode::BUSY)
-        // }
+                                        let mut passv2: [u8; 63] = [0; 63];
+                                        for (i, c) in
+                                            data[ssid_len..ssid_len + psk_len].iter().enumerate()
+                                        {
+                                            passv2[i] = c.get();
+                                        }
+                                        let mut psk: Psk = Psk {
+                                            len: 13,
+                                            value: passv2,
+                                        };
+
+                                        if let Err(_err) = self.driver.connect(ssid, Some(psk)) {
+                                            CommandReturn::failure(ErrorCode::FAIL)
+                                        } else {
+                                            self.current_process.replace(appid);
+                                            CommandReturn::success()
+                                        }
+                                    })
+                                })
+                            {
+                                c
+                            } else {
+                                CommandReturn::failure(ErrorCode::FAIL)
+                            }
+                            // .unwrap_or_else(CommandReturn::failure(ErrorCode::FAIL))
+                            // match res {
+                            //     Ok(val) => val,
+                            //     _ => CommandReturn::failure(ErrorCode::FAIL)
+                            // }
+                        }
+                    }
+                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                }
+            } else {
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
+            }
+        });
+
+        // .map_err(ErrorCode::from)
+        match res {
+            Ok(v) => v,
+            // Ok(Err(e)) => CommandReturn::failure(e),
+            Err(e) => CommandReturn::failure(e.into()),
+        }
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {

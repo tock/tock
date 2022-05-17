@@ -505,6 +505,7 @@ pub unsafe fn main() {
     );
 
     kernel::hil::wifinina::Scanner::set_client(nina, wifi_driver);
+    kernel::hil::wifinina::Station::set_client(nina, wifi_driver);
 
     let _ = lsm6dsoxtr
         .configure(
