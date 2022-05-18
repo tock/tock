@@ -7,7 +7,7 @@ use crate::success_codes::SuccessCode;
 use core::cell::Cell;
 
 /// The current version of TicKV
-pub const VERSION: u8 = 0;
+pub const VERSION: u8 = 1;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum InitState {

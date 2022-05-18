@@ -1,7 +1,12 @@
 [package]
 name = "tickv"
+description = "TicKV (Tiny Circular Key Value) is a small file system allowing key value pairs to be stored in Flash Memory."
 repository = "https://github.com/tock/tock"
-version = "0.1.0"
+documentation = "https://github.com/tock/tock/blob/master/libraries/tickv/README.md"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
 authors = ["Alistair Francis <alistair.francis@wdc.com>"]
 edition = "2021"
 readme = "README.md"
+keywords = ["flash", "key/value store"]
+categories = ["database-implementations", "no-std"]
