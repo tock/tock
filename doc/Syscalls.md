@@ -35,6 +35,19 @@ kernel. The kernel then uses the values in registers and the stack at the time
 of the interrupt call to determine how to route the system call and which
 driver function to call with which data values.
 
+The system calls in Tock fall into 7 classes,
+described in detail in the [TRD104](reference/trd104-syscalls.md):
+
+| Syscall Class    | Syscall Class Number |
+|------------------|----------------------|
+| Yield            |           0          |
+| Subscribe        |           1          |
+| Command          |           2          |
+| Read-Write Allow |           3          |
+| Read-Only Allow  |           4          |
+| Memop            |           5          |
+| Exit             |           6          |
+
 Using system calls has three advantages. First, the act of triggering a service
 call interrupt can be used to change the processor state. Rather than being in
 unprivileged mode (as applications are run) and limited by the Memory

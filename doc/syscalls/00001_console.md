@@ -46,7 +46,7 @@ callback when the write has completed.
     At the end of the transaction, a callback will be delivered if the process
     has `subscribed` to read events using `subscribe number` 2.
 
-    **Argument 1**: The maximum number of bytes to write.
+    **Argument 1**: The maximum number of bytes to read.
 
     **Argument 2**: unused
 
@@ -95,7 +95,7 @@ callback when the write has completed.
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
-## Allow
+## Read-Only Allow
 
   * ### Allow number: `1`
 
@@ -108,7 +108,8 @@ callback when the write has completed.
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
-  * ### Allow number: `2`
+## Read-Write Allow
+  * ### Allow number: `1`
 
     **Description**: Sets a shared buffer to be read into by the next read
     transaction. A shared buffer is released in two cases: if it is replaced by
