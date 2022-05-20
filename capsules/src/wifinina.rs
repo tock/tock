@@ -18,7 +18,7 @@ pub const DRIVER_NUM: usize = driver::NUM::WiFiNina as usize;
 /// Ids for read-only allow buffers
 mod ro_allow {
     pub const SSID: usize = 0;
-    pub const PSK: usize = 1;
+    // pub const PSK: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: usize = 2;
 }

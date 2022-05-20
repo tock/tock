@@ -22,17 +22,32 @@ const REPLY_FLAG: u8 = 1 << 7;
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Debug)]
+enum SockMode {
+    TcpMode,
+    UdpMode,
+    TlsMode,
+    UdpMulticastMode,
+    TlsBearsslMode,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 enum Command {
-    GetFwVersion = 0x37,
-    StartScanNetworksCmd = 0x36,
-    ScanNetworksCmd = 0x27,
-    GetConnStatusCmd = 0x20,
-    GetIdxRSSICmd = 0x32,
     SetNetCmd = 0x10,
     SetPassPhraseCmd = 0x11,
+    GetConnStatusCmd = 0x20,
     GetIpAddressCmd = 0x21,
     GetMacAddressCmd = 0x22,
+    ScanNetworksCmd = 0x27,
+    StartTcpClient = 0x2D,
+    GetIdxRSSICmd = 0x32,
+    StartScanNetworksCmd = 0x36,
+    GetFwVersion = 0x37,
+    SendPing = 0x3E,
+    GetSocket = 0x3F,
+    InsertDataBuf = 0x46,
 }
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum InitStatus {
     Starting,
@@ -166,6 +181,44 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         }
     }
 
+    pub fn send_ping(&self) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::SendPing, &[&[172, 20, 10, 7], &[128]])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn start_tcp_client(&self, socket: u8) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            // open socket connection to 172.20.10.7:3000;
+            self.send_command(
+                Command::StartTcpClient,
+                &[
+                    &[172, 20, 10, 7],
+                    &[0xb8, 0xb],
+                    &[socket],
+                    &[SockMode::UdpMode as u8],
+                ],
+            )
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn insert_data_buf(&self, socket: u8) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            // Inserting buffer "Buna!"
+            debug!("Revin aici?");
+            self.send_command(
+                Command::InsertDataBuf,
+                &[&[socket], &[0x42, 0x75, 0x6e, 0x61, 0x21]],
+            )
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
     pub fn get_networks_rssi(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.send_command(Command::GetIdxRSSICmd, &[])
@@ -192,7 +245,15 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
 
     pub fn get_mac_address(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
-            self.send_command(Command::GetMacAddressCmd, &[&[0]])
+            self.send_command(Command::GetMacAddressCmd, &[&[0xff]])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn get_socket(&self) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::GetSocket, &[])
         } else {
             Err(ErrorCode::BUSY)
         }
@@ -235,7 +296,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     }
 
     fn send_command<'b>(&self, command: Command, params: &'b [&'b [u8]]) -> Result<(), ErrorCode> {
-        // debug!("Send command");
+        debug!("Send command");
         self.wait_for_chip_ready()?;
 
         self.wait_for_chip_select()?;
@@ -260,11 +321,6 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                 }
                 buffer[position] = END_CMD;
 
-                // debug!("chars to be written {}", position + 1);
-                // debug!(
-                //     "{:x} {:x} {:x} {:x} {:x} {:x}",
-                //     buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]
-                // );
                 // Vedem daca e util sau nu ?
                 if params.len() != 0 {
                     for i in ((4 - ((position + 1) % 4)) & 3)..0 {
@@ -272,6 +328,22 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                         buffer[position] = 0xff;
                     }
                 }
+                if command == Command::SendPing {
+                    // debug!("SendPing: chars to be written {}", position + 1);
+                    // debug!("{:?}", buffer);
+                    // debug!(
+                    //     "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+                    //     buffer[0],
+                    //     buffer[1],
+                    //     buffer[2],
+                    //     buffer[3],
+                    //     buffer[4],
+                    //     buffer[5],
+                    //     buffer[6],
+                    //     buffer[7]
+                    // );
+                }
+
                 self.spi.release_low();
 
                 self.spi
@@ -335,7 +407,10 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     }
 
     fn process_buffer(&self, command: Command) -> Result<(), ErrorCode> {
-        // debug!("Process buffer for command **** {:?} *****", command);
+        debug!("Process buffer for command **** {:?} *****", command);
+        // if command == Command::GetSocket {
+        //     debug!("We get here in process buffer for Command::GetSocket!");
+        // }
         self.read_buffer
             .map_or(Err(ErrorCode::NOMEM), |read_buffer| {
                 if read_buffer[0] == START_CMD {
@@ -374,6 +449,9 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                                 client
                                                     .command_complete(Ok(self.station_status.get()))
                                             });
+                                            // self.get_ip_address();
+                                            // self.start_tcp_client();
+                                            self.get_socket();
                                         }
                                     } else if status == ConnectionStatus::ConnectFailed {
                                         if let StationStatus::Connecting(net) =
@@ -478,29 +556,169 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                 }
 
                                 Command::GetIpAddressCmd => {
-                                    debug!(
-                                        "IP Address {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
-                                        read_buffer[0],
-                                        read_buffer[1],
-                                        read_buffer[2],
-                                        read_buffer[3],
-                                        read_buffer[4],
-                                        read_buffer[5],
-                                    );
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                            }
+                                            debug!("Array nr {}: {:?}", count, buf);
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    self.get_mac_address();
+                                    // debug!(
+                                    //     "Asta: IP Address {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+                                    //     read_buffer[0],
+                                    //     read_buffer[1],
+                                    //     read_buffer[2],
+                                    //     read_buffer[3],
+                                    //     read_buffer[4],
+                                    //     read_buffer[5],
+                                    // );
                                     Ok(())
                                 }
 
                                 Command::GetMacAddressCmd => {
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                            }
+                                            debug!(
+                                                "MAC Address {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+                                                buf[5], buf[4], buf[3], buf[2], buf[1], buf[0],
+                                            );
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    self.get_ip_address();
+                                    Ok(())
+                                }
+                                Command::SendPing => {
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!("Num elements: {:x}", read_buffer[pos]);
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                            }
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    // self.get_socket();
+                                    Ok(())
+                                }
+                                Command::GetSocket => {
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "GetSocket: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            debug!("Socket num: {:x}", read_buffer[pos + 1]);
+                                            // for i in 0..read_buffer[pos] {
+                                            //     buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                            //     debug!("Element {}: {:x}", i, buf[i as usize]);
+                                            // }
+                                            self.start_tcp_client(read_buffer[pos + 1]);
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    // self.get_socket();
+                                    Ok(())
+                                }
+                                Command::StartTcpClient => {
                                     debug!(
-                                        "MAC Address {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
-                                        read_buffer[0],
-                                        read_buffer[1],
-                                        read_buffer[2],
-                                        read_buffer[3],
-                                        read_buffer[4],
-                                        read_buffer[5],
+                                        "Process buffer for Command::StartTcpClient {:?}",
+                                        param_len
                                     );
-                                    // self.get_ip_address();
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        // debug!("Dar Intru aici?");
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "StartTcpClient: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                            }
+                                            self.insert_data_buf(0);
+                                            // self.start_tcp_client(read_buffer[pos + 1]);
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    Ok(())
+                                }
+
+                                Command::InsertDataBuf => {
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "StartTcpClient: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                            }
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
                                     Ok(())
                                 }
                                 _ => Ok(()),
@@ -565,7 +783,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                     }
                 }
                 Status::Receive(command, position, timeout) => {
-                    // if command == Command::GetConnStatusCmd {
+                    // if command == Command::GetSocket {
                     //     debug!("In read_write_done in Status::send");
                     // }
                     self.status.set(Status::Idle);
@@ -574,12 +792,12 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                     read_buffer
                         .map_or(Err(ErrorCode::NOMEM), |buffer| {
                             let byte = buffer[0];
-                            if command == Command::GetConnStatusCmd && byte != 0xff {
-                                // debug!(
-                                //     "Aiciii: command: {:?}, byte {:x}, position {:x}",
-                                //     command, byte, position
-                                // );
-                            }
+                            // if command == Command::SendPing && byte != 0xff {
+                            //     debug!(
+                            //         "Aiciii: command: {:?}, byte {:x}, position {:x}",
+                            //         command, byte, position
+                            //     );
+                            // }
 
                             self.one_byte_read_buffer.replace(buffer);
                             if position == 0 {
@@ -588,15 +806,39 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                                         buffer[0] = byte;
                                     });
                                     if byte == START_CMD {
+                                        if command == Command::GetSocket
+                                            || command == Command::InsertDataBuf
+                                        {
+                                            debug!("Intru aici la START_CMD");
+                                        }
                                         self.receive_byte(command, 1, 1000)
                                     } else {
+                                        if command == Command::GetSocket
+                                            || command == Command::InsertDataBuf
+                                        {
+                                            debug!("Intru aici la err");
+                                            if command == Command::InsertDataBuf {
+                                                debug!("Intru si aici la err");
+                                                // self.insert_data_buf(0);
+                                            }
+                                            // self.start_tcp_client();
+                                        }
                                         Ok(())
                                     }
                                 } else if timeout > 0 {
                                     self.receive_byte(command, 0, timeout - 1)
                                 } else {
-                                    self.cs.set();
-                                    Err(ErrorCode::NOACK)
+                                    if command == Command::GetSocket
+                                        || command == Command::InsertDataBuf
+                                    {
+                                        debug!("GetSocket Timeout...");
+                                        // }
+                                        // self.start_tcp_client();
+                                        Ok(())
+                                    } else {
+                                        self.cs.set();
+                                        Err(ErrorCode::NOACK)
+                                    }
                                 }
                             } else {
                                 self.read_buffer.map(|buffer| {
@@ -611,6 +853,11 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                                 if byte == END_CMD {
                                     self.cs.set();
                                     self.spi.release_low();
+                                    if command == Command::GetSocket
+                                        || command == Command::InsertDataBuf
+                                    {
+                                        debug!("LA end!!");
+                                    }
 
                                     self.process_buffer(command)
                                 } else if timeout > 0 {
