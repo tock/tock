@@ -45,18 +45,18 @@ macro_rules! sha_mux_component_helper {
     };};
 }
 
-pub struct ShaMuxComponent<A: 'static + digest::DigestMut<'static, L>, const L: usize> {
+pub struct ShaMuxComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     sha: &'static A,
 }
 
-impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> ShaMuxComponent<A, L> {
+impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaMuxComponent<A, L> {
     pub fn new(sha: &'static A) -> ShaMuxComponent<A, L> {
         ShaMuxComponent { sha }
     }
 }
 
 impl<
-        A: 'static + digest::DigestMut<'static, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        A: 'static + digest::Digest<'static, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > Component for ShaMuxComponent<A, L>
 {
@@ -85,7 +85,7 @@ macro_rules! sha_component_helper {
     };};
 }
 
-pub struct ShaComponent<A: 'static + digest::DigestMut<'static, L>, const L: usize> {
+pub struct ShaComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     mux_sha: &'static MuxSha<'static, A, L>,
@@ -93,7 +93,7 @@ pub struct ShaComponent<A: 'static + digest::DigestMut<'static, L>, const L: usi
     dest_buffer: &'static mut [u8; L],
 }
 
-impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> ShaComponent<A, L> {
+impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaComponent<A, L> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -116,7 +116,7 @@ impl<
             + digest::Sha384
             + digest::Sha512
             + 'static
-            + digest::DigestMut<'static, L>,
+            + digest::Digest<'static, L>,
         const L: usize,
     > Component for ShaComponent<A, L>
 {

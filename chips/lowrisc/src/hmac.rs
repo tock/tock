@@ -4,6 +4,8 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::digest::{self, DigestHash};
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
@@ -11,6 +13,7 @@ use kernel::utilities::registers::{
 };
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use core::ops::Index;
 
 register_structs! {
     pub HmacRegisters {
@@ -71,9 +74,9 @@ register_bitfields![u32,
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
 
-    client: OptionalCell<&'a dyn hil::digest::ClientMut<'a, 32>>,
+    client: OptionalCell<&'a dyn hil::digest::Client<'a, 32>>,
 
-    data: Cell<Option<LeasableMutableBuffer<'static, u8>>>,
+    data: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
     data_len: Cell<usize>,
     data_index: Cell<usize>,
 
@@ -95,47 +98,50 @@ impl Hmac<'_> {
         }
     }
 
-    fn data_progress(&self) -> bool {
+    fn process(&self, data: &dyn Index<usize, Output = u8>) -> bool {
         let regs = self.registers;
         let idx = self.data_index.get();
         let len = self.data_len.get();
+        
+        if idx < len {
+            let data_len = len - idx;
 
-        self.data.take().map_or(false, |buf| {
-            let slice = buf.take();
-
-            if idx < len {
-                let data_len = len - idx;
-
-                for i in 0..(data_len / 4) {
-                    if regs.status.is_set(STATUS::FIFO_FULL) {
-                        self.data.set(Some(LeasableMutableBuffer::new(slice)));
-                        return false;
-                    }
-
-                    let data_idx = idx + i * 4;
-
-                    let mut d = (slice[data_idx + 3] as u32) << 0;
-                    d |= (slice[data_idx + 2] as u32) << 8;
-                    d |= (slice[data_idx + 1] as u32) << 16;
-                    d |= (slice[data_idx + 0] as u32) << 24;
-
-                    regs.msg_fifo.set(d);
-                    self.data_index.set(data_idx + 4);
+            for i in 0..(data_len / 4) {
+                if regs.status.is_set(STATUS::FIFO_FULL) {
+                    return false;
                 }
 
-                if (data_len % 4) != 0 {
-                    let idx = self.data_index.get();
-
-                    for i in 0..(data_len % 4) {
-                        let data_idx = idx + i;
-
-                        regs.msg_fifo_8.set(slice[data_idx]);
-                        self.data_index.set(data_idx + 1)
-                    }
+                let data_idx = idx + i * 4;
+                
+                let mut d = (data[data_idx + 3] as u32) << 0;
+                d |= (data[data_idx + 2] as u32) << 8;
+                d |= (data[data_idx + 1] as u32) << 16;
+                d |= (data[data_idx + 0] as u32) << 24;
+                
+                regs.msg_fifo.set(d);
+                self.data_index.set(data_idx + 4);
+            }
+            
+            if (data_len % 4) != 0 {
+                let idx = self.data_index.get();
+                
+                for i in 0..(data_len % 4) {
+                    let data_idx = idx + i;
+                    
+                    regs.msg_fifo_8.set(data[data_idx]);
+                    self.data_index.set(data_idx + 1)
                 }
             }
-            self.data.set(Some(LeasableMutableBuffer::new(slice)));
-            true
+        }
+        true
+    }
+    
+    fn data_progress(&self) -> bool {
+        self.data.take().map_or(false, |buf| {
+            match buf {
+                LeasableBufferDynamic::Immutable(b) => self.process(&b),
+                LeasableBufferDynamic::Mutable(b) => self.process(&b)
+            }
         })
     }
 
@@ -195,8 +201,10 @@ impl Hmac<'_> {
             if self.data_progress() {
                 self.client.map(move |client| {
                     self.data.take().map(|buf| {
-                        let slice = buf.take();
-                        client.add_data_done(Ok(()), slice);
+                        match buf {
+                            LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b.take()),
+                            LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b.take())
+                        }
                     })
                 });
 
@@ -218,13 +226,8 @@ impl Hmac<'_> {
             });
         }
     }
-}
 
-impl<'a> hil::digest::DigestDataMut<'a, 32> for Hmac<'a> {
-    fn add_data(
-        &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+    fn internal_add(&self, len: usize) {
         let regs = self.registers;
 
         regs.cmd.modify(CMD::START::SET);
@@ -236,8 +239,8 @@ impl<'a> hil::digest::DigestDataMut<'a, 32> for Hmac<'a> {
         regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
 
         // Set the length and data index of the data to write
-        self.data_len.set(data.len());
-        self.data.set(Some(data));
+        self.data_len.set(len);
+
         self.data_index.set(0);
 
         // Call the process function, this will start an async fill method
@@ -247,12 +250,27 @@ impl<'a> hil::digest::DigestDataMut<'a, 32> for Hmac<'a> {
             regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
         }
 
-        Ok(self.data_len.get())
+    }
+}
+
+impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
+
+    fn add_data(&self, data: LeasableBuffer<'static, u8>) -> Result<usize, (ErrorCode, &'static [u8])> {
+        let len = data.len();
+        self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
+        self.internal_add(len);
+        Ok(len)
+    }
+    
+    fn add_mut_data(&self, data: LeasableMutableBuffer<'static, u8>) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+        let len = data.len();
+        self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
+        self.internal_add(len);
+        Ok(len)
     }
 
     fn clear_data(&self) {
         let regs = self.registers;
-
         regs.cmd.modify(CMD::START::CLEAR);
         regs.wipe_secret.set(1 as u32);
     }
@@ -291,8 +309,8 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
     }
 }
 
-impl<'a> hil::digest::DigestMut<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::ClientMut<'a, 32>) {
+impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
         self.client.set(client);
     }
 }

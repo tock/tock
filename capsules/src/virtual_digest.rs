@@ -4,9 +4,10 @@
 use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::digest::{self, ClientDataMut, ClientHash, ClientVerify, DigestDataMut};
+use kernel::hil::digest::{self, ClientHash, ClientVerify};
+use kernel::hil::digest::{ClientData, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::{LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer};
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -23,13 +24,13 @@ pub enum Mode {
     Sha(Operation),
 }
 
-pub struct VirtualMuxDigest<'a, A: digest::DigestMut<'a, L>, const L: usize> {
+pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxDigest<'a, A, L>,
     next: ListLink<'a, VirtualMuxDigest<'a, A, L>>,
-    sha_client: OptionalCell<&'a dyn digest::ClientMut<'a, L>>,
-    hmac_client: OptionalCell<&'a dyn digest::ClientMut<'a, L>>,
+    sha_client: OptionalCell<&'a dyn digest::Client<'a, L>>,
+    hmac_client: OptionalCell<&'a dyn digest::Client<'a, L>>,
     key: TakeCell<'static, [u8]>,
-    data: TakeCell<'static, [u8]>,
+    data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
     data_len: Cell<usize>,
     digest: TakeCell<'static, [u8; L]>,
     verify: Cell<bool>,
@@ -38,7 +39,7 @@ pub struct VirtualMuxDigest<'a, A: digest::DigestMut<'a, L>, const L: usize> {
     id: u32,
 }
 
-impl<'a, A: digest::DigestMut<'a, L>, const L: usize> ListNode<'a, VirtualMuxDigest<'a, A, L>>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> ListNode<'a, VirtualMuxDigest<'a, A, L>>
     for VirtualMuxDigest<'a, A, L>
 {
     fn next(&self) -> &'a ListLink<VirtualMuxDigest<'a, A, L>> {
@@ -46,7 +47,7 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> ListNode<'a, VirtualMuxDig
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
+impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
     pub fn new(
         mux_digest: &'a MuxDigest<'a, A, L>,
         key: &'static mut [u8],
@@ -60,7 +61,7 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L>
             sha_client: OptionalCell::empty(),
             hmac_client: OptionalCell::empty(),
             key: TakeCell::new(key),
-            data: TakeCell::empty(),
+            data: OptionalCell::empty(),
             data_len: Cell::new(0),
             digest: TakeCell::empty(),
             verify: Cell::new(false),
@@ -70,7 +71,7 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L>
         }
     }
 
-    pub fn set_hmac_client(&'a self, client: &'a dyn digest::ClientMut<'a, L>) {
+    pub fn set_hmac_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
         let node = self.mux.users.iter().find(|node| node.id == self.id);
         if node.is_none() {
             self.mux.users.push_head(self);
@@ -78,7 +79,7 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L>
         self.hmac_client.set(client);
     }
 
-    pub fn set_sha_client(&'a self, client: &'a dyn digest::ClientMut<'a, L>) {
+    pub fn set_sha_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
         let node = self.mux.users.iter().find(|node| node.id == self.id);
         if node.is_none() {
             self.mux.users.push_head(self);
@@ -87,17 +88,18 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L>
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestDataMut<'a, L>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
+
     /// Add data to the digest IP.
     /// All data passed in is fed to the Digest hardware block.
     /// Returns the number of bytes written on success
     fn add_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
-        // Check if any mux is enabled. If it isn't we enable it for us.
+        data: LeasableBuffer<'static, u8>, 
+    ) -> Result<usize, (ErrorCode, &'static [u8])> {
+            // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.digest.add_data(data)
         } else {
@@ -105,7 +107,31 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestDataMut<'a, 
             // don't already have data queued.
             if self.data.is_none() {
                 let len = data.len();
-                self.data.replace(data.take());
+                self.data.replace(LeasableBufferDynamic::Immutable(data));
+                self.data_len.set(len);
+                Ok(len)
+            } else {
+                Err((ErrorCode::BUSY, data.take()))
+            }
+        }
+    }
+        
+    /// Add data to the digest IP.
+    /// All data passed in is fed to the Digest hardware block.
+    /// Returns the number of bytes written on success
+    fn add_mut_data(
+        &self,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+        // Check if any mux is enabled. If it isn't we enable it for us.
+        if self.mux.running_id.get() == self.id {
+            self.mux.digest.add_mut_data(data)
+        } else {
+            // Another app is already running, queue this app as long as we
+            // don't already have data queued.
+            if self.data.is_none() {
+                let len = data.len();
+                self.data.replace(LeasableBufferDynamic::Mutable(data));
                 self.data_len.set(len);
                 Ok(len)
             } else {
@@ -125,7 +151,9 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestDataMut<'a, 
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestHash<'a, L>
+
+
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
     /// Request the hardware block to generate a Digest
@@ -152,7 +180,7 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestHash<'a, L>
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestVerify<'a, L>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
     fn verify(
@@ -177,19 +205,20 @@ impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestVerify<'a, L
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L>, const L: usize> digest::DigestMut<'a, L>
+impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
+
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
-    fn set_client(&'a self, _client: &'a dyn digest::ClientMut<'a, L>) {
+    fn set_client(&'a self, _client: &'a dyn digest::Client<'a, L>) {
         unimplemented!()
     }
 }
 
 impl<
         'a,
-        A: digest::DigestMut<'a, L>
+        A: digest::Digest<'a, L>
             + digest::HMACSha256
             + digest::HMACSha384
             + digest::HMACSha512
@@ -197,9 +226,9 @@ impl<
             + digest::Sha384
             + digest::Sha512,
         const L: usize,
-    > digest::ClientDataMut<'a, L> for VirtualMuxDigest<'a, A, L>
+    > digest::ClientData<'a, L> for VirtualMuxDigest<'a, A, L>
 {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]) {
         match self.mode.get() {
             Mode::None => {}
             Mode::Hmac(_) => {
@@ -213,11 +242,26 @@ impl<
         }
         self.mux.do_next_op();
     }
+    
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+        match self.mode.get() {
+            Mode::None => {}
+            Mode::Hmac(_) => {
+                self.hmac_client
+                    .map(move |client| client.add_mut_data_done(result, data));
+            }
+            Mode::Sha(_) => {
+                self.sha_client
+                    .map(move |client| client.add_mut_data_done(result, data));
+            }
+        }
+        self.mux.do_next_op();
+    }
 }
 
 impl<
         'a,
-        A: digest::DigestMut<'a, L>
+        A: digest::Digest<'a, L>
             + digest::HMACSha256
             + digest::HMACSha384
             + digest::HMACSha512
@@ -247,7 +291,7 @@ impl<
 }
 impl<
         'a,
-        A: digest::DigestMut<'a, L>
+        A: digest::Digest<'a, L>
             + digest::HMACSha256
             + digest::HMACSha384
             + digest::HMACSha512
@@ -276,7 +320,7 @@ impl<
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L> + digest::HMACSha256, const L: usize> digest::HMACSha256
+impl<'a, A: digest::Digest<'a, L> + digest::HMACSha256, const L: usize> digest::HMACSha256
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -294,7 +338,7 @@ impl<'a, A: digest::DigestMut<'a, L> + digest::HMACSha256, const L: usize> diges
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L> + digest::HMACSha384, const L: usize> digest::HMACSha384
+impl<'a, A: digest::Digest<'a, L> + digest::HMACSha384, const L: usize> digest::HMACSha384
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -312,7 +356,7 @@ impl<'a, A: digest::DigestMut<'a, L> + digest::HMACSha384, const L: usize> diges
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L> + digest::HMACSha512, const L: usize> digest::HMACSha512
+impl<'a, A: digest::Digest<'a, L> + digest::HMACSha512, const L: usize> digest::HMACSha512
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -330,7 +374,7 @@ impl<'a, A: digest::DigestMut<'a, L> + digest::HMACSha512, const L: usize> diges
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L> + digest::Sha256, const L: usize> digest::Sha256
+impl<'a, A: digest::Digest<'a, L> + digest::Sha256, const L: usize> digest::Sha256
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
@@ -347,7 +391,7 @@ impl<'a, A: digest::DigestMut<'a, L> + digest::Sha256, const L: usize> digest::S
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L> + digest::Sha384, const L: usize> digest::Sha384
+impl<'a, A: digest::Digest<'a, L> + digest::Sha384, const L: usize> digest::Sha384
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_sha384(&self) -> Result<(), ErrorCode> {
@@ -364,7 +408,7 @@ impl<'a, A: digest::DigestMut<'a, L> + digest::Sha384, const L: usize> digest::S
     }
 }
 
-impl<'a, A: digest::DigestMut<'a, L> + digest::Sha512, const L: usize> digest::Sha512
+impl<'a, A: digest::Digest<'a, L> + digest::Sha512, const L: usize> digest::Sha512
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_sha512(&self) -> Result<(), ErrorCode> {
@@ -385,7 +429,7 @@ impl<'a, A: digest::DigestMut<'a, L> + digest::Sha512, const L: usize> digest::S
 /// `VirtualMuxDigest` as the one that has been enabled and running. Until that
 /// Mux calls `clear_data()` it will be the only `VirtualMuxDigest` that can
 /// interact with the underlying device.
-pub struct MuxDigest<'a, A: digest::DigestMut<'a, L>, const L: usize> {
+pub struct MuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     digest: &'a A,
     running: Cell<bool>,
     running_id: Cell<u32>,
@@ -395,7 +439,7 @@ pub struct MuxDigest<'a, A: digest::DigestMut<'a, L>, const L: usize> {
 
 impl<
         'a,
-        A: digest::DigestMut<'a, L>
+        A: digest::Digest<'a, L>
             + digest::HMACSha256
             + digest::HMACSha384
             + digest::HMACSha512
@@ -465,12 +509,22 @@ impl<
                 }
             }
 
-            if node.data.is_some() {
-                let mut lease = LeasableMutableBuffer::new(node.data.take().unwrap());
-                lease.slice(0..node.data_len.get());
 
-                if let Err((err, digest)) = self.digest.add_data(lease) {
-                    node.add_data_done(Err(err), digest);
+            if node.data.is_some() {
+                let leasable = node.data.take().unwrap();
+                match leasable {
+                    LeasableBufferDynamic::Mutable(mut b) => {
+                        b.slice(0..node.data_len.get());
+                        if let Err((err, slice)) = self.digest.add_mut_data(b) {
+                            node.add_mut_data_done(Err(err), slice);
+                        }
+                    }
+                    LeasableBufferDynamic::Immutable(mut b) => {
+                        b.slice(0..node.data_len.get());
+                        if let Err((err, slice)) = self.digest.add_data(b) {
+                            node.add_data_done(Err(err), slice);
+                        }
+                    }
                 }
                 return;
             }

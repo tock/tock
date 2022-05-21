@@ -59,7 +59,7 @@ enum ShaOperation {
     Sha512,
 }
 
-pub struct ShaDriver<'a, H: digest::DigestMut<'a, L>, const L: usize> {
+pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
     sha: &'a H,
 
     active: Cell<bool>,
@@ -79,7 +79,7 @@ pub struct ShaDriver<'a, H: digest::DigestMut<'a, L>, const L: usize> {
 
 impl<
         'a,
-        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > ShaDriver<'a, H, L>
 {
@@ -147,7 +147,7 @@ impl<
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
-                                if let Err(e) = self.sha.add_data(lease_buf) {
+                                if let Err(e) = self.sha.add_mut_data(lease_buf) {
                                     self.data_buffer.replace(e.1);
                                     return Err(e.0);
                                 }
@@ -221,11 +221,15 @@ impl<
 
 impl<
         'a,
-        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
-    > digest::ClientDataMut<'a, L> for ShaDriver<'a, H, L>
+    > digest::ClientData<'a, L> for ShaDriver<'a, H, L>
 {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
+    // we always pass mut data; this callback should never be invoked.
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+    
+    fn add_mut_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
                 .enter(*id, move |app, kernel_data| {
@@ -290,7 +294,7 @@ impl<
                                 lease_buf.slice(..(data_len - copied_data))
                             }
 
-                            if self.sha.add_data(lease_buf).is_err() {
+                            if self.sha.add_mut_data(lease_buf).is_err() {
                                 // Error, clear the appid and data
                                 self.sha.clear_data();
                                 self.appid.clear();
@@ -356,7 +360,7 @@ impl<
 
 impl<
         'a,
-        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientHash<'a, L> for ShaDriver<'a, H, L>
 {
@@ -410,7 +414,7 @@ impl<
 
 impl<
         'a,
-        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientVerify<'a, L> for ShaDriver<'a, H, L>
 {
@@ -445,7 +449,7 @@ impl<
 
 impl<
         'a,
-        H: digest::DigestMut<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > SyscallDriver for ShaDriver<'a, H, L>
 {

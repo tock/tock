@@ -42,11 +42,11 @@ macro_rules! digest_mux_component_helper {
     };};
 }
 
-pub struct DigestMuxComponent<A: 'static + digest::DigestMut<'static, L>, const L: usize> {
+pub struct DigestMuxComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     digest: &'static A,
 }
 
-impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> DigestMuxComponent<A, L> {
+impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestMuxComponent<A, L> {
     pub fn new(digest: &'static A) -> DigestMuxComponent<A, L> {
         DigestMuxComponent { digest }
     }
@@ -54,7 +54,7 @@ impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> DigestMuxCompon
 
 impl<
         A: 'static
-            + digest::DigestMut<'static, L>
+            + digest::Digest<'static, L>
             + digest::HMACSha256
             + digest::HMACSha384
             + digest::HMACSha512
@@ -87,12 +87,12 @@ macro_rules! digest_component_helper {
     };};
 }
 
-pub struct DigestComponent<A: 'static + digest::DigestMut<'static, L>, const L: usize> {
+pub struct DigestComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     mux_digest: &'static MuxDigest<'static, A, L>,
     key_buffer: &'static mut [u8],
 }
 
-impl<A: 'static + digest::DigestMut<'static, L>, const L: usize> DigestComponent<A, L> {
+impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestComponent<A, L> {
     pub fn new(
         mux_digest: &'static MuxDigest<'static, A, L>,
         key_buffer: &'static mut [u8],
@@ -109,7 +109,7 @@ impl<
             + digest::HMACSha384
             + digest::HMACSha512
             + 'static
-            + digest::DigestMut<'static, L>,
+            + digest::Digest<'static, L>,
         const L: usize,
     > Component for DigestComponent<A, L>
 {
