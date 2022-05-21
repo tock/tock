@@ -1,6 +1,7 @@
 //! SHA256 HMAC (Hash-based Message Authentication Code).
 
 use core::cell::Cell;
+use core::ops::Index;
 use kernel::hil;
 use kernel::hil::digest::{self, DigestHash};
 use kernel::utilities::cells::OptionalCell;
@@ -13,7 +14,6 @@ use kernel::utilities::registers::{
 };
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-use core::ops::Index;
 
 register_structs! {
     pub HmacRegisters {
@@ -102,7 +102,7 @@ impl Hmac<'_> {
         let regs = self.registers;
         let idx = self.data_index.get();
         let len = self.data_len.get();
-        
+
         if idx < len {
             let data_len = len - idx;
 
@@ -112,22 +112,22 @@ impl Hmac<'_> {
                 }
 
                 let data_idx = idx + i * 4;
-                
+
                 let mut d = (data[data_idx + 3] as u32) << 0;
                 d |= (data[data_idx + 2] as u32) << 8;
                 d |= (data[data_idx + 1] as u32) << 16;
                 d |= (data[data_idx + 0] as u32) << 24;
-                
+
                 regs.msg_fifo.set(d);
                 self.data_index.set(data_idx + 4);
             }
-            
+
             if (data_len % 4) != 0 {
                 let idx = self.data_index.get();
-                
+
                 for i in 0..(data_len % 4) {
                     let data_idx = idx + i;
-                    
+
                     regs.msg_fifo_8.set(data[data_idx]);
                     self.data_index.set(data_idx + 1)
                 }
@@ -135,13 +135,11 @@ impl Hmac<'_> {
         }
         true
     }
-    
+
     fn data_progress(&self) -> bool {
-        self.data.take().map_or(false, |buf| {
-            match buf {
-                LeasableBufferDynamic::Immutable(b) => self.process(&b),
-                LeasableBufferDynamic::Mutable(b) => self.process(&b)
-            }
+        self.data.take().map_or(false, |buf| match buf {
+            LeasableBufferDynamic::Immutable(b) => self.process(&b),
+            LeasableBufferDynamic::Mutable(b) => self.process(&b),
         })
     }
 
@@ -200,10 +198,12 @@ impl Hmac<'_> {
 
             if self.data_progress() {
                 self.client.map(move |client| {
-                    self.data.take().map(|buf| {
-                        match buf {
-                            LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b.take()),
-                            LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b.take())
+                    self.data.take().map(|buf| match buf {
+                        LeasableBufferDynamic::Mutable(b) => {
+                            client.add_mut_data_done(Ok(()), b.take())
+                        }
+                        LeasableBufferDynamic::Immutable(b) => {
+                            client.add_data_done(Ok(()), b.take())
                         }
                     })
                 });
@@ -249,20 +249,24 @@ impl Hmac<'_> {
         if ret {
             regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
         }
-
     }
 }
 
 impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
-
-    fn add_data(&self, data: LeasableBuffer<'static, u8>) -> Result<usize, (ErrorCode, &'static [u8])> {
+    fn add_data(
+        &self,
+        data: LeasableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, &'static [u8])> {
         let len = data.len();
         self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
         self.internal_add(len);
         Ok(len)
     }
-    
-    fn add_mut_data(&self, data: LeasableMutableBuffer<'static, u8>) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+
+    fn add_mut_data(
+        &self,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let len = data.len();
         self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
         self.internal_add(len);

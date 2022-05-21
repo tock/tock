@@ -7,7 +7,9 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::digest::{self, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientData, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::{LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer};
+use kernel::utilities::leasable_buffer::{
+    LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer,
+};
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -91,15 +93,14 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
-
     /// Add data to the digest IP.
     /// All data passed in is fed to the Digest hardware block.
     /// Returns the number of bytes written on success
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>, 
+        data: LeasableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static [u8])> {
-            // Check if any mux is enabled. If it isn't we enable it for us.
+        // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.digest.add_data(data)
         } else {
@@ -115,7 +116,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
             }
         }
     }
-        
+
     /// Add data to the digest IP.
     /// All data passed in is fed to the Digest hardware block.
     /// Returns the number of bytes written on success
@@ -150,8 +151,6 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
         }
     }
 }
-
-
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
     for VirtualMuxDigest<'a, A, L>
@@ -208,7 +207,6 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
     for VirtualMuxDigest<'a, A, L>
 {
-
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
     fn set_client(&'a self, _client: &'a dyn digest::Client<'a, L>) {
@@ -242,7 +240,7 @@ impl<
         }
         self.mux.do_next_op();
     }
-    
+
     fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         match self.mode.get() {
             Mode::None => {}
@@ -508,7 +506,6 @@ impl<
                     return;
                 }
             }
-
 
             if node.data.is_some() {
                 let leasable = node.data.take().unwrap();

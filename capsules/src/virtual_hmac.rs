@@ -7,7 +7,9 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::digest::{self, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientData, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::{LeasableMutableBuffer, LeasableBuffer, LeasableBufferDynamic};
+use kernel::utilities::leasable_buffer::{
+    LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer,
+};
 use kernel::ErrorCode;
 
 use crate::virtual_digest::{Mode, Operation};
@@ -82,7 +84,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
             }
         }
     }
-    
+
     /// Add data to the hmac IP.
     /// All data passed in is fed to the HMAC hardware block.
     /// Returns the number of bytes written on success
@@ -350,7 +352,7 @@ impl<
                         if let Err((err, slice)) = self.hmac.add_data(b) {
                             node.add_data_done(Err(err), slice);
                         }
-                    },
+                    }
                     LeasableBufferDynamic::Mutable(mut b) => {
                         b.slice(0..node.data_len.get());
                         if let Err((err, slice)) = self.hmac.add_mut_data(b) {

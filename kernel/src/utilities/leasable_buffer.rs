@@ -51,11 +51,10 @@ pub struct LeasableBuffer<'a, T> {
     active_range: Range<usize>,
 }
 
-pub enum LeasableBufferDynamic <'a, T> {
+pub enum LeasableBufferDynamic<'a, T> {
     Immutable(LeasableBuffer<'a, T>),
     Mutable(LeasableMutableBuffer<'a, T>),
 }
-
 
 impl<'a, T> LeasableMutableBuffer<'a, T> {
     /// Create a leasable buffer from a passed reference to a raw buffer

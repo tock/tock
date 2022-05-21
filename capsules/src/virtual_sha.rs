@@ -7,7 +7,9 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::digest::{self, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientData, DigestData};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::{LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer};
+use kernel::utilities::leasable_buffer::{
+    LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer,
+};
 //use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
 use kernel::ErrorCode;
 
@@ -77,10 +79,8 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
                 Err((ErrorCode::BUSY, data.take()))
             }
         }
-
     }
-    
-    
+
     /// Add data to the sha IP.
     /// All data passed in is fed to the SHA hardware block.
     /// Returns the number of bytes written on success
@@ -180,8 +180,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
     }
 }
 
-impl<'a,
-     A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+impl<
+        'a,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
         const L: usize,
     > digest::ClientData<'a, L> for VirtualMuxSha<'a, A, L>
 {
@@ -190,8 +191,7 @@ impl<'a,
             .map(move |client| client.add_data_done(result, data));
         self.mux.do_next_op();
     }
- 
-    
+
     fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.client
             .map(move |client| client.add_mut_data_done(result, data));
@@ -199,9 +199,10 @@ impl<'a,
     }
 }
 
-impl<'a,
-     A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-     const L: usize,
+impl<
+        'a,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
     > digest::ClientHash<'a, L> for VirtualMuxSha<'a, A, L>
 {
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
@@ -214,9 +215,10 @@ impl<'a,
     }
 }
 
-impl<'a,
-     A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-     const L: usize,
+impl<
+        'a,
+        A: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const L: usize,
     > digest::ClientVerify<'a, L> for VirtualMuxSha<'a, A, L>
 {
     fn verification_done(&'a self, result: Result<bool, ErrorCode>, digest: &'static mut [u8; L]) {
