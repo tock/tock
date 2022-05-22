@@ -8,5 +8,5 @@ license = "MIT OR Apache-2.0"
 authors = ["Alistair Francis <alistair.francis@wdc.com>"]
 edition = "2021"
 readme = "README.md"
-keywords = ["flash", "key/value store"]
+keywords = ["flash", "key-value-store"]
 categories = ["database-implementations", "no-std"]
