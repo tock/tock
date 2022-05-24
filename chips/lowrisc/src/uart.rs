@@ -8,97 +8,10 @@ use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{
-    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
-};
 use kernel::utilities::StaticRef;
 
-register_structs! {
-    pub UartRegisters {
-        (0x00 => intr_state: ReadWrite<u32, intr::Register>),
-        (0x04 => intr_enable: ReadWrite<u32, intr::Register>),
-        (0x08 => intr_test: ReadWrite<u32, intr::Register>),
-        (0x0C => alert_test: ReadWrite<u32, intr::Register>),
-        /// UART control register
-        (0x10 => ctrl: ReadWrite<u32, ctrl::Register>),
-        /// UART live status register
-        (0x14 => status: ReadOnly<u32, status::Register>),
-        /// UART read data)
-        (0x18 => rdata: ReadOnly<u32, rdata::Register>),
-        /// UART write data
-        (0x1C => wdata: WriteOnly<u32, wdata::Register>),
-        /// UART FIFO control register")
-        (0x20 => fifo_ctrl: ReadWrite<u32, fifo_ctrl::Register>),
-        /// UART FIFO status register
-        (0x24 => fifo_status: ReadWrite<u32, fifo_status::Register>),
-        /// TX pin override control. Gives direct SW control over TX pin state
-        (0x28 => ovrd: ReadWrite<u32, ovrd::Register>),
-        /// UART oversampled values
-        (0x2C => val: ReadWrite<u32, val::Register>),
-        /// UART RX timeout control
-        (0x30 => timeout_ctrl: ReadWrite<u32, timeout_ctrl::Register>),
-        (0x34 => @END),
-    }
-}
-
-register_bitfields![u32,
-    intr [
-        tx_watermark OFFSET(0) NUMBITS(1) [],
-        rx_watermark OFFSET(1) NUMBITS(1) [],
-        tx_empty OFFSET(2) NUMBITS(1) [],
-        rx_overflow OFFSET(3) NUMBITS(1) [],
-        rx_frame_err OFFSET(4) NUMBITS(1) [],
-        rx_break_err OFFSET(5) NUMBITS(1) [],
-        rx_timeout OFFSET(6) NUMBITS(1) [],
-        rx_parity_err OFFSET(7) NUMBITS(1) []
-    ],
-    ctrl [
-        tx OFFSET(0) NUMBITS(1) [],
-        rx OFFSET(1) NUMBITS(1) [],
-        nf OFFSET(2) NUMBITS(1) [],
-        slpbk OFFSET(4) NUMBITS(1) [],
-        llpbk OFFSET(5) NUMBITS(1) [],
-        parity_en OFFSET(6) NUMBITS(1) [],
-        parity_odd OFFSET(7) NUMBITS(1) [],
-        rxblvl OFFSET(8) NUMBITS(2) [],
-        nco OFFSET(16) NUMBITS(16) []
-    ],
-    status [
-        txfull OFFSET(0) NUMBITS(1) [],
-        rxfull OFFSET(1) NUMBITS(1) [],
-        txempty OFFSET(2) NUMBITS(1) [],
-        txidle OFFSET(3) NUMBITS(1) [],
-        rxidle OFFSET(4) NUMBITS(1) [],
-        rxempty OFFSET(5) NUMBITS(1) []
-    ],
-    rdata [
-        data OFFSET(0) NUMBITS(8) []
-    ],
-    wdata [
-        data OFFSET(0) NUMBITS(8) []
-    ],
-    fifo_ctrl [
-        rxrst OFFSET(0) NUMBITS(1) [],
-        txrst OFFSET(1) NUMBITS(1) [],
-        rxilvl OFFSET(2) NUMBITS(2) [],
-        txilvl OFFSET(5) NUMBITS(2) []
-    ],
-    fifo_status [
-        txlvl OFFSET(0) NUMBITS(5) [],
-        rxlvl OFFSET(16) NUMBITS(5) []
-    ],
-    ovrd [
-        txen OFFSET(0) NUMBITS(1) [],
-        txval OFFSET(1) NUMBITS(1) []
-    ],
-    val [
-        rx OFFSET(0) NUMBITS(16) []
-    ],
-    timeout_ctrl [
-        val OFFSET(0) NUMBITS(23) [],
-        en OFFSET(31) NUMBITS(1) []
-    ]
-];
+#[allow(clippy::wildcard_imports)]
+use crate::registers::uart_regs::*;
 
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
@@ -139,43 +52,43 @@ impl<'a> Uart<'a> {
         let uart_ctrl_nco = ((baud_rate as u64) << 20) / self.clock_frequency as u64;
 
         regs.ctrl
-            .write(ctrl::nco.val((uart_ctrl_nco & 0xffff) as u32));
-        regs.ctrl.modify(ctrl::tx::SET + ctrl::rx::SET);
+            .write(CTRL::NCO.val((uart_ctrl_nco & 0xffff) as u32));
+        regs.ctrl.modify(CTRL::TX::SET + CTRL::RX::SET);
 
         regs.fifo_ctrl
-            .write(fifo_ctrl::rxrst::SET + fifo_ctrl::txrst::SET);
+            .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
     }
 
     fn enable_tx_interrupt(&self) {
         let regs = self.registers;
 
-        regs.intr_enable.modify(intr::tx_empty::SET);
+        regs.intr_enable.modify(INTR::TX_EMPTY::SET);
     }
 
     fn disable_tx_interrupt(&self) {
         let regs = self.registers;
 
-        regs.intr_enable.modify(intr::tx_empty::CLEAR);
+        regs.intr_enable.modify(INTR::TX_EMPTY::CLEAR);
         // Clear the interrupt bit (by writing 1), if it happens to be set
-        regs.intr_state.write(intr::tx_empty::SET);
+        regs.intr_state.write(INTR::TX_EMPTY::SET);
     }
 
     fn enable_rx_interrupt(&self) {
         let regs = self.registers;
 
         // Generate an interrupt if we get any value in the RX buffer
-        regs.intr_enable.modify(intr::rx_watermark::SET);
-        regs.fifo_ctrl.write(fifo_ctrl::rxilvl.val(0 as u32));
+        regs.intr_enable.modify(INTR::RX_WATERMARK::SET);
+        regs.fifo_ctrl.write(FIFO_CTRL::RXILVL.val(0 as u32));
     }
 
     fn disable_rx_interrupt(&self) {
         let regs = self.registers;
 
         // Generate an interrupt if we get any value in the RX buffer
-        regs.intr_enable.modify(intr::rx_watermark::CLEAR);
+        regs.intr_enable.modify(INTR::RX_WATERMARK::CLEAR);
 
         // Clear the interrupt bit (by writing 1), if it happens to be set
-        regs.intr_state.write(intr::rx_watermark::SET);
+        regs.intr_state.write(INTR::RX_WATERMARK::SET);
     }
 
     fn tx_progress(&self) {
@@ -196,11 +109,11 @@ impl<'a> Uart<'a> {
                 let tx_len = len - idx;
 
                 for i in 0..tx_len {
-                    if regs.status.is_set(status::txfull) {
+                    if regs.status.is_set(STATUS::TXFULL) {
                         break;
                     }
                     let tx_idx = idx + i;
-                    regs.wdata.write(wdata::data.val(tx_buf[tx_idx] as u32));
+                    regs.wdata.write(WDATA::WDATA.val(tx_buf[tx_idx] as u32));
                     self.tx_index.set(tx_idx + 1)
                 }
             });
@@ -211,7 +124,7 @@ impl<'a> Uart<'a> {
         let regs = self.registers;
         let intrs = regs.intr_state.extract();
 
-        if intrs.is_set(intr::tx_empty) {
+        if intrs.is_set(INTR::TX_EMPTY) {
             self.disable_tx_interrupt();
 
             if self.tx_index.get() == self.tx_len.get() {
@@ -226,7 +139,7 @@ impl<'a> Uart<'a> {
                 // We have more to transmit, so continue in tx_progress().
                 self.tx_progress();
             }
-        } else if intrs.is_set(intr::rx_watermark) {
+        } else if intrs.is_set(INTR::RX_WATERMARK) {
             self.disable_rx_interrupt();
 
             self.rx_client.map(|client| {
@@ -238,7 +151,7 @@ impl<'a> Uart<'a> {
                         rx_buf[i] = regs.rdata.get() as u8;
                         len = i + 1;
 
-                        if regs.status.is_set(status::rxempty) {
+                        if regs.status.is_set(STATUS::RXEMPTY) {
                             /* RX is empty */
                             return_code = Err(ErrorCode::SIZE);
                             break;
@@ -254,8 +167,8 @@ impl<'a> Uart<'a> {
     pub fn transmit_sync(&self, bytes: &[u8]) {
         let regs = self.registers;
         for b in bytes.iter() {
-            while regs.status.is_set(status::txfull) {}
-            regs.wdata.write(wdata::data.val(*b as u32));
+            while regs.status.is_set(STATUS::TXFULL) {}
+            regs.wdata.write(WDATA::WDATA.val(*b as u32));
         }
     }
 }
@@ -267,7 +180,7 @@ impl hil::uart::Configure for Uart<'_> {
         self.set_baud_rate(params.baud_rate);
 
         regs.fifo_ctrl
-            .write(fifo_ctrl::rxrst::SET + fifo_ctrl::txrst::SET);
+            .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
 
         // Disable all interrupts for now
         regs.intr_enable.set(0 as u32);
