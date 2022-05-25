@@ -83,7 +83,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1), BUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with a u32 being the number of supported resolutions (minimum 1).
 
   * ### Command number: `12` 
 
@@ -93,43 +93,49 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) followed by a callback with the resolution, BUSY if another command is in progress.
+    **Returns**: A pair of u32 values: width, height.
   
   * ### Command number: `13` 
 
-    **Description**: Get the number of supported color depth (Setup API)
+    **Description**: Get the number of supported pixel formats (Setup API)
 
     **Argument 1**: unused
 
     **Argument 2**: unused
 
-    **Returns**: SUCCESS_U32 with a u32 being the number of supported color depth (minimum 1), BUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with a u32 being the number of supported pixel formats (minimum 1).
 
   * ### Command number: `14` 
 
-    **Description**: Get the type of a supported color depth (Setup API)
+    **Description**: Get the type of a supported pixel format (Setup API)
 
-    **Argument 1**: index of the color depth (0, return of command 13)
+    **Argument 1**: index of the pixel formats (0, return of command 13)
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) followed by a callback with the resolution, BUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with the pixel format value, INVAL if index out of bounds.
 
   * ### Command number: `21` 
 
-    **Description**: Get the screen's rotation
+    **Description**: Get the screen's rotation.
 
     **Argument 1**: unused
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
+    **Returns**: SUCCESS_U32 with the rotation value:
+    Normal = 0,
+    Rotated90 = 1,
+    Rotated180 = 2,
+    Rotated270 = 3.
+  
+    Rotation is measured counterclockwise.
 
   * ### Command number: `22` 
 
     **Description**: Set the screen's rotation (Setup API)
 
-    **Argument 1**: rotation value (0 - normal, 1 - 90deg, 2 - 180deg, 3 - 270deg)
+    **Argument 1**: rotation value, counterclockwise (0 - normal, 1 - 90deg, 2 - 180deg, 3 - 270deg)
 
     **Argument 2**: unused
 
@@ -143,7 +149,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
+    **Returns**: A pair of u32 values: width, height.
 
   * ### Command number: `24` 
 
@@ -157,19 +163,24 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
   * ### Command number: `25` 
 
-    **Description**: Get the screen's color depth
+    **Description**: Get the screen's pixel format
 
     **Argument 1**: unused
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) followed by a callback with the rotation value, BUSY if another command is in progress.
+    **Returns**: A single u32 value.
+    0: 8 pixels per byte monochromatic, pixels more to the left are more significant bits. 1 is light, 0 is dark.
+    1: RGB_233, 2-bit red channel, 3-bit green channel, 3-bit blue channel.
+    2: RGB_565, 5-bit red channel, 6-bit green channel, 5-bit blue channel.
+    3: RGB_888
+    4: ARGB_8888 (RGB with transparency)
 
   * ### Command number: `26` 
 
-    **Description**: Set the screen's color depth (Setup API)
+    **Description**: Set the screen's pixel format (Setup API)
 
-    **Argument 1**: color depth 
+    **Argument 1**: pixel format specifier (see above)
 
     **Argument 2**: unused
 
@@ -185,7 +196,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
-  * ### Command number: `101` 
+  * ### Command number: `200`
 
     **Description**: Initiate a write transaction of a buffer shared using `allow_readonly`.
     At the end of the transaction, a callback will be delivered if the process
@@ -197,7 +208,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Returns**: Ok(()) followed by a callback when it is done, BUSY if another command is in progress.
 
-  * ### Command number: `102` 
+  * ### Command number: `300`
 
     **Description**: Initiate a fill transaction of a buffer shared using `allow_readonly`. This will fill the write frame with the first pixel in thhe buffer.
     At the end of the transaction, a callback will be delivered if the process
@@ -232,4 +243,3 @@ The screen driver allows the process to write data to a framebuffer of a screen.
     new buffer will be written in its entirety but not both).
 
     **Returns**: Ok(()) if the subscribe was successful.
-
