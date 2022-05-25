@@ -32,6 +32,22 @@ enum SockMode {
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Debug)]
+enum TcpState {
+    TCPStateClosed,
+    TCPStateListen,
+    TCPStateSynSent,
+    TCPStateSynRcvd,
+    TCPStateEstablished,
+    TCPStateFinWait1,
+    TCPStateFinWait2,
+    TCPStateCloseWait,
+    TCPStateClosing,
+    TCPStateLastACK,
+    TCPStateTimeWait,
+}
+
+#[repr(u8)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 enum Command {
     SetNetCmd = 0x10,
     SetPassPhraseCmd = 0x11,
@@ -39,10 +55,14 @@ enum Command {
     GetIpAddressCmd = 0x21,
     GetMacAddressCmd = 0x22,
     ScanNetworksCmd = 0x27,
+    StartTcpServer = 0x28,
     StartTcpClient = 0x2D,
+    StopTcpClient = 0x2E,
+    GetClientStateTCP = 0x2F,
     GetIdxRSSICmd = 0x32,
     StartScanNetworksCmd = 0x36,
     GetFwVersion = 0x37,
+    SendUdpPacket = 0x39,
     SendPing = 0x3E,
     GetSocket = 0x3F,
     InsertDataBuf = 0x46,
@@ -66,7 +86,6 @@ enum Status {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-
 pub enum ConnectionStatus {
     Idle = 0,
     NoSSIDAvail = 1,
@@ -94,6 +113,7 @@ pub struct NinaW102<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> {
     networks: TakeCell<'static, [Network]>,
     scanner_client: OptionalCell<&'a dyn wifinina::ScannerClient>,
     station_client: OptionalCell<&'a dyn wifinina::StationClient>,
+    second_time: Cell<u8>,
 }
 
 impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
@@ -129,6 +149,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
             networks: TakeCell::new(networks),
             scanner_client: OptionalCell::empty(),
             station_client: OptionalCell::empty(),
+            second_time: Cell::new(0),
         }
     }
 
@@ -189,14 +210,28 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         }
     }
 
+    pub fn start_tcp_server(&self, socket: u8) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(
+                Command::StartTcpServer,
+                &[&[0x9, 0x56], &[socket], &[SockMode::UdpMode as u8]],
+            )
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
     pub fn start_tcp_client(&self, socket: u8) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             // open socket connection to 172.20.10.7:3000;
+            // 192.168.100.175
+            // &[175, 100, 168, 192],
             self.send_command(
                 Command::StartTcpClient,
                 &[
+                    // &[191, 101, 164, 144],
                     &[172, 20, 10, 7],
-                    &[0xb8, 0xb],
+                    &[0xff, 0x9b],
                     &[socket],
                     &[SockMode::UdpMode as u8],
                 ],
@@ -206,10 +241,17 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         }
     }
 
+    pub fn stop_tcp_client(&self, socket: u8) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::StopTcpClient, &[&[socket]])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
     pub fn insert_data_buf(&self, socket: u8) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             // Inserting buffer "Buna!"
-            debug!("Revin aici?");
             self.send_command(
                 Command::InsertDataBuf,
                 &[&[socket], &[0x42, 0x75, 0x6e, 0x61, 0x21]],
@@ -259,6 +301,14 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         }
     }
 
+    pub fn get_tcp_client_state(&self, socket: u8) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::GetClientStateTCP, &[&[socket]])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
     pub fn set_network(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.send_command(Command::SetNetCmd, &[])
@@ -270,6 +320,14 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
     pub fn set_passphrase(&self, ssid: &[u8], psk: &[u8]) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.send_command(Command::SetPassPhraseCmd, &[ssid, psk])
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+
+    pub fn send_udp_packet(&self, socket: u8) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.send_command(Command::SendUdpPacket, &[&[socket]])
         } else {
             Err(ErrorCode::BUSY)
         }
@@ -310,7 +368,13 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                 let mut position = 3;
                 for param in params {
                     //let mut param_bytes_pos = 0;
-                    buffer[position] = param.len() as u8;
+                    if command == Command::InsertDataBuf {
+                        buffer[position] = 0;
+                        position = position + 1;
+                        buffer[position] = param.len() as u8;
+                    } else {
+                        buffer[position] = param.len() as u8;
+                    }
                     position = position + 1;
                     for byte in *param {
                         buffer[position] = *byte;
@@ -322,26 +386,83 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                 buffer[position] = END_CMD;
 
                 // Vedem daca e util sau nu ?
-                if params.len() != 0 {
-                    for i in ((4 - ((position + 1) % 4)) & 3)..0 {
-                        position = position + 1;
-                        buffer[position] = 0xff;
+                // if params.len() != 0 {
+                //     for i in ((4 - ((position + 1) % 4)) & 3)..0 {
+                //         position = position + 1;
+                //         buffer[position] = 0xff;
+                //     }
+                // }
+
+                if command == Command::StartTcpServer {
+                    position = position + 1;
+                    buffer[position + 1];
+                    for i in 0..position+1 {
+                        debug!("{:x} ", buffer[i]);
                     }
                 }
-                if command == Command::SendPing {
-                    // debug!("SendPing: chars to be written {}", position + 1);
+                if command == Command::StartTcpClient {
+                    debug!("StartTcpClient: chars to be written {}", position + 1);
+                    debug!(
+                        "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+                        buffer[0],
+                        buffer[1],
+                        buffer[2],
+                        buffer[3],
+                        buffer[4],
+                        buffer[5],
+                        buffer[6],
+                        buffer[7],
+                        buffer[8],
+                        buffer[9],
+                        buffer[10],
+                        buffer[11],
+                        buffer[12],
+                        buffer[13],
+                        buffer[14],
+                        buffer[15],
+                    );
+                }
+                if command == Command::InsertDataBuf {
+                    // for i in 0..position + 1 {
+                    //     debug!("Byte {}: {:x}", i, buffer[i]);
+                    // }
+                    // debug!("InsertDataBuf: {}", position + 1);
+                    while (position + 1) % 4 != 0 {
+                        debug!("Aici");
+                        buffer[position + 1] = 0xff;
+                        position = position + 1;
+                    }
+                    debug!("InsertDataBuf: chars to be written {}", position + 1);
                     // debug!("{:?}", buffer);
-                    // debug!(
-                    //     "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
-                    //     buffer[0],
-                    //     buffer[1],
-                    //     buffer[2],
-                    //     buffer[3],
-                    //     buffer[4],
-                    //     buffer[5],
-                    //     buffer[6],
-                    //     buffer[7]
-                    // );
+                    debug!(
+                        "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+                        buffer[0],
+                        buffer[1],
+                        buffer[2],
+                        buffer[3],
+                        buffer[4],
+                        buffer[5],
+                        buffer[6],
+                        buffer[7],
+                        buffer[8],
+                        buffer[9],
+                        buffer[10],
+                        buffer[11],
+                        buffer[12],
+                        buffer[13],
+                    );
+                }
+                if command == Command::SendUdpPacket {
+                    buffer[position + 1] = 0xff;
+                    position = position + 1;
+                    buffer[position + 1] = 0xff;
+                    position = position + 1;
+                    debug!("InsertDataBuf: chars to be written {}", position + 1);
+                    // debug!("{:?}", buffer);
+                    debug!(
+                        "{:x} {:x} {:x} {:x} {:x} {:x}",
+                        buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]
+                    );
                 }
 
                 self.spi.release_low();
@@ -371,7 +492,6 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
         position: usize,
         timeout: usize,
     ) -> Result<(), ErrorCode> {
-        // debug!("read byte {} {}", position, timeout);
         self.write_buffer
             .take()
             .map_or(Err(ErrorCode::NOMEM), |buffer| {
@@ -444,19 +564,27 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                         if let StationStatus::Connecting(net) =
                                             self.station_status.get()
                                         {
+                                            debug!("Getting here!");
                                             self.station_status.set(StationStatus::Connected(net));
                                             self.station_client.map(|client| {
                                                 client
                                                     .command_complete(Ok(self.station_status.get()))
                                             });
                                             // self.get_ip_address();
-                                            // self.start_tcp_client();
-                                            self.get_socket();
+                                            // self.start_tcp_client(0);
+                                            // self.get_socket();
+                                            self.status.set(Status::Send(Command::SendPing));
+                                            self.alarm.set_alarm(
+                                                self.alarm.now(),
+                                                self.alarm.ticks_from_ms(10),
+                                            );
+                                            // self.send_ping();
                                         }
                                     } else if status == ConnectionStatus::ConnectFailed {
                                         if let StationStatus::Connecting(net) =
                                             self.station_status.get()
                                         {
+                                            debug!("Getting here!");
                                             self.station_status.set(StationStatus::Disconnected);
                                             self.station_client.map(|client| {
                                                 client
@@ -464,6 +592,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                             });
                                         }
                                     } else {
+                                        debug!("Getting here! {:?}", status);
                                         self.status.set(Status::GetConnStatus);
                                         self.alarm.set_alarm(
                                             self.alarm.now(),
@@ -546,12 +675,12 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                         debug!("SetPassPhraseCmd: error!");
                                     }
 
-                                    self.status.set(Status::GetConnStatus);
+                                    self.status.set(Status::Send(Command::GetConnStatusCmd));
                                     self.alarm.set_alarm(
                                         self.alarm.now(),
                                         self.alarm.ticks_from_ms(2000),
                                     );
-
+                                    // self.send_ping();
                                     Ok(())
                                 }
 
@@ -632,7 +761,10 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                             current_position = current_position + 1;
                                         }
                                     }
-                                    // self.get_socket();
+                                    self.status.set(Status::Send(Command::GetSocket));
+                                    self.alarm
+                                        .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
+                                    self.get_socket();
                                     Ok(())
                                 }
                                 Command::GetSocket => {
@@ -653,7 +785,12 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                             //     buf[i as usize] = read_buffer[pos + i as usize + 1];
                                             //     debug!("Element {}: {:x}", i, buf[i as usize]);
                                             // }
-                                            self.start_tcp_client(read_buffer[pos + 1]);
+                                            self.status.set(Status::Send(Command::StartTcpServer));
+                                            self.alarm.set_alarm(
+                                                self.alarm.now(),
+                                                self.alarm.ticks_from_ms(1000),
+                                            );
+                                            // self.start_tcp_client(read_buffer[pos + 1]);
                                             current_position = (current_position
                                                 + read_buffer[pos] as usize)
                                                 as usize;
@@ -668,6 +805,9 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                         "Process buffer for Command::StartTcpClient {:?}",
                                         param_len
                                     );
+                                    // if param_len == 0 {
+                                    //     self.get_tcp_client_state(0);
+                                    // }
                                     let mut current_position = 0;
                                     let mut count = 0;
                                     for parameter_index in 0..param_len {
@@ -685,17 +825,159 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                                 buf[i as usize] = read_buffer[pos + i as usize + 1];
                                                 debug!("Element {}: {:x}", i, buf[i as usize]);
                                             }
-                                            self.insert_data_buf(0);
                                             // self.start_tcp_client(read_buffer[pos + 1]);
                                             current_position = (current_position
                                                 + read_buffer[pos] as usize)
                                                 as usize;
                                             current_position = current_position + 1;
+                                            debug!(
+                                                "StartTcpClient end, status: {:?}",
+                                                self.status.get()
+                                            );
+                                            // self.get_tcp_client_state(0);
+                                        }
+                                    }
+                                    self.status.set(Status::Send(Command::SendUdpPacket));
+                                    self.alarm
+                                        .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
+                                    Ok(())
+                                }
+                                Command::StartTcpServer => {
+                                    debug!(
+                                        "Process buffer for Command::StartTcpServer {:?}",
+                                        param_len
+                                    );
+                                    // if param_len == 0 {
+                                    //     self.get_tcp_client_state(0);
+                                    // }
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        // debug!("Dar Intru aici?");
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "StartTcpServer: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                            }
+                                            // self.start_tcp_client(read_buffer[pos + 1]);
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                            debug!(
+                                                "StartTcpServer end, status: {:?}",
+                                                self.status.get()
+                                            );
+                                            // self.get_tcp_client_state(0);
+                                        }
+                                    }
+                                    self.second_time.set(1);
+                                    self.status.set(Status::Send(Command::StartTcpClient));
+                                    self.alarm
+                                        .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
+                                    Ok(())
+                                }
+                                Command::GetClientStateTCP => {
+                                    debug!(
+                                        "Process buffer for Command::GetClientStateTCP {:?}",
+                                        param_len
+                                    );
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        // debug!("Dar Intru aici?");
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "GetClientStateTCP: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                                match buf[i as usize] {
+                                                    0 => {
+                                                        debug!("{:?}", TcpState::TCPStateClosed);
+                                                        self.status.set(Status::Send(
+                                                            Command::GetClientStateTCP,
+                                                        ));
+                                                        self.alarm.set_alarm(
+                                                            self.alarm.now(),
+                                                            self.alarm.ticks_from_ms(1000),
+                                                        )
+                                                    }
+                                                    1 => {
+                                                        debug!("{:?}", TcpState::TCPStateListen)
+                                                    }
+                                                    2 => {
+                                                        debug!("{:?}", TcpState::TCPStateSynSent)
+                                                    }
+                                                    3 => {
+                                                        debug!("{:?}", TcpState::TCPStateSynRcvd)
+                                                    }
+                                                    4 => {
+                                                        debug!(
+                                                            "{:?}",
+                                                            TcpState::TCPStateEstablished
+                                                        );
+                                                        self.insert_data_buf(0);
+                                                        ()
+                                                        // self.status.set(Status::Send(
+                                                        //     Command::InsertDataBuf,
+                                                        // ));
+                                                        // self.alarm.set_alarm(
+                                                        //     self.alarm.now(),
+                                                        //     self.alarm.ticks_from_ms(2000),
+                                                        // )
+                                                    }
+                                                    5 => {
+                                                        debug!("{:?}", TcpState::TCPStateFinWait1)
+                                                    }
+                                                    6 => {
+                                                        debug!("{:?}", TcpState::TCPStateFinWait2)
+                                                    }
+                                                    7 => {
+                                                        debug!("{:?}", TcpState::TCPStateCloseWait)
+                                                    }
+                                                    8 => {
+                                                        debug!("{:?}", TcpState::TCPStateClosing)
+                                                    }
+                                                    9 => {
+                                                        debug!("{:?}", TcpState::TCPStateLastACK)
+                                                    }
+                                                    10 => {
+                                                        debug!("{:?}", TcpState::TCPStateTimeWait)
+                                                    }
+                                                    _ => {
+                                                        debug!("Other value here!");
+                                                    }
+                                                }
+                                            }
+                                            // self.start_tcp_client(read_buffer[pos + 1]);
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                            // self.status.set(Status::Send(Command::InsertDataBuf));
+                                            // self.alarm.set_alarm(
+                                            //     self.alarm.now(),
+                                            //     self.alarm.ticks_from_ms(10),
+                                            // );
                                         }
                                     }
                                     Ok(())
                                 }
-
                                 Command::InsertDataBuf => {
                                     let mut current_position = 0;
                                     let mut count = 0;
@@ -706,12 +988,51 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                         // debug!("buffer: {:?}", read_buffer);
                                         if pos < read_buffer.len() {
                                             debug!(
-                                                "StartTcpClient: Num elements: {:x}",
+                                                "InsertDataBuf: Num elements: {:x}",
                                                 read_buffer[pos]
                                             );
                                             for i in 0..read_buffer[pos] {
                                                 buf[i as usize] = read_buffer[pos + i as usize + 1];
                                                 debug!("Element {}: {:x}", i, buf[i as usize]);
+                                            }
+                                            self.status.set(Status::Send(Command::SendUdpPacket));
+                                            self.alarm.set_alarm(
+                                                self.alarm.now(),
+                                                self.alarm.ticks_from_ms(10),
+                                            );
+                                            // self.send_udp_packet(0);
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    Ok(())
+                                }
+                                Command::SendUdpPacket => {
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "SendUdpPacket: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                                // if buf[i as usize] == 0 {
+                                                self.status
+                                                    .set(Status::Send(Command::StartTcpClient));
+                                                self.alarm.set_alarm(
+                                                    self.alarm.now(),
+                                                    self.alarm.ticks_from_ms(2000),
+                                                )
+                                                // }
                                             }
                                             current_position = (current_position
                                                 + read_buffer[pos] as usize)
@@ -721,6 +1042,37 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                     }
                                     Ok(())
                                 }
+                                Command::StopTcpClient => {
+                                    let mut current_position = 0;
+                                    let mut count = 0;
+                                    for parameter_index in 0..param_len {
+                                        count = count + 1;
+                                        let pos = POS_PARAM + current_position;
+                                        let mut buf: [u8; 20] = [0; 20];
+                                        // debug!("buffer: {:?}", read_buffer);
+                                        if pos < read_buffer.len() {
+                                            debug!(
+                                                "SendUdpPacket: Num elements: {:x}",
+                                                read_buffer[pos]
+                                            );
+                                            for i in 0..read_buffer[pos] {
+                                                buf[i as usize] = read_buffer[pos + i as usize + 1];
+                                                debug!("Element {}: {:x}", i, buf[i as usize]);
+                                                // self.status.set(Status::Send(Command::GetSocket));
+                                                // self.alarm.set_alarm(
+                                                //     self.alarm.now(),
+                                                //     self.alarm.ticks_from_ms(100),
+                                                // )
+                                            }
+                                            current_position = (current_position
+                                                + read_buffer[pos] as usize)
+                                                as usize;
+                                            current_position = current_position + 1;
+                                        }
+                                    }
+                                    Ok(())
+                                }
+
                                 _ => Ok(()),
                             }
                         } else {
@@ -809,7 +1161,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                                         if command == Command::GetSocket
                                             || command == Command::InsertDataBuf
                                         {
-                                            debug!("Intru aici la START_CMD");
+                                            // debug!("Intru aici la START_CMD");
                                         }
                                         self.receive_byte(command, 1, 1000)
                                     } else {
@@ -817,21 +1169,28 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                                             || command == Command::InsertDataBuf
                                         {
                                             debug!("Intru aici la err");
-                                            if command == Command::InsertDataBuf {
-                                                debug!("Intru si aici la err");
-                                                // self.insert_data_buf(0);
-                                            }
                                             // self.start_tcp_client();
                                         }
                                         Ok(())
                                     }
                                 } else if timeout > 0 {
+                                    // if (command == Command::GetClientStateTCP) {
+                                    //     debug!("read byte {} {}", position, timeout);
+                                    // }
                                     self.receive_byte(command, 0, timeout - 1)
                                 } else {
                                     if command == Command::GetSocket
                                         || command == Command::InsertDataBuf
                                     {
-                                        debug!("GetSocket Timeout...");
+                                        debug!("Timeout...");
+                                        if command == Command::GetSocket {
+                                            debug!("At InsertDataBuf");
+                                            self.status.set(Status::Send(Command::GetSocket));
+                                            self.alarm.set_alarm(
+                                                self.alarm.now(),
+                                                self.alarm.ticks_from_ms(100),
+                                            );
+                                        }
                                         // }
                                         // self.start_tcp_client();
                                         Ok(())
@@ -856,7 +1215,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> SpiMasterClient for NinaW102<'a, S,
                                     if command == Command::GetSocket
                                         || command == Command::InsertDataBuf
                                     {
-                                        debug!("LA end!!");
+                                        // debug!("LA end!!");
                                     }
 
                                     self.process_buffer(command)
@@ -907,6 +1266,9 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
                 }
             },
 
+            // Status::Idle => {
+            //     let _ = self.start_tcp_client(0);
+            // }
             Status::StartScanNetworks => {
                 let _ = self.start_scan_networks();
             }
@@ -920,6 +1282,48 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> AlarmClient for NinaW102<'a, S, P, 
                 self.status.set(Status::Idle);
                 let _ = self.get_connection_status();
             }
+
+            Status::Send(command) => match command {
+                Command::GetConnStatusCmd => {
+                    self.status.set(Status::Idle);
+                    self.get_connection_status();
+                }
+                Command::GetSocket => {
+                    self.status.set(Status::Idle);
+                    self.get_socket();
+                }
+                Command::StartTcpServer => {
+                    self.status.set(Status::Idle);
+                    self.start_tcp_server(0);
+                }
+                Command::StartTcpClient => {
+                    self.status.set(Status::Idle);
+                    self.start_tcp_client(0);
+                }
+                Command::StopTcpClient => {
+                    self.status.set(Status::Idle);
+                    self.stop_tcp_client(0);
+                }
+                Command::GetClientStateTCP => {
+                    self.status.set(Status::Idle);
+                    self.get_tcp_client_state(0);
+                }
+                Command::InsertDataBuf => {
+                    self.status.set(Status::Idle);
+                    self.insert_data_buf(0);
+                }
+                Command::SendUdpPacket => {
+                    self.status.set(Status::Idle);
+                    self.send_udp_packet(0);
+                }
+                Command::SendPing => {
+                    self.status.set(Status::Idle);
+                    self.send_ping();
+                }
+                _ => {
+                    self.status.set(Status::Idle);
+                }
+            },
 
             _ => {}
         }
