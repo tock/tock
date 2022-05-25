@@ -241,11 +241,14 @@ pub trait Screen {
     /// both when power was enabled and disabled.
     fn set_power(&self, enabled: bool) -> Result<(), ErrorCode>;
 
-    /// Inverts the colors.
-    fn invert_on(&self) -> Result<(), ErrorCode>;
-
-    /// Reverts the colors to normal.
-    fn invert_off(&self) -> Result<(), ErrorCode>;
+    /// Controls the color inversion mode.
+    ///
+    /// Pixels already in the frame buffer, as well as newly submited,
+    /// will be inverted. What that means depends on the current pixel format.
+    /// May get disabled when switching to another pixel format.
+    /// Returns ENOSUPPORT if the device does not accelerate color inversion.
+    /// Returns EINVAL if the current pixel format does not support color inversion.
+    fn set_invert(&self, enabled: bool) -> Result<(), ErrorCode>;
 }
 
 pub trait ScreenAdvanced: Screen + ScreenSetup {}

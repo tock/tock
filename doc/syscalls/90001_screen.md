@@ -8,6 +8,17 @@ driver number: 0x90001
 
 The screen driver allows the process to write data to a framebuffer of a screen.
 
+This syscall driver is designed for single-client usage,
+for the sake of simplicity, and because a single client covers
+a significant portion of display use cases.
+While several clients may use this interface simultaneously,
+each may independently modify parameters defining the usage of the display,
+like resolution, or power. Those changes will not be broadcast
+to every client, requiring external synchronization.
+This syscall interface does not expose the current power state of the display,
+so each usage should start by calling the "Set power" syscall.
+All commands except "Does the driver exist?" and "Set power"
+may return OFF when power is not enabled (see screen HIL for details).
 ## Command
 
   * ### Command number: `0`
@@ -55,7 +66,7 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
 
-  * ### Command number: `4`
+  * ### Command number: `4` (deprecated)
 
     **Description**: Turn on invert colors mode
 
@@ -65,11 +76,23 @@ The screen driver allows the process to write data to a framebuffer of a screen.
 
     **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
   
-  * ### Command number: `5`
+  * ### Command number: `5` (deprecated)
 
     **Description**: Turn off invert colors mode
 
     **Argument 1**: unused
+
+    **Argument 2**: unused
+
+    **Returns**: Ok(()) if the command was successful, BUSY if another command is in progress.
+    
+  * ### Command number: `6`
+
+    **Description**: Control invert colors mode.
+    Color inversion will affect all pixels already submitted, and submitted in the future.
+    It may get reset when in case of switching pixel formats.
+
+    **Argument 1**: 0 if off, nonzero if on.
 
     **Argument 2**: unused
 

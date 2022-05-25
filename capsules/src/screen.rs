@@ -58,8 +58,7 @@ enum ScreenCommand {
     Nop,
     SetBrightness(usize),
     SetPower(bool),
-    InvertOn,
-    InvertOff,
+    SetInvert(bool),
     SetRotation(ScreenRotation),
     SetResolution {
         width: usize,
@@ -178,8 +177,7 @@ impl<'a> Screen<'a> {
         match command {
             ScreenCommand::SetBrightness(brighness) => self.screen.set_brightness(brighness),
             ScreenCommand::SetPower(enabled) => self.screen.set_power(enabled),
-            ScreenCommand::InvertOn => self.screen.invert_on(),
-            ScreenCommand::InvertOff => self.screen.invert_off(),
+            ScreenCommand::SetInvert(enabled) => self.screen.set_invert(enabled),
             ScreenCommand::SetRotation(rotation) => {
                 if let Some(screen) = self.screen_setup {
                     screen.set_rotation(rotation)
@@ -468,10 +466,12 @@ impl<'a> SyscallDriver for Screen<'a> {
             2 => self.enqueue_command(ScreenCommand::SetPower(data1 != 0), process_id),
             // Set Brightness
             3 => self.enqueue_command(ScreenCommand::SetBrightness(data1), process_id),
-            // Invert On
-            4 => self.enqueue_command(ScreenCommand::InvertOn, process_id),
-            // Invert Off
-            5 => self.enqueue_command(ScreenCommand::InvertOff, process_id),
+            // Invert on (deprecated)
+            4 => self.enqueue_command(ScreenCommand::SetInvert(true), process_id),
+            // Invert off (deprecated)
+            5 => self.enqueue_command(ScreenCommand::SetInvert(false), process_id),
+            // Set Invert
+            6 => self.enqueue_command(ScreenCommand::SetInvert(data1 != 0), process_id),
 
             // Get Resolution Modes count
             11 => {
