@@ -50,7 +50,10 @@ may return OFF when power is not enabled (see screen HIL for details).
     **Argument 2**: unused
 
     **Returns**: Ok(()) followed by the ready callback if the command was successful,
-    BUSY if another command is in progress,
+    BUSY if another command is in progress.
+    
+    The callback will carry 1 as an argument if the display was turned on,
+    but configuration not fully applied. Otherwise, the argument is 0.
 
   * ### Command number: `3`
 

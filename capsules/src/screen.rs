@@ -110,7 +110,6 @@ pub struct Screen<'a> {
     screen: &'a dyn hil::screen::Screen,
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
-    screen_ready: Cell<bool>,
     current_process: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
     buffer: TakeCell<'static, [u8]>,
@@ -128,7 +127,6 @@ impl<'a> Screen<'a> {
             screen_setup: screen_setup,
             apps: grant,
             current_process: OptionalCell::empty(),
-            screen_ready: Cell::new(false),
             pixel_format: Cell::new(screen.get_pixel_format()),
             buffer: TakeCell::new(buffer),
         }
@@ -154,7 +152,7 @@ impl<'a> Screen<'a> {
         {
             Err(e) => CommandReturn::failure(e),
             Ok(r) => {
-                if self.screen_ready.get() && self.current_process.is_none() {
+                if self.current_process.is_none() {
                     self.current_process.set(process_id);
                     let r = self.call_screen(command, process_id);
                     if r != Ok(()) {
@@ -286,16 +284,12 @@ impl<'a> Screen<'a> {
     }
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
-        if !self.screen_ready.get() {
-            self.screen_ready.set(true);
-        } else {
-            self.current_process.take().map(|process_id| {
-                let _ = self.apps.enter(process_id, |app, upcalls| {
-                    app.pending_command = false;
-                    upcalls.schedule_upcall(0, (data1, data2, data3)).ok();
-                });
+        self.current_process.take().map(|process_id| {
+            let _ = self.apps.enter(process_id, |app, upcalls| {
+                app.pending_command = false;
+                upcalls.schedule_upcall(0, (data1, data2, data3)).ok();
             });
-        }
+        });
     }
 
     fn run_next_command(&self, data1: usize, data2: usize, data3: usize) {
