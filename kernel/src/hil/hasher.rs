@@ -16,7 +16,6 @@ pub trait Client<'a, const L: usize> {
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]);
 
-
     /// This callback is called when the data has been added to the hash
     /// engine.
     /// On error or success `data` will contain a reference to the original
@@ -58,7 +57,6 @@ pub trait Hasher<'a, const L: usize> {
         &self,
         data: LeasableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static [u8])>;
-
 
     /// Add data to the hash block. This is the data that will be used
     /// for the hash function.

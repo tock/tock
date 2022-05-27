@@ -133,7 +133,6 @@ impl<'a> SipHasher24<'a> {
     pub fn initialise(&self, deferred_call_handle: DeferredCallHandle) {
         self.deferred_handle.set(deferred_call_handle);
     }
-
 }
 
 macro_rules! compress {
@@ -241,7 +240,10 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         hasher.ntail = left;
 
         self.hasher.set(hasher);
-        self.data_buffer.set(Some(LeasableBufferDynamic::Immutable(LeasableBuffer::new(msg))));
+        self.data_buffer
+            .set(Some(LeasableBufferDynamic::Immutable(LeasableBuffer::new(
+                msg,
+            ))));
 
         self.add_data_deferred_call.set(true);
         self.deferred_handle
@@ -297,7 +299,9 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         hasher.ntail = left;
 
         self.hasher.set(hasher);
-        self.data_buffer.set(Some(LeasableBufferDynamic::Mutable(LeasableMutableBuffer::new(msg))));
+        self.data_buffer.set(Some(LeasableBufferDynamic::Mutable(
+            LeasableMutableBuffer::new(msg),
+        )));
 
         self.add_data_deferred_call.set(true);
         self.deferred_handle
@@ -370,8 +374,8 @@ impl<'a> DynamicDeferredCallClient for SipHasher24<'a> {
 
             self.client.map(|client| {
                 self.data_buffer.take().map(|buffer| match buffer {
-                    LeasableBufferDynamic::Immutable(b) =>  client.add_data_done(Ok(()), b.take()),
-                    LeasableBufferDynamic::Mutable(b) =>  client.add_mut_data_done(Ok(()), b.take()),
+                    LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b.take()),
+                    LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b.take()),
                 });
             });
         }
