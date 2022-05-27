@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::hil::hasher::{self, Hasher};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{debug, ErrorCode};
 
 struct SipHashTestCallback {
@@ -177,7 +177,7 @@ fn sip_hasher_2_4() {
         // Data add done should be reset per each slice
         cb.run_reset();
         assert_eq!(
-            sip_hasher.add_data(LeasableBuffer::new(slice.take().unwrap())),
+            sip_hasher.add_data(LeasableMutableBuffer::new(slice.take().unwrap())),
             Ok(8)
         );
 
@@ -195,7 +195,7 @@ fn sip_hasher_2_4() {
         // Data add done should be reset per each slice
         cb.run_reset();
         assert_eq!(
-            sip_hasher.add_data(LeasableBuffer::new(slice.take().unwrap())),
+            sip_hasher.add_data(LeasableMutableBuffer::new(slice.take().unwrap())),
             Ok(8)
         );
 

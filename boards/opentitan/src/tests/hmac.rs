@@ -10,7 +10,7 @@ use kernel::{debug, ErrorCode};
 static KEY: [u8; 32] = [0xA1; 32];
 
 struct HmacTestCallback {
-    add_data_done: Cell<bool>,
+    add_mut_data_done: Cell<bool>,
     verification_done: Cell<bool>,
     input_buffer: TakeCell<'static, [u8]>,
     digest_buffer: TakeCell<'static, [u8; 32]>,
@@ -21,7 +21,7 @@ unsafe impl Sync for HmacTestCallback {}
 impl<'a> HmacTestCallback {
     fn new(input_buffer: &'static mut [u8], digest_buffer: &'static mut [u8; 32]) -> Self {
         HmacTestCallback {
-            add_data_done: Cell::new(false),
+            add_mut_data_done: Cell::new(false),
             verification_done: Cell::new(false),
             input_buffer: TakeCell::new(input_buffer),
             digest_buffer: TakeCell::new(digest_buffer),
@@ -29,17 +29,21 @@ impl<'a> HmacTestCallback {
     }
 
     fn reset(&self) {
-        self.add_data_done.set(false);
+        self.add_mut_data_done.set(false);
         self.verification_done.set(false);
     }
 }
 
 impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
-        self.add_data_done.set(true);
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+        self.add_mut_data_done.set(true);
         // Input data has been loaded, hold copy of data
         self.input_buffer.replace(data);
         assert_eq!(result, Ok(()));
+    }
+
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+        unimplemented!()
     }
 }
 
@@ -94,11 +98,11 @@ fn hmac_check_load_binary() {
     hmac.set_client(callback);
     callback.reset();
 
-    assert_eq!(hmac.add_data(buf), Ok(32));
+    assert_eq!(hmac.add_mut_data(buf), Ok(32));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
-    assert_eq!(callback.add_data_done.get(), true);
+    assert_eq!(callback.add_mut_data_done.get(), true);
 
     run_kernel_op(100);
     debug!("    [ok]");
@@ -120,11 +124,11 @@ fn hmac_check_verify() {
     callback.reset();
     hmac.set_mode_hmacsha256(&KEY).unwrap();
 
-    assert_eq!(hmac.add_data(buf), Ok(32));
+    assert_eq!(hmac.add_mut_data(buf), Ok(32));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
-    assert_eq!(callback.add_data_done.get(), true);
+    assert_eq!(callback.add_mut_data_done.get(), true);
     callback.reset();
 
     /* Get digest from callback digest buffer */
