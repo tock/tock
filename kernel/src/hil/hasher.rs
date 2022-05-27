@@ -1,5 +1,6 @@
 //! Interface for Hasher
 
+use crate::utilities::leasable_buffer::LeasableBuffer;
 use crate::utilities::leasable_buffer::LeasableMutableBuffer;
 use crate::ErrorCode;
 
@@ -13,7 +14,16 @@ pub trait Client<'a, const L: usize> {
     /// data supplied to `add_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]);
+
+
+    /// This callback is called when the data has been added to the hash
+    /// engine.
+    /// On error or success `data` will contain a reference to the original
+    /// data supplied to `add_mut_data()`.
+    /// The possible ErrorCodes are:
+    ///    - SIZE: The size of the `data` buffer is invalid
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
 
     /// This callback is called when a hash is computed.
     /// On error or success `hash` will contain a reference to the original
@@ -45,6 +55,22 @@ pub trait Hasher<'a, const L: usize> {
     ///            The caller should expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_data(
+        &self,
+        data: LeasableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, &'static [u8])>;
+
+
+    /// Add data to the hash block. This is the data that will be used
+    /// for the hash function.
+    /// Returns the number of bytes parsed on success
+    /// There is no guarantee the data has been written until the `add_data_done()`
+    /// callback is fired.
+    /// On error the return value will contain a return code and the original data
+    /// The possible ErrorCodes are:
+    ///    - BUSY: The system is busy performing an operation
+    ///            The caller should expect a callback
+    ///    - SIZE: The size of the `data` buffer is invalid
+    fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])>;

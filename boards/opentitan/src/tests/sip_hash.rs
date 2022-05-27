@@ -43,7 +43,11 @@ impl<'a> SipHashTestCallback {
 }
 
 impl<'a> hasher::Client<'a, 8> for SipHashTestCallback {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {
+        unimplemented!()
+    }
+
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         assert_eq!(result, Ok(()));
         self.data_add_done.set(true);
 
@@ -177,7 +181,7 @@ fn sip_hasher_2_4() {
         // Data add done should be reset per each slice
         cb.run_reset();
         assert_eq!(
-            sip_hasher.add_data(LeasableMutableBuffer::new(slice.take().unwrap())),
+            sip_hasher.add_mut_data(LeasableMutableBuffer::new(slice.take().unwrap())),
             Ok(8)
         );
 
@@ -195,7 +199,7 @@ fn sip_hasher_2_4() {
         // Data add done should be reset per each slice
         cb.run_reset();
         assert_eq!(
-            sip_hasher.add_data(LeasableMutableBuffer::new(slice.take().unwrap())),
+            sip_hasher.add_mut_data(LeasableMutableBuffer::new(slice.take().unwrap())),
             Ok(8)
         );
 

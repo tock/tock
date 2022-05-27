@@ -220,11 +220,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<'a, 8> for TicKVStore<'a, F, H> {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.unhashed_key_buf.replace(data);
-
         self.hasher.run(self.key_buf.take().unwrap()).unwrap();
     }
+
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
 
     fn hash_done(&'a self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
@@ -391,7 +392,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
     > {
         if let Err((e, buf)) = self
             .hasher
-            .add_data(LeasableMutableBuffer::new(unhashed_key))
+            .add_mut_data(LeasableMutableBuffer::new(unhashed_key))
         {
             return Err((buf, key_buf, Err(e)));
         }
