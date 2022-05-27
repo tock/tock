@@ -4,7 +4,7 @@ use core::cell::Cell;
 use kernel::hil::digest::{self, Digest, DigestData, DigestVerify, HMACSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{debug, ErrorCode};
 
 static KEY: [u8; 32] = [0xA1; 32];
@@ -42,7 +42,7 @@ impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
         assert_eq!(result, Ok(()));
     }
 
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]) {
         unimplemented!()
     }
 }
@@ -90,7 +90,7 @@ fn hmac_check_load_binary() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
-    let buf = LeasableBuffer::new(callback.input_buffer.take().unwrap());
+    let buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac load binary... ");
     run_kernel_op(100);
@@ -115,7 +115,7 @@ fn hmac_check_verify() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
-    let buf = LeasableBuffer::new(callback.input_buffer.take().unwrap());
+    let buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac check verify... ");
     run_kernel_op(100);
