@@ -65,7 +65,7 @@ impl<T: Copy> VolatileCell<T> {
     ///
     /// `get` _always_ performs a memory read on the underlying location. If
     /// this location is a memory-mapped I/O register, the side-effects of
-    /// performing the write are register-specific.
+    /// performing the read are register-specific.
     ///
     /// # Examples
     ///
