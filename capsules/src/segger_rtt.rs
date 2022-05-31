@@ -248,12 +248,17 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+    fn transmit_character(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Ok(())
+    fn transmit_abort(&self) -> uart::AbortResult {
+        // if we own the buffer, then a callback will occur but there is no way to abort it
+        if self.client_buffer.is_some() {
+            uart::AbortResult::Callback(false)
+        } else {
+            uart::AbortResult::NoCallback
+        }
     }
 }
 
@@ -273,6 +278,26 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Configure for SeggerRtt<'a, A> {
     fn configure(&self, _parameters: uart::Parameters) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
+
+    fn set_baud_rate(&self, _rate: u32) -> Result<u32, ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn set_width(&self, _width: uart::Width) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn set_parity(&self, _parity: uart::Parity) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn set_stop_bits(&self, _stop: uart::StopBits) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
+
+    fn set_flow_control(&self, _on: bool) -> Result<(), ErrorCode> {
+        Err(ErrorCode::FAIL)
+    }
 }
 
 // Dummy implementation so this can act as the underlying UART for a
@@ -288,11 +313,12 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
         Err((ErrorCode::FAIL, buffer))
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
+    fn receive_character(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Ok(())
+    fn receive_abort(&self) -> uart::AbortResult {
+        // there can't possibly be a callback since reception isn't implemented
+        uart::AbortResult::NoCallback
     }
 }

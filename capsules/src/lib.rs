@@ -70,7 +70,7 @@ pub mod rf233_const;
 pub mod rng;
 pub mod screen;
 pub mod sdcard;
-//pub mod segger_rtt;
+pub mod segger_rtt;
 pub mod sha;
 pub mod sht3x;
 pub mod si7021;
