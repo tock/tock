@@ -64,13 +64,13 @@ pub enum AbortResult {
 }
 
 pub trait Uart<'a>: Configure + Configuration + Transmit<'a> + Receive<'a> {}
-pub trait UartData<'a>: Configuration + Transmit<'a> + Receive<'a> {}
+pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
 pub trait UartAdvanced<'a>: Configure + Configuration + Transmit<'a> + ReceiveAdvanced<'a> {}
 pub trait Client: Configuration + ReceiveClient + TransmitClient {}
 
 // Provide blanket implementations for all trait groups
 impl<'a, T: Configure + Configuration + Transmit<'a> + Receive<'a>> Uart<'a> for T {}
-impl<'a, T: Configuration + Transmit<'a> + Receive<'a>> UartData<'a> for T {}
+impl<'a, T: Transmit<'a> + Receive<'a>> UartData<'a> for T {}
 impl<'a, T: Configure + Configuration + Transmit<'a> + ReceiveAdvanced<'a>> UartAdvanced<'a> for T {}
 impl<T: Configuration + ReceiveClient + TransmitClient> Client for T {}
 
