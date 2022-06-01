@@ -487,8 +487,8 @@ single reference and ensure that their implementations are coupled.
 
 ```rust
 pub trait Uart<'a>: Configure + Configuration + Transmit<'a> + Receive<'a> {}
-pub trait UartData<'a>: Configuration + Transmit<'a> + Receive<'a> {}
-pub trait Client: Configuration + ReceiveClient + TransmitClient {}
+pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
+pub trait Client: ReceiveClient + TransmitClient {}
 ```
 
 The HIL provides blanket implementations of these four traits: any
