@@ -100,4 +100,4 @@ pub mod virtual_rng;
 pub mod virtual_sha;
 pub mod virtual_spi;
 pub mod virtual_timer;
-//pub mod virtual_uart;
+pub mod virtual_uart;
