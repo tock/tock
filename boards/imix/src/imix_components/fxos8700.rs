@@ -28,7 +28,6 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::grant::Grant;
 use kernel::hil;
 use kernel::static_init;
 

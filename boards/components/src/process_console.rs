@@ -23,6 +23,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::time::Alarm;
+use kernel::process::ProcessPrinter;
 use kernel::{static_init, static_init_half};
 
 #[macro_export]
@@ -47,6 +48,7 @@ pub struct ProcessConsoleComponent<A: 'static + Alarm<'static>> {
     uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     _alarm: PhantomData<A>,
+    process_printer: &'static dyn ProcessPrinter,
 }
 
 impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
@@ -54,18 +56,20 @@ impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
         board_kernel: &'static kernel::Kernel,
         uart_mux: &'static MuxUart,
         alarm_mux: &'static MuxAlarm<'static, A>,
+        process_printer: &'static dyn ProcessPrinter,
     ) -> ProcessConsoleComponent<A> {
         ProcessConsoleComponent {
             board_kernel: board_kernel,
             uart_mux: uart_mux,
             alarm_mux: alarm_mux,
             _alarm: PhantomData,
+            process_printer,
         }
     }
 }
 
-/// These constants are defined in the linker script for where the
-/// kernel is placed in memory on chip.
+// These constants are defined in the linker script for where the
+// kernel is placed in memory on chip.
 extern "C" {
     static _estack: u8;
     static _sstack: u8;
@@ -113,6 +117,7 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.alarm_mux)
         );
+        console_alarm.setup();
 
         let console = static_init_half!(
             static_buffer.0,
@@ -120,6 +125,7 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
             ProcessConsole::new(
                 console_uart,
                 console_alarm,
+                self.process_printer,
                 &mut process_console::WRITE_BUF,
                 &mut process_console::READ_BUF,
                 &mut process_console::QUEUE_BUF,

@@ -2,7 +2,6 @@
 
 #![crate_name = "cortexm0p"]
 #![crate_type = "rlib"]
-#![feature(asm)]
 #![feature(naked_functions)]
 #![no_std]
 
@@ -44,6 +43,7 @@ pub unsafe extern "C" fn svc_handler() {
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[naked]
 pub unsafe extern "C" fn svc_handler() {
+    use core::arch::asm;
     asm!(
         "
   ldr r0, 100f // EXC_RETURN_MSP

@@ -147,8 +147,8 @@ pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
 
     client: OptionalCell<&'a dyn hil::symmetric_encryption::Client<'a>>,
-    source: TakeCell<'a, [u8]>,
-    dest: TakeCell<'a, [u8]>,
+    source: TakeCell<'static, [u8]>,
+    dest: TakeCell<'static, [u8]>,
 
     // An index into `source` (or `dest` if that does not exist),
     // marking how much data has been written to the AESA
@@ -468,12 +468,16 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn crypt(
-        &'a self,
-        source: Option<&'a mut [u8]>,
-        dest: &'a mut [u8],
+        &self,
+        source: Option<&'static mut [u8]>,
+        dest: &'static mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(
+        Result<(), ErrorCode>,
+        Option<&'static mut [u8]>,
+        &'static mut [u8],
+    )> {
         if self.busy() {
             Some((Err(ErrorCode::BUSY), source, dest))
         } else {

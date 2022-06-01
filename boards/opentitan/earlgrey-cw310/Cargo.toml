@@ -12,6 +12,7 @@ capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 earlgrey = { path = "../../../chips/earlgrey" }
 lowrisc = { path = "../../../chips/lowrisc" }
+tock-tbf = { path = "../../../libraries/tock-tbf" }
 
 [features]
 # OpenTitan SoC design can be synthesized or compiled for different targets. A
@@ -22,7 +23,7 @@ lowrisc = { path = "../../../chips/lowrisc" }
 # OpenTitan CPU and possibly other components must be configured appropriately
 # for a specific target:
 #    - fpga_cw310:
-#      OpenTitan SoC design running on Nexys Video Artix-7 FPGA.
+#      OpenTitan SoC design running on CW310 FPGA.
 #
 #    - sim_verilator:
 #      OpenTitan SoC design simulated in Verilator.

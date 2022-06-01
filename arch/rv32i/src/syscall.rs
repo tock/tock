@@ -1,9 +1,13 @@
 //! Kernel-userland system call interface for RISC-V architecture.
 
+use core::convert::TryInto;
 use core::fmt::Write;
+use core::mem::size_of;
+use core::ops::Range;
 
 use crate::csr::mcause;
 use kernel;
+use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
@@ -39,6 +43,66 @@ const R_A1: usize = 10;
 const R_A2: usize = 11;
 const R_A3: usize = 12;
 const R_A4: usize = 13;
+
+/// Values for encoding the stored state buffer in a binary slice.
+const VERSION: u32 = 1;
+const STORED_STATE_SIZE: u32 = size_of::<Riscv32iStoredState>() as u32;
+const TAG: [u8; 4] = [b'r', b'v', b'5', b'i'];
+const METADATA_LEN: usize = 3;
+
+const VERSION_IDX: usize = 0;
+const SIZE_IDX: usize = 1;
+const TAG_IDX: usize = 2;
+const PC_IDX: usize = 3;
+const MCAUSE_IDX: usize = 4;
+const MTVAL_IDX: usize = 5;
+const REGS_IDX: usize = 6;
+const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 31;
+
+const U32_SZ: usize = size_of::<u32>();
+fn u32_byte_range(index: usize) -> Range<usize> {
+    index * U32_SZ..(index + 1) * U32_SZ
+}
+
+fn u32_from_u8_slice(slice: &[u8], index: usize) -> Result<u32, ErrorCode> {
+    let range = u32_byte_range(index);
+    Ok(u32::from_le_bytes(
+        slice
+            .get(range)
+            .ok_or(ErrorCode::SIZE)?
+            .try_into()
+            .or(Err(ErrorCode::FAIL))?,
+    ))
+}
+
+fn write_u32_to_u8_slice(val: u32, slice: &mut [u8], index: usize) {
+    let range = u32_byte_range(index);
+    slice[range].copy_from_slice(&val.to_le_bytes());
+}
+
+impl core::convert::TryFrom<&[u8]> for Riscv32iStoredState {
+    type Error = ErrorCode;
+    fn try_from(ss: &[u8]) -> Result<Riscv32iStoredState, Self::Error> {
+        if ss.len() == size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ
+            && u32_from_u8_slice(ss, VERSION_IDX)? == VERSION
+            && u32_from_u8_slice(ss, SIZE_IDX)? == STORED_STATE_SIZE
+            && u32_from_u8_slice(ss, TAG_IDX)? == u32::from_le_bytes(TAG)
+        {
+            let mut res = Riscv32iStoredState {
+                regs: [0; 31],
+                pc: u32_from_u8_slice(ss, PC_IDX)?,
+                mcause: u32_from_u8_slice(ss, MCAUSE_IDX)?,
+                mtval: u32_from_u8_slice(ss, MTVAL_IDX)?,
+            };
+            for (i, v) in (REGS_RANGE).enumerate() {
+                res.regs[i] = u32_from_u8_slice(ss, v)?;
+            }
+            Ok(res)
+        } else {
+            Err(ErrorCode::FAIL)
+        }
+    }
+}
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
 pub struct SysCall(());
@@ -100,7 +164,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (_, r) = state.regs.split_at_mut(R_A0);
 
         // This comes with the assumption that the respective
-        // registers are stored at monotonically increasing indicies
+        // registers are stored at monotonically increasing indices
         // in the register slice
         let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
@@ -166,6 +230,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
+        use core::arch::asm;
         // We need to ensure that the compiler does not reorder
         // kernel memory writes to after the userspace context switch
         // to ensure we provide a consistent memory view of
@@ -506,5 +571,28 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n\r\n",
             state.mtval,
         ));
+    }
+
+    fn store_context(
+        &self,
+        state: &Riscv32iStoredState,
+        out: &mut [u8],
+    ) -> Result<usize, ErrorCode> {
+        const U32_SZ: usize = size_of::<usize>();
+        if out.len() >= size_of::<Riscv32iStoredState>() + METADATA_LEN * U32_SZ {
+            write_u32_to_u8_slice(VERSION, out, VERSION_IDX);
+            write_u32_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
+            write_u32_to_u8_slice(u32::from_le_bytes(TAG), out, TAG_IDX);
+            write_u32_to_u8_slice(state.pc, out, PC_IDX);
+            write_u32_to_u8_slice(state.mcause, out, MCAUSE_IDX);
+            write_u32_to_u8_slice(state.mtval, out, MTVAL_IDX);
+            for (i, v) in state.regs.iter().enumerate() {
+                write_u32_to_u8_slice(*v, out, REGS_IDX + i);
+            }
+            // +3 for pc, mcause, mtval
+            Ok((state.regs.len() + 3 + METADATA_LEN) * U32_SZ)
+        } else {
+            Err(ErrorCode::SIZE)
+        }
     }
 }

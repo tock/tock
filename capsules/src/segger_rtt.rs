@@ -55,6 +55,7 @@
 //!     VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
 //!     VirtualMuxAlarm::new(mux_alarm)
 //! );
+//! virtual_alarm_rtt.setup();
 //!
 //! let rtt_memory = static_init!(
 //!     capsules::segger_rtt::SeggerRttMemory,

@@ -28,9 +28,11 @@ by a binary blob which is executed directly, followed by optional padding.
 ```
 Tock App Binary:
 
-Start of app -> +-------------------+
-                | TBF Header        |
-                +-------------------+
+Start of app -> +-------------------+---
+                | TBF Header        | ^
+                +-------------------+ | Protected region
+                | Optional padding  | V
+                +-------------------+---
                 | Compiled app      |
                 | binary            |
                 |                   |
@@ -270,8 +272,9 @@ The `Main` element has three 32-bit fields:
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
     execute (typically the `_start` symbol).
-  * `protected_size` the amount of flash, in bytes, after the header, to
-    prevent the process from writing to.
+  * `protected_size` the size of the protected region in bytes. Processes do not
+    have write access to the protected region. TBF headers are contained in the
+    protected region.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
 
@@ -404,20 +407,18 @@ The data is stored in the `TbfHeaderV2PersistentAcl` field, which includes a
 `write_id` indicates the id that all new persistent data is written with.
 All new data created will be stored with permissions from the `write_id`
 field. For existing data see the `access_ids` section below.
-Only apps with the same id listed in the `read_ids` can read the data.
-Apps with the same `access_ids` or `write_id` can overwrite the data.
 `write_id` does not need to be unique, that is multiple apps can have the
 same id.
 A `write_id` of `0x00` indicates that the app can not perform write operations.
 
 `read_ids` list all of the ids that this app has permission to read. The
-`read_length` specifiies the length of the `read_ids` in elements (not bytes).
+`read_length` specifies the length of the `read_ids` in elements (not bytes).
 `read_length` can be `0` indicating that there are no `read_ids`.
 
 `access_ids` list all of the ids that this app has permission to write.
 `access_ids` are different to `write_id` in that `write_id` applies to new data
 while `access_ids` allows modification of existing data.
-The `access_length` specifiies the length of the `access_ids` in elements (not bytes).
+The `access_length` specifies the length of the `access_ids` in elements (not bytes).
 `access_length` can be `0` indicating that there are no `access_ids`.
 
 For example an app has a `write_id` of `1`, `read_ids` of `2, 3` and

@@ -11,9 +11,9 @@ differ significantly depending on the LiteX release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  e0d5a7bff5](https://github.com/enjoy-digital/litex/tree/e0d5a7bff55923)
+  c43132f81f1113](https://github.com/enjoy-digital/litex/tree/c43132f81f1113)
 - using the companion [target
-  file](https://github.com/litex-hub/litex-boards/blob/4b48f15265c902/litex_boards/targets/digilent_arty.py)
+  file](https://github.com/litex-hub/litex-boards/blob/f18b10d1edb4e1/litex_boards/targets/digilent_arty.py)
   from `litex-boards`
 - built around a VexRiscv-CPU with PMP, hardware multiplication and
   compressed instruction support (named `TockSecureIMC`)
@@ -30,20 +30,18 @@ tested with
 The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the
 build infrastructure in
 [pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv),
-using a
-[patch](https://github.com/lschuermann/tock-litex/blob/7fcbefac7f17c2/pkgs/pythondata-cpu-vexriscv/0001-Add-TockSecureIMC-cpu-variant.patch)
-to introduce a CPU with physical memory protection, hardware
-multiplication and compressed instruction support (such that it is
-compatible with the `rv32imc` arch).
+which is patched to introduce a CPU with physical memory protection,
+hardware multiplication and compressed instruction support (such that
+it is compatible with the `rv32imc` arch).
 
 Prebuilt and tested bitstreams (including the generated VexRiscv CPU
 Verilog files) can be obtained from the [Tock on LiteX companion
 repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2021081101](https://github.com/lschuermann/tock-litex/releases/tag/2021081101). The
-bitstream for this board is located in `digilent_arty_a7-35t.zip`
-under `gateware/digilent_arty.bit`.
+2021100501](https://github.com/lschuermann/tock-litex/releases/tag/2021100501). The
+bitstream for this board is located in `digilent_arty_a7-35t.zip` or
+`digilent_arty_a7-100t.zip` under `gateware/digilent_arty.bit`.
 
 Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in

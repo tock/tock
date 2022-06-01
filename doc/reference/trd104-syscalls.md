@@ -5,10 +5,10 @@ System Calls
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why <br/>
+**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** July 25, 2021<br/>
-**Draft-Version:** 6<br/>
+**Draft-Modified:** March 9, 2022<br/>
+**Draft-Version:** 7<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -245,7 +245,7 @@ call drivers, which can be added and removed in different kernel
 builds. The full set of valid system calls a kernel supports therefore
 depends on what system call drivers it has installed.
 
-The 6 classes are:
+The 7 classes are:
 
 | Syscall Class    | Syscall Class Number |
 |------------------|----------------------|
@@ -518,10 +518,16 @@ on RISC-V.
 | Argument         | Register |
 |------------------|----------|
 | Driver number    | r0       |
-| Buffer number    | r1       |
+| Allow number     | r1       |
 | Address          | r2       |
 | Size             | r3       |
 
+The *allow number* argument is an ordinal number (index) of the buffer.
+When Read-Write Allow is called, the provided buffer
+SHALL get assigned to the provided *allow number*,
+replacing the previous buffer assigned to that *allow number*,
+if there was one.
+The supported *allow number*s are defined by the driver.
 
 The Tock kernel MUST check that the passed buffer is contained within
 the calling process's writeable address space. Every byte of a passed
@@ -529,8 +535,6 @@ buffer must be readable and writeable by the process. Zero-length
 buffers may therefore have arbitrary addresses. If the passed buffer is
 not complete within the calling process's writeable address space, the
 kernel MUST return a failure result with an error code of `INVALID`.
-The buffer number specifies which buffer this is. A driver may
-support multiple allowed buffers.
 
 The return variants for Read-Write Allow system calls are `Failure
 with 2 u32` and `Success with 2 u32`.  In both cases, `Argument 0`
@@ -542,6 +546,12 @@ returns a success result, the returned address and length MUST be those
 that were passed in the previous call, unless this is the first call.
 On the first successful invocation of a particular Read-Write Allow system 
 call, an driver implementation MUST return address 0 and size 0.
+
+If the kernel cannot access the grant region for this process, `NOMEM`
+will be returned. This can be caused by either running out a space in
+the grant region of RAM for the process, or the grant was never registered
+with the kernel during capsule creation at board startup. If the specified
+allow number is not supported by the driver, the kernel will return `INVALID`.
 
 The standard access model for allowed buffers is that userspace does
 not read or write a buffer that has been allowed: access to the memory
@@ -562,7 +572,7 @@ a buffer by calling allow with the same pointer and a longer length
 and such a call is not required to return an error code of `INVALID`.
 Similarly, it is possible for userspace to allow the same buffer
 multiple times to the kernel. This means, in practice, that the kernel
-may have multiple writeable references to the same memory and MUST take
+may have multiple writeable references to the same memory and MUST 
 take precautions to ensure this does not violate safety within the
 kernel.
 
@@ -572,15 +582,6 @@ MUST NOT assume or rely on a process accessing an allowed buffer. If
 userspace needs to read or write to a buffer held by the kernel, it
 MUST first regain access to it by calling the corresponding Read-Write
 Allow.
-
-Note that these requirements are typically on capsule code, and are not
-enforced by the core kernel. Because capsules may have bugs or not be fully
-trusted, userspace SHOULD NOT rely on the fact that drivers follow these rules as
-described, especially if the capsule code is not independently checked and tested.
-Instead, userspace SHOULD employ additional checks to ensure that
-drivers behave as specified, and implement proper error handling as needed.
-The core kernel MAY enforce a subset of these
-specified rules in the future.
 
 4.4.1 Buffers Can Change
 ---------------------------------
@@ -652,11 +653,13 @@ the buffer).
 ---------------------------------
 
 The Read-Only Allow class is very similar to the Read-Write Allow
-class. It differs in two ways:
+class. It differs in some ways:
 
 1. The buffer it passes to the kernel is read-only, and the process MAY
    freely read the buffer.
 2. The kernel MUST NOT write to a buffer shared with a Read-Only Allow.
+3. The *allow number*s in the Read-Only Allow
+   are independent from those in the Read-Write Allow.
 
 The semantics and calling conventions of Read-Only Allow are otherwise
 identical to Read-Write Allow: a userspace API MUST NOT depend on

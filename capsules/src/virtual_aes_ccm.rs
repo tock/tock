@@ -54,7 +54,7 @@
 //! ccm_mux.initialize_callback_handle(
 //!     dynamic_deferred_caller
 //!         .register(ccm_mux)
-//!         .expect("no deferred call slot available for ccm mux"),
+//!         .unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
 //! );
 //! const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
 //! let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
@@ -163,7 +163,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
     /// ```rust
     /// mux.initialize_callback_handle(
     ///     dynamic_deferred_caller.register(mux)
-    ///     .expect("no deferred call slot available for ccm mux")
+    ///     .unwrap() // Unwrap fail = no deferred call slot available for ccm mux
     /// );
     /// ```
     /// after the creation of the mux
@@ -225,7 +225,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> DynamicDeferredCallC
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::Client<'a>
     for MuxAES128CCM<'a, A>
 {
-    fn crypt_done(&'a self, source: Option<&'a mut [u8]>, dest: &'a mut [u8]) {
+    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, dest: &'static mut [u8]) {
         if self.inflight.is_none() {
             self.client.map(move |client| {
                 client.crypt_done(source, dest);
@@ -248,7 +248,7 @@ pub struct VirtualAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128EC
     aes: &'a A,
     next: ListLink<'a, VirtualAES128CCM<'a, A>>,
 
-    crypt_buf: TakeCell<'a, [u8]>,
+    crypt_buf: TakeCell<'static, [u8]>,
     crypt_auth_len: Cell<usize>,
     crypt_enc_len: Cell<usize>,
     ccm_client: OptionalCell<&'a dyn symmetric_encryption::CCMClient>,
@@ -772,12 +772,16 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption
     }
 
     fn crypt(
-        &'a self,
-        source: Option<&'a mut [u8]>,
-        dest: &'a mut [u8],
+        &self,
+        source: Option<&'static mut [u8]>,
+        dest: &'static mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(
+        Result<(), ErrorCode>,
+        Option<&'static mut [u8]>,
+        &'static mut [u8],
+    )> {
         if self.mux.inflight.is_none() {
             self.mux.aes.crypt(source, dest, start_index, stop_index)
         } else {
@@ -819,7 +823,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> AES128CBC for Virtua
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> symmetric_encryption::Client<'a>
     for VirtualAES128CCM<'a, A>
 {
-    fn crypt_done(&self, _: Option<&'a mut [u8]>, crypt_buf: &'a mut [u8]) {
+    fn crypt_done(&self, _: Option<&'static mut [u8]>, crypt_buf: &'static mut [u8]) {
         self.crypt_buf.replace(crypt_buf);
         match self.state.get() {
             CCMState::Idle => {}

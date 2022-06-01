@@ -28,6 +28,7 @@
 //! let sdcard_virtual_alarm = static_init!(
 //!      capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
 //!      capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
+//! sdcard_virtual_alarm.setup();
 //!
 //! let sdcard = static_init!(
 //!     capsules::sdcard::SDCard<
@@ -63,13 +64,11 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::mem;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadableProcessBuffer};
-use kernel::processbuffer::{ReadWriteProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
@@ -77,6 +76,20 @@ use kernel::{ErrorCode, ProcessId};
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SdCard as usize;
+
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const WRITE: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
+
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const READ: usize = 0;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 1;
+}
 
 /// Buffers used for SD card transactions, assigned in board `main.rs` files
 /// Constraints:
@@ -1436,16 +1449,18 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
 pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
     sdcard: &'a SDCard<'a, A>,
     kernel_buf: TakeCell<'static, [u8]>,
-    grants: Grant<App, 1>,
+    grants: Grant<
+        App,
+        UpcallCount<1>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     current_process: OptionalCell<ProcessId>,
 }
 
 /// Holds buffers and whatnot that the application has passed us.
 #[derive(Default)]
-pub struct App {
-    write_buffer: ReadOnlyProcessBuffer,
-    read_buffer: ReadWriteProcessBuffer,
-}
+pub struct App;
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
 pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
@@ -1460,7 +1475,12 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
     pub fn new(
         sdcard: &'a SDCard<'a, A>,
         kernel_buf: &'static mut [u8; 512],
-        grants: Grant<App, 1>,
+        grants: Grant<
+            App,
+            UpcallCount<1>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
     ) -> SDCardDriver<'a, A> {
         // return new SDCardDriver
         SDCardDriver {
@@ -1476,17 +1496,19 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (0, installed as usize, 0)).ok();
+            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+                kernel_data
+                    .schedule_upcall(0, (0, installed as usize, 0))
+                    .ok();
             });
         });
     }
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, upcalls| {
+            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
-                upcalls
+                kernel_data
                     .schedule_upcall(0, (1, block_size as usize, size_in_kb))
                     .ok();
             });
@@ -1497,22 +1519,25 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(data);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |app, upcalls| {
+            let _ = self.grants.enter(*process_id, |_, kernel_data| {
                 let mut read_len = 0;
                 self.kernel_buf.map(|data| {
-                    app.read_buffer
-                        .mut_enter(|read_buffer| {
-                            let read_buffer = read_buffer;
-                            // copy bytes to user buffer
-                            // Limit to minimum length between read_buffer, data, and
-                            // len field
-                            for (read_byte, &data_byte) in
-                                read_buffer.iter().zip(data.iter()).take(len)
-                            {
-                                read_byte.set(data_byte);
-                            }
-                            read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
-                            read_len
+                    kernel_data
+                        .get_readwrite_processbuffer(rw_allow::READ)
+                        .and_then(|read| {
+                            read.mut_enter(|read_buffer| {
+                                let read_buffer = read_buffer;
+                                // copy bytes to user buffer
+                                // Limit to minimum length between read_buffer, data, and
+                                // len field
+                                for (read_byte, &data_byte) in
+                                    read_buffer.iter().zip(data.iter()).take(len)
+                                {
+                                    read_byte.set(data_byte);
+                                }
+                                read_len = cmp::min(read_buffer.len(), cmp::min(data.len(), len));
+                                read_len
+                            })
                         })
                         .unwrap_or(0);
                 });
@@ -1520,7 +1545,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
                 // perform callback
                 // Note that we are explicitly performing the callback even if no
                 // data was read or if the app's read_buffer doesn't exist
-                upcalls.schedule_upcall(0, (2, read_len, 0)).ok();
+                kernel_data.schedule_upcall(0, (2, read_len, 0)).ok();
             });
         });
     }
@@ -1529,16 +1554,16 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (3, 0, 0)).ok();
+            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+                kernel_data.schedule_upcall(0, (3, 0, 0)).ok();
             });
         });
     }
 
     fn error(&self, error: u32) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (4, error as usize, 0)).ok();
+            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+                kernel_data.schedule_upcall(0, (4, error as usize, 0)).ok();
             });
         });
     }
@@ -1546,58 +1571,6 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
 /// Connections to userspace syscalls
 impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
-    fn allow_readwrite(
-        &self,
-        process_id: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |grant, _| {
-                match allow_num {
-                    // Pass read buffer in from application
-                    0 => {
-                        mem::swap(&mut grant.read_buffer, &mut slice);
-                        Ok(())
-                    }
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| e.into());
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
-    fn allow_readonly(
-        &self,
-        process_id: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = self
-            .grants
-            .enter(process_id, |grant, _| {
-                match allow_num {
-                    // Pass write buffer in from application
-                    0 => {
-                        mem::swap(&mut grant.write_buffer, &mut slice);
-                        Ok(())
-                    }
-                    _ => Err(ErrorCode::NOSUPPORT),
-                }
-            })
-            .unwrap_or_else(|e| e.into());
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
     fn command(
         &self,
         command_num: usize,
@@ -1647,24 +1620,30 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
             4 => {
                 let result: Result<(), ErrorCode> = self
                     .grants
-                    .enter(process_id, |app, _| {
-                        app.write_buffer
-                            .enter(|write_buffer| {
-                                self.kernel_buf
-                                    .take()
-                                    .map_or(Err(ErrorCode::BUSY), |kernel_buf| {
-                                        // copy over write data from application
-                                        // Limit to minimum length between kernel_buf,
-                                        // write_buffer, and 512 (block size)
-                                        for (kernel_byte, ref write_byte) in
-                                            kernel_buf.iter_mut().zip(write_buffer.iter()).take(512)
-                                        {
-                                            *kernel_byte = write_byte.get();
-                                        }
+                    .enter(process_id, |_, kernel_data| {
+                        kernel_data
+                            .get_readonly_processbuffer(ro_allow::WRITE)
+                            .and_then(|write| {
+                                write.enter(|write_buffer| {
+                                    self.kernel_buf.take().map_or(
+                                        Err(ErrorCode::BUSY),
+                                        |kernel_buf| {
+                                            // copy over write data from application
+                                            // Limit to minimum length between kernel_buf,
+                                            // write_buffer, and 512 (block size)
+                                            for (kernel_byte, ref write_byte) in kernel_buf
+                                                .iter_mut()
+                                                .zip(write_buffer.iter())
+                                                .take(512)
+                                            {
+                                                *kernel_byte = write_byte.get();
+                                            }
 
-                                        // begin writing
-                                        self.sdcard.write_blocks(kernel_buf, data as u32, 1)
-                                    })
+                                            // begin writing
+                                            self.sdcard.write_blocks(kernel_buf, data as u32, 1)
+                                        },
+                                    )
+                                })
                             })
                             .unwrap_or(Err(ErrorCode::NOMEM))
                     })

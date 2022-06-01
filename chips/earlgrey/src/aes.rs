@@ -51,9 +51,11 @@ register_structs! {
         (0x6C => data_out2: ReadOnly<u32>),
         (0x70 => data_out3: ReadOnly<u32>),
         (0x74 => ctrl: ReadWrite<u32, CTRL::Register>),
-        (0x78 => trigger: WriteOnly<u32, TRIGGER::Register>),
-        (0x7C => status: ReadOnly<u32, STATUS::Register>),
-        (0x80 => @END),
+        (0x78 => ctrl_aux: ReadWrite<u32>),
+        (0x7C => ctrl_aux_regwen: ReadWrite<u32>),
+        (0x80 => trigger: WriteOnly<u32, TRIGGER::Register>),
+        (0x84 => status: ReadOnly<u32, STATUS::Register>),
+        (0x88 => @END),
     }
 }
 
@@ -63,11 +65,11 @@ register_bitfields![u32,
         FATAL_FAULT OFFSET(1) NUMBITS(1) [],
     ],
     CTRL [
-        OPERATION OFFSET(0) NUMBITS(1) [
-            Encrypting = 0,
-            Decrypting = 1,
+        OPERATION OFFSET(0) NUMBITS(2) [
+            Encrypting = 1,
+            Decrypting = 2,
         ],
-        MODE OFFSET(1) NUMBITS(6) [
+        MODE OFFSET(2) NUMBITS(6) [
             AES_ECB = 1,
             AES_CBC = 2,
             AES_CFB = 4,
@@ -75,13 +77,13 @@ register_bitfields![u32,
             AES_CTR = 16,
             AES_NONE = 32,
         ],
-        KEY_LEN OFFSET(7) NUMBITS(3) [
+        KEY_LEN OFFSET(8) NUMBITS(3) [
             Key128 = 1,
             Key192 = 2,
             Key256 = 4,
         ],
-        MANUAL_OPERATION OFFSET(10) NUMBITS(1) [],
-        FORCE_ZERO_MASKS OFFSET(11) NUMBITS(1) [],
+        MANUAL_OPERATION OFFSET(11) NUMBITS(1) [],
+        FORCE_ZERO_MASKS OFFSET(12) NUMBITS(1) [],
     ],
     TRIGGER [
         START OFFSET(0) NUMBITS(1) [],
@@ -116,8 +118,8 @@ pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
 
     client: OptionalCell<&'a dyn hil::symmetric_encryption::Client<'a>>,
-    source: TakeCell<'a, [u8]>,
-    dest: TakeCell<'a, [u8]>,
+    source: TakeCell<'static, [u8]>,
+    dest: TakeCell<'static, [u8]>,
     mode: Cell<Mode>,
 
     deferred_call: Cell<bool>,
@@ -375,12 +377,16 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     fn start_message(&self) {}
 
     fn crypt(
-        &'a self,
-        source: Option<&'a mut [u8]>,
-        dest: &'a mut [u8],
+        &self,
+        source: Option<&'static mut [u8]>,
+        dest: &'static mut [u8],
         start_index: usize,
         stop_index: usize,
-    ) -> Option<(Result<(), ErrorCode>, Option<&'a mut [u8]>, &'a mut [u8])> {
+    ) -> Option<(
+        Result<(), ErrorCode>,
+        Option<&'static mut [u8]>,
+        &'static mut [u8],
+    )> {
         match stop_index.checked_sub(start_index) {
             None => return Some((Err(ErrorCode::INVAL), source, dest)),
             Some(s) => {

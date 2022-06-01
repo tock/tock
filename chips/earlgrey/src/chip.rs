@@ -5,7 +5,7 @@ use kernel;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use rv32i::csr::{mcause, mie::mie, mip::mip, mtvec::mtvec, CSR};
+use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
 use rv32i::epmp::PMP;
 use rv32i::syscall::SysCall;
 
@@ -31,6 +31,8 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub otbn: lowrisc::otbn::Otbn<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub i2c0: lowrisc::i2c::I2c<'a>,
+    pub spi_host0: lowrisc::spi_host::SpiHost,
+    pub spi_host1: lowrisc::spi_host::SpiHost,
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
     pub rng: lowrisc::csrng::CsRng<'a>,
 }
@@ -42,16 +44,25 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
             hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
-            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE, deferred_caller),
+            otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE),
             gpio_port: crate::gpio::Port::new(),
             i2c0: lowrisc::i2c::I2c::new(
                 crate::i2c::I2C0_BASE,
                 (1 / CONFIG.cpu_freq) * 1000 * 1000,
             ),
+            spi_host0: lowrisc::spi_host::SpiHost::new(
+                crate::spi_host::SPIHOST0_BASE,
+                CONFIG.cpu_freq,
+            ),
+            spi_host1: lowrisc::spi_host::SpiHost::new(
+                crate::spi_host::SPIHOST1_BASE,
+                CONFIG.cpu_freq,
+            ),
             flash_ctrl: lowrisc::flash_ctrl::FlashCtrl::new(
                 crate::flash_ctrl::FLASH_CTRL_BASE,
                 lowrisc::flash_ctrl::FlashRegion::REGION0,
             ),
+
             rng: lowrisc::csrng::CsRng::new(crate::csrng::CSRNG_BASE),
         }
     }
@@ -82,6 +93,12 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
             interrupts::OTBN_DONE => self.otbn.handle_interrupt(),
             interrupts::CSRNG_CSCMDREQDONE..=interrupts::CSRNG_CSFATALERR => {
                 self.rng.handle_interrupt()
+            }
+            interrupts::SPIHOST0ERROR..=interrupts::SPIHOST0SPIEVENT => {
+                self.spi_host0.handle_interrupt()
+            }
+            interrupts::SPIHOST1ERROR..=interrupts::SPIHOST1SPIEVENT => {
+                self.spi_host1.handle_interrupt()
             }
             _ => return false,
         }
@@ -212,28 +229,25 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey
 
     fn service_pending_interrupts(&self) {
         loop {
-            let mip = CSR.mip.extract();
-
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET) && self.plic.get_saved_interrupts().is_none() {
+            if self.plic.get_saved_interrupts().is_none() {
                 break;
             }
         }
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        CSR.mie.modify(mie::mext::SET + mie::mtimer::CLEAR);
         self.plic.enable_all();
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        let mip = CSR.mip.extract();
-        self.plic.get_saved_interrupts().is_some() || mip.matches_any(mip::mtimer::SET)
+        self.plic.get_saved_interrupts().is_some()
     }
 
     fn sleep(&self) {
@@ -387,6 +401,7 @@ pub extern "C" fn _start_trap_vectored() {
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
+    use core::arch::asm;
     unsafe {
         // According to the Ibex user manual:
         // [NMI] has interrupt ID 31, i.e., it has the highest priority of all

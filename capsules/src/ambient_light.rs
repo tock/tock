@@ -14,7 +14,7 @@
 
 use core::cell::Cell;
 
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
@@ -32,13 +32,13 @@ pub struct App {
 pub struct AmbientLight<'a> {
     sensor: &'a dyn hil::sensors::AmbientLight<'a>,
     command_pending: Cell<bool>,
-    apps: Grant<App, 1>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a> AmbientLight<'a> {
     pub fn new(
         sensor: &'a dyn hil::sensors::AmbientLight<'a>,
-        grant: Grant<App, 1>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AmbientLight {
         AmbientLight {
             sensor: sensor,

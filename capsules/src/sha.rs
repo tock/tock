@@ -28,12 +28,25 @@ use kernel::errorcode::into_statuscode;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Sha as usize;
 
-use core::cell::Cell;
-use core::mem;
+/// Ids for read-only allow buffers
+mod ro_allow {
+    pub const DATA: usize = 1;
+    pub const COMPARE: usize = 2;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 3;
+}
 
-use kernel::grant::Grant;
+/// Ids for read-write allow buffers
+mod rw_allow {
+    pub const DEST: usize = 2;
+    /// The number of allow buffers the kernel stores for this grant
+    pub const COUNT: usize = 3;
+}
+
+use core::cell::Cell;
+
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
-use kernel::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -51,7 +64,12 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     active: Cell<bool>,
 
-    apps: Grant<App, 1>,
+    apps: Grant<
+        App,
+        UpcallCount<1>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+    >,
     appid: OptionalCell<ProcessId>,
 
     data_buffer: TakeCell<'static, [u8]>,
@@ -69,7 +87,12 @@ impl<
         sha: &'a H,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8; L],
-        grant: Grant<App, 1>,
+        grant: Grant<
+            App,
+            UpcallCount<1>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+        >,
     ) -> ShaDriver<'a, H, L> {
         ShaDriver {
             sha: sha,
@@ -85,7 +108,7 @@ impl<
     fn run(&self) -> Result<(), ErrorCode> {
         self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
             self.apps
-                .enter(*appid, |app, _| {
+                .enter(*appid, |app, kernel_data| {
                     let ret = if let Some(op) = &app.sha_operation {
                         match op {
                             ShaOperation::Sha256 => self.sha.set_mode_sha256(),
@@ -99,33 +122,37 @@ impl<
                         return ret;
                     }
 
-                    app.data
-                        .enter(|data| {
-                            let mut static_buffer_len = 0;
-                            self.data_buffer.map(|buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                    kernel_data
+                        .get_readonly_processbuffer(ro_allow::DATA)
+                        .and_then(|data| {
+                            data.enter(|data| {
+                                let mut static_buffer_len = 0;
+                                self.data_buffer.map(|buf| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
 
-                                if static_buffer_len > data.len() {
-                                    static_buffer_len = data.len()
+                                    if static_buffer_len > data.len() {
+                                        static_buffer_len = data.len()
+                                    }
+
+                                    self.data_copied.set(static_buffer_len);
+
+                                    // Copy the data into the static buffer
+                                    data[..static_buffer_len]
+                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                });
+
+                                // Add the data from the static buffer to the HMAC
+                                let mut lease_buf = LeasableBuffer::new(
+                                    self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
+                                );
+                                lease_buf.slice(0..static_buffer_len);
+                                if let Err(e) = self.sha.add_data(lease_buf) {
+                                    self.data_buffer.replace(e.1);
+                                    return Err(e.0);
                                 }
-
-                                self.data_copied.set(static_buffer_len);
-
-                                // Copy the data into the static buffer
-                                data[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-                            });
-
-                            // Add the data from the static buffer to the HMAC
-                            let mut lease_buf =
-                                LeasableBuffer::new(self.data_buffer.take().unwrap());
-                            lease_buf.slice(0..static_buffer_len);
-                            if let Err(e) = self.sha.add_data(lease_buf) {
-                                self.data_buffer.replace(e.1);
-                                return Err(e.0);
-                            }
-                            Ok(())
+                                Ok(())
+                            })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))
                 })
@@ -158,7 +185,10 @@ impl<
     fn calculate_digest(&self) -> Result<(), ErrorCode> {
         self.data_copied.set(0);
 
-        if let Err(e) = self.sha.run(self.dest_buffer.take().unwrap()) {
+        if let Err(e) = self
+            .sha
+            .run(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?)
+        {
             // Error, clear the appid and data
             self.sha.clear_data();
             self.appid.clear();
@@ -173,7 +203,10 @@ impl<
     fn verify_digest(&self) -> Result<(), ErrorCode> {
         self.data_copied.set(0);
 
-        if let Err(e) = self.sha.verify(self.dest_buffer.take().unwrap()) {
+        if let Err(e) = self
+            .sha
+            .verify(self.dest_buffer.take().ok_or(ErrorCode::RESERVE)?)
+        {
             // Error, clear the appid and data
             self.sha.clear_data();
             self.appid.clear();
@@ -195,7 +228,7 @@ impl<
     fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.appid.map(move |id| {
             self.apps
-                .enter(*id, move |app, upcalls| {
+                .enter(*id, move |app, kernel_data| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
@@ -203,28 +236,30 @@ impl<
                     self.data_buffer.replace(data);
 
                     self.data_buffer.map(|buf| {
-                        let ret = app
-                            .data
-                            .enter(|data| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                        let ret = kernel_data
+                            .get_readonly_processbuffer(ro_allow::DATA)
+                            .and_then(|data| {
+                                data.enter(|data| {
+                                    // Determine the size of the static buffer we have
+                                    static_buffer_len = buf.len();
 
-                                // Determine how much data we have already copied
-                                let copied_data = self.data_copied.get();
+                                    // Determine how much data we have already copied
+                                    let copied_data = self.data_copied.get();
 
-                                data_len = data.len();
+                                    data_len = data.len();
 
-                                if data_len > copied_data {
-                                    let remaining_data = &data[copied_data..];
-                                    let remaining_len = data_len - copied_data;
+                                    if data_len > copied_data {
+                                        let remaining_data = &data[copied_data..];
+                                        let remaining_len = data_len - copied_data;
 
-                                    if remaining_len < static_buffer_len {
-                                        remaining_data.copy_to_slice(&mut buf[..remaining_len]);
-                                    } else {
-                                        remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                        if remaining_len < static_buffer_len {
+                                            remaining_data.copy_to_slice(&mut buf[..remaining_len]);
+                                        } else {
+                                            remaining_data[..static_buffer_len].copy_to_slice(buf);
+                                        }
                                     }
-                                }
-                                Ok(())
+                                    Ok(())
+                                })
                             })
                             .unwrap_or(Err(ErrorCode::RESERVE));
 
@@ -270,36 +305,40 @@ impl<
                     // If we get here we are ready to run the digest, reset the copied data
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
-                            upcalls
+                            kernel_data
                                 .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
                                 .ok();
                         }
                     } else if app.op.get().unwrap() == UserSpaceOp::Verify {
-                        let _ = app.compare.enter(|compare| {
-                            let mut static_buffer_len = 0;
-                            self.dest_buffer.map(|buf| {
-                                // Determine the size of the static buffer we have
-                                static_buffer_len = buf.len();
+                        let _ = kernel_data
+                            .get_readonly_processbuffer(ro_allow::COMPARE)
+                            .and_then(|compare| {
+                                compare.enter(|compare| {
+                                    let mut static_buffer_len = 0;
+                                    self.dest_buffer.map(|buf| {
+                                        // Determine the size of the static buffer we have
+                                        static_buffer_len = buf.len();
 
-                                if static_buffer_len > compare.len() {
-                                    static_buffer_len = compare.len()
-                                }
+                                        if static_buffer_len > compare.len() {
+                                            static_buffer_len = compare.len()
+                                        }
 
-                                self.data_copied.set(static_buffer_len);
+                                        self.data_copied.set(static_buffer_len);
 
-                                // Copy the data into the static buffer
-                                compare[..static_buffer_len]
-                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        // Copy the data into the static buffer
+                                        compare[..static_buffer_len]
+                                            .copy_to_slice(&mut buf[..static_buffer_len]);
+                                    });
+                                })
                             });
-                        });
 
                         if let Err(e) = self.verify_digest() {
-                            upcalls
+                            kernel_data
                                 .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                 .ok();
                         }
                     } else {
-                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                        kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
                     }
                 })
                 .map_err(|err| {
@@ -324,24 +363,30 @@ impl<
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |app, upcalls| {
+                .enter(*id, |_, kernel_data| {
                     self.sha.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
 
-                    let _ = app.dest.mut_enter(|dest| {
-                        let len = dest.len();
+                    let _ = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::DEST)
+                        .and_then(|dest| {
+                            dest.mut_enter(|dest| {
+                                let len = dest.len();
 
-                        if len < L {
-                            dest.copy_from_slice(&digest[0..len]);
-                        } else {
-                            dest[0..L].copy_from_slice(digest);
-                        }
-                    });
+                                if len < L {
+                                    dest.copy_from_slice(&digest[0..len]);
+                                } else {
+                                    dest[0..L].copy_from_slice(digest);
+                                }
+                            })
+                        });
 
                     match result {
-                        Ok(_) => upcalls.schedule_upcall(0, (0, pointer as usize, 0)).ok(),
-                        Err(e) => upcalls
+                        Ok(_) => kernel_data
+                            .schedule_upcall(0, (0, pointer as usize, 0))
+                            .ok(),
+                        Err(e) => kernel_data
                             .schedule_upcall(0, (into_statuscode(e.into()), pointer as usize, 0))
                             .ok(),
                     };
@@ -372,12 +417,12 @@ impl<
     fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
-                .enter(*id, |_app, upcalls| {
+                .enter(*id, |_app, kernel_data| {
                     self.sha.clear_data();
 
                     match result {
-                        Ok(equal) => upcalls.schedule_upcall(1, (0, equal as usize, 0)),
-                        Err(e) => upcalls.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
+                        Ok(equal) => kernel_data.schedule_upcall(1, (0, equal as usize, 0)),
+                        Err(e) => kernel_data.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
                     }
                     .ok();
 
@@ -404,67 +449,6 @@ impl<
         const L: usize,
     > SyscallDriver for ShaDriver<'a, H, L>
 {
-    fn allow_readwrite(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadWriteProcessBuffer,
-    ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the digest to be in.
-            2 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut slice, &mut app.dest);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
-    fn allow_readonly(
-        &self,
-        appid: ProcessId,
-        allow_num: usize,
-        mut slice: ReadOnlyProcessBuffer,
-    ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
-        let res = match allow_num {
-            // Pass buffer for the data to be in
-            1 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.data, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // Compare buffer for verify
-            2 => self
-                .apps
-                .enter(appid, |app, _| {
-                    mem::swap(&mut app.compare, &mut slice);
-                    Ok(())
-                })
-                .unwrap_or(Err(ErrorCode::FAIL)),
-
-            // default
-            _ => Err(ErrorCode::NOSUPPORT),
-        };
-
-        match res {
-            Ok(()) => Ok(slice),
-            Err(e) => Err((slice, e)),
-        }
-    }
-
     /// Setup and run the HMAC hardware
     ///
     /// We expect userspace to setup buffers for the key, data and digest.
@@ -541,11 +525,47 @@ impl<
             }
         });
 
-        match command_num {
-            // set_algorithm
-            0 => {
-                self.apps
-                    .enter(appid, |app, _| {
+        // Try the commands where we want to start an operation *not* entered in
+        // an app grant first.
+        if match_or_empty_or_nonexistant
+            && (command_num == 1 || command_num == 2 || command_num == 4)
+        {
+            self.appid.set(appid);
+
+            let _ = self.apps.enter(appid, |app, _| {
+                if command_num == 1 {
+                    // run
+                    // Use key and data to compute hash
+                    // This will trigger a callback once the digest is generated
+                    app.op.set(Some(UserSpaceOp::Run));
+                } else if command_num == 2 {
+                    // update
+                    // Input key and data, don't compute final hash yet
+                    // This will trigger a callback once the data has been added.
+                    app.op.set(Some(UserSpaceOp::Update));
+                } else if command_num == 4 {
+                    // verify
+                    // Use key and data to compute hash and comapre it against
+                    // the digest
+                    app.op.set(Some(UserSpaceOp::Verify));
+                }
+            });
+
+            return if let Err(e) = self.run() {
+                self.sha.clear_data();
+                self.appid.clear();
+                self.check_queue();
+                CommandReturn::failure(e)
+            } else {
+                CommandReturn::success()
+            };
+        }
+
+        self.apps
+            .enter(appid, |app, kernel_data| {
+                match command_num {
+                    // set_algorithm
+                    0 => {
                         match data1 {
                             // SHA256
                             0 => {
@@ -564,191 +584,115 @@ impl<
                             }
                             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
                         }
-                    })
-                    .unwrap_or_else(|err| err.into())
-            }
-
-            // run
-            // Use key and data to compute hash
-            // This will trigger a callback once the digest is generated
-            1 => {
-                if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let _ = self.apps.enter(appid, |app, _| {
-                        app.op.set(Some(UserSpaceOp::Run));
-                    });
-                    let ret = self.run();
-
-                    if let Err(e) = ret {
-                        self.sha.clear_data();
-                        self.appid.clear();
-                        self.check_queue();
-                        CommandReturn::failure(e)
-                    } else {
-                        CommandReturn::success()
                     }
-                } else {
-                    // There is an active app, so queue this request (if possible).
-                    self.apps
-                        .enter(appid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
-                                CommandReturn::failure(ErrorCode::NOMEM)
-                            } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
-                                app.op.set(Some(UserSpaceOp::Run));
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }
-            }
 
-            // update
-            // Input key and data, don't compute final hash yet
-            // This will trigger a callback once the data has been added.
-            2 => {
-                if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let _ = self.apps.enter(appid, |app, _| {
-                        app.op.set(Some(UserSpaceOp::Update));
-                    });
-                    let ret = self.run();
-
-                    if let Err(e) = ret {
-                        self.sha.clear_data();
-                        self.appid.clear();
-                        self.check_queue();
-                        CommandReturn::failure(e)
-                    } else {
-                        CommandReturn::success()
+                    // run
+                    1 => {
+                        // There is an active app, so queue this request (if possible).
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            app.op.set(Some(UserSpaceOp::Run));
+                            CommandReturn::success()
+                        }
                     }
-                } else {
-                    // There is an active app, so queue this request (if possible).
-                    self.apps
-                        .enter(appid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
-                                CommandReturn::failure(ErrorCode::NOMEM)
-                            } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
-                                app.op.set(Some(UserSpaceOp::Update));
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }
-            }
 
-            // finish
-            // Compute final hash yet, useful after a update command
-            3 => {
-                if app_match {
-                    self.apps
-                        .enter(appid, |_app, upcalls| {
+                    // update
+                    2 => {
+                        // There is an active app, so queue this request (if possible).
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            app.op.set(Some(UserSpaceOp::Update));
+                            CommandReturn::success()
+                        }
+                    }
+
+                    // finish
+                    // Compute final hash yet, useful after a update command
+                    3 => {
+                        if app_match {
                             if let Err(e) = self.calculate_digest() {
-                                upcalls
+                                kernel_data
                                     .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
                                     .ok();
                             }
-                        })
-                        .unwrap();
-                    CommandReturn::success()
-                } else {
-                    // We don't queue this request, the user has to call
-                    // `update` first.
-                    CommandReturn::failure(ErrorCode::OFF)
-                }
-            }
-
-            // verify
-            // Use key and data to compute hash and comapre it against
-            // the digest
-            4 => {
-                if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let _ = self.apps.enter(appid, |app, _| {
-                        app.op.set(Some(UserSpaceOp::Verify));
-                    });
-                    let ret = self.run();
-
-                    if let Err(e) = ret {
-                        self.sha.clear_data();
-                        self.appid.clear();
-                        self.check_queue();
-                        CommandReturn::failure(e)
-                    } else {
-                        CommandReturn::success()
+                            CommandReturn::success()
+                        } else {
+                            // We don't queue this request, the user has to call
+                            // `update` first.
+                            CommandReturn::failure(ErrorCode::OFF)
+                        }
                     }
-                } else {
-                    // There is an active app, so queue this request (if possible).
-                    self.apps
-                        .enter(appid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
-                                CommandReturn::failure(ErrorCode::NOMEM)
-                            } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
-                                app.op.set(Some(UserSpaceOp::Verify));
-                                CommandReturn::success()
-                            }
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }
-            }
 
-            // verify_finish
-            // Use key and data to compute hash and comapre it against
-            // the digest, useful after a update command
-            5 => {
-                if app_match {
-                    self.apps
-                        .enter(appid, |app, upcalls| {
-                            let _ = app.compare.enter(|compare| {
-                                let mut static_buffer_len = 0;
-                                self.dest_buffer.map(|buf| {
-                                    // Determine the size of the static buffer we have
-                                    static_buffer_len = buf.len();
+                    // verify
+                    4 => {
+                        // There is an active app, so queue this request (if possible).
+                        if app.pending_run_app.is_some() {
+                            // No more room in the queue, nowhere to store this
+                            // request.
+                            CommandReturn::failure(ErrorCode::NOMEM)
+                        } else {
+                            // We can store this, so lets do it.
+                            app.pending_run_app = Some(appid);
+                            app.op.set(Some(UserSpaceOp::Verify));
+                            CommandReturn::success()
+                        }
+                    }
 
-                                    if static_buffer_len > compare.len() {
-                                        static_buffer_len = compare.len()
-                                    }
+                    // verify_finish
+                    // Use key and data to compute hash and comapre it against
+                    // the digest, useful after a update command
+                    5 => {
+                        if app_match {
+                            let _ = kernel_data
+                                .get_readonly_processbuffer(ro_allow::COMPARE)
+                                .and_then(|compare| {
+                                    compare.enter(|compare| {
+                                        let mut static_buffer_len = 0;
+                                        self.dest_buffer.map(|buf| {
+                                            // Determine the size of the static buffer we have
+                                            static_buffer_len = buf.len();
 
-                                    self.data_copied.set(static_buffer_len);
+                                            if static_buffer_len > compare.len() {
+                                                static_buffer_len = compare.len()
+                                            }
 
-                                    // Copy the data into the static buffer
-                                    compare[..static_buffer_len]
-                                        .copy_to_slice(&mut buf[..static_buffer_len]);
+                                            self.data_copied.set(static_buffer_len);
+
+                                            // Copy the data into the static buffer
+                                            compare[..static_buffer_len]
+                                                .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        });
+                                    })
                                 });
-                            });
 
                             if let Err(e) = self.verify_digest() {
-                                upcalls
+                                kernel_data
                                     .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
                                     .ok();
                             }
-                        })
-                        .unwrap();
-                    CommandReturn::success()
-                } else {
-                    // We don't queue this request, the user has to call
-                    // `update` first.
-                    CommandReturn::failure(ErrorCode::OFF)
-                }
-            }
+                            CommandReturn::success()
+                        } else {
+                            // We don't queue this request, the user has to call
+                            // `update` first.
+                            CommandReturn::failure(ErrorCode::OFF)
+                        }
+                    }
 
-            // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
+                    // default
+                    _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                }
+            })
+            .unwrap_or_else(|err| err.into())
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
@@ -768,7 +712,4 @@ pub struct App {
     pending_run_app: Option<ProcessId>,
     sha_operation: Option<ShaOperation>,
     op: Cell<Option<UserSpaceOp>>,
-    data: ReadOnlyProcessBuffer,
-    dest: ReadWriteProcessBuffer,
-    compare: ReadOnlyProcessBuffer,
 }

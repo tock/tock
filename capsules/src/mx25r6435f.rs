@@ -29,6 +29,8 @@
 //!     VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>,
 //!     VirtualMuxAlarm::new(mux_alarm)
 //! );
+//! mx25r6435f_virtual_alarm.setup();
+//!
 //! // Setup the actual MX25R6435F driver.
 //! let mx25r6435f = static_init!(
 //!     capsules::mx25r6435f::MX25R6435F<
@@ -77,11 +79,17 @@ const PAGE_SIZE: u32 = 256;
 /// ```
 pub struct Mx25r6435fSector(pub [u8; SECTOR_SIZE as usize]);
 
-impl Default for Mx25r6435fSector {
-    fn default() -> Self {
+impl Mx25r6435fSector {
+    pub const fn new() -> Self {
         Self {
             0: [0; SECTOR_SIZE as usize],
         }
+    }
+}
+
+impl Default for Mx25r6435fSector {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -220,6 +228,8 @@ impl<
         )
     }
 
+    /// Requests the readout of a 24-bit identification number.
+    /// This command will cause a debug print when succeeded.
     pub fn read_identification(&self) -> Result<(), ErrorCode> {
         self.configure_spi()?;
 
@@ -367,7 +377,7 @@ impl<
                 self.txbuffer.replace(write_buffer);
                 read_buffer.map(|read_buffer| {
                     debug!(
-                        "id {:#x} {:#x} {:#x}",
+                        "id 0x{:02x}{:02x}{:02x}",
                         read_buffer[1], read_buffer[2], read_buffer[3]
                     );
                     self.rxbuffer.replace(read_buffer);

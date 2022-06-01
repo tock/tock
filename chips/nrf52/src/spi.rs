@@ -433,8 +433,7 @@ impl hil::spi::SpiMaster for SPIM {
 
         // Reset value is a valid frequency (250kbps), so .expect
         // should be safe here
-        let f = Frequency::from_register(self.registers.frequency.get())
-            .expect("nrf52 unknown spi rate");
+        let f = Frequency::from_register(self.registers.frequency.get()).unwrap(); // Unwrap fail = nrf52 unknown spi rate
         f.into_spi_rate()
     }
 

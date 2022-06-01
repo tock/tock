@@ -4,7 +4,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![feature(const_fn_trait_bound)]
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -25,7 +24,6 @@ pub mod io;
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -36,6 +34,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -54,6 +53,7 @@ struct ArtyE21 {
     led: &'static capsules::led::LedDriver<
         'static,
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin<'static>>,
+        3,
     >,
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
@@ -149,6 +149,10 @@ pub unsafe fn main() {
         Some(&peripherals.gpio_port[8]),
     );
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.uart0,
@@ -162,7 +166,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -193,14 +197,11 @@ pub unsafe fn main() {
     // virtual_alarm_test.set_client(timertest);
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
         hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
         hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
         hil::led::LedHigh::new(&peripherals.gpio_port[0]), // Blue
-    ))
-    .finalize(components::led_component_buf!(
-        hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>
     ));
 
     // BUTTONs
@@ -262,7 +263,7 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(sifive::clint::Clint))
     .run();*/
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -297,7 +298,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &artye21,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
         &main_loop_cap,
     );
 }

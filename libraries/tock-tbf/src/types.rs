@@ -4,6 +4,8 @@ use core::convert::TryInto;
 use core::fmt;
 use core::mem::size_of;
 
+const NUM_PERSISTENT_ACLS: usize = 8;
+
 /// Error when parsing just the beginning of the TBF header. This is only used
 /// when establishing the linked list structure of apps installed in flash.
 pub enum InitialTbfParseError {
@@ -506,6 +508,20 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
+/// The command permissions specified by the TBF header.
+///
+/// Use the `get_command_permissions()` function to retrieve these.
+pub enum CommandPermissions {
+    /// The TBF header did not specify any permissions for any driver numbers.
+    NoPermsAtAll,
+    /// The TBF header did specify permissions for at least one driver number,
+    /// but not for the requested driver number.
+    NoPermsThisDriver,
+    /// The bitmask of allowed command numbers starting from the offset provided
+    /// when this enum was created.
+    Mask(u64),
+}
+
 /// Single header that can contain all parts of a v2 header.
 ///
 /// Note, this struct limits the number of writeable regions an app can have to
@@ -519,7 +535,7 @@ pub struct TbfHeaderV2 {
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
-    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<8>>,
+    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<NUM_PERSISTENT_ACLS>>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
@@ -645,6 +661,87 @@ impl TbfHeader {
         match hd.fixed_addresses.as_ref()?.start_process_flash {
             0xFFFFFFFF => None,
             start => Some(start),
+        }
+    }
+
+    /// Get the permissions for a specified driver and offset.
+    ///
+    /// - `driver_num`: The driver to lookup.
+    /// - `offset`: The offset for the driver to find. An offset value of 1 will
+    ///   find a header with offset 1, so the `allowed_commands` will cover
+    ///   command numbers 64 to 127.
+    ///
+    /// If permissions are found for the driver number, this function will
+    /// return `CommandPermissions::Mask`. If there are permissions in the
+    /// header but not for this driver the function will return
+    /// `CommandPermissions::NoPermsThisDriver`. If the process does not have
+    /// any permissions specified, return `CommandPermissions::NoPermsAtAll`.
+    pub fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.permissions {
+                Some(permissions) => {
+                    let mut found_driver_num: bool = false;
+                    for perm in permissions.perms {
+                        if perm.driver_number == driver_num as u32 {
+                            found_driver_num = true;
+                            if perm.offset == offset as u32 {
+                                return CommandPermissions::Mask(perm.allowed_commands);
+                            }
+                        }
+                    }
+                    if found_driver_num {
+                        // We found this driver number but nothing matched the
+                        // requested offset. Since permissions are default off,
+                        // we can return a mask of all zeros.
+                        CommandPermissions::Mask(0)
+                    } else {
+                        CommandPermissions::NoPermsThisDriver
+                    }
+                }
+                _ => CommandPermissions::NoPermsAtAll,
+            },
+            _ => CommandPermissions::NoPermsAtAll,
+        }
+    }
+
+    /// Get the process `write_id`.
+    /// Returns `None` if a `write_id` is not included.
+    pub fn get_persistent_acl_write_id(&self) -> Option<u32> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
+                Some(persistent_acls) => Some(persistent_acls.write_id),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the number of valid `read_ids` and the `read_ids`.
+    /// Returns `None` if a `read_ids` is not included.
+    pub fn get_persistent_acl_read_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
+                Some(persistent_acls) => {
+                    Some((persistent_acls.read_length.into(), persistent_acls.read_ids))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Get the number of valid `access_ids` and the `access_ids`.
+    /// Returns `None` if a `access_ids` is not included.
+    pub fn get_persistent_acl_access_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
+                Some(persistent_acls) => Some((
+                    persistent_acls.access_length.into(),
+                    persistent_acls.access_ids,
+                )),
+                _ => None,
+            },
+            _ => None,
         }
     }
 

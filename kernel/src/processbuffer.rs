@@ -13,17 +13,20 @@
 //! [`ReadableProcessBuffer`] and [`WriteableProcessBuffer`] traits,
 //! implemented on the process buffer structs.
 //!
-//! Each access to the buffer structs requires a liveness check to ensure that the
-//! process memory is still valid. For a more traditional interface, users can convert
-//! buffers into [`ReadableProcessSlice`] or [`WriteableProcessSlice`] and use these
-//! for the lifetime of their operations. Users cannot hold live-lived references to
-//! these slices, however.
+//! Each access to the buffer structs requires a liveness check to ensure that
+//! the process memory is still valid. For a more traditional interface, users
+//! can convert buffers into [`ReadableProcessSlice`] or
+//! [`WriteableProcessSlice`] and use these for the lifetime of their
+//! operations. Users cannot hold live-lived references to these slices,
+//! however.
 
 use core::cell::Cell;
-use core::ops::{Index, Range, RangeFrom, RangeTo};
+use core::marker::PhantomData;
+use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
 use crate::process::{self, ProcessId};
+use crate::ErrorCode;
 
 /// Convert a process buffer's internal representation to a
 /// ReadableProcessSlice.
@@ -238,7 +241,7 @@ impl ReadOnlyProcessBuffer {
     ///
     /// # Safety requirements
     ///
-    /// Refer to the safety requirments of
+    /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
     pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
         ReadOnlyProcessBuffer {
@@ -358,6 +361,38 @@ impl Default for ReadOnlyProcessBuffer {
     }
 }
 
+/// Provides access to a ReadOnlyProcessBuffer with a restricted lifetime.
+/// This automatically dereferences into a ReadOnlyProcessBuffer
+pub struct ReadOnlyProcessBufferRef<'a> {
+    buf: ReadOnlyProcessBuffer,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl ReadOnlyProcessBufferRef<'_> {
+    /// Construct a new [`ReadOnlyProcessBufferRef`] over a given pointer and
+    /// length with a lifetime derived from the caller.
+    ///
+    /// # Safety requirements
+    ///
+    /// Refer to the safety requirements of
+    /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
+    /// help enforce the invariant that this incoming pointer may only
+    /// be access for a certain duration.
+    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+        Self {
+            buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl Deref for ReadOnlyProcessBufferRef<'_> {
+    type Target = ReadOnlyProcessBuffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buf
+    }
+}
+
 /// Read-writable buffer shared by a userspace process
 ///
 /// This struct is provided to capsules when a process `allows` a
@@ -386,7 +421,7 @@ impl ReadWriteProcessBuffer {
     ///
     /// # Safety requirements
     ///
-    /// Refer to the safety requirments of
+    /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
     pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
         ReadWriteProcessBuffer {
@@ -557,6 +592,38 @@ impl Default for ReadWriteProcessBuffer {
     }
 }
 
+/// Provides access to a ReadWriteProcessBuffer with a restricted lifetime.
+/// This automatically dereferences into a ReadWriteProcessBuffer
+pub struct ReadWriteProcessBufferRef<'a> {
+    buf: ReadWriteProcessBuffer,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl ReadWriteProcessBufferRef<'_> {
+    /// Construct a new [`ReadWriteProcessBufferRef`] over a given pointer and
+    /// length with a lifetime derived from the caller.
+    ///
+    /// # Safety requirements
+    ///
+    /// Refer to the safety requirements of
+    /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
+    /// help enforce the invariant that this incoming pointer may only
+    /// be access for a certain duration.
+    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+        Self {
+            buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl Deref for ReadWriteProcessBufferRef<'_> {
+    type Target = ReadWriteProcessBuffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buf
+    }
+}
+
 /// A shareable region of userspace memory.
 ///
 /// This trait can be used to gain read-write access to memory regions
@@ -613,29 +680,34 @@ fn cast_byte_slice_to_process_slice<'a>(
     byte_slice: &'a [ReadableProcessByte],
 ) -> &'a ReadableProcessSlice {
     // As ReadableProcessSlice is a transparent wrapper around its inner type,
-    // [ReadableProcessByte], we can safely transmute a reference to the inner type as a reference
-    // to the outer type with the same lifetime
+    // [ReadableProcessByte], we can safely transmute a reference to the inner
+    // type as a reference to the outer type with the same lifetime.
     unsafe { core::mem::transmute::<&[ReadableProcessByte], &ReadableProcessSlice>(byte_slice) }
 }
 
-// Allow a u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
-// authored once and accept either [u8] or ReadableProcessSlice
+// Allow a u8 slice to be viewed as a ReadableProcessSlice to allow client code
+// to be authored once and accept either [u8] or ReadableProcessSlice.
 impl<'a> From<&'a [u8]> for &'a ReadableProcessSlice {
     fn from(val: &'a [u8]) -> Self {
-        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
-        //         This also extends the lifetime of the buffer, so aliasing rules are
-        //         thus maintained properly.
+        // # Safety
+        //
+        // The layout of a [u8] and ReadableProcessSlice are guaranteed to be
+        // the same. This also extends the lifetime of the buffer, so aliasing
+        // rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
     }
 }
 
-// Allow a mutable u8 slice to be viewed as a ReadableProcessSlice to allow client code to be
-// authored once and accept either [u8] or ReadableProcessSlice
+// Allow a mutable u8 slice to be viewed as a ReadableProcessSlice to allow
+// client code to be authored once and accept either [u8] or
+// ReadableProcessSlice.
 impl<'a> From<&'a mut [u8]> for &'a ReadableProcessSlice {
     fn from(val: &'a mut [u8]) -> Self {
-        // SAFETY: The layout of a [u8] and ReadableProcessSlice are guaranteed to be the same.
-        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
-        //         thus maintained properly.
+        // # Safety
+        //
+        // The layout of a [u8] and ReadableProcessSlice are guaranteed to be
+        // the same. This also extends the mutable lifetime of the buffer, so
+        // aliasing rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -651,10 +723,6 @@ impl ReadableProcessSlice {
     ///
     /// This function will panic if `self.len() != dest.len()`.
     pub fn copy_to_slice(&self, dest: &mut [u8]) {
-        // Method implemetation adopted from the
-        // core::slice::copy_from_slice method implementation:
-        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
-
         // The panic code path was put into a cold function to not
         // bloat the call site.
         #[inline(never)]
@@ -667,18 +735,34 @@ impl ReadableProcessSlice {
             );
         }
 
-        if self.len() != dest.len() {
+        if self.copy_to_slice_or_err(dest).is_err() {
             len_mismatch_fail(dest.len(), self.len());
         }
+    }
 
-        // _If_ this turns out to not be efficiently optimized, it
-        // should be possible to use a ptr::copy_nonoverlapping here
-        // given we have exclusive mutable access to the destination
-        // slice which will never be in process memory, and the layout
-        // of &[ReadableProcessByte] is guaranteed to be compatible to
-        // &[u8].
-        for (i, b) in self.slice.iter().enumerate() {
-            dest[i] = b.get();
+    /// Copy the contents of a [`ReadableProcessSlice`] into a mutable
+    /// slice reference.
+    ///
+    /// The length of `self` must be the same as `dest`. Subslicing
+    /// can be used to obtain a slice of matching length.
+    pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
+        // Method implemetation adopted from the
+        // core::slice::copy_from_slice method implementation:
+        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
+
+        if self.len() != dest.len() {
+            Err(ErrorCode::SIZE)
+        } else {
+            // _If_ this turns out to not be efficiently optimized, it
+            // should be possible to use a ptr::copy_nonoverlapping here
+            // given we have exclusive mutable access to the destination
+            // slice which will never be in process memory, and the layout
+            // of &[ReadableProcessByte] is guaranteed to be compatible to
+            // &[u8].
+            for (i, b) in self.slice.iter().enumerate() {
+                dest[i] = b.get();
+            }
+            Ok(())
         }
     }
 
@@ -697,6 +781,30 @@ impl ReadableProcessSlice {
         self.slice
             .chunks(chunk_size)
             .map(cast_byte_slice_to_process_slice)
+    }
+
+    pub fn get(&self, range: Range<usize>) -> Option<&ReadableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_byte_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&ReadableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_byte_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&ReadableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_byte_slice_to_process_slice(slice))
+        } else {
+            None
+        }
     }
 }
 
@@ -756,18 +864,24 @@ pub struct WriteableProcessSlice {
 }
 
 fn cast_cell_slice_to_process_slice<'a>(cell_slice: &'a [Cell<u8>]) -> &'a WriteableProcessSlice {
-    // As WriteableProcessSlice is a transparent wrapper around its inner type, [Cell<u8>], we can
-    // safely transmute a reference to the inner type as the outer type with the same lifetime.
+    // # Safety
+    //
+    // As WriteableProcessSlice is a transparent wrapper around its inner type,
+    // [Cell<u8>], we can safely transmute a reference to the inner type as the
+    // outer type with the same lifetime.
     unsafe { core::mem::transmute(cell_slice) }
 }
 
-// Allow a mutable u8 slice to be viewed as a WritableProcessSlice to allow client code to be
-// authored once and accept either [u8] or WriteableProcessSlice
+// Allow a mutable u8 slice to be viewed as a WritableProcessSlice to allow
+// client code to be authored once and accept either [u8] or
+// WriteableProcessSlice.
 impl<'a> From<&'a mut [u8]> for &'a WriteableProcessSlice {
     fn from(val: &'a mut [u8]) -> Self {
-        // SAFETY: The layout of a [u8] and WriteableProcessSlice are guaranteed to be the same.
-        //         This also extends the mutable lifetime of the buffer, so aliasing rules are
-        //         thus maintained properly.
+        // # Safety
+        //
+        // The layout of a [u8] and WriteableProcessSlice are guaranteed to be
+        // the same. This also extends the mutable lifetime of the buffer, so
+        // aliasing rules are thus maintained properly.
         unsafe { core::mem::transmute(val) }
     }
 }
@@ -783,10 +897,6 @@ impl WriteableProcessSlice {
     ///
     /// This function will panic if `self.len() != dest.len()`.
     pub fn copy_to_slice(&self, dest: &mut [u8]) {
-        // Method implemetation adopted from the
-        // core::slice::copy_from_slice method implementation:
-        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
-
         // The panic code path was put into a cold function to not
         // bloat the call site.
         #[inline(never)]
@@ -799,19 +909,35 @@ impl WriteableProcessSlice {
             );
         }
 
-        if self.len() != dest.len() {
+        if self.copy_to_slice_or_err(dest).is_err() {
             len_mismatch_fail(dest.len(), self.len());
         }
+    }
 
-        // _If_ this turns out to not be efficiently optimized, it
-        // should be possible to use a ptr::copy_nonoverlapping here
-        // given we have exclusive mutable access to the destination
-        // slice which will never be in process memory, and the layout
-        // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
-        self.slice
-            .iter()
-            .zip(dest.iter_mut())
-            .for_each(|(src, dst)| *dst = src.get());
+    /// Copy the contents of a [`WriteableProcessSlice`] into a mutable
+    /// slice reference.
+    ///
+    /// The length of `self` must be the same as `dest`. Subslicing
+    /// can be used to obtain a slice of matching length.
+    pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
+        // Method implemetation adopted from the
+        // core::slice::copy_from_slice method implementation:
+        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
+
+        if self.len() != dest.len() {
+            Err(ErrorCode::SIZE)
+        } else {
+            // _If_ this turns out to not be efficiently optimized, it
+            // should be possible to use a ptr::copy_nonoverlapping here
+            // given we have exclusive mutable access to the destination
+            // slice which will never be in process memory, and the layout
+            // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
+            self.slice
+                .iter()
+                .zip(dest.iter_mut())
+                .for_each(|(src, dst)| *dst = src.get());
+            Ok(())
+        }
     }
 
     /// Copy the contents of a slice of bytes into a [`WriteableProcessSlice`].
@@ -839,18 +965,33 @@ impl WriteableProcessSlice {
             );
         }
 
-        if self.len() != src.len() {
+        if self.copy_from_slice_or_err(src).is_err() {
             len_mismatch_fail(self.len(), src.len());
         }
+    }
 
-        // _If_ this turns out to not be efficiently optimized, it
-        // should be possible to use a ptr::copy_nonoverlapping here
-        // given we have exclusive mutable access to the destination
-        // slice which will never be in process memory, and the layout
-        // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
-        src.iter()
-            .zip(self.slice.iter())
-            .for_each(|(src, dst)| dst.set(*src));
+    /// Copy the contents of a slice of bytes into a [`WriteableProcessSlice`].
+    ///
+    /// The length of `src` must be the same as `self`. Subslicing can
+    /// be used to obtain a slice of matching length.
+    pub fn copy_from_slice_or_err(&self, src: &[u8]) -> Result<(), ErrorCode> {
+        // Method implemetation adopted from the
+        // core::slice::copy_from_slice method implementation:
+        // https://doc.rust-lang.org/src/core/slice/mod.rs.html#3034-3036
+
+        if self.len() != src.len() {
+            Err(ErrorCode::SIZE)
+        } else {
+            // _If_ this turns out to not be efficiently optimized, it
+            // should be possible to use a ptr::copy_nonoverlapping here
+            // given we have exclusive mutable access to the destination
+            // slice which will never be in process memory, and the layout
+            // of &[Cell<u8>] is guaranteed to be compatible to &[u8].
+            src.iter()
+                .zip(self.slice.iter())
+                .for_each(|(src, dst)| dst.set(*src));
+            Ok(())
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -869,10 +1010,34 @@ impl WriteableProcessSlice {
             .chunks(chunk_size)
             .map(cast_cell_slice_to_process_slice)
     }
+
+    pub fn get(&self, range: Range<usize>) -> Option<&WriteableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_cell_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&WriteableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_cell_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
+        if let Some(slice) = self.slice.get(range) {
+            Some(cast_cell_slice_to_process_slice(slice))
+        } else {
+            None
+        }
+    }
 }
 
 impl Index<Range<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference
+    // Subslicing will still yield a WriteableProcessSlice reference.
     type Output = Self;
 
     fn index(&self, idx: Range<usize>) -> &Self::Output {
@@ -881,7 +1046,7 @@ impl Index<Range<usize>> for WriteableProcessSlice {
 }
 
 impl Index<RangeTo<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference
+    // Subslicing will still yield a WriteableProcessSlice reference.
     type Output = Self;
 
     fn index(&self, idx: RangeTo<usize>) -> &Self::Output {
@@ -890,7 +1055,7 @@ impl Index<RangeTo<usize>> for WriteableProcessSlice {
 }
 
 impl Index<RangeFrom<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference
+    // Subslicing will still yield a WriteableProcessSlice reference.
     type Output = Self;
 
     fn index(&self, idx: RangeFrom<usize>) -> &Self::Output {
@@ -900,7 +1065,7 @@ impl Index<RangeFrom<usize>> for WriteableProcessSlice {
 
 impl Index<usize> for WriteableProcessSlice {
     // Indexing into a WriteableProcessSlice yields a Cell<u8>, as
-    // mutating the memory contents is allowed
+    // mutating the memory contents is allowed.
     type Output = Cell<u8>;
 
     fn index(&self, idx: usize) -> &Self::Output {

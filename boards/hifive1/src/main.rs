@@ -16,7 +16,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
-use kernel::hil::time::Alarm;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -27,7 +26,6 @@ use rv32i::csr;
 pub mod io;
 
 pub const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
@@ -36,6 +34,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static e310x::chip::E310x<E310xDefaultPeripherals>> = None;
+// Reference to the process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -48,8 +48,11 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led:
-        &'static capsules::led::LedDriver<'static, LedLow<'static, sifive::gpio::GpioPin<'static>>>,
+    led: &'static capsules::led::LedDriver<
+        'static,
+        LedLow<'static, sifive::gpio::GpioPin<'static>>,
+        3,
+    >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -166,14 +169,11 @@ pub unsafe fn main() {
     .finalize(());
 
     // LEDs
-    let led = components::led::LedsComponent::new(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, sifive::gpio::GpioPin>,
         LedLow::new(&peripherals.gpio_port[22]), // Red
         LedLow::new(&peripherals.gpio_port[19]), // Green
         LedLow::new(&peripherals.gpio_port[21]), // Blue
-    ))
-    .finalize(components::led_component_buf!(
-        LedLow<'static, sifive::gpio::GpioPin>
     ));
 
     peripherals
@@ -198,10 +198,14 @@ pub unsafe fn main() {
         VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let systick_virtual_alarm = static_init!(
         VirtualMuxAlarm<'static, sifive::clint::Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    systick_virtual_alarm.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(
@@ -216,6 +220,10 @@ pub unsafe fn main() {
         e310x::chip::E310x::new(peripherals, hardware_timer)
     );
     CHIP = Some(chip);
+
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
@@ -232,7 +240,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -248,7 +256,7 @@ pub unsafe fn main() {
     debug!("HiFive1 initialization complete.");
     debug!("Entering main loop.");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -267,7 +275,6 @@ pub unsafe fn main() {
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_alarm_client(scheduler_timer);
 
     let hifive1 = HiFive1 {
         console: console,
@@ -301,7 +308,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &hifive1,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
+        None::<&kernel::ipc::IPC<NUM_PROCS>>,
         &main_loop_cap,
     );
 }

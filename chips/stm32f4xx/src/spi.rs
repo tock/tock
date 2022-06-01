@@ -11,8 +11,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::dma1;
-use crate::dma1::Dma1Peripheral;
+use crate::dma;
+use crate::dma::{Dma1, Dma1Peripheral};
 use crate::rcc;
 
 /// Serial peripheral interface
@@ -152,9 +152,9 @@ pub struct Spi<'a> {
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    tx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    tx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a>>>,
     tx_dma_pid: Dma1Peripheral,
-    rx_dma: OptionalCell<&'a dma1::Stream<'a>>,
+    rx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a>>>,
     rx_dma_pid: Dma1Peripheral,
 
     dma_len: Cell<usize>,
@@ -166,8 +166,8 @@ pub struct Spi<'a> {
 }
 
 // for use by `set_dma`
-pub struct TxDMA<'a>(pub &'a dma1::Stream<'a>);
-pub struct RxDMA<'a>(pub &'a dma1::Stream<'a>);
+pub struct TxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
+pub struct RxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
 
 impl<'a> Spi<'a> {
     pub const fn new(
@@ -411,8 +411,8 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         }
     }
 
-    /// We *only* support 1Mhz. If `rate` is set to any value other than
-    /// `1_000_000`, then this function panics
+    /// We *only* support 1Mhz and 4MHz. If `rate` is set to any value other than
+    /// `1_000_000` or `4_000_000`, then this function panics.
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         match rate {
             1_000_000 => self.set_cr(|| {
@@ -423,19 +423,20 @@ impl<'a> spi::SpiMaster for Spi<'a> {
                 // HSI is 16Mhz and Fpclk is also 16Mhz. 0b001 is Fpclk / 4
                 self.registers.cr1.modify(CR1::BR.val(0b001));
             }),
-            _ => panic!("rate must be 1_000_000, 4_000_000"),
+            _ => panic!("SPI rate must be 1_000_000 or 4_000_000"),
         }
         Ok(rate)
     }
 
-    /// We *only* support 1Mhz. If we need to return any other value other than
-    /// `1_000_000`, then this function panics
+    /// We *only* support 1Mhz and 4MHz. If we need to return any other value
+    /// than `1_000_000` or `4_000_000`, then this function panics.
     fn get_rate(&self) -> u32 {
-        if self.registers.cr1.read(CR1::BR) != 0b011 {
-            panic!("rate not set to 1_000_000");
+        // HSI is 16Mhz and Fpclk is also 16Mhz
+        match self.registers.cr1.read(CR1::BR) {
+            0b011 => 1_000_000, // 0b011 is Fpclk / 16 => 1 MHz
+            0b001 => 4_000_000, // 0b001 is Fpclk / 4  => 4 MHz
+            _ => panic!("Current SPI rate not supported by tock OS!"),
         }
-
-        1_000_000
     }
 
     fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
@@ -470,8 +471,8 @@ impl<'a> spi::SpiMaster for Spi<'a> {
     }
 }
 
-impl dma1::StreamClient for Spi<'_> {
-    fn transfer_done(&self, pid: dma1::Dma1Peripheral) {
+impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
+    fn transfer_done(&self, pid: Dma1Peripheral) {
         if pid == self.tx_dma_pid {
             self.disable_tx();
         }

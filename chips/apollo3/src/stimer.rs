@@ -132,7 +132,7 @@ impl Time for STimer<'_> {
 }
 
 impl<'a> Counter<'a> for STimer<'a> {
-    fn set_overflow_client(&'a self, _client: &'a dyn OverflowClient) {
+    fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {
         //self.overflow_client.set(client);
     }
 

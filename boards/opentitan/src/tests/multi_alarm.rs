@@ -53,6 +53,8 @@ unsafe fn static_init_multi_alarm_test(
         VirtualMuxAlarm<'static, RvTimer<'static>>,
         VirtualMuxAlarm::new(mux)
     );
+    virtual_alarm1.setup();
+
     let test1 = static_init!(
         TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>,
         TestRandomAlarm::new(virtual_alarm1, 19, 'A', false)
@@ -63,6 +65,8 @@ unsafe fn static_init_multi_alarm_test(
         VirtualMuxAlarm<'static, RvTimer<'static>>,
         VirtualMuxAlarm::new(mux)
     );
+    virtual_alarm2.setup();
+
     let test2 = static_init!(
         TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>,
         TestRandomAlarm::new(virtual_alarm2, 37, 'B', false)
@@ -73,6 +77,8 @@ unsafe fn static_init_multi_alarm_test(
         VirtualMuxAlarm<'static, RvTimer<'static>>,
         VirtualMuxAlarm::new(mux)
     );
+    virtual_alarm3.setup();
+
     let test3 = static_init!(
         TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>,
         TestRandomAlarm::new(virtual_alarm3, 89, 'C', false)

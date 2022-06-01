@@ -20,6 +20,8 @@
 //! let isl29035_virtual_alarm = static_init!(
 //!     VirtualMuxAlarm<'static, sam4l::ast::Ast>,
 //!     VirtualMuxAlarm::new(mux_alarm));
+//! isl29035_virtual_alarm.setup();
+//!
 //! let isl29035 = static_init!(
 //!     capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
 //!     capsules::isl29035::Isl29035::new(isl29035_i2c, isl29035_virtual_alarm,

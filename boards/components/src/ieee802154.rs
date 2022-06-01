@@ -188,9 +188,7 @@ impl<
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
         radio_driver.initialize_callback_handle(
-            self.deferred_caller
-                .register(radio_driver)
-                .expect("no deferred call slot available for ieee802154 driver"),
+            self.deferred_caller.register(radio_driver).unwrap(), // Unwrap fail = no deferred call slot available for ieee802154 driver
         );
 
         (radio_driver, mux_mac)

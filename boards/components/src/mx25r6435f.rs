@@ -53,8 +53,8 @@ pub struct Mx25r6435fComponent<
     P: 'static + hil::gpio::Pin,
     A: 'static + hil::time::Alarm<'static>,
 > {
-    write_protect_pin: &'static P,
-    hold_pin: &'static P,
+    write_protect_pin: Option<&'static P>,
+    hold_pin: Option<&'static P>,
     chip_select: S::ChipSelect,
     mux_alarm: &'static MuxAlarm<'static, A>,
     mux_spi: &'static MuxSpiMaster<'static, S>,
@@ -67,8 +67,8 @@ impl<
     > Mx25r6435fComponent<S, P, A>
 {
     pub fn new(
-        write_protect_pin: &'static P,
-        hold_pin: &'static P,
+        write_protect_pin: Option<&'static P>,
+        hold_pin: Option<&'static P>,
         chip_select: S::ChipSelect,
         mux_alarm: &'static MuxAlarm<'static, A>,
         mux_spi: &'static MuxSpiMaster<'static, S>,
@@ -115,6 +115,7 @@ impl<
             VirtualMuxAlarm<'static, A>,
             VirtualMuxAlarm::new(self.mux_alarm)
         );
+        mx25r6435f_virtual_alarm.setup();
 
         let mx25r6435f = static_init_half!(
             static_buffer.2,
@@ -129,8 +130,8 @@ impl<
                 mx25r6435f_virtual_alarm,
                 &mut capsules::mx25r6435f::TXBUFFER,
                 &mut capsules::mx25r6435f::RXBUFFER,
-                Some(self.write_protect_pin),
-                Some(self.hold_pin)
+                self.write_protect_pin,
+                self.hold_pin,
             )
         );
         mx25r6435f_spi.setup();

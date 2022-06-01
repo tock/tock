@@ -229,7 +229,7 @@ impl gpio::Configure for GpioPin<'_> {
     }
 
     fn disable_input(&self) -> gpio::Configuration {
-        /* We can't do this from the GPIO contorller.
+        /* We can't do this from the GPIO controller.
          * It does look like the IO Mux is capable of this
          * though.
          */

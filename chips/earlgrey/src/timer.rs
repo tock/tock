@@ -108,7 +108,7 @@ impl time::Time for RvTimer<'_> {
 }
 
 impl<'a> time::Counter<'a> for RvTimer<'a> {
-    fn set_overflow_client(&'a self, client: &'a dyn time::OverflowClient) {
+    fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
     }
 

@@ -9,6 +9,7 @@ use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
@@ -38,6 +39,7 @@ use litex_generated_constants as socc;
 /// a default interrupt mapping, as the interrupt numbers are
 /// generated sequentially for all softcores.
 struct LiteXSimInterruptablePeripherals {
+    gpio0: &'static litex_vexriscv::gpio::LiteXGPIOController<'static, socc::SoCRegisterFmt>,
     uart0: &'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>,
     timer0: &'static litex_vexriscv::timer::LiteXTimer<
         'static,
@@ -62,6 +64,10 @@ impl InterruptService<()> for LiteXSimInterruptablePeripherals {
                 self.ethmac0.service_interrupt();
                 true
             }
+            socc::GPIO_INTERRUPT => {
+                self.gpio0.service_interrupt();
+                true
+            }
             _ => false,
         }
     }
@@ -72,7 +78,6 @@ impl InterruptService<()> for LiteXSimInterruptablePeripherals {
 }
 
 const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 // Actual memory for holding the active process structures. Need an
 // empty list at least.
@@ -83,10 +88,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 struct LiteXSimPanicReferences {
     chip: Option<&'static litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePeripherals>>,
     uart: Option<&'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>>,
+    process_printer: Option<&'static kernel::process::ProcessPrinterText>,
 }
 static mut PANIC_REFERENCES: LiteXSimPanicReferences = LiteXSimPanicReferences {
     chip: None,
     uart: None,
+    process_printer: None,
 };
 
 // How should the kernel respond when a process faults.
@@ -100,6 +107,22 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LiteXSim {
+    gpio_driver: &'static capsules::gpio::GPIO<
+        'static,
+        litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
+    >,
+    button_driver: &'static capsules::button::Button<
+        'static,
+        litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
+    >,
+    led_driver: &'static capsules::led::LedDriver<
+        'static,
+        LedHigh<
+            'static,
+            litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
+        >,
+        8,
+    >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -117,6 +140,7 @@ struct LiteXSim {
             >,
         >,
     >,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -138,9 +162,13 @@ impl SyscallDriverLookup for LiteXSim {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
+            capsules::button::DRIVER_NUM => f(Some(self.button_driver)),
+            capsules::led::DRIVER_NUM => f(Some(self.led_driver)),
+            capsules::gpio::DRIVER_NUM => f(Some(self.gpio_driver)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -279,6 +307,8 @@ pub unsafe fn main() {
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    virtual_alarm_user.setup();
+
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<
             'static,
@@ -312,6 +342,7 @@ pub unsafe fn main() {
         >,
         VirtualMuxAlarm::new(mux_alarm)
     );
+    systick_virtual_alarm.setup();
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<
@@ -327,7 +358,6 @@ pub unsafe fn main() {
         >,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-    systick_virtual_alarm.set_alarm_client(scheduler_timer);
 
     // ---------- UART ----------
 
@@ -344,9 +374,7 @@ pub unsafe fn main() {
         )
     );
     uart0.initialize(
-        dynamic_deferred_caller
-            .register(uart0)
-            .expect("dynamic deferred caller out of slots"),
+        dynamic_deferred_caller.register(uart0).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
     PANIC_REFERENCES.uart = Some(uart0);
@@ -384,11 +412,135 @@ pub unsafe fn main() {
     // Initialize the ETHMAC controller
     ethmac0.initialize();
 
+    // --------- GPIO CONTROLLER ----------
+    type GPIOPin = litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>;
+
+    // GPIO hardware controller
+    let gpio0 = static_init!(
+        litex_vexriscv::gpio::LiteXGPIOController<'static, socc::SoCRegisterFmt>,
+        litex_vexriscv::gpio::LiteXGPIOController::new(
+            StaticRef::new(
+                socc::CSR_GPIO_BASE
+                    as *const litex_vexriscv::gpio::LiteXGPIORegisters<socc::SoCRegisterFmt>
+            ),
+            32, // 32 GPIOs in the simulation
+        ),
+    );
+    gpio0.initialize();
+
+    // --------- GPIO DRIVER ----------
+
+    let gpio_driver = components::gpio::GpioComponent::new(
+        board_kernel,
+        capsules::gpio::DRIVER_NUM,
+        components::gpio_component_helper_owned!(
+            GPIOPin,
+            16 => gpio0.get_gpio_pin(16).unwrap(),
+            17 => gpio0.get_gpio_pin(17).unwrap(),
+            18 => gpio0.get_gpio_pin(18).unwrap(),
+            19 => gpio0.get_gpio_pin(19).unwrap(),
+            20 => gpio0.get_gpio_pin(20).unwrap(),
+            21 => gpio0.get_gpio_pin(21).unwrap(),
+            22 => gpio0.get_gpio_pin(22).unwrap(),
+            23 => gpio0.get_gpio_pin(23).unwrap(),
+            24 => gpio0.get_gpio_pin(24).unwrap(),
+            25 => gpio0.get_gpio_pin(25).unwrap(),
+            26 => gpio0.get_gpio_pin(26).unwrap(),
+            27 => gpio0.get_gpio_pin(27).unwrap(),
+            28 => gpio0.get_gpio_pin(28).unwrap(),
+            29 => gpio0.get_gpio_pin(29).unwrap(),
+            30 => gpio0.get_gpio_pin(30).unwrap(),
+            31 => gpio0.get_gpio_pin(31).unwrap(),
+        ),
+    )
+    .finalize(components::gpio_component_buf!(GPIOPin));
+
+    // ---------- LED DRIVER ----------
+
+    let led_gpios = static_init!(
+        [GPIOPin; 8],
+        [
+            gpio0.get_gpio_pin(0).unwrap(),
+            gpio0.get_gpio_pin(1).unwrap(),
+            gpio0.get_gpio_pin(2).unwrap(),
+            gpio0.get_gpio_pin(3).unwrap(),
+            gpio0.get_gpio_pin(4).unwrap(),
+            gpio0.get_gpio_pin(5).unwrap(),
+            gpio0.get_gpio_pin(6).unwrap(),
+            gpio0.get_gpio_pin(7).unwrap(),
+        ]
+    );
+
+    let led_driver =
+        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+            kernel::hil::led::LedHigh<GPIOPin>,
+            LedHigh::new(&led_gpios[0]),
+            LedHigh::new(&led_gpios[1]),
+            LedHigh::new(&led_gpios[2]),
+            LedHigh::new(&led_gpios[3]),
+            LedHigh::new(&led_gpios[4]),
+            LedHigh::new(&led_gpios[5]),
+            LedHigh::new(&led_gpios[6]),
+            LedHigh::new(&led_gpios[7]),
+        ));
+
+    // ---------- BUTTON ----------
+
+    let button_driver = components::button::ButtonComponent::new(
+        board_kernel,
+        capsules::button::DRIVER_NUM,
+        components::button_component_helper_owned!(
+            GPIOPin,
+            (
+                gpio0.get_gpio_pin(8).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(9).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(10).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(11).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(12).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(13).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(14).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+            (
+                gpio0.get_gpio_pin(15).unwrap(),
+                kernel::hil::gpio::ActivationMode::ActiveHigh,
+                kernel::hil::gpio::FloatingState::PullNone
+            ),
+        ),
+    )
+    .finalize(components::button_component_buf!(GPIOPin));
+
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 
     let interrupt_service = static_init!(
         LiteXSimInterruptablePeripherals,
         LiteXSimInterruptablePeripherals {
+            gpio0,
             timer0,
             uart0,
             ethmac0,
@@ -407,6 +559,11 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+
+    PANIC_REFERENCES.process_printer = Some(process_printer);
+
     // Enable RISC-V interrupts globally
     csr::CSR
         .mie
@@ -422,7 +579,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -435,7 +592,7 @@ pub unsafe fn main() {
 
     debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -451,9 +608,17 @@ pub unsafe fn main() {
         .finalize(components::coop_component_helper!(NUM_PROCS));
 
     let litex_sim = LiteXSim {
+        gpio_driver: gpio_driver,
+        button_driver: button_driver,
+        led_driver: led_driver,
         console: console,
         alarm: alarm,
         lldb: lldb,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
         scheduler,
         scheduler_timer,
     };
@@ -478,10 +643,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &litex_sim,
-        chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>>,
-        &main_loop_cap,
-    );
+    board_kernel.kernel_loop(&litex_sim, chip, Some(&litex_sim.ipc), &main_loop_cap);
 }

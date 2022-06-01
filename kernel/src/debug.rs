@@ -59,6 +59,8 @@ use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
 use crate::platform::chip::Chip;
 use crate::process::Process;
+use crate::process::ProcessPrinter;
+use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::{MapCell, TakeCell};
 use crate::ErrorCode;
@@ -99,35 +101,37 @@ pub trait IoWrite {
 /// the system once this function returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<W: Write + IoWrite, C: Chip>(
+pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
+    process_printer: &'static Option<&'static PP>,
 ) {
     panic_begin(nop);
     panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
     panic_cpu_state(chip, writer);
-    panic_process_info(processes, writer);
+    panic_process_info(processes, process_printer, writer);
 }
 
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip>(
+pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
+    process_printer: &'static Option<&'static PP>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic
     // information and return
-    panic_print(writer, panic_info, nop, processes, chip);
+    panic_print(writer, panic_info, nop, processes, chip, process_printer);
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return
@@ -176,17 +180,26 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_process_info<W: Write>(
+pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     procs: &'static [Option<&'static dyn Process>],
+    process_printer: &'static Option<&'static PP>,
     writer: &mut W,
 ) {
-    // print data about each process
-    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-    for idx in 0..procs.len() {
-        procs[idx].as_ref().map(|process| {
-            process.print_full_process(writer);
-        });
-    }
+    process_printer.map(|printer| {
+        // print data about each process
+        let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+        for idx in 0..procs.len() {
+            procs[idx].map(|process| {
+                // Print the memory map and basic process info.
+                //
+                // Because we are using a synchronous printer we do not need to
+                // worry about looping on the print function.
+                printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
+                // Print all of the process details.
+                process.print_full_process(writer);
+            });
+        }
+    });
 }
 
 /// Blinks a recognizable pattern forever.
@@ -376,7 +389,7 @@ unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
 }
 
 unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
-    try_get_debug_writer().expect("Must call `set_debug_writer_wrapper` in board initialization.")
+    try_get_debug_writer().unwrap() // Unwrap fail = Must call `set_debug_writer_wrapper` in board initialization.
 }
 
 /// Function used by board main.rs to set a reference to the writer.
@@ -601,6 +614,38 @@ macro_rules! debug_verbose {
             &_FILE_LINE
         })
     });
+}
+
+#[macro_export]
+/// Prints out the expression and its location, then returns it.
+///
+/// ```rust,ignore
+/// let foo: u8 = debug_expr!(0xff);
+/// // Prints [main.rs:2] 0xff = 255
+/// ```
+/// Taken straight from Rust std::dbg.
+macro_rules! debug_expr {
+    // NOTE: We cannot use `concat!` to make a static string as a format argument
+    // of `eprintln!` because `file!` could contain a `{` or
+    // `$val` expression could be a block (`{ .. }`), in which case the `eprintln!`
+    // will be malformed.
+    () => {
+        $crate::debug!("[{}:{}]", file!(), line!())
+    };
+    ($val:expr $(,)?) => {
+        // Use of `match` here is intentional because it affects the lifetimes
+        // of temporaries - https://stackoverflow.com/a/48732525/1063961
+        match $val {
+            tmp => {
+                $crate::debug!("[{}:{}] {} = {:#?}",
+                    file!(), line!(), stringify!($val), &tmp);
+                tmp
+            }
+        }
+    };
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::debug_expr!($val)),+,)
+    };
 }
 
 pub trait Debug {

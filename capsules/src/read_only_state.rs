@@ -28,7 +28,7 @@
 //!
 
 use core::cell::Cell;
-use kernel::grant::Grant;
+use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{Ticks, Time};
 use kernel::platform::ContextSwitchCallback;
 use kernel::process::{self, ProcessId};
@@ -43,11 +43,14 @@ const VERSION: u32 = 1;
 pub struct ReadOnlyStateDriver<'a, T: Time> {
     timer: &'a T,
 
-    apps: Grant<App, 0>,
+    apps: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
-    pub fn new(timer: &'a T, grant: Grant<App, 0>) -> ReadOnlyStateDriver<'a, T> {
+    pub fn new(
+        timer: &'a T,
+        grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+    ) -> ReadOnlyStateDriver<'a, T> {
         ReadOnlyStateDriver { timer, apps: grant }
     }
 }

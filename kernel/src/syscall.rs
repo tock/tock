@@ -244,7 +244,7 @@ pub enum SyscallReturnVariant {
 /// Capsules do not use this struct. Capsules use higher level Rust
 /// types
 /// (e.g. [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer)
-/// and `GrantUpcallTable`) or wrappers around this struct
+/// and `GrantKernelData`) or wrappers around this struct
 /// ([`CommandReturn`](crate::syscall_driver::CommandReturn)) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
@@ -648,4 +648,8 @@ pub trait UserspaceKernelBoundary {
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
+
+    /// Store architecture specific (e.g. CPU registers or status flags) data
+    /// for a process. On success returns the number of elements written to out.
+    fn store_context(&self, state: &Self::StoredState, out: &mut [u8]) -> Result<usize, ErrorCode>;
 }

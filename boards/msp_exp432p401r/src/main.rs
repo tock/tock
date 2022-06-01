@@ -23,7 +23,6 @@ pub mod io;
 
 /// Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-const NUM_UPCALLS_IPC: usize = NUM_PROCS + 1;
 
 /// Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
@@ -32,6 +31,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 /// Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>> =
     None;
+// Static reference to process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -47,6 +48,7 @@ struct MspExp432P401R {
     led: &'static capsules::led::LedDriver<
         'static,
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
+        3,
     >,
     console: &'static capsules::console::Console<'static>,
     button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
@@ -55,7 +57,7 @@ struct MspExp432P401R {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
-    ipc: kernel::ipc::IPC<NUM_PROCS, NUM_UPCALLS_IPC>,
+    ipc: kernel::ipc::IPC<NUM_PROCS>,
     adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
     scheduler: &'static RoundRobinSched<'static>,
@@ -254,7 +256,7 @@ pub unsafe fn main() {
     .finalize(components::button_component_buf!(msp432::gpio::IntPin));
 
     // Setup LEDs
-    let leds = components::led::LedsComponent::new(components::led_component_helper!(
+    let leds = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
         kernel::hil::led::LedHigh::new(
             &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_0 as usize]
@@ -265,9 +267,6 @@ pub unsafe fn main() {
         kernel::hil::led::LedHigh::new(
             &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_2 as usize]
         ),
-    ))
-    .finalize(components::led_component_buf!(
-        kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>
     ));
 
     // Setup user-GPIOs
@@ -347,7 +346,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -423,6 +422,10 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
+    let process_printer =
+        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    PROCESS_PRINTER = Some(process_printer);
+
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
         console: console,
@@ -442,7 +445,7 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

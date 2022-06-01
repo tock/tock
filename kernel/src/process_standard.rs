@@ -19,15 +19,15 @@ use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process::{ProcessAddresses, ProcessSizes};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
-use crate::utilities::cells::{MapCell, NumericCellExt};
-
-// The completion code for a process if it faulted.
-const COMPLETION_FAULT: u32 = 0xffffffff;
+use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
+use tock_tbf::types::CommandPermissions;
 
 /// State for helping with debugging apps.
 ///
@@ -202,6 +202,16 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// determine if the process should be restarted or not.
     restart_count: Cell<usize>,
 
+    /// The completion code set by the process when it last exited, restarted,
+    /// or was terminated. If the process is has never terminated, then the
+    /// `OptionalCell` will be empty (i.e. `None`). If the process has exited,
+    /// restarted, or terminated, the `OptionalCell` will contain an optional 32
+    /// bit value. The option will be `None` if the process crashed or was
+    /// stopped by the kernel and there is no provided completion code. If the
+    /// process called the exit syscall then the provided completion code will
+    /// be stored as `Some(completion code)`.
+    completion_code: OptionalCell<Option<u32>>,
+
     /// Name of the app.
     process_name: &'static str,
 
@@ -323,7 +333,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 panic!("Process {} had a fault", self.process_name);
             }
             FaultAction::Restart => {
-                self.try_restart(COMPLETION_FAULT);
+                self.try_restart(None);
             }
             FaultAction::Stop => {
                 // This looks a lot like restart, except we just leave the app
@@ -331,13 +341,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // all of the app's todo work it will not be scheduled, and
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
-                self.terminate(COMPLETION_FAULT);
+                self.terminate(None);
                 self.state.update(State::Faulted);
             }
         }
     }
 
-    fn try_restart(&self, completion_code: u32) {
+    fn try_restart(&self, completion_code: Option<u32>) {
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
@@ -350,7 +360,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // want to reclaim the process resources.
     }
 
-    fn terminate(&self, _completion_code: u32) {
+    fn terminate(&self, completion_code: Option<u32>) {
         // Remove the tasks that were scheduled for the app from the
         // amount of work queue.
         let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
@@ -367,6 +377,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         unsafe {
             self.grant_ptrs_reset();
         }
+
+        // Save the completion code.
+        self.completion_code.set(completion_code);
 
         // Mark the app as stopped so the scheduler won't try to run it.
         self.state.update(State::Terminated);
@@ -393,28 +406,30 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.tasks.map_or(0, |tasks| tasks.len())
     }
 
-    fn mem_start(&self) -> *const u8 {
-        self.memory_start
+    fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
+        self.header.get_command_permissions(driver_num, offset)
     }
 
-    fn mem_end(&self) -> *const u8 {
-        self.memory_start.wrapping_add(self.memory_len)
-    }
+    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
+        let (read_count, read_storage_ids) = self
+            .header
+            .get_persistent_acl_read_ids()
+            .unwrap_or((0, [0; 8]));
 
-    fn flash_start(&self) -> *const u8 {
-        self.flash.as_ptr()
-    }
+        let (access_count, access_storage_ids) = self
+            .header
+            .get_persistent_acl_access_ids()
+            .unwrap_or((0, [0; 8]));
 
-    fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
-    }
+        let write_id = self.header.get_persistent_acl_write_id();
 
-    fn flash_end(&self) -> *const u8 {
-        self.flash.as_ptr().wrapping_add(self.flash.len())
-    }
-
-    fn kernel_memory_break(&self) -> *const u8 {
-        self.kernel_memory_break.get()
+        Some(storage_permissions::StoragePermissions::new(
+            read_count,
+            read_storage_ids,
+            access_count,
+            access_storage_ids,
+            write_id,
+        ))
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -443,10 +458,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 debug.app_heap_start_pointer = Some(heap_pointer);
             });
         }
-    }
-
-    fn app_memory_break(&self) -> *const u8 {
-        self.app_break.get()
     }
 
     fn setup_mpu(&self) {
@@ -926,6 +937,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_name
     }
 
+    fn get_completion_code(&self) -> Option<Option<u32>> {
+        self.completion_code.extract()
+    }
+
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
             // Actually set the return value for a particular process.
@@ -1073,206 +1088,44 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
-    fn debug_heap_start(&self) -> Option<*const u8> {
-        self.debug
-            .map_or(None, |debug| debug.app_heap_start_pointer.map(|p| p))
+    fn debug_syscall_last(&self) -> Option<Syscall> {
+        self.debug.map_or(None, |debug| debug.last_syscall)
     }
 
-    fn debug_stack_start(&self) -> Option<*const u8> {
-        self.debug
-            .map_or(None, |debug| debug.app_stack_start_pointer.map(|p| p))
+    fn get_addresses(&self) -> ProcessAddresses {
+        ProcessAddresses {
+            flash_start: self.flash_start() as usize,
+            flash_non_protected_start: self.flash_non_protected_start() as usize,
+            flash_end: self.flash_end() as usize,
+            sram_start: self.mem_start() as usize,
+            sram_app_brk: self.app_memory_break() as usize,
+            sram_grant_start: self.kernel_memory_break() as usize,
+            sram_end: self.mem_end() as usize,
+            sram_heap_start: self.debug.map_or(None, |debug| {
+                debug.app_heap_start_pointer.map(|p| p as usize)
+            }),
+            sram_stack_top: self.debug.map_or(None, |debug| {
+                debug.app_stack_start_pointer.map(|p| p as usize)
+            }),
+            sram_stack_bottom: self.debug.map_or(None, |debug| {
+                debug.app_stack_min_pointer.map(|p| p as usize)
+            }),
+        }
     }
 
-    fn debug_stack_end(&self) -> Option<*const u8> {
-        self.debug
-            .map_or(None, |debug| debug.app_stack_min_pointer.map(|p| p))
-    }
-
-    fn print_memory_map(&self, writer: &mut dyn Write) {
-        if !config::CONFIG.debug_panics {
-            return;
+    fn get_sizes(&self) -> ProcessSizes {
+        ProcessSizes {
+            grant_pointers: mem::size_of::<GrantPointerEntry>()
+                * self.kernel.get_grant_count_and_finalize(),
+            upcall_list: Self::CALLBACKS_OFFSET,
+            process_control_block: Self::PROCESS_STRUCT_OFFSET,
         }
-        // Flash
-        let flash_end = self.flash.as_ptr().wrapping_add(self.flash.len()) as usize;
-        let flash_start = self.flash.as_ptr() as usize;
-        let flash_protected_size = self.header.get_protected_size() as usize;
-        let flash_app_start = flash_start + flash_protected_size;
-        let flash_app_size = flash_end - flash_app_start;
-
-        // Grant pointers size.
-        let grant_ptr_size = mem::size_of::<GrantPointerEntry>();
-        let grant_ptrs_num = self.kernel.get_grant_count_and_finalize();
-        let sram_grant_pointers_size = grant_ptrs_num * grant_ptr_size;
-
-        // SRAM addresses
-        let sram_end = self.mem_end() as usize;
-        let sram_grant_pointers_start = sram_end - sram_grant_pointers_size;
-        let sram_upcall_list_start = sram_grant_pointers_start - Self::CALLBACKS_OFFSET;
-        let process_struct_memory_location = sram_upcall_list_start - Self::PROCESS_STRUCT_OFFSET;
-        let sram_grant_start = self.kernel_memory_break.get() as usize;
-        let sram_heap_end = self.app_break.get() as usize;
-        let sram_heap_start: Option<usize> = self.debug.map_or(None, |debug| {
-            debug.app_heap_start_pointer.map(|p| p as usize)
-        });
-        let sram_stack_start: Option<usize> = self.debug.map_or(None, |debug| {
-            debug.app_stack_start_pointer.map(|p| p as usize)
-        });
-        let sram_stack_bottom: Option<usize> = self.debug.map_or(None, |debug| {
-            debug.app_stack_min_pointer.map(|p| p as usize)
-        });
-        let sram_start = self.mem_start() as usize;
-
-        // SRAM sizes
-        let sram_upcall_list_size = Self::CALLBACKS_OFFSET;
-        let sram_process_struct_size = Self::PROCESS_STRUCT_OFFSET;
-        let sram_grant_size = process_struct_memory_location - sram_grant_start;
-        let sram_grant_allocated = process_struct_memory_location - sram_grant_start;
-
-        // application statistics
-        let events_queued = self.pending_tasks();
-        let syscall_count = self.debug.map_or(0, |debug| debug.syscall_count);
-        let last_syscall = self.debug.map(|debug| debug.last_syscall);
-        let dropped_upcall_count = self.debug.map_or(0, |debug| debug.dropped_upcall_count);
-        let restart_count = self.restart_count.get();
-
-        let _ = writer.write_fmt(format_args!(
-            "\
-             𝐀𝐩𝐩: {}   -   [{:?}]\
-             \r\n Events Queued: {}   Syscall Count: {}   Dropped Upcall Count: {}\
-             \r\n Restart Count: {}\r\n",
-            self.process_name,
-            self.state.get(),
-            events_queued,
-            syscall_count,
-            dropped_upcall_count,
-            restart_count,
-        ));
-
-        let _ = match last_syscall {
-            Some(syscall) => writer.write_fmt(format_args!(" Last Syscall: {:?}\r\n", syscall)),
-            None => writer.write_str(" Last Syscall: None\r\n"),
-        };
-
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n\
-             \r\n ╔═══════════╤══════════════════════════════════════════╗\
-             \r\n ║  Address  │ Region Name    Used | Allocated (bytes)  ║\
-             \r\n ╚{:#010X}═╪══════════════════════════════════════════╝\
-             \r\n             │ Grant Ptrs   {:6}\
-             \r\n             │ Upcalls      {:6}\
-             \r\n             │ Process      {:6}\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ ▼ Grant      {:6} | {:6}{}\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ Unused\
-             \r\n  {:#010X} ┼───────────────────────────────────────────",
-            sram_end,
-            sram_grant_pointers_size,
-            sram_upcall_list_size,
-            sram_process_struct_size,
-            process_struct_memory_location,
-            sram_grant_size,
-            sram_grant_allocated,
-            exceeded_check(sram_grant_size, sram_grant_allocated),
-            sram_grant_start,
-            sram_heap_end,
-        ));
-
-        match sram_heap_start {
-            Some(sram_heap_start) => {
-                let sram_heap_size = sram_heap_end - sram_heap_start;
-                let sram_heap_allocated = sram_grant_start - sram_heap_start;
-
-                let _ = writer.write_fmt(format_args!(
-                    "\
-                     \r\n             │ ▲ Heap       {:6} | {:6}{}     S\
-                     \r\n  {:#010X} ┼─────────────────────────────────────────── R",
-                    sram_heap_size,
-                    sram_heap_allocated,
-                    exceeded_check(sram_heap_size, sram_heap_allocated),
-                    sram_heap_start,
-                ));
-            }
-            None => {
-                let _ = writer.write_str(
-                    "\
-                     \r\n             │ ▲ Heap            ? |      ?               S\
-                     \r\n  ?????????? ┼─────────────────────────────────────────── R",
-                );
-            }
-        }
-
-        match (sram_heap_start, sram_stack_start) {
-            (Some(sram_heap_start), Some(sram_stack_start)) => {
-                let sram_data_size = sram_heap_start - sram_stack_start;
-                let sram_data_allocated = sram_data_size as usize;
-
-                let _ = writer.write_fmt(format_args!(
-                    "\
-                     \r\n             │ Data         {:6} | {:6}               A",
-                    sram_data_size, sram_data_allocated,
-                ));
-            }
-            _ => {
-                let _ = writer.write_str(
-                    "\
-                     \r\n             │ Data              ? |      ?               A",
-                );
-            }
-        }
-
-        match (sram_stack_start, sram_stack_bottom) {
-            (Some(sram_stack_start), Some(sram_stack_bottom)) => {
-                let sram_stack_size = sram_stack_start - sram_stack_bottom;
-                let sram_stack_allocated = sram_stack_start - sram_start;
-
-                let _ = writer.write_fmt(format_args!(
-                    "\
-                     \r\n  {:#010X} ┼─────────────────────────────────────────── M\
-                     \r\n             │ ▼ Stack      {:6} | {:6}{}",
-                    sram_stack_start,
-                    sram_stack_size,
-                    sram_stack_allocated,
-                    exceeded_check(sram_stack_size, sram_stack_allocated),
-                ));
-            }
-            _ => {
-                let _ = writer.write_str(
-                    "\
-                     \r\n  ?????????? ┼─────────────────────────────────────────── M\
-                     \r\n             │ ▼ Stack           ? |      ?",
-                );
-            }
-        }
-
-        let _ = writer.write_fmt(format_args!(
-            "\
-             \r\n  {:#010X} ┼───────────────────────────────────────────\
-             \r\n             │ Unused\
-             \r\n  {:#010X} ┴───────────────────────────────────────────\
-             \r\n             .....\
-             \r\n  {:#010X} ┬─────────────────────────────────────────── F\
-             \r\n             │ App Flash    {:6}                        L\
-             \r\n  {:#010X} ┼─────────────────────────────────────────── A\
-             \r\n             │ Protected    {:6}                        S\
-             \r\n  {:#010X} ┴─────────────────────────────────────────── H\
-             \r\n",
-            sram_stack_bottom.unwrap_or(0),
-            sram_start,
-            flash_end,
-            flash_app_size,
-            flash_app_start,
-            flash_protected_size,
-            flash_start
-        ));
     }
 
     fn print_full_process(&self, writer: &mut dyn Write) {
         if !config::CONFIG.debug_panics {
             return;
         }
-        self.print_memory_map(writer);
 
         self.stored_state.map(|stored_state| {
             // We guarantee the memory bounds pointers provided to the UKB are
@@ -1360,15 +1213,15 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             }
         });
     }
-}
 
-// Only used if debug_panics == true
-#[allow(unused)]
-fn exceeded_check(size: usize, allocated: usize) -> &'static str {
-    if size > allocated {
-        " EXCEEDED!"
-    } else {
-        "          "
+    fn get_stored_state(&self, out: &mut [u8]) -> Result<usize, ErrorCode> {
+        self.stored_state
+            .map(|stored_state| {
+                self.chip
+                    .userspace_kernel_boundary()
+                    .store_context(stored_state, out)
+            })
+            .unwrap_or(Err(ErrorCode::FAIL))
     }
 }
 
@@ -1399,22 +1252,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, app_version)?;
-
-        // First thing: check that the process is at the correct location in
-        // flash if the TBF header specified a fixed address. If there is a
-        // mismatch we catch that early.
-        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
-            // The flash address in the header is based on the app binary,
-            // so we need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
-            let expected_address = fixed_flash_start;
-            if actual_address != expected_address {
-                return Err(ProcessLoadError::IncorrectFlashAddress {
-                    actual_address,
-                    expected_address,
-                });
-            }
-        }
 
         let process_name = tbf_header.get_package_name();
 
@@ -1472,6 +1309,22 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                            process_name.unwrap_or ("(no name"));
                 }
                 return Err(ProcessLoadError::IncompatibleKernelVersion { version: None });
+            }
+        }
+
+        // Check that the process is at the correct location in
+        // flash if the TBF header specified a fixed address. If there is a
+        // mismatch we catch that early.
+        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
+            // The flash address in the header is based on the app binary,
+            // so we need to take into account the header length.
+            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
+            let expected_address = fixed_flash_start;
+            if actual_address != expected_address {
+                return Err(ProcessLoadError::IncorrectFlashAddress {
+                    actual_address,
+                    expected_address,
+                });
             }
         }
 
@@ -1741,6 +1594,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.state = ProcessStateCell::new(process.kernel);
         process.fault_policy = fault_policy;
         process.restart_count = Cell::new(0);
+        process.completion_code = OptionalCell::empty();
 
         process.mpu_config = MapCell::new(mpu_config);
         process.mpu_regions = [
@@ -2113,5 +1967,45 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn is_active(&self) -> bool {
         let current_state = self.state.get();
         current_state != State::Terminated && current_state != State::Faulted
+    }
+
+    /// The start address of allocated RAM for this process.
+    fn mem_start(&self) -> *const u8 {
+        self.memory_start
+    }
+
+    /// The first address after the end of the allocated RAM for this process.
+    fn mem_end(&self) -> *const u8 {
+        self.memory_start.wrapping_add(self.memory_len)
+    }
+
+    /// The start address of the flash region allocated for this process.
+    fn flash_start(&self) -> *const u8 {
+        self.flash.as_ptr()
+    }
+
+    /// Get the first address of process's flash that isn't protected by the
+    /// kernel. The protected range of flash contains the TBF header and
+    /// potentially other state the kernel is storing on behalf of the process,
+    /// and cannot be edited by the process.
+    fn flash_non_protected_start(&self) -> *const u8 {
+        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+    }
+
+    /// The first address after the end of the flash region allocated for this
+    /// process.
+    fn flash_end(&self) -> *const u8 {
+        self.flash.as_ptr().wrapping_add(self.flash.len())
+    }
+
+    /// The lowest address of the grant region for the process.
+    fn kernel_memory_break(&self) -> *const u8 {
+        self.kernel_memory_break.get()
+    }
+
+    /// Return the highest address the process has access to, or the current
+    /// process memory brk.
+    fn app_memory_break(&self) -> *const u8 {
+        self.app_break.get()
     }
 }
