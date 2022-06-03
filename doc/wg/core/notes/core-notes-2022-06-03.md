@@ -55,7 +55,7 @@ Attendees:
  * Alyssa: Okay
  * Branden: Logistically, we have more space, but I'm concerned that if there
    are a bunch of random people who are not really interested in Tock it may not
-   be interested in them.
+   be interesting to them.
  * Phil: If it isn't useful, they might note come. Another concern as somebody
    who sits on both sides, I think it's important to avoid having too many
    people from any one side. So for example, a couple more people from Ti50 --
