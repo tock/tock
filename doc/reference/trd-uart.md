@@ -96,6 +96,12 @@ operations. Refer to [3 `Transmit` and `TransmitClient`
 ](#3-transmit-and-transmitclient) and [4 `Receive` and `ReceiveClient`
 ](#4-receive-and-receiveclient-traits) respectively.
 
+Any configuration-change must not apply to operations started before
+this change. The UART implementation is free to accept a configuration
+change and apply it with the next operation, or refuse an otherwise
+valid configuration request because of an ongoing operation by
+returning `ErrorCode::BUSY`.
+
 ```rust
 pub enum StopBits {
     One = 1,
@@ -148,6 +154,8 @@ Methods in `Configure` can return the following error conditions:
     hardware USART controller because it is set up for SPI.
   - `INVAL`: Baud rate was set to 0.
   - `NOSUPPORT`: The underlying UART cannot satisfy this configuration.
+  - `BUSY`: The UART is currently busy processing an operation which
+    would be affected by a change of the respective parameter.
   - `FAIL`: Other failure condition.
 
 
