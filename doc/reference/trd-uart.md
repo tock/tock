@@ -87,7 +87,14 @@ still partitioned into bytes, and the UART sends the least significant
 bits of each byte. Suppose a UART is configured to send 7-bit
 words. If a client sends 5 bytes, the UART will send 35 bits,
 transmitting the bottom 7 bits of each byte. The most significant bit
-of each byte is ignored.
+of each byte is ignored. While this HIL does support UART transfers
+with a character-width of more than 8-bit, such characters cannot be
+sent or received using the provided bulk transfer mechanisms. A
+configuration with `Width` > `8` will disable the bulk buffer transfer
+mechanisms and restrict the device to single-character
+operations. Refer to [3 `Transmit` and `TransmitClient`
+](#3-transmit-and-transmitclient) and [4 `Receive` and `ReceiveClient`
+](#4-receive-and-receiveclient-traits) respectively.
 
 ```rust
 pub enum StopBits {
@@ -216,7 +223,9 @@ of the bytes passed in the buffer. For example, if the UART is using
 
 If a client needs to transmit characters larger than 8 bits, it should
 use `transmit_character`, as `transmit_buffer` is a buffer of 8-bit
-bytes and cannot store 9-bit values.
+bytes and cannot store 9-bit values. If the UART is configured to use
+characters wider than 8-bit, the `transmit_buffer` operation is
+disabled and calls to it must return `ErrorCode::INVAL`.
 
 There can be a single transmit operation ongoing at any
 time. Successfully calling either `transmit_buffer` or
@@ -247,6 +256,7 @@ The valid error codes for `transmit_buffer` are:
   - `BUSY`: the UART is already transmitting and has not made a transmission
     complete callback yet.
   - `SIZE`: `tx_len` is larger than the passed slice.
+  - `INVAL`: the device is configured for data widths larger than 8-bit.
   - `FAIL`: some other failure.
 
 Calling `transmit_buffer` while there is an outstanding
@@ -349,7 +359,9 @@ UART. They support both single-word and buffer reception. Buffer-based
 reception is more efficient, as it allows an MCU to handle only one
 interrupt for many characters. However, buffer-based reception only supports
 characters of 6, 7, and 8 bits, so clients using 9-bit words need to use
-word operations.
+word operations. If the UART is configured to use characters wider
+than 8-bit, the `receive_buffer` operation is disabled and calls to
+it must return `ErrorCode::INVAL`.
 
 Each byte received is a character for the UART. If the UART is using
 8-bit characters, each character is a byte. If the UART is using
@@ -420,6 +432,8 @@ received, `rval` MUST be `Err`. Valid return values for
   - `BUSY`: the UART is already receiving (a buffer or a word)
     and has not made a reception `received` callback yet.
   - `SIZE`: `rx_len` is larger than the passed slice.
+  - `INVAL`: the device is configured for data widths larger than
+    8-bit.
 
 
 The `receive_abort` method can be used to cancel an outstanding buffer
