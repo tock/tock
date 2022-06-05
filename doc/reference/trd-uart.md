@@ -121,7 +121,7 @@ pub trait Configuration {
     fn get_width(&self) -> Width;
     fn get_parity(&self) -> Parity;
     fn get_stop_bits(&self) -> StopBits;
-    fn get_flow_control(&self) -> bool;
+    fn get_hw_flow_control(&self) -> bool;
     fn get_configuration(&self) -> Configuration;
 }
 
@@ -130,7 +130,7 @@ pub trait Configure {
     fn set_width(&self, width: Width) -> Result<(), ErrorCode>;
     fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode>;
     fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode>;
-    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
+    fn set_hw_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 ```
