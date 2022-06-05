@@ -140,7 +140,7 @@ Methods in `Configure` can return the following error conditions:
     because it has not been initialized or in the case of a shared
     hardware USART controller because it is set up for SPI.
   - `INVAL`: Baud rate was set to 0.
-  - `ENOSUPPORT`: The underlying UART cannot satisfy this configuration.
+  - `NOSUPPORT`: The underlying UART cannot satisfy this configuration.
   - `FAIL`: Other failure condition.
 
 
@@ -328,7 +328,7 @@ The three possible values of `AbortResult` have these meanings:
   - `Callback(false)`: there was an outstanding operation, which
     has not been cancelled.  A callback will be made for that operation with
     a result other than `Err(CANCEL)`.
-  - `NoCallack`: there was no outstanding request and there will be no future
+  - `NoCallback`: there was no outstanding request and there will be no future
     callback.
 
 Note that the semantics of the boolean field in
