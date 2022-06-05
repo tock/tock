@@ -5,6 +5,9 @@ use kernel::ErrorCode;
 
 use crate::gpio;
 use kernel::hil;
+use kernel::hil::uart::{
+    AbortResult, Configuration, Configure, Parameters, Parity, StopBits, Width,
+};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -95,17 +98,6 @@ impl<'a> Uart<'a> {
         rx.iof0();
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
-        let regs = self.registers;
-
-        //            f_clk
-        // f_baud = ---------
-        //           div + 1
-        let divisor = (self.clock_frequency / baud_rate) - 1;
-
-        regs.div.write(div::div.val(divisor));
-    }
-
     fn enable_tx_interrupt(&self) {
         let regs = self.registers;
         regs.ie.modify(interrupt::txwm::SET);
@@ -168,23 +160,102 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        // This chip does not support these features.
-        if params.parity != hil::uart::Parity::None {
-            return Err(ErrorCode::NOSUPPORT);
+impl Configuration for Uart<'_> {
+    fn get_baud_rate(&self) -> u32 {
+        let divisor = self.registers.div.read(div::div);
+
+        //            f_clk
+        // f_baud = ---------
+        //           div + 1
+        self.clock_frequency / (divisor + 1)
+    }
+
+    fn get_width(&self) -> Width {
+        // Only 8-bit characters supported
+        Width::Eight
+    }
+
+    fn get_parity(&self) -> Parity {
+        // Parity bits not supported
+        Parity::None
+    }
+
+    fn get_stop_bits(&self) -> StopBits {
+        self.stop_bits.get()
+    }
+
+    fn get_flow_control(&self) -> bool {
+        // Hardware flow control not supported
+        false
+    }
+}
+
+impl Configure for Uart<'_> {
+    fn set_baud_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
+        let regs = self.registers;
+
+        //            f_clk
+        // f_baud = ---------
+        //           div + 1
+        let divisor = (self.clock_frequency / rate) - 1;
+
+        regs.div.write(div::div.val(divisor));
+
+        // Return the actual configured baud rate
+        Ok(self.get_baud_rate())
+    }
+
+    fn set_width(&self, width: Width) -> Result<(), ErrorCode> {
+        if width != Width::Eight {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            Ok(())
         }
-        if params.hw_flow_control != false {
-            return Err(ErrorCode::NOSUPPORT);
+    }
+
+    fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode> {
+        if parity != Parity::None {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            Ok(())
         }
+    }
 
-        // We can set the baud rate.
-        self.set_baud_rate(params.baud_rate);
-
-        // We need to save the stop bits because it is set in the TX register.
-        self.stop_bits.set(params.stop_bits);
-
+    fn set_stop_bits(&self, stop_bits: StopBits) -> Result<(), ErrorCode> {
+        self.stop_bits.set(stop_bits);
         Ok(())
+    }
+
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode> {
+        if on {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
+        // This chip does not support certain features. To ensure that the
+        // configuration is applied atomically, perform the required checks and
+        // subsequently call the individual functions.
+        if params.width != Width::Eight {
+            Err(ErrorCode::NOSUPPORT)
+        } else if params.parity != hil::uart::Parity::None {
+            Err(ErrorCode::NOSUPPORT)
+        } else if params.hw_flow_control != false {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            // Calling unwrap on all of these calls, as this function is
+            // supposed to perform an atomic update and all invariants
+            // should've been verified above.
+            self.set_baud_rate(params.baud_rate).unwrap();
+            self.set_width(params.width).unwrap();
+            self.set_parity(params.parity).unwrap();
+            self.set_stop_bits(params.stop_bits).unwrap();
+            self.set_flow_control(params.hw_flow_control).unwrap();
+
+            Ok(())
+        }
     }
 }
 
@@ -235,12 +306,20 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         Ok(())
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_abort(&self) -> AbortResult {
+        // TODO: aborting a transmission is not currently supported.
+        if self.buffer.is_some() {
+            // A transmission is currently ongoing, report it has not been
+            // cancelled.
+            AbortResult::Callback(false)
+        } else {
+            // There is nothing to abort.
+            AbortResult::NoCallback
+        }
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_character(&self, _character: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }
 
@@ -254,14 +333,19 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         rx_buffer: &'static mut [u8],
         _rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        Err((ErrorCode::FAIL, rx_buffer))
+        // TODO: this implementation is non-compliant to the UART-TRD draft
+        // version 4: the TRD does not allow an implementation to not provide
+        // reception capabilities.
+        Err((ErrorCode::OFF, rx_buffer))
     }
 
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn receive_abort(&self) -> AbortResult {
+        // Given receive is not supported, this will never have an ongoing
+        // operation to cancel.
+        AbortResult::NoCallback
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn receive_character(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }
