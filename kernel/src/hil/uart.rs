@@ -81,7 +81,16 @@ pub trait Configuration {
     fn get_parity(&self) -> Parity;
     fn get_stop_bits(&self) -> StopBits;
     fn get_flow_control(&self) -> bool;
-    fn get_configuration(&self) -> Parameters; // TODO: TRD has this as Configuration, but this seems to make more sense
+    // TODO: TRD has this as Configuration, but this seems to make more sense
+    fn get_configuration(&self) -> Parameters {
+        Parameters {
+            baud_rate: self.get_baud_rate(),
+            width: self.get_width(),
+            parity: self.get_parity(),
+            stop_bits: self.get_stop_bits(),
+            hw_flow_control: self.get_flow_control(),
+        }
+    }
 }
 
 /// Trait for configuring a UART.
