@@ -105,7 +105,7 @@ pub enum Width {
     Six = 6,
     Seven = 7,
     Eight = 8,
-	Nine = 9,
+    Nine = 9,
 }
 
 pub struct Parameters {
@@ -311,15 +311,15 @@ The `transmit_abort` method allows a UART implementation to terminate
 an outstanding call to `transmit_character` or `transmit_buffer` early. The
 result of `transmit_abort` indicates two things:
 
-  1. whether a callback will occur (there is an oustanding operation), and 
+  1. whether a callback will occur (there is an oustanding operation), and
   2. if a callback will occur, whether the operation is cancelled.
-  
+
 If `transmit_abort` returns `Callback`, there will be be a future
 callback for the completion of the outstanding request. If there is
 an outstanding `transmit_buffer` or `transmit_character` operation,
 `transmit_abort` MUST return `Callback`. If there is no outstanding
 `transmit_buffer` or `transmit_abort` operation, `transmit_abort` MUST
-return `NoCallback`. 
+return `NoCallback`.
 
 The three possible values of `AbortResult` have these meanings:
   - `Callback(true)`: there was an outstanding operation, which
