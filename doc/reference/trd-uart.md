@@ -270,7 +270,7 @@ The valid error codes for `transmit_buffer` are:
     (e.g., a USART has been configured to be a SPI).
   - `BUSY`: the UART is already transmitting and has not made a transmission
     complete callback yet.
-  - `SIZE`: `tx_len` is larger than the passed slice.
+  - `SIZE`: `tx_len` is larger than the passed slice or `tx_len == 0`.
   - `INVAL`: the device is configured for data widths larger than 8-bit.
   - `FAIL`: some other failure.
 
@@ -446,7 +446,7 @@ received, `rval` MUST be `Err`. Valid return values for
     UART communication (e.g., a USART is configured to be SPI).
   - `BUSY`: the UART is already receiving (a buffer or a word)
     and has not made a reception `received` callback yet.
-  - `SIZE`: `rx_len` is larger than the passed slice.
+  - `SIZE`: `rx_len` is larger than the passed slice or `rx_len == 0`.
   - `INVAL`: the device is configured for data widths larger than
     8-bit.
 
