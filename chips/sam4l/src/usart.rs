@@ -975,9 +975,6 @@ impl<'a> hil::uart::Configuration for USART<'a> {
     fn get_flow_control(&self) -> bool {
         unimplemented!()
     }
-    fn get_configuration(&self) -> hil::uart::Parameters {
-        unimplemented!()
-    }
 }
 
 /// Old Implementation of kernel::uart

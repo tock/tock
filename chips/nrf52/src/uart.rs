@@ -518,9 +518,6 @@ impl<'a> hil::uart::Configuration for Uarte<'a> {
     fn get_flow_control(&self) -> bool {
         unimplemented!()
     }
-    fn get_configuration(&self) -> hil::uart::Parameters {
-        unimplemented!()
-    }
 }
 
 // OLD UART HIL CODE
