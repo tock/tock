@@ -158,6 +158,13 @@ Methods in `Configure` can return the following error conditions:
     would be affected by a change of the respective parameter.
   - `FAIL`: Other failure condition.
 
+`Configuration::get_configuration` can be used to retrieve a copy of
+the current UART configuration, which can later be restored using the
+`Configure::configure` method. An implementation of the
+`Configure::configure` method must ensure that this configuration is
+applied atomically: either the configuration described by the passed
+`Parameters` is applied in its entirety or the device's configuration
+shall remain unchanged, with the respective check's error returned.
 
 The UART may be unable to set the precise baud rate specified. For
 example, the UART may be driven off a fixed clock with integer
