@@ -5,10 +5,10 @@ Universal Asynchronous Receiver Transmitter (UART)  HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis <br/>
+**Author:** Philip Levis, Leon Schuermann <br/>
 **Draft-Created:** August 5, 2021<br/>
-**Draft-Modified:** October 24, 2021<br/>
-**Draft-Version:** 4<br/>
+**Draft-Modified:** June 5, 2022<br/>
+**Draft-Version:** 5<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -566,4 +566,6 @@ Stanford University
 Stanford, CA 94305
 USA
 pal@cs.stanford.edu
+
+Leon Schuermann <leon@is.currently.online>
 ```
