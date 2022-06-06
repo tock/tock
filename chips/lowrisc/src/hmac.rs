@@ -73,15 +73,9 @@ register_bitfields![u32,
 
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
-
     client: OptionalCell<&'a dyn hil::digest::Client<'a, 32>>,
-
     data: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
-    data_len: Cell<usize>,
-    data_index: Cell<usize>,
-
     verify: Cell<bool>,
-
     digest: Cell<Option<&'static mut [u8; 32]>>,
 }
 
@@ -91,55 +85,50 @@ impl Hmac<'_> {
             registers: base,
             client: OptionalCell::empty(),
             data: Cell::new(None),
-            data_len: Cell::new(0),
-            data_index: Cell::new(0),
             verify: Cell::new(false),
             digest: Cell::new(None),
         }
     }
 
-    fn process(&self, data: &dyn Index<usize, Output = u8>) -> bool {
+    fn process(&self, data: &dyn Index<usize, Output = u8>, count: usize) -> usize {
         let regs = self.registers;
-        let idx = self.data_index.get();
-        let len = self.data_len.get();
 
-        if idx < len {
-            let data_len = len - idx;
-
-            for i in 0..(data_len / 4) {
-                if regs.status.is_set(STATUS::FIFO_FULL) {
-                    return false;
-                }
-
-                let data_idx = idx + i * 4;
-
-                let mut d = (data[data_idx + 3] as u32) << 0;
-                d |= (data[data_idx + 2] as u32) << 8;
-                d |= (data[data_idx + 1] as u32) << 16;
-                d |= (data[data_idx + 0] as u32) << 24;
-
-                regs.msg_fifo.set(d);
-                self.data_index.set(data_idx + 4);
+        for i in 0..(count / 4) {
+            if regs.status.is_set(STATUS::FIFO_FULL) {
+                return i * 4;
             }
 
-            if (data_len % 4) != 0 {
-                let idx = self.data_index.get();
+            let data_idx = i * 4;
 
-                for i in 0..(data_len % 4) {
-                    let data_idx = idx + i;
+            let mut d = (data[data_idx + 3] as u32) << 0;
+            d |= (data[data_idx + 2] as u32) << 8;
+            d |= (data[data_idx + 1] as u32) << 16;
+            d |= (data[data_idx + 0] as u32) << 24;
 
-                    regs.msg_fifo_8.set(data[data_idx]);
-                    self.data_index.set(data_idx + 1)
-                }
+            regs.msg_fifo.set(d);
+        }
+
+        if (count % 4) != 0 {
+            for i in 0..(count % 4) {
+                let data_idx = (count - (count % 4)) + i;
+                regs.msg_fifo_8.set(data[data_idx]);
             }
         }
-        true
+        count
     }
 
     fn data_progress(&self) -> bool {
         self.data.take().map_or(false, |buf| match buf {
-            LeasableBufferDynamic::Immutable(b) => self.process(&b),
-            LeasableBufferDynamic::Mutable(b) => self.process(&b),
+            LeasableBufferDynamic::Immutable(b) => {
+                let count = self.process(&b);
+                b.slice(count..);
+                true
+            }
+            LeasableBufferDynamic::Mutable(b) => {
+                let count = self.process(&b);
+                b.slice(count..);
+                true
+            }
         })
     }
 
@@ -200,10 +189,10 @@ impl Hmac<'_> {
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
                         LeasableBufferDynamic::Mutable(b) => {
-                            client.add_mut_data_done(Ok(()), b.take())
+                            client.add_mut_data_done(Ok(()), b)
                         }
                         LeasableBufferDynamic::Immutable(b) => {
-                            client.add_data_done(Ok(()), b.take())
+                            client.add_data_done(Ok(()), b)
                         }
                     })
                 });
@@ -256,21 +245,17 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])> {
-        let len = data.len();
+    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)> {
         self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
-        self.internal_add(len);
-        Ok(len)
+        Ok(())
     }
 
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
-        let len = data.len();
+    ) -> Result<usize, (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
-        self.internal_add(len);
-        Ok(len)
+        Ok(())
     }
 
     fn clear_data(&self) {

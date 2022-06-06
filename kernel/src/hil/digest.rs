@@ -68,31 +68,34 @@ pub trait DigestData<'a, const L: usize> {
     #[allow(unused_variables)]
     fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>) {}
 
-    /// Add data to the digest block. This is the data that will be used
-    /// for the hash function.
-    /// Returns the number of bytes parsed on success
-    /// There is no guarantee the data has been written until the `add_data_done()`
-    /// callback is fired.
-    /// On error the return value will contain a return code and the original data
+    /// Add data to the digest block. This is the data that will be
+    /// used for the hash function. Success indicates all of the
+    /// active bytes in `data` will be added.  There is no guarantee
+    /// the data has been added to the digest until the
+    /// `add_data_done()` callback is called.  On error the cause of
+    /// the error is returned along with the LeasableBuffer unchanged
+    /// (it has the same range of active bytes as the call).
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])>;
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
 
-    /// Add data to the digest block. This is the data that will be used
-    /// for the hash function.
-    /// Returns the number of bytes parsed on success
-    /// There is no guarantee the data has been written until the `add_data_done()`
-    /// callback is fired.
-    /// On error the return value will contain a return code and the original data
+    /// Add data to the digest block. This is the data that will be
+    /// used for the hash function. Success indicates all of the
+    /// active bytes in `data` will be added.  There is no guarantee
+    /// the data has been added to the digest until the
+    /// `add_mut_data_done()` callback is called.  On error the cause of
+    /// the error is returned along with the LeasableBuffer unchanged
+    /// (it has the same range of active bytes as the call).
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])>;
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)>;
 
-    /// Clear the keys and any other sensitive data.
-    /// This won't clear the buffers provided to this API, that is up to the
-    /// user to clear.
+    /// Clear the keys and any other internal state. Any pending
+    /// operations terminate and issue a callback with an
+    /// `ErrorCode::CANCEL`. This call does not clear buffers passed
+    /// through `add_mut_data`, those are up to the client clear.
     fn clear_data(&self);
 }
 

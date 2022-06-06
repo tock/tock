@@ -172,7 +172,7 @@ impl<
                                 );
                                 lease_buf.slice(0..static_buffer_len);
                                 if let Err(e) = self.hmac.add_mut_data(lease_buf) {
-                                    self.data_buffer.replace(e.1);
+                                    self.data_buffer.replace(e.1.take());
                                     return Err(e.0);
                                 }
                                 Ok(())
