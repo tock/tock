@@ -1,19 +1,43 @@
-//! Interface for Digest
+//! Interface for computing digests (hashes, cryptographic hashes, and
+//! HMACs) over data.
 
 use crate::utilities::leasable_buffer::LeasableBuffer;
 use crate::utilities::leasable_buffer::LeasableMutableBuffer;
 use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks
-/// for adding imutable data.
+/// when data has been added to a digest.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait ClientData<'a, const L: usize> {
-    /// This callback is called when the data has been added to the digest
-    /// engine.
-    /// On error or success `data` will contain a reference to the original
-    /// data supplied to `add_data()`.
+    /// Called when the data has been added to the digest. `data` is
+    /// the `LeasableBuffer` passed in the call to `add_data`, whose
+    /// active slice contains the data that was not added. On `Ok`,
+    /// `data` has an active slice of size zero (all data was added).
+    /// Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot accept more data.
+    ///  - SIZE: the active slice of the LeasableBuffer has zero size.
+    ///  - CANCEL: the operation was cancelled by a call to `clear_data`.
+    ///  - FAIL: an internal failure.
     fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
+
+    /// Called when the data has been added to the digest. `data` is
+    /// the `LeasableMutableBuffer` passed in the call to
+    /// `add_mut_data`, whose active slice contains the data that was
+    /// not added. On `Ok`, `data` has an active slice of size zero
+    /// (all data was added). Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot accept more data.
+    ///  - SIZE: the active slice of the LeasableBuffer has zero size.
+    ///  - CANCEL: the operation was cancelled by a call to `clear_data`.
+    ///  - FAIL: an internal failure.
     fn add_mut_data_done(
         &'a self,
         result: Result<(), ErrorCode>,
@@ -26,22 +50,42 @@ pub trait ClientData<'a, const L: usize> {
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait ClientHash<'a, const L: usize> {
-    /// This callback is called when a digest is computed.
-    /// On error or success `digest` will contain a reference to the original
-    /// data supplied to `run()`.
+    /// Called when a digest is computed. `digest` is the same
+    /// reference passed to `run()` to store the hash value. If
+    /// `result` is `Ok`, `digest` stores the computed hash. If
+    /// `result` is `Err`, the data stored in `digest` is undefined
+    /// and may have any value. Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot perform a hash.
+    ///  - CANCEL: the operation was cancelled by a call to `clear_data`.
+    ///  - NOSUPPORT: the requested digest algorithm is not supported,
+    ///  or one was not requested.
+    ///  - FAIL: an internal failure.
     fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]);
 }
 
 /// Implement this trait and use `set_client()` in order to receive callbacks when
-/// a digest is completed and whether it matches the value to compare with.
+/// digest verification is complete.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait ClientVerify<'a, const L: usize> {
-    /// This callback is called when a verification is computed.
-    /// On error or success `digest` will contain a reference to the original
-    /// data supplied to `verify()`.
-    /// On success the result indicate if the hashes match or don't.
-    /// On failure the result will indicate an `ErrorCode`.
+    /// Called when a verification is computed.  `compare` is the
+    /// reference supplied to `verify()` and the data stored in
+    /// `compare` is unchanged.  On `Ok` the `bool` indicates if the
+    /// computed hash matches the value in `compare`. Valid
+    /// `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot verify a hash.
+    ///  - CANCEL: the operation was cancelled by a call to `clear_data`.
+    ///  - NOSUPPORT: the requested digest algorithm is not supported,
+    ///  or one was not requested.
+    ///  - FAIL: an internal failure.
     fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
 }
 
@@ -61,36 +105,51 @@ impl<'a, T: ClientData<'a, L> + ClientHash<'a, L>, const L: usize> ClientDataHas
 pub trait ClientDataVerify<'a, const L: usize>: ClientData<'a, L> + ClientVerify<'a, L> {}
 impl<'a, T: ClientData<'a, L> + ClientVerify<'a, L>, const L: usize> ClientDataVerify<'a, L> for T {}
 
-/// Computes a digest (cryptographic hash) over data
+/// Adding data (mutable or immutable) to a digest. There are two
+/// separate methods, `add_data` for immutable data (e.g., flash) and
+/// `add_mut_data` for mutable data (e.g., RAM). Each has its own
+/// callback, but only one operation may be in flight at any time.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestData<'a, const L: usize> {
-    /// Set the client instance which will receive the `add_data_done()`
-    /// callback.
-    /// This is not required if using the `set_client()` fuction from the
-    /// `Digest` trait.
+    /// Set the client instance which will handle the `add_data_done`
+    /// and `add_mut_data_done` callbacks.  This is not required if
+    /// using the `set_client()` fuction from the `Digest` trait.
     #[allow(unused_variables)]
     fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>) {}
 
-    /// Add data to the digest block. This is the data that will be
-    /// used for the hash function. Success indicates all of the
-    /// active bytes in `data` will be added.  There is no guarantee
-    /// the data has been added to the digest until the
-    /// `add_data_done()` callback is called.  On error the cause of
-    /// the error is returned along with the LeasableBuffer unchanged
-    /// (it has the same range of active bytes as the call).
+    /// Add data to the input of the hash function/digest. `Ok`
+    /// indicates all of the active bytes in `data` will be added.
+    /// There is no guarantee the data has been added to the digest
+    /// until the `add_data_done()` callback is called.  On error the
+    /// cause of the error is returned along with the LeasableBuffer
+    /// unchanged (it has the same range of active bytes as the call).
+    /// Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot accept more data.
+    ///  - SIZE: the active slice of the LeasableBuffer has zero size.
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
 
-    /// Add data to the digest block. This is the data that will be
-    /// used for the hash function. Success indicates all of the
-    /// active bytes in `data` will be added.  There is no guarantee
-    /// the data has been added to the digest until the
-    /// `add_mut_data_done()` callback is called.  On error the cause of
-    /// the error is returned along with the LeasableBuffer unchanged
-    /// (it has the same range of active bytes as the call).
+
+    /// Add data to the input of the hash function/digest. `Ok`
+    /// indicates all of the active bytes in `data` will be added.
+    /// There is no guarantee the data has been added to the digest
+    /// until the `add_mut_data_done()` callback is called.  On error
+    /// the cause of the error is returned along with the
+    /// LeasableBuffer unchanged (it has the same range of active
+    /// bytes as the call).  Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot accept more data.
+    ///  - SIZE: the active slice of the LeasableBuffer has zero size.
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
@@ -104,7 +163,7 @@ pub trait DigestData<'a, const L: usize> {
 }
 
 /// Computes a digest (cryptographic hash) over data provided through a
-/// separate trait
+/// separate trait.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestHash<'a, const L: usize> {
@@ -115,19 +174,25 @@ pub trait DigestHash<'a, const L: usize> {
     #[allow(unused_variables)]
     fn set_hash_client(&'a self, client: &'a dyn ClientHash<'a, L>) {}
 
-    /// Request the hardware block to generate a Digest and stores the returned
-    /// digest in the memory location specified.
-    /// This doesn't return any data, instead the client needs to have
-    /// set a `hash_done` handler to determine when this is complete.
-    /// On error the return value will contain a return code and the original data
-    /// If there is data from the `add_data()` command asyncrously waiting to
-    /// be written it will be written before the operation starts.
+    /// Compute a digest of all of the data added with `add_data` and
+    /// `add_data_mut`, storing the computed value in `digest`.  The
+    /// computed value is returned in a `hash_done` callback.  On
+    /// error the return value will contain a return code and the
+    /// slice passed in `digest`. Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot accept more data.
+    ///  - SIZE: the active slice of the LeasableBuffer has zero size.
+    ///  - NOSUPPORT: the currently selected digest algorithm is not
+    ///  supported.
     ///
     /// If an appropriate `set_mode*()` wasn't called before this function the
     /// implementation should try to use a default option. In the case where
     /// there is only one digest supported this should be used. If there is no
-    /// suitable or obvious default option, the implementation can return an
-    /// error with error code ENOSUPPORT.
+    /// suitable or obvious default option, the implementation can return
+    /// `ErrorCode::NOSUPPORT`.
     fn run(&'a self, digest: &'static mut [u8; L])
         -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
@@ -144,26 +209,26 @@ pub trait DigestVerify<'a, const L: usize> {
     #[allow(unused_variables)]
     fn set_verify_client(&'a self, client: &'a dyn ClientVerify<'a, L>) {}
 
-    /// Compare the specified digest in the `compare` buffer to the calculated
-    /// digest. This function is similar to `run()` and should be used instead
-    /// of `run()` if the caller doesn't need to know the output, just if it
-    /// matches a known value.
+    /// Compute a digest of all of the data added with `add_data` and
+    /// `add_data_mut` then compare it with value in `compare`.  The
+    /// compare value is returned in a `verification_done` callback, along with
+    /// a boolean indicating whether it matches the computed value. On
+    /// error the return value will contain a return code and the
+    /// slice passed in `compare`. Valid `ErrorCode` values are:
+    ///  - OFF: the underlying digest engine is powered down and
+    ///  cannot be used.
+    ///  - BUSY: there is an outstanding `add_data`, `add_data_mut`,
+    ///  `run`, or `verify` operation, so the digest engine is busy
+    ///  and cannot accept more data.
+    ///  - SIZE: the active slice of the LeasableBuffer has zero size.
+    ///  - NOSUPPORT: the currently selected digest algorithm is not
+    ///  supported.
     ///
-    /// For example:
-    /// ```ignore
-    ///     // Compute a digest on data
-    ///     add_data(...);
-    ///     add_data(...);
-    ///
-    ///     // Compare the computed digest generated to an existing digest
-    ///     verify(...);
-    /// ```
-    /// NOTE: The above is just pseudo code. The user is expected to check for
-    /// errors and wait for the asyncronous calls to complete.
-    ///
-    /// The verify function is useful to compare input with a known digest
-    /// value. The verify function also saves callers from allocating a buffer
-    /// for the digest when they just need verification.
+    /// If an appropriate `set_mode*()` wasn't called before this function the
+    /// implementation should try to use a default option. In the case where
+    /// there is only one digest supported this should be used. If there is no
+    /// suitable or obvious default option, the implementation can return
+    /// `ErrorCode::NOSUPPORT`.
     fn verify(
         &'a self,
         compare: &'static mut [u8; L],
