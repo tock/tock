@@ -252,9 +252,14 @@ impl<
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    }
 
-    fn add_mut_data_done(&'a self, _result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
+    fn add_mut_data_done(
+        &'a self,
+        _result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) {
         self.appid.map(move |id| {
             self.apps
                 .enter(*id, move |app, kernel_data| {

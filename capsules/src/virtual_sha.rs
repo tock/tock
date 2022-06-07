@@ -192,7 +192,11 @@ impl<
         self.mux.do_next_op();
     }
 
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
+    fn add_mut_data_done(
+        &'a self,
+        result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) {
         self.client
             .map(move |client| client.add_mut_data_done(result, data));
         self.mux.do_next_op();

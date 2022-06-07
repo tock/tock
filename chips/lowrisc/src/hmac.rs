@@ -188,12 +188,8 @@ impl Hmac<'_> {
             if self.data_progress() {
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
-                        LeasableBufferDynamic::Mutable(b) => {
-                            client.add_mut_data_done(Ok(()), b)
-                        }
-                        LeasableBufferDynamic::Immutable(b) => {
-                            client.add_data_done(Ok(()), b)
-                        }
+                        LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b),
+                        LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b),
                     })
                 });
 
@@ -215,7 +211,6 @@ impl Hmac<'_> {
             });
         }
     }
-
 }
 
 impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
