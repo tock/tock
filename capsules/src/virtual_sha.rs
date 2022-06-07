@@ -63,7 +63,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])> {
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.sha.add_data(data)
@@ -74,9 +74,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
                 let len = data.len();
                 self.data.replace(LeasableBufferDynamic::Immutable(data));
                 self.data_len.set(len);
-                Ok(len)
+                Ok(())
             } else {
-                Err((ErrorCode::BUSY, data.take()))
+                Err((ErrorCode::BUSY, data))
             }
         }
     }
@@ -87,7 +87,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.sha.add_mut_data(data)
@@ -98,9 +98,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
                 let len = data.len();
                 self.data.replace(LeasableBufferDynamic::Mutable(data));
                 self.data_len.set(len);
-                Ok(len)
+                Ok(())
             } else {
-                Err((ErrorCode::BUSY, data.take()))
+                Err((ErrorCode::BUSY, data))
             }
         }
     }

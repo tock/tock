@@ -20,8 +20,7 @@ pub struct VirtualMuxHmac<'a, A: digest::Digest<'a, L>, const L: usize> {
     client: OptionalCell<&'a dyn digest::Client<'a, L>>,
     key: TakeCell<'static, [u8]>,
     data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
-    data_len: Cell<usize>,
-    digest: TakeCell<'static, [u8; L]>,
+   digest: TakeCell<'static, [u8; L]>,
     verify: Cell<bool>,
     mode: Cell<Mode>,
     id: u32,
@@ -49,7 +48,6 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxHmac<'a, A, L> {
             client: OptionalCell::empty(),
             key: TakeCell::new(key),
             data: OptionalCell::empty(),
-            data_len: Cell::new(0),
             digest: TakeCell::empty(),
             verify: Cell::new(false),
             mode: Cell::new(Mode::None),
@@ -67,7 +65,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])> {
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.hmac.add_data(data)
@@ -75,12 +73,10 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
             // Another app is already running, queue this app as long as we
             // don't already have data queued.
             if self.data.is_none() {
-                let len = data.len();
                 self.data.replace(LeasableBufferDynamic::Immutable(data));
-                self.data_len.set(len);
-                Ok(len)
+                Ok(())
             } else {
-                Err((ErrorCode::BUSY, data.take()))
+                Err((ErrorCode::BUSY, data))
             }
         }
     }
@@ -91,7 +87,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.hmac.add_mut_data(data)
@@ -99,12 +95,10 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
             // Another app is already running, queue this app as long as we
             // don't already have data queued.
             if self.data.is_none() {
-                let len = data.len();
                 self.data.replace(LeasableBufferDynamic::Mutable(data));
-                self.data_len.set(len);
-                Ok(len)
+                Ok(())
             } else {
-                Err((ErrorCode::BUSY, data.take()))
+                Err((ErrorCode::BUSY, data))
             }
         }
     }
@@ -190,13 +184,13 @@ impl<
         const L: usize,
     > digest::ClientData<'a, L> for VirtualMuxHmac<'a, A, L>
 {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]) {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
         self.client
             .map(move |client| client.add_data_done(result, data));
         self.mux.do_next_op();
     }
 
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
         self.client
             .map(move |client| client.add_mut_data_done(result, data));
         self.mux.do_next_op();
@@ -348,13 +342,11 @@ impl<
             let added_data = data.map_or(false, |lease| {
                 match lease {
                     LeasableBufferDynamic::Immutable(mut b) => {
-                        b.slice(0..node.data_len.get());
                         if let Err((err, slice)) = self.hmac.add_data(b) {
                             node.add_data_done(Err(err), slice);
                         }
                     }
                     LeasableBufferDynamic::Mutable(mut b) => {
-                        b.slice(0..node.data_len.get());
                         if let Err((err, slice)) = self.hmac.add_mut_data(b) {
                             node.add_mut_data_done(Err(err), slice);
                         }

@@ -51,6 +51,7 @@ use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
@@ -251,9 +252,9 @@ impl<
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
 
-    fn add_mut_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&'a self, _result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
         self.appid.map(move |id| {
             self.apps
                 .enter(*id, move |app, kernel_data| {
@@ -261,7 +262,7 @@ impl<
                     let mut exit = false;
                     let mut static_buffer_len = 0;
 
-                    self.data_buffer.replace(data);
+                    self.data_buffer.replace(data.take());
 
                     self.data_buffer.map(|buf| {
                         let ret = kernel_data

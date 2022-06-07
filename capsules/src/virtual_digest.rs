@@ -119,7 +119,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         // Check if any mux is enabled. If it isn't we enable it for us.
         if self.mux.running_id.get() == self.id {
             self.mux.digest.add_mut_data(data)
@@ -220,7 +220,7 @@ impl<
         const L: usize,
     > digest::ClientData<'a, L> for VirtualMuxDigest<'a, A, L>
 {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]) {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
         match self.mode.get() {
             Mode::None => {}
             Mode::Hmac(_) => {
@@ -235,7 +235,7 @@ impl<
         self.mux.do_next_op();
     }
 
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
         match self.mode.get() {
             Mode::None => {}
             Mode::Hmac(_) => {

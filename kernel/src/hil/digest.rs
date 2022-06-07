@@ -13,8 +13,8 @@ pub trait ClientData<'a, const L: usize> {
     /// engine.
     /// On error or success `data` will contain a reference to the original
     /// data supplied to `add_data()`.
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]);
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>);
 }
 
 /// Implement this trait and use `set_client()` in order to receive callbacks when
