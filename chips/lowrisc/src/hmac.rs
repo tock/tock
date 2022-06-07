@@ -119,13 +119,13 @@ impl Hmac<'_> {
 
     fn data_progress(&self) -> bool {
         self.data.take().map_or(false, |buf| match buf {
-            LeasableBufferDynamic::Immutable(b) => {
-                let count = self.process(&b);
+            LeasableBufferDynamic::Immutable(mut b) => {
+                let count = self.process(&b, b.len());
                 b.slice(count..);
                 true
             }
-            LeasableBufferDynamic::Mutable(b) => {
-                let count = self.process(&b);
+            LeasableBufferDynamic::Mutable(mut b) => {
+                let count = self.process(&b, b.len());
                 b.slice(count..);
                 true
             }
@@ -216,36 +216,13 @@ impl Hmac<'_> {
         }
     }
 
-    fn internal_add(&self, len: usize) {
-        let regs = self.registers;
-
-        regs.cmd.modify(CMD::START::SET);
-
-        // Clear the FIFO empty interrupt
-        regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
-
-        // Enable interrupts
-        regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
-
-        // Set the length and data index of the data to write
-        self.data_len.set(len);
-
-        self.data_index.set(0);
-
-        // Call the process function, this will start an async fill method
-        let ret = self.data_progress();
-
-        if ret {
-            regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
-        }
-    }
 }
 
 impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)> {
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
         self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
         Ok(())
     }
@@ -253,7 +230,7 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
         Ok(())
     }

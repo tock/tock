@@ -504,12 +504,12 @@ impl<
             if node.data.is_some() {
                 let leasable = node.data.take().unwrap();
                 match leasable {
-                    LeasableBufferDynamic::Mutable(mut b) => {
+                    LeasableBufferDynamic::Mutable(b) => {
                         if let Err((err, slice)) = self.digest.add_mut_data(b) {
                             node.add_mut_data_done(Err(err), slice);
                         }
                     }
-                    LeasableBufferDynamic::Immutable(mut b) => {
+                    LeasableBufferDynamic::Immutable(b) => {
                         if let Err((err, slice)) = self.digest.add_data(b) {
                             node.add_data_done(Err(err), slice);
                         }

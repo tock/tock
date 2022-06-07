@@ -341,12 +341,12 @@ impl<
             let data = node.data.take();
             let added_data = data.map_or(false, |lease| {
                 match lease {
-                    LeasableBufferDynamic::Immutable(mut b) => {
+                    LeasableBufferDynamic::Immutable(b) => {
                         if let Err((err, slice)) = self.hmac.add_data(b) {
                             node.add_data_done(Err(err), slice);
                         }
                     }
-                    LeasableBufferDynamic::Mutable(mut b) => {
+                    LeasableBufferDynamic::Mutable(b) => {
                         if let Err((err, slice)) = self.hmac.add_mut_data(b) {
                             node.add_mut_data_done(Err(err), slice);
                         }
