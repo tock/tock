@@ -136,7 +136,6 @@ pub trait DigestData<'a, const L: usize> {
         data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
 
-
     /// Add data to the input of the hash function/digest. `Ok`
     /// indicates all of the active bytes in `data` will be added.
     /// There is no guarantee the data has been added to the digest
