@@ -126,7 +126,7 @@ impl Hmac<'_> {
             LeasableBufferDynamic::Immutable(mut b) => {
                 let count = self.process(&b, b.len());
                 b.slice(count..);
-                 true
+                true
             }
             LeasableBufferDynamic::Mutable(mut b) => {
                 let count = self.process(&b, b.len());
@@ -257,15 +257,15 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
             let regs = self.registers;
             regs.cmd.modify(CMD::START::SET);
             // Clear the FIFO empty interrupt
-            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);            
+            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
             // Enable interrupts
             regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
             let ret = self.data_progress();
-            
+
             if ret {
                 regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
             }
-            
+
             Ok(())
         }
     }
@@ -283,11 +283,11 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
             let regs = self.registers;
             regs.cmd.modify(CMD::START::SET);
             // Clear the FIFO empty interrupt
-            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);            
+            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
             // Enable interrupts
             regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
             let ret = self.data_progress();
-            
+
             if ret {
                 regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
             }
