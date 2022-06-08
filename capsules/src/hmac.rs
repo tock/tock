@@ -86,7 +86,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > HmacDriver<'a, H, L>
 {
@@ -246,7 +246,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > digest::ClientData<'a, L> for HmacDriver<'a, H, L>
 {
@@ -389,7 +389,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > digest::ClientHash<'a, L> for HmacDriver<'a, H, L>
 {
@@ -441,7 +441,7 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > digest::ClientVerify<'a, L> for HmacDriver<'a, H, L>
 {
@@ -491,7 +491,7 @@ impl<
 ///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > SyscallDriver for HmacDriver<'a, H, L>
 {

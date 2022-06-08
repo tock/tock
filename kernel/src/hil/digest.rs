@@ -258,41 +258,41 @@ pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify
 impl<'a, T: DigestData<'a, L> + DigestVerify<'a, L>, const L: usize> DigestDataVerify<'a, L> for T {}
 
 pub trait Sha224 {
-    /// Call before `Digest::run()` to perform Sha224
+    /// Call before adding data to perform Sha224
     fn set_mode_sha224(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait Sha256 {
-    /// Call before `Digest::run()` to perform Sha256
+    /// Call before adding data to perform Sha256
     fn set_mode_sha256(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait Sha384 {
-    /// Call before `Digest::run()` to perform Sha384
+    /// Call before adding data to perform Sha384
     fn set_mode_sha384(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait Sha512 {
-    /// Call before `Digest::run()` to perform Sha512
+    /// Call before adding data to perform Sha512
     fn set_mode_sha512(&self) -> Result<(), ErrorCode>;
 }
 
-pub trait HMACSha256 {
-    /// Call before `Digest::run()` to perform HMACSha256
+pub trait HmacSha256 {
+    /// Call before adding data to perform HMACSha256
     ///
     /// The key used for the HMAC is passed to this function.
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode>;
 }
 
-pub trait HMACSha384 {
-    /// Call before `Digest::run()` to perform HMACSha384
+pub trait HmacSha384 {
+    /// Call before adding data to perform HMACSha384
     ///
     /// The key used for the HMAC is passed to this function.
     fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode>;
 }
 
-pub trait HMACSha512 {
-    /// Call before `Digest::run()` to perform HMACSha512
+pub trait HmacSha512 {
+    /// Call before adding data to perform HMACSha512
     ///
     /// The key used for the HMAC is passed to this function.
     fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode>;

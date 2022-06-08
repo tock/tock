@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ops::Index;
 use kernel::hil;
-use kernel::hil::digest::{self, DigestHash};
+use kernel::hil::digest::{self, DigestHash, DigestData};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
@@ -54,21 +54,21 @@ register_bitfields![u32,
         FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
-    CFG [
-        HMAC_EN OFFSET(0) NUMBITS(1) [],
-        SHA_EN OFFSET(1) NUMBITS(1) [],
-        ENDIAN_SWAP OFFSET(2) NUMBITS(1) [],
-        DIGEST_SWAP OFFSET(3) NUMBITS(1) []
-    ],
-    CMD [
-        START OFFSET(0) NUMBITS(1) [],
-        PROCESS OFFSET(1) NUMBITS(1) []
-    ],
-    STATUS [
-        FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
-        FIFO_FULL OFFSET(1) NUMBITS(1) [],
-        FIFO_DEPTH OFFSET(4) NUMBITS(5) []
-    ]
+                    CFG [
+                        HMAC_EN OFFSET(0) NUMBITS(1) [],
+                        SHA_EN OFFSET(1) NUMBITS(1) [],
+                        ENDIAN_SWAP OFFSET(2) NUMBITS(1) [],
+                        DIGEST_SWAP OFFSET(3) NUMBITS(1) []
+                    ],
+                    CMD [
+                        START OFFSET(0) NUMBITS(1) [],
+                        PROCESS OFFSET(1) NUMBITS(1) []
+                    ],
+                    STATUS [
+                        FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
+                        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+                        FIFO_DEPTH OFFSET(4) NUMBITS(5) []
+                    ]
 ];
 
 pub struct Hmac<'a> {
@@ -77,6 +77,7 @@ pub struct Hmac<'a> {
     data: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
     verify: Cell<bool>,
     digest: Cell<Option<&'static mut [u8; 32]>>,
+    cancelled: Cell<bool>,
 }
 
 impl Hmac<'_> {
@@ -87,6 +88,7 @@ impl Hmac<'_> {
             data: Cell::new(None),
             verify: Cell::new(false),
             digest: Cell::new(None),
+            cancelled: Cell::new(false),
         }
     }
 
@@ -164,8 +166,17 @@ impl Hmac<'_> {
                             equal = false;
                         }
                     }
-
-                    client.verification_done(Ok(equal), digest);
+                    
+                    if self.cancelled.get() {
+                        self.clear_data();
+                        self.cancelled.set(false);
+                        client.verification_done(Err(ErrorCode::CANCEL), digest);
+                    } else {
+                        self.clear_data();
+                        self.cancelled.set(false);
+                        client.verification_done(Ok(equal), digest);
+                    }
+                    
                 } else {
                     for i in 0..8 {
                         let d = regs.digest[i].get().to_ne_bytes();
@@ -177,8 +188,16 @@ impl Hmac<'_> {
                         digest[idx + 2] = d[2];
                         digest[idx + 3] = d[3];
                     }
+                    if self.cancelled.get() {
+                        self.clear_data();
+                        self.cancelled.set(false);
+                        client.hash_done(Err(ErrorCode::CANCEL), digest);
+                    } else {
+                        self.clear_data();
+                        self.cancelled.set(false);
+                        client.hash_done(Ok(()), digest);
+                    }
 
-                    client.hash_done(Ok(()), digest);
                 }
             });
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
@@ -276,7 +295,7 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
     }
 }
 
-impl hil::digest::HMACSha256 for Hmac<'_> {
+impl hil::digest::HmacSha256 for Hmac<'_> {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
         let regs = self.registers;
         let mut key_idx = 0;
@@ -321,13 +340,13 @@ impl hil::digest::HMACSha256 for Hmac<'_> {
     }
 }
 
-impl hil::digest::HMACSha384 for Hmac<'_> {
+impl hil::digest::HmacSha384 for Hmac<'_> {
     fn set_mode_hmacsha384(&self, _key: &[u8]) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
 }
 
-impl hil::digest::HMACSha512 for Hmac<'_> {
+impl hil::digest::HmacSha512 for Hmac<'_> {
     fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }

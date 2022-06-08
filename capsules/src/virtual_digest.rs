@@ -211,9 +211,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
 impl<
         'a,
         A: digest::Digest<'a, L>
-            + digest::HMACSha256
-            + digest::HMACSha384
-            + digest::HMACSha512
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512
             + digest::Sha256
             + digest::Sha384
             + digest::Sha512,
@@ -258,9 +258,9 @@ impl<
 impl<
         'a,
         A: digest::Digest<'a, L>
-            + digest::HMACSha256
-            + digest::HMACSha384
-            + digest::HMACSha512
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512
             + digest::Sha256
             + digest::Sha384
             + digest::Sha512,
@@ -288,9 +288,9 @@ impl<
 impl<
         'a,
         A: digest::Digest<'a, L>
-            + digest::HMACSha256
-            + digest::HMACSha384
-            + digest::HMACSha512
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512
             + digest::Sha256
             + digest::Sha384
             + digest::Sha512,
@@ -316,7 +316,7 @@ impl<
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::HMACSha256, const L: usize> digest::HMACSha256
+impl<'a, A: digest::Digest<'a, L> + digest::HmacSha256, const L: usize> digest::HmacSha256
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -334,7 +334,7 @@ impl<'a, A: digest::Digest<'a, L> + digest::HMACSha256, const L: usize> digest::
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::HMACSha384, const L: usize> digest::HMACSha384
+impl<'a, A: digest::Digest<'a, L> + digest::HmacSha384, const L: usize> digest::HmacSha384
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -352,7 +352,7 @@ impl<'a, A: digest::Digest<'a, L> + digest::HMACSha384, const L: usize> digest::
     }
 }
 
-impl<'a, A: digest::Digest<'a, L> + digest::HMACSha512, const L: usize> digest::HMACSha512
+impl<'a, A: digest::Digest<'a, L> + digest::HmacSha512, const L: usize> digest::HmacSha512
     for VirtualMuxDigest<'a, A, L>
 {
     fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -436,9 +436,9 @@ pub struct MuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
 impl<
         'a,
         A: digest::Digest<'a, L>
-            + digest::HMACSha256
-            + digest::HMACSha384
-            + digest::HMACSha512
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512
             + digest::Sha256
             + digest::Sha384
             + digest::Sha512,

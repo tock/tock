@@ -138,21 +138,166 @@ call appends to the data over which the digest is computed.
 3 Computing and Verification: `DigestHash`, `DigestVerify`, `ClientHash`, and `ClientVerify`
 ===============================
 
-Once all of the data has been added as the input to a digest, a client can either
-compute the digest or ask the digest engine to compare its computed digest with
-a known value (verify).
+Once all of the data has been added as the input to a digest, a client
+can either compute the digest or ask the digest engine to compare its
+computed digest with a known value (verify). These traits have a
+generic parameter `L` which defines the length of the digest in bytes.
+A SHA256 digest engine, for example, has an `L` of 32.
 
 
+```rust
+pub trait DigestHash<'a, const L: usize> {
+    fn set_hash_client(&'a self, client: &'a dyn ClientHash<'a, L>) {}
+    fn run(&'a self, digest: &'static mut [u8; L])
+        -> Result<(), (ErrorCode, &'static mut [u8; L])>;
+}
 
+pub trait ClientHash<'a, const L: usize> {
+    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]);
+}
 
-4 Composite Traits and Configuration
+pub trait DigestVerify<'a, const L: usize> {
+    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<'a, L>) {}
+    fn verify(&'a self, compare: &'static mut [u8; L])
+	    -> Result<(), (ErrorCode, &'static mut [u8; L])>;
+}
+
+pub trait ClientVerify<'a, const L: usize> {
+    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
+}
+```
+
+Calls to `DigestHash::run` and `DigestHash::verify` perform the hash
+function on all of the data that has been added with calls to
+`add_data` and `add_data_mut`. If there is an outstanding call to
+`add_data`, `add_data_mut`, `run`, or `verify` they MUST return
+`Err(ErrorCode::BUSY)`.
+
+The `ClientHash::hash_done` callback returns the computed digest
+stored in the `digest` slice. If the `result` argument is `Err((...))`,
+the `digest` slice may store any values. If the `result` argument
+is `Ok(())` the `digest` slice MUST store the computed digest.
+
+The `DigestVerity:verify` takes an existing digest as its `compare`
+parameter. It triggers the digest engine to compute the digest, then
+compares the computed value with what was passed in `compare`. If the
+computed and provided values match, then `ClientVerify` passes
+`Ok(true)`; if they do not match then it passes `Ok(false)`.  An `Err`
+result indicates that there was an error in computing the digest.
+
+Calling either `DigestHash::run` or `DigestVerify::verify` completes
+the digest calculation, returning the digest engine to an idle
+state for the next computation.
+
+4 Composite Traits 
 ===============================
 
-5 Capsules
+The Digest HIL provides many composite traits, so that structures
+which implement multiple traits can be passed around as a single
+reference. The `ClientDataHash` trait is for a client that implements
+both `ClientData` and `ClientHash`. The `ClientDataVerify` trait is
+for a client that implements both `ClientData` and `ClientVerify`.
+The `Client` trait is for a client that implements `ClientData`,
+`ClientHash`, and `ClientVerify`.
+
+```rust
+pub trait ClientDataHash<'a, const L: usize>: ClientData<'a, L> + ClientHash<'a, L> {}
+pub trait ClientDataVerify<'a, const L: usize>: ClientData<'a, L> + ClientVerify<'a, L> {}
+pub trait Client<'a, const L: usize>:
+    ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L> {}
+```
+
+
+The `DigestDataHash` trait is for a structure that implements both
+`DigestData` and `DataHash`. The `DigestDataVerify` trait is for a
+client that implements both `DigestData` and `DigestVerify`.  The
+`Digest` trait is for a client that implements `DigestData`,
+`DigestHash`, and `DigestVerify`. It also adds an additional method,
+`set_client`, which allows it to store a `Client` as a single
+reference and use it for all of the client callbacks (`add_data`,
+`add_mut_data`, `hash_done`, and `verification_done`). A digest
+implementation that implements `set_client` MAY choose to not
+implement the individual client set methods for the different traits
+(e.g., `DigestData::set_client); if it does so, each of these client
+set methods MUST be marked `unimplemented!()`.
+
+
+```rust
+pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {}
+pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {}
+pub trait Digest<'a, const L: usize>:
+    DigestData<'a, L> + DigestHash<'a, L> + DigestVerify<'a, L>
+{
+    /// Set the client instance which will receive `hash_done()`,
+    /// `add_data_done()` and `verification_done()` callbacks.
+    fn set_client(&'a self, client: &'a dyn Client<'a, L>);
+}
+```
+
+
+5 Configuration
 ===============================
 
-The Tock kernel provides several capsules for digests:
+Digest engines can often operate in multiple modes, supporting several
+different hash algorithms and digest sizes. Configuring a digest
+engine occurs out-of-band from adding data and computing digests,
+through separate traits. Each digest algorithm is described by
+a separate trait. This allows compile-time checking that a given
+digest engine supports the required algorithm. For example,
+a digest engine that can compute a SHA512 digest implements
+the `Sha512` trait:
 
+```rust
+pub trait Sha512 {
+    /// Call before Digest::run() to perform Sha512
+    fn set_mode_sha512(&self) -> Result<(), ErrorCode>;
+}``` 
+
+ 
+The Digest HIL defines seven standard Digest traits:
+  - `Sha224`
+  - `Sha256`
+  - `Sha384`
+  - `Sha512`
+  - `HmacSha256`
+  - `HmacSha384`
+  - `HmacSha512`
+  
+The HMAC configuration methods take a secret key, which is
+used in the HMAC algorithm. For example,
+
+```rust
+pub trait HmacSha384 {
+    /// Call before `Digest::run()` to perform HMACSha384
+    ///
+    /// The key used for the HMAC is passed to this function.
+    fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode>;
+}
+```
+Configuration methods MUST be called before the first call to `add_data`
+or `add_data_mut`. 
+
+
+6 Capsules
+===============================
+
+There are 5 standard Tock capsules for digests:
+
+  1. `capsules::hmac` provides a system call interface to a digest engine that
+  supports `Digest`, `HmacSha256`, `HmacSha384`, and `HmacSha512`.
+  2. `capsules::sha` provides a system call interface to a digest engine that
+  supports `Digest`, `Sha256`, `Sha384`, and `Sha512`.
+  3. `capsules::virtual_hmac` virtualizes an HMAC engine, allowing multiple clients
+  to share it through queueing. It requires a digest engine that
+  supports `Digest`, `HmacSha256`, `HmacSha384`, and `HmacSha512`.
+  4. `capsules::virtual_sha` virtualizes a SHA engine, allowing multiple clients
+  to share it through queueing. It requires a digest engine that
+  supports `Digest`, `Sha256`, `Sha384`, and `Sha512`.
+  5. `capsules::virtual_digest` virtualizes a SHA/HMAC engine,
+  allowing multiple clients to share it through queueing. It requires
+  a digest engine that supports `Digest`, `HmacSha256`, `HmacSha384`,
+  and `HmacSha512`, `Sha256`, `Sha384`, and `Sha512` and supports
+  all of these operations.
 
 6 Authors' Address
 =================================
