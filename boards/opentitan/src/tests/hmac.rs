@@ -36,8 +36,11 @@ impl<'a> HmacTestCallback {
 }
 
 impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
-        
+    fn add_mut_data_done(
+        &'a self,
+        result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) {
         self.add_mut_data_done.set(true);
         // Check that all of the data was accepted and the active slice is length 0
         assert_eq!(data.len(), 0);
