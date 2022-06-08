@@ -3,7 +3,7 @@
 use core::cell::Cell;
 use core::ops::Index;
 use kernel::hil;
-use kernel::hil::digest::{self, DigestHash, DigestData};
+use kernel::hil::digest::{self, DigestData, DigestHash};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
@@ -166,7 +166,7 @@ impl Hmac<'_> {
                             equal = false;
                         }
                     }
-                    
+
                     if self.cancelled.get() {
                         self.clear_data();
                         self.cancelled.set(false);
@@ -176,7 +176,6 @@ impl Hmac<'_> {
                         self.cancelled.set(false);
                         client.verification_done(Ok(equal), digest);
                     }
-                    
                 } else {
                     for i in 0..8 {
                         let d = regs.digest[i].get().to_ne_bytes();
@@ -197,7 +196,6 @@ impl Hmac<'_> {
                         self.cancelled.set(false);
                         client.hash_done(Ok(()), digest);
                     }
-
                 }
             });
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
