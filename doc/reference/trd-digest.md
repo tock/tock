@@ -63,9 +63,87 @@ used for generating HMACs.
 2 Adding Data to a Digest: `DigestData` and `ClientData`
 ===============================
 
+A client adds data to a hash function's input with the `DigestData` trait
+and receives callbacks with the `ClientData` trait.
+
+These traits support both mutable and immutable data. Most HIL traits
+in Tock support only mutable data, because it is assumed the data is 
+in RAM and passing it without the `mut` qualifier in a split-phase
+operation can discard its mutability 
+(see Rule 5 in [TRD2](./trd2-hil-design.md)). Digest supports immutable
+data because many services need to compute digests over large, read-only data
+in flash. One example of this is the kernel's process loader, which needs
+to check that process images are not corrupted. Because digests are 
+computationally inexpensive, copying the data from flash to RAM in order
+to compute a digest is a large overhead. Furthermore, the data input can
+be large (tens or hundreds of kilobytes). Therefore `DigestData` and 
+`ClientData` support both mutable and immutable inputs.
+
+Clients provide input to `DigestData` through the `LeasableBuffer`
+and `LeasableMutableBuffer` types. These allow a client to ask a
+digest engine to compute a digest over a subset of their data, e.g. to
+exclude the area where the digest that will be compared against is stored. 
+These types have a source slice and maintain an active range over that slice.
+The digest will be computed only over the active range, rather than the
+entire slice.
+
+```rust
+pub trait DigestData<'a, const L: usize> {
+    fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>) {}
+    fn add_data(&self, data: LeasableBuffer<'static, u8>) 
+       -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
+    fn add_mut_data(&self, data: LeasableMutableBuffer<'static, u8>)
+       -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)>;
+    fn clear_data(&self);
+}
+```
+
+A successful call to `add_data` or `add_mut_data` will add all of the
+data in the active range of the leasable buffer as input to the hash
+function. A successful call is one which returns `Ok(())` and whose
+completion event passes `Ok(())`. If a client needs to compute a hash over several non-contiguous
+regions of a slice, or multiple slices, it can call these methods multiple
+times. 
+
+There may only be one outstanding `add_data`  or `add_mut_data` operation at
+any time. If either `add_data` or `add_mut_data` returns `Ok(())`, then all
+subsequent calls to `add_data` or `add_mut_data` MUST return `Err((ErrorCode::BUSY, ...))`
+until a completion callback delivered through `ClientData`.
+
+```rust
+pub trait ClientData<'a, const L: usize> {
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
+    fn add_mut_data_done(
+        &'a self,
+        result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    );
+}
+```
+
+The `data` parameters of `add_data_done` and `add_mut_data_done` indicate what
+data was added and what remains to be added to the digest. If either callback
+has a `result` value of `Ok(())`, then the active region of `data` MUST be zero
+length and all of the data in the active region passed through the corresponding
+call MUST have been added to the digest. 
+
+A call to `DigestData::clear_data()` terminates the current digest computation and
+clears out all internal state to start a new one.
+If there is an outstanding `add_data` or `add_data_mut` when `clear_data()` is called,
+the digest engine MUST issue a corresponding callback with an `Err(ErrorCode::CANCEL)`.
+
+A digest engine MUST accept multiple calls to `add_data` and `add_mut_data`. Each 
+call appends to the data over which the digest is computed. 
 
 3 Computing and Verification: `DigestHash`, `DigestVerify`, `ClientHash`, and `ClientVerify`
 ===============================
+
+Once all of the data has been added as the input to a digest, a client can either
+compute the digest or ask the digest engine to compare its computed digest with
+a known value (verify).
+
+
+
 
 4 Composite Traits and Configuration
 ===============================
