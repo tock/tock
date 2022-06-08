@@ -4,6 +4,7 @@ use core::cell::Cell;
 use kernel::hil::digest::{self, Digest, DigestData, DigestVerify, HMACSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{debug, ErrorCode};
 
@@ -35,14 +36,17 @@ impl<'a> HmacTestCallback {
 }
 
 impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableMutableBuffer<'static, u8>) {
+        
         self.add_mut_data_done.set(true);
+        // Check that all of the data was accepted and the active slice is length 0
+        assert_eq!(data.len(), 0);
         // Input data has been loaded, hold copy of data
-        self.input_buffer.replace(data);
+        self.input_buffer.replace(data.take());
         assert_eq!(result, Ok(()));
     }
 
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]) {
+    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
         unimplemented!()
     }
 }
@@ -98,7 +102,7 @@ fn hmac_check_load_binary() {
     hmac.set_client(callback);
     callback.reset();
 
-    assert_eq!(hmac.add_mut_data(buf), Ok(32));
+    assert_eq!(hmac.add_mut_data(buf), Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
@@ -124,7 +128,7 @@ fn hmac_check_verify() {
     callback.reset();
     hmac.set_mode_hmacsha256(&KEY).unwrap();
 
-    assert_eq!(hmac.add_mut_data(buf), Ok(32));
+    assert_eq!(hmac.add_mut_data(buf), Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
