@@ -14,7 +14,7 @@ use core::cell::Cell;
 use core::{cmp, fmt};
 use kernel::platform::mpu;
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{self, register_bitfields};
 use kernel::ProcessId;
 
@@ -74,39 +74,70 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
         let mut num_regions = 0;
         let mut locked_region_mask = 0;
 
-        for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
-            // Read the current value
-            let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
-
-            // Flip R, W, X bits
-            let pmpcfg_new = pmpcfg_og ^ (3 << ((i % 4) * 8));
-            csr::CSR.pmpconfig_set(i / 4, pmpcfg_new);
-
-            // Check if the bits are set
-            let pmpcfg_check = csr::CSR.pmpconfig_get(i / 4);
-
-            // Check if the changes stuck
-            if pmpcfg_check == pmpcfg_og {
-                // If we get here then our changes didn't stick, let's figure
-                // out why
-
-                // Check if the locked bit is set
-                if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
-                    // The bit is locked. Mark this regions as not usable
-                    locked_region_mask |= 1 << i;
-                } else {
-                    // The locked bit isn't set
-                    // This region must not be connected, which means we have run out
-                    // of usable regions, break the loop
-                    break;
-                }
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            // The MMWP bit is set, we need to be very careful about modifying
+            // PMP configs as that might break us
+            if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::rlb) {
+                // Rule Locking Bypass (RLB) is set, we can do whatever we want
+                // so let's just say all regions are modifiable and avoid the
+                // auto-detect to avoid locking ourself out.
+                num_regions = MAX_AVAILABLE_REGIONS_OVER_TWO * 2;
             } else {
-                // Found a working region
-                num_regions += 1;
-            }
+                // We can't probe the registers by writing to them, so let's
+                // just assume all `MAX_AVAILABLE_REGIONS_OVER_TWO * 2` are
+                // accessible if they aren't locked
 
-            // Reset back to how we found it
-            csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
+                for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+                    // Read the current value
+                    let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
+
+                    // Check if the locked bit is set
+                    if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
+                        // The bit is locked. Mark this regions as not usable
+                        locked_region_mask |= 1 << i;
+                    } else {
+                        // Found a working region
+                        num_regions += 1;
+                    }
+                }
+            }
+        } else {
+            for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+                // Read the current value
+                let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
+
+                // Flip R, W, X bits and set config to off
+                let cfg_offset = (i % 4) * 8;
+                let flipped_bits = pmpcfg_og ^ (5 << cfg_offset);
+                let pmpcfg_new = flipped_bits & !(3 << (cfg_offset + 3));
+                csr::CSR.pmpconfig_set(i / 4, pmpcfg_new);
+
+                // Check if the bits are set
+                let pmpcfg_check = csr::CSR.pmpconfig_get(i / 4);
+
+                // Check if the changes stuck
+                if pmpcfg_check == pmpcfg_og {
+                    // If we get here then our changes didn't stick, let's figure
+                    // out why
+
+                    // Check if the locked bit is set
+                    if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
+                        // The bit is locked. Mark this regions as not usable
+                        locked_region_mask |= 1 << i;
+                    } else {
+                        // The locked bit isn't set
+                        // This region must not be connected, which means we have run out
+                        // of usable regions, break the loop
+                        break;
+                    }
+                } else {
+                    // Found a working region
+                    num_regions += 1;
+                }
+
+                // Reset back to how we found it
+                csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
+            }
         }
 
         Self {
