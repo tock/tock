@@ -10,7 +10,6 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{
     LeasableBuffer, LeasableBufferDynamic, LeasableMutableBuffer,
 };
-//use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
 use kernel::ErrorCode;
 
 use crate::virtual_digest::{Mode, Operation};

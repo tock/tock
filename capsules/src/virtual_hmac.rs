@@ -359,8 +359,6 @@ impl<
                 true
             });
 
-            //node.data.insert(data);
-
             // We don't have more data, so we must be starting the operation.
             if !added_data && node.digest.is_some() {
                 if node.verify.get() {

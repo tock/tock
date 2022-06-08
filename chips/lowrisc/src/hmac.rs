@@ -78,6 +78,7 @@ pub struct Hmac<'a> {
     verify: Cell<bool>,
     digest: Cell<Option<&'static mut [u8; 32]>>,
     cancelled: Cell<bool>,
+    busy: Cell<bool>,
 }
 
 impl Hmac<'_> {
@@ -89,6 +90,7 @@ impl Hmac<'_> {
             verify: Cell::new(false),
             digest: Cell::new(None),
             cancelled: Cell::new(false),
+            busy: Cell::new(false),
         }
     }
 
@@ -124,7 +126,7 @@ impl Hmac<'_> {
             LeasableBufferDynamic::Immutable(mut b) => {
                 let count = self.process(&b, b.len());
                 b.slice(count..);
-                true
+                 true
             }
             LeasableBufferDynamic::Mutable(mut b) => {
                 let count = self.process(&b, b.len());
@@ -143,7 +145,7 @@ impl Hmac<'_> {
                 + INTR_ENABLE::FIFO_EMPTY::CLEAR
                 + INTR_ENABLE::HMAC_ERR::CLEAR,
         );
-
+        self.busy.set(false);
         if intrs.is_set(INTR_STATE::HMAC_DONE) {
             self.client.map(|client| {
                 let digest = self.digest.take().unwrap();
@@ -201,12 +203,17 @@ impl Hmac<'_> {
         } else if intrs.is_set(INTR_STATE::FIFO_EMPTY) {
             // Clear the FIFO empty interrupt
             regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);
-
+            let rval = if self.cancelled.get() {
+                self.cancelled.set(false);
+                Err(ErrorCode::CANCEL)
+            } else {
+                Ok(())
+            };
             if self.data_progress() {
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
-                        LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b),
-                        LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b),
+                        LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(rval, b),
+                        LeasableBufferDynamic::Immutable(b) => client.add_data_done(rval, b),
                     })
                 });
 
@@ -220,10 +227,16 @@ impl Hmac<'_> {
             regs.intr_state.modify(INTR_STATE::HMAC_ERR::SET);
 
             self.client.map(|client| {
-                if self.verify.get() {
-                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                let errval = if self.cancelled.get() {
+                    self.cancelled.set(false);
+                    ErrorCode::CANCEL
                 } else {
-                    client.hash_done(Err(ErrorCode::FAIL), self.digest.take().unwrap());
+                    ErrorCode::FAIL
+                };
+                if self.verify.get() {
+                    client.hash_done(Err(errval), self.digest.take().unwrap());
+                } else {
+                    client.hash_done(Err(errval), self.digest.take().unwrap());
                 }
             });
         }
@@ -235,22 +248,59 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
         &self,
         data: LeasableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
-        self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
-        Ok(())
+        if self.busy.get() {
+            Err((ErrorCode::BUSY, data))
+        } else {
+            self.busy.set(true);
+            self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
+
+            let regs = self.registers;
+            regs.cmd.modify(CMD::START::SET);
+            // Clear the FIFO empty interrupt
+            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);            
+            // Enable interrupts
+            regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+            let ret = self.data_progress();
+            
+            if ret {
+                regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
+            }
+            
+            Ok(())
+        }
     }
 
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
-        self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
-        Ok(())
+        if self.busy.get() {
+            Err((ErrorCode::BUSY, data))
+        } else {
+            self.busy.set(true);
+            self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
+
+            let regs = self.registers;
+            regs.cmd.modify(CMD::START::SET);
+            // Clear the FIFO empty interrupt
+            regs.intr_state.modify(INTR_STATE::FIFO_EMPTY::SET);            
+            // Enable interrupts
+            regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
+            let ret = self.data_progress();
+            
+            if ret {
+                regs.intr_test.modify(INTR_TEST::FIFO_EMPTY::SET);
+            }
+
+            Ok(())
+        }
     }
 
     fn clear_data(&self) {
         let regs = self.registers;
         regs.cmd.modify(CMD::START::CLEAR);
         regs.wipe_secret.set(1 as u32);
+        self.cancelled.set(true);
     }
 }
 
@@ -269,7 +319,7 @@ impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
 
         // Start the process
         regs.cmd.modify(CMD::PROCESS::SET);
-
+        self.busy.set(true);
         self.digest.set(Some(digest));
 
         Ok(())

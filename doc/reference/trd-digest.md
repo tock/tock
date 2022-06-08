@@ -5,7 +5,7 @@ Digest HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Alistair Sinclair, Philip Levis <br/>
+**Author:** Alistair Francis, Philip Levis <br/>
 **Draft-Created:** June 8, 2022<br/>
 **Draft-Modified:** June 8, 2022<br/>
 **Draft-Version:** 1<br/>
@@ -302,7 +302,7 @@ There are 5 standard Tock capsules for digests:
 6 Authors' Address
 =================================
 
-    Alistair Sinclair
+    Alistair Francis
     alistair.francis@wdc.com
 
     Philip Levis
