@@ -40,13 +40,18 @@ callback when the write has completed.
     shared, or NOMEM if the driver failed to allocate memory for the
     transaction.
 
+    **Additional notes:** A process may call this command with a write size of
+    `0` to cancel a write transaction, if one is ongoing. Unless an error
+    occurs, this will generate a write transaction completed event, regardless
+    of whether or not a write transaction was already in progress.
+
   * ### Command number: `2`
 
     **Description**: Initiate a read transaction into a buffer shared using `allow`.
     At the end of the transaction, a callback will be delivered if the process
     has `subscribed` to read events using `subscribe number` 2.
 
-    **Argument 1**: The maximum number of bytes to write.
+    **Argument 1**: The maximum number of bytes to read.
 
     **Argument 2**: unused
 
@@ -95,7 +100,7 @@ callback when the write has completed.
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
-## Allow
+## Read-Only Allow
 
   * ### Allow number: `1`
 
@@ -108,7 +113,8 @@ callback when the write has completed.
     **Returns**: Ok(()) if the subscribe was successful or NOMEM if the
     driver failed to allocate memory for the transaction.
 
-  * ### Allow number: `2`
+## Read-Write Allow
+  * ### Allow number: `1`
 
     **Description**: Sets a shared buffer to be read into by the next read
     transaction. A shared buffer is released in two cases: if it is replaced by

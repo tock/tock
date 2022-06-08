@@ -377,10 +377,10 @@ mod tests {
             assert_eq!(buf[HASH_OFFSET + 7], 0x44);
 
             // Check the check hash
-            assert_eq!(buf[HASH_OFFSET + 8], 0x55);
-            assert_eq!(buf[HASH_OFFSET + 9], 0xb5);
-            assert_eq!(buf[HASH_OFFSET + 10], 0xd8);
-            assert_eq!(buf[HASH_OFFSET + 11], 0xe4);
+            assert_eq!(buf[HASH_OFFSET + 8], 0xbb);
+            assert_eq!(buf[HASH_OFFSET + 9], 0x32);
+            assert_eq!(buf[HASH_OFFSET + 10], 0x74);
+            assert_eq!(buf[HASH_OFFSET + 11], 0x1d);
         }
 
         fn check_region_one(buf: &[u8]) {
@@ -407,10 +407,10 @@ mod tests {
             assert_eq!(buf[42], 0x23);
 
             // Check the check hash
-            assert_eq!(buf[43], 0xf7);
-            assert_eq!(buf[44], 0x1d);
-            assert_eq!(buf[45], 0xb3);
-            assert_eq!(buf[46], 0xe9);
+            assert_eq!(buf[43], 0xfd);
+            assert_eq!(buf[44], 0x24);
+            assert_eq!(buf[45], 0xf0);
+            assert_eq!(buf[46], 0x07);
         }
 
         fn check_region_two(buf: &[u8]) {
@@ -437,10 +437,10 @@ mod tests {
             assert_eq!(buf[42], 0x23);
 
             // Check the check hash
-            assert_eq!(buf[43], 0x11);
-            assert_eq!(buf[44], 0x6a);
-            assert_eq!(buf[45], 0xba);
-            assert_eq!(buf[46], 0xba);
+            assert_eq!(buf[43], 0x1b);
+            assert_eq!(buf[44], 0x53);
+            assert_eq!(buf[45], 0xf9);
+            assert_eq!(buf[46], 0x54);
         }
 
         fn get_hashed_key(unhashed_key: &[u8]) -> u64 {
