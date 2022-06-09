@@ -828,8 +828,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                             // Set access to end address
-                            csr::CSR
-                                .pmpconfig_set(x / 2, cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2));
+                            let new_cfg =
+                                cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
                         }
                         1 => {
                             csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
@@ -844,10 +845,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                             // Set access to end address
-                            csr::CSR.pmpconfig_set(
-                                x / 2,
-                                cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
-                            );
+                            let new_cfg =
+                                cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
                         }
                         _ => break,
                     }
