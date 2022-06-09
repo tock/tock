@@ -129,7 +129,7 @@ fn hmac_check_verify() {
 
     hmac.set_client(callback);
     callback.reset();
-    hmac.set_mode_hmacsha256(&KEY).unwrap();
+    assert_eq!(hmac.set_mode_hmacsha256(&KEY), Ok(()));
 
     assert_eq!(hmac.add_mut_data(buf), Ok(()));
 
