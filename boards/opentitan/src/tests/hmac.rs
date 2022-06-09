@@ -97,6 +97,7 @@ fn hmac_check_load_binary() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
+    #[allow(dead_code)]
     let buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac load binary... ");
@@ -123,6 +124,7 @@ fn hmac_check_verify() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
+    #[allow(dead_code)]
     let buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac check verify... ");
