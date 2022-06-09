@@ -1,6 +1,7 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
+#[allow(dead_code)]
 use kernel::hil::digest::{self, Digest, DigestData, DigestVerify, HmacSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
@@ -97,8 +98,7 @@ fn hmac_check_load_binary() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
-    #[allow(dead_code)]
-    let buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
+    let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac load binary... ");
     run_kernel_op(100);
@@ -107,7 +107,7 @@ fn hmac_check_load_binary() {
     callback.reset();
 
     #[cfg(feature = "hardware_tests")]
-    assert_eq!(hmac.add_mut_data(buf), Ok(()));
+    assert_eq!(hmac.add_mut_data(_buf), Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
@@ -124,8 +124,8 @@ fn hmac_check_verify() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
-    #[allow(dead_code)]
-    let buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
+
+    let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac check verify... ");
     run_kernel_op(100);
@@ -135,7 +135,7 @@ fn hmac_check_verify() {
     assert_eq!(hmac.set_mode_hmacsha256(&KEY), Ok(()));
 
     #[cfg(feature = "hardware_tests")]
-    assert_eq!(hmac.add_mut_data(buf), Ok(()));
+    assert_eq!(hmac.add_mut_data(_buf), Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
