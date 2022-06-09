@@ -105,6 +105,7 @@ fn hmac_check_load_binary() {
     hmac.set_client(callback);
     callback.reset();
 
+    #[cfg(feature = "hardware_tests")]
     assert_eq!(hmac.add_mut_data(buf), Ok(()));
 
     run_kernel_op(1000);
@@ -131,6 +132,7 @@ fn hmac_check_verify() {
     callback.reset();
     assert_eq!(hmac.set_mode_hmacsha256(&KEY), Ok(()));
 
+    #[cfg(feature = "hardware_tests")]
     assert_eq!(hmac.add_mut_data(buf), Ok(()));
 
     run_kernel_op(1000);
