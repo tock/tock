@@ -2,7 +2,7 @@
 
 use core::cell::Cell;
 use core::ops::Index;
-use kerne::debug;
+use kernel::debug;
 use kernel::hil;
 use kernel::hil::digest::{self, DigestData, DigestHash};
 use kernel::utilities::cells::OptionalCell;
