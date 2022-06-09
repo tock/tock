@@ -251,7 +251,8 @@ the `Sha512` trait:
 pub trait Sha512 {
     /// Call before Digest::run() to perform Sha512
     fn set_mode_sha512(&self) -> Result<(), ErrorCode>;
-}``` 
+}
+``` 
 
  
 The Digest HIL defines seven standard Digest traits:
