@@ -1,9 +1,9 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::hil::digest::{self, Digest, DigestVerify, HmacSha256};
 #[allow(unused_imports)] // Can be unused if software only test
 use kernel::hil::digest::DigestData;
+use kernel::hil::digest::{self, Digest, DigestVerify, HmacSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
