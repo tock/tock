@@ -345,6 +345,9 @@ impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
 
 impl hil::digest::HmacSha256 for Hmac<'_> {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
+        if self.busy.get() {
+            return Err(ErrorCode::BUSY);
+        }
         let regs = self.registers;
         let mut key_idx = 0;
 
@@ -402,6 +405,9 @@ impl hil::digest::HmacSha512 for Hmac<'_> {
 
 impl hil::digest::Sha256 for Hmac<'_> {
     fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
+        if self.busy.get() {
+            return Err(ErrorCode::BUSY);
+        }
         let regs = self.registers;
 
         // Ensure the SHA is setup
