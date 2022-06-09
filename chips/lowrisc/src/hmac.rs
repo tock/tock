@@ -2,7 +2,6 @@
 
 use core::cell::Cell;
 use core::ops::Index;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::digest::{self, DigestData, DigestHash};
 use kernel::utilities::cells::OptionalCell;
@@ -140,7 +139,6 @@ impl Hmac<'_> {
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let intrs = regs.intr_state.extract();
-        debug!("HMAC interrupt");
         regs.intr_enable.modify(
             INTR_ENABLE::HMAC_DONE::CLEAR
                 + INTR_ENABLE::FIFO_EMPTY::CLEAR
