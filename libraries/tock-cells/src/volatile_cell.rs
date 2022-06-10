@@ -9,7 +9,6 @@
 
 #![deny(missing_docs)]
 #![deny(warnings)]
-#![no_std]
 
 use core::cell::UnsafeCell;
 use core::ptr;
@@ -18,6 +17,7 @@ use core::ptr;
 ///
 /// [`Cell`]: https://doc.rust-lang.org/std/cell/struct.Cell.html
 /// [volatile]: https://doc.rust-lang.org/std/ptr/fn.read_volatile.html
+#[derive(Default)]
 #[repr(transparent)]
 pub struct VolatileCell<T> {
     value: UnsafeCell<T>,
@@ -26,13 +26,16 @@ pub struct VolatileCell<T> {
 impl<T> VolatileCell<T> {
     /// Creates a new `VolatileCell` containing the given value
     pub const fn new(value: T) -> Self {
-        VolatileCell { value: UnsafeCell::new(value) }
+        VolatileCell {
+            value: UnsafeCell::new(value),
+        }
     }
 
     /// Returns a copy of the contained value
     #[inline(always)]
     pub fn get(&self) -> T
-        where T: Copy
+    where
+        T: Copy,
     {
         unsafe { ptr::read_volatile(self.value.get()) }
     }
@@ -40,7 +43,8 @@ impl<T> VolatileCell<T> {
     /// Sets the contained value
     #[inline(always)]
     pub fn set(&self, value: T)
-        where T: Copy
+    where
+        T: Copy,
     {
         unsafe { ptr::write_volatile(self.value.get(), value) }
     }
