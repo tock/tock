@@ -2,7 +2,8 @@
 // https://github.com/japaric/vcell, commit
 // ef556474203e93b3f45f0f8cd8dea3210aa7f844, path src/lib.rs.
 
-//! Just like [`Cell`] but with [volatile] read / write operations
+//! A type for accessing MMIO registers. `VolatileCell` is just like [`Cell`]
+//! but with [volatile] read / write operations
 //!
 //! [`Cell`]: https://doc.rust-lang.org/std/cell/struct.Cell.html
 //! [volatile]: https://doc.rust-lang.org/std/ptr/fn.read_volatile.html
@@ -13,10 +14,15 @@
 use core::cell::UnsafeCell;
 use core::ptr;
 
-/// Just like [`Cell`] but with [volatile] read / write operations
+/// `VolatileCell` provides a wrapper around unsafe volatile pointer reads and
+/// writes. This is particularly useful for accessing microcontroller registers
+/// by (unsafely) casting a pointer to the register into a `VolatileCell`.
 ///
-/// [`Cell`]: https://doc.rust-lang.org/std/cell/struct.Cell.html
-/// [volatile]: https://doc.rust-lang.org/std/ptr/fn.read_volatile.html
+/// ```
+/// use tock_cells::volatile_cell::VolatileCell;
+/// let myptr: *const usize = 0xdeadbeef as *const usize;
+/// let myregister: &VolatileCell<usize> = unsafe { core::mem::transmute(myptr) };
+/// ```
 #[derive(Default)]
 #[repr(transparent)]
 pub struct VolatileCell<T> {
@@ -31,7 +37,23 @@ impl<T> VolatileCell<T> {
         }
     }
 
-    /// Returns a copy of the contained value
+    /// Performs a memory read and returns a copy of the value represented by
+    /// the cell.
+    ///
+    /// # Side-Effects
+    ///
+    /// `get` _always_ performs a memory read on the underlying location. If
+    /// this location is a memory-mapped I/O register, the side-effects of
+    /// performing the read are register-specific.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tock_cells::volatile_cell::VolatileCell;
+    ///
+    /// let vc = VolatileCell::new(5);
+    /// let five = vc.get();
+    /// ```
     #[inline(always)]
     pub fn get(&self) -> T
     where
@@ -40,7 +62,22 @@ impl<T> VolatileCell<T> {
         unsafe { ptr::read_volatile(self.value.get()) }
     }
 
-    /// Sets the contained value
+    /// Performs a memory write with the provided value.
+    ///
+    /// # Side-Effects
+    ///
+    /// `set` _always_ performs a memory write on the underlying location. If
+    /// this location is a memory-mapped I/O register, the side-effects of
+    /// performing the write are register-specific.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tock_cells::volatile_cell::VolatileCell;
+    ///
+    /// let vc = VolatileCell::new(123);
+    /// vc.set(432);
+    /// ```
     #[inline(always)]
     pub fn set(&self, value: T)
     where
