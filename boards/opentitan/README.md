@@ -20,7 +20,7 @@ Programming
 -----------
 
 Tock on OpenTitan requires
-lowRISC/opentitan@199d45626f8a7ae2aef5d9ff73793bf9a4233711. In
+lowRISC/opentitan@217a0168ba118503c166a9587819e3811eeb0c0c. In
 general it is recommended that users start with the specified commit as newer
 versions have not been tested.
 
@@ -84,31 +84,17 @@ cd opentitan
 git checkout <OpenTitan_SHA>
 pip3 install --user -r python-requirements.txt
 
-LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --setup --build lowrisc:dv:chip_verilator_sim
-```
-
-### Build Boot Rom/OTP Image
-
-Build only the targets we care about.
-```shell
-./meson_init.sh
-ninja -C build-out sw/device/lib/testing/test_rom/test_rom_export_sim_verilator
-ninja -C build-out sw/device/otp_img/otp_img_sim_verilator.vmem
+./bazelisk.sh build //sw/...
+./bazelisk.sh test --test_tag_filters=verilator --test_output=streamed //sw/device/tests:uart_smoketest
 ```
 
 ### Test Verilator
 
 ```shell
-build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
-    --meminit=rom,./build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
-    --meminit=otp,./build-out/sw/device/otp_img/otp_img_sim_verilator.vmem
-
-# Read the output, you want to attach screen to UART
-screen /dev/pts/4
+./bazelisk.sh test --test_tag_filters=verilator --test_output=streamed //sw/device/tests:uart_smoketest
 
 # Wait a few minutes
 # You should eventually see messages in screen
-# Once you see "waiting for SPI input..." you know it works
 ```
 
 ### Build and Run Tock
@@ -171,7 +157,7 @@ The OpenTitan application can be run in the QEMU emulation platform for
 RISC-V, allowing quick and easy testing. This is also a good option for
 those who can't afford the FPGA development board.
 
-Unfortunately you need QEMU 6.1, which at the time of writing is unlikely
+Unfortunately you need QEMU 7.2, which at the time of writing is unlikely
 to be available in your distro. Luckily Tock can build QEMU for you. From
 the top level of the Tock source just run `make ci-setup-qemu` and
 follow the steps.
@@ -179,19 +165,14 @@ follow the steps.
 QEMU can be started with Tock using the `qemu` make target:
 
 ```shell
-$ make OPENTITAN_BOOT_ROM=<path_to_opentitan>/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf qemu
+$ make qemu
 ```
-
-Where OPENTITAN_BOOT_ROM is set to point to the OpenTitan ELF file. This is
-usually located at `sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf` in the
-OpenTitan build output. Note that the `make ci-setup-qemu` target will also
-download a ROM file.
 
 QEMU can be started with Tock and a userspace app with the `qemu-app` make
 target:
 
 ```shell
-$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app
+$ make APP=/path/to/app.tbf qemu-app
 ```
 
 The TBF must be compiled for the OpenTitan board. For example, you can build
@@ -225,13 +206,13 @@ $ sudo apt-get install gdb-multiarch
 In the board directory, QEMU can be started in a suspended state with gdb ready to be connected. 
 
 ```shell
-$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> qemu-gdb
+$ make qemu-gdb
 ```
 
 or with an app ready to be loaded.
 
 ```shell
-$ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app-gdb
+$ make APP=/path/to/app.tbf qemu-app-gdb
 ```
 
 In a separate shell, start gdb

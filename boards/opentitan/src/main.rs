@@ -494,8 +494,8 @@ unsafe fn setup() -> (
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
         &mux_flash,                                  // Flash controller
-        0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x20000,                                     // Region size
+        0x2007F800 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
+        0x7F800,                                     // Region size
         flash_ctrl_read_buf,                         // Buffer used internally in TicKV
         page_buffer,                                 // Buffer used with the flash controller
     )
@@ -685,6 +685,8 @@ unsafe fn setup() -> (
         static _szero: u8;
         /// The end of the kernel BSS (Included only for kernel PMP)
         static _ezero: u8;
+        /// The start of the OpenTitan manifest
+        static _manifest: u8;
     }
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
@@ -712,34 +714,25 @@ unsafe fn setup() -> (
     );
 
     let mut mpu_config = rv32i::epmp::PMPConfig::kernel_default();
-    // The kernel stack
-    chip.pmp.allocate_kernel_region(
-        &_sstack as *const u8,
-        &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
-    // The kernel text
-    chip.pmp.allocate_kernel_region(
-        &_stext as *const u8,
-        &_etext as *const u8 as usize - &_stext as *const u8 as usize,
-        mpu::Permissions::ReadExecuteOnly,
-        &mut mpu_config,
-    );
-    // The kernel relocate data
-    chip.pmp.allocate_kernel_region(
-        &_srelocate as *const u8,
-        &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
-    // The kernel BSS
-    chip.pmp.allocate_kernel_region(
-        &_szero as *const u8,
-        &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
+
+    // The kernel stack, BSS and relocation data
+    chip.pmp
+        .allocate_kernel_region(
+            &_sstack as *const u8,
+            &_ezero as *const u8 as usize - &_sstack as *const u8 as usize,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+    // The kernel text, Manifest and vectors
+    chip.pmp
+        .allocate_kernel_region(
+            &_manifest as *const u8,
+            &_etext as *const u8 as usize - &_manifest as *const u8 as usize,
+            mpu::Permissions::ReadExecuteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
     // The app locations
     chip.pmp.allocate_kernel_region(
         &_sapps as *const u8,
@@ -754,6 +747,15 @@ unsafe fn setup() -> (
         mpu::Permissions::ReadWriteOnly,
         &mut mpu_config,
     );
+    // Access to the MMIO devices
+    chip.pmp
+        .allocate_kernel_region(
+            0x4000_0000 as *const u8,
+            0x900_0000,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
 
     chip.pmp.enable_kernel_mpu(&mut mpu_config);
 

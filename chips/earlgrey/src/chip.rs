@@ -94,10 +94,10 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
             interrupts::CSRNG_CSCMDREQDONE..=interrupts::CSRNG_CSFATALERR => {
                 self.rng.handle_interrupt()
             }
-            interrupts::SPIHOST0ERROR..=interrupts::SPIHOST0SPIEVENT => {
+            interrupts::SPIHOST0_ERROR..=interrupts::SPIHOST0_SPIEVENT => {
                 self.spi_host0.handle_interrupt()
             }
-            interrupts::SPIHOST1ERROR..=interrupts::SPIHOST1SPIEVENT => {
+            interrupts::SPIHOST1_ERROR..=interrupts::SPIHOST1_SPIEVENT => {
                 self.spi_host1.handle_interrupt()
             }
             _ => return false,
