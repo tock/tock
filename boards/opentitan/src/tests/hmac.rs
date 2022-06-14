@@ -37,9 +37,9 @@ impl<'a> HmacTestCallback {
     }
 }
 
-impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
+impl<'a> digest::ClientData<32> for HmacTestCallback {
     fn add_mut_data_done(
-        &'a self,
+        &self,
         result: Result<(), ErrorCode>,
         data: LeasableMutableBuffer<'static, u8>,
     ) {
@@ -51,23 +51,19 @@ impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
         assert_eq!(result, Ok(()));
     }
 
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
         unimplemented!()
     }
 }
 
-impl<'a> digest::ClientHash<'a, 32> for HmacTestCallback {
-    fn hash_done(&'a self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {
+impl<'a> digest::ClientHash<32> for HmacTestCallback {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {
         unimplemented!()
     }
 }
 
-impl<'a> digest::ClientVerify<'a, 32> for HmacTestCallback {
-    fn verification_done(
-        &'a self,
-        result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; 32],
-    ) {
+impl<'a> digest::ClientVerify<32> for HmacTestCallback {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; 32]) {
         self.digest_buffer.replace(compare);
         self.verification_done.set(true);
         assert_eq!(result, Ok(true));
