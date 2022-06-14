@@ -55,7 +55,7 @@ integrity and authenticity that the message came from a certain sender
 [HMAC](https://en.wikipedia.org/wiki/HMAC), are built on top of hash
 functions.
 
-This document describes Tock's traits for com and their semantics for
+This document describes Tock's traits and their semantics for
 computing digests in the Tock operating system. These traits can also be
 used for generating HMACs.
 
@@ -218,7 +218,7 @@ reference and use it for all of the client callbacks (`add_data`,
 `add_mut_data`, `hash_done`, and `verification_done`). A digest
 implementation that implements `set_client` MAY choose to not
 implement the individual client set methods for the different traits
-(e.g., `DigestData::set_client); if it does so, each of these client
+(e.g., `DigestData::set_client`); if it does so, each of these client
 set methods MUST be marked `unimplemented!()`.
 
 
