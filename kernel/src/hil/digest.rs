@@ -9,7 +9,7 @@ use crate::ErrorCode;
 /// when data has been added to a digest.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait ClientData<'a, const L: usize> {
+pub trait ClientData<const L: usize> {
     /// Called when the data has been added to the digest. `data` is
     /// the `LeasableBuffer` passed in the call to `add_data`, whose
     /// active slice contains the data that was not added. On `Ok`,
@@ -23,7 +23,7 @@ pub trait ClientData<'a, const L: usize> {
     ///  - SIZE: the active slice of the LeasableBuffer has zero size.
     ///  - CANCEL: the operation was cancelled by a call to `clear_data`.
     ///  - FAIL: an internal failure.
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
 
     /// Called when the data has been added to the digest. `data` is
     /// the `LeasableMutableBuffer` passed in the call to
@@ -39,7 +39,7 @@ pub trait ClientData<'a, const L: usize> {
     ///  - CANCEL: the operation was cancelled by a call to `clear_data`.
     ///  - FAIL: an internal failure.
     fn add_mut_data_done(
-        &'a self,
+        &self,
         result: Result<(), ErrorCode>,
         data: LeasableMutableBuffer<'static, u8>,
     );
@@ -49,7 +49,7 @@ pub trait ClientData<'a, const L: usize> {
 /// a digest is completed.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait ClientHash<'a, const L: usize> {
+pub trait ClientHash<const L: usize> {
     /// Called when a digest is computed. `digest` is the same
     /// reference passed to `run()` to store the hash value. If
     /// `result` is `Ok`, `digest` stores the computed hash. If
@@ -64,14 +64,14 @@ pub trait ClientHash<'a, const L: usize> {
     ///  - NOSUPPORT: the requested digest algorithm is not supported,
     ///  or one was not requested.
     ///  - FAIL: an internal failure.
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]);
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]);
 }
 
 /// Implement this trait and use `set_client()` in order to receive callbacks when
 /// digest verification is complete.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait ClientVerify<'a, const L: usize> {
+pub trait ClientVerify<const L: usize> {
     /// Called when a verification is computed.  `compare` is the
     /// reference supplied to `verify()` and the data stored in
     /// `compare` is unchanged.  On `Ok` the `bool` indicates if the
@@ -86,24 +86,24 @@ pub trait ClientVerify<'a, const L: usize> {
     ///  - NOSUPPORT: the requested digest algorithm is not supported,
     ///  or one was not requested.
     ///  - FAIL: an internal failure.
-    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
 }
 
-pub trait Client<'a, const L: usize>:
-    ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>
+pub trait Client<const L: usize>:
+    ClientData<L> + ClientHash<L> + ClientVerify<L>
 {
 }
 
-impl<'a, T: ClientData<'a, L> + ClientHash<'a, L> + ClientVerify<'a, L>, const L: usize>
-    Client<'a, L> for T
+impl<T: ClientData<L> + ClientHash<L> + ClientVerify<L>, const L: usize>
+    Client<L> for T
 {
 }
 
-pub trait ClientDataHash<'a, const L: usize>: ClientData<'a, L> + ClientHash<'a, L> {}
-impl<'a, T: ClientData<'a, L> + ClientHash<'a, L>, const L: usize> ClientDataHash<'a, L> for T {}
+pub trait ClientDataHash<const L: usize>: ClientData<L> + ClientHash<L> {}
+impl<T: ClientData<L> + ClientHash<L>, const L: usize> ClientDataHash<L> for T {}
 
-pub trait ClientDataVerify<'a, const L: usize>: ClientData<'a, L> + ClientVerify<'a, L> {}
-impl<'a, T: ClientData<'a, L> + ClientVerify<'a, L>, const L: usize> ClientDataVerify<'a, L> for T {}
+pub trait ClientDataVerify<const L: usize>: ClientData<L> + ClientVerify<L> {}
+impl<T: ClientData<L> + ClientVerify<L>, const L: usize> ClientDataVerify<L> for T {}
 
 /// Adding data (mutable or immutable) to a digest. There are two
 /// separate methods, `add_data` for immutable data (e.g., flash) and
@@ -116,7 +116,7 @@ pub trait DigestData<'a, const L: usize> {
     /// and `add_mut_data_done` callbacks.  This is not required if
     /// using the `set_client()` fuction from the `Digest` trait.
     #[allow(unused_variables)]
-    fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>) {}
+    fn set_data_client(&'a self, client: &'a dyn ClientData<L>) {}
 
     /// Add data to the input of the hash function/digest. `Ok`
     /// indicates all of the active bytes in `data` will be added.
@@ -171,7 +171,7 @@ pub trait DigestHash<'a, const L: usize> {
     /// This is not required if using the `set_client()` fuction from the
     /// `Digest` trait.
     #[allow(unused_variables)]
-    fn set_hash_client(&'a self, client: &'a dyn ClientHash<'a, L>) {}
+    fn set_hash_client(&'a self, client: &'a dyn ClientHash<L>) {}
 
     /// Compute a digest of all of the data added with `add_data` and
     /// `add_data_mut`, storing the computed value in `digest`.  The
@@ -206,7 +206,7 @@ pub trait DigestVerify<'a, const L: usize> {
     /// This is not required if using the `set_client()` fuction from the
     /// `Digest` trait.
     #[allow(unused_variables)]
-    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<'a, L>) {}
+    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<L>) {}
 
     /// Compute a digest of all of the data added with `add_data` and
     /// `add_data_mut` then compare it with value in `compare`.  The
@@ -242,7 +242,7 @@ pub trait Digest<'a, const L: usize>:
 {
     /// Set the client instance which will receive `hash_done()`,
     /// `add_data_done()` and `verification_done()` callbacks.
-    fn set_client(&'a self, client: &'a dyn Client<'a, L>);
+    fn set_client(&'a self, client: &'a dyn Client<L>);
 }
 
 /// Computes a digest (cryptographic hash) over data

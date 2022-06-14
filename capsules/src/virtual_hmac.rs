@@ -17,7 +17,7 @@ use crate::virtual_digest::{Mode, Operation};
 pub struct VirtualMuxHmac<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxHmac<'a, A, L>,
     next: ListLink<'a, VirtualMuxHmac<'a, A, L>>,
-    client: OptionalCell<&'a dyn digest::Client<'a, L>>,
+    client: OptionalCell<&'a dyn digest::Client<L>>,
     key: TakeCell<'static, [u8]>,
     data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
     digest: TakeCell<'static, [u8; L]>,
@@ -169,7 +169,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+    fn set_client(&'a self, client: &'a dyn digest::Client<L>) {
         let node = self.mux.users.iter().find(|node| node.id == self.id);
         if node.is_none() {
             self.mux.users.push_head(self);
@@ -182,16 +182,16 @@ impl<
         'a,
         A: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientData<'a, L> for VirtualMuxHmac<'a, A, L>
+    > digest::ClientData<L> for VirtualMuxHmac<'a, A, L>
 {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
         self.client
             .map(move |client| client.add_data_done(result, data));
         self.mux.do_next_op();
     }
 
     fn add_mut_data_done(
-        &'a self,
+        &self,
         result: Result<(), ErrorCode>,
         data: LeasableMutableBuffer<'static, u8>,
     ) {
@@ -205,9 +205,9 @@ impl<
         'a,
         A: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientHash<'a, L> for VirtualMuxHmac<'a, A, L>
+    > digest::ClientHash<L> for VirtualMuxHmac<'a, A, L>
 {
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.client
             .map(move |client| client.hash_done(result, digest));
 
@@ -221,9 +221,9 @@ impl<
         'a,
         A: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientVerify<'a, L> for VirtualMuxHmac<'a, A, L>
+    > digest::ClientVerify<L> for VirtualMuxHmac<'a, A, L>
 {
-    fn verification_done(&'a self, result: Result<bool, ErrorCode>, digest: &'static mut [u8; L]) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, digest: &'static mut [u8; L]) {
         self.client
             .map(move |client| client.verification_done(result, digest));
 

@@ -73,7 +73,7 @@ register_bitfields![u32,
 
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
-    client: OptionalCell<&'a dyn hil::digest::Client<'a, 32>>,
+    client: OptionalCell<&'a dyn hil::digest::Client<32>>,
     data: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
     verify: Cell<bool>,
     digest: Cell<Option<&'static mut [u8; 32]>>,
@@ -337,7 +337,7 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
 }
 
 impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<'a, 32>) {
+    fn set_client(&'a self, client: &'a dyn digest::Client<32>) {
         self.client.set(client);
     }
 }

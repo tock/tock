@@ -29,8 +29,8 @@ pub enum Mode {
 pub struct VirtualMuxDigest<'a, A: digest::Digest<'a, L>, const L: usize> {
     mux: &'a MuxDigest<'a, A, L>,
     next: ListLink<'a, VirtualMuxDigest<'a, A, L>>,
-    sha_client: OptionalCell<&'a dyn digest::Client<'a, L>>,
-    hmac_client: OptionalCell<&'a dyn digest::Client<'a, L>>,
+    sha_client: OptionalCell<&'a dyn digest::Client<L>>,
+    hmac_client: OptionalCell<&'a dyn digest::Client<L>>,
     key: TakeCell<'static, [u8]>,
     data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
     digest: TakeCell<'static, [u8; L]>,
@@ -71,7 +71,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
         }
     }
 
-    pub fn set_hmac_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+    pub fn set_hmac_client(&'a self, client: &'a dyn digest::Client<L>) {
         let node = self.mux.users.iter().find(|node| node.id == self.id);
         if node.is_none() {
             self.mux.users.push_head(self);
@@ -79,7 +79,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> VirtualMuxDigest<'a, A, L> {
         self.hmac_client.set(client);
     }
 
-    pub fn set_sha_client(&'a self, client: &'a dyn digest::Client<'a, L>) {
+    pub fn set_sha_client(&'a self, client: &'a dyn digest::Client<L>) {
         let node = self.mux.users.iter().find(|node| node.id == self.id);
         if node.is_none() {
             self.mux.users.push_head(self);
@@ -203,7 +203,7 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
 {
     /// Set the client instance which will receive `add_data_done()` and
     /// `hash_done()` callbacks
-    fn set_client(&'a self, _client: &'a dyn digest::Client<'a, L>) {
+    fn set_client(&'a self, _client: &'a dyn digest::Client<L>) {
         unimplemented!()
     }
 }
@@ -218,9 +218,9 @@ impl<
             + digest::Sha384
             + digest::Sha512,
         const L: usize,
-    > digest::ClientData<'a, L> for VirtualMuxDigest<'a, A, L>
+    > digest::ClientData<L> for VirtualMuxDigest<'a, A, L>
 {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
         match self.mode.get() {
             Mode::None => {}
             Mode::Hmac(_) => {
@@ -236,7 +236,7 @@ impl<
     }
 
     fn add_mut_data_done(
-        &'a self,
+        &self,
         result: Result<(), ErrorCode>,
         data: LeasableMutableBuffer<'static, u8>,
     ) {
@@ -265,9 +265,9 @@ impl<
             + digest::Sha384
             + digest::Sha512,
         const L: usize,
-    > digest::ClientHash<'a, L> for VirtualMuxDigest<'a, A, L>
+    > digest::ClientHash<L> for VirtualMuxDigest<'a, A, L>
 {
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         match self.mode.get() {
             Mode::None => {}
             Mode::Hmac(_) => {
@@ -295,9 +295,9 @@ impl<
             + digest::Sha384
             + digest::Sha512,
         const L: usize,
-    > digest::ClientVerify<'a, L> for VirtualMuxDigest<'a, A, L>
+    > digest::ClientVerify<L> for VirtualMuxDigest<'a, A, L>
 {
-    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         match self.mode.get() {
             Mode::None => {}
             Mode::Hmac(_) => {

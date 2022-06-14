@@ -248,15 +248,15 @@ impl<
         'a,
         H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientData<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientData<L> for HmacDriver<'a, H, L>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
     }
 
     fn add_mut_data_done(
-        &'a self,
+        &self,
         _result: Result<(), ErrorCode>,
         data: LeasableMutableBuffer<'static, u8>,
     ) {
@@ -391,9 +391,9 @@ impl<
         'a,
         H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientHash<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientHash<L> for HmacDriver<'a, H, L>
 {
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |_, kernel_data| {
@@ -443,9 +443,9 @@ impl<
         'a,
         H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientVerify<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientVerify<L> for HmacDriver<'a, H, L>
 {
-    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |_app, kernel_data| {
