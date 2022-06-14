@@ -89,15 +89,9 @@ pub trait ClientVerify<const L: usize> {
     fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]);
 }
 
-pub trait Client<const L: usize>:
-    ClientData<L> + ClientHash<L> + ClientVerify<L>
-{
-}
+pub trait Client<const L: usize>: ClientData<L> + ClientHash<L> + ClientVerify<L> {}
 
-impl<T: ClientData<L> + ClientHash<L> + ClientVerify<L>, const L: usize>
-    Client<L> for T
-{
-}
+impl<T: ClientData<L> + ClientHash<L> + ClientVerify<L>, const L: usize> Client<L> for T {}
 
 pub trait ClientDataHash<const L: usize>: ClientData<L> + ClientHash<L> {}
 impl<T: ClientData<L> + ClientHash<L>, const L: usize> ClientDataHash<L> for T {}
