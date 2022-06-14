@@ -92,7 +92,7 @@ impl<'a> Sha256Software<'a> {
             _ => true,
         }
     }
-    
+
     fn initialize(&self) {
         let new_state = match self.state.get() {
             State::Idle => State::Idle,
@@ -101,7 +101,7 @@ impl<'a> Sha256Software<'a> {
             State::Verify | State::CancelVerify => State::CancelVerify,
         };
         self.state.set(new_state);
-        
+
         self.buffered_length.set(0);
         self.data_buffer.map(|b| {
             for i in 0..SHA_BLOCK_LEN_BYTES {
@@ -109,8 +109,8 @@ impl<'a> Sha256Software<'a> {
             }
         });
         self.hash_values.set([
-            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+            0x5be0cd19,
         ]);
     }
 
@@ -198,13 +198,13 @@ impl<'a> Sha256Software<'a> {
                     } else {
                         data_length
                     };
-                    
+
                     for i in 0..copy_len {
                         b[i + buffered_length] = data[i];
                     }
                     data.slice(copy_len..data.len());
                     buffered_length += copy_len;
-                    
+
                     if buffered_length == SHA_BLOCK_LEN_BYTES {
                         self.compute_block(b);
                         buffered_length = 0;
@@ -234,8 +234,8 @@ impl<'a> Sha256Software<'a> {
             }
             self.input_data.set(data);
             self.buffered_length.set(buffered_length);
-        } else { /* do nothing, no data */}
-        
+        } else { /* do nothing, no data */
+        }
     }
 
     fn right_rotate(&self, x: u32, rotate: u32) -> u32 {
@@ -494,7 +494,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         });
                     }
                 }
-            },
+            }
             State::CancelVerify => {
                 self.state.set(State::Idle);
                 self.clear_data();
@@ -502,7 +502,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                 self.client.map(|client| {
                     client.verification_done(Err(ErrorCode::CANCEL), output);
                 });
-            },
+            }
             State::CancelHash => {
                 self.state.set(State::Idle);
                 self.clear_data();
