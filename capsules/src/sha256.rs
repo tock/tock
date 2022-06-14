@@ -9,10 +9,14 @@ use core::cell::Cell;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
+use kernel::debug;
+
 use kernel::hil::digest::Client;
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -41,8 +45,8 @@ const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [
 pub struct Sha256Software<'a> {
     state: Cell<State>,
 
-    client: OptionalCell<&'a dyn Client<'a, SHA_256_OUTPUT_LEN_BYTES>>,
-    input_data: OptionalCell<LeasableBuffer<'static, u8>>,
+    client: OptionalCell<&'a dyn Client<SHA_256_OUTPUT_LEN_BYTES>>,
+    input_data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
     data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     buffered_length: Cell<usize>,
     total_length: Cell<usize>,
@@ -168,11 +172,13 @@ impl<'a> Sha256Software<'a> {
     // input_data does not complete a block then the remainder
     // is stored in data_buffer.
     fn compute_sha256(&self) {
+        debug!("SHA256: Computing");
         let mut data = self.input_data.take().unwrap();
         let data_length = data.len();
         self.total_length.set(self.total_length.get() + data_length);
         let mut buffered_length = self.buffered_length.get();
         if buffered_length != 0 {
+            debug!("SHA256:  -- Copying into buffered block with {} bytes", buffered_length);
             // Copy bytes into the front of the temp buffer and
             // compute if it fills.
             self.data_buffer.map(|b| {
@@ -190,16 +196,19 @@ impl<'a> Sha256Software<'a> {
 
                 if buffered_length == SHA_BLOCK_LEN_BYTES {
                     self.compute_block(b);
+                    buffered_length = 0;
                 }
             });
         }
         // Process blocks
         while data.len() >= 64 {
+            debug!("SHA256:  -- Computing block");
             self.compute_buffer(&data[0..64]);
             data.slice(64..data.len());
         }
         // Process tail end of block
         if data.len() != 0 {
+            debug!("SHA256:  -- Copying tail {} bytes into buffered block", data.len());
             self.data_buffer.map(|b| {
                 for i in 0..data.len() {
                     b[i] = data[i];
@@ -286,25 +295,46 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
         if self.busy() {
-            Err((ErrorCode::BUSY, data.take()))
+            Err((ErrorCode::BUSY, data))
         } else {
             self.state.set(State::Data);
             if self.handle.is_none() {
-                Err((ErrorCode::FAIL, data.take()))
+                Err((ErrorCode::FAIL, data))
             } else {
-                let len = data.len();
                 self.handle.map(|handle| {
                     self.deferred_caller.set(*handle);
-                    self.input_data.set(data);
+                    self.input_data.set(LeasableBufferDynamic::Immutable(data));
                     self.compute_sha256();
                 });
-                Ok(len)
+                Ok(())
             }
         }
     }
 
+    fn add_mut_data(
+        &self,
+        data: LeasableMutableBuffer<'static, u8>
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
+        if self.busy() {
+            Err((ErrorCode::BUSY, data))
+        } else {
+            self.state.set(State::Data);
+            if self.handle.is_none() {
+                Err((ErrorCode::FAIL, data))
+            } else {
+                self.handle.map(|handle| {
+                    self.deferred_caller.set(*handle);
+                    self.input_data.set(LeasableBufferDynamic::Mutable(data));
+                    self.compute_sha256();
+                });
+                Ok(())
+            }
+        }
+    }
+    
+    
     fn clear_data(&self) {
         let _ = self.initialize();
     }
@@ -364,7 +394,7 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
 }
 
 impl<'a> Digest<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, client: &'a dyn Client<'a, 32>) {
+    fn set_client(&'a self, client: &'a dyn Client<32>) {
         self.client.set(client);
     }
 }
@@ -387,6 +417,14 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         || output[4 * i + 1] != (hashval >> 16 & 0xff) as u8
                         || output[4 * i + 0] != (hashval >> 24 & 0xff) as u8
                     {
+                        debug!("SHA256 verify {}: hashval: {:x}, output {:x} {:x} {:x} {:x}",
+                               i,
+                               hashval,
+                               output[4 * i + 3],
+                               output[4 * i + 2],
+                               output[4 * i + 1],
+                               output[4 * i + 0]);
+                               
                         pass = false;
                         break;
                     }
@@ -400,9 +438,17 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
             State::Data => {
                 // Data already computed in method call
                 let data = self.input_data.take().unwrap();
-                self.client.map(|client| {
-                    client.add_data_done(Ok(()), data.take());
-                });
+                match data {
+                    LeasableBufferDynamic::Mutable(buffer) => {
+                        self.client.map(|client| {
+                            client.add_mut_data_done(Ok(()), buffer);
+                        });
+                    } LeasableBufferDynamic::Immutable(buffer) => {
+                        self.client.map(|client| {
+                            client.add_data_done(Ok(()), buffer);
+                        });
+                    }
+                }
             }
             State::Hash => {
                 // Hash already copied in method call.

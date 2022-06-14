@@ -12,6 +12,7 @@ use kernel::hil::digest;
 use kernel::hil::digest::{Digest, DigestData, DigestVerify};
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 pub struct TestSha256 {
@@ -51,48 +52,59 @@ impl TestSha256 {
         let data = self.data.take().unwrap();
         let chunk_size = cmp::min(CHUNK_SIZE, data.len());
         self.position.set(chunk_size);
-        let mut buffer = LeasableBuffer::new(data);
+        let mut buffer = LeasableMutableBuffer::new(data);
         buffer.slice(0..chunk_size);
-        let r = self.sha.add_data(buffer);
+        let r = self.sha.add_mut_data(buffer);
         if r.is_err() {
             panic!("Sha256Test: failed to add data: {:?}", r);
         }
     }
 }
 
-impl digest::ClientData<'static, 32> for TestSha256 {
-    fn add_data_done(&'static self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
-        let position = self.position.get();
-        if position != data.len() {
-            // More to input
-            let next_position = cmp::min(position + CHUNK_SIZE, data.len());
-            self.position.set(next_position);
-            let mut buffer = LeasableBuffer::new(data);
-            buffer.slice(position..next_position);
-            let r = self.sha.add_data(buffer);
+impl digest::ClientData<32> for TestSha256 {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+        unimplemented!()
+    }
+
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, mut data: LeasableMutableBuffer<'static, u8>) {
+        if data.len() != 0 {
+            let r = self.sha.add_mut_data(data);
             if r.is_err() {
                 debug!("Sha256Test: failed to add data: {:?}", r);
             }
         } else {
-            self.data.put(Some(data));
-            match result {
-                Ok(()) => {
-                    let v = self.sha.verify(self.hash.take().unwrap());
-                    if v.is_err() {
-                        panic!("Sha256Test: failed to verify: {:?}", v);
-                    }
+            data.reset();
+            if self.position.get() < data.len() {
+                let new_position = cmp::min(data.len(), self.position.get() + CHUNK_SIZE);
+                data.slice(self.position.get()..new_position);
+                debug!("Sha256Test: Setting slice to {}..{}", self.position.get(), new_position);
+                let r = self.sha.add_mut_data(data);
+                if r.is_err() {
+                    debug!("Sha256Test: failed to add data: {:?}", r);
                 }
-                Err(e) => {
-                    panic!("Sha256Test: adding data failed: {:?}", e);
+                self.position.set(new_position);
+            } else {
+                data.reset();
+                self.data.put(Some(data.take()));
+                match result {
+                    Ok(()) => {
+                        let v = self.sha.verify(self.hash.take().unwrap());
+                        if v.is_err() {
+                            panic!("Sha256Test: failed to verify: {:?}", v);
+                        }
+                    }
+                    Err(e) => {
+                        panic!("Sha256Test: adding data failed: {:?}", e);
+                    }
                 }
             }
         }
-    }
+    }  
 }
 
-impl digest::ClientVerify<'static, 32> for TestSha256 {
+impl digest::ClientVerify<32> for TestSha256 {
     fn verification_done(
-        &'static self,
+        &self,
         result: Result<bool, ErrorCode>,
         compare: &'static mut [u8; 32],
     ) {
@@ -115,6 +127,6 @@ impl digest::ClientVerify<'static, 32> for TestSha256 {
     }
 }
 
-impl digest::ClientHash<'static, 32> for TestSha256 {
+impl digest::ClientHash<32> for TestSha256 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {}
 }

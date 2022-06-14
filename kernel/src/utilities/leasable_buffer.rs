@@ -58,6 +58,46 @@ pub enum LeasableBufferDynamic<'a, T> {
     Mutable(LeasableMutableBuffer<'a, T>),
 }
 
+impl<'a, T> LeasableBufferDynamic<'a, T> {
+    pub fn reset(&mut self) {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref mut buf) => buf.reset(),
+            LeasableBufferDynamic::Mutable(ref mut buf) => buf.reset(),
+        }
+    }
+
+       /// Returns the length of the currently accessible portion of the LeasableBuffer
+    pub fn len(&self) -> usize {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref buf) => buf.len(),
+            LeasableBufferDynamic::Mutable(ref buf) => buf.len(),
+        }
+    }
+
+    pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref mut buf) => buf.slice(range),
+            LeasableBufferDynamic::Mutable(ref mut buf) => buf.slice(range),
+        }
+    }
+}
+
+impl<'a, T, I> Index<I> for LeasableBufferDynamic<'a, T>
+where
+    I: SliceIndex<[T]>,
+{
+    type Output = <I as SliceIndex<[T]>>::Output;
+
+    fn index(&self, idx: I) -> &Self::Output {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref buf) => &buf[idx],
+            LeasableBufferDynamic::Mutable(ref buf) => &buf[idx],
+        }
+    }
+}
+
+
+
 impl<'a, T> LeasableMutableBuffer<'a, T> {
     /// Create a leasable buffer from a passed reference to a raw buffer
     pub fn new(buffer: &'a mut [T]) -> Self {
