@@ -132,11 +132,11 @@ impl
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
-    dma: &stm32f412g::dma1::Dma1,
-    dma_streams: &'static [stm32f412g::dma1::Stream; 8],
-    usart2: &'static stm32f412g::usart::Usart,
+    dma: &stm32f412g::dma::Dma1,
+    dma_streams: &'static [stm32f412g::dma::Stream<stm32f412g::dma::Dma1>; 8],
+    usart2: &'static stm32f412g::usart::Usart<stm32f412g::dma::Dma1>,
 ) {
-    use stm32f412g::dma1::Dma1Peripheral;
+    use stm32f412g::dma::Dma1Peripheral;
     use stm32f412g::usart;
 
     dma.enable_clock();
@@ -372,7 +372,7 @@ unsafe fn setup_peripherals(
 unsafe fn get_peripherals() -> (
     &'static mut Stm32f412gDefaultPeripherals<'static>,
     &'static stm32f412g::syscfg::Syscfg<'static>,
-    &'static stm32f412g::dma1::Dma1<'static>,
+    &'static stm32f412g::dma::Dma1<'static>,
 ) {
     let rcc = static_init!(stm32f412g::rcc::Rcc, stm32f412g::rcc::Rcc::new());
     let syscfg = static_init!(
@@ -381,11 +381,13 @@ unsafe fn get_peripherals() -> (
     );
 
     let exti = static_init!(stm32f412g::exti::Exti, stm32f412g::exti::Exti::new(syscfg));
-    let dma1 = static_init!(stm32f412g::dma1::Dma1, stm32f412g::dma1::Dma1::new(rcc));
+
+    let dma1 = static_init!(stm32f412g::dma::Dma1, stm32f412g::dma::Dma1::new(rcc));
+    let dma2 = static_init!(stm32f412g::dma::Dma2, stm32f412g::dma::Dma2::new(rcc));
 
     let peripherals = static_init!(
         Stm32f412gDefaultPeripherals,
-        Stm32f412gDefaultPeripherals::new(rcc, exti, dma1)
+        Stm32f412gDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
     (peripherals, syscfg, dma1)
 }
@@ -411,7 +413,7 @@ pub unsafe fn main() {
 
     setup_dma(
         dma1,
-        &base_peripherals.dma_streams,
+        &base_peripherals.dma1_streams,
         &base_peripherals.usart2,
     );
 
@@ -457,7 +459,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 

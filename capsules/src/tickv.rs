@@ -35,7 +35,7 @@ use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 
@@ -161,8 +161,8 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
         }
     }
 
-    pub fn initalise(&self) {
-        let _ret = self.tickv.initalise(0x7bc9f7ff4f76f244);
+    pub fn initialise(&self) {
+        let _ret = self.tickv.initialise(0x7bc9f7ff4f76f244);
         self.operation.set(Operation::Init);
     }
 
@@ -219,14 +219,15 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<'a, 8> for TicKVStore<'a, F, H> {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<8> for TicKVStore<'a, F, H> {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.unhashed_key_buf.replace(data);
-
         self.hasher.run(self.key_buf.take().unwrap()).unwrap();
     }
 
-    fn hash_done(&'a self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+
+    fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
             cb.generate_key_complete(Ok(()), self.unhashed_key_buf.take().unwrap(), digest);
         });
@@ -389,7 +390,10 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
             Result<(), ErrorCode>,
         ),
     > {
-        if let Err((e, buf)) = self.hasher.add_data(LeasableBuffer::new(unhashed_key)) {
+        if let Err((e, buf)) = self
+            .hasher
+            .add_mut_data(LeasableMutableBuffer::new(unhashed_key))
+        {
             return Err((buf, key_buf, Err(e)));
         }
 

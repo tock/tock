@@ -616,6 +616,38 @@ macro_rules! debug_verbose {
     });
 }
 
+#[macro_export]
+/// Prints out the expression and its location, then returns it.
+///
+/// ```rust,ignore
+/// let foo: u8 = debug_expr!(0xff);
+/// // Prints [main.rs:2] 0xff = 255
+/// ```
+/// Taken straight from Rust std::dbg.
+macro_rules! debug_expr {
+    // NOTE: We cannot use `concat!` to make a static string as a format argument
+    // of `eprintln!` because `file!` could contain a `{` or
+    // `$val` expression could be a block (`{ .. }`), in which case the `eprintln!`
+    // will be malformed.
+    () => {
+        $crate::debug!("[{}:{}]", file!(), line!())
+    };
+    ($val:expr $(,)?) => {
+        // Use of `match` here is intentional because it affects the lifetimes
+        // of temporaries - https://stackoverflow.com/a/48732525/1063961
+        match $val {
+            tmp => {
+                $crate::debug!("[{}:{}] {} = {:#?}",
+                    file!(), line!(), stringify!($val), &tmp);
+                tmp
+            }
+        }
+    };
+    ($($val:expr),+ $(,)?) => {
+        ($($crate::debug_expr!($val)),+,)
+    };
+}
+
 pub trait Debug {
     fn write(&self, buf: &'static mut [u8], len: usize);
 }

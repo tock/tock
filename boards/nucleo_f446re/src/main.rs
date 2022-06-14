@@ -125,11 +125,11 @@ impl
 
 /// Helper function called during bring-up that configures DMA.
 unsafe fn setup_dma(
-    dma: &stm32f446re::dma1::Dma1,
-    dma_streams: &'static [stm32f446re::dma1::Stream; 8],
-    usart2: &'static stm32f446re::usart::Usart,
+    dma: &stm32f446re::dma::Dma1,
+    dma_streams: &'static [stm32f446re::dma::Stream<stm32f446re::dma::Dma1>; 8],
+    usart2: &'static stm32f446re::usart::Usart<stm32f446re::dma::Dma1>,
 ) {
-    use stm32f446re::dma1::Dma1Peripheral;
+    use stm32f446re::dma::Dma1Peripheral;
     use stm32f446re::usart;
 
     dma.enable_clock();
@@ -211,7 +211,7 @@ unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
 unsafe fn get_peripherals() -> (
     &'static mut Stm32f446reDefaultPeripherals<'static>,
     &'static stm32f446re::syscfg::Syscfg<'static>,
-    &'static stm32f446re::dma1::Dma1<'static>,
+    &'static stm32f446re::dma::Dma1<'static>,
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f446re::rcc::Rcc, stm32f446re::rcc::Rcc::new());
@@ -223,10 +223,12 @@ unsafe fn get_peripherals() -> (
         stm32f446re::exti::Exti,
         stm32f446re::exti::Exti::new(syscfg)
     );
-    let dma1 = static_init!(stm32f446re::dma1::Dma1, stm32f446re::dma1::Dma1::new(rcc));
+    let dma1 = static_init!(stm32f446re::dma::Dma1, stm32f446re::dma::Dma1::new(rcc));
+    let dma2 = static_init!(stm32f446re::dma::Dma2, stm32f446re::dma::Dma2::new(rcc));
+
     let peripherals = static_init!(
         Stm32f446reDefaultPeripherals,
-        Stm32f446reDefaultPeripherals::new(rcc, exti, dma1)
+        Stm32f446reDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
     (peripherals, syscfg, dma1)
 }
@@ -248,7 +250,7 @@ pub unsafe fn main() {
 
     setup_dma(
         dma1,
-        &base_peripherals.dma_streams,
+        &base_peripherals.dma1_streams,
         &base_peripherals.usart2,
     );
 
@@ -295,7 +297,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -377,7 +379,7 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

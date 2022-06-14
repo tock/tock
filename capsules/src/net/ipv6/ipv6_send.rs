@@ -28,7 +28,7 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 /// This trait must be implemented by upper layers in order to receive
@@ -85,7 +85,7 @@ pub trait IP6Sender<'a> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &LeasableBuffer<'static, u8>,
+        payload: &LeasableMutableBuffer<'static, u8>,
         net_cap: &'static NetworkCapability,
     ) -> Result<(), ErrorCode>;
 }
@@ -131,7 +131,7 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         &self,
         dst: IPAddr,
         transport_header: TransportHeader,
-        payload: &LeasableBuffer<'static, u8>,
+        payload: &LeasableMutableBuffer<'static, u8>,
         net_cap: &'static NetworkCapability,
     ) -> Result<(), ErrorCode> {
         if !net_cap.remote_addr_valid(dst, self.ip_vis) {
@@ -179,7 +179,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
         &self,
         dst_addr: IPAddr,
         transport_header: TransportHeader,
-        payload: &LeasableBuffer<'static, u8>,
+        payload: &LeasableMutableBuffer<'static, u8>,
     ) {
         self.ip6_packet.map_or_else(
             || {

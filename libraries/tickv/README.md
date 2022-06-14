@@ -115,9 +115,7 @@ erase operations.
 
 TicKV stores the version when adding objects to the flash storage.
 
-TicKV is currently version 0.
+TicKV is currently version 1.
 
- * Version 0
-   * Version 0 is a draft version. It should NOT be used for important data!
-     Version 0 maintains no backwards compatible support and could change at
-     any time.
+ * Version 1
+   * Initial release

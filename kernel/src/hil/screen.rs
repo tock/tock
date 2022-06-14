@@ -3,6 +3,8 @@ use crate::ErrorCode;
 use core::ops::Add;
 use core::ops::Sub;
 
+pub const MAX_BRIGHTNESS: usize = 65536;
+
 #[derive(Copy, Clone, PartialEq)]
 pub enum ScreenRotation {
     Normal,
@@ -207,11 +209,37 @@ pub trait Screen {
     /// Set the object to receive the asynchronous command callbacks.
     fn set_client(&self, client: Option<&'static dyn ScreenClient>);
 
-    /// Sets the display brightness and/or powers it off
-    /// Screens must implement this function for at least two brightness values (in percent)
-    ///     0 - power off,
-    ///     otherwise - on, set brightness (if available)
+    /// Sets the display brightness value
+    ///
+    /// Depending on the display, this may not cause any actual changes
+    /// until and unless power is enabled (see `set_power`).
+    ///
+    /// The following values must be supported:
+    /// - 0 - completely no light emitted
+    /// - 1..MAX_BRIGHTNESS - on, set brightness to the given level
+    ///
+    /// The display should interpret the brightness value as *lightness*
+    /// (each increment should change preceived brightness the same).
+    /// 1 shall be the minimum supported brightness,
+    /// `MAX_BRIGHTNESS` and greater represent the maximum.
+    /// Values in between should approximate the intermediate values;
+    /// minimum and maximum included (e.g. when there is only 1 level).
     fn set_brightness(&self, brightness: usize) -> Result<(), ErrorCode>;
+
+    /// Controls the screen power supply.
+    ///
+    /// Use it to initialize the display device.
+    ///
+    /// For screens where display needs nonzero brightness (e.g. LED),
+    /// this shall set brightness to a default value
+    /// if `set_brightness` was not called first.
+    ///
+    /// The device may implement power independently from brightness,
+    /// so call `set_brightness` to turn on/off the module completely.
+    ///
+    /// When finished, calls `ScreenClient::screen_is_ready`,
+    /// both when power was enabled and disabled.
+    fn set_power(&self, enabled: bool) -> Result<(), ErrorCode>;
 
     /// Inverts the colors.
     fn invert_on(&self) -> Result<(), ErrorCode>;

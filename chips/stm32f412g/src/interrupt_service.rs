@@ -12,10 +12,11 @@ impl<'a> Stm32f412gDefaultPeripherals<'a> {
     pub unsafe fn new(
         rcc: &'a crate::rcc::Rcc,
         exti: &'a crate::exti::Exti<'a>,
-        dma: &'a crate::dma1::Dma1<'a>,
+        dma1: &'a crate::dma::Dma1<'a>,
+        dma2: &'a crate::dma::Dma2<'a>,
     ) -> Self {
         Self {
-            stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma),
+            stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
             trng: stm32f4xx::trng::Trng::new(rcc),
         }
     }

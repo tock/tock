@@ -302,7 +302,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
@@ -556,7 +556,7 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop.");
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

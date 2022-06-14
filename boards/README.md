@@ -29,7 +29,7 @@ that Tock supports.
 | [Raspberry Pi Pico](raspberry_pi_pico/README.md)                     | ARM Cortex-M0+  | RP2040         | openocd    | openocd        | No            |
 | [SiFive HiFive1 Rev B](hifive1/README.md)                            | RISC-V          | FE310-G002     | openocd    | tockloader     | Yes (5.1)     |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                         | RISC-V RV32IMAC | SiFive E21     | openocd    | tockloader     | No            |
-| [Earlgrey on Nexys Video](earlgrey-nexysvideo/README.md)             | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | Yes (5.1)     |
+| [OpenTitan Earlgrey on CW310](opentitan/earlgrey-cw310/README.md)    | RISC-V RV32IMC  | EarlGrey       | custom     | custom         | Yes (5.1)     |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                   | RISC-V RV32I    | LiteX+VexRiscV | custom     | custom         | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                    | RISC-V RV32I    | LiteX+VexRiscv | custom     | custom         | No            |
 | [ESP32-C3-DevKitM-1](esp32-c3-devkitM-1/README.md)                   | RISC-V-ish RV32I| ESP32-C3       | custom     | custom         | No            |

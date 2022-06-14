@@ -54,7 +54,7 @@ use core::cell::Cell;
 use kernel::deferred_call::DeferredCall;
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
@@ -330,7 +330,7 @@ impl Crccu<'_> {
                 // Disable the unit
                 self.registers.mr.write(Mode::ENABLE::Disabled);
 
-                // Recover the window into the LeasableBuffer
+                // Recover the window into the LeasableMutableBuffer
                 let window_addr = self.descriptor.addr.get();
                 let window_len = TCR(self.descriptor.ctrl.get()).get_btsize() as usize;
 
@@ -348,7 +348,7 @@ impl Crccu<'_> {
                 // Reconstruct the leasable buffer from stored
                 // information and slice into the proper window
                 let (full_buffer_addr, full_buffer_len) = self.current_full_buffer.get();
-                let mut data = LeasableBuffer::<'static, u8>::new(unsafe {
+                let mut data = LeasableMutableBuffer::<'static, u8>::new(unsafe {
                     core::slice::from_raw_parts_mut(full_buffer_addr, full_buffer_len)
                 });
 
@@ -426,8 +426,8 @@ impl<'a> Crc<'a> for Crccu<'a> {
 
     fn input(
         &self,
-        mut data: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
+        mut data: LeasableMutableBuffer<'static, u8>,
+    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         let algorithm = if let Some(algorithm) = self.algorithm.extract() {
             algorithm
         } else {
@@ -475,7 +475,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
         // Configure the data transfer descriptor
         //
         // The data length is guaranteed to be <= u16::MAX by the
-        // above LeasableBuffer resizing mechanism
+        // above LeasableMutableBuffer resizing mechanism
         self.descriptor.addr.set(data.as_ptr() as u32);
         self.descriptor.ctrl.set(ctrl.0);
         self.descriptor.crc.set(0); // this is the CRC compare field, not used

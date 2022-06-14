@@ -128,7 +128,7 @@ impl<
             )
         );
         virtual_flash.set_client(driver);
-        driver.initalise();
+        driver.initialise();
         driver
     }
 }
