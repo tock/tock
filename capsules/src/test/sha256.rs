@@ -45,9 +45,6 @@ impl TestSha256 {
     }
 
     pub fn run(&'static self) {
-        if self.sha.initialize().is_err() {
-            panic!("Sha256Test: failed to initialize Sha256Software");
-        }
         self.sha.set_client(self);
         let data = self.data.take().unwrap();
         let chunk_size = cmp::min(CHUNK_SIZE, data.len());
@@ -74,7 +71,7 @@ impl digest::ClientData<32> for TestSha256 {
         if data.len() != 0 {
             let r = self.sha.add_mut_data(data);
             if r.is_err() {
-                debug!("Sha256Test: failed to add data: {:?}", r);
+                panic!("Sha256Test: failed to add data: {:?}", r);
             }
         } else {
             data.reset();
@@ -88,7 +85,7 @@ impl digest::ClientData<32> for TestSha256 {
                 );
                 let r = self.sha.add_mut_data(data);
                 if r.is_err() {
-                    debug!("Sha256Test: failed to add data: {:?}", r);
+                    panic!("Sha256Test: failed to add data: {:?}", r);
                 }
                 self.position.set(new_position);
             } else {

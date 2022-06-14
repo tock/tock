@@ -27,10 +27,8 @@ pub unsafe fn run_sha256(call: &'static DynamicDeferredCall) {
 }
 
 // HSTRING is "hello world" and HHASH is the SHA-256 hash of this string.
-pub static mut HSTRING: [u8; 11] = [
-    'h' as u8, 'e' as u8, 'l' as u8, 'l' as u8, 'o' as u8, ' ' as u8, 'w' as u8, 'o' as u8,
-    'r' as u8, 'l' as u8, 'd' as u8,
-];
+pub static mut HSTRING: [u8; 11] = *b"hello world";
+
 pub static mut HHASH: [u8; 32] = [
     0xB9, 0x4D, 0x27, 0xB9, 0x93, 0x4D, 0x3E, 0x08, 0xA5, 0x2E, 0x52, 0xD7, 0xDA, 0x7D, 0xAB, 0xFA,
     0xC4, 0x84, 0xEF, 0xE3, 0x7A, 0x53, 0x80, 0xEE, 0x90, 0x88, 0xF7, 0xAC, 0xE2, 0xEF, 0xCD, 0xE9,
@@ -47,7 +45,7 @@ pub static mut LHASH: [u8; 32] = [
 unsafe fn static_init_test_sha256(call: &'static DynamicDeferredCall) -> &'static TestSha256 {
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new(call));
     sha.initialize_callback_handle(call.register(sha).unwrap());
-    let bytes = "hello ".as_bytes();
+    let bytes = b"hello ";
     for i in 0..12 {
         for j in 0..6 {
             LSTRING[i * 6 + j] = bytes[j];

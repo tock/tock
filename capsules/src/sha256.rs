@@ -25,6 +25,9 @@ pub enum State {
     Data,
     Hash,
     Verify,
+    CancelData,
+    CancelHash,
+    CancelVerify,
 }
 
 const SHA_BLOCK_LEN_BYTES: usize = 64;
@@ -61,7 +64,7 @@ pub struct Sha256Software<'a> {
 
 impl<'a> Sha256Software<'a> {
     pub fn new(call: &'a DynamicDeferredCall) -> Sha256Software<'a> {
-        Sha256Software {
+        let s = Sha256Software {
             state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
             input_data: OptionalCell::empty(),
@@ -74,7 +77,9 @@ impl<'a> Sha256Software<'a> {
 
             deferred_caller: call,
             handle: OptionalCell::empty(),
-        }
+        };
+        s.initialize();
+        s
     }
 
     pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
@@ -87,30 +92,33 @@ impl<'a> Sha256Software<'a> {
             _ => true,
         }
     }
-
-    pub fn initialize(&self) -> Result<(), ErrorCode> {
-        if !self.busy() {
-            self.buffered_length.set(0);
-            self.data_buffer.map(|b| {
-                for i in 0..SHA_BLOCK_LEN_BYTES {
-                    b[i] = 0;
-                }
-            });
-            self.hash_values.set([
-                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-                0x5be0cd19,
-            ]);
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
+    
+    fn initialize(&self) {
+        let new_state = match self.state.get() {
+            State::Idle => State::Idle,
+            State::Data | State::CancelData => State::CancelData,
+            State::Hash | State::CancelHash => State::CancelHash,
+            State::Verify | State::CancelVerify => State::CancelVerify,
+        };
+        self.state.set(new_state);
+        
+        self.buffered_length.set(0);
+        self.data_buffer.map(|b| {
+            for i in 0..SHA_BLOCK_LEN_BYTES {
+                b[i] = 0;
+            }
+        });
+        self.hash_values.set([
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        ]);
     }
 
     // Complete the hash and produce a final hash result.
     fn complete_sha256(&self) {
         let mut buffered_length = self.buffered_length.get();
         // This shouldn't be necessary, as temp buffer should never be
-        // full. But if it is fill, appending the 1 will be an
+        // full. But if it is full, appending the 1 will be an
         // out-of-bounds access and panic, so check and clear
         // the buffered block just in case.
         if buffered_length == 64 {
@@ -173,59 +181,61 @@ impl<'a> Sha256Software<'a> {
     // is stored in data_buffer.
     fn compute_sha256(&self) {
         debug!("SHA256: Computing");
-        let mut data = self.input_data.take().unwrap();
-        let data_length = data.len();
-        self.total_length.set(self.total_length.get() + data_length);
-        let mut buffered_length = self.buffered_length.get();
-        if buffered_length != 0 {
-            debug!(
-                "SHA256:  -- Copying into buffered block with {} bytes",
-                buffered_length
-            );
-            // Copy bytes into the front of the temp buffer and
-            // compute if it fills.
-            self.data_buffer.map(|b| {
-                let copy_len = if data_length + buffered_length >= SHA_BLOCK_LEN_BYTES {
-                    SHA_BLOCK_LEN_BYTES - buffered_length
-                } else {
-                    data_length
-                };
-
-                for i in 0..copy_len {
-                    b[i + buffered_length] = data[i];
-                }
-                data.slice(copy_len..data.len());
-                buffered_length += copy_len;
-
-                if buffered_length == SHA_BLOCK_LEN_BYTES {
-                    self.compute_block(b);
-                    buffered_length = 0;
-                }
-            });
-        }
-        // Process blocks
-        while data.len() >= 64 {
-            debug!("SHA256:  -- Computing block");
-            self.compute_buffer(&data[0..64]);
-            data.slice(64..data.len());
-        }
-        // Process tail end of block
-        if data.len() != 0 {
-            debug!(
-                "SHA256:  -- Copying tail {} bytes into buffered block",
-                data.len()
-            );
-            self.data_buffer.map(|b| {
-                for i in 0..data.len() {
-                    b[i] = data[i];
-                }
-                buffered_length = data.len();
-                // Go to end of data.
-                data.slice(data.len()..data.len());
-            });
-        }
-        self.input_data.set(data);
-        self.buffered_length.set(buffered_length);
+        if let Some(mut data) = self.input_data.take() {
+            let data_length = data.len();
+            self.total_length.set(self.total_length.get() + data_length);
+            let mut buffered_length = self.buffered_length.get();
+            if buffered_length != 0 {
+                debug!(
+                    "SHA256:  -- Copying into buffered block with {} bytes",
+                    buffered_length
+                );
+                // Copy bytes into the front of the temp buffer and
+                // compute if it fills.
+                self.data_buffer.map(|b| {
+                    let copy_len = if data_length + buffered_length >= SHA_BLOCK_LEN_BYTES {
+                        SHA_BLOCK_LEN_BYTES - buffered_length
+                    } else {
+                        data_length
+                    };
+                    
+                    for i in 0..copy_len {
+                        b[i + buffered_length] = data[i];
+                    }
+                    data.slice(copy_len..data.len());
+                    buffered_length += copy_len;
+                    
+                    if buffered_length == SHA_BLOCK_LEN_BYTES {
+                        self.compute_block(b);
+                        buffered_length = 0;
+                    }
+                });
+            }
+            // Process blocks
+            while data.len() >= 64 {
+                debug!("SHA256:  -- Computing block");
+                self.compute_buffer(&data[0..64]);
+                data.slice(64..data.len());
+            }
+            // Process tail end of block
+            if data.len() != 0 {
+                debug!(
+                    "SHA256:  -- Copying tail {} bytes into buffered block",
+                    data.len()
+                );
+                self.data_buffer.map(|b| {
+                    for i in 0..data.len() {
+                        b[i] = data[i];
+                    }
+                    buffered_length = data.len();
+                    // Go to end of data.
+                    data.slice(data.len()..data.len());
+                });
+            }
+            self.input_data.set(data);
+            self.buffered_length.set(buffered_length);
+        } else { /* do nothing, no data */}
+        
     }
 
     fn right_rotate(&self, x: u32, rotate: u32) -> u32 {
@@ -341,7 +351,7 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
     }
 
     fn clear_data(&self) {
-        let _ = self.initialize();
+        self.initialize();
     }
 }
 
@@ -436,7 +446,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         break;
                     }
                 }
-
+                self.state.set(State::Idle);
                 self.clear_data();
                 self.client.map(|c| {
                     c.verification_done(Ok(pass), output);
@@ -445,6 +455,7 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
             State::Data => {
                 // Data already computed in method call
                 let data = self.input_data.take().unwrap();
+                self.state.set(State::Idle);
                 match data {
                     LeasableBufferDynamic::Mutable(buffer) => {
                         self.client.map(|client| {
@@ -461,9 +472,43 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
             State::Hash => {
                 // Hash already copied in method call.
                 let output = self.output_data.replace(None).unwrap();
+                self.state.set(State::Idle);
                 self.clear_data();
                 self.client.map(|c| {
                     c.hash_done(Ok(()), output);
+                });
+            }
+            State::CancelData => {
+                self.state.set(State::Idle);
+                self.clear_data();
+                let data = self.input_data.take().unwrap();
+                match data {
+                    LeasableBufferDynamic::Mutable(buffer) => {
+                        self.client.map(|client| {
+                            client.add_mut_data_done(Err(ErrorCode::CANCEL), buffer);
+                        });
+                    }
+                    LeasableBufferDynamic::Immutable(buffer) => {
+                        self.client.map(|client| {
+                            client.add_data_done(Err(ErrorCode::CANCEL), buffer);
+                        });
+                    }
+                }
+            },
+            State::CancelVerify => {
+                self.state.set(State::Idle);
+                self.clear_data();
+                let output = self.output_data.replace(None).unwrap();
+                self.client.map(|client| {
+                    client.verification_done(Err(ErrorCode::CANCEL), output);
+                });
+            },
+            State::CancelHash => {
+                self.state.set(State::Idle);
+                self.clear_data();
+                let output = self.output_data.replace(None).unwrap();
+                self.client.map(|client| {
+                    client.hash_done(Err(ErrorCode::CANCEL), output);
                 });
             }
         }
