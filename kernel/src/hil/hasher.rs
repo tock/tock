@@ -7,14 +7,14 @@ use crate::ErrorCode;
 /// Implement this trait and use `set_client()` in order to receive callbacks.
 ///
 /// 'L' is the length of the 'u8' array to store the hash output.
-pub trait Client<'a, const L: usize> {
+pub trait Client<const L: usize> {
     /// This callback is called when the data has been added to the hash
     /// engine.
     /// On error or success `data` will contain a reference to the original
     /// data supplied to `add_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static [u8]);
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: &'static [u8]);
 
     /// This callback is called when the data has been added to the hash
     /// engine.
@@ -22,14 +22,14 @@ pub trait Client<'a, const L: usize> {
     /// data supplied to `add_mut_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
 
     /// This callback is called when a hash is computed.
     /// On error or success `hash` will contain a reference to the original
     /// data supplied to `run()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, hash: &'static mut [u8; L]);
+    fn hash_done(&self, result: Result<(), ErrorCode>, hash: &'static mut [u8; L]);
 }
 
 /// Computes a non-cryptographic hash over data
@@ -41,7 +41,7 @@ pub trait Hasher<'a, const L: usize> {
     /// This callback is called when the data has been added to the hash
     /// engine.
     /// The callback should follow the `Client` `add_data_done` callback.
-    fn set_client(&'a self, client: &'a dyn Client<'a, L>);
+    fn set_client(&'a self, client: &'a dyn Client<L>);
 
     /// Add data to the hash block. This is the data that will be used
     /// for the hash function.

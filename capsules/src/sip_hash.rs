@@ -36,7 +36,7 @@ use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 pub struct SipHasher24<'a> {
-    client: OptionalCell<&'a dyn Client<'a, 8>>,
+    client: OptionalCell<&'a dyn Client<8>>,
 
     hasher: Cell<SipHasher>,
 
@@ -189,7 +189,7 @@ fn u8to64_le(buf: &[u8], start: usize, len: usize) -> u64 {
 }
 
 impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
-    fn set_client(&'a self, client: &'a dyn Client<'a, 8>) {
+    fn set_client(&'a self, client: &'a dyn Client<8>) {
         self.client.set(client);
     }
 

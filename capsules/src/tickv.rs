@@ -219,15 +219,15 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<'a, 8> for TicKVStore<'a, F, H> {
-    fn add_mut_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<8> for TicKVStore<'a, F, H> {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.unhashed_key_buf.replace(data);
         self.hasher.run(self.key_buf.take().unwrap()).unwrap();
     }
 
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
 
-    fn hash_done(&'a self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
             cb.generate_key_complete(Ok(()), self.unhashed_key_buf.take().unwrap(), digest);
         });

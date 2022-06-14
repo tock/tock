@@ -42,12 +42,12 @@ impl<'a> SipHashTestCallback {
     }
 }
 
-impl<'a> hasher::Client<'a, 8> for SipHashTestCallback {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {
+impl<'a> hasher::Client<8> for SipHashTestCallback {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {
         unimplemented!()
     }
 
-    fn add_mut_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         assert_eq!(result, Ok(()));
         self.data_add_done.set(true);
 
@@ -60,7 +60,7 @@ impl<'a> hasher::Client<'a, 8> for SipHashTestCallback {
         self.cb_count.set(self.cb_count.get() + 1);
     }
 
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         let ret = u64::from_le_bytes(*digest);
 
         assert_eq!(result, Ok(()));
