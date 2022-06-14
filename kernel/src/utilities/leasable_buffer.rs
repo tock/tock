@@ -66,7 +66,7 @@ impl<'a, T> LeasableBufferDynamic<'a, T> {
         }
     }
 
-       /// Returns the length of the currently accessible portion of the LeasableBuffer
+    /// Returns the length of the currently accessible portion of the LeasableBuffer
     pub fn len(&self) -> usize {
         match *self {
             LeasableBufferDynamic::Immutable(ref buf) => buf.len(),
@@ -95,8 +95,6 @@ where
         }
     }
 }
-
-
 
 impl<'a, T> LeasableMutableBuffer<'a, T> {
     /// Create a leasable buffer from a passed reference to a raw buffer

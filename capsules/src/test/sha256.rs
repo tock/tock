@@ -66,7 +66,11 @@ impl digest::ClientData<32> for TestSha256 {
         unimplemented!()
     }
 
-    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, mut data: LeasableMutableBuffer<'static, u8>) {
+    fn add_mut_data_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        mut data: LeasableMutableBuffer<'static, u8>,
+    ) {
         if data.len() != 0 {
             let r = self.sha.add_mut_data(data);
             if r.is_err() {
@@ -77,7 +81,11 @@ impl digest::ClientData<32> for TestSha256 {
             if self.position.get() < data.len() {
                 let new_position = cmp::min(data.len(), self.position.get() + CHUNK_SIZE);
                 data.slice(self.position.get()..new_position);
-                debug!("Sha256Test: Setting slice to {}..{}", self.position.get(), new_position);
+                debug!(
+                    "Sha256Test: Setting slice to {}..{}",
+                    self.position.get(),
+                    new_position
+                );
                 let r = self.sha.add_mut_data(data);
                 if r.is_err() {
                     debug!("Sha256Test: failed to add data: {:?}", r);
@@ -99,15 +107,11 @@ impl digest::ClientData<32> for TestSha256 {
                 }
             }
         }
-    }  
+    }
 }
 
 impl digest::ClientVerify<32> for TestSha256 {
-    fn verification_done(
-        &self,
-        result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; 32],
-    ) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; 32]) {
         self.hash.put(Some(compare));
         debug!("Sha256Test: Verification result: {:?}", result);
         match result {

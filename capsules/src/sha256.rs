@@ -6,10 +6,10 @@
 //! and translating the output into big endian format.
 
 use core::cell::Cell;
+use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use kernel::debug;
 
 use kernel::hil::digest::Client;
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
@@ -178,7 +178,10 @@ impl<'a> Sha256Software<'a> {
         self.total_length.set(self.total_length.get() + data_length);
         let mut buffered_length = self.buffered_length.get();
         if buffered_length != 0 {
-            debug!("SHA256:  -- Copying into buffered block with {} bytes", buffered_length);
+            debug!(
+                "SHA256:  -- Copying into buffered block with {} bytes",
+                buffered_length
+            );
             // Copy bytes into the front of the temp buffer and
             // compute if it fills.
             self.data_buffer.map(|b| {
@@ -208,7 +211,10 @@ impl<'a> Sha256Software<'a> {
         }
         // Process tail end of block
         if data.len() != 0 {
-            debug!("SHA256:  -- Copying tail {} bytes into buffered block", data.len());
+            debug!(
+                "SHA256:  -- Copying tail {} bytes into buffered block",
+                data.len()
+            );
             self.data_buffer.map(|b| {
                 for i in 0..data.len() {
                     b[i] = data[i];
@@ -315,7 +321,7 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
 
     fn add_mut_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>
+        data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         if self.busy() {
             Err((ErrorCode::BUSY, data))
@@ -333,8 +339,7 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
             }
         }
     }
-    
-    
+
     fn clear_data(&self) {
         let _ = self.initialize();
     }
@@ -417,14 +422,16 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         || output[4 * i + 1] != (hashval >> 16 & 0xff) as u8
                         || output[4 * i + 0] != (hashval >> 24 & 0xff) as u8
                     {
-                        debug!("SHA256 verify {}: hashval: {:x}, output {:x} {:x} {:x} {:x}",
-                               i,
-                               hashval,
-                               output[4 * i + 3],
-                               output[4 * i + 2],
-                               output[4 * i + 1],
-                               output[4 * i + 0]);
-                               
+                        debug!(
+                            "SHA256 verify {}: hashval: {:x}, output {:x} {:x} {:x} {:x}",
+                            i,
+                            hashval,
+                            output[4 * i + 3],
+                            output[4 * i + 2],
+                            output[4 * i + 1],
+                            output[4 * i + 0]
+                        );
+
                         pass = false;
                         break;
                     }
@@ -443,7 +450,8 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         self.client.map(|client| {
                             client.add_mut_data_done(Ok(()), buffer);
                         });
-                    } LeasableBufferDynamic::Immutable(buffer) => {
+                    }
+                    LeasableBufferDynamic::Immutable(buffer) => {
                         self.client.map(|client| {
                             client.add_data_done(Ok(()), buffer);
                         });
