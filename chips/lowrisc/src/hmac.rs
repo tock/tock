@@ -54,21 +54,21 @@ register_bitfields![u32,
         FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
-                    CFG [
-                        HMAC_EN OFFSET(0) NUMBITS(1) [],
-                        SHA_EN OFFSET(1) NUMBITS(1) [],
-                        ENDIAN_SWAP OFFSET(2) NUMBITS(1) [],
-                        DIGEST_SWAP OFFSET(3) NUMBITS(1) []
-                    ],
-                    CMD [
-                        START OFFSET(0) NUMBITS(1) [],
-                        PROCESS OFFSET(1) NUMBITS(1) []
-                    ],
-                    STATUS [
-                        FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
-                        FIFO_FULL OFFSET(1) NUMBITS(1) [],
-                        FIFO_DEPTH OFFSET(4) NUMBITS(5) []
-                    ]
+    CFG [
+        HMAC_EN OFFSET(0) NUMBITS(1) [],
+        SHA_EN OFFSET(1) NUMBITS(1) [],
+        ENDIAN_SWAP OFFSET(2) NUMBITS(1) [],
+        DIGEST_SWAP OFFSET(3) NUMBITS(1) []
+    ],
+    CMD [
+        START OFFSET(0) NUMBITS(1) [],
+        PROCESS OFFSET(1) NUMBITS(1) []
+    ],
+    STATUS [
+        FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
+        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_DEPTH OFFSET(4) NUMBITS(5) []
+    ]
 ];
 
 pub struct Hmac<'a> {
