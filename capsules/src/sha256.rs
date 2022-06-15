@@ -140,7 +140,8 @@ impl<'a> Sha256Software<'a> {
 
         self.data_buffer.map(|b| {
             // Append the 1
-            b[buffered_length] = 0x80;
+            b.get_mut(buffered_length).map(|d| *d = 0x80);
+            //b[buffered_length] = 0x80;
             buffered_length = buffered_length + 1;
             // The length is 56 because of the 8 bytes appended.
             // Since a block is 64 bytes, this means the last block
