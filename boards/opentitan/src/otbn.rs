@@ -17,7 +17,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::static_init_half;
 use lowrisc::otbn::Otbn;
-use lowrisc::virtual_otbn::MuxAccel;
+use lowrisc::virtual_otbn::{MuxAccel, VirtualMuxAccel};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -48,6 +48,43 @@ impl Component for AccelMuxComponent {
         let mux_otbn = static_init_half!(s, MuxAccel<'static>, MuxAccel::new(self.otbn));
 
         mux_otbn
+    }
+}
+
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! otbn_component_helper {
+    ($(,)?) => {{
+        use core::mem::MaybeUninit;
+        use lowrisc::virtual_otbn::VirtualMuxAccel;
+        static mut BUF1: MaybeUninit<VirtualMuxAccel<'static>> = MaybeUninit::uninit();
+        &mut BUF1
+    }};
+}
+
+pub struct OtbnComponent {
+    mux_otbn: &'static MuxAccel<'static>,
+}
+
+impl OtbnComponent {
+    pub fn new(mux_otbn: &'static MuxAccel<'static>) -> OtbnComponent {
+        OtbnComponent { mux_otbn }
+    }
+}
+
+impl Component for OtbnComponent {
+    type StaticInput = &'static mut MaybeUninit<VirtualMuxAccel<'static>>;
+
+    type Output = &'static VirtualMuxAccel<'static>;
+
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let virtual_otbn_user = static_init_half!(
+            s,
+            VirtualMuxAccel<'static>,
+            VirtualMuxAccel::new(self.mux_otbn)
+        );
+
+        virtual_otbn_user
     }
 }
 
