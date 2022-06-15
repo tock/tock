@@ -511,7 +511,6 @@ ci-job-miri: ci-setup-miri
 .PHONY: ci-job-cargo-test-build
 ci-job-cargo-test-build:
 	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-cw310" test
-	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-nexysvideo" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
 
 ### ci-runner-github-qemu jobs:
@@ -566,9 +565,6 @@ define ci_job_qemu
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
-		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
-		make test
-	@cd boards/opentitan/earlgrey-nexysvideo;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		make test
 endef

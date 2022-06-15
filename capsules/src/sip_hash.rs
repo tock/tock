@@ -31,10 +31,12 @@ use kernel::dynamic_deferred_call::{
 use kernel::hil::hasher::{Client, Hasher, SipHash};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 pub struct SipHasher24<'a> {
-    client: OptionalCell<&'a dyn Client<'a, 8>>,
+    client: OptionalCell<&'a dyn Client<8>>,
 
     hasher: Cell<SipHasher>,
 
@@ -43,7 +45,7 @@ pub struct SipHasher24<'a> {
     deferred_caller: &'static DynamicDeferredCall,
     deferred_handle: OptionalCell<DeferredCallHandle>,
 
-    data_buffer: TakeCell<'static, [u8]>,
+    data_buffer: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
     out_buffer: TakeCell<'static, [u8; 8]>,
 }
 
@@ -92,7 +94,7 @@ impl<'a> SipHasher24<'a> {
             complete_deferred_call: Cell::new(false),
             deferred_caller,
             deferred_handle: OptionalCell::empty(),
-            data_buffer: TakeCell::empty(),
+            data_buffer: Cell::new(None),
             out_buffer: TakeCell::empty(),
         }
     }
@@ -123,7 +125,7 @@ impl<'a> SipHasher24<'a> {
             complete_deferred_call: Cell::new(false),
             deferred_caller,
             deferred_handle: OptionalCell::empty(),
-            data_buffer: TakeCell::empty(),
+            data_buffer: Cell::new(None),
             out_buffer: TakeCell::empty(),
         }
     }
@@ -187,13 +189,72 @@ fn u8to64_le(buf: &[u8], start: usize, len: usize) -> u64 {
 }
 
 impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
-    fn set_client(&'a self, client: &'a dyn Client<'a, 8>) {
+    fn set_client(&'a self, client: &'a dyn Client<8>) {
         self.client.set(client);
     }
 
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, &'static [u8])> {
+        let length = data.len();
+        let msg = data.take();
+        let mut hasher = self.hasher.get();
+
+        hasher.length += length;
+
+        let mut needed = 0;
+
+        if hasher.ntail != 0 {
+            needed = 8 - hasher.ntail;
+            hasher.tail |= u8to64_le(msg, 0, cmp::min(length, needed)) << (8 * hasher.ntail);
+            if length < needed {
+                hasher.ntail += length;
+                return Ok(length);
+            } else {
+                hasher.state.v3 ^= hasher.tail;
+                compress!(&mut hasher.state);
+                compress!(&mut hasher.state);
+                hasher.state.v0 ^= hasher.tail;
+                hasher.ntail = 0;
+            }
+        }
+
+        // Buffered tail is now flushed, process new input.
+        let len = length - needed;
+        let left = len & 0x7;
+
+        let mut i = needed;
+        while i < len - left {
+            let mi = read_le_u64(&msg[i..]);
+
+            hasher.state.v3 ^= mi;
+            compress!(&mut hasher.state);
+            compress!(&mut hasher.state);
+            hasher.state.v0 ^= mi;
+
+            i += 8;
+        }
+
+        hasher.tail = u8to64_le(msg, i, left);
+        hasher.ntail = left;
+
+        self.hasher.set(hasher);
+        self.data_buffer
+            .set(Some(LeasableBufferDynamic::Immutable(LeasableBuffer::new(
+                msg,
+            ))));
+
+        self.add_data_deferred_call.set(true);
+        self.deferred_handle
+            .map(|handle| self.deferred_caller.set(*handle));
+
+        Ok(length)
+    }
+
+    fn add_mut_data(
+        &self,
+        data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
         let length = data.len();
         let msg = data.take();
@@ -238,7 +299,9 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         hasher.ntail = left;
 
         self.hasher.set(hasher);
-        self.data_buffer.replace(msg);
+        self.data_buffer.set(Some(LeasableBufferDynamic::Mutable(
+            LeasableMutableBuffer::new(msg),
+        )));
 
         self.add_data_deferred_call.set(true);
         self.deferred_handle
@@ -310,8 +373,9 @@ impl<'a> DynamicDeferredCallClient for SipHasher24<'a> {
             self.add_data_deferred_call.set(false);
 
             self.client.map(|client| {
-                self.data_buffer.take().map(|buffer| {
-                    client.add_data_done(Ok(()), buffer);
+                self.data_buffer.take().map(|buffer| match buffer {
+                    LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b.take()),
+                    LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b.take()),
                 });
             });
         }

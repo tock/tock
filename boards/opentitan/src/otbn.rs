@@ -55,7 +55,7 @@ impl Component for AccelMuxComponent {
 ///
 /// This will iterate through the app list inside the `app_flash` looking
 /// for a disabled app with the same name as `name`.
-/// On sucess this function will return the following information:
+/// On success this function will return the following information:
 ///    * OTBN imem start address
 ///    * OTBN imem size
 ///    * OTBN dmem start address

@@ -83,7 +83,7 @@ use kernel::processbuffer::{ReadableProcessBuffer, ReadableProcessSlice};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::NumericCellExt;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -152,7 +152,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
                 kbuffer[i] = data[i].get();
             }
             if copy_len > 0 {
-                let mut leasable = LeasableBuffer::new(kbuffer);
+                let mut leasable = LeasableMutableBuffer::new(kbuffer);
                 leasable.slice(0..copy_len);
                 let res = self.crc.input(leasable);
                 match res {
@@ -383,13 +383,17 @@ impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
 }
 
 impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
-    fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableBuffer<'static, u8>) {
+    fn input_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        buffer: LeasableMutableBuffer<'static, u8>,
+    ) {
         // A call to `input` has finished. This can mean that either
         // we have processed the entire buffer passed in, or it was
         // truncated by the CRC unit as it was too large. In the first
         // case, we can see whether there is more outstanding data
         // from the app, whereas in the latter we need to advance the
-        // LeasableBuffer window and pass it in again.
+        // LeasableMutableBuffer window and pass it in again.
         let mut computing = false;
         // There are three outcomes to this match:
         //   - crc_buffer is not put back: input is ongoing

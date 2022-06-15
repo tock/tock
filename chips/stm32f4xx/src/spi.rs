@@ -411,8 +411,8 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         }
     }
 
-    /// We *only* support 1Mhz. If `rate` is set to any value other than
-    /// `1_000_000`, then this function panics
+    /// We *only* support 1Mhz and 4MHz. If `rate` is set to any value other than
+    /// `1_000_000` or `4_000_000`, then this function panics.
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
         match rate {
             1_000_000 => self.set_cr(|| {
@@ -423,19 +423,20 @@ impl<'a> spi::SpiMaster for Spi<'a> {
                 // HSI is 16Mhz and Fpclk is also 16Mhz. 0b001 is Fpclk / 4
                 self.registers.cr1.modify(CR1::BR.val(0b001));
             }),
-            _ => panic!("rate must be 1_000_000, 4_000_000"),
+            _ => panic!("SPI rate must be 1_000_000 or 4_000_000"),
         }
         Ok(rate)
     }
 
-    /// We *only* support 1Mhz. If we need to return any other value other than
-    /// `1_000_000`, then this function panics
+    /// We *only* support 1Mhz and 4MHz. If we need to return any other value
+    /// than `1_000_000` or `4_000_000`, then this function panics.
     fn get_rate(&self) -> u32 {
-        if self.registers.cr1.read(CR1::BR) != 0b011 {
-            panic!("rate not set to 1_000_000");
+        // HSI is 16Mhz and Fpclk is also 16Mhz
+        match self.registers.cr1.read(CR1::BR) {
+            0b011 => 1_000_000, // 0b011 is Fpclk / 16 => 1 MHz
+            0b001 => 4_000_000, // 0b001 is Fpclk / 4  => 4 MHz
+            _ => panic!("Current SPI rate not supported by tock OS!"),
         }
-
-        1_000_000
     }
 
     fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {

@@ -59,7 +59,7 @@ static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals> = None;
 static mut BOARD: Option<&'static kernel::Kernel> = None;
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static EarlGreyNexysVideo> = None;
+static mut PLATFORM: Option<&'static EarlGrey> = None;
 // Test access to main loop capability
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
@@ -92,7 +92,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
-struct EarlGreyNexysVideo {
+struct EarlGrey {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
@@ -152,7 +152,7 @@ struct EarlGreyNexysVideo {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for EarlGreyNexysVideo {
+impl SyscallDriverLookup for EarlGrey {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -176,7 +176,7 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
 }
 
 impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>>
-    for EarlGreyNexysVideo
+    for EarlGrey
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
@@ -212,7 +212,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
 
 unsafe fn setup() -> (
     &'static kernel::Kernel,
-    &'static EarlGreyNexysVideo,
+    &'static EarlGrey,
     &'static earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>,
     &'static EarlGreyDefaultPeripherals<'static>,
 ) {
@@ -485,20 +485,6 @@ unsafe fn setup() -> (
     SIPHASH = Some(sip_hash);
 
     // TicKV
-    #[cfg(not(feature = "fpga_nexysvideo"))]
-    let tickv = components::tickv::TicKVComponent::new(
-        sip_hash,
-        &mux_flash,                                  // Flash controller
-        0x20090000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x70000,                                     // Region size
-        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
-        page_buffer,                                 // Buffer used with the flash controller
-    )
-    .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl,
-        capsules::sip_hash::SipHasher24
-    ));
-    #[cfg(any(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
         &mux_flash,                                  // Flash controller
@@ -655,9 +641,9 @@ unsafe fn setup() -> (
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
 
-    let earlgrey_nexysvideo = static_init!(
-        EarlGreyNexysVideo,
-        EarlGreyNexysVideo {
+    let earlgrey = static_init!(
+        EarlGrey,
+        EarlGrey {
             gpio: gpio,
             led: led,
             console: console,
@@ -743,7 +729,7 @@ unsafe fn setup() -> (
     });
     debug!("OpenTitan initialisation complete. Entering main loop");
 
-    (board_kernel, earlgrey_nexysvideo, chip, peripherals)
+    (board_kernel, earlgrey, chip, peripherals)
 }
 
 /// Main function.
@@ -757,12 +743,12 @@ pub unsafe fn main() {
 
     #[cfg(not(test))]
     {
-        let (board_kernel, earlgrey_nexysvideo, chip, _peripherals) = setup();
+        let (board_kernel, earlgrey, chip, _peripherals) = setup();
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
         board_kernel.kernel_loop(
-            earlgrey_nexysvideo,
+            earlgrey,
             chip,
             None::<&kernel::ipc::IPC<NUM_PROCS>>,
             &main_loop_cap,
@@ -776,10 +762,10 @@ use kernel::platform::watchdog::WatchDog;
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
-        let (board_kernel, earlgrey_nexysvideo, _chip, peripherals) = setup();
+        let (board_kernel, earlgrey, _chip, peripherals) = setup();
 
         BOARD = Some(board_kernel);
-        PLATFORM = Some(&earlgrey_nexysvideo);
+        PLATFORM = Some(&earlgrey);
         PERIPHERALS = Some(peripherals);
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 

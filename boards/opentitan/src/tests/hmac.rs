@@ -1,16 +1,19 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::hil::digest::{self, Digest, DigestData, DigestVerify, HMACSha256};
+#[allow(unused_imports)] // Can be unused if software only test
+use kernel::hil::digest::DigestData;
+use kernel::hil::digest::{self, Digest, DigestVerify, HmacSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{debug, ErrorCode};
 
 static KEY: [u8; 32] = [0xA1; 32];
 
 struct HmacTestCallback {
-    add_data_done: Cell<bool>,
+    add_mut_data_done: Cell<bool>,
     verification_done: Cell<bool>,
     input_buffer: TakeCell<'static, [u8]>,
     digest_buffer: TakeCell<'static, [u8; 32]>,
@@ -21,7 +24,7 @@ unsafe impl Sync for HmacTestCallback {}
 impl<'a> HmacTestCallback {
     fn new(input_buffer: &'static mut [u8], digest_buffer: &'static mut [u8; 32]) -> Self {
         HmacTestCallback {
-            add_data_done: Cell::new(false),
+            add_mut_data_done: Cell::new(false),
             verification_done: Cell::new(false),
             input_buffer: TakeCell::new(input_buffer),
             digest_buffer: TakeCell::new(digest_buffer),
@@ -29,32 +32,38 @@ impl<'a> HmacTestCallback {
     }
 
     fn reset(&self) {
-        self.add_data_done.set(false);
+        self.add_mut_data_done.set(false);
         self.verification_done.set(false);
     }
 }
 
-impl<'a> digest::ClientData<'a, 32> for HmacTestCallback {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
-        self.add_data_done.set(true);
+impl<'a> digest::ClientData<32> for HmacTestCallback {
+    fn add_mut_data_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) {
+        self.add_mut_data_done.set(true);
+        // Check that all of the data was accepted and the active slice is length 0
+        assert_eq!(data.len(), 0);
         // Input data has been loaded, hold copy of data
-        self.input_buffer.replace(data);
+        self.input_buffer.replace(data.take());
         assert_eq!(result, Ok(()));
     }
-}
 
-impl<'a> digest::ClientHash<'a, 32> for HmacTestCallback {
-    fn hash_done(&'a self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
         unimplemented!()
     }
 }
 
-impl<'a> digest::ClientVerify<'a, 32> for HmacTestCallback {
-    fn verification_done(
-        &'a self,
-        result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; 32],
-    ) {
+impl<'a> digest::ClientHash<32> for HmacTestCallback {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {
+        unimplemented!()
+    }
+}
+
+impl<'a> digest::ClientVerify<32> for HmacTestCallback {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; 32]) {
         self.digest_buffer.replace(compare);
         self.verification_done.set(true);
         assert_eq!(result, Ok(true));
@@ -86,7 +95,7 @@ fn hmac_check_load_binary() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
-    let buf = LeasableBuffer::new(callback.input_buffer.take().unwrap());
+    let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac load binary... ");
     run_kernel_op(100);
@@ -94,11 +103,12 @@ fn hmac_check_load_binary() {
     hmac.set_client(callback);
     callback.reset();
 
-    assert_eq!(hmac.add_data(buf), Ok(32));
+    #[cfg(feature = "hardware_tests")]
+    assert_eq!(hmac.add_mut_data(_buf), Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
-    assert_eq!(callback.add_data_done.get(), true);
+    assert_eq!(callback.add_mut_data_done.get(), true);
 
     run_kernel_op(100);
     debug!("    [ok]");
@@ -111,20 +121,22 @@ fn hmac_check_verify() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb() };
-    let buf = LeasableBuffer::new(callback.input_buffer.take().unwrap());
+
+    let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac check verify... ");
     run_kernel_op(100);
 
     hmac.set_client(callback);
     callback.reset();
-    hmac.set_mode_hmacsha256(&KEY).unwrap();
+    assert_eq!(hmac.set_mode_hmacsha256(&KEY), Ok(()));
 
-    assert_eq!(hmac.add_data(buf), Ok(32));
+    #[cfg(feature = "hardware_tests")]
+    assert_eq!(hmac.add_mut_data(_buf), Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
-    assert_eq!(callback.add_data_done.get(), true);
+    assert_eq!(callback.add_mut_data_done.get(), true);
     callback.reset();
 
     /* Get digest from callback digest buffer */

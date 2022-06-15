@@ -74,7 +74,7 @@ use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::UDPHeader;
 
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 pub const UDP_HDR_LEN: usize = 8;
@@ -352,7 +352,7 @@ impl<'a> IPPayload<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &LeasableBuffer<'static, u8>,
+        payload: &LeasableMutableBuffer<'static, u8>,
     ) -> (u8, u16) {
         for i in 0..payload.len() {
             self.payload[i] = payload[i];
@@ -378,7 +378,7 @@ impl<'a> IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `buf` - LeasableBuffer to write the serialized `IPPayload` to
+    /// `buf` - LeasableMutableBuffer to write the serialized `IPPayload` to
     /// `offset` - Current offset into the buffer
     ///
     /// # Return Value
@@ -504,7 +504,7 @@ impl<'a> IP6Packet<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &LeasableBuffer<'static, u8>,
+        payload: &LeasableMutableBuffer<'static, u8>,
     ) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);
