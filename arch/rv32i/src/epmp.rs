@@ -353,6 +353,10 @@ impl PMPRegion {
             (region_start, region_end)
         };
 
+        if region_start == 0 && region_end == 0 {
+            return false;
+        }
+
         // PMP addresses are not inclusive on the high end, that is
         //     pmpaddr[i-i] <= y < pmpaddr[i]
         if region_start < (other_end - 4) && other_start < (region_end - 4) {
