@@ -54,21 +54,21 @@ register_bitfields![u32,
         FIFO_EMPTY OFFSET(1) NUMBITS(1) [],
         HMAC_ERR OFFSET(2) NUMBITS(1) []
     ],
-                    CFG [
-                        HMAC_EN OFFSET(0) NUMBITS(1) [],
-                        SHA_EN OFFSET(1) NUMBITS(1) [],
-                        ENDIAN_SWAP OFFSET(2) NUMBITS(1) [],
-                        DIGEST_SWAP OFFSET(3) NUMBITS(1) []
-                    ],
-                    CMD [
-                        START OFFSET(0) NUMBITS(1) [],
-                        PROCESS OFFSET(1) NUMBITS(1) []
-                    ],
-                    STATUS [
-                        FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
-                        FIFO_FULL OFFSET(1) NUMBITS(1) [],
-                        FIFO_DEPTH OFFSET(4) NUMBITS(5) []
-                    ]
+    CFG [
+        HMAC_EN OFFSET(0) NUMBITS(1) [],
+        SHA_EN OFFSET(1) NUMBITS(1) [],
+        ENDIAN_SWAP OFFSET(2) NUMBITS(1) [],
+        DIGEST_SWAP OFFSET(3) NUMBITS(1) []
+    ],
+    CMD [
+        START OFFSET(0) NUMBITS(1) [],
+        PROCESS OFFSET(1) NUMBITS(1) []
+    ],
+    STATUS [
+        FIFO_EMPTY OFFSET(0) NUMBITS(1) [],
+        FIFO_FULL OFFSET(1) NUMBITS(1) [],
+        FIFO_DEPTH OFFSET(4) NUMBITS(5) []
+    ]
 ];
 
 pub struct Hmac<'a> {
@@ -120,18 +120,28 @@ impl Hmac<'_> {
         }
         count
     }
-
+    
+    // Return true if processing more data, false if the buffer
+    // is completely processed.
     fn data_progress(&self) -> bool {
         self.data.take().map_or(false, |buf| match buf {
             LeasableBufferDynamic::Immutable(mut b) => {
-                let count = self.process(&b, b.len());
-                b.slice(count..);
-                true
+                if b.len() == 0 {
+                    false
+                } else {
+                    let count = self.process(&b, b.len());
+                    b.slice(count..);
+                    true
+                }
             }
             LeasableBufferDynamic::Mutable(mut b) => {
-                let count = self.process(&b, b.len());
-                b.slice(count..);
-                true
+                if b.len() == 0 {
+                    false
+                } else {
+                    let count = self.process(&b, b.len());
+                    b.slice(count..);
+                    true
+                }
             }
         })
     }
@@ -208,7 +218,7 @@ impl Hmac<'_> {
             } else {
                 Ok(())
             };
-            if self.data_progress() {
+            if self.data_progress() == false { // False means we are done
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
                         LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(rval, b),
@@ -218,7 +228,7 @@ impl Hmac<'_> {
 
                 // Make sure we don't get any more FIFO empty interrupts
                 regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
-            } else {
+            } else { // Processing more data
                 // Enable interrupts
                 regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
             }
