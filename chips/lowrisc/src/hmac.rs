@@ -120,7 +120,7 @@ impl Hmac<'_> {
         }
         count
     }
-    
+
     // Return true if processing more data, false if the buffer
     // is completely processed.
     fn data_progress(&self) -> bool {
@@ -218,7 +218,8 @@ impl Hmac<'_> {
             } else {
                 Ok(())
             };
-            if self.data_progress() == false { // False means we are done
+            if self.data_progress() == false {
+                // False means we are done
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
                         LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(rval, b),
@@ -228,7 +229,8 @@ impl Hmac<'_> {
 
                 // Make sure we don't get any more FIFO empty interrupts
                 regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
-            } else { // Processing more data
+            } else {
+                // Processing more data
                 // Enable interrupts
                 regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::SET);
             }
