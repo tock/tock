@@ -438,7 +438,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -551,8 +551,8 @@ pub unsafe fn main() {
     );
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
-        &gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN],
-        &gpio_port[SPI_MX25R6435F_HOLD_PIN],
+        Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
+        Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
         &gpio_port[SPI_MX25R6435F_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
         mux_alarm,
         mux_spi,
@@ -694,7 +694,7 @@ pub unsafe fn main() {
 
     // alarm_test_component.run();
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;

@@ -1,4 +1,3 @@
-#![feature(const_fn_trait_bound, asm)]
 #![no_std]
 
 pub mod adc;

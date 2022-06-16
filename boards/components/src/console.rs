@@ -13,7 +13,8 @@
 //! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3,
 //!                                      115200,
 //!                                      deferred_caller).finalize(());
-//! let console = ConsoleComponent::new(board_kernel, uart_mux).finalize(());
+//! let console = ConsoleComponent::new(board_kernel, uart_mux)
+//!    .finalize(console_component_helper!());
 //! ```
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
@@ -27,6 +28,9 @@ use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::static_init;
+use kernel::utilities::static_init::StaticUninitializedBuffer;
+
+use capsules::console::DEFAULT_BUF_SIZE;
 
 pub struct UartMuxComponent {
     uart: &'static dyn uart::Uart<'static>,
@@ -74,6 +78,21 @@ impl Component for UartMuxComponent {
     }
 }
 
+#[macro_export]
+macro_rules! console_component_helper {
+    () => {{
+        use capsules::console::{Console, DEFAULT_BUF_SIZE};
+        use capsules::virtual_uart::UartDevice;
+        use kernel::static_buf;
+        let read_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
+        let write_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
+        // Create virtual device for console.
+        let console_uart = static_buf!(UartDevice);
+        let console = static_buf!(Console<'static>);
+        (write_buf, read_buf, console_uart, console)
+    }};
+}
+
 pub struct ConsoleComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -95,25 +114,30 @@ impl ConsoleComponent {
 }
 
 impl Component for ConsoleComponent {
-    type StaticInput = ();
+    type StaticInput = (
+        StaticUninitializedBuffer<[u8; DEFAULT_BUF_SIZE]>,
+        StaticUninitializedBuffer<[u8; DEFAULT_BUF_SIZE]>,
+        StaticUninitializedBuffer<UartDevice<'static>>,
+        StaticUninitializedBuffer<console::Console<'static>>,
+    );
     type Output = &'static console::Console<'static>;
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        // Create virtual device for console.
-        let console_uart = static_init!(UartDevice, UartDevice::new(self.uart_mux, true));
+        let write_buffer = s.0.initialize([0; DEFAULT_BUF_SIZE]);
+
+        let read_buffer = s.1.initialize([0; DEFAULT_BUF_SIZE]);
+
+        let console_uart = s.2.initialize(UartDevice::new(self.uart_mux, true));
         console_uart.setup();
 
-        let console = static_init!(
-            console::Console<'static>,
-            console::Console::new(
-                console_uart,
-                &mut console::WRITE_BUF,
-                &mut console::READ_BUF,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
+        let console = s.3.initialize(console::Console::new(
+            console_uart,
+            write_buffer,
+            read_buffer,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
         hil::uart::Transmit::set_transmit_client(console_uart, console);
         hil::uart::Receive::set_receive_client(console_uart, console);
 

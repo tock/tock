@@ -57,6 +57,7 @@ fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFor
 enum ScreenCommand {
     Nop,
     SetBrightness(usize),
+    SetPower(bool),
     InvertOn,
     InvertOff,
     GetSupportedResolutionModes,
@@ -183,6 +184,7 @@ impl<'a> Screen<'a> {
     fn call_screen(&self, command: ScreenCommand, process_id: ProcessId) -> Result<(), ErrorCode> {
         match command {
             ScreenCommand::SetBrightness(brighness) => self.screen.set_brightness(brighness),
+            ScreenCommand::SetPower(enabled) => self.screen.set_power(enabled),
             ScreenCommand::InvertOn => self.screen.invert_on(),
             ScreenCommand::InvertOff => self.screen.invert_off(),
             ScreenCommand::SetRotation(rotation) => {
@@ -557,6 +559,8 @@ impl<'a> SyscallDriver for Screen<'a> {
             }
             // Does it have the screen setup
             1 => CommandReturn::success_u32(self.screen_setup.is_some() as u32),
+            // Set power
+            2 => self.enqueue_command(ScreenCommand::SetPower(data1 != 0), process_id),
             // Set Brightness
             3 => self.enqueue_command(ScreenCommand::SetBrightness(data1), process_id),
             // Invert On

@@ -23,6 +23,7 @@ use crate::process::{ProcessAddresses, ProcessSizes};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
@@ -407,6 +408,28 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
         self.header.get_command_permissions(driver_num, offset)
+    }
+
+    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
+        let (read_count, read_storage_ids) = self
+            .header
+            .get_persistent_acl_read_ids()
+            .unwrap_or((0, [0; 8]));
+
+        let (access_count, access_storage_ids) = self
+            .header
+            .get_persistent_acl_access_ids()
+            .unwrap_or((0, [0; 8]));
+
+        let write_id = self.header.get_persistent_acl_write_id();
+
+        Some(storage_permissions::StoragePermissions::new(
+            read_count,
+            read_storage_ids,
+            access_count,
+            access_storage_ids,
+            write_id,
+        ))
     }
 
     fn number_writeable_flash_regions(&self) -> usize {

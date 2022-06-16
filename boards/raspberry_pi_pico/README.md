@@ -75,3 +75,8 @@ $ make program
 ```
 
 This will generate a new ELF file that can be deployed on the Raspberry Pi Pico via gdb and OpenOCD as described in the [section above](#flash-the-tock-kernel).
+
+## Book
+
+For further details and examples about how to use Tock with the Raspberry Pi Pico, you might
+want to check out the [Getting Started with Secure Embedded Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8) book.

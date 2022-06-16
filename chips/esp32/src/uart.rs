@@ -427,16 +427,16 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
+    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
+    fn transmit_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }
 
-/* UART receive is not implemented yet, mostly due to a lack of tests avaliable */
+/* UART receive is not implemented yet, mostly due to a lack of tests available */
 impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
@@ -462,11 +462,11 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         Ok(())
     }
 
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
+    fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
+    fn receive_abort(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
     }
 }

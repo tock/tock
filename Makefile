@@ -511,12 +511,11 @@ ci-job-miri: ci-setup-miri
 .PHONY: ci-job-cargo-test-build
 ci-job-cargo-test-build:
 	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-cw310" test
-	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-nexysvideo" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=af531756d25541a1b3b3d9a14e72e7fedd941a2e
+QEMU_COMMIT_HASH=9d662a6b22a0838a85c5432385f35db2488a33a5
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
@@ -566,9 +565,6 @@ define ci_job_qemu
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		CI=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
-		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
-		make test
-	@cd boards/opentitan/earlgrey-nexysvideo;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		make test
 endef

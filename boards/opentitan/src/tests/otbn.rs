@@ -74,7 +74,7 @@ impl<'a> Client<'a> for OtbnTestCallback {
     }
 }
 
-/// These symbols are defined in the linker script.
+// These symbols are defined in the linker script.
 extern "C" {
     /// Beginning of the ROM region containing app images.
     static _sapps: u8;
@@ -86,7 +86,7 @@ extern "C" {
 /// a respective buffer allocated.
 /// Note: static_init!() returns an &'static mut reference.
 unsafe fn static_init_test_cb() -> &'static OtbnTestCallback {
-    let output_buf = static_init!([u8; 1024], [0; 1024]);
+    let output_buf = static_init!([u8; 256], [0; 256]);
 
     static_init!(OtbnTestCallback, OtbnTestCallback::new(output_buf))
 }
@@ -112,6 +112,7 @@ fn otbn_run_rsa_binary() {
     } {
         let slice = unsafe { core::slice::from_raw_parts(imem_start as *const u8, imem_length) };
 
+        debug!("check otbn run rsa binary...");
         run_kernel_op(100);
 
         cb.reset();
@@ -142,20 +143,20 @@ fn otbn_run_rsa_binary() {
 
         // Set the RSA modulus
         // The address is the offset of `modulus` in the RSA elf
-        assert_eq!(otbn.load_data(0x420, &MODULUS), Ok(()));
+        assert_eq!(otbn.load_data(0x20, &MODULUS), Ok(()));
         run_kernel_op(1000);
 
         // Set the data in
-        // The address is the offset of `in` in the RSA elf
+        // The address is the offset of `inout` in the RSA elf
         let mut source: [u8; 256] = [0; 256];
         source[0..14].copy_from_slice(b"OTBN is great!");
 
-        assert_eq!(otbn.load_data(0x820, &source), Ok(()));
+        assert_eq!(otbn.load_data(0x420, &source), Ok(()));
         run_kernel_op(1000);
 
         cb.reset();
-        // The address is the offset of `out` in the RSA elf
-        assert_eq!(otbn.run(0x288, output), Ok(()));
+        // The address is the offset of `inout` in the RSA elf
+        assert_eq!(otbn.run(0x420, output), Ok(()));
 
         run_kernel_op(10000);
 

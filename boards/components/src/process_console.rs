@@ -68,8 +68,8 @@ impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
     }
 }
 
-/// These constants are defined in the linker script for where the
-/// kernel is placed in memory on chip.
+// These constants are defined in the linker script for where the
+// kernel is placed in memory on chip.
 extern "C" {
     static _estack: u8;
     static _sstack: u8;

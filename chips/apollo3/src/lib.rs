@@ -2,7 +2,6 @@
 
 #![crate_name = "apollo3"]
 #![crate_type = "rlib"]
-#![feature(asm, const_fn_trait_bound)]
 #![no_std]
 
 // Peripherals
@@ -76,6 +75,7 @@ pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn init() {
+    use core::arch::asm;
     let cache_ctrl = crate::cachectrl::CacheCtrl::new();
     cache_ctrl.enable_cache();
 

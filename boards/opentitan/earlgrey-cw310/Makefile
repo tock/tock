@@ -54,9 +54,9 @@ verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 		-within $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin \
 		-binary -range-pad 8 --output binary.64.vmem --vmem 64
 	$(OPENTITAN_TREE)/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
-		--meminit=rom,$(OPENTITAN_TREE)/build-out/sw/device/boot_rom/boot_rom_sim_verilator.scr.39.vmem \
+		--meminit=rom,$(OPENTITAN_TREE)/build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
 		--meminit=flash,./binary.64.vmem \
-		--meminit=otp,$(OPENTITAN_TREE)/build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
+		--meminit=otp,$(OPENTITAN_TREE)/build-out/sw/device/otp_img/otp_img_sim_verilator.vmem
 
 test:
 ifneq ($(OPENTITAN_TREE),)
@@ -66,6 +66,8 @@ endif
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release
+# Test layout should be removed so that following apps (non-test) load the correct layout.
+	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 
 test-hardware:
 ifeq ($(OPENTITAN_TREE),)
@@ -75,6 +77,7 @@ endif
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 
 test-verilator:
 	$(call check_defined, OPENTITAN_TREE)
@@ -82,5 +85,5 @@ test-verilator:
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=${OBJCOPY} $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests --features sim_verilator
+	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld

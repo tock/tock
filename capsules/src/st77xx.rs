@@ -838,8 +838,12 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn set_brightness(&self, brightness: usize) -> Result<(), ErrorCode> {
-        if brightness > 0 {
+    fn set_brightness(&self, _brightness: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+
+    fn set_power(&self, enabled: bool) -> Result<(), ErrorCode> {
+        if enabled {
             self.display_on()
         } else {
             self.display_off()

@@ -11,6 +11,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+use crate::otbn::OtbnComponent;
 use capsules::virtual_aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
@@ -24,6 +25,7 @@ use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::kv_system::KVSystem;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -58,7 +60,7 @@ static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals> = None;
 static mut BOARD: Option<&'static kernel::Kernel> = None;
 // Test access to platform
 #[cfg(test)]
-static mut PLATFORM: Option<&'static EarlGreyNexysVideo> = None;
+static mut PLATFORM: Option<&'static EarlGrey> = None;
 // Test access to main loop capability
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
@@ -77,6 +79,8 @@ static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes
     None;
 // Test access to SipHash
 static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
+// Test access to RSA
+static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -91,7 +95,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
-struct EarlGreyNexysVideo {
+struct EarlGrey {
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
@@ -126,10 +130,23 @@ struct EarlGreyNexysVideo {
         capsules::virtual_uart::UartDevice<'static>,
     >,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    spi_controller: &'static capsules::spi_controller::Spi<
+        'static,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, lowrisc::spi_host::SpiHost>,
+    >,
     rng: &'static capsules::rng::RngDriver<'static>,
     aes: &'static capsules::symmetric_encryption::aes::AesDriver<
         'static,
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+    >,
+    kv_driver: &'static capsules::kv_driver::KVSystemDriver<
+        'static,
+        capsules::tickv::TicKVStore<
+            'static,
+            capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        [u8; 8],
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
@@ -138,7 +155,7 @@ struct EarlGreyNexysVideo {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for EarlGreyNexysVideo {
+impl SyscallDriverLookup for EarlGrey {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -152,15 +169,17 @@ impl SyscallDriverLookup for EarlGreyNexysVideo {
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
+            capsules::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
 }
 
 impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>>
-    for EarlGreyNexysVideo
+    for EarlGrey
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
@@ -196,7 +215,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
 
 unsafe fn setup() -> (
     &'static kernel::Kernel,
-    &'static EarlGreyNexysVideo,
+    &'static EarlGrey,
     &'static earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>,
     &'static EarlGreyDefaultPeripherals<'static>,
 ) {
@@ -210,7 +229,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
+        static_init!([DynamicDeferredCallClientState; 5], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -319,9 +338,9 @@ unsafe fn setup() -> (
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
     // enable interrupts globally
-    csr::CSR
-        .mie
-        .modify(csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET + csr::mie::mie::mext::SET);
+    csr::CSR.mie.modify(
+        csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::CLEAR + csr::mie::mie::mext::SET,
+    );
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
@@ -330,7 +349,7 @@ unsafe fn setup() -> (
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -405,6 +424,23 @@ unsafe fn setup() -> (
 
     peripherals.i2c0.set_master_client(i2c_master);
 
+    //SPI
+    let mux_spi =
+        components::spi::SpiMuxComponent::new(&peripherals.spi_host0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(
+                lowrisc::spi_host::SpiHost
+            ));
+
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        0,
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        lowrisc::spi_host::SpiHost
+    ));
+
     peripherals.aes.initialise(
         dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
@@ -452,20 +488,6 @@ unsafe fn setup() -> (
     SIPHASH = Some(sip_hash);
 
     // TicKV
-    #[cfg(not(feature = "fpga_nexysvideo"))]
-    let tickv = components::tickv::TicKVComponent::new(
-        sip_hash,
-        &mux_flash,                                  // Flash controller
-        0x20090000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x70000,                                     // Region size
-        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
-        page_buffer,                                 // Buffer used with the flash controller
-    )
-    .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl,
-        capsules::sip_hash::SipHasher24
-    ));
-    #[cfg(any(feature = "fpga_nexysvideo"))]
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
         &mux_flash,                                  // Flash controller
@@ -482,11 +504,83 @@ unsafe fn setup() -> (
     sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
-    // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
-    // to the OTBN hardware will hang.
-    // OTBN is still connected though as it works on simulation runs
-    let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
+    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
+        components::kv_store_mux_component_helper!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
+
+    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
+    let header_buf = static_init!([u8; 9], [0; 9]);
+
+    let kv_store =
+        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
+            .finalize(components::kv_store_component_helper!(
+                capsules::tickv::TicKVStore<
+                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                    capsules::sip_hash::SipHasher24<'static>,
+                >,
+                capsules::tickv::TicKVKeyType,
+            ));
+    tickv.set_client(kv_store);
+
+    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
+    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
+
+    let kv_driver = components::kv_system::KVDriverComponent::new(
+        kv_store,
+        board_kernel,
+        capsules::kv_driver::DRIVER_NUM,
+        kv_driver_data_buf,
+        kv_driver_dest_buf,
+    )
+    .finalize(components::kv_driver_component_helper!(
+        capsules::tickv::TicKVStore<
+            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        capsules::tickv::TicKVKeyType,
+    ));
+
+    let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
+
+    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
+
+    let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
+
+    // Use the OTBN to create an RSA engine
+    if let Ok((rsa_imem_start, rsa_imem_length, rsa_dmem_start, rsa_dmem_length)) =
+        crate::otbn::find_app(
+            "otbn-rsa",
+            core::slice::from_raw_parts(
+                &_sapps as *const u8,
+                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            ),
+        )
+    {
+        let rsa_hardware = static_init!(
+            lowrisc::rsa::OtbnRsa<'static>,
+            lowrisc::rsa::OtbnRsa::new(
+                otbn,
+                lowrisc::rsa::AppAddresses {
+                    imem_start: rsa_imem_start,
+                    imem_size: rsa_imem_length,
+                    dmem_start: rsa_dmem_start,
+                    dmem_size: rsa_dmem_length
+                },
+                otbn_rsa_internal_buf,
+            )
+        );
+        peripherals.otbn.set_client(rsa_hardware);
+        RSA_HARDWARE = Some(rsa_hardware);
+    } else {
+        debug!("Unable to find otbn-rsa, disabling RSA support");
+    }
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
@@ -547,7 +641,7 @@ unsafe fn setup() -> (
     hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
     hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
 
-    /// These symbols are defined in the linker script.
+    // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -580,9 +674,9 @@ unsafe fn setup() -> (
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
 
-    let earlgrey_nexysvideo = static_init!(
-        EarlGreyNexysVideo,
-        EarlGreyNexysVideo {
+    let earlgrey = static_init!(
+        EarlGrey,
+        EarlGrey {
             gpio: gpio,
             led: led,
             console: console,
@@ -592,7 +686,9 @@ unsafe fn setup() -> (
             rng,
             lldb: lldb,
             i2c_master,
+            spi_controller,
             aes,
+            kv_driver,
             syscall_filter,
             scheduler,
             scheduler_timer,
@@ -666,7 +762,7 @@ unsafe fn setup() -> (
     });
     debug!("OpenTitan initialisation complete. Entering main loop");
 
-    (board_kernel, earlgrey_nexysvideo, chip, peripherals)
+    (board_kernel, earlgrey, chip, peripherals)
 }
 
 /// Main function.
@@ -680,12 +776,12 @@ pub unsafe fn main() {
 
     #[cfg(not(test))]
     {
-        let (board_kernel, earlgrey_nexysvideo, chip, _peripherals) = setup();
+        let (board_kernel, earlgrey, chip, _peripherals) = setup();
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
         board_kernel.kernel_loop(
-            earlgrey_nexysvideo,
+            earlgrey,
             chip,
             None::<&kernel::ipc::IPC<NUM_PROCS>>,
             &main_loop_cap,
@@ -699,10 +795,10 @@ use kernel::platform::watchdog::WatchDog;
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
-        let (board_kernel, earlgrey_nexysvideo, _chip, peripherals) = setup();
+        let (board_kernel, earlgrey, _chip, peripherals) = setup();
 
         BOARD = Some(board_kernel);
-        PLATFORM = Some(&earlgrey_nexysvideo);
+        PLATFORM = Some(&earlgrey);
         PERIPHERALS = Some(peripherals);
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 

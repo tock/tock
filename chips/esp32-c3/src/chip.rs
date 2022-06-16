@@ -110,14 +110,6 @@ impl<'a, I: InterruptService<()> + 'a> Chip for Esp32C3<'a, I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
 
-    fn mpu(&self) -> &Self::MPU {
-        &self.pmp
-    }
-
-    fn userspace_kernel_boundary(&self) -> &SysCall {
-        &self.userspace_kernel_boundary
-    }
-
     fn service_pending_interrupts(&self) {
         loop {
             if self.intc.get_saved_interrupts().is_some() {
@@ -136,6 +128,14 @@ impl<'a, I: InterruptService<()> + 'a> Chip for Esp32C3<'a, I> {
 
     fn has_pending_interrupts(&self) -> bool {
         self.intc.get_saved_interrupts().is_some()
+    }
+
+    fn mpu(&self) -> &Self::MPU {
+        &self.pmp
+    }
+
+    fn userspace_kernel_boundary(&self) -> &SysCall {
+        &self.userspace_kernel_boundary
     }
 
     fn sleep(&self) {
@@ -299,6 +299,7 @@ pub extern "C" fn _start_trap_vectored() {
 #[export_name = "_start_trap_vectored"]
 #[naked]
 pub extern "C" fn _start_trap_vectored() -> ! {
+    use core::arch::asm;
     unsafe {
         // Below are 32 (non-compressed) jumps to cover the entire possible
         // range of vectored traps.

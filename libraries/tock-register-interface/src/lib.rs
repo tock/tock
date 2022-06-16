@@ -53,7 +53,6 @@
 //! ------
 //! - Shane Leonard <shanel@stanford.edu>
 
-#![feature(const_fn_trait_bound)]
 #![no_std]
 // If we don't build any actual register types, we don't need unsafe
 // code in this crate

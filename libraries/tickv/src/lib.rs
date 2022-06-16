@@ -148,7 +148,7 @@
 //! let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(),
 //!                   &mut read_buf, 0x1000);
 //! tickv
-//!    .initalise(hash_function.finish())
+//!    .initialise(hash_function.finish())
 //!    .unwrap();
 //!
 //! // Add a key

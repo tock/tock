@@ -1,4 +1,3 @@
-#![feature(const_fn_trait_bound)]
 #![forbid(unsafe_code)]
 #![no_std]
 
@@ -16,6 +15,7 @@ pub mod analog_sensor;
 pub mod apds9960;
 pub mod app_flash_driver;
 pub mod ble_advertising_driver;
+pub mod bmp280;
 pub mod bus;
 pub mod button;
 pub mod buzzer_driver;
@@ -38,6 +38,8 @@ pub mod i2c_master;
 pub mod i2c_master_slave_driver;
 pub mod ieee802154;
 pub mod isl29035;
+pub mod kv_driver;
+pub mod kv_store;
 pub mod l3gd20;
 pub mod led;
 pub mod led_matrix;
@@ -61,6 +63,7 @@ pub mod panic_button;
 pub mod pca9544a;
 pub mod process_console;
 pub mod proximity;
+pub mod public_key_crypto;
 pub mod read_only_state;
 pub mod rf233;
 pub mod rf233_const;
