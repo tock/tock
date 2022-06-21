@@ -11,6 +11,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+use crate::otbn::OtbnComponent;
 use capsules::sha256::Sha256Software;
 use capsules::virtual_aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -79,6 +80,8 @@ static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes
     None;
 // Test access to SipHash
 static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
+// Test access to RSA
+static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
 
 // Test access to a software SHA256
 static mut SHA256SOFT: Option<&capsules::sha256::Sha256Software<'static>> = None;
@@ -547,11 +550,41 @@ unsafe fn setup() -> (
         capsules::tickv::TicKVKeyType,
     ));
 
-    // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
-    // to the OTBN hardware will hang.
-    // OTBN is still connected though as it works on simulation runs
-    let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
+    let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
+
+    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
+
+    let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
+
+    // Use the OTBN to create an RSA engine
+    if let Ok((rsa_imem_start, rsa_imem_length, rsa_dmem_start, rsa_dmem_length)) =
+        crate::otbn::find_app(
+            "otbn-rsa",
+            core::slice::from_raw_parts(
+                &_sapps as *const u8,
+                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            ),
+        )
+    {
+        let rsa_hardware = static_init!(
+            lowrisc::rsa::OtbnRsa<'static>,
+            lowrisc::rsa::OtbnRsa::new(
+                otbn,
+                lowrisc::rsa::AppAddresses {
+                    imem_start: rsa_imem_start,
+                    imem_size: rsa_imem_length,
+                    dmem_start: rsa_dmem_start,
+                    dmem_size: rsa_dmem_length
+                },
+                otbn_rsa_internal_buf,
+            )
+        );
+        peripherals.otbn.set_client(rsa_hardware);
+        RSA_HARDWARE = Some(rsa_hardware);
+    } else {
+        debug!("Unable to find otbn-rsa, disabling RSA support");
+    }
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
