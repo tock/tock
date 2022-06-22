@@ -1,11 +1,11 @@
 //! Test TicKV
 
 use crate::tests::run_kernel_op;
-use crate::SHA256SSOFT;
+use crate::SHA256SOFT;
 use capsules::sha256::Sha256Software;
 use capsules::test::sha256::TestSha256;
 use kernel::debug;
-use kernel::hil::digest::{Digest, DigestClient};
+use kernel::hil::digest::{Client, Digest};
 use kernel::static_init;
 
 #[test_case]
@@ -15,7 +15,7 @@ fn sha256software_verify() {
     unsafe {
         let sha = SHA256SOFT.unwrap();
 
-        let data_input = static_init!([u8; 72], [0; 72]);
+        let LSTRING = static_init!([u8; 72], [0; 72]);
         let bytes = b"hello ";
         for i in 0..12 {
             for j in 0..6 {
@@ -23,7 +23,7 @@ fn sha256software_verify() {
             }
         }
 
-        let data_hash = static_init!(
+        let LHASH = static_init!(
             [u8; 32],
             [
                 0x59, 0x42, 0xc3, 0x71, 0x6f, 0x02, 0x82, 0x89, 0x3f, 0xbe, 0x04, 0x9b, 0xa2, 0x0e,
