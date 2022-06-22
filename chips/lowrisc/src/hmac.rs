@@ -96,7 +96,6 @@ impl Hmac<'_> {
 
     fn process(&self, data: &dyn Index<usize, Output = u8>, count: usize) -> usize {
         let regs = self.registers;
-
         for i in 0..(count / 4) {
             if regs.status.is_set(STATUS::FIFO_FULL) {
                 return i * 4;
@@ -127,19 +126,23 @@ impl Hmac<'_> {
         self.data.take().map_or(false, |buf| match buf {
             LeasableBufferDynamic::Immutable(mut b) => {
                 if b.len() == 0 {
+                    self.data.set(Some(LeasableBufferDynamic::Immutable(b)));
                     false
                 } else {
                     let count = self.process(&b, b.len());
                     b.slice(count..);
+                    self.data.set(Some(LeasableBufferDynamic::Immutable(b)));
                     true
                 }
             }
             LeasableBufferDynamic::Mutable(mut b) => {
                 if b.len() == 0 {
+                    self.data.set(Some(LeasableBufferDynamic::Mutable(b)));
                     false
                 } else {
                     let count = self.process(&b, b.len());
                     b.slice(count..);
+                    self.data.set(Some(LeasableBufferDynamic::Mutable(b)));
                     true
                 }
             }
@@ -226,7 +229,6 @@ impl Hmac<'_> {
                         LeasableBufferDynamic::Immutable(b) => client.add_data_done(rval, b),
                     })
                 });
-
                 // Make sure we don't get any more FIFO empty interrupts
                 regs.intr_enable.modify(INTR_ENABLE::FIFO_EMPTY::CLEAR);
             } else {
