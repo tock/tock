@@ -6,7 +6,6 @@
 //! and translating the output into big endian format.
 
 use core::cell::Cell;
-use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
