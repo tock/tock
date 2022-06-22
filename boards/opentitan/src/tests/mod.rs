@@ -56,3 +56,4 @@ mod rsa_4096;
 mod sip_hash;
 mod spi_host;
 mod tickv_test;
+mod sha256soft_test;
