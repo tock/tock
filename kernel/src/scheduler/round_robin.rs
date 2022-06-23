@@ -74,7 +74,18 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
 
             // Find next ready process. Place any *empty* process slots, or not-ready
             // processes, at the back of the queue.
+            let mut first_head = None;
             for node in self.processes.iter() {
+                // Ensure we do not loop forever if all processes are not not ready
+                match first_head {
+                    None => first_head = Some(node),
+                    Some(first_head) => {
+                        // We make a full iteration and nothing was ready. Try to sleep instead
+                        if core::ptr::eq(first_head, node) {
+                            return SchedulingDecision::TrySleep;
+                        }
+                    }
+                }
                 match node.proc {
                     Some(proc) => {
                         if proc.ready() {
