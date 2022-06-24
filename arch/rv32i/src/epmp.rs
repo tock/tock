@@ -71,6 +71,10 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
         // RISC-V PMP can support from 0 to 64 PMP regions
         // Let's figure out how many are supported.
         // We count any regions that are locked as unsupported
+        let num_regions = 0;
+        let locked_region_mask = 0;
+
+        /*
         let mut num_regions = 0;
         let mut locked_region_mask = 0;
 
@@ -108,6 +112,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
             // Reset back to how we found it
             csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
         }
+        */
 
         Self {
             last_configured_for: MapCell::empty(),
@@ -775,6 +780,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
     }
 
     fn enable_kernel_mpu(&self, config: &mut Self::KernelMpuConfig) {
+        let _ = config;
+        /*
         for (i, region) in config.regions.iter().rev().enumerate() {
             let x = MAX_AVAILABLE_REGIONS_OVER_TWO - i - 1;
             match region {
@@ -829,5 +836,6 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
         // This is a sticky bit, meaning that once set it cannot be unset
         // until a hard reset.
         csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::mml::SET);
+        */
     }
 }
