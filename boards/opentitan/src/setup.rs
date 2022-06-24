@@ -25,6 +25,7 @@ use kernel::platform::mpu::KernelMPU;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup, TbfHeaderFilterDefaultAllow};
 use kernel::scheduler::priority::PrioritySched;
+use kernel::syscall::SyscallDriver;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
@@ -133,14 +134,19 @@ pub struct EarlGrey {
         'static,
         virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
     >,
-    kv_driver: &'static capsules::kv_driver::KVSystemDriver<
-        'static,
-        capsules::tickv::TicKVStore<
+    kv_driver: Option<
+        &'static capsules::kv_driver::KVSystemDriver<
             'static,
-            capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
-            capsules::sip_hash::SipHasher24<'static>,
+            capsules::tickv::TicKVStore<
+                'static,
+                capsules::virtual_flash::FlashUser<
+                    'static,
+                    lowrisc::flash_ctrl::FlashCtrl<'static>,
+                >,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            [u8; 8],
         >,
-        [u8; 8],
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
@@ -166,7 +172,7 @@ impl SyscallDriverLookup for EarlGrey {
             capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
-            capsules::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules::kv_driver::DRIVER_NUM => f(self.kv_driver.map(|d| d as &dyn SyscallDriver)),
             _ => f(None),
         }
     }
@@ -205,6 +211,128 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
+}
+
+#[cfg(feature = "want_tickv")]
+unsafe fn configure_tickv(
+    peripherals: &'static EarlGreyDefaultPeripherals<'static>,
+    dynamic_deferred_caller: &'static DynamicDeferredCall,
+    board_kernel: &'static kernel::Kernel,
+) -> Option<
+    &'static capsules::kv_driver::KVSystemDriver<
+        'static,
+        capsules::tickv::TicKVStore<
+            'static,
+            capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        [u8; 8],
+    >,
+> {
+    // Flash
+    let flash_ctrl_read_buf = static_init!(
+        [u8; lowrisc::flash_ctrl::PAGE_SIZE],
+        [0; lowrisc::flash_ctrl::PAGE_SIZE]
+    );
+    let page_buffer = static_init!(
+        lowrisc::flash_ctrl::LowRiscPage,
+        lowrisc::flash_ctrl::LowRiscPage::default()
+    );
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
+        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+    );
+
+    // SipHash
+    let sip_hash = static_init!(
+        capsules::sip_hash::SipHasher24,
+        capsules::sip_hash::SipHasher24::new(dynamic_deferred_caller)
+    );
+    sip_hash.initialise(
+        dynamic_deferred_caller
+            .register(sip_hash)
+            .expect("dynamic deferred caller out of slots for sip_hash"),
+    );
+    SIPHASH = Some(sip_hash);
+
+    // TicKV
+    let tickv = components::tickv::TicKVComponent::new(
+        sip_hash,
+        &mux_flash,                                  // Flash controller
+        0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
+        0x20000,                                     // Region size
+        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
+        page_buffer,                                 // Buffer used with the flash controller
+    )
+    .finalize(components::tickv_component_helper!(
+        lowrisc::flash_ctrl::FlashCtrl,
+        capsules::sip_hash::SipHasher24
+    ));
+    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
+    sip_hash.set_client(tickv);
+    TICKV = Some(tickv);
+
+    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
+        components::kv_store_mux_component_helper!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
+
+    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
+    let header_buf = static_init!([u8; 9], [0; 9]);
+
+    let kv_store =
+        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
+            .finalize(components::kv_store_component_helper!(
+                capsules::tickv::TicKVStore<
+                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                    capsules::sip_hash::SipHasher24<'static>,
+                >,
+                capsules::tickv::TicKVKeyType,
+            ));
+    tickv.set_client(kv_store);
+
+    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
+    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
+
+    let kv_driver = components::kv_system::KVDriverComponent::new(
+        kv_store,
+        board_kernel,
+        capsules::kv_driver::DRIVER_NUM,
+        kv_driver_data_buf,
+        kv_driver_dest_buf,
+    )
+    .finalize(components::kv_driver_component_helper!(
+        capsules::tickv::TicKVStore<
+            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        capsules::tickv::TicKVKeyType,
+    ));
+    Some(kv_driver)
+}
+
+#[cfg(not(feature = "want_tickv"))]
+unsafe fn configure_tickv(
+    _peripherals: &'static EarlGreyDefaultPeripherals<'static>,
+    _dynamic_deferred_caller: &DynamicDeferredCall,
+    _board_kernel: &'static kernel::Kernel,
+) -> Option<
+    &'static capsules::kv_driver::KVSystemDriver<
+        'static,
+        capsules::tickv::TicKVStore<
+            'static,
+            capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+            capsules::sip_hash::SipHasher24<'static>,
+        >,
+        [u8; 8],
+    >,
+> {
+    None
 }
 
 pub unsafe fn setup() -> (
@@ -455,91 +583,6 @@ pub unsafe fn setup() -> (
         static _estorage: u8;
     }
 
-    // Flash
-    let flash_ctrl_read_buf = static_init!(
-        [u8; lowrisc::flash_ctrl::PAGE_SIZE],
-        [0; lowrisc::flash_ctrl::PAGE_SIZE]
-    );
-    let page_buffer = static_init!(
-        lowrisc::flash_ctrl::LowRiscPage,
-        lowrisc::flash_ctrl::LowRiscPage::default()
-    );
-
-    let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
-    );
-
-    // SipHash
-    let sip_hash = static_init!(
-        capsules::sip_hash::SipHasher24,
-        capsules::sip_hash::SipHasher24::new(dynamic_deferred_caller)
-    );
-    sip_hash.initialise(
-        dynamic_deferred_caller
-            .register(sip_hash)
-            .expect("dynamic deferred caller out of slots for sip_hash"),
-    );
-    SIPHASH = Some(sip_hash);
-
-    // TicKV
-    let tickv = components::tickv::TicKVComponent::new(
-        sip_hash,
-        &mux_flash,                                  // Flash controller
-        0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x20000,                                     // Region size
-        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
-        page_buffer,                                 // Buffer used with the flash controller
-    )
-    .finalize(components::tickv_component_helper!(
-        lowrisc::flash_ctrl::FlashCtrl,
-        capsules::sip_hash::SipHasher24
-    ));
-    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
-    sip_hash.set_client(tickv);
-    TICKV = Some(tickv);
-
-    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_helper!(
-            capsules::tickv::TicKVStore<
-                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-                capsules::sip_hash::SipHasher24<'static>,
-            >,
-            capsules::tickv::TicKVKeyType,
-        ),
-    );
-
-    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
-    let header_buf = static_init!([u8; 9], [0; 9]);
-
-    let kv_store =
-        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
-            .finalize(components::kv_store_component_helper!(
-                capsules::tickv::TicKVStore<
-                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-                    capsules::sip_hash::SipHasher24<'static>,
-                >,
-                capsules::tickv::TicKVKeyType,
-            ));
-    tickv.set_client(kv_store);
-
-    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
-    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
-
-    let kv_driver = components::kv_system::KVDriverComponent::new(
-        kv_store,
-        board_kernel,
-        capsules::kv_driver::DRIVER_NUM,
-        kv_driver_data_buf,
-        kv_driver_dest_buf,
-    )
-    .finalize(components::kv_driver_component_helper!(
-        capsules::tickv::TicKVStore<
-            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-            capsules::sip_hash::SipHasher24<'static>,
-        >,
-        capsules::tickv::TicKVKeyType,
-    ));
-
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
 
@@ -682,7 +725,7 @@ pub unsafe fn setup() -> (
             i2c_master,
             spi_controller,
             aes,
-            kv_driver,
+            kv_driver: configure_tickv(peripherals, dynamic_deferred_caller, board_kernel),
             syscall_filter,
             scheduler,
             scheduler_timer,

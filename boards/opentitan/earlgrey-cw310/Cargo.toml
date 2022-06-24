@@ -21,6 +21,7 @@ lowrisc = { path = "../../../chips/lowrisc" }
 tock-tbf = { path = "../../../libraries/tock-tbf" }
 
 [features]
+default = ["want_tickv"]
 # OpenTitan SoC design can be synthesized or compiled for different targets. A
 # target can be a specific FPGA board, an ASIC technology, or a simulation tool.
 # Please see: https://docs.opentitan.org/doc/ug/getting_started/ for further
@@ -35,6 +36,7 @@ tock-tbf = { path = "../../../libraries/tock-tbf" }
 #      OpenTitan SoC design simulated in Verilator.
 fpga_cw310 = ["earlgrey/config_fpga_cw310"]
 sim_verilator = ["earlgrey/config_sim_verilator"]
+want_tickv = []
 # This is used to indicate that we should include tests that only pass on
 # hardware.
 hardware_tests = []
