@@ -12,10 +12,12 @@
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
+use capsules::sha256::Sha256Software;
 use capsules::virtual_aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
 use capsules::virtual_sha::VirtualMuxSha;
+
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -38,11 +40,10 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
-#[cfg(test)]
-mod tests;
-
 pub mod io;
 mod otbn;
+#[cfg(test)]
+mod tests;
 pub mod usb;
 
 const NUM_PROCS: usize = 4;
@@ -81,6 +82,9 @@ static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes
 static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
 // Test access to RSA
 static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
+
+// Test access to a software SHA256
+static mut SHA256SOFT: Option<&capsules::sha256::Sha256Software<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -229,7 +233,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
+        static_init!([DynamicDeferredCallClientState; 6], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -637,6 +641,15 @@ unsafe fn setup() -> (
     );
 
     AES = Some(ccm_client1);
+
+    let sha_soft = static_init!(
+        Sha256Software<'static>,
+        Sha256Software::new(dynamic_deferred_caller)
+    );
+    sha_soft.initialize_callback_handle(dynamic_deferred_caller.register(sha_soft).unwrap());
+
+    SHA256SOFT = Some(sha_soft);
+    //test::sha256_test::run_sha256(dynamic_deferred_caller);
 
     hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
     hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);

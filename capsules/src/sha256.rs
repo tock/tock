@@ -6,7 +6,6 @@
 //! and translating the output into big endian format.
 
 use core::cell::Cell;
-use kernel::debug;
 use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -181,16 +180,11 @@ impl<'a> Sha256Software<'a> {
     // input_data does not complete a block then the remainder
     // is stored in data_buffer.
     fn compute_sha256(&self) {
-        debug!("SHA256: Computing");
         if let Some(mut data) = self.input_data.take() {
             let data_length = data.len();
             self.total_length.set(self.total_length.get() + data_length);
             let mut buffered_length = self.buffered_length.get();
             if buffered_length != 0 {
-                debug!(
-                    "SHA256:  -- Copying into buffered block with {} bytes",
-                    buffered_length
-                );
                 // Copy bytes into the front of the temp buffer and
                 // compute if it fills.
                 self.data_buffer.map(|b| {
@@ -214,16 +208,11 @@ impl<'a> Sha256Software<'a> {
             }
             // Process blocks
             while data.len() >= 64 {
-                debug!("SHA256:  -- Computing block");
                 self.compute_buffer(&data[0..64]);
                 data.slice(64..data.len());
             }
             // Process tail end of block
             if data.len() != 0 {
-                debug!(
-                    "SHA256:  -- Copying tail {} bytes into buffered block",
-                    data.len()
-                );
                 self.data_buffer.map(|b| {
                     for i in 0..data.len() {
                         b[i] = data[i];
@@ -433,16 +422,6 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                         || output[4 * i + 1] != (hashval >> 16 & 0xff) as u8
                         || output[4 * i + 0] != (hashval >> 24 & 0xff) as u8
                     {
-                        debug!(
-                            "SHA256 verify {}: hashval: {:x}, output {:x} {:x} {:x} {:x}",
-                            i,
-                            hashval,
-                            output[4 * i + 3],
-                            output[4 * i + 2],
-                            output[4 * i + 1],
-                            output[4 * i + 0]
-                        );
-
                         pass = false;
                         break;
                     }
