@@ -5,6 +5,12 @@ authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
 edition = "2021"
 
+[[bin]]
+path = "src/main.rs"
+name = "main"
+test = false
+bench = false
+
 [dependencies]
 components = { path = "../../components" }
 rv32i = { path = "../../../arch/rv32i" }

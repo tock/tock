@@ -1,5 +1,5 @@
 use crate::tests::run_kernel_op;
-use crate::PERIPHERALS;
+use crate::setup::PERIPHERALS;
 use core::cell::Cell;
 #[allow(unused_imports)] // Can be unused if software only test
 use kernel::hil::digest::DigestData;

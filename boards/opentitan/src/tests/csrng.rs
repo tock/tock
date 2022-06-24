@@ -1,7 +1,7 @@
 //! Test that the RNG works
 
+use crate::setup::PERIPHERALS;
 use crate::tests::run_kernel_op;
-use crate::PERIPHERALS;
 use capsules::test::rng::TestEntropy32;
 use kernel::debug;
 use kernel::hil::entropy::Entropy32;

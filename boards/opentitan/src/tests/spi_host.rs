@@ -1,5 +1,5 @@
+use crate::setup::PERIPHERALS;
 use crate::tests::run_kernel_op;
-use crate::PERIPHERALS;
 use core::cell::Cell;
 #[allow(unused_imports)]
 use kernel::hil::spi::{ClockPhase, ClockPolarity};

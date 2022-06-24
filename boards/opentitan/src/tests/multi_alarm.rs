@@ -12,7 +12,7 @@
 //! latency of software work correctly.
 
 use crate::tests::run_kernel_op;
-use crate::ALARM;
+use crate::setup::ALARM;
 use capsules::test::random_alarm::TestRandomAlarm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use earlgrey::timer::RvTimer;

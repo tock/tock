@@ -1,8 +1,8 @@
-use crate::BOARD;
-use crate::CHIP;
-use crate::MAIN_CAP;
-use crate::NUM_PROCS;
-use crate::PLATFORM;
+use crate::setup::BOARD;
+use crate::setup::CHIP;
+use crate::setup::MAIN_CAP;
+use crate::setup::NUM_PROCS;
+use crate::setup::PLATFORM;
 use kernel::debug;
 
 pub fn semihost_command_exit_success() -> ! {
@@ -48,11 +48,11 @@ fn trivial_assertion() {
 
 mod aes_test;
 mod csrng;
-mod hmac;
-mod multi_alarm;
+//mod hmac;
+//mod multi_alarm;
 mod otbn;
 mod rsa;
 mod rsa_4096;
-mod sip_hash;
+//mod sip_hash;
 mod spi_host;
-mod tickv_test;
+//mod tickv_test;

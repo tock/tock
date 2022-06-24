@@ -1,7 +1,7 @@
 //! Test that AES ECB mode is working properly.
 
+use crate::setup::{AES, PERIPHERALS};
 use crate::tests::run_kernel_op;
-use crate::{AES, PERIPHERALS};
 use capsules::test::aes::{TestAes128Cbc, TestAes128Ctr, TestAes128Ecb};
 use capsules::test::aes_ccm::Test;
 use capsules::virtual_aes_ccm;

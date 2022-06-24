@@ -4,9 +4,9 @@ use core::str;
 use kernel::debug;
 use kernel::debug::IoWrite;
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
+use crate::setup::CHIP;
+use crate::setup::PROCESSES;
+use crate::setup::PROCESS_PRINTER;
 
 struct Writer {}
 

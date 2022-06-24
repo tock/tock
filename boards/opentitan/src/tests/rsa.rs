@@ -1,6 +1,6 @@
+use crate::setup::PERIPHERALS;
+use crate::setup::RSA_HARDWARE;
 use crate::tests::run_kernel_op;
-use crate::PERIPHERALS;
-use crate::RSA_HARDWARE;
 use capsules::public_key_crypto::rsa_keys::RSA2048Keys;
 use core::cell::Cell;
 use kernel::hil::public_key_crypto::keys::{PubKey, PubPrivKey, RsaKey, RsaPrivKey};
