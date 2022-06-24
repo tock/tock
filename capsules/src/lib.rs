@@ -73,6 +73,7 @@ pub mod screen;
 pub mod sdcard;
 pub mod segger_rtt;
 pub mod sha;
+pub mod sha256;
 pub mod sht3x;
 pub mod si7021;
 pub mod sip_hash;
