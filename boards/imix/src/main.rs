@@ -21,13 +21,14 @@ use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process_checking::AppCheckerSimulated;
+use kernel::process_checking::AppCheckerSha256;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
@@ -36,6 +37,8 @@ use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
+
+use capsules::sha256::Sha256Software;
 
 use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
@@ -357,13 +360,14 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let checker = static_init!(
-        AppCheckerSimulated<'static>,
-        AppCheckerSimulated::new(dynamic_deferred_caller)
+    let sha = static_init!(
+        Sha256Software<'static>,
+        Sha256Software::new(dynamic_deferred_caller)
     );
-    checker.initialize_callback_handle(
-        dynamic_deferred_caller.register(checker).unwrap(), // Unwrap fail = no deferred call slot available for checker
-    );
+    sha.initialize_callback_handle(dynamic_deferred_caller.register(sha).unwrap());
+
+    let checker = static_init!(AppCheckerSha256, AppCheckerSha256::new(sha));
+    sha.set_client(checker);
 
     let board_kernel = static_init!(
         kernel::Kernel,

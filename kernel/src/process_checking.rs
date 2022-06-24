@@ -1,10 +1,12 @@
 use crate::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
-use crate::hil::digest::{ClientData, ClientVerify};
-use crate::hil::digest::{DigestDataVerify, Sha512};
+use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
+use crate::hil::digest::{DigestDataVerify, Sha256};
 use crate::process::{Process, State};
 use crate::utilities::cells::OptionalCell;
+use crate::utilities::cells::TakeCell;
+use crate::utilities::leasable_buffer::{LeasableBuffer, LeasableMutableBuffer};
 use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
@@ -204,12 +206,34 @@ impl Compress for AppCheckerSimulated<'_> {
     }
 }
 
+pub trait Sha256Verifier<'a>: DigestDataVerify<'a, 32_usize> + Sha256 {}
+impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
+
 pub struct AppCheckerSha256 {
-    hasher: &'static dyn DigestDataVerify<'static, 64_usize> + Sha256 {}
+    hasher: &'static dyn Sha256Verifier<'static>,
     client: OptionalCell<&'static dyn Client<'static>>,
+    hash: TakeCell<'static, [u8; 32]>,
+    binary: OptionalCell<&'static [u8]>,
+    credentials: OptionalCell<TbfFooterV2Credentials>,
 }
 
-impl AppCredentialsChecker for AppCheckerSha256 {
+static mut CREDS: [u8; 32] = [0; 32];
+
+impl AppCheckerSha256 {
+    pub fn new(hash: &'static dyn Sha256Verifier<'static>) -> AppCheckerSha256 {
+        unsafe {
+            AppCheckerSha256 {
+                hasher: hash,
+                client: OptionalCell::empty(),
+                hash: TakeCell::new(&mut CREDS),
+                credentials: OptionalCell::empty(),
+                binary: OptionalCell::empty(),
+            }
+        }
+    }
+}
+
+impl AppCredentialsChecker<'static> for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
         true
     }
@@ -219,6 +243,7 @@ impl AppCredentialsChecker for AppCheckerSha256 {
         credentials: TbfFooterV2Credentials,
         binary: &'static [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'static [u8])> {
+        self.credentials.set(credentials);
         match credentials.format() {
             TbfFooterV2CredentialsType::Padding | TbfFooterV2CredentialsType::CleartextID => {
                 Err((ErrorCode::ALREADY, credentials, binary))
@@ -230,21 +255,28 @@ impl AppCredentialsChecker for AppCheckerSha256 {
             | TbfFooterV2CredentialsType::SHA384
             | TbfFooterV2CredentialsType::SHA512 => {
                 Err((ErrorCode::NOSUPPORT, credentials, binary))
-            },
-            TbfFooterV2CredentialsType::SHA256 => {
-                hasher.clear_data();
-                hasher.add_data(binary);
             }
-
+            TbfFooterV2CredentialsType::SHA256 => {
+                self.hash.map(|h| {
+                    for i in 0..32 {
+                        h[i] = credentials.data()[i];
+                    }
+                });
+                self.hasher.clear_data();
+                match self.hasher.add_data(LeasableBuffer::new(binary)) {
+                    Ok(()) => Ok(()),
+                    Err((e, b)) => Err((e, credentials, b.take())),
+                }
+            }
         }
     }
 
-    fn set_client(&self, client: &'a dyn Client<'a>) {
+    fn set_client(&self, client: &'static dyn Client<'static>) {
         self.client.replace(client);
     }
 }
 
-impl AppIdentification for AppCheckerSha256<'_> {
+impl AppIdentification for AppCheckerSha256 {
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
         let credentials_a = process_a.get_credentials();
         let credentials_b = process_b.get_credentials();
@@ -267,17 +299,65 @@ impl AppIdentification for AppCheckerSha256<'_> {
     }
 }
 
-impl<'a> ClientData<'a, 64_usize> for AppCheckerSha256<'a> {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, _data: &'static mut [u8]) {
+impl ClientData<32_usize> for AppCheckerSha256 {
+    fn add_mut_data_done(
+        &self,
+        _result: Result<(), ErrorCode>,
+        _data: LeasableMutableBuffer<'static, u8>,
+    ) {
+    }
 
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
+        match result {
+            Err(e) => panic!("Internal error during application binary checking. SHA256 engine threw error in adding data: {:?}", e),
+            Ok(()) => {
+                self.binary.set(data.take());
+                let hash: &'static mut [u8; 32_usize] = self.hash.take().unwrap();
+                self.hasher.verify(hash);
+            }
+        }
     }
 }
 
-impl<'a> ClientVerify<'a, 64_usize> for AppCheckerSha256<'a> {
+impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
     fn verification_done(
-        &'a self,
-        _result: Result<bool, ErrorCode>,
-        _compare: &'static mut [u8; 64_usize],
+        &self,
+        result: Result<bool, ErrorCode>,
+        compare: &'static mut [u8; 32_usize],
     ) {
+        self.hash.replace(compare);
+        match result {
+            Ok(true) => {
+                self.client.map(|c| {
+                    c.check_done(
+                        Ok(CheckResult::Accept),
+                        self.credentials.take().unwrap(),
+                        self.binary.take().unwrap(),
+                    );
+                });
+            }
+            Ok(false) => {
+                self.client.map(|c| {
+                    c.check_done(
+                        Ok(CheckResult::Reject),
+                        self.credentials.take().unwrap(),
+                        self.binary.take().unwrap(),
+                    );
+                });
+            }
+            Err(e) => {
+                panic!("Error {:?} in processing application credentials.", e);
+            }
+        }
+    }
+}
+
+impl<'a> ClientHash<32_usize> for AppCheckerSha256 {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32_usize]) {}
+}
+
+impl Compress for AppCheckerSha256 {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+        None
     }
 }

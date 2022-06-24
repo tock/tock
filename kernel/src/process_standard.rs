@@ -103,7 +103,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// An application ShortID, generated from process loading and
     /// checking, which denotes the security identity of this process.
     app_id: OptionalCell<process_checking::ShortID>,
-    
+
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
 
@@ -242,7 +242,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn short_app_id(&self) -> Option<process_checking::ShortID> {
         self.app_id.extract()
     }
-    
+
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -1362,7 +1362,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             Err(err) => return Err((err.into(), remaining_memory)),
         };
         debug!("ProcessStandard::create: found a {:?}", tbf_header);
-        
+
         let process_name = tbf_header.get_package_name();
 
         // If this isn't an app (i.e. it is padding) or it is an app but it
@@ -1430,13 +1430,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         let binary_end = tbf_header.get_binary_end() as usize;
         let total_size = app_flash.len();
-            
+
         // The portion of the application binary covered by integrity.
         let footer_region = match app_flash.get(binary_end..total_size) {
             Some(f) => f,
             None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory)),
         };
-
 
         // Check that the process is at the correct location in
         // flash if the TBF header specified a fixed address. If there is a
@@ -1726,7 +1725,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.grant_pointers = MapCell::new(grant_pointers);
 
         process.credentials = OptionalCell::empty();
-            
+
         process.footers = footer_region;
         process.flash = app_flash;
 

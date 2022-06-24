@@ -502,7 +502,10 @@ fn check_footer(
                 }
                 Ok((footer, len)) => {
                     let slice_result = footer_slice.get(len as usize + 4..);
-                    debug!("ProcessLoad: @{:x} found a len {} footer: {:?}", footers_position, len, footer);
+                    debug!(
+                        "ProcessLoad: @{:x} found a len {} footer: {:?}",
+                        footers_position, len, footer
+                    );
                     footers_position = footers_position + len as usize + 4;
                     match slice_result {
                         None => {
@@ -568,9 +571,7 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let short_id = self.verifier.map_or(None, |v| {
-                        v.to_short_id(&credentials)
-                    });
+                    let short_id = self.verifier.map_or(None, |v| v.to_short_id(&credentials));
                     let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
                     let _res = self.kernel.submit_process(p);
                 });
