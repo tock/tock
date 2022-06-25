@@ -295,6 +295,9 @@ fn check_processes(
             let res = proc.map(|p| {
                 p.mark_credentials_pass(None, None, &capability)
                     .or(Err(ProcessLoadError::InternalError))?;
+                if config::CONFIG.debug_process_credentials {
+                    debug!("Running {}", p.get_process_name());
+                }
                 kernel
                     .submit_process(p)
                     .or(Err(ProcessLoadError::InternalError))?;
