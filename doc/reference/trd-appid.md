@@ -160,9 +160,9 @@ Identifier.
 In normal use of Tock, a software tool running on a host copies TBF
 Objects into an application flash region. When the Tock kernel boots,
 it scans this application flash region for TBF Objects. After
-inspecting the Userspace Binary and TBF headers in a TBF Object, the
-kernel assigns it an Application Identifier and decides whether to run
-it.
+inspecting the Userspace Binary, TBF headers, and TBF Footers
+in a TBF Object, the kernel assigns it an Application Identifier and 
+decides whether to run it.
 
 3 Application Identifiers and Application Credentials
 ===============================
