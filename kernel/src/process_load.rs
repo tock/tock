@@ -264,7 +264,10 @@ fn load_processes<C: Chip>(
                     index = index + 1;
                 }
             }
-            Err((_new_flash, _new_mem, _err)) => {
+            Err((_new_flash, _new_mem, err)) => {
+                if config::CONFIG.debug_load_processes {
+                    debug!("No more processes to load: {:?}.", err);
+                }
                 // No more processes to load.
                 break;
             }
