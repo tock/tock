@@ -15,7 +15,6 @@ use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
-
 /// What a AppCredentialsChecker decided a particular applications credential
 /// indicates about the runnability of an application binary.
 #[derive(Debug)]
@@ -50,7 +49,6 @@ pub trait AppCredentialsChecker<'a> {
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
 }
-
 
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
@@ -154,7 +152,6 @@ pub struct AppCheckerSimulated<'a> {
     binary: OptionalCell<&'a [u8]>,
 }
 
-
 /// A sample Credentials Checking Policy that loads and runs Userspace
 /// Binaries with unique process names; if it encounters a Userspace
 /// Binary with the same process name as an existing one it fails the
@@ -233,7 +230,6 @@ impl Compress for AppCheckerSimulated<'_> {
 
 pub trait Sha256Verifier<'a>: DigestDataVerify<'a, 32_usize> + Sha256 {}
 impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
-
 
 /// A Credentials Checking Policy that only runs Userspace Binaries which have
 /// a SHA256 credential that is unique. A Userspace Binary without a
