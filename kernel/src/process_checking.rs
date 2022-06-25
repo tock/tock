@@ -1,3 +1,7 @@
+//! Traits, types, and sample implementations of application credentials
+//! checkers, used to decide whether an application can be loaded. See
+//| the [AppID TRD](../../doc/reference/trd-appid.md).
+
 use crate::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -11,13 +15,21 @@ use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
+
+/// What a AppCredentialsChecker decided a particular applications credential
+/// indicates about the runnability of an application binary.
 #[derive(Debug)]
 pub enum CheckResult {
+    /// Accept the credential and run the binary.
     Accept,
+    /// Go to the next credential or in the case of the last one fall
+    /// back to the default policy.
     Pass,
+    /// Reject the credential and do not run the binary.
     Reject,
 }
 
+/// Receives callbacks on whether a credential was accepted or not.
 pub trait Client<'a> {
     fn check_done(
         &self,
@@ -27,6 +39,7 @@ pub trait Client<'a> {
     );
 }
 
+/// Implements a Credentials Checking Policy.
 pub trait AppCredentialsChecker<'a> {
     fn set_client(&self, client: &'a dyn Client<'a>);
     fn require_credentials(&self) -> bool;
@@ -38,6 +51,9 @@ pub trait AppCredentialsChecker<'a> {
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
 }
 
+
+/// Whether two processes have the same Application Identifier; two
+/// processes with the same Application Identifier cannot run concurrently.
 pub trait AppIdentification {
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool;
 
@@ -72,11 +88,13 @@ pub trait AppIdentification {
     }
 }
 
+/// A compressed form of an Application Identifer.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ShortID {
     id: core::num::NonZeroU32,
 }
 
+/// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
     fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
 }
@@ -84,6 +102,8 @@ pub trait Compress {
 pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppIdentification {}
 impl<'a, T: AppCredentialsChecker<'a> + Compress + AppIdentification> AppVerifier<'a> for T {}
 
+/// Implements a Credentials Checking Policy that always loads every
+/// Userspace Binary.
 pub struct AppCheckerPermissive<'a> {
     pub client: OptionalCell<&'a dyn Client<'a>>,
 }
@@ -134,6 +154,11 @@ pub struct AppCheckerSimulated<'a> {
     binary: OptionalCell<&'a [u8]>,
 }
 
+
+/// A sample Credentials Checking Policy that loads and runs Userspace
+/// Binaries with unique process names; if it encounters a Userspace
+/// Binary with the same process name as an existing one it fails the
+/// uniqueness check and is not run.
 impl<'a> AppCheckerSimulated<'a> {
     pub fn new(call: &'a DynamicDeferredCall) -> AppCheckerSimulated<'a> {
         AppCheckerSimulated {
@@ -209,6 +234,11 @@ impl Compress for AppCheckerSimulated<'_> {
 pub trait Sha256Verifier<'a>: DigestDataVerify<'a, 32_usize> + Sha256 {}
 impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
 
+
+/// A Credentials Checking Policy that only runs Userspace Binaries which have
+/// a SHA256 credential that is unique. A Userspace Binary without a
+/// SHA256 credential fails checking, and only one Userspace Binary with
+/// a particular SHA256 hash runs at any time.
 pub struct AppCheckerSha256 {
     hasher: &'static dyn Sha256Verifier<'static>,
     client: OptionalCell<&'static dyn Client<'static>>,
