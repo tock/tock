@@ -1793,8 +1793,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        //kernel.increment_work();
-
         // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))
     }
