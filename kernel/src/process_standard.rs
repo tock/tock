@@ -1361,7 +1361,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             Ok(h) => h,
             Err(err) => return Err((err.into(), remaining_memory)),
         };
-        debug!("ProcessStandard::create: found a {:?}", tbf_header);
 
         let process_name = tbf_header.get_package_name();
 

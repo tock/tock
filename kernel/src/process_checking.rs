@@ -313,7 +313,10 @@ impl ClientData<32_usize> for AppCheckerSha256 {
             Ok(()) => {
                 self.binary.set(data.take());
                 let hash: &'static mut [u8; 32_usize] = self.hash.take().unwrap();
-                self.hasher.verify(hash);
+                match self.hasher.verify(hash) {
+                    Err((e, _)) => panic!("Failed invoke hash verification in process credential checking: {:?}", e),
+                    Ok(()) => {},
+                }
             }
         }
     }
@@ -357,7 +360,16 @@ impl<'a> ClientHash<32_usize> for AppCheckerSha256 {
 }
 
 impl Compress for AppCheckerSha256 {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
-        None
+    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+        let id: u32 = (credentials.data()[0] as u32) << 24 |
+        (credentials.data()[1] as u32) << 16 |
+        (credentials.data()[2] as u32) << 8 |
+        (credentials.data()[3] as u32);
+        match core::num::NonZeroU32::new(id) {
+            Some(nzid) => Some(ShortID {id: nzid}),
+            None => None
+        }
+        
+            
     }
 }
