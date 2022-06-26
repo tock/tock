@@ -3,20 +3,32 @@
 
 use crate::otbn::{Client, Otbn};
 use core::cell::Cell;
-use kernel::collections::list::{ListLink, ListNode};
+use kernel::collections::list::{ListNode, ModifyableListNode};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub struct VirtualMuxAccel<'a> {
     mux: &'a MuxAccel<'a>,
-    next: ListLink<'a, VirtualMuxAccel<'a>>,
+    next: Cell<Option<&'a VirtualMuxAccel<'a>>>,
     client: OptionalCell<&'a dyn Client<'a>>,
     id: u32,
 }
 
-impl<'a> ListNode<'a, VirtualMuxAccel<'a>> for VirtualMuxAccel<'a> {
-    fn next(&self) -> &'a ListLink<VirtualMuxAccel<'a>> {
-        &self.next
+impl<'a> ListNode<'a> for VirtualMuxAccel<'a> {
+    type Content = Self;
+
+    fn next(&self) -> Option<&'a Self> {
+        self.next.get()
+    }
+
+    fn content<'c>(&'c self) -> &'c Self::Content {
+        self
+    }
+}
+
+impl<'a> ModifyableListNode<'a> for VirtualMuxAccel<'a> {
+    fn set_next(&self, next: Option<&'a Self>) {
+        self.next.set(next)
     }
 }
 
@@ -27,7 +39,7 @@ impl<'a> VirtualMuxAccel<'a> {
 
         VirtualMuxAccel {
             mux: mux_accel,
-            next: ListLink::empty(),
+            next: Cell::new(None),
             client: OptionalCell::empty(),
             id: id,
         }
