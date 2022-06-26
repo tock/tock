@@ -100,50 +100,10 @@ pub trait Compress {
 pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppIdentification {}
 impl<'a, T: AppCredentialsChecker<'a> + Compress + AppIdentification> AppVerifier<'a> for T {}
 
-/// Implements a Credentials Checking Policy that always loads every
-/// Userspace Binary.
-pub struct AppCheckerPermissive<'a> {
-    pub client: OptionalCell<&'a dyn Client<'a>>,
-}
-
-impl<'a> AppCheckerPermissive<'a> {
-    pub fn new() -> AppCheckerPermissive<'a> {
-        AppCheckerPermissive {
-            client: OptionalCell::empty(),
-        }
-    }
-}
-
-impl<'a> AppCredentialsChecker<'a> for AppCheckerPermissive<'a> {
-    fn require_credentials(&self) -> bool {
-        false
-    }
-
-    fn check_credentials(
-        &self,
-        credentials: TbfFooterV2Credentials,
-        binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        Err((ErrorCode::NOSUPPORT, credentials, binary))
-    }
-
-    fn set_client(&self, client: &'a dyn Client<'a>) {
-        self.client.replace(client);
-    }
-}
-
-impl AppIdentification for AppCheckerPermissive<'_> {
-    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
-        true
-    }
-}
-
-impl Compress for AppCheckerPermissive<'_> {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
-        None
-    }
-}
-
+/// A sample Credentials Checking Policy that loads and runs Userspace
+/// Binaries with unique process names; if it encounters a Userspace
+/// Binary with the same process name as an existing one it fails the
+/// uniqueness check and is not run.
 pub struct AppCheckerSimulated<'a> {
     deferred_caller: &'a DynamicDeferredCall,
     handle: OptionalCell<DeferredCallHandle>,
@@ -152,10 +112,6 @@ pub struct AppCheckerSimulated<'a> {
     binary: OptionalCell<&'a [u8]>,
 }
 
-/// A sample Credentials Checking Policy that loads and runs Userspace
-/// Binaries with unique process names; if it encounters a Userspace
-/// Binary with the same process name as an existing one it fails the
-/// uniqueness check and is not run.
 impl<'a> AppCheckerSimulated<'a> {
     pub fn new(call: &'a DynamicDeferredCall) -> AppCheckerSimulated<'a> {
         AppCheckerSimulated {
@@ -231,10 +187,10 @@ impl Compress for AppCheckerSimulated<'_> {
 pub trait Sha256Verifier<'a>: DigestDataVerify<'a, 32_usize> + Sha256 {}
 impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
 
-/// A Credentials Checking Policy that only runs Userspace Binaries which have
-/// a SHA256 credential that is unique. A Userspace Binary without a
-/// SHA256 credential fails checking, and only one Userspace Binary with
-/// a particular SHA256 hash runs at any time.
+/// A Credentials Checking Policy that only runs Userspace Binaries
+/// which have a unique SHA256 credential. A Userspace Binary without
+/// a SHA256 credential fails checking, and only one Userspace Binary
+/// with a particular SHA256 hash runs at any time.
 pub struct AppCheckerSha256 {
     hasher: &'static dyn Sha256Verifier<'static>,
     client: OptionalCell<&'static dyn Client<'static>>,
