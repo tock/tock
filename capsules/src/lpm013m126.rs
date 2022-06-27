@@ -521,12 +521,8 @@ where
         Ok(())
     }
 
-    fn invert_on(&self) -> Result<(), ErrorCode> {
+    fn set_invert(&self, _inverted: bool) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
-    }
-
-    fn invert_off(&self) -> Result<(), ErrorCode> {
-        Ok(())
     }
 }
 
