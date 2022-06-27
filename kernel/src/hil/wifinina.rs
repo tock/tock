@@ -60,9 +60,10 @@ pub struct Ssid {
     // the actual length of the SSID
     pub len: u8,
 }
+
 #[derive(Copy, Clone, Debug)]
 pub struct Psk {
-    // The max length of an SSID is 32
+    // The max length of an SSID is 64
     pub value: [u8; 63],
 
     // the actual length of the SSID

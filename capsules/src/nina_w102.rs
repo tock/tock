@@ -229,8 +229,8 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
             self.send_command(
                 Command::StartTcpClient,
                 &[
-                    // &[191, 101, 164, 144],
-                    &[172, 20, 10, 7],
+                    &[191, 101, 164, 144],
+                    // &[172, 20, 10, 7],
                     &[0xff, 0x9b],
                     &[socket],
                     &[SockMode::UdpMode as u8],
@@ -254,7 +254,13 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
             // Inserting buffer "Buna!"
             self.send_command(
                 Command::InsertDataBuf,
-                &[&[socket], &[0x42, 0x75, 0x6e, 0x61, 0x21]],
+                &[
+                    &[socket],
+                    &[
+                        0x42, 0x75, 0x6e, 0x61, 0x20, 0x64, 0x69, 0x6e, 0x20, 0x54, 0x6f, 0x63,
+                        0x6B, 0x21, 0xa,
+                    ],
+                ],
             )
         } else {
             Err(ErrorCode::BUSY)
@@ -429,7 +435,7 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                     // debug!("InsertDataBuf: {}", position + 1);
                     while (position + 1) % 4 != 0 {
                         debug!("Aici");
-                        buffer[position + 1] = 0xff;
+                        buffer[position] = 0xff;
                         position = position + 1;
                     }
                     debug!("InsertDataBuf: chars to be written {}", position + 1);
@@ -837,9 +843,9 @@ impl<'a, S: SpiMaster, P: Pin, A: Alarm<'a>> NinaW102<'a, S, P, A> {
                                             // self.get_tcp_client_state(0);
                                         }
                                     }
-                                    self.status.set(Status::Send(Command::SendUdpPacket));
+                                    self.status.set(Status::Send(Command::InsertDataBuf));
                                     self.alarm
-                                        .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
+                                        .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
                                     Ok(())
                                 }
                                 Command::StartTcpServer => {
