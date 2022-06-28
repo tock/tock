@@ -30,4 +30,5 @@ fn trivial_assertion() {
     run_kernel_op(10000);
 }
 
+mod enviromental_sensors;
 mod multi_alarm;
