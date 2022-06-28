@@ -469,31 +469,27 @@ The `CleartextID` type has a data length of 8 bytes. It contains a
 64-bit number in big-endian format representing an application
 identifier.
 
-The `Rsa3072Key` type has a data of length of 768 bytes. It contains
-a public 3072-bit RSA key (384 bytes), followed by a 384-byte
-ciphertext block, consisting of the SHA512 hash of the application
-binary in this process binary, signed by the private key of the public
-key in the TLV.
+The `Rsa3072Key` type has a data of length of 768 bytes. It contains a
+public 3072-bit RSA key (384 bytes), followed by a 384-byte PKCS#1
+v1.5 signature using SHA512 (`CKM_SHA512_RSA_PKCS`). It does not
+contain a public exponnent: the Process Checker is responsible for
+storing the public exponent for any key it recognizes.
 
 The `Rsa4096Key` type has a data of length of 1024 bytes. It contains
-a public 4096-bit RSA key (512 bytes), followed by a 512-byte
-ciphertext block, consisting of the SHA512 hash of the application
-binary in this process binary, encrypted by the private key of the
-public key in the TLV.
+a public 4096-bit RSA key (512 bytes), followed by a 512-byte PKCS#1
+v1.5 signature using SHA512 (`CKM_SHA512_RSA_PKCS`). It does not
+contain a public exponent: the Process Checker is responsible for
+storing the public exponent for any key it recognizes.
 
 The `Rsa3072KeyWithID` type has a data of length of 768 bytes. It
 contains a public 3072-bit RSA key (384 bytes), followed by a 384-byte
-ciphertext block, consisting of the SHA512 hash of the application
-binary in this process binary followed by a 32-bit application ID and
-padded with zeroes, encrypted by the private key of the public key in
-the TLV.
+signature that contains a 32-bit identifier. **Exact signature
+algorithm/approach to be determined.**
 
 The `Rsa4096KeyWithID` type has a data of length of 1024 bytes. It
 contains a public 4096-bit RSA key (512 bytes), followed by a 512-byte
-ciphertext block, consisting of the SHA512 hash of the application
-binary in this process binary followed by a 32-bit application ID and
-padded with zeroes, encrypted by the private key of the public key in
-the TLV.
+signature that contains a 32-bit identifier. **Exact signature
+algorithm/approach to be determined.**
 
 The `SHA256` type has a data length of 32 bytes. It contains a 256-bit
 (32 byte) SHA256 hash of the application binary.
@@ -504,13 +500,10 @@ The `SHA384` type has a data length of 48 bytes. It contains a 384-bit
 The `SHA512` type has a data length of 64 bytes. It contains a 512-bit
 (64 byte) SHA512 hash of the application binary.
 
-`TbfFooterV2Credentials` type follow the compiled app binary in a
-TBF object.  If a `TbfFooterV2Credentials` footer includes a
-cryptographic hash, signature, or other value to check the integrity
-of a process binary, the computation of this value MUST include the
-complete TBF Header and the compiled app binary.
-
-Integrity values MUST be computed over the TBF Header and Userspace
+`TbfFooterV2Credentials` follow the compiled app binary in a TBF
+object.  If a `TbfFooterV2Credentials` footer includes a cryptographic
+hash, signature, or other value to check the integrity of a process
+binary, this vlaue MUST be computed over the TBF Header and Userspace
 Binary, from the start of the TBF object until
 `binary_end_offset`. Computing an integrity value in a Credentials
 Footer MUST NOT include the contents of Footers. If new metadata
