@@ -15,7 +15,7 @@ use kernel::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
 use kernel::hil::gpio::Pin;
-use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
+use kernel::hil::screen::{Grid, PixelStreamFormat, Screen, ScreenClient, ScreenRotation};
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -391,8 +391,16 @@ where
         (176, 176)
     }
 
-    fn get_pixel_format(&self) -> ScreenPixelFormat {
-        ScreenPixelFormat::Mono
+    fn get_pixel_format(&self) -> (PixelStreamFormat, Grid) {
+        (
+            PixelStreamFormat::Mono_1H8,
+            Grid {
+                width: 8,
+                height: 1,
+                x_offset: 0,
+                y_offset: 0,
+            },
+        )
     }
 
     fn get_rotation(&self) -> ScreenRotation {
@@ -409,6 +417,11 @@ where
         let rows = 176;
         let columns = 176;
         if y >= rows || y + height > rows || x >= columns || x + width > columns {
+            return Err(ErrorCode::INVAL);
+        }
+
+        // Implied by stream format
+        if x % 8 != 0 || width % 8 != 0 {
             return Err(ErrorCode::INVAL);
         }
 

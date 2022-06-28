@@ -15,7 +15,7 @@ use core::convert::From;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
+use kernel::hil::screen::{PixelStreamFormat, ScreenRotation};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -42,13 +42,15 @@ fn screen_rotation_from(screen_rotation: usize) -> Option<ScreenRotation> {
     }
 }
 
-fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFormat> {
+fn pixel_format_from(screen_pixel_format: usize) -> Option<PixelStreamFormat> {
     match screen_pixel_format {
-        0 => Some(ScreenPixelFormat::Mono),
-        1 => Some(ScreenPixelFormat::RGB_233),
-        2 => Some(ScreenPixelFormat::RGB_565),
-        3 => Some(ScreenPixelFormat::RGB_888),
-        4 => Some(ScreenPixelFormat::ARGB_8888),
+        0 => Some(PixelStreamFormat::Mono_1H8),
+        1 => Some(PixelStreamFormat::Mono_1V8),
+        2 => Some(PixelStreamFormat::RGB_111xH2),
+        3 => Some(PixelStreamFormat::RGB_233),
+        4 => Some(PixelStreamFormat::RGB_565),
+        5 => Some(PixelStreamFormat::RGB_888),
+        6 => Some(PixelStreamFormat::ARGB_8888),
         _ => None,
     }
 }
@@ -64,7 +66,7 @@ enum ScreenCommand {
         width: usize,
         height: usize,
     },
-    SetPixelFormat(ScreenPixelFormat),
+    SetPixelFormat(PixelStreamFormat),
     SetWriteFrame {
         x: usize,
         y: usize,
@@ -111,7 +113,7 @@ pub struct Screen<'a> {
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
-    pixel_format: Cell<ScreenPixelFormat>,
+    pixel_format: Cell<PixelStreamFormat>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -122,12 +124,13 @@ impl<'a> Screen<'a> {
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> Screen<'a> {
+        let (format, _grid) = screen.get_pixel_format();
         Screen {
             screen: screen,
             screen_setup: screen_setup,
             apps: grant,
             current_process: OptionalCell::empty(),
-            pixel_format: Cell::new(screen.get_pixel_format()),
+            pixel_format: Cell::new(format),
             buffer: TakeCell::new(buffer),
         }
     }
@@ -167,7 +170,8 @@ impl<'a> Screen<'a> {
     }
 
     fn is_len_multiple_color_depth(&self, len: usize) -> bool {
-        let depth = pixels_in_bytes(1, self.screen.get_pixel_format().get_bits_per_pixel());
+        let (format, _grid) = self.screen.get_pixel_format();
+        let depth = pixels_in_bytes(1, format.get_bits_per_pixel());
         (len % depth) == 0
     }
 
@@ -534,10 +538,17 @@ impl<'a> SyscallDriver for Screen<'a> {
             ),
 
             // Get pixel format
-            25 => CommandReturn::success_u32(self.screen.get_pixel_format() as u32),
+            25 => {
+                let (format, grid) = self.screen.get_pixel_format();
+                let grid = (grid.width as u64) << 48
+                    | (grid.height as u64) << 32
+                    | (grid.x_offset as u64) << 16
+                    | grid.y_offset as u64;
+                CommandReturn::success_u64_u32(grid, format as u32)
+            }
             // Set pixel format
             26 => {
-                if let Some(pixel_format) = screen_pixel_format_from(data1) {
+                if let Some(pixel_format) = pixel_format_from(data1) {
                     self.enqueue_command(ScreenCommand::SetPixelFormat(pixel_format), process_id)
                 } else {
                     CommandReturn::failure(ErrorCode::INVAL)

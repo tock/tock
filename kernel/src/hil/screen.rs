@@ -34,6 +34,7 @@ use core::ops::Sub;
 
 pub const MAX_BRIGHTNESS: usize = 65536;
 
+/// Rotation in degrees counterclockwise in relation to `Normal`.
 #[derive(Copy, Clone, PartialEq)]
 pub enum ScreenRotation {
     Normal,
@@ -90,12 +91,28 @@ impl Sub for ScreenRotation {
     }
 }
 
+/// Defines the data format being fed to the display driver.
+/// Each pixel can take up more or less than a byte.
+/// Reaching the end of line in a defined region moves the cursor
+/// back to the start of the line, and downwards by 1 line
+/// (unless noted otherwise).
 #[derive(Copy, Clone, PartialEq)]
 #[repr(usize)]
 #[allow(non_camel_case_types)]
-pub enum ScreenPixelFormat {
-    /// Pixels encoded as 1-bit, used for monochromatic displays
-    Mono,
+pub enum PixelStreamFormat {
+    /// Pixels encoded as 1-bit, 8 consecutive bits (most to least significant)
+    /// form 8 horizontal pixels left-to-right.
+    Mono_1H8,
+    /// Pixels encoded as 1-bit, 8 consecutive bits (most to least significant)
+    /// form 8 vertical pixels top-to-bottom.
+    /// Reaching end of line advances the cursor to the beginning of the line
+    /// and 8 pixels downwards.
+    Mono_1V8,
+    /// A single byte carries two pixels horizontally: higher nibble on the left,
+    /// lower on the right.
+    /// Each color channel is 1 bit (starting with most significant): RGBX,
+    /// where X is a padding bit.
+    RGB_111xH2,
     /// Pixels encoded as 2-bit red channel, 3-bit green channel, 3-bit blue channel.
     RGB_233,
     /// Pixels encoded as 5-bit red channel, 6-bit green channel, 5-bit blue channel.
@@ -107,16 +124,36 @@ pub enum ScreenPixelFormat {
     // other pixel formats may be defined.
 }
 
-impl ScreenPixelFormat {
+impl PixelStreamFormat {
     pub fn get_bits_per_pixel(&self) -> usize {
         match self {
-            Self::Mono => 1,
+            Self::Mono_1H8 => 1,
+            Self::Mono_1V8 => 1,
+            Self::RGB_111xH2 => 4,
             Self::RGB_233 => 8,
             Self::RGB_565 => 16,
             Self::RGB_888 => 24,
             Self::ARGB_8888 => 32,
         }
     }
+}
+
+/// Placement of a grid of rectangles on the display.
+pub struct Grid {
+    /// Placement of a vertical edge of a rectangle
+    /// relative to the left edge of the display.
+    /// Additional rectangles are tiled to the left and right
+    /// without overlapping, until they fill the entire display area.
+    /// Greater values are further to the right.
+    pub x_offset: u16,
+    /// Placement of a horizontal edge of a rectangle,
+    /// relative to top edge of the display.
+    /// Greater values are further downwards.
+    pub y_offset: u16,
+    /// Width of a single rectangle.
+    pub width: u16,
+    /// Height of a single rectangle.
+    pub height: u16,
 }
 
 pub trait ScreenSetup {
@@ -132,11 +169,14 @@ pub trait ScreenSetup {
     /// Sets the pixel format. Returns ENOSUPPORT if the pixel format is
     /// not supported. The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
-    /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
-    /// that will return the actual Result<(), ErrorCode> after setting the pixel format.
-    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> Result<(), ErrorCode>;
+    /// Upon Ok(_), the caller has to wait for the `command_complete` callback function
+    /// that will return the actual Result after setting the pixel format.
+    fn set_pixel_format(&self, depth: PixelStreamFormat) -> Result<(), ErrorCode>;
 
     /// Sets the rotation of the display.
+    ///
+    /// The rotation is relative to a touch device, if present.
+    ///
     /// The function should return Ok(()) if the request is registered
     /// and will be sent to the screen.
     /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
@@ -177,10 +217,10 @@ pub trait ScreenSetup {
     ///
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.
-    fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat>;
+    fn get_supported_pixel_format(&self, index: usize) -> Option<PixelStreamFormat>;
 }
 
-/// The basic trait for screens
+/// The basic trait for screens.
 pub trait Screen {
     /// Returns a tuple (width, height) with the current resolution (in pixels)
     /// This function is synchronous as the driver should know this value without
@@ -189,18 +229,41 @@ pub trait Screen {
     /// Note that width and height may change due to rotation.
     fn get_resolution(&self) -> (usize, usize);
 
-    /// Returns the current pixel format
+    /// Returns the current pixel format.
+    ///
+    /// Some displays are limited to updating multiple pixels at a time.
+    /// Monochrome displays often accept packets of 8 bytes,
+    /// others need entire lines.
+    ///
+    /// This function returns the minimal shape that must be updated,
+    /// and its possible placement, as the `Grid` return value.
+    /// See `set_write_frame`.
+    ///
+    /// The driver MUST make sure that when the smallest square
+    /// described by the return value is filled with a pixel buffer,
+    /// then the buffer ends on a byte boundary.
+    /// For example, if the format is `Mono_1H8` (8 pixels per byte),
+    /// then `Grid::width` cannot be 12 (12 pixels = 12 bits = 1,5 bytes).
+    ///
     /// This function is synchronous as the driver should know this value without
-    /// requesting it from the screen.
-    fn get_pixel_format(&self) -> ScreenPixelFormat;
+    /// requesting it from the hardware.
+    fn get_pixel_format(&self) -> (PixelStreamFormat, Grid);
 
     /// Returns the current rotation.
+    ///
+    /// The rotation is relative to a touch device, if present.
+    ///
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.
     fn get_rotation(&self) -> ScreenRotation;
 
     /// Sets the video memory frame.
-    /// This function has to be called before the first call to the write function.
+    ///
+    /// This selects a rectangle on the display.
+    ///
+    /// The corners of the frame must align with the corners of
+    /// rectangles in the grid returned by `get_pixel_format`.
+    ///
     /// This will generate a `command_complete()` callback when finished.
     ///
     /// Return values:
@@ -215,7 +278,16 @@ pub trait Screen {
         height: usize,
     ) -> Result<(), ErrorCode>;
 
-    /// Sends a write command to write data in the selected video memory frame.
+    /// Writes data into the selected rectangle of pixels.
+    ///
+    /// By default, the selected rectangle covers the entire frame.
+    /// The rectangle can be set using `set_write_frame`.
+    ///
+    /// The pixel data contained in the buffer must adhere
+    /// to the current pixel format and grid shape. See `get_pixel_format`.
+    /// Consecutive pixels on the screen will be set
+    /// to consecutive values from the buffer. See `PixelStreamFormat`.
+    ///
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// Return values:

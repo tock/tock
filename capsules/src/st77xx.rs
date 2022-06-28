@@ -38,7 +38,7 @@ use crate::bus::{self, Bus, BusWidth};
 use core::cell::Cell;
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
-    self, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetupClient,
+    self, Grid, PixelStreamFormat, ScreenClient, ScreenRotation, ScreenSetupClient,
 };
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -704,9 +704,9 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
         }
     }
 
-    fn set_pixel_format(&self, depth: ScreenPixelFormat) -> Result<(), ErrorCode> {
+    fn set_pixel_format(&self, format: PixelStreamFormat) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
-            if depth == ScreenPixelFormat::RGB_565 {
+            if format == PixelStreamFormat::RGB_565 {
                 self.setup_client
                     .map(|setup_client| setup_client.command_complete(Ok(())));
                 Ok(())
@@ -735,9 +735,9 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
     fn get_num_supported_pixel_formats(&self) -> usize {
         1
     }
-    fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat> {
+    fn get_supported_pixel_format(&self, index: usize) -> Option<PixelStreamFormat> {
         match index {
-            0 => Some(ScreenPixelFormat::RGB_565),
+            0 => Some(PixelStreamFormat::RGB_565),
             _ => None,
         }
     }
@@ -748,8 +748,16 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         (self.width.get(), self.height.get())
     }
 
-    fn get_pixel_format(&self) -> ScreenPixelFormat {
-        ScreenPixelFormat::RGB_565
+    fn get_pixel_format(&self) -> (PixelStreamFormat, Grid) {
+        (
+            PixelStreamFormat::RGB_565,
+            Grid {
+                width: 1,
+                height: 1,
+                x_offset: 0,
+                y_offset: 0,
+            },
+        )
     }
 
     fn get_rotation(&self) -> ScreenRotation {
