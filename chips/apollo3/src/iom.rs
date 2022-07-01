@@ -588,7 +588,6 @@ impl<'a> Iom<'_> {
                     + CMD::OFFSETLO.val(offsetlo),
             );
 
-            self.read_data();
             Ok(())
         }
     }
