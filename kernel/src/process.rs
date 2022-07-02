@@ -25,6 +25,7 @@ pub use crate::process_policies::{
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
 pub use crate::process_standard::ProcessStandard;
 pub use crate::process_utilities::{load_processes, load_processes_advanced, ProcessLoadError};
+pub use crate::process_load_utilities::ProcessLoader;
 
 /// Userspace process identifier.
 ///
