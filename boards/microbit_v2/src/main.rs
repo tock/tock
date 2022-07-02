@@ -6,7 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -20,6 +20,7 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
 use nrf52833::gpio::Pin;
 use nrf52833::interrupt_service::Nrf52833DefaultPeripherals;
+use kernel::platform::chip::Chip;
 
 // Kernel LED (same as microphone LED)
 const LED_KERNEL_PIN: Pin = Pin::P0_20;
@@ -79,7 +80,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
-pub struct MicroBit {
+pub struct MicroBit <C: 'static + Chip>{
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
@@ -98,6 +99,7 @@ pub struct MicroBit {
     lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<NUM_PROCS>,
+    process_loader: kernel::process_load_utilities::ProcessLoader<C>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -108,13 +110,14 @@ pub struct MicroBit {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
     >,
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
+    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
 
-impl SyscallDriverLookup for MicroBit {
+impl <C: 'static + Chip> SyscallDriverLookup for MicroBit <C>{
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -133,15 +136,17 @@ impl SyscallDriverLookup for MicroBit {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
+            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            kernel::process_load_utilities::DRIVER_NUM => f(Some(&self.process_loader)),
             _ => f(None),
         }
     }
 }
 
-impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>>
-    for MicroBit
+impl <C: 'static + Chip> KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>>
+    for MicroBit <C>
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
@@ -522,6 +527,19 @@ pub unsafe fn main() {
         512
     ));
 
+    //Nonvolatile_storage
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        capsules::nonvolatile_storage_driver::DRIVER_NUM,
+        &base_peripherals.nvmc,
+        0x00044000, // Start address for userspace accessible region
+        0x0003C000, // Length of userspace accessible region
+        0x00000000, //start address of kernel region
+        0x00040000, // length of kernel region
+    )
+    .finalize(components::nv_storage_component_helper!(
+        nrf52833::nvmc::Nvmc
+    ));
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -580,6 +598,21 @@ pub unsafe fn main() {
     ));
     let _ = _process_console.start();
 
+    let chip = static_init!(
+        nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>,
+        nrf52833::chip::NRF52::new(nrf52833_peripherals)
+    );
+    CHIP = Some(chip);
+
+    let process_loader = kernel::process::ProcessLoader::init(
+        board_kernel,
+        chip,
+        &FAULT_RESPONSE,
+        &memory_allocation_capability,
+        PROCESSES.as_mut_ptr(),
+        NUM_PROCS,
+    );
+
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
     //--------------------------------------------------------------------------
@@ -610,27 +643,17 @@ pub unsafe fn main() {
         adc: adc_syscall,
         alarm,
         app_flash,
+        nonvolatile_storage,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
+        process_loader,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
-
-    let chip = static_init!(
-        nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>,
-        nrf52833::chip::NRF52::new(nrf52833_peripherals)
-    );
-    CHIP = Some(chip);
-
-    debug!("Initialization complete. Entering main loop.");
-
-    //--------------------------------------------------------------------------
-    // PROCESSES AND MAIN LOOP
-    //--------------------------------------------------------------------------
 
     // These symbols are defined in the linker script.
     extern "C" {
@@ -643,6 +666,10 @@ pub unsafe fn main() {
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
+
+    //--------------------------------------------------------------------------
+    // PROCESSES AND MAIN LOOP
+    //--------------------------------------------------------------------------
 
     kernel::process::load_processes(
         board_kernel,
@@ -663,6 +690,8 @@ pub unsafe fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    debug!("Initialization complete. Entering main loop.");
 
     board_kernel.kernel_loop(&microbit, chip, Some(&microbit.ipc), &main_loop_capability);
 }
