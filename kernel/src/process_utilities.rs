@@ -11,6 +11,8 @@ use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
+use crate::process_load_utilities::{UNUSED_RAM_START_ADDRESS, INDEX_OF_PROCESSES};
+
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -271,6 +273,11 @@ pub fn load_processes_advanced<C: Chip>(
                 // array. Padding apps mean we might detect valid headers but
                 // not actually insert a new process in the array.
                 index += 1;
+                
+                //INDEX_OF_PROCESSES (global variable) is used to identify how may processes are loaded in OTA_app
+                unsafe {
+                    INDEX_OF_PROCESSES = index;
+                }
             });
             unused_memory
         } else {
@@ -278,6 +285,12 @@ pub fn load_processes_advanced<C: Chip>(
             // same amount of process memory to allocate from.
             remaining_memory
         };
+
+        //We store the start address of unused ram memory into UNUSED_RAM_START_ADDRESS (global variable)
+        unsafe{
+            UNUSED_RAM_START_ADDRESS = remaining_memory.as_ptr() as usize;
+            //debug!("flash start address {:#010X}", UNUSED_RAM_START_ADDRESS);
+        }
     }
 
     Ok(())
