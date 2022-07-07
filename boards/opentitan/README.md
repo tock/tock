@@ -20,19 +20,14 @@ Programming
 -----------
 
 Tock on OpenTitan requires
-lowRISC/opentitan@199d45626f8a7ae2aef5d9ff73793bf9a4233711 or newer. In
-general it is recommended that users start with the latest OpenTitan bitstream
-and if that results in issues try the one mentioned above.
+lowRISC/opentitan@199d45626f8a7ae2aef5d9ff73793bf9a4233711. In
+general it is recommended that users start with the specified commit as newer
+versions have not been tested.
 
-For more information you can follow the
-[OpenTitan development flow](https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html#testing-the-demo-design)
-to flash the image.
-
-First setup the development board using the steps here:
-https://docs.opentitan.org/doc/ug/getting_started_fpga/index.html.
-You need to make sure the boot ROM is working and that your machine can
-communicate with the OpenTitan ROM. You will need to use the `PROG` USB
-port on the board for this.
+Unfortunately the OpenTitan documentation is out of sync with the Tock setup.
+For instructions that match the OpenTitan version Tock supports you will need
+to read the
+[raw docs via git](https://github.com/lowRISC/opentitan/blob/199d45626f8a7ae2aef5d9ff73793bf9a4233711/doc/ug/getting_started_fpga.md).
 
 ChipWhisper CW310
 -----------------
@@ -91,9 +86,12 @@ pip3 install --user -r python-requirements.txt
 
 LANG="en_US.UTF-8" fusesoc --cores-root . run --flag=fileset_top --target=sim --setup --build lowrisc:dv:chip_verilator_sim
 ```
+
 ### Build Boot Rom/OTP Image
+
 Build only the targets we care about.
 ```shell
+./meson_init.sh
 ninja -C build-out sw/device/lib/testing/test_rom/test_rom_export_sim_verilator
 ninja -C build-out sw/device/otp_img/otp_img_sim_verilator.vmem
 ```
@@ -135,7 +133,7 @@ And Verilator can be run with:
 
 ```shell
 ${OPENTITAN_TREE}/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
-    --meminit=rom,${OPENTITAN_TREE}/build-out/sw/device/boot_rom/boot_rom_sim_verilator.scr.39.vmem \
+    --meminit=rom,${OPENTITAN_TREE}/build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
     --meminit=flash,./binary.64.vmem \
     --meminit=otp,${OPENTITAN_TREE}/build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
 ````
@@ -215,6 +213,7 @@ GDB can be used for debugging with QEMU. This can be useful when debugging a par
 Start by installing the respective version of gdb.
 
 **Arch**:
+
 ```shell
 $ sudo pacman -S riscv32-elf-gdb    
 ```
@@ -224,22 +223,28 @@ $ sudo apt-get install gdb-multiarch
 ```
 
 In the board directory, QEMU can be started in a suspended state with gdb ready to be connected. 
+
 ```shell
 $ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> qemu-gdb
 ```
+
 or with an app ready to be loaded.
+
 ```shell
 $ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app-gdb
 ```
+
 In a seperate shell, start gdb
 
 **Arch**
+
 ```shell
 $ riscv32-elf-gdb [/path/to/tock.elf]
 > target remote:1234            #1234 is the specified default port
 ```
 
 **Ubuntu**
+
 ```shell
 $ gdb-multiarch [/path/to/tock.elf]
 > set arch riscv
