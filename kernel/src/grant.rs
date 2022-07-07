@@ -483,7 +483,17 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 // Ensure that we leave the grant once this goes out of scope.
 impl Drop for EnteredGrantKernelManagedLayout<'_> {
     fn drop(&mut self) {
-        self.process.leave_grant(self.grant_num);
+        // ### Safety
+        //
+        // To safely call this function we must ensure that no references will
+        // exist to the grant once `leave_grant()` returns. Because using a
+        // `EnteredGrantKernelManagedLayout` object is the only only way we
+        // access the actual memory of a grant, and we are calling
+        // `leave_grant()` from its `drop()` method, we are sure there will be
+        // no remaining references to the grant.
+        unsafe {
+            self.process.leave_grant(self.grant_num);
+        }
     }
 }
 
