@@ -47,6 +47,8 @@ pub struct CortexMStoredState {
     yield_pc: usize,
     psr: usize,
     psp: usize,
+    packed_syscall_count: usize,
+    packed_syscall_pointer: Option<*const usize>,
 }
 
 /// Values for encoding the stored state buffer in a binary slice.
@@ -98,6 +100,9 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
                 yield_pc: usize_from_u8_slice(ss, YIELDPC_IDX)?,
                 psr: usize_from_u8_slice(ss, PSR_IDX)?,
                 psp: usize_from_u8_slice(ss, PSP_IDX)?,
+                // TODO add them to pack
+                packed_syscall_count: 0,
+                packed_syscall_pointer: None,
             };
             for (i, v) in (REGS_RANGE).enumerate() {
                 res.regs[i] = usize_from_u8_slice(ss, v)?;
@@ -246,72 +251,150 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
-        let new_stack_pointer = switch_to_user(state.psp as *const usize, &mut state.regs);
+        if state.packed_syscall_count > 0 {
+            let switch_reson = if let Some(packed_syscall_pointer) = state.packed_syscall_pointer {
+                if packed_syscall_pointer >= accessible_memory_start as usize
+                    && packed_syscall_pointer.saturating_add(state.packed_syscall_count * 20)
+                        <= app_brk as usize
+                /* 5 * 32 bit registers */
+                {
+                    let packed_syscall_pointer = r1 as *const usize;
+                    state.packed_syscall_count = r0;
+                    state.packed_syscall_pointer = Some(packed_syscall_pointer);
 
-        // We need to keep track of the current stack pointer.
-        state.psp = new_stack_pointer as usize;
+                    let svc_num = read_volatile(packed_syscall_pointer.offset(0)) as u8;
+                    let r0 = read_volatile(packed_syscall_pointer.offset(1));
+                    let r1 = read_volatile(packed_syscall_pointer.offset(2));
+                    let r2 = read_volatile(packed_syscall_pointer.offset(3));
+                    let r3 = read_volatile(packed_syscall_pointer.offset(4));
 
-        // We need to validate that the stack pointer and the SVC frame are
-        // within process accessible memory. Alignment is guaranteed by
-        // hardware.
-        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
-
-        // Determine why this returned and the process switched back to the
-        // kernel.
-
-        // Check to see if the fault handler was called while the process was
-        // running.
-        let app_fault = read_volatile(&APP_HARD_FAULT);
-        write_volatile(&mut APP_HARD_FAULT, 0);
-
-        // Check to see if the svc_handler was called and the process called a
-        // syscall.
-        let syscall_fired = read_volatile(&SYSCALL_FIRED);
-        write_volatile(&mut SYSCALL_FIRED, 0);
-
-        // Now decide the reason based on which flags were set.
-        let switch_reason = if app_fault == 1 || invalid_stack_pointer {
-            // APP_HARD_FAULT takes priority. This means we hit the hardfault
-            // handler and this process faulted.
-            kernel::syscall::ContextSwitchReason::Fault
-        } else if syscall_fired == 1 {
-            // Save these fields after a syscall. If this is a synchronous
-            // syscall (i.e. we return a value to the app immediately) then this
-            // will have no effect. If we are doing something like `yield()`,
-            // however, then we need to have this state.
-            state.yield_pc = read_volatile(new_stack_pointer.offset(6));
-            state.psr = read_volatile(new_stack_pointer.offset(7));
-
-            // Get the syscall arguments and return them along with the syscall.
-            // It's possible the app did something invalid, in which case we put
-            // the app in the fault state.
-            let r0 = read_volatile(new_stack_pointer.offset(0));
-            let r1 = read_volatile(new_stack_pointer.offset(1));
-            let r2 = read_volatile(new_stack_pointer.offset(2));
-            let r3 = read_volatile(new_stack_pointer.offset(3));
-
-            // Get the actual SVC number.
-            let pcptr = read_volatile((new_stack_pointer as *const *const u16).offset(6));
-            let svc_instr = read_volatile(pcptr.offset(-1));
-            let svc_num = (svc_instr & 0xff) as u8;
-
-            // Use the helper function to convert these raw values into a Tock
-            // `Syscall` type.
-            let syscall =
-                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
-
-            match syscall {
-                Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },
-                None => kernel::syscall::ContextSwitchReason::Fault,
-            }
+                    let syscall =
+                        kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
+                    match syscall {
+                        Some(s) => {
+                            kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
+                        }
+                        None => {
+                            state.packed_syscall_count = 0;
+                            state.packed_syscall_pointer = None;
+                            kernel::syscall::ContextSwitchReason::Fault
+                        }
+                    }
+                } else {
+                    kernel::syscall::ContextSwitchReason::Fault
+                }
+            } else {
+                kernel::syscall::ContextSwitchReason::Fault
+            };
+            (switch_reason, Some(state.psp))
         } else {
-            // If none of the above cases are true its because the process was interrupted by an
-            // ISR for a hardware event
-            kernel::syscall::ContextSwitchReason::Interrupted
-        };
+            let new_stack_pointer = switch_to_user(state.psp as *const usize, &mut state.regs);
 
-        (switch_reason, Some(new_stack_pointer as *const u8))
+            // We need to keep track of the current stack pointer.
+            state.psp = new_stack_pointer as usize;
+
+            // We need to validate that the stack pointer and the SVC frame are
+            // within process accessible memory. Alignment is guaranteed by
+            // hardware.
+            let invalid_stack_pointer = state.psp < accessible_memory_start as usize
+                || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
+
+            // Determine why this returned and the process switched back to the
+            // kernel.
+
+            // Check to see if the fault handler was called while the process was
+            // running.
+            let app_fault = read_volatile(&APP_HARD_FAULT);
+            write_volatile(&mut APP_HARD_FAULT, 0);
+
+            // Check to see if the svc_handler was called and the process called a
+            // syscall.
+            let syscall_fired = read_volatile(&SYSCALL_FIRED);
+            write_volatile(&mut SYSCALL_FIRED, 0);
+
+            // Now decide the reason based on which flags were set.
+            let switch_reason = if app_fault == 1 || invalid_stack_pointer {
+                // APP_HARD_FAULT takes priority. This means we hit the hardfault
+                // handler and this process faulted.
+                kernel::syscall::ContextSwitchReason::Fault
+            } else if syscall_fired == 1 {
+                // Save these fields after a syscall. If this is a synchronous
+                // syscall (i.e. we return a value to the app immediately) then this
+                // will have no effect. If we are doing something like `yield()`,
+                // however, then we need to have this state.
+                state.yield_pc = read_volatile(new_stack_pointer.offset(6));
+                state.psr = read_volatile(new_stack_pointer.offset(7));
+
+                // Get the syscall arguments and return them along with the syscall.
+                // It's possible the app did something invalid, in which case we put
+                // the app in the fault state.
+                let r0 = read_volatile(new_stack_pointer.offset(0));
+                let r1 = read_volatile(new_stack_pointer.offset(1));
+                let r2 = read_volatile(new_stack_pointer.offset(2));
+                let r3 = read_volatile(new_stack_pointer.offset(3));
+
+                // Get the actual SVC number.
+                let pcptr = read_volatile((new_stack_pointer as *const *const u16).offset(6));
+                let svc_instr = read_volatile(pcptr.offset(-1));
+                let svc_num = (svc_instr & 0xff) as u8;
+
+                if svc_num == 0xfe {
+                    // r0 num syscalls
+                    // r1 pointer to syscalls structure
+                    if r0 > 0
+                        && r1 >= accessible_memory_start as usize
+                        && r1.saturating_add(r0 * 20) <= app_brk as usize
+                    /* 5 * 32 bit registers */
+                    {
+                        let packed_syscall_pointer = r1 as *const usize;
+                        state.packed_syscall_count = r0;
+                        state.packed_syscall_pointer = Some(packed_syscall_pointer);
+
+                        let svc_num = read_volatile(packed_syscall_pointer.offset(0)) as u8;
+                        let r0 = read_volatile(packed_syscall_pointer.offset(1));
+                        let r1 = read_volatile(packed_syscall_pointer.offset(2));
+                        let r2 = read_volatile(packed_syscall_pointer.offset(3));
+                        let r3 = read_volatile(packed_syscall_pointer.offset(4));
+
+                        let syscall = kernel::syscall::Syscall::from_register_arguments(
+                            svc_num, r0, r1, r2, r3,
+                        );
+                        match syscall {
+                            Some(s) => {
+                                state.packed_syscall_count = state.packed_syscall_count - 1;
+                                state.packed_syscall_pointer =
+                                    Some(packed_syscall_pointer.offset(20));
+                                kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
+                            }
+                            None => {
+                                state.packed_syscall_count = 0;
+                                state.packed_syscall_pointer = None;
+                                kernel::syscall::ContextSwitchReason::Fault
+                            }
+                        }
+                    } else {
+                        kernel::syscall::ContextSwitchReason::Fault
+                    }
+                } else {
+                    // Use the helper function to convert these raw values into a Tock
+                    // `Syscall` type.
+                    let syscall =
+                        kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
+
+                    match syscall {
+                        Some(s) => {
+                            kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
+                        }
+                        None => kernel::syscall::ContextSwitchReason::Fault,
+                    }
+                }
+            } else {
+                // If none of the above cases are true its because the process was interrupted by an
+                // ISR for a hardware event
+                kernel::syscall::ContextSwitchReason::Interrupted
+            };
+            (switch_reason, Some(new_stack_pointer as *const u8))
+        }
     }
 
     unsafe fn print_context(
