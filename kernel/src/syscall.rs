@@ -322,7 +322,7 @@ impl SyscallReturn {
     }
 
     /// Returns true if the `SyscallReturn` is any success type.
-    pub(crate) fn is_success(&self) -> bool {
+    pub fn is_success(&self) -> bool {
         match self {
             SyscallReturn::Success => true,
             SyscallReturn::SuccessU32(_) => true,
