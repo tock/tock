@@ -376,7 +376,7 @@ where
     }
 
     fn arm_alarm(&self) {
-        // Datasheet says 120Hz or more often flipping is required
+        // Datasheet says 2Hz or more often flipping is required
         // for transmissive mode.
         let delay = self.alarm.ticks_from_ms(500);
         self.alarm.set_alarm(self.alarm.now(), delay);
@@ -406,8 +406,7 @@ where
         width: usize,
         height: usize,
     ) -> Result<(), ErrorCode> {
-        let rows = 176;
-        let columns = 176;
+        let (columns, rows) = self.get_resolution();
         if y >= rows || y + height > rows || x >= columns || x + width > columns {
             return Err(ErrorCode::INVAL);
         }
