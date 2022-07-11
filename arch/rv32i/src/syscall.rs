@@ -391,13 +391,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
-        _state: &mut Riscv32iStoredState,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
-        // Convince lint that 'mcause' and 'R_A4' are used during test build
-        let _cause = mcause::Trap::from(_state.mcause as usize);
-        let _arg4 = _state.regs[R_A4];
+        // Convince lint that 'mcause', 'R_A4' and 'next_packed_syscall' are used during test build
+        let _cause = mcause::Trap::from(state.mcause as usize);
+        let _arg4 = state.regs[R_A4];
+        self.next_packed_syscall(accessible_memory_start, app_brk, state);
         unimplemented!()
     }
 
