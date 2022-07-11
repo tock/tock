@@ -96,7 +96,7 @@ impl From<usize> for PackedSyscallErrorPolicy {
 ///      last system call in the pack.
 struct PackedSyscall {
     /// The number of syscalls that still have to be executed.
-    count: usize,
+    count_remaining: usize,
 
     /// The memory location of the next syscall's parameters.
     ///
@@ -212,14 +212,14 @@ impl SysCall {
         if let Some(ref mut packed_syscall) = state.packed_syscall {
             kernel::debug!(
                 "packed syscalls: {} @{:?}",
-                packed_syscall.count,
+                packed_syscall.count_remaining,
                 packed_syscall.pointer
             );
-            if packed_syscall.count > 0 {
+            if packed_syscall.count_remaining > 0 {
                 let switch_reason = if packed_syscall.pointer as usize
                     >= accessible_memory_start as usize
                     && (packed_syscall.pointer as usize)
-                        .saturating_add(packed_syscall.count * mem::size_of::<u32>() * 5)
+                        .saturating_add(packed_syscall.count_remaining * mem::size_of::<u32>() * 5)
                         <= app_brk as usize
                 {
                     let svc_num = read_volatile(packed_syscall.pointer.offset(0)) as u8;
@@ -234,7 +234,7 @@ impl SysCall {
                     match syscall {
                         Some(s) => {
                             if let kernel::syscall::Syscall::Yield { .. } = s {
-                                if packed_syscall.count == 1 {
+                                if packed_syscall.count_remaining == 1 {
                                     kernel::syscall::ContextSwitchReason::SyscallFired {
                                         syscall: s,
                                     }
@@ -314,14 +314,14 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // has to be placed in the packed system call frame
             if (packed_syscall.pointer as usize) < accessible_memory_start as usize
                 || (packed_syscall.pointer as usize)
-                    .saturating_add(packed_syscall.count * mem::size_of::<u32>() * 5)
+                    .saturating_add(packed_syscall.count_remaining * mem::size_of::<u32>() * 5)
                     > app_brk as usize
             {
                 return Err(());
             }
             let pointer = packed_syscall.pointer.offset(1) as usize;
-            packed_syscall.count = packed_syscall.count - 1;
-            if packed_syscall.count > 0 {
+            packed_syscall.count_remaining = packed_syscall.count_remaining.saturating_sub(1);
+            if packed_syscall.count_remaining > 0 {
                 packed_syscall.pointer = packed_syscall.pointer.offset(5);
             }
             pointer
@@ -357,18 +357,21 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
         return_value.encode_syscall_return(&mut *r0, &mut *r1, &mut *r2, &mut *r3);
 
+        kernel::debug!("stack pointer {:x} value {}", stack_pointer, (*r0) as usize);
+
         if let Some(ref packed_syscall) = state.packed_syscall {
             let sp = state.psp as *mut u32;
             if !return_value.is_success() {
                 match packed_syscall.error_policy {
                     PackedSyscallErrorPolicy::STOP => {
                         sp.write_volatile(SyscallReturnVariant::FailureU32 as u32);
-                        sp.offset(1).write_volatile(packed_syscall.count as u32);
+                        sp.offset(1)
+                            .write_volatile(packed_syscall.count_remaining as u32);
                         state.packed_syscall = None;
                     }
                     _ => {}
                 }
-            } else if packed_syscall.count == 0 {
+            } else if packed_syscall.count_remaining == 0 {
                 state.packed_syscall = None;
                 sp.write_volatile(SyscallReturnVariant::Success as u32);
             }
@@ -483,7 +486,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
                 if svc_num == 0xfe && r0 > 0 {
                     state.packed_syscall = Some(PackedSyscall {
-                        count: r0,
+                        count_remaining: r0,
                         pointer: r1 as *const usize,
                         error_policy: r2.into(),
                     });

@@ -4,11 +4,91 @@ use core::convert::TryInto;
 use core::fmt::Write;
 use core::mem::size_of;
 use core::ops::Range;
+use core::ptr::read_volatile;
 
 use crate::csr::mcause;
 use kernel;
 use kernel::errorcode::ErrorCode;
-use kernel::syscall::ContextSwitchReason;
+use kernel::syscall::{ContextSwitchReason, SyscallReturnVariant};
+
+enum PackedSyscallErrorPolicy {
+    /// Stop executing the syscalls pack and return the
+    /// error to the application.
+    /// This is the default behaviour.
+    STOP,
+
+    /// Continue executing the rest of the syscalls until
+    /// all the syscalls on the pacl are fully executed.
+    CONTINUE,
+}
+
+impl From<usize> for PackedSyscallErrorPolicy {
+    fn from(original: usize) -> Self {
+        match original {
+            1 => PackedSyscallErrorPolicy::CONTINUE,
+            _ => PackedSyscallErrorPolicy::STOP,
+        }
+    }
+}
+
+/// This holds all the state information needed to execute
+/// packed syscalls.
+///
+/// To avoid frequent switching from user space to kernel space,
+/// Tock provides the concept of `packed system calls`. Most
+/// applications will follow a similar pattern when using system
+/// calls:
+///    1. allow one or more buffer
+///    2. subscribe to some events
+///    3. issue a command
+///    4. yield
+///        ---- Optionally
+///    5. unsubscribe from events
+///    6. unallow buffers
+///
+/// By using packed system calls, an application is able to
+/// execute one single transition from user space to kernel
+/// space, by packing items 1, 2, 3 and 4 together and
+/// 5 and 6 together.
+///
+/// While the kernel still executes all system calls, it only
+/// performs one single transition from user space to kernel space.
+///
+/// Arguments for the actual system calls are sent using a memory
+/// buffer. The application can allocate this buffer anywhere
+/// in its writable memory. While this seems to be a
+/// memory sharing between an application and the kernel,
+/// it should be safe due to the following reasons:
+///   1. The application gets back control only when
+///       the packed system calls have been executed
+///   2. The yield system call can only be used if it is the
+///      last system call in the pack.
+struct PackedSyscall {
+    /// The number of syscalls that still have to be executed.
+    count_remaining: usize,
+
+    /// The memory location of the next syscall's parameters.
+    ///
+    /// Each syscall in the pack has an allocated memory frame
+    /// for its arguments.
+    ///                    Argument         Offset (from the pointer)
+    /// -----------------+----------------+ 0x00000000
+    /// System call 1    | Syscall Number |
+    ///                  +----------------+ 0x00000004
+    ///                  | r0             |
+    ///                  +----------------+ 0x00000008
+    ///                  | r1             |
+    ///                  +----------------+ 0x0000000c
+    ///                  | r2             |
+    ///                  +----------------+ 0x00000010
+    ///                  | r3             |
+    /// -----------------+----------------+ 0x00000014
+    /// System call 2    | ....           | ...
+    pointer: *const usize,
+
+    /// The error policy
+    error_policy: PackedSyscallErrorPolicy,
+}
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -31,6 +111,8 @@ pub struct Riscv32iStoredState {
     /// indicates a fault. In that case, the mtval contains useful debugging
     /// information.
     mtval: u32,
+
+    packed_syscall: Option<PackedSyscall>,
 }
 
 // Named offsets into the stored state registers.  These needs to be kept in
@@ -93,6 +175,7 @@ impl core::convert::TryFrom<&[u8]> for Riscv32iStoredState {
                 pc: u32_from_u8_slice(ss, PC_IDX)?,
                 mcause: u32_from_u8_slice(ss, MCAUSE_IDX)?,
                 mtval: u32_from_u8_slice(ss, MTVAL_IDX)?,
+                packed_syscall: None,
             };
             for (i, v) in (REGS_RANGE).enumerate() {
                 res.regs[i] = u32_from_u8_slice(ss, v)?;
@@ -110,6 +193,63 @@ pub struct SysCall(());
 impl SysCall {
     pub const unsafe fn new() -> SysCall {
         SysCall(())
+    }
+
+    unsafe fn next_packed_syscall(
+        &self,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
+        state: &mut Riscv32iStoredState,
+    ) -> Option<kernel::syscall::ContextSwitchReason> {
+        if let Some(ref mut packed_syscall) = state.packed_syscall {
+            kernel::debug!(
+                "packed syscalls: {} @{:?}",
+                packed_syscall.count_remaining,
+                packed_syscall.pointer
+            );
+            if packed_syscall.count_remaining > 0 {
+                let switch_reason = if packed_syscall.pointer as usize
+                    >= accessible_memory_start as usize
+                    && (packed_syscall.pointer as usize)
+                        .saturating_add(packed_syscall.count_remaining * size_of::<u32>() * 5)
+                        <= app_brk as usize
+                {
+                    let svc_num = read_volatile(packed_syscall.pointer.offset(0)) as u8;
+                    let a0 = read_volatile(packed_syscall.pointer.offset(1));
+                    let a1 = read_volatile(packed_syscall.pointer.offset(2));
+                    let a2 = read_volatile(packed_syscall.pointer.offset(3));
+                    let a3 = read_volatile(packed_syscall.pointer.offset(4));
+
+                    let syscall =
+                        kernel::syscall::Syscall::from_register_arguments(svc_num, a0, a1, a2, a3);
+
+                    match syscall {
+                        Some(s) => {
+                            if let kernel::syscall::Syscall::Yield { .. } = s {
+                                if packed_syscall.count_remaining == 1 {
+                                    kernel::syscall::ContextSwitchReason::SyscallFired {
+                                        syscall: s,
+                                    }
+                                } else {
+                                    kernel::syscall::ContextSwitchReason::Fault
+                                }
+                            } else {
+                                kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
+                            }
+                        }
+                        None => kernel::syscall::ContextSwitchReason::Fault,
+                    }
+                } else {
+                    kernel::syscall::ContextSwitchReason::Fault
+                };
+                Some(switch_reason)
+            } else {
+                state.packed_syscall = None;
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -147,35 +287,73 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_syscall_return_value(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
-        // Encode the system call return value into registers,
-        // available for when the process resumes
+        if let Some(ref mut packed_syscall) = state.packed_syscall {
+            // If there is a packed system call in progress, the syscall return
+            // has to be placed in the packed system call frame
+            if (packed_syscall.pointer as usize) < accessible_memory_start as usize
+                || (packed_syscall.pointer as usize)
+                    .saturating_add(packed_syscall.count_remaining * size_of::<u32>() * 5)
+                    > app_brk as usize
+            {
+                return Err(());
+            }
+            let pointer = packed_syscall.pointer.offset(1) as usize;
+            packed_syscall.count_remaining = packed_syscall.count_remaining.saturating_sub(1);
+            if packed_syscall.count_remaining > 0 {
+                packed_syscall.pointer = packed_syscall.pointer.offset(5);
+            }
 
-        // We need to use a bunch of split_at_mut's to have multiple
-        // mutable borrows into the same slice at the same time.
-        //
-        // Since the compiler knows the size of this slice, and these
-        // calls will be optimized out, we use one to get to the first
-        // register (A0)
-        let (_, r) = state.regs.split_at_mut(R_A0);
+            let sp = pointer as *mut u32;
+            let (a0, a1, a2, a3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
+            return_value.encode_syscall_return(&mut *a0, &mut *a1, &mut *a2, &mut *a3);
+        } else {
+            // Encode the system call return value into registers,
+            // available for when the process resumes
 
-        // This comes with the assumption that the respective
-        // registers are stored at monotonically increasing indices
-        // in the register slice
-        let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
-        let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
-        let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
+            // We need to use a bunch of split_at_mut's to have multiple
+            // mutable borrows into the same slice at the same time.
+            //
+            // Since the compiler knows the size of this slice, and these
+            // calls will be optimized out, we use one to get to the first
+            // register (A0)
+            let (_, r) = state.regs.split_at_mut(R_A0);
 
-        return_value.encode_syscall_return(
-            &mut a0slice[0],
-            &mut a1slice[0],
-            &mut a2slice[0],
-            &mut a3slice[0],
-        );
+            // This comes with the assumption that the respective
+            // registers are stored at monotonically increasing indices
+            // in the register slice
+            let (a0slice, r) = r.split_at_mut(R_A1 - R_A0);
+            let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
+            let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
+
+            return_value.encode_syscall_return(
+                &mut a0slice[0],
+                &mut a1slice[0],
+                &mut a2slice[0],
+                &mut a3slice[0],
+            );
+        }
+
+        if let Some(ref packed_syscall) = state.packed_syscall {
+            if !return_value.is_success() {
+                match packed_syscall.error_policy {
+                    PackedSyscallErrorPolicy::STOP => {
+                        state.regs[R_A0] = SyscallReturnVariant::FailureU32 as u32;
+                        state.regs[R_A1] = packed_syscall.count_remaining as u32;
+
+                        state.packed_syscall = None;
+                    }
+                    _ => {}
+                }
+            } else if packed_syscall.count_remaining == 0 {
+                state.packed_syscall = None;
+                state.regs[R_A0] = SyscallReturnVariant::Success as u32;
+            }
+        }
 
         // We do not use process memory, so this cannot fail.
         Ok(())
@@ -226,22 +404,27 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     unsafe fn switch_to_process(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        accessible_memory_start: *const u8,
+        app_brk: *const u8,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
-        use core::arch::asm;
-        // We need to ensure that the compiler does not reorder
-        // kernel memory writes to after the userspace context switch
-        // to ensure we provide a consistent memory view of
-        // application-accessible buffers.
-        //
-        // The compiler will not be able to reorder memory accesses
-        // beyond this point, as the "nomem" option on the asm!-block
-        // is not set, hence the compiler has to assume the assembly
-        // will issue arbitrary memory accesses (acting as a compiler
-        // fence).
-        asm!("
+        if let Some(switch_reason) =
+            self.next_packed_syscall(accessible_memory_start, app_brk, state)
+        {
+            (switch_reason, Some(state.regs[R_SP] as *const u8))
+        } else {
+            use core::arch::asm;
+            // We need to ensure that the compiler does not reorder
+            // kernel memory writes to after the userspace context switch
+            // to ensure we provide a consistent memory view of
+            // application-accessible buffers.
+            //
+            // The compiler will not be able to reorder memory accesses
+            // beyond this point, as the "nomem" option on the asm!-block
+            // is not set, hence the compiler has to assume the assembly
+            // will issue arbitrary memory accesses (acting as a compiler
+            // fence).
+            asm!("
           // Before switching to the app we need to save the kernel registers to
           // the kernel stack. We then save the stack pointer in the mscratch
           // CSR (0x340) so we can retrieve it after returning to the kernel
@@ -456,49 +639,60 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           addi sp, sp, 34*4   // Reset kernel stack pointer
           ",
 
-          // The register to put the state struct pointer in is not
-          // particularly relevant, however we must avoid using t0
-          // as that is overwritten prior to being accessed
-          // (although stored and later restored) in the assembly
-          in("a0") state as *mut Riscv32iStoredState,
-        );
+              // The register to put the state struct pointer in is not
+              // particularly relevant, however we must avoid using t0
+              // as that is overwritten prior to being accessed
+              // (although stored and later restored) in the assembly
+              in("a0") state as *mut Riscv32iStoredState,
+            );
 
-        let ret = match mcause::Trap::from(state.mcause as usize) {
-            mcause::Trap::Interrupt(_intr) => {
-                // An interrupt occurred while the app was running.
-                ContextSwitchReason::Interrupted
-            }
-            mcause::Trap::Exception(excp) => {
-                match excp {
-                    // The SiFive HiFive1 board allegedly does not support
-                    // u-mode, so the m-mode ecall is handled here too.
-                    mcause::Exception::UserEnvCall | mcause::Exception::MachineEnvCall => {
-                        // Need to increment the PC so when we return we start at the correct
-                        // instruction. The hardware does not do this for us.
-                        state.pc += 4;
+            let ret = match mcause::Trap::from(state.mcause as usize) {
+                mcause::Trap::Interrupt(_intr) => {
+                    // An interrupt occurred while the app was running.
+                    ContextSwitchReason::Interrupted
+                }
+                mcause::Trap::Exception(excp) => {
+                    match excp {
+                        // The SiFive HiFive1 board allegedly does not support
+                        // u-mode, so the m-mode ecall is handled here too.
+                        mcause::Exception::UserEnvCall | mcause::Exception::MachineEnvCall => {
+                            // Need to increment the PC so when we return we start at the correct
+                            // instruction. The hardware does not do this for us.
+                            state.pc += 4;
 
-                        let syscall = kernel::syscall::Syscall::from_register_arguments(
-                            state.regs[R_A4] as u8,
-                            state.regs[R_A0] as usize,
-                            state.regs[R_A1] as usize,
-                            state.regs[R_A2] as usize,
-                            state.regs[R_A3] as usize,
-                        );
+                            if state.regs[R_A4] as u8 == 0xfe && state.regs[R_A0] as usize > 0 {
+                                state.packed_syscall = Some(PackedSyscall {
+                                    count_remaining: state.regs[R_A0] as usize,
+                                    pointer: state.regs[R_A1] as usize as *const usize,
+                                    error_policy: (state.regs[R_A2] as usize).into(),
+                                });
+                                self.next_packed_syscall(accessible_memory_start, app_brk, state)
+                                    .unwrap_or(kernel::syscall::ContextSwitchReason::Fault)
+                            } else {
+                                let syscall = kernel::syscall::Syscall::from_register_arguments(
+                                    state.regs[R_A4] as u8,
+                                    state.regs[R_A0] as usize,
+                                    state.regs[R_A1] as usize,
+                                    state.regs[R_A2] as usize,
+                                    state.regs[R_A3] as usize,
+                                );
 
-                        match syscall {
-                            Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
-                            None => ContextSwitchReason::Fault,
+                                match syscall {
+                                    Some(s) => ContextSwitchReason::SyscallFired { syscall: s },
+                                    None => ContextSwitchReason::Fault,
+                                }
+                            }
+                        }
+                        _ => {
+                            // All other exceptions result in faulted state
+                            ContextSwitchReason::Fault
                         }
                     }
-                    _ => {
-                        // All other exceptions result in faulted state
-                        ContextSwitchReason::Fault
-                    }
                 }
-            }
-        };
-        let new_stack_pointer = state.regs[R_SP];
-        (ret, Some(new_stack_pointer as *const u8))
+            };
+            let new_stack_pointer = state.regs[R_SP];
+            (ret, Some(new_stack_pointer as *const u8))
+        }
     }
 
     unsafe fn print_context(
