@@ -24,10 +24,7 @@ pub mod tim2;
 pub mod usart;
 pub mod wdt;
 
-use cortexm4::{
-    generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler, systick_handler,
-    unhandled_interrupt,
-};
+use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -44,20 +41,20 @@ extern "C" {
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     initialize_ram_jump_to_main,
-    unhandled_interrupt, // NMI
-    hard_fault_handler,  // Hard Fault
-    unhandled_interrupt, // MemManage
-    unhandled_interrupt, // BusFault
-    unhandled_interrupt, // UsageFault
+    unhandled_interrupt,          // NMI
+    CortexM4::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt,          // MemManage
+    unhandled_interrupt,          // BusFault
+    unhandled_interrupt,          // UsageFault
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
-    svc_handler,         // SVC
-    unhandled_interrupt, // DebugMon
+    CortexM4::SVC_HANDLER, // SVC
+    unhandled_interrupt,   // DebugMon
     unhandled_interrupt,
-    unhandled_interrupt, // PendSV
-    systick_handler,     // SysTick
+    unhandled_interrupt,       // PendSV
+    CortexM4::SYSTICK_HANDLER, // SysTick
 ];
 
 // STM32F303VCT6 has total of 82 interrupts
@@ -67,88 +64,88 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 82] = [
-    generic_isr,         // WWDG (0)
-    generic_isr,         // PVD (1)
-    generic_isr,         // TAMP_STAMP (2)
-    generic_isr,         // RTC_WKUP (3)
-    generic_isr,         // FLASH (4)
-    generic_isr,         // RCC (5)
-    generic_isr,         // EXTI0 (6)
-    generic_isr,         // EXTI1 (7)
-    generic_isr,         // EXTI2 (8)
-    generic_isr,         // EXTI3 (9)
-    generic_isr,         // EXTI4 (10)
-    generic_isr,         // DMA1_Stream0 (11)
-    generic_isr,         // DMA1_Stream1 (12)
-    generic_isr,         // DMA1_Stream2 (13)
-    generic_isr,         // DMA1_Stream3 (14)
-    generic_isr,         // DMA1_Stream4 (15)
-    generic_isr,         // DMA1_Stream5 (16)
-    generic_isr,         // DMA1_Stream6 (17)
-    generic_isr,         // ADC1_2 (18)
-    generic_isr,         // HP_USB or CAN1_TX (19)
-    generic_isr,         // LP_USB or CAN1_RX0 (20)
-    generic_isr,         // CAN1_RX1 (21)
-    generic_isr,         // CAN1_SCE (22)
-    generic_isr,         // EXTI9_5 (23)
-    generic_isr,         // TIM1_BRK_TIM9 (24)
-    generic_isr,         // TIM1_UP_TIM10 (25)
-    generic_isr,         // TIM1_TRG_COM_TIM11 (26)
-    generic_isr,         // TIM1_CC (27)
-    generic_isr,         // TIM2 (28)
-    generic_isr,         // TIM3 (29)
-    generic_isr,         // TIM4 (30)
-    generic_isr,         // I2C1_EV (31)
-    generic_isr,         // I2C1_ER (32)
-    generic_isr,         // I2C2_EV (33)
-    generic_isr,         // I2C2_ER (34)
-    generic_isr,         // SPI1 (35)
-    generic_isr,         // SPI2 (36)
-    generic_isr,         // USART1 (37)
-    generic_isr,         // USART2 (38)
-    generic_isr,         // USART3 (39)
-    generic_isr,         // EXTI15_10 (40)
-    generic_isr,         // RTC_Alarm (41)
-    generic_isr,         // USB_WKUP (42)
-    generic_isr,         // TIM8_BRK_TIM12 (43)
-    generic_isr,         // TIM8_UP_TIM13 (44)
-    generic_isr,         // TIM8_TRG_COM_TIM14 (45)
-    generic_isr,         // TIM8_CC (46)
-    generic_isr,         // ADC3 (47)
-    unhandled_interrupt, // (48)
-    unhandled_interrupt, // (49)
-    unhandled_interrupt, // (50)
-    generic_isr,         // SPI3 (51)
-    generic_isr,         // UART4 (52)
-    generic_isr,         // UART5 (53)
-    generic_isr,         // TIM6_DAC (54)
-    generic_isr,         // TIM7 (55)
-    generic_isr,         // DMA2_Stream0 (56)
-    generic_isr,         // DMA2_Stream1 (57)
-    generic_isr,         // DMA2_Stream2 (58)
-    generic_isr,         // DMA2_Stream3 (59)
-    generic_isr,         // DMA2_Stream4 (60)
-    generic_isr,         // ADC4 (61)
-    unhandled_interrupt, // (62)
-    unhandled_interrupt, // (63)
-    generic_isr,         // COMP1_2_3 (64)
-    generic_isr,         // COMP4_5_6 (65)
-    generic_isr,         // COMP7 (66)
-    unhandled_interrupt, //(67)
-    unhandled_interrupt, //(68)
-    unhandled_interrupt, //(69)
-    unhandled_interrupt, //(70)
-    unhandled_interrupt, //(71)
-    unhandled_interrupt, //(72)
-    unhandled_interrupt, //(73)
-    generic_isr,         // USB_HP (74)
-    generic_isr,         // USB_LP (75)
-    generic_isr,         // USB_RMP_WKUP (76)
-    unhandled_interrupt, // (77)
-    unhandled_interrupt, // (78)
-    unhandled_interrupt, // (79)
-    unhandled_interrupt, // (80)
-    generic_isr,         // FPU (81)
+    CortexM4::GENERIC_ISR, // WWDG (0)
+    CortexM4::GENERIC_ISR, // PVD (1)
+    CortexM4::GENERIC_ISR, // TAMP_STAMP (2)
+    CortexM4::GENERIC_ISR, // RTC_WKUP (3)
+    CortexM4::GENERIC_ISR, // FLASH (4)
+    CortexM4::GENERIC_ISR, // RCC (5)
+    CortexM4::GENERIC_ISR, // EXTI0 (6)
+    CortexM4::GENERIC_ISR, // EXTI1 (7)
+    CortexM4::GENERIC_ISR, // EXTI2 (8)
+    CortexM4::GENERIC_ISR, // EXTI3 (9)
+    CortexM4::GENERIC_ISR, // EXTI4 (10)
+    CortexM4::GENERIC_ISR, // DMA1_Stream0 (11)
+    CortexM4::GENERIC_ISR, // DMA1_Stream1 (12)
+    CortexM4::GENERIC_ISR, // DMA1_Stream2 (13)
+    CortexM4::GENERIC_ISR, // DMA1_Stream3 (14)
+    CortexM4::GENERIC_ISR, // DMA1_Stream4 (15)
+    CortexM4::GENERIC_ISR, // DMA1_Stream5 (16)
+    CortexM4::GENERIC_ISR, // DMA1_Stream6 (17)
+    CortexM4::GENERIC_ISR, // ADC1_2 (18)
+    CortexM4::GENERIC_ISR, // HP_USB or CAN1_TX (19)
+    CortexM4::GENERIC_ISR, // LP_USB or CAN1_RX0 (20)
+    CortexM4::GENERIC_ISR, // CAN1_RX1 (21)
+    CortexM4::GENERIC_ISR, // CAN1_SCE (22)
+    CortexM4::GENERIC_ISR, // EXTI9_5 (23)
+    CortexM4::GENERIC_ISR, // TIM1_BRK_TIM9 (24)
+    CortexM4::GENERIC_ISR, // TIM1_UP_TIM10 (25)
+    CortexM4::GENERIC_ISR, // TIM1_TRG_COM_TIM11 (26)
+    CortexM4::GENERIC_ISR, // TIM1_CC (27)
+    CortexM4::GENERIC_ISR, // TIM2 (28)
+    CortexM4::GENERIC_ISR, // TIM3 (29)
+    CortexM4::GENERIC_ISR, // TIM4 (30)
+    CortexM4::GENERIC_ISR, // I2C1_EV (31)
+    CortexM4::GENERIC_ISR, // I2C1_ER (32)
+    CortexM4::GENERIC_ISR, // I2C2_EV (33)
+    CortexM4::GENERIC_ISR, // I2C2_ER (34)
+    CortexM4::GENERIC_ISR, // SPI1 (35)
+    CortexM4::GENERIC_ISR, // SPI2 (36)
+    CortexM4::GENERIC_ISR, // USART1 (37)
+    CortexM4::GENERIC_ISR, // USART2 (38)
+    CortexM4::GENERIC_ISR, // USART3 (39)
+    CortexM4::GENERIC_ISR, // EXTI15_10 (40)
+    CortexM4::GENERIC_ISR, // RTC_Alarm (41)
+    CortexM4::GENERIC_ISR, // USB_WKUP (42)
+    CortexM4::GENERIC_ISR, // TIM8_BRK_TIM12 (43)
+    CortexM4::GENERIC_ISR, // TIM8_UP_TIM13 (44)
+    CortexM4::GENERIC_ISR, // TIM8_TRG_COM_TIM14 (45)
+    CortexM4::GENERIC_ISR, // TIM8_CC (46)
+    CortexM4::GENERIC_ISR, // ADC3 (47)
+    unhandled_interrupt,   // (48)
+    unhandled_interrupt,   // (49)
+    unhandled_interrupt,   // (50)
+    CortexM4::GENERIC_ISR, // SPI3 (51)
+    CortexM4::GENERIC_ISR, // UART4 (52)
+    CortexM4::GENERIC_ISR, // UART5 (53)
+    CortexM4::GENERIC_ISR, // TIM6_DAC (54)
+    CortexM4::GENERIC_ISR, // TIM7 (55)
+    CortexM4::GENERIC_ISR, // DMA2_Stream0 (56)
+    CortexM4::GENERIC_ISR, // DMA2_Stream1 (57)
+    CortexM4::GENERIC_ISR, // DMA2_Stream2 (58)
+    CortexM4::GENERIC_ISR, // DMA2_Stream3 (59)
+    CortexM4::GENERIC_ISR, // DMA2_Stream4 (60)
+    CortexM4::GENERIC_ISR, // ADC4 (61)
+    unhandled_interrupt,   // (62)
+    unhandled_interrupt,   // (63)
+    CortexM4::GENERIC_ISR, // COMP1_2_3 (64)
+    CortexM4::GENERIC_ISR, // COMP4_5_6 (65)
+    CortexM4::GENERIC_ISR, // COMP7 (66)
+    unhandled_interrupt,   //(67)
+    unhandled_interrupt,   //(68)
+    unhandled_interrupt,   //(69)
+    unhandled_interrupt,   //(70)
+    unhandled_interrupt,   //(71)
+    unhandled_interrupt,   //(72)
+    unhandled_interrupt,   //(73)
+    CortexM4::GENERIC_ISR, // USB_HP (74)
+    CortexM4::GENERIC_ISR, // USB_LP (75)
+    CortexM4::GENERIC_ISR, // USB_RMP_WKUP (76)
+    unhandled_interrupt,   // (77)
+    unhandled_interrupt,   // (78)
+    unhandled_interrupt,   // (79)
+    unhandled_interrupt,   // (80)
+    CortexM4::GENERIC_ISR, // FPU (81)
 ];
 
 pub unsafe fn init() {
