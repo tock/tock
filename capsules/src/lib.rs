@@ -8,6 +8,7 @@ pub mod net;
 
 pub mod adc;
 pub mod adc_microphone;
+pub mod air_quality;
 pub mod alarm;
 pub mod ambient_light;
 pub mod analog_comparator;

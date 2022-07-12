@@ -55,6 +55,7 @@ pub enum NUM {
     NINEDOF               = 0x60004,
     Proximity             = 0x60005,
     SoundPressure         = 0x60006,
+    AirQuality            = 0x60007,
 
     // Sensor ICs
     Tsl2561               = 0x70000,
