@@ -306,8 +306,8 @@ pub unsafe fn main() {
     // PWM & BUZZER
     //--------------------------------------------------------------------------
 
-    use kernel::hil::time::Alarm;
     use kernel::hil::buzzer::Buzzer;
+    use kernel::hil::time::Alarm;
 
     let mux_pwm = static_init!(
         capsules::virtual_pwm::MuxPwm<'static, nrf52833::pwm::Pwm>,
@@ -328,21 +328,6 @@ pub unsafe fn main() {
     );
     virtual_alarm_buzzer.setup();
 
-    // let buzzer = static_init!(
-    //     capsules::buzzer_driver::Buzzer<
-    //         'static,
-    //         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
-    //     >,
-    //     capsules::buzzer_driver::Buzzer::new(
-    //         virtual_pwm_buzzer,
-    //         virtual_alarm_buzzer,
-    //         capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-    //         board_kernel.create_grant(
-    //             capsules::buzzer_driver::DRIVER_NUM,
-    //             &memory_allocation_capability
-    //         )
-    //     )
-    // );
     let pwm_buzzer = static_init!(
         capsules::buzzer_pwm::PwmBuzzer<
             'static,
@@ -355,17 +340,17 @@ pub unsafe fn main() {
             capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
         )
     );
+
     let buzzer = static_init!(
         capsules::buzzer::Buzzer<'static>,
         capsules::buzzer::Buzzer::new(
             pwm_buzzer,
-            board_kernel.create_grant(
-                capsules::buzzer::DRIVER_NUM,
-                &memory_allocation_capability
-            )
+            board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
         )
     );
+
     pwm_buzzer.set_client(buzzer);
+
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
     //--------------------------------------------------------------------------
