@@ -209,53 +209,43 @@ impl SysCall {
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> Option<kernel::syscall::ContextSwitchReason> {
+        // We need to check memory boundries every time, as one of the syscalls might be memop
         if let Some(ref mut packed_syscall) = state.packed_syscall {
-            kernel::debug!(
-                "packed syscalls: {} @{:?}",
-                packed_syscall.count_remaining,
-                packed_syscall.pointer
-            );
-            if packed_syscall.count_remaining > 0 {
-                let switch_reason = if packed_syscall.pointer as usize
-                    >= accessible_memory_start as usize
-                    && (packed_syscall.pointer as usize)
-                        .saturating_add(packed_syscall.count_remaining * mem::size_of::<u32>() * 5)
-                        <= app_brk as usize
-                {
-                    let svc_num = read_volatile(packed_syscall.pointer.offset(0)) as u8;
-                    let r0 = read_volatile(packed_syscall.pointer.offset(1));
-                    let r1 = read_volatile(packed_syscall.pointer.offset(2));
-                    let r2 = read_volatile(packed_syscall.pointer.offset(3));
-                    let r3 = read_volatile(packed_syscall.pointer.offset(4));
+            let switch_reason = if packed_syscall.pointer as usize
+                >= accessible_memory_start as usize
+                && (packed_syscall.pointer as usize)
+                    .saturating_add(packed_syscall.count_remaining * mem::size_of::<u32>() * 5)
+                    <= app_brk as usize
+            {
+                let svc_num = read_volatile(packed_syscall.pointer.offset(0)) as u8;
+                let r0 = read_volatile(packed_syscall.pointer.offset(1));
+                let r1 = read_volatile(packed_syscall.pointer.offset(2));
+                let r2 = read_volatile(packed_syscall.pointer.offset(3));
+                let r3 = read_volatile(packed_syscall.pointer.offset(4));
 
-                    let syscall =
-                        kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
+                let syscall =
+                    kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
 
-                    match syscall {
-                        Some(s) => {
-                            if let kernel::syscall::Syscall::Yield { .. } = s {
-                                if packed_syscall.count_remaining == 1 {
-                                    kernel::syscall::ContextSwitchReason::SyscallFired {
-                                        syscall: s,
-                                    }
-                                } else {
-                                    kernel::syscall::ContextSwitchReason::Fault
-                                }
-                            } else {
+                match syscall {
+                    Some(s) => {
+                        if let kernel::syscall::Syscall::Yield { .. } = s {
+                            if packed_syscall.count_remaining == 1 {
                                 kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
+                            } else {
+                                kernel::syscall::ContextSwitchReason::Fault
                             }
+                        } else {
+                            kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
                         }
-                        None => kernel::syscall::ContextSwitchReason::Fault,
                     }
-                } else {
-                    kernel::syscall::ContextSwitchReason::Fault
-                };
-                Some(switch_reason)
+                    None => kernel::syscall::ContextSwitchReason::Fault,
+                }
             } else {
-                state.packed_syscall = None;
-                None
-            }
+                kernel::syscall::ContextSwitchReason::Fault
+            };
+            Some(switch_reason)
         } else {
+            state.packed_syscall = None;
             None
         }
     }
@@ -359,7 +349,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
         kernel::debug!("stack pointer {:x} value {}", stack_pointer, (*r0) as usize);
 
-        if let Some(ref packed_syscall) = state.packed_syscall {
+        if let Some(ref mut packed_syscall) = state.packed_syscall {
             let sp = state.psp as *mut u32;
             if !return_value.is_success() {
                 match packed_syscall.error_policy {
@@ -367,13 +357,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         sp.write_volatile(SyscallReturnVariant::FailureU32 as u32);
                         sp.offset(1)
                             .write_volatile(packed_syscall.count_remaining as u32);
-                        state.packed_syscall = None;
+                        packed_syscall.count_remaining = 0;
                     }
                     _ => {}
                 }
-            } else if packed_syscall.count_remaining == 0 {
+            }
+            if packed_syscall.count_remaining == 0 {
                 state.packed_syscall = None;
-                sp.write_volatile(SyscallReturnVariant::Success as u32);
             }
         }
 
@@ -490,6 +480,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         pointer: r1 as *const usize,
                         error_policy: r2.into(),
                     });
+                    // assume packed syscalls will all execute without errors
+                    write_volatile(
+                        new_stack_pointer as *mut u32,
+                        SyscallReturnVariant::Success as u32,
+                    );
                     self.next_packed_syscall(accessible_memory_start, app_brk, state)
                         .unwrap_or(kernel::syscall::ContextSwitchReason::Fault)
                 } else {
