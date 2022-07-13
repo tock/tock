@@ -12,10 +12,9 @@ pub trait Buzzer<'a> {
     /// Play a sound at a chosen frequency and for a chosen duration.
     /// Once the buzzer finishes buzzing, the `buzzer_done()` callback
     /// is called.
-    /// If called while the buzzer is playing, the driver checks if the same
-    /// application called. If so, we override the current frequency and duration
-    /// with the new ones. If it is a different application asking to use the buzzer,
-    /// the driver returns the error code `RESERVED`.
+    /// If it is called while the buzzer is playing, the buzzer command will be
+    /// overriden with the new frequency and duration values.
+    ///
     /// Return values:
     ///
     /// - `Ok(())`: The attempt at starting the buzzer was successful.
