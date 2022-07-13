@@ -3,14 +3,14 @@
 use crate::ErrorCode;
 
 pub trait BuzzerClient {
-    /// Called when the current sound played by the buzzer has finished 
+    /// Called when the current sound played by the buzzer has finished
     /// or it was stopped.
     fn buzzer_done(&self, status: Result<(), ErrorCode>);
 }
 
 pub trait Buzzer<'a> {
     /// Play a sound at a chosen frequency and for a chosen duration.
-    /// After the buzzer starts playing, an alarm will be set and once 
+    /// After the buzzer starts playing, an alarm will be set and once
     /// it fires after the set duration, the `buzzer_done()` callback
     /// is called.
     /// Return values:

@@ -8,11 +8,11 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
-use kernel::hil::buzzer::Buzzer;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::adc::Adc;
+use kernel::hil::buzzer::Buzzer;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
 use kernel::hil::i2c::I2CMaster;

@@ -3,9 +3,9 @@
 //! ## Instantiation
 //!
 //! Instantiate the capsule for use as a syscall driver, using the corresponding service capsule.
-//! For example, using the pwm buzzer: 
+//! For example, using the pwm buzzer:
 //!
-//! ``` rust 
+//! ``` rust
 //!
 //! let buzzer = static_init!(
 //!     capsules::buzzer::Buzzer<'static>,
@@ -16,7 +16,6 @@
 //! );
 //!
 //! ```
-
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
@@ -32,7 +31,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Buzzer as usize;
 pub struct App {
     // What command to run when the buzzer is free (frequency and duration).
     // Some(frequency, duration) if we have a pending command.
-    pending_command: Option<(usize, usize)>, 
+    pending_command: Option<(usize, usize)>,
 }
 
 pub struct Buzzer<'a, B: hil::buzzer::Buzzer<'a>> {
@@ -59,7 +58,12 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     // Check so see if we are doing something. If not, go ahead and do this
     // command. If there is another command running, this is queued and will
     // be run when the running command completes.
-    fn enqueue_command(&self, frequency_hz: usize, duration_ms: usize, app_id: ProcessId) -> Result<(), ErrorCode> {
+    fn enqueue_command(
+        &self,
+        frequency_hz: usize,
+        duration_ms: usize,
+        app_id: ProcessId,
+    ) -> Result<(), ErrorCode> {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
@@ -91,12 +95,14 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
             let appid = appiter.processid();
             let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
-                app.pending_command.take().map_or(false, |(frequency_hz, duration_ms)| {
-                    // Mark this driver as being in use.
-                    self.active_app.set(appid);
-                    // Actually make the buzz happen.
-                    self.buzzer.buzz(frequency_hz, duration_ms) == Ok(())
-                })
+                app.pending_command
+                    .take()
+                    .map_or(false, |(frequency_hz, duration_ms)| {
+                        // Mark this driver as being in use.
+                        self.active_app.set(appid);
+                        // Actually make the buzz happen.
+                        self.buzzer.buzz(frequency_hz, duration_ms) == Ok(())
+                    })
             });
             if started_command {
                 break;
@@ -135,20 +141,16 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
                 CommandReturn::success()
             }
 
-            1 => 
+            1 =>
             // Play a sound.
             {
                 let frequency_hz = data1;
                 let duration_ms = data2;
-                self.enqueue_command(
-                    frequency_hz,
-                    duration_ms,
-                    appid,
-                )
-                .into()
+                self.enqueue_command(frequency_hz, duration_ms, appid)
+                    .into()
             }
 
-            2 => 
+            2 =>
             // Stop the current sound.
             {
                 self.buzzer.stop().into()

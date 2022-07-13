@@ -13,7 +13,7 @@
 //!     capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
 //! );
 //! let virtual_pwm_buzzer = static_init!(
-//!     capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>, 
+//!     capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
 //!     capsules::virtual_pwm::PwmPinUser::new(
 //!         mux_pwm,
 //!         nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
