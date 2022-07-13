@@ -28,11 +28,7 @@ use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Buzzer as usize;
 
 #[derive(Default)]
-pub struct App {
-    // What command to run when the buzzer is free (frequency and duration).
-    // Some(frequency, duration) if we have a pending command.
-    pending_command: Option<(usize, usize)>,
-}
+pub struct App {}
 
 pub struct Buzzer<'a, B: hil::buzzer::Buzzer<'a>> {
     /// The service capsule buzzer.
@@ -52,61 +48,6 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
             buzzer: buzzer,
             apps: grant,
             active_app: OptionalCell::empty(),
-        }
-    }
-
-    // Check so see if we are doing something. If not, go ahead and do this
-    // command. If there is another command running, this is queued and will
-    // be run when the running command completes.
-    fn enqueue_command(
-        &self,
-        frequency_hz: usize,
-        duration_ms: usize,
-        app_id: ProcessId,
-    ) -> Result<(), ErrorCode> {
-        if self.active_app.is_none() {
-            // No app is currently using the buzzer, so we just use this app.
-            self.active_app.set(app_id);
-            self.buzzer.buzz(frequency_hz, duration_ms)
-        } else {
-            // There is an active app, so queue this request (if possible).
-            self.apps
-                .enter(app_id, |app, _| {
-                    // Some app is using the storage, we must wait.
-                    if app.pending_command.is_some() {
-                        // No more room in the queue, nowhere to store this
-                        // request.
-                        Err(ErrorCode::NOMEM)
-                    } else {
-                        // We can store this, so lets do it.
-
-                        app.pending_command = Some((frequency_hz, duration_ms));
-                        Ok(())
-                    }
-                })
-                .unwrap_or_else(|err| err.into())
-        }
-    }
-
-    // Check to see if we have any more apps with commands waiting to be
-    // executed.
-    fn check_queue(&self) {
-        for appiter in self.apps.iter() {
-            let appid = appiter.processid();
-            let started_command = appiter.enter(|app, _| {
-                // If this app has a pending command let's use it.
-                app.pending_command
-                    .take()
-                    .map_or(false, |(frequency_hz, duration_ms)| {
-                        // Mark this driver as being in use.
-                        self.active_app.set(appid);
-                        // Actually make the buzz happen.
-                        self.buzzer.buzz(frequency_hz, duration_ms) == Ok(())
-                    })
-            });
-            if started_command {
-                break;
-            }
         }
     }
 }
@@ -144,10 +85,21 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
             1 =>
             // Play a sound.
             {
-                let frequency_hz = data1;
-                let duration_ms = data2;
-                self.enqueue_command(frequency_hz, duration_ms, appid)
-                    .into()
+                if self.active_app.is_none() {
+                    // No app is currently using the buzzer, so we just use this app.
+                    self.active_app.set(appid);
+                    self.buzzer.buzz(data1, data2).into()
+                } else {
+                    if self.active_app.contains(&appid) {
+                        // The same app is trying to use the buzzer. We override the
+                        // previous command and run the current one.
+                        self.buzzer.buzz(data1, data2).into()
+                    } else {
+                        // A different app is trying to use the buzzer, so we return
+                        // ErrorCode::RESERVED.
+                        CommandReturn::failure(ErrorCode::RESERVE)
+                    }
+                }
             }
 
             2 =>
@@ -181,7 +133,5 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> hil::buzzer::BuzzerClient for Buzzer<'a, B>
         });
         // Remove the current app.
         self.active_app.clear();
-        // Check queue for more commands that are waiting to be run.
-        self.check_queue();
     }
 }

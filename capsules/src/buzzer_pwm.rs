@@ -88,14 +88,8 @@ impl<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> hil::buzzer::Buzzer<'a>
 
     fn buzz(&self, frequency_hz: usize, duration_ms: usize) -> Result<(), ErrorCode> {
         let duration_ms_cmp = cmp::min(duration_ms, self.max_duration_ms);
-        let ret = self
-            .pwm_pin
-            .start(frequency_hz, self.pwm_pin.get_maximum_duty_cycle() / 2);
-
-        // If starting the pin output failed, return the error.
-        if ret != Ok(()) {
-            return ret;
-        }
+        self.pwm_pin
+            .start(frequency_hz, self.pwm_pin.get_maximum_duty_cycle() / 2)?;
 
         // Set an alarm for the given duration.
         let interval = (duration_ms_cmp as u32) * <A::Frequency>::frequency() / 1000;

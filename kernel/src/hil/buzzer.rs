@@ -10,23 +10,27 @@ pub trait BuzzerClient {
 
 pub trait Buzzer<'a> {
     /// Play a sound at a chosen frequency and for a chosen duration.
-    /// After the buzzer starts playing, an alarm will be set and once
-    /// it fires after the set duration, the `buzzer_done()` callback
+    /// Once the buzzer finishes buzzing, the `buzzer_done()` callback
     /// is called.
+    /// If called while the buzzer is playing, the driver checks if the same
+    /// application called. If so, we override the current frequency and duration
+    /// with the new ones. If it is a different application asking to use the buzzer,
+    /// the driver returns the error code `RESERVED`.
     /// Return values:
     ///
     /// - `Ok(())`: The attempt at starting the buzzer was successful.
-    /// - `BUSY`: The buzzer is already in use.
+    /// - `FAIL`: Cannot start the buzzer.
+    /// - `RESERVED`: The buzzer is currently in use by another app.
     fn buzz(&self, frequency_hz: usize, duration_ms: usize) -> Result<(), ErrorCode>;
 
     /// Stop the sound currenty playing.
-    /// After the alarm is disarmed and the buzzer is successfully
-    /// stopped, the `buzzer_done()` is called.
+    /// After the buzzer is successfully stopped, the `buzzer_done()`
+    /// callback is called.
     ///
     /// Return values:
     ///
-    /// - `Ok(())`: The attempt at disarming the alarm was successful.
-    /// - `FAIL`: The alarm could not be disarmed.
+    /// - `Ok(())`: The attempt at stopping the buzzer was successful.
+    /// - `FAIL`: Cannot stop the buzzer.
     fn stop(&self) -> Result<(), ErrorCode>;
 
     /// Set the client to be used for callbacks of the Buzzer
