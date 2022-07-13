@@ -347,7 +347,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
         return_value.encode_syscall_return(&mut *r0, &mut *r1, &mut *r2, &mut *r3);
 
-        kernel::debug!("stack pointer {:x} value {}", stack_pointer, (*r0) as usize);
+        // kernel::debug!("stack pointer {:x} value {}", stack_pointer, (*r0) as usize);
 
         if let Some(ref mut packed_syscall) = state.packed_syscall {
             let sp = state.psp as *mut u32;
