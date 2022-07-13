@@ -1,8 +1,25 @@
 //! Provides userspace access to a buzzer.
+//!
+//! ## Instantiation
+//!
+//! Instantiate the capsule for use as a syscall driver, using the corresponding service capsule.
+//! For example, using the pwm buzzer: 
+//!
+//! ``` rust 
+//!
+//! let buzzer = static_init!(
+//!     capsules::buzzer::Buzzer<'static>,
+//!     capsules::buzzer::Buzzer::new(
+//!         pwm_buzzer,
+//!         board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
+//!     )
+//! );
+//!
+//! ```
+
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::hil::buzzer::BuzzerCommand;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
 use kernel::{ErrorCode, ProcessId};
@@ -13,23 +30,25 @@ pub const DRIVER_NUM: usize = driver::NUM::Buzzer as usize;
 
 #[derive(Default)]
 pub struct App {
-    pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
+    // What command to run when the buzzer is free (frequency and duration).
+    // Some(frequency, duration) if we have a pending command.
+    pending_command: Option<(usize, usize)>, 
 }
 
-pub struct Buzzer<'a> {
+pub struct Buzzer<'a, B: hil::buzzer::Buzzer<'a>> {
     /// The service capsule buzzer.
-    buzzer: &'a dyn hil::buzzer::Buzzer<'a>,
+    buzzer: &'a B,
     /// Per-app state.
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     /// Which app is currently using the buzzer.
     active_app: OptionalCell<ProcessId>,
 }
 
-impl<'a> Buzzer<'a> {
+impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     pub fn new(
-        buzzer: &'a dyn hil::buzzer::Buzzer<'a>,
+        buzzer: &'a B,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Buzzer<'a> {
+    ) -> Buzzer<'a, B> {
         Buzzer {
             buzzer: buzzer,
             apps: grant,
@@ -38,13 +57,13 @@ impl<'a> Buzzer<'a> {
     }
 
     // Check so see if we are doing something. If not, go ahead and do this
-    // command. If so, this is queued and will be run when the pending
-    // command completes.
-    fn enqueue_command(&self, command: BuzzerCommand, app_id: ProcessId) -> Result<(), ErrorCode> {
+    // command. If there is another command running, this is queued and will
+    // be run when the running command completes.
+    fn enqueue_command(&self, frequency_hz: usize, duration_ms: usize, app_id: ProcessId) -> Result<(), ErrorCode> {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
-            self.buzzer.buzz(command) //CHANGED! self.buzzer instead of just self
+            self.buzzer.buzz(frequency_hz, duration_ms)
         } else {
             // There is an active app, so queue this request (if possible).
             self.apps
@@ -56,7 +75,8 @@ impl<'a> Buzzer<'a> {
                         Err(ErrorCode::NOMEM)
                     } else {
                         // We can store this, so lets do it.
-                        app.pending_command = Some(command);
+
+                        app.pending_command = Some((frequency_hz, duration_ms));
                         Ok(())
                     }
                 })
@@ -71,11 +91,11 @@ impl<'a> Buzzer<'a> {
             let appid = appiter.processid();
             let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
-                app.pending_command.take().map_or(false, |command| {
+                app.pending_command.take().map_or(false, |(frequency_hz, duration_ms)| {
                     // Mark this driver as being in use.
                     self.active_app.set(appid);
                     // Actually make the buzz happen.
-                    self.buzzer.buzz(command) == Ok(())
+                    self.buzzer.buzz(frequency_hz, duration_ms) == Ok(())
                 })
             });
             if started_command {
@@ -86,7 +106,7 @@ impl<'a> Buzzer<'a> {
 }
 
 /// Provide an interface for userland.
-impl<'a> SyscallDriver for Buzzer<'a> {
+impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
     // Setup callbacks.
     //
     // ### `subscribe_num`
@@ -115,22 +135,24 @@ impl<'a> SyscallDriver for Buzzer<'a> {
                 CommandReturn::success()
             }
 
+            1 => 
             // Play a sound.
-            1 => {
+            {
                 let frequency_hz = data1;
                 let duration_ms = data2;
                 self.enqueue_command(
-                    BuzzerCommand::Buzz {
-                        frequency_hz,
-                        duration_ms,
-                    },
+                    frequency_hz,
+                    duration_ms,
                     appid,
                 )
                 .into()
             }
 
+            2 => 
             // Stop the current sound.
-            2 => self.buzzer.stop().into(),
+            {
+                self.buzzer.stop().into()
+            }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
@@ -141,7 +163,7 @@ impl<'a> SyscallDriver for Buzzer<'a> {
     }
 }
 
-impl hil::buzzer::BuzzerClient for Buzzer<'_> {
+impl<'a, B: hil::buzzer::Buzzer<'a>> hil::buzzer::BuzzerClient for Buzzer<'a, B> {
     // The buzzer has finished playing its current sound.
     fn buzzer_done(&self, status: Result<(), ErrorCode>) {
         self.active_app.map(|c_app| {

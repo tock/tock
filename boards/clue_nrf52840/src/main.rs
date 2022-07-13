@@ -21,6 +21,7 @@ use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
+use kernel::hil::buzzer::Buzzer;
 use kernel::platform::chip::Chip;
 use kernel::platform::mpu::MPU;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -160,9 +161,13 @@ pub struct Platform {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
+    buzzer: &'static capsules::buzzer::Buzzer<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        capsules::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        >,
     >,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -188,7 +193,7 @@ impl SyscallDriverLookup for Platform {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            capsules::buzzer::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
@@ -406,22 +411,37 @@ pub unsafe fn main() {
     );
     virtual_alarm_buzzer.setup();
 
-    let buzzer = static_init!(
-        capsules::buzzer_driver::Buzzer<
+    let pwm_buzzer = static_init!(
+        capsules::buzzer_pwm::PwmBuzzer<
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
         >,
-        capsules::buzzer_driver::Buzzer::new(
+        capsules::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
-            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(
-                capsules::buzzer_driver::DRIVER_NUM,
-                &memory_allocation_capability
-            )
+            capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
         )
     );
-    virtual_alarm_buzzer.set_alarm_client(buzzer);
+
+    let buzzer = static_init!(
+        capsules::buzzer::Buzzer<
+            'static,
+            capsules::buzzer_pwm::PwmBuzzer<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            >,
+        >,
+        capsules::buzzer::Buzzer::new(
+            pwm_buzzer,
+            board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
+        )
+    );
+
+    pwm_buzzer.set_client(buzzer);
+
+    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG

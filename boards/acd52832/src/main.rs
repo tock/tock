@@ -8,6 +8,7 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
+use kernel::hil::buzzer::Buzzer;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
@@ -82,9 +83,13 @@ pub struct Platform {
     gpio_async:
         &'static capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
     light: &'static capsules::ambient_light::AmbientLight<'static>,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
+    buzzer: &'static capsules::buzzer::Buzzer<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
+        capsules::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52832::pwm::Pwm>,
+        >,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -106,7 +111,7 @@ impl SyscallDriverLookup for Platform {
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::gpio_async::DRIVER_NUM => f(Some(self.gpio_async)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.light)),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            capsules::buzzer::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -507,22 +512,37 @@ pub unsafe fn main() {
     );
     virtual_alarm_buzzer.setup();
 
-    let buzzer = static_init!(
-        capsules::buzzer_driver::Buzzer<
+    let pwm_buzzer = static_init!(
+        capsules::buzzer_pwm::PwmBuzzer<
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52832::pwm::Pwm>,
         >,
-        capsules::buzzer_driver::Buzzer::new(
+        capsules::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
-            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-            board_kernel.create_grant(
-                capsules::buzzer_driver::DRIVER_NUM,
-                &memory_allocation_capability
-            )
+            capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
         )
     );
-    virtual_alarm_buzzer.set_alarm_client(buzzer);
+
+    let buzzer = static_init!(
+        capsules::buzzer::Buzzer<
+            'static,
+            capsules::buzzer_pwm::PwmBuzzer<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc>,
+                capsules::virtual_pwm::PwmPinUser<'static, nrf52832::pwm::Pwm>,
+            >,
+        >,
+        capsules::buzzer::Buzzer::new(
+            pwm_buzzer,
+            board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
+        )
+    );
+
+    pwm_buzzer.set_client(buzzer);
+
+    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
     // Start all of the clocks. Low power operation will require a better
     // approach than this.

@@ -103,11 +103,14 @@ pub struct MicroBit {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
-    // buzzer_pwm: &'static capsules::buzzer_pwm::PwmBuzzer<
-    //     'static,
-    //     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
-    // >,
-    buzzer: &'static capsules::buzzer::Buzzer<'static>,
+    buzzer: &'static capsules::buzzer::Buzzer<
+        'static,
+        capsules::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+        >,
+    >,
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
 
@@ -342,7 +345,14 @@ pub unsafe fn main() {
     );
 
     let buzzer = static_init!(
-        capsules::buzzer::Buzzer<'static>,
+        capsules::buzzer::Buzzer<
+            'static,
+            capsules::buzzer_pwm::PwmBuzzer<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+                capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+            >,
+        >,
         capsules::buzzer::Buzzer::new(
             pwm_buzzer,
             board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
