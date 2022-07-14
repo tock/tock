@@ -280,7 +280,9 @@ fn handle_exception(exception: mcause::Exception) {
         mcause::Exception::UserEnvCall | mcause::Exception::SupervisorEnvCall => (),
 
         // Breakpoints occur from the tests running on hardware
-        mcause::Exception::Breakpoint => loop {},
+        mcause::Exception::Breakpoint => loop {
+            unsafe { rv32i::support::wfi() }
+        },
 
         mcause::Exception::InstructionMisaligned
         | mcause::Exception::InstructionFault

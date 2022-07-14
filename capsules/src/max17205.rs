@@ -199,8 +199,10 @@ impl<'a> MAX17205<'a> {
     fn setup_read_romid(&self) -> Result<(), ErrorCode> {
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
             self.i2c_upper.enable();
+            let nrom_id = Registers::NRomID as u16;
 
-            buffer[0] = Registers::NRomID as u8;
+            buffer[0] = (nrom_id & 0xFF) as u8;
+            buffer[1] = (nrom_id >> 8) as u8;
             // TODO verify errors
             let _ = self.i2c_upper.write(buffer, 1);
             self.state.set(State::SetupReadRomID);
