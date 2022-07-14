@@ -81,6 +81,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
     /// - `1`: Buzz the buzzer. `data1` is used for the frequency in hertz, and
     ///   `data2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.
+    /// - `2`: Stop the buzzer.
     fn command(
         &self,
         command_num: usize,
@@ -99,8 +100,8 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
             // Play a sound.
             {
                 if !self.is_valid_app(appid) {
-                    // A different app is trying to use the buzzer, so we return BUSY.
-                    CommandReturn::failure(ErrorCode::BUSY)
+                    // A different app is trying to use the buzzer, so we return RESERVE.
+                    CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     // If there is no active app or the same app is trying to use the buzzer,
                     // we set/replace the frequency and duration.
@@ -113,7 +114,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
             // Stop the current sound.
             {
                 if !self.is_valid_app(appid) {
-                    CommandReturn::failure(ErrorCode::BUSY)
+                    CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     self.active_app.set(appid);
                     self.buzzer.stop().into()
@@ -133,15 +134,11 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> hil::buzzer::BuzzerClient for Buzzer<'a, B>
     // The buzzer has finished playing its current sound.
     fn buzzer_done(&self, status: Result<(), ErrorCode>) {
         self.active_app.map(|c_app| {
-            self.apps
-                .enter(*c_app, |_app, upcalls| {
-                    if status == Ok(()) {
-                        // There were no errors, so schedule an upcall.
-                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
-                    }
-                    Ok(())
-                })
-                .unwrap_or_else(|err| err.into())
+            self.apps.enter(*c_app, |_app, upcalls| {
+                upcalls
+                    .schedule_upcall(0, (kernel::errorcode::into_statuscode(status), 0, 0))
+                    .ok()
+            })
         });
         // Remove the current app.
         self.active_app.clear();
