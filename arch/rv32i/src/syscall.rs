@@ -88,6 +88,9 @@ struct PackedSyscall {
 
     /// The error policy
     error_policy: PackedSyscallErrorPolicy,
+
+    /// Flag if the processes had a yield system call
+    did_yield: bool,
 }
 
 /// This holds all of the state that the kernel must keep for the process when
@@ -221,10 +224,17 @@ impl SysCall {
                 match syscall {
                     Some(s) => {
                         if let kernel::syscall::Syscall::Yield { .. } = s {
-                            if packed_syscall.count_remaining == 1 {
+                            if !packed_syscall.did_yield {
                                 // the yield system call has no result, so we can
                                 // safely discard the packed syscall structure
-                                state.packed_syscall = None;
+                                packed_syscall.did_yield = true;
+                                if packed_syscall.count_remaining == 0 {
+                                    state.packed_syscall = None;
+                                } else {
+                                    packed_syscall.count_remaining =
+                                        packed_syscall.count_remaining - 1;
+                                    packed_syscall.pointer = packed_syscall.pointer.offset(5);
+                                }
                                 kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
                             } else {
                                 kernel::syscall::ContextSwitchReason::Fault
@@ -657,6 +667,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                                     count_remaining: state.regs[R_A0] as usize,
                                     pointer: state.regs[R_A1] as usize as *const usize,
                                     error_policy: (state.regs[R_A2] as usize).into(),
+                                    did_yield: false,
                                 });
                                 // assume packed syscalls will all execute without errors
                                 state.regs[R_A0] = SyscallReturnVariant::Success as u32;
