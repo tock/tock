@@ -258,7 +258,7 @@ enum I2CStatus {
 }
 
 impl<'a> I2C<'a> {
-    const fn new(base_addr: StaticRef<I2CRegisters>, clock: I2CClock<'a>) -> Self {
+    fn new(base_addr: StaticRef<I2CRegisters>, clock: I2CClock<'a>) -> Self {
         Self {
             registers: base_addr,
             clock,
@@ -278,7 +278,7 @@ impl<'a> I2C<'a> {
         }
     }
 
-    pub const fn new_i2c1(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_i2c1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             I2C1_BASE,
             I2CClock(rcc::PeripheralClock::new(

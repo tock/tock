@@ -180,7 +180,7 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub const fn new() -> Uarte<'a> {
+    pub fn new() -> Uarte<'a> {
         Uarte {
             registers: UARTE_BASE,
             tx_client: OptionalCell::empty(),

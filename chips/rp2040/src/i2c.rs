@@ -256,7 +256,7 @@ pub struct I2c<'a> {
 }
 
 impl<'a> I2c<'a> {
-    const fn new(instance_num: u8) -> Self {
+    fn new(instance_num: u8) -> Self {
         Self {
             instance_num,
             registers: INSTANCES[instance_num as usize],
@@ -276,11 +276,11 @@ impl<'a> I2c<'a> {
         }
     }
 
-    pub const fn new_i2c0() -> Self {
+    pub fn new_i2c0() -> Self {
         I2c::new(0)
     }
 
-    pub const fn new_i2c1() -> Self {
+    pub fn new_i2c1() -> Self {
         I2c::new(1)
     }
 

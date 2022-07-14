@@ -654,7 +654,7 @@ impl DmaConfig {
 }
 
 impl<'a> DmaChannel<'a> {
-    pub const fn new(chan_nr: usize) -> DmaChannel<'a> {
+    pub fn new(chan_nr: usize) -> DmaChannel<'a> {
         DmaChannel {
             registers: DMA_BASE,
             chan_nr: chan_nr,

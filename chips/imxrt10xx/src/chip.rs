@@ -39,7 +39,7 @@ pub struct Imxrt10xxDefaultPeripherals {
 }
 
 impl Imxrt10xxDefaultPeripherals {
-    pub const fn new(ccm: &'static crate::ccm::Ccm) -> Self {
+    pub fn new(ccm: &'static crate::ccm::Ccm) -> Self {
         Self {
             iomuxc: crate::iomuxc::Iomuxc::new(),
             iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs::new(),
