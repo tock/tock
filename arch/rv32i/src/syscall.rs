@@ -222,6 +222,9 @@ impl SysCall {
                     Some(s) => {
                         if let kernel::syscall::Syscall::Yield { .. } = s {
                             if packed_syscall.count_remaining == 1 {
+                                // the yield system call has no result, so we can
+                                // safely discard the packed syscall structure
+                                state.packed_syscall = None;
                                 kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s }
                             } else {
                                 kernel::syscall::ContextSwitchReason::Fault
