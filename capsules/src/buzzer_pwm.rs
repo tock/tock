@@ -100,10 +100,10 @@ impl<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> hil::buzzer::Buzzer<'a>
 
     fn stop(&self) -> Result<(), ErrorCode> {
         // Disarm the current alarm and instantly fire another.
-        let ret = self.alarm.disarm();
+        self.alarm.disarm()?;
         // This method was used to reduce the size of the code.
         self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(0));
-        ret
+        Ok(())
     }
 }
 
@@ -113,7 +113,7 @@ impl<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> hil::time::AlarmClient
     fn alarm(&self) {
         // Stop the pin output and signal that the buzzer has finished
         // playing.
-        let ret = self.pwm_pin.stop();
-        self.client.map(|buzz_client| buzz_client.buzzer_done(ret));
+        self.client
+            .map(|buzz_client| buzz_client.buzzer_done(self.pwm_pin.stop()));
     }
 }

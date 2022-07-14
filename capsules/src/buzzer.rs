@@ -50,6 +50,19 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
             active_app: OptionalCell::empty(),
         }
     }
+
+    pub fn is_valid_app(&self, appid: ProcessId) -> bool {
+        self.active_app.map_or(
+            true,
+            |owning_app| {
+                if owning_app == &appid {
+                    true
+                } else {
+                    false
+                }
+            },
+        )
+    }
 }
 
 /// Provide an interface for userland.
@@ -85,27 +98,26 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
             1 =>
             // Play a sound.
             {
-                if self.active_app.is_none() {
-                    // No app is currently using the buzzer, so we just use this app.
+                if !self.is_valid_app(appid) {
+                    // A different app is trying to use the buzzer, so we return BUSY.
+                    CommandReturn::failure(ErrorCode::BUSY)
+                } else {
+                    // If there is no active app or the same app is trying to use the buzzer,
+                    // we set/replace the frequency and duration.
                     self.active_app.set(appid);
                     self.buzzer.buzz(data1, data2).into()
-                } else {
-                    if self.active_app.contains(&appid) {
-                        // The same app is trying to use the buzzer. We override the
-                        // previous command and run the current one.
-                        self.buzzer.buzz(data1, data2).into()
-                    } else {
-                        // A different app is trying to use the buzzer, so we return
-                        // ErrorCode::RESERVED.
-                        CommandReturn::failure(ErrorCode::RESERVE)
-                    }
                 }
             }
 
             2 =>
             // Stop the current sound.
             {
-                self.buzzer.stop().into()
+                if !self.is_valid_app(appid) {
+                    CommandReturn::failure(ErrorCode::BUSY)
+                } else {
+                    self.active_app.set(appid);
+                    self.buzzer.stop().into()
+                }
             }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

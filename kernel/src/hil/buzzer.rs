@@ -19,7 +19,6 @@ pub trait Buzzer<'a> {
     ///
     /// - `Ok(())`: The attempt at starting the buzzer was successful.
     /// - `FAIL`: Cannot start the buzzer.
-    /// - `RESERVED`: The buzzer is currently in use by another app.
     fn buzz(&self, frequency_hz: usize, duration_ms: usize) -> Result<(), ErrorCode>;
 
     /// Stop the sound currenty playing.
