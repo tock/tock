@@ -267,8 +267,8 @@ in the specific board directory.
 To run the test on hardware use these commands to build the OTBN binary and run it on hardware:
 
 ```shell
-elf2tab --verbose -n "otbn-rsa" --kernel-minor 0 --kernel-major 2 --app-heap 0 --kernel-heap 0 --stack 0 ${OPENTITAN_TREE}/build-out/sw/otbn/rsa.elf
-OPENTITAN_TREE=<...> APP=${OPENTITAN_TREE}/build-out/sw/otbn/rsa.tbf make test-hardware
+make rsa.tbf
+OPENTITAN_TREE=<...> APP=rsa.tbf make test-hardware
 ```
 
 The output on a CW310 should look something like this:

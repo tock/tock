@@ -23,6 +23,18 @@ endif
 .PHONY: install
 install: flash
 
+rsa.tbf:
+	$(OPENTITAN_TREE)/bazelisk.sh build //sw/otbn/crypto:rsa
+	$(eval ELF := $(shell $(OPENTITAN_TREE)/bazelisk.sh cquery //sw/otbn/crypto:rsa --output starlark --starlark:expr="' '.join([f.path for f in target.files.to_list() if f.basename.endswith('.elf')])"))
+	$(ELF2TAB) \
+		--verbose \
+		--package-name "otbn-rsa" \
+		--kernel-minor 0 --kernel-major 2 \
+		--app-heap 0 --kernel-heap 0 --stack 0 \
+		--output-file rsa.tab \
+		$(OPENTITAN_TREE)/$(ELF)
+	tar -xf rsa.tab rsa.elf.tbf && mv rsa.elf.tbf rsa.tbf && touch rsa.tbf
+
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(call check_defined, OPENTITAN_BOOT_ROM)
 	$(QEMU) -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -nographic -serial mon:stdio
