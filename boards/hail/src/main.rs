@@ -14,6 +14,7 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
@@ -25,6 +26,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::adc::Channel;
 use sam4l::chip::Sam4lDefaultPeripherals;
+use sam4l::deferred_call_tasks::Task;
 
 /// Support routines for debugging I/O.
 ///
@@ -216,7 +218,11 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 unsafe fn get_peripherals(
     pm: &'static sam4l::pm::PowerManager,
 ) -> &'static Sam4lDefaultPeripherals {
-    static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
+    let dc_mgr = static_init!(DeferredCallManager<Task>, DeferredCallManager::new());
+    static_init!(
+        Sam4lDefaultPeripherals,
+        Sam4lDefaultPeripherals::new(pm, dc_mgr)
+    )
 }
 
 /// Board's main function.

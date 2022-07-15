@@ -68,6 +68,7 @@
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
@@ -75,6 +76,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use nrf52832::deferred_call_tasks::DeferredCallTask;
 use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
@@ -225,10 +227,14 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn get_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
+    let dc_mgr = static_init!(
+        DeferredCallManager<DeferredCallTask>,
+        DeferredCallManager::new()
+    );
     // Initialize chip peripheral drivers
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
-        Nrf52832DefaultPeripherals::new()
+        Nrf52832DefaultPeripherals::new(dc_mgr)
     );
 
     nrf52832_peripherals

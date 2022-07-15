@@ -1,7 +1,6 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -83,7 +82,7 @@ impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
             Processor::Processor0 => self.processor0_interrupt_mask,
             Processor::Processor1 => self.processor1_interrupt_mask,
         };
-        unsafe { cortexm0p::nvic::has_pending_with_mask(mask) || deferred_call::has_tasks() }
+        unsafe { cortexm0p::nvic::has_pending_with_mask(mask) }
     }
 
     fn mpu(&self) -> &Self::MPU {

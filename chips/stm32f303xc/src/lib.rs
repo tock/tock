@@ -7,7 +7,7 @@
 #![no_std]
 
 pub mod chip;
-mod deferred_call_tasks;
+pub mod deferred_call_tasks;
 pub mod nvic;
 
 // Peripherals

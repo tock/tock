@@ -4,81 +4,69 @@
 //! in the chip scheduler if the hardware doesn't support interrupts where
 //! they are needed.
 
-use core::cell::UnsafeCell;
+use core::cell::Cell;
 use core::convert::Into;
 use core::convert::TryFrom;
 use core::convert::TryInto;
-use core::intrinsics;
 use core::marker::Copy;
-use core::marker::Sync;
+use core::marker::PhantomData;
 
-/// AtomicUsize with no CAS operations that works on targets that have "no atomic
-/// support" according to their specification. This makes it work on thumbv6
-/// platforms.
-///
-/// Borrowed from https://github.com/japaric/heapless/blob/master/src/ring_buffer/mod.rs
-/// See: https://github.com/japaric/heapless/commit/37c8b5b63780ed8811173dc1ec8859cd99efa9ad
-struct AtomicUsize {
-    v: UnsafeCell<usize>,
+/// Any chip with peripherals which require deferred calls should
+/// instantiate exactly one of these, and a reference to that manager should be
+/// passed to all created `DeferredCall`s.
+pub struct DeferredCallManager<T: Into<usize> + TryFrom<usize> + Copy> {
+    v: Cell<usize>,
+    _p: PhantomData<T>,
 }
 
-impl AtomicUsize {
-    pub(crate) const fn new(v: usize) -> AtomicUsize {
-        AtomicUsize {
-            v: UnsafeCell::new(v),
+impl<T: Into<usize> + TryFrom<usize> + Copy> DeferredCallManager<T> {
+    pub fn new() -> Self {
+        Self {
+            v: Cell::new(0),
+            _p: PhantomData,
         }
     }
 
-    pub(crate) fn load_relaxed(&self) -> usize {
-        unsafe { intrinsics::atomic_load_relaxed(self.v.get()) }
-    }
-
-    pub(crate) fn store_relaxed(&self, val: usize) {
-        unsafe { intrinsics::atomic_store_relaxed(self.v.get(), val) }
-    }
-
-    pub(crate) fn fetch_or_relaxed(&self, val: usize) {
-        unsafe { intrinsics::atomic_store_relaxed(self.v.get(), self.load_relaxed() | val) }
-    }
-}
-
-unsafe impl Sync for AtomicUsize {}
-
-static DEFERRED_CALL: AtomicUsize = AtomicUsize::new(0);
-
-/// Are there any pending `DeferredCall`s?
-pub fn has_tasks() -> bool {
-    DEFERRED_CALL.load_relaxed() != 0
-}
-
-/// Represents a way to generate an asynchronous call without a hardware
-/// interrupt. Supports up to 32 possible deferrable tasks.
-pub struct DeferredCall<T>(T);
-
-impl<T: Into<usize> + TryFrom<usize> + Copy> DeferredCall<T> {
-    /// Creates a new DeferredCall
-    ///
-    /// Only create one per task, preferably in the module that it will be used
-    /// in.
-    pub const unsafe fn new(task: T) -> Self {
-        DeferredCall(task)
-    }
-
-    /// Set the `DeferredCall` as pending
-    pub fn set(&self) {
-        DEFERRED_CALL.fetch_or_relaxed(1 << self.0.into() as usize);
+    /// Are there any pending `DeferredCall`s?
+    pub fn has_tasks(&self) -> bool {
+        self.v.get() != 0
     }
 
     /// Gets and clears the next pending `DeferredCall`
-    pub fn next_pending() -> Option<T> {
-        let val = DEFERRED_CALL.load_relaxed();
+    pub fn next_pending(&self) -> Option<T> {
+        let val = self.v.get();
         if val == 0 {
             None
         } else {
             let bit = val.trailing_zeros() as usize;
             let new_val = val & !(1 << bit);
-            DEFERRED_CALL.store_relaxed(new_val);
+            self.v.set(new_val);
             bit.try_into().ok()
         }
+    }
+}
+
+/// Represents a way to generate an asynchronous call without a hardware
+/// interrupt. Supports up to 32 possible deferrable tasks.
+pub struct DeferredCall<T: 'static + Into<usize> + TryFrom<usize> + Copy> {
+    task: T,
+    mgr: &'static DeferredCallManager<T>,
+}
+
+impl<T: Into<usize> + TryFrom<usize> + Copy> DeferredCall<T> {
+    /// Creates a new DeferredCall
+    ///
+    /// Only create one per task, preferably in the module that it will be used
+    /// in. Creating more than 32 tasks on a given manager will lead to
+    /// incorrect behavior.
+    pub const fn new(task: T, mgr: &'static DeferredCallManager<T>) -> Self {
+        DeferredCall { task, mgr }
+    }
+
+    /// Set the `DeferredCall` as pending
+    pub fn set(&self) {
+        self.mgr
+            .v
+            .set((1 << self.task.into() as usize) | self.mgr.v.get());
     }
 }

@@ -1,4 +1,5 @@
 use crate::stm32f412g_nvic;
+use kernel::deferred_call::DeferredCallManager;
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 use stm32f4xx::deferred_calls::DeferredCallTask;
 
@@ -14,9 +15,10 @@ impl<'a> Stm32f412gDefaultPeripherals<'a> {
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a crate::dma::Dma1<'a>,
         dma2: &'a crate::dma::Dma2<'a>,
+        dc_mgr: &'static DeferredCallManager<DeferredCallTask>,
     ) -> Self {
         Self {
-            stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
+            stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2, dc_mgr),
             trng: stm32f4xx::trng::Trng::new(rcc),
         }
     }

@@ -4,7 +4,7 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallManager};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -137,11 +137,6 @@ register_bitfields! [u32,
     ]
 ];
 
-/// This mechanism allows us to schedule "interrupts" even if the hardware
-/// does not support them.
-static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
-    unsafe { DeferredCall::new(DeferredCallTask::Nvmc) };
-
 const PAGE_SIZE: usize = 4096;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
@@ -206,15 +201,17 @@ pub struct Nvmc {
     client: OptionalCell<&'static dyn hil::flash::Client<Nvmc>>,
     buffer: TakeCell<'static, NrfPage>,
     state: Cell<FlashState>,
+    deferred_call: DeferredCall<DeferredCallTask>,
 }
 
 impl Nvmc {
-    pub const fn new() -> Nvmc {
+    pub const fn new(dc_mgr: &'static DeferredCallManager<DeferredCallTask>) -> Nvmc {
         Nvmc {
             registers: NVMC_BASE,
             client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             state: Cell::new(FlashState::Ready),
+            deferred_call: DeferredCall::new(DeferredCallTask::Nvmc, dc_mgr),
         }
     }
 
@@ -304,7 +301,7 @@ impl Nvmc {
         // Mark the need for an interrupt so we can call the read done
         // callback.
         self.state.set(FlashState::Read);
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }
@@ -341,7 +338,7 @@ impl Nvmc {
         // Mark the need for an interrupt so we can call the write done
         // callback.
         self.state.set(FlashState::Write);
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }
@@ -353,7 +350,7 @@ impl Nvmc {
         // Mark that we want to trigger a pseudo interrupt so that we can issue
         // the callback even though the NVMC is completely blocking.
         self.state.set(FlashState::Erase);
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }

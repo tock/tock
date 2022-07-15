@@ -109,6 +109,20 @@ pub trait InterruptService<T> {
 
     /// Service a deferred call. If this task is not supported, return false.
     unsafe fn service_deferred_call(&self, task: T) -> bool;
+
+    /// Returns true if any deferred call tasks are pending, otherwise returns false.
+    /// Default implementation just returns false, and should be overriden by chips that require
+    /// defferred calls.
+    fn has_deferred_call_tasks(&self) -> bool {
+        false
+    }
+
+    /// Returns the next pending deferred call task, if any.
+    /// Default implementation just returns None, and should be overriden by chips that require
+    /// deferred calls
+    fn next_pending_deferred_call(&self) -> Option<T> {
+        None
+    }
 }
 
 /// Generic operations that clock-like things are expected to support.

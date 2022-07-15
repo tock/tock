@@ -1,6 +1,6 @@
 use crate::rcc;
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallManager};
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -128,11 +128,6 @@ register_bitfields![u32,
     ]
 ];
 
-/// This mechanism allows us to schedule "interrupts" even if the hardware
-/// does not support them.
-static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
-    unsafe { DeferredCall::new(DeferredCallTask::Fsmc) };
-
 const FSMC_BASE: StaticRef<FsmcBankRegisters> =
     unsafe { StaticRef::new(0xA000_0000 as *const FsmcBankRegisters) };
 
@@ -170,10 +165,15 @@ pub struct Fsmc<'a> {
     buffer: TakeCell<'static, [u8]>,
     bus_width: Cell<usize>,
     len: Cell<usize>,
+    deferred_call: DeferredCall<DeferredCallTask>,
 }
 
 impl<'a> Fsmc<'a> {
-    pub const fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(
+        bank_addr: [Option<StaticRef<FsmcBank>>; 4],
+        rcc: &'a rcc::Rcc,
+        dc_mgr: &'static DeferredCallManager<DeferredCallTask>,
+    ) -> Self {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
@@ -186,6 +186,7 @@ impl<'a> Fsmc<'a> {
             buffer: TakeCell::empty(),
             bus_width: Cell::new(1),
             len: Cell::new(0),
+            deferred_call: DeferredCall::new(DeferredCallTask::Fsmc, dc_mgr),
         }
     }
 
@@ -312,7 +313,7 @@ impl Bus8080<'static> for Fsmc<'_> {
         match addr_width {
             BusWidth::Bits8 => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
-                DEFERRED_CALL.set();
+                self.deferred_call.set();
                 Ok(())
             }
             _ => Err(ErrorCode::NOSUPPORT),
@@ -343,7 +344,7 @@ impl Bus8080<'static> for Fsmc<'_> {
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
             self.len.set(len);
-            DEFERRED_CALL.set();
+            self.deferred_call.set();
             Ok(())
         } else {
             Err((ErrorCode::NOMEM, buffer))
@@ -374,7 +375,7 @@ impl Bus8080<'static> for Fsmc<'_> {
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
             self.len.set(len);
-            DEFERRED_CALL.set();
+            self.deferred_call.set();
             Ok(())
         } else {
             Err((ErrorCode::NOMEM, buffer))

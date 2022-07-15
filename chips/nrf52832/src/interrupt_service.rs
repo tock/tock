@@ -1,4 +1,5 @@
 use crate::deferred_call_tasks::DeferredCallTask;
+use kernel::deferred_call::DeferredCallManager;
 use nrf52::chip::Nrf52DefaultPeripherals;
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
@@ -10,9 +11,9 @@ pub struct Nrf52832DefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 impl<'a> Nrf52832DefaultPeripherals<'a> {
-    pub unsafe fn new() -> Self {
+    pub unsafe fn new(dc_mgr: &'static DeferredCallManager<DeferredCallTask>) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(),
+            nrf52: Nrf52DefaultPeripherals::new(dc_mgr),
             gpio_port: crate::gpio::nrf52832_gpio_create(),
         }
     }

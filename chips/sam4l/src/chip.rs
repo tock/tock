@@ -5,7 +5,7 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::deferred_call;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::platform::chip::{Chip, InterruptService};
 
 pub struct Sam4l<I: InterruptService<Task> + 'static> {
@@ -55,17 +55,21 @@ pub struct Sam4lDefaultPeripherals {
     pub usart2: crate::usart::USART<'static>,
     pub usart3: crate::usart::USART<'static>,
     pub usbc: crate::usbc::Usbc<'static>,
+    deferred_call_manager: &'static DeferredCallManager<Task>,
 }
 
 impl Sam4lDefaultPeripherals {
-    pub fn new(pm: &'static crate::pm::PowerManager) -> Self {
+    pub fn new(
+        pm: &'static crate::pm::PowerManager,
+        dc_mgr: &'static DeferredCallManager<Task>,
+    ) -> Self {
         use crate::dma::{DMAChannel, DMAChannelNum};
         Self {
             acifc: crate::acifc::Acifc::new(),
             adc: crate::adc::Adc::new(crate::dma::DMAPeripheral::ADCIFE_RX, pm),
             aes: crate::aes::Aes::new(),
             ast: crate::ast::Ast::new(),
-            crccu: crate::crccu::Crccu::new(crate::crccu::BASE_ADDRESS),
+            crccu: crate::crccu::Crccu::new(crate::crccu::BASE_ADDRESS, dc_mgr),
             dac: crate::dac::Dac::new(),
             dma_channels: [
                 DMAChannel::new(DMAChannelNum::DMAChannel00),
@@ -90,6 +94,7 @@ impl Sam4lDefaultPeripherals {
                 crate::pm::HSBClock::FLASHCALW,
                 crate::pm::HSBClock::FLASHCALWP,
                 crate::pm::PBBClock::FLASHCALW,
+                dc_mgr,
             ),
             gloc: crate::gloc::Gloc::new(),
             pa: crate::gpio::Port::new_port_a(),
@@ -106,6 +111,7 @@ impl Sam4lDefaultPeripherals {
             usart2: crate::usart::USART::new_usart2(pm),
             usart3: crate::usart::USART::new_usart3(pm),
             usbc: crate::usbc::Usbc::new(pm),
+            deferred_call_manager: dc_mgr,
         }
     }
 
@@ -225,12 +231,23 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         }
         true
     }
+
     unsafe fn service_deferred_call(&self, task: Task) -> bool {
         match task {
             crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
             crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
         }
         true
+    }
+
+    #[inline]
+    fn has_deferred_call_tasks(&self) -> bool {
+        self.deferred_call_manager.has_tasks()
+    }
+
+    #[inline]
+    fn next_pending_deferred_call(&self) -> Option<Task> {
+        self.deferred_call_manager.next_pending()
     }
 }
 
@@ -241,7 +258,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                if let Some(task) = self.interrupt_service.next_pending_deferred_call() {
                     match self.interrupt_service.service_deferred_call(task) {
                         true => {}
                         false => panic!("unhandled deferred call task"),
@@ -262,7 +279,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() || self.interrupt_service.has_deferred_call_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

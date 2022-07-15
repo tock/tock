@@ -1,7 +1,7 @@
 use crate::deferred_call_tasks::DeferredCallTask;
 use core::fmt::Write;
 use cortexm4::{self, nvic};
-use kernel::deferred_call;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::hil::time::Alarm;
 use kernel::platform::chip::InterruptService;
 
@@ -47,10 +47,11 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub nvmc: crate::nvmc::Nvmc,
     pub clock: crate::clock::Clock,
     pub pwm0: crate::pwm::Pwm,
+    deferred_call_manager: &'static DeferredCallManager<DeferredCallTask>,
 }
 
 impl<'a> Nrf52DefaultPeripherals<'a> {
-    pub fn new() -> Self {
+    pub fn new(dc_mgr: &'static DeferredCallManager<DeferredCallTask>) -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
             ecb: crate::aes::AesECB::new(),
@@ -70,9 +71,10 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
             adc: crate::adc::Adc::new(),
-            nvmc: crate::nvmc::Nvmc::new(),
+            nvmc: crate::nvmc::Nvmc::new(dc_mgr),
             clock: crate::clock::Clock::new(),
             pwm0: crate::pwm::Pwm::new(),
+            deferred_call_manager: dc_mgr,
         }
     }
     // Necessary for setting up circular dependencies
@@ -149,6 +151,16 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
         }
         true
     }
+
+    #[inline]
+    fn has_deferred_call_tasks(&self) -> bool {
+        self.deferred_call_manager.has_tasks()
+    }
+
+    #[inline]
+    fn next_pending_deferred_call(&self) -> Option<DeferredCallTask> {
+        self.deferred_call_manager.next_pending()
+    }
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
@@ -166,7 +178,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                if let Some(task) = self.interrupt_service.next_pending_deferred_call() {
                     if !self.interrupt_service.service_deferred_call(task) {
                         panic!("unhandled deferred call task");
                     }
@@ -185,7 +197,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { nvic::has_pending() || self.interrupt_service.has_deferred_call_tasks() }
     }
 
     fn sleep(&self) {

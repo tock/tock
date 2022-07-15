@@ -3,7 +3,8 @@
 use cortexm4::generic_isr;
 
 pub use stm32f4xx::{
-    adc, chip, dbg, dma, exti, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, trng, usart,
+    adc, chip, dbg, deferred_calls, dma, exti, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, trng,
+    usart,
 };
 
 pub mod interrupt_service;

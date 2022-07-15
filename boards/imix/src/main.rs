@@ -20,6 +20,7 @@ use capsules::virtual_spi::VirtualSpiMasterDevice;
 //use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
@@ -297,7 +298,14 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 unsafe fn get_peripherals(
     pm: &'static sam4l::pm::PowerManager,
 ) -> &'static Sam4lDefaultPeripherals {
-    static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
+    let dc_mgr = static_init!(
+        DeferredCallManager<sam4l::deferred_call_tasks::Task>,
+        DeferredCallManager::new()
+    );
+    static_init!(
+        Sam4lDefaultPeripherals,
+        Sam4lDefaultPeripherals::new(pm, dc_mgr)
+    )
 }
 
 /// Main function.

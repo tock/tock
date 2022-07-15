@@ -51,7 +51,7 @@
 use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallManager};
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
@@ -65,8 +65,6 @@ use kernel::ErrorCode;
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 pub const BASE_ADDRESS: StaticRef<CrccuRegisters> =
     unsafe { StaticRef::new(0x400A4000 as *const CrccuRegisters) };
-
-static DEFERRED_CALL: DeferredCall<Task> = unsafe { DeferredCall::new(Task::CRCCU) };
 
 #[repr(C)]
 pub struct CrccuRegisters {
@@ -265,10 +263,14 @@ pub struct Crccu<'a> {
     // Must be aligned to a 512-byte boundary, which is guaranteed by
     // the struct definition.
     descriptor: Descriptor,
+    deferred_call: DeferredCall<Task>,
 }
 
 impl Crccu<'_> {
-    pub fn new(base_addr: StaticRef<CrccuRegisters>) -> Self {
+    pub fn new(
+        base_addr: StaticRef<CrccuRegisters>,
+        dc_mgr: &'static DeferredCallManager<Task>,
+    ) -> Self {
         Crccu {
             registers: base_addr,
             client: OptionalCell::empty(),
@@ -277,6 +279,7 @@ impl Crccu<'_> {
             current_full_buffer: Cell::new((0 as *mut u8, 0)),
             compute_requested: Cell::new(false),
             descriptor: Descriptor::new(),
+            deferred_call: DeferredCall::new(Task::CRCCU, dc_mgr),
         }
     }
 
@@ -533,7 +536,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
 
         // Request a deferred call such that we can provide the result
         // back to the client
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }

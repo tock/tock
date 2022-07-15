@@ -12,12 +12,14 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+use stm32f401cc::deferred_calls::DeferredCallTask;
 use stm32f401cc::interrupt_service::Stm32f401ccDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -227,10 +229,14 @@ unsafe fn get_peripherals() -> (
     );
     let dma1 = static_init!(stm32f401cc::dma::Dma1, stm32f401cc::dma::Dma1::new(rcc));
     let dma2 = static_init!(stm32f401cc::dma::Dma2, stm32f401cc::dma::Dma2::new(rcc));
+    let dc_mgr = static_init!(
+        DeferredCallManager<DeferredCallTask>,
+        DeferredCallManager::new()
+    );
 
     let peripherals = static_init!(
         Stm32f401ccDefaultPeripherals,
-        Stm32f401ccDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f401ccDefaultPeripherals::new(rcc, exti, dma1, dma2, dc_mgr)
     );
     (peripherals, syscfg, dma1)
 }

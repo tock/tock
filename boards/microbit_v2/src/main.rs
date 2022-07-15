@@ -10,6 +10,7 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -18,6 +19,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
+use nrf52::deferred_call_tasks::DeferredCallTask;
 use nrf52833::gpio::Pin;
 use nrf52833::interrupt_service::Nrf52833DefaultPeripherals;
 
@@ -179,10 +181,14 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn get_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> {
+    let dc_mgr = static_init!(
+        DeferredCallManager<DeferredCallTask>,
+        DeferredCallManager::new()
+    );
     // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new()
+        Nrf52833DefaultPeripherals::new(dc_mgr)
     );
 
     nrf52833_peripherals

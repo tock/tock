@@ -2,7 +2,7 @@
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::deferred_call;
+use kernel::deferred_call::DeferredCallManager;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -28,15 +28,20 @@ pub struct Stm32f3xxDefaultPeripherals<'a> {
     pub usart3: crate::usart::Usart<'a>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub watchdog: crate::wdt::WindoWdg<'a>,
+    deferred_call_manager: &'static DeferredCallManager<DeferredCallTask>,
 }
 
 impl<'a> Stm32f3xxDefaultPeripherals<'a> {
-    pub fn new(rcc: &'a crate::rcc::Rcc, exti: &'a crate::exti::Exti<'a>) -> Self {
+    pub fn new(
+        rcc: &'a crate::rcc::Rcc,
+        exti: &'a crate::exti::Exti<'a>,
+        dc_mgr: &'static DeferredCallManager<DeferredCallTask>,
+    ) -> Self {
         Self {
             adc1: crate::adc::Adc::new(rcc),
             dma: crate::dma::Dma1::new(rcc),
             exti,
-            flash: crate::flash::Flash::new(),
+            flash: crate::flash::Flash::new(dc_mgr),
             i2c1: crate::i2c::I2C::new_i2c1(rcc),
             spi1: crate::spi::Spi::new_spi1(rcc),
             tim2: crate::tim2::Tim2::new(rcc),
@@ -45,6 +50,7 @@ impl<'a> Stm32f3xxDefaultPeripherals<'a> {
             usart3: crate::usart::Usart::new_usart3(rcc),
             gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
             watchdog: crate::wdt::WindoWdg::new(rcc),
+            deferred_call_manager: dc_mgr,
         }
     }
 
@@ -86,6 +92,16 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> 
         }
         true
     }
+
+    #[inline]
+    fn has_deferred_call_tasks(&self) -> bool {
+        self.deferred_call_manager.has_tasks()
+    }
+
+    #[inline]
+    fn next_pending_deferred_call(&self) -> Option<DeferredCallTask> {
+        self.deferred_call_manager.next_pending()
+    }
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> Stm32f3xx<'a, I> {
@@ -105,7 +121,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                if let Some(task) = self.interrupt_service.next_pending_deferred_call() {
                     if !self.interrupt_service.service_deferred_call(task) {
                         panic!("unhandled deferred call");
                     }
@@ -124,7 +140,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() || self.interrupt_service.has_deferred_call_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
