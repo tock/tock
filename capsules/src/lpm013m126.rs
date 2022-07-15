@@ -339,6 +339,33 @@ where
         }
     }
 
+    fn uninitialize(&self) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Off => Err(ErrorCode::ALREADY),
+            _ => {
+                // TODO: investigate clearing pixels asynchronously,
+                // like the datasheet asks.
+                // It seems to turn off fine without clearing, but
+                // perhaps the state of the buffer affects power draw when off.
+
+                // The following stops extcomin timer.
+                self.alarm.disarm()?;
+                self.disp.clear();
+                self.state.set(State::Off);
+
+                let scheduled =
+                    schedule_deferred(self.deferred_caller, &self.ready_callback, "ready");
+
+                if let Err(()) = scheduled {
+                    self.state.set(State::Bug);
+                    Err(ErrorCode::FAIL)
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
+
     fn call_write_complete(&self, ret: Result<(), ErrorCode>) -> Option<bool> {
         if let Some((handle, None)) = self.write_complete_callback.extract() {
             self.write_complete_callback.set((handle, Some(ret)));
@@ -495,9 +522,7 @@ where
         let ret = if enable {
             self.initialize()
         } else {
-            // TODO: disable DISP, stop EXTCOMIN, clear pixels,
-            // set state to Off
-            Err(ErrorCode::ALREADY)
+            self.uninitialize()
         };
 
         // If the device is in the desired state by now,
@@ -521,12 +546,8 @@ where
         Ok(())
     }
 
-    fn invert_on(&self) -> Result<(), ErrorCode> {
+    fn set_invert(&self, _inverted: bool) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
-    }
-
-    fn invert_off(&self) -> Result<(), ErrorCode> {
-        Ok(())
     }
 }
 

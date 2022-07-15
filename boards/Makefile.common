@@ -88,7 +88,7 @@ RUSTC_FLAGS_TOCK ?= \
 # Disallow warnings only for continuous integration builds. Disallowing them
 # here using the `RUSTC_FLAGS_TOCK` variable ensures that warnings during
 # testing won't prevent compilation from succeeding.
-ifeq ($(CI),true)
+ifeq ($(NOWARNINGS),true)
   RUSTC_FLAGS_TOCK += -D warnings
 endif
 
@@ -266,6 +266,16 @@ else
   SHA256SUM := sha256sum
 endif
 
+# virtual-function-elimination reduces the size of binaries, but is still
+# experimental and has some possible miscompilation issues. We don't use it
+# by default but expose it via the `VFUNC_ELIM=1 make` option.
+#
+# For details on virtual-function-elimination see: https://github.com/rust-lang/rust/pull/96285
+# See https://github.com/rust-lang/rust/issues/68262 for general tracking
+ifneq ($(VFUNC_ELIM),)
+	RUSTC_FLAGS += -C lto -Z virtual-function-elimination
+endif
+
 # Dump configuration for verbose builds
 ifeq ($(VERBOSE_MODE),1)
   $(info )
@@ -336,7 +346,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 doc: | target
 	@# This mess is all to work around rustdoc giving no way to return an
 	@# error if there are warnings. This effectively simulates that.
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | grep -C 9999 warning && (echo "Warnings detected during doc build" && if [[ $$CI == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
+	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | grep -C 9999 warning && (echo "Warnings detected during doc build" && if [[ $$NOWARNINGS == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
 
 
 .PHONY: lst

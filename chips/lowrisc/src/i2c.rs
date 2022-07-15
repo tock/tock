@@ -226,7 +226,7 @@ impl<'a> I2c<'_> {
         let len = self.read_len.get();
 
         self.buffer.map(|buf| {
-            for i in data_popped..len {
+            for i in self.read_index.get()..len {
                 if regs.status.is_set(STATUS::RXEMPTY) {
                     // The RX buffer is empty
                     data_popped = i;
@@ -263,7 +263,7 @@ impl<'a> I2c<'_> {
         let len = self.write_len.get();
 
         self.buffer.map(|buf| {
-            for i in data_pushed..(len - 1) {
+            for i in self.write_index.get()..(len - 1) {
                 if regs.status.read(STATUS::FMTFULL) != 0 {
                     // The FMT buffer is full
                     data_pushed = i;

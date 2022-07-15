@@ -87,7 +87,7 @@ macro_rules! register_fields {
 // `should_panic`-akin attribute which works for const panics, once that is
 // available.
 /// Statically validate the size and offsets of the fields defined
-/// within the register struct through the [`register_structs!`]
+/// within the register struct through the `register_structs!()`
 /// macro.
 ///
 /// This macro expands to an expression which contains static
