@@ -27,14 +27,11 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Buzzer as usize;
 
-#[derive(Default)]
-pub struct App {}
-
 pub struct Buzzer<'a, B: hil::buzzer::Buzzer<'a>> {
     /// The service capsule buzzer.
     buzzer: &'a B,
     /// Per-app state.
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     /// Which app is currently using the buzzer.
     active_app: OptionalCell<ProcessId>,
 }
@@ -42,7 +39,7 @@ pub struct Buzzer<'a, B: hil::buzzer::Buzzer<'a>> {
 impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     pub fn new(
         buzzer: &'a B,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Buzzer<'a, B> {
         Buzzer {
             buzzer: buzzer,
