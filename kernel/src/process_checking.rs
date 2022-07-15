@@ -359,30 +359,3 @@ impl Compress for AppCheckerSha256 {
     }
 }
 
-impl AppCredentialsChecker<'static> for () {
-    fn require_credentials(&self) -> bool {
-        false
-    }
-
-    fn check_credentials(
-        &self,
-        credentials: TbfFooterV2Credentials,
-        binary: &'static [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'static [u8])> {
-        Err((ErrorCode::NOSUPPORT, credentials, binary))
-    }
-
-    fn set_client(&self, _client: &'static dyn Client<'static>) {}
-}
-
-impl AppIdentification for () {
-    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
-        true
-    }
-}
-
-impl Compress for () {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
-        None
-    }
-}
