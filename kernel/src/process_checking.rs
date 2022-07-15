@@ -342,8 +342,13 @@ impl<'a> ClientHash<32_usize> for AppCheckerSha256 {
 }
 
 impl Compress for AppCheckerSha256 {
+    // This checker generates a short ID from the first 32 bits of the
+    // hash and sets the first bit to be 1 to ensure it is non-zero.
+    // Note that since these identifiers are only 31 bits, they do not
+    // provide sufficient collision resistance to verify a unique identity.
     fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
-        let id: u32 = (credentials.data()[0] as u32) << 24
+        let id: u32 = 0x8000000 as u32
+            | (credentials.data()[0] as u32) << 24
             | (credentials.data()[1] as u32) << 16
             | (credentials.data()[2] as u32) << 8
             | (credentials.data()[3] as u32);

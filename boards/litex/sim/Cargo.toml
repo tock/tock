@@ -9,5 +9,5 @@ edition = "2021"
 components = { path = "../../components" }
 rv32i = { path = "../../../arch/rv32i" }
 capsules = { path = "../../../capsules" }
-kernel = { path = "../../../kernel", features = ["debug_load_processes"] }
+kernel = { path = "../../../kernel" }
 litex_vexriscv = { path = "../../../chips/litex_vexriscv" }

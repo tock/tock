@@ -31,7 +31,7 @@ use kernel::static_init;
 // least a 1 KiB boundary). This is not _semantically_ critical, but helps keep buffers on 1 KiB
 // boundaries in some cases. Of course, these definitions are only advisory, and individual boards
 // can choose to pass in their own buffers with different lengths.
-const DEBUG_BUFFER_KBYTE: usize = 4;
+const DEBUG_BUFFER_KBYTE: usize = 1;
 
 // Bytes [0, DEBUG_BUFFER_SPLIT) are used for output_buf while bytes
 // [DEBUG_BUFFER_SPLIT, DEBUG_BUFFER_KBYTE * 1024) are used for internal_buf.

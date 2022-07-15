@@ -97,6 +97,9 @@ consisting of text, data, read-only data, and other segments.
 
 **TBF Object**: a [Tock binary format][TBF] object stored on a Tock
 device, containing TBF headers, a Userspace Binary, and TBF footers.
+TBF Objects are typically generated from ELF files using the
+[`elf2tab`](https://github.com/tock/elf2tab) tool and are the
+standard binary format for Tock userspace processes.
 
 **Application**: userspace software developed and maintained by an
 individual, group, corporation, or organization that meets the
