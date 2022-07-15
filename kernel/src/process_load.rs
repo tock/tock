@@ -173,6 +173,7 @@ impl fmt::Debug for ProcessLoadError {
 /// credentials for binary integrity, passing them to `checker` to decide
 /// whether the process has sufficient credentials to run.
 #[inline(always)]
+#[allow(dead_code)]
 pub fn load_and_check_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -192,6 +193,55 @@ pub fn load_and_check_processes<C: Chip>(
         capability_management,
     )?;
     let _res = check_processes(procs, kernel);
+    Ok(())
+}
+
+/// Load processes (stored as TBF objects in flash) into runnable
+/// process structures stored in the `procs` array. If a `checker` is
+/// passed, this method scans the footers in the TBF for cryptographic
+/// credentials for binary integrity, passing them to `checker` to decide
+/// whether the process has sufficient credentials to run.
+#[inline(always)]
+#[allow(dead_code)]
+pub fn load_processes_no_checking<C: Chip>(
+    kernel: &'static Kernel,
+    chip: &'static C,
+    app_flash: &'static [u8],
+    app_memory: &'static mut [u8],
+    mut procs: &'static mut [Option<&'static dyn Process>],
+    fault_policy: &'static dyn ProcessFaultPolicy,
+    capability_management: &dyn ProcessManagementCapability,
+) -> Result<(), ProcessLoadError> {
+    load_processes(
+        kernel,
+        chip,
+        app_flash,
+        app_memory,
+        &mut procs,
+        fault_policy,
+        capability_management,
+    )?;
+
+    if config::CONFIG.debug_process_credentials {
+        debug!("Checking: no checking, load and run all processes");
+    }
+    let capability = create_capability!(ProcessApprovalCapability);
+    for proc in procs.iter() {
+        let res = proc.map(|p| {
+            p.mark_credentials_pass(None, None, &capability)
+                .or(Err(ProcessLoadError::InternalError))?;
+            if config::CONFIG.debug_process_credentials {
+                debug!("Running {}", p.get_process_name());
+            }
+            kernel
+                .submit_process(p)
+                .or(Err(ProcessLoadError::InternalError))?;
+            Ok(())
+        });
+        if let Some(Err(e)) = res {
+            return Err(e);
+        }
+    }
     Ok(())
 }
 
