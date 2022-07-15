@@ -48,6 +48,10 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
         }
     }
 
+    /// Checks whether an app is valid or not. The app is valid if
+    /// there is no current active_app using the driver, or if the app corresponds
+    /// to the current active_app. Otherwise, a different app is trying to
+    /// use the driver while it is already in use, therefore it is not valid.
     pub fn is_valid_app(&self, appid: ProcessId) -> bool {
         self.active_app.map_or(
             true,
@@ -87,15 +91,11 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
         appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 =>
             // Check whether the driver exists.
-            {
-                CommandReturn::success()
-            }
+            0 => CommandReturn::success(),
 
-            1 =>
             // Play a sound.
-            {
+            1 => {
                 if !self.is_valid_app(appid) {
                     // A different app is trying to use the buzzer, so we return RESERVE.
                     CommandReturn::failure(ErrorCode::RESERVE)
@@ -107,9 +107,8 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
                 }
             }
 
-            2 =>
             // Stop the current sound.
-            {
+            2 => {
                 if !self.is_valid_app(appid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {

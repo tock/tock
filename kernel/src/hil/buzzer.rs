@@ -8,6 +8,8 @@ pub trait BuzzerClient {
     fn buzzer_done(&self, status: Result<(), ErrorCode>);
 }
 
+/// The Buzzer HIL is used to play a sound on a buzzer at a fixed frequency and
+/// for a certain duration.
 pub trait Buzzer<'a> {
     /// Play a sound at a chosen frequency and for a chosen duration.
     /// Once the buzzer finishes buzzing, the `buzzer_done()` callback

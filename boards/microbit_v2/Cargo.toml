@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
 capsules = { path = "../../capsules" }
-kernel = { path = "../../kernel", features = ["trace_syscalls"] }
+kernel = { path = "../../kernel" }
 nrf52 = { path = "../../chips/nrf52" }
 nrf52833 = { path = "../../chips/nrf52833" }
 components = { path = "../components" }
