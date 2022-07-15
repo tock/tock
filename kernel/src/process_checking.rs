@@ -358,4 +358,3 @@ impl Compress for AppCheckerSha256 {
         }
     }
 }
-
