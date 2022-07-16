@@ -623,7 +623,7 @@ pub unsafe fn main() {
         scheduler_timer,
     };
 
-    kernel::process::load_and_check_processes(
+    kernel::process::load_processes_no_checking(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
