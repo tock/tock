@@ -398,7 +398,7 @@ def print_symbol_information():
 
 def print_all_symbols(title, symbols):
     """Print out all of the symbols passed as a list of 4-tuples,
-    prefaced by the title and total size of the list of symbols."""
+    prefaced by the title and total size of the of symbols."""
     max_string_len = max(len(s) for (s, _, _, _) in symbols)
     output = ""
     symbol_sum = 0
