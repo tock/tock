@@ -355,7 +355,9 @@ def print_groups(title, groups):
     """Print title, then all of the variable groups in groups."""
     group_sum = 0
     output = ""
-    max_string_len = len(max(groups.keys(), key=len))
+    max_string_len = 0
+    if len(groups.keys()) > 0:
+        max_string_len = len(max(groups.keys(), key=len))
     group_sizes = {}
 
     for key in groups.keys():
@@ -399,7 +401,9 @@ def print_symbol_information():
 def print_all_symbols(title, symbols):
     """Print out all of the symbols passed as a list of 4-tuples,
     prefaced by the title and total size of the of symbols."""
-    max_string_len = max(len(s) for (s, _, _, _) in symbols)
+    max_string_len = 0
+    if len(symbols) > 0:
+        max_string_len = max(len(s) for (s, _, _, _) in symbols)
     output = ""
     symbol_sum = 0
     if sort_by_size:
