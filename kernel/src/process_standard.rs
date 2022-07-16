@@ -322,11 +322,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             unsafe { flash_start.offset(self.header.get_app_start_offset() as isize) as usize };
         let init_fn = unsafe {
             flash_start.offset(
-                self.header.get_app_start_offset() as isize
-                    + self.header.get_init_function_offset() as isize,
+                    self.header.get_init_function_offset() as isize
             ) as usize
         };
-
         self.kernel.increment_work();
         self.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
@@ -1305,7 +1303,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 let sram_start = self.mem_start() as usize;
                 let flash_start = self.flash.as_ptr() as usize;
                 let flash_init_fn = flash_start
-                    + self.header.length() as usize
                     + self.header.get_init_function_offset() as usize;
 
                 let _ = writer.write_fmt(format_args!(
