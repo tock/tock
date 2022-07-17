@@ -197,7 +197,7 @@ macro_rules! test_fields {
             // evaluate the previous iterations' expressions for them to have an
             // effect anyways, so we can perform an internal sanity check on
             // this value as well.
-            const sum: usize = $stmts;
+            const SUM: usize = $stmts;
 
             const fn struct_size $(<$life>)? () -> usize
             {
@@ -219,7 +219,7 @@ macro_rules! test_fields {
             // Internal sanity check. If we have reached this point and
             // correctly iterated over the struct's fields, the current offset
             // and the claimed end offset MUST be equal.
-            assert!(sum == $size);
+            assert!(SUM == $size);
         };
     };
 
@@ -242,14 +242,14 @@ macro_rules! test_fields {
             ) : {
                 // Evaluate the previous iterations' expression to determine the
                 // current offset.
-                const sum: usize = $output;
+                const SUM: usize = $output;
 
                 // Validate the start offset of the current field. This check is
                 // mostly relevant for when this is the first field in the
                 // struct, as any subsequent start offset error will be detected
                 // by an end offset error of the previous field.
                 assert!(
-                    sum == $offset_start,
+                    SUM == $offset_start,
                     "{}",
                     concat!(
                         "Invalid start offset for field ",
@@ -262,14 +262,14 @@ macro_rules! test_fields {
 
                 // Validate that the start offset of the current field within
                 // the struct matches the type's minimum alignment constraint.
-                const align: usize = core::mem::align_of::<$ty>();
-                // Clippy can tell that (align - 1) is zero for some fields, so
+                const ALIGN: usize = core::mem::align_of::<$ty>();
+                // Clippy can tell that (ALIGN - 1) is zero for some fields, so
                 // we allow this lint and further encapsule the assert! as an
                 // expression, such that the allow attr can apply.
                 #[allow(clippy::bad_bit_mask)]
                 {
                     assert!(
-                        sum & (align - 1) == 0,
+                        SUM & (ALIGN - 1) == 0,
                         "{}",
                         concat!(
                             "Invalid alignment for field ",
@@ -282,9 +282,9 @@ macro_rules! test_fields {
                 // Add the current field's length to the offset and validate the
                 // end offset of the field based on the next field's claimed
                 // start offset.
-                const new_sum: usize = sum + core::mem::size_of::<$ty>();
+                const NEW_SUM: usize = SUM + core::mem::size_of::<$ty>();
                 assert!(
-                    new_sum == $offset_end,
+                    NEW_SUM == $offset_end,
                     "{}",
                     concat!(
                         "Invalid end offset for field ",
@@ -296,7 +296,7 @@ macro_rules! test_fields {
                 );
 
                 // Provide the updated offset to the next iteration
-                new_sum
+                NEW_SUM
             }
         );
     };
@@ -320,14 +320,14 @@ macro_rules! test_fields {
             ) : {
                 // Evaluate the previous iterations' expression to determine the
                 // current offset.
-                const sum: usize = $output;
+                const SUM: usize = $output;
 
                 // Validate the start offset of the current padding field. This
                 // check is mostly relevant for when this is the first field in
                 // the struct, as any subsequent start offset error will be
                 // detected by an end offset error of the previous field.
                 assert!(
-                    sum == $offset_start,
+                    SUM == $offset_start,
                     concat!(
                         "Invalid start offset for padding ",
                         stringify!($padding),
