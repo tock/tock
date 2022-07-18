@@ -12,12 +12,10 @@
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
-use capsules::sha256::Sha256Software;
 use capsules::virtual_aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
 use capsules::virtual_sha::VirtualMuxSha;
-
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -84,6 +82,7 @@ static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
 static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
 
 // Test access to a software SHA256
+#[cfg(test)]
 static mut SHA256SOFT: Option<&capsules::sha256::Sha256Software<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
@@ -642,14 +641,18 @@ unsafe fn setup() -> (
 
     AES = Some(ccm_client1);
 
-    let sha_soft = static_init!(
-        Sha256Software<'static>,
-        Sha256Software::new(dynamic_deferred_caller)
-    );
-    sha_soft.initialize_callback_handle(dynamic_deferred_caller.register(sha_soft).unwrap());
+    #[cfg(test)]
+    {
+        use capsules::sha256::Sha256Software;
 
-    SHA256SOFT = Some(sha_soft);
-    //test::sha256_test::run_sha256(dynamic_deferred_caller);
+        let sha_soft = static_init!(
+            Sha256Software<'static>,
+            Sha256Software::new(dynamic_deferred_caller)
+        );
+        sha_soft.initialize_callback_handle(dynamic_deferred_caller.register(sha_soft).unwrap());
+
+        SHA256SOFT = Some(sha_soft);
+    }
 
     hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
     hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
@@ -690,10 +693,10 @@ unsafe fn setup() -> (
     let earlgrey = static_init!(
         EarlGrey,
         EarlGrey {
-            gpio: gpio,
-            led: led,
-            console: console,
-            alarm: alarm,
+            gpio,
+            led,
+            console,
+            alarm,
             hmac,
             sha,
             rng,
