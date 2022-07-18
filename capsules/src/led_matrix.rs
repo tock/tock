@@ -89,10 +89,6 @@ use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::led::Led;
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 
-/// Syscall driver number.
-use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
-
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.
 pub struct LedMatrixDriver<'a, L: Pin, A: Alarm<'a>> {
@@ -264,42 +260,42 @@ impl<'a, L: Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
     }
 }
 
-impl<'a, L: Pin, A: Alarm<'a>> SyscallDriver for LedMatrixDriver<'a, L, A> {
-    /// Control the LEDs.
-    ///
-    /// ### `command_num`
-    ///
-    /// - `0`: Returns the number of LEDs on the board. This will always be 0 or
-    ///        greater, and therefore also allows for checking for this driver.
-    /// - `1`: Turn the LED at index specified by `data` on. Returns `INVAL` if
-    ///        the LED index is not valid.
-    /// - `2`: Turn the LED at index specified by `data` off. Returns `INVAL`
-    ///        if the LED index is not valid.
-    /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
-    ///        `INVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
-        match command_num {
-            // get number of LEDs
-            0 => CommandReturn::success_u32((self.cols.len() * self.rows.len()) as u32),
+// impl<'a, L: Pin, A: Alarm<'a>> SyscallDriver for LedMatrixDriver<'a, L, A> {
+//     /// Control the LEDs.
+//     ///
+//     /// ### `command_num`
+//     ///
+//     /// - `0`: Returns the number of LEDs on the board. This will always be 0 or
+//     ///        greater, and therefore also allows for checking for this driver.
+//     /// - `1`: Turn the LED at index specified by `data` on. Returns `INVAL` if
+//     ///        the LED index is not valid.
+//     /// - `2`: Turn the LED at index specified by `data` off. Returns `INVAL`
+//     ///        if the LED index is not valid.
+//     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
+//     ///        `INVAL` if the LED index is not valid.
+//     fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
+//         match command_num {
+//             // get number of LEDs
+//             0 => CommandReturn::success_u32((self.cols.len() * self.rows.len()) as u32),
 
-            // on
-            1 => CommandReturn::from(self.on_index(data)),
+//             // on
+//             1 => CommandReturn::from(self.on_index(data)),
 
-            // off
-            2 => CommandReturn::from(self.off_index(data)),
+//             // off
+//             2 => CommandReturn::from(self.off_index(data)),
 
-            // toggle
-            3 => CommandReturn::from(self.toggle_index(data)),
+//             // toggle
+//             3 => CommandReturn::from(self.toggle_index(data)),
 
-            // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
-    }
+//             // default
+//             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+//         }
+//     }
 
-    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
-        Ok(())
-    }
-}
+//     fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
+//         Ok(())
+//     }
+// }
 // one Led from the matrix
 pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
     matrix: &'a LedMatrixDriver<'a, L, A>,
