@@ -25,10 +25,11 @@ import re
 import sys
 import getopt
 import cxxfilt  # Demangling C++/Rust symbol names
-
+import copy
 
 OBJDUMP = "llvm-objdump"
 
+print_all = False
 verbose = False
 show_waste = False
 symbol_depth = 1
@@ -56,6 +57,7 @@ def usage(message):
     print(
         """Usage: print_memory_usage.py ELF
 Options:
+  -a                  Print all symbols (overrides -d)
   -dn, --depth=n      Group symbols at depth n or greater. E.g.,
                       depth=2 will group all h1b::uart:: symbols
                       together. Default: 1
@@ -269,8 +271,6 @@ def group_symbols(groups, symbols, waste, section):
     waste_sum = 0
     prev_symbol = ""
     for (symbol, addr, size, _) in symbols:
-        if size == 0:
-            continue
         # If we find a gap between symbol+size and the next symbol, we might
         # have waste. But this is only true if it's not the first symbol and
         # this is actually a variable and just just a symbol (e.g., _estart)
@@ -320,11 +320,10 @@ def group_symbols(groups, symbols, waste, section):
             if len(tokens[symbol_depth:]) > 0:
                 key = key + "::"
                 name = "::".join(tokens[symbol_depth:])
-
-            if key in groups.keys():
-                groups[key].append((name, size))
-            else:
-                groups[key] = [(name, size)]
+        if key in groups.keys():
+            groups[key].append((name, size))
+        else:
+            groups[key] = [(name, size)]
 
         # Set state for next iteration
         expected_addr = addr + size
@@ -356,14 +355,16 @@ def print_groups(title, groups):
     """Print title, then all of the variable groups in groups."""
     group_sum = 0
     output = ""
-    max_string_len = len(max(groups.keys(), key=len))
+    max_string_len = 0
+    if len(groups.keys()) > 0:
+        max_string_len = len(max(groups.keys(), key=len))
     group_sizes = {}
 
     for key in groups.keys():
         symbols = groups[key]
 
         group_size = 0
-        for (_, size) in symbols:
+        for (name, size) in symbols:
             group_size = group_size + size
         group_sizes[key] = group_size
 
@@ -392,14 +393,58 @@ def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
     use."""
     variable_groups = {}
-    gaps = group_symbols(variable_groups, kernel_initialized, show_waste, "Flash+RAM")
+    if print_all:
+        print_all_symbol_information()
+    else:
+        print_grouped_symbol_information()
+
+def print_all_symbols(title, symbols):
+    """Print out all of the symbols passed as a list of 4-tuples,
+    prefaced by the title and total size of the of symbols."""
+    max_string_len = 0
+    if len(symbols) > 0:
+        max_string_len = max(len(s) for (s, _, _, _) in symbols)
+    output = ""
+    symbol_sum = 0
+    if sort_by_size:
+        symbols = sorted(symbols, key=lambda item: item[3], reverse=True)
+    for (name, addr, reported_size, real_size) in symbols:
+        name = name.ljust(max_string_len + 2, " ")
+        symbol_sum = symbol_sum + real_size
+        output = output + "  " + name + str(real_size) + " bytes\n"
+    print(title + ": " + str(symbol_sum) + " bytes")
+    print(output, end="")
+    
+        
+def print_all_symbol_information():
+    """Print out the size of every symbol."""
+    print_all_symbols("Initialized variable groups (Flash+RAM)", kernel_initialized)
+    print()
+    print_all_symbols("Variable groups (RAM)", kernel_uninitialized)
+    print()
+    print_all_symbols("Embedded data (flash)", padding_text)
+    print()
+    print_all_symbols("Function groups (flash)", kernel_functions)
+    return
+        
+def print_grouped_symbol_information():
+    """Print out the size taken up by symbols, with symbols grouped
+    by their names"""
+    initialized_groups = {}
+    gaps = group_symbols(initialized_groups, kernel_initialized, show_waste, "Flash+RAM")
+    print_groups("Initialized variable groups (Flash+RAM)", initialized_groups)
+    print()
+    
+    uninitialized_groups = {}
     gaps = gaps + group_symbols(
-        variable_groups, kernel_uninitialized, show_waste, "RAM"
+        uninitialized_groups, kernel_uninitialized, show_waste, "RAM"
     )
-    print_groups("Variable groups (RAM)", variable_groups)
+    print_groups("Variable groups (RAM)", uninitialized_groups)
     print(gaps)
 
-    print("Embedded data (flash): " + str(padding_text) + " bytes")
+    padding_groups = {}
+    gaps = group_symbols(padding_groups, padding_text, show_waste, "Flash")
+    print_groups("Embedded data (flash)", padding_groups)
     print()
     function_groups = {}
     # Embedded constants in code (e.g., after functions) aren't counted
@@ -415,40 +460,52 @@ def get_addr(symbol_entry):
     """Helper function for sorting symbols by start address."""
     return symbol_entry[1]
 
+def get_name(symbol_entry):
+    """Helper function for fetching symbol names to calculate longest name."""
+    return symbol_entry[0]
+
 
 def compute_padding(symbols):
     """Calculate how much padding is in a list of symbols by comparing their
     reporting size with the spacing with the next function and return
     the total differences."""
     symbols.sort(key=get_addr)
+    elements = []
     func_count = len(symbols)
     diff = 0
+    size_sum = 0
     for i in range(1, func_count):
         (esymbol, eaddr, esize, _) = symbols[i - 1]
-        (_, laddr, _, _) = symbols[i]
+        (symbol, laddr, _, _) = symbols[i]
         total_size = laddr - eaddr
         symbols[i - 1] = (esymbol, eaddr, esize, total_size)
-        if total_size != esize:
-            diff = diff + (total_size - esize)
-
-    return diff
+        # Sometimes multiple symbols point to the same memory. In this case,
+        # the total_size will be 0 for all but one of the symbols. Don't
+        # subtract this from the padding.
+        size_sum = size_sum + esize
+        padding_size = (total_size - esize)
+        if total_size != esize and total_size != 0:
+            elements.append((symbol, 0, padding_size, padding_size))
+            diff = diff + padding_size
+    return elements
 
 
 def parse_options(opts):
     """Parse command line options."""
-    global symbol_depth, verbose, show_waste, sort_by_size, OBJDUMP
-    valid = "d:vsw"
+    global print_all, symbol_depth, verbose, show_waste, sort_by_size, OBJDUMP
+    valid = "ad:vsw"
     long_valid = ["depth=", "verbose", "show-waste", "size", "objdump="]
     optlist, leftover = getopt.getopt(opts, valid, long_valid)
     for (opt, val) in optlist:
-        if opt == "-d" or opt == "--depth":
+        if opt == "-a":
+            print_all = True
+        elif opt == "-d" or opt == "--depth":
             symbol_depth = int(val)
         elif opt == "-v" or opt == "--verbose":
             verbose = True
         elif opt == "-w" or opt == "--show-waste":
             show_waste = True
         elif opt == "-s" or opt == "--size":
-            print("sorting by size")
             sort_by_size = True
         elif opt == "--objdump":
             OBJDUMP = val
@@ -457,7 +514,6 @@ def parse_options(opts):
             return []
 
     return leftover
-
 
 # Script starts here ######################################
 if __name__ == "__main__":
