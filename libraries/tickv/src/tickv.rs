@@ -327,8 +327,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     /// On error a `ErrorCode` will be returned.
     pub fn append_key(&self, hash: u64, value: &[u8]) -> Result<SuccessCode, ErrorCode> {
         let region = self.get_region(hash);
-        let crc = crc32::Crc::new();
-        let mut check_sum = crc.digest();
+        let mut check_sum = crc32::Crc32::new();
 
         // Length not including check sum
         let package_length = HEADER_LENGTH + value.len();
@@ -531,8 +530,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         let mut region_offset: isize = 0;
 
         loop {
-            let crc = crc32::Crc::new();
-            let mut check_sum = crc.digest();
+            let mut check_sum = crc32::Crc32::new();
             let new_region = match self.state.get() {
                 State::None => region as isize + region_offset,
                 State::Init(state) => {
