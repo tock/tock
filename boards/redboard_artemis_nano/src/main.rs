@@ -7,8 +7,12 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
+#![feature(custom_test_frameworks)]
+#![test_runner(test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 use apollo3::chip::Apollo3DefaultPeripherals;
+use capsules::virtual_alarm::MuxAlarm;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -25,6 +29,9 @@ pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
+#[cfg(test)]
+mod tests;
+
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
@@ -38,6 +45,21 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+
+// Test access to the peripherals
+#[cfg(test)]
+static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
+// Test access to board
+#[cfg(test)]
+static mut BOARD: Option<&'static kernel::Kernel> = None;
+// Test access to platform
+#[cfg(test)]
+static mut PLATFORM: Option<&'static RedboardArtemisNano> = None;
+// Test access to main loop capability
+#[cfg(test)]
+static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+// Test access to alarm
+static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -118,11 +140,12 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     }
 }
 
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
+unsafe fn setup() -> (
+    &'static kernel::Kernel,
+    &'static RedboardArtemisNano,
+    &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+    &'static Apollo3DefaultPeripherals,
+) {
     apollo3::init();
 
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
@@ -136,7 +159,6 @@ pub unsafe fn main() {
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
@@ -221,6 +243,7 @@ pub unsafe fn main() {
         mux_alarm,
     )
     .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
+    ALARM = Some(mux_alarm);
 
     // Create a process printer for panic.
     let process_printer =
@@ -318,10 +341,54 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        artemis_nano,
-        chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
-        &main_loop_cap,
-    );
+    (board_kernel, artemis_nano, chip, peripherals)
+}
+
+/// Main function.
+///
+/// This function is called from the arch crate after some very basic RISC-V
+/// setup and RAM initialization.
+#[no_mangle]
+pub unsafe fn main() {
+    #[cfg(test)]
+    test_main();
+
+    #[cfg(not(test))]
+    {
+        let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
+
+        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+
+        board_kernel.kernel_loop(
+            esp32_c3_board,
+            chip,
+            None::<&kernel::ipc::IPC<NUM_PROCS>>,
+            &main_loop_cap,
+        );
+    }
+}
+
+#[cfg(test)]
+use kernel::platform::watchdog::WatchDog;
+
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Fn()]) {
+    unsafe {
+        let (board_kernel, esp32_c3_board, _chip, peripherals) = setup();
+
+        BOARD = Some(board_kernel);
+        PLATFORM = Some(&esp32_c3_board);
+        PERIPHERALS = Some(peripherals);
+        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
+
+        PLATFORM.map(|p| {
+            p.watchdog().setup();
+        });
+
+        for test in tests {
+            test();
+        }
+    }
+
+    loop {}
 }
