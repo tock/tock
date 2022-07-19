@@ -31,6 +31,7 @@ pub trait Buzzer<'a> {
     ///
     /// - `Ok(())`: The attempt at stopping the buzzer was successful.
     /// - `FAIL`: Cannot stop the buzzer.
+    /// - `OFF`: The buzzer wasn't playing a sound when the stop command was called.
     fn stop(&self) -> Result<(), ErrorCode>;
 
     /// Set the client to be used for callbacks of the Buzzer

@@ -111,6 +111,9 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
             2 => {
                 if !self.is_valid_app(appid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
+                } else if self.active_app.is_none() {
+                    // If there is no active app, the buzzer isn't playing, so we return OFF.
+                    CommandReturn::failure(ErrorCode::OFF)
                 } else {
                     self.active_app.set(appid);
                     self.buzzer.stop().into()
