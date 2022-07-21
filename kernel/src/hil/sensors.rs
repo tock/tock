@@ -31,6 +31,47 @@ pub trait HumidityClient {
     fn callback(&self, value: usize);
 }
 
+/// A basic interface for a Air Quality sensor
+pub trait AirQualityDriver<'a> {
+    /// Set the client to be notified when the capsule has data ready.
+    fn set_client(&self, client: &'a dyn AirQualityClient);
+
+    /// Read the CO2 or equivalent CO2 (eCO2) from the sensor.
+    /// This will trigger the `AirQualityClient` `co2_data_available()`
+    /// callback when the data is ready.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initilisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_co2(&self) -> Result<(), ErrorCode>;
+
+    /// Read the Total Organic Compound (TVOC) from the sensor.
+    /// This will trigger the `AirQualityClient` `tvoc_data_available()`
+    /// callback when the data is ready.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initilisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_tvoc(&self) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving Air Quality readings
+pub trait AirQualityClient {
+    /// Called when a CO2 or equivalent CO2 (eCO2) reading has completed.
+    ///
+    /// - `value`: will contain the latest CO2 reading in ppm. An example value
+    ///            might be `400`.
+    fn co2_data_available(&self, value: u32);
+
+    /// Called when a Total Organic Compound (TVOC) reading has completed.
+    ///
+    /// - `value`: will contain the latest TVOC reading in ppb. An example value
+    ///            might be `0`.
+    fn tvoc_data_available(&self, value: u32);
+}
+
 /// A basic interface for a proximity sensor
 pub trait ProximityDriver<'a> {
     fn set_client(&self, client: &'a dyn ProximityClient);
