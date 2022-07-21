@@ -21,14 +21,14 @@ mod ro_allow {
     pub const IV: usize = 1;
     pub const SOURCE: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
     pub const DEST: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static>> {

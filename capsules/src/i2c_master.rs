@@ -17,7 +17,7 @@ pub const DRIVER_NUM: usize = driver::NUM::I2cMaster as usize;
 mod rw_allow {
     pub const BUFFER: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 2;
+    pub const COUNT: u8 = 2;
 }
 
 #[derive(Default)]

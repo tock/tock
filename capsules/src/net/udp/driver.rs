@@ -38,7 +38,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 mod ro_allow {
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for read-write allow buffers
@@ -47,7 +47,7 @@ mod rw_allow {
     pub const CFG: usize = 1;
     pub const RX_CFG: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
