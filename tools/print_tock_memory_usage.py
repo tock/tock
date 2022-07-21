@@ -185,14 +185,15 @@ def process_symbol_line(line):
     first try to demangle it; if that fails, use it as is."""
     # pylint: disable=line-too-long,anomalous-backslash-in-string
     match = re.search(
-        "^(\S+)\s+\w+\s+\w*\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+)\s+(.+)",
+        "^(\S+)\s+\w+\s+(\w*)\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+)\s+(.+)",
         line,
     )
     if match != None:
         addr = int(match.group(1), 16)
-        segment = match.group(2)
-        size = int(match.group(3), 16)
-        name = match.group(4)
+        symbol_type = match.group(2)
+        segment = match.group(3)
+        size = int(match.group(4), 16)
+        name = match.group(5)
 
         # Initialized data: part of the flash image, then copied into RAM
         # on start. The .data section in normal hosted C.
@@ -208,6 +209,11 @@ def process_symbol_line(line):
 
         # Code and embedded data.
         elif segment == "text":
+            # Prune symbols that aren't a function or data: these
+            # confuse calculating symbol lengths, as they are typically
+            # zero-length aliases for real symbols.
+            if symbol_type != "F" and symbol_type != "O":
+                return
             match = re.search("\$(((\w+\.\.)+)(\w+))\$", name)
             if match != None:
                 symbol = parse_mangled_name(name)
@@ -485,7 +491,7 @@ def compute_padding(symbols):
         size_sum = size_sum + esize
         padding_size = (total_size - esize)
         if total_size != esize and total_size != 0:
-            elements.append((symbol, 0, padding_size, padding_size))
+            elements.append((esymbol, 0, padding_size, padding_size))
             diff = diff + padding_size
     return elements
 

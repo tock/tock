@@ -567,10 +567,10 @@ pub unsafe fn main() {
         board_kernel,
         capsules::nonvolatile_storage_driver::DRIVER_NUM,
         mx25r6435f,
-        0x60000, // Start address for userspace accessible region
-        0x20000, // Length of userspace accessible region
-        0,       // Start address of kernel region
-        0x60000, // Length of kernel region
+        0x60000,   // Start address for userspace accessible region
+        0x3FA0000, // Length of userspace accessible region
+        0,         // Start address of kernel region
+        0x60000,   // Length of kernel region
     )
     .finalize(components::nv_storage_component_helper!(
         capsules::mx25r6435f::MX25R6435F<
