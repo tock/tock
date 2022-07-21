@@ -179,7 +179,7 @@ macro_rules! test_fields {
     // Macro entry point.
     (@root $struct:ident $(<$life:lifetime>)? { $($input:tt)* } ) => {
         // Start recursion at offset 0.
-        $crate::test_fields!(@munch $struct $(<$life>)? ($($input)*) : 0);
+        $crate::test_fields!(@munch $struct $(<$life>)? ($($input)*) : (0, 0));
     };
 
     // Consume the ($size:expr => @END) field, which MUST be the last field in
@@ -197,15 +197,20 @@ macro_rules! test_fields {
             // evaluate the previous iterations' expressions for them to have an
             // effect anyways, so we can perform an internal sanity check on
             // this value as well.
-            const sum: usize = $stmts;
+            const SUM_MAX_ALIGN: (usize, usize) = $stmts;
+            const SUM: usize = SUM_MAX_ALIGN.0;
+            const MAX_ALIGN: usize = SUM_MAX_ALIGN.1;
 
-            const fn struct_size $(<$life>)? () -> usize
-            {
-                core::mem::size_of::<$struct $(<$life>)?>()
-            }
+            // Internal sanity check. If we have reached this point and
+            // correctly iterated over the struct's fields, the current offset
+            // and the claimed end offset MUST be equal.
+            assert!(SUM == $size);
+
+            const STRUCT_SIZE: usize = core::mem::size_of::<$struct $(<$life>)?>();
+            const ALIGNMENT_CORRECTED_SIZE: usize = if $size % MAX_ALIGN != 0 { $size + (MAX_ALIGN - ($size % MAX_ALIGN)) } else { $size };
 
             assert!(
-                struct_size() == $size,
+                STRUCT_SIZE == ALIGNMENT_CORRECTED_SIZE,
                 "{}",
                 concat!(
                     "Invalid size for struct ",
@@ -215,11 +220,6 @@ macro_rules! test_fields {
                     ", actual struct size differs)",
                 ),
             );
-
-            // Internal sanity check. If we have reached this point and
-            // correctly iterated over the struct's fields, the current offset
-            // and the claimed end offset MUST be equal.
-            assert!(sum == $size);
         };
     };
 
@@ -242,14 +242,16 @@ macro_rules! test_fields {
             ) : {
                 // Evaluate the previous iterations' expression to determine the
                 // current offset.
-                const sum: usize = $output;
+                const SUM_MAX_ALIGN: (usize, usize) = $output;
+                const SUM: usize = SUM_MAX_ALIGN.0;
+                const MAX_ALIGN: usize = SUM_MAX_ALIGN.1;
 
                 // Validate the start offset of the current field. This check is
                 // mostly relevant for when this is the first field in the
                 // struct, as any subsequent start offset error will be detected
                 // by an end offset error of the previous field.
                 assert!(
-                    sum == $offset_start,
+                    SUM == $offset_start,
                     "{}",
                     concat!(
                         "Invalid start offset for field ",
@@ -262,14 +264,14 @@ macro_rules! test_fields {
 
                 // Validate that the start offset of the current field within
                 // the struct matches the type's minimum alignment constraint.
-                const align: usize = core::mem::align_of::<$ty>();
+                const ALIGN: usize = core::mem::align_of::<$ty>();
                 // Clippy can tell that (align - 1) is zero for some fields, so
                 // we allow this lint and further encapsule the assert! as an
                 // expression, such that the allow attr can apply.
                 #[allow(clippy::bad_bit_mask)]
                 {
                     assert!(
-                        sum & (align - 1) == 0,
+                        SUM & (ALIGN - 1) == 0,
                         "{}",
                         concat!(
                             "Invalid alignment for field ",
@@ -282,9 +284,9 @@ macro_rules! test_fields {
                 // Add the current field's length to the offset and validate the
                 // end offset of the field based on the next field's claimed
                 // start offset.
-                const new_sum: usize = sum + core::mem::size_of::<$ty>();
+                const NEW_SUM: usize = SUM + core::mem::size_of::<$ty>();
                 assert!(
-                    new_sum == $offset_end,
+                    NEW_SUM == $offset_end,
                     "{}",
                     concat!(
                         "Invalid end offset for field ",
@@ -295,8 +297,13 @@ macro_rules! test_fields {
                     ),
                 );
 
-                // Provide the updated offset to the next iteration
-                new_sum
+                // Determine the new maximum alignment. core::cmp::max(ALIGN,
+                // MAX_ALIGN) does not work here, as the function is not const.
+                const NEW_MAX_ALIGN: usize = if ALIGN > MAX_ALIGN { ALIGN } else { MAX_ALIGN };
+
+                // Provide the updated offset and alignment to the next
+                // iteration.
+                (NEW_SUM, NEW_MAX_ALIGN)
             }
         );
     };
@@ -320,14 +327,16 @@ macro_rules! test_fields {
             ) : {
                 // Evaluate the previous iterations' expression to determine the
                 // current offset.
-                const sum: usize = $output;
+                const SUM_MAX_ALIGN: (usize, usize) = $output;
+                const SUM: usize = SUM_MAX_ALIGN.0;
+                const MAX_ALIGN: usize = SUM_MAX_ALIGN.1;
 
                 // Validate the start offset of the current padding field. This
                 // check is mostly relevant for when this is the first field in
                 // the struct, as any subsequent start offset error will be
                 // detected by an end offset error of the previous field.
                 assert!(
-                    sum == $offset_start,
+                    SUM == $offset_start,
                     concat!(
                         "Invalid start offset for padding ",
                         stringify!($padding),
@@ -339,7 +348,7 @@ macro_rules! test_fields {
 
                 // The padding field is automatically sized. Provide the start
                 // offset of the next field to the next iteration.
-                $offset_end
+                ($offset_end, MAX_ALIGN)
             }
         );
     };
