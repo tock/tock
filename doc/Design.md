@@ -53,9 +53,9 @@ mind. Tock favors overall reliability of the system and discourages components
 Tock includes three architectural components: a small trusted kernel, written in
 Rust, which implements a hardware abstraction layer (HAL); scheduler; and
 platform-specific configuration. Other system components are implemented in one
-of two protection mechanisms: **capsules**, which are compiled with the kernel and
-use Rust’s type and module systems for safety, and **processes**, which use the MPU
-for protection at runtime.
+of two protection mechanisms: **capsules**, which are compiled with the kernel
+and use Rust’s type and module systems for safety, and **processes**, which use
+the MPU for protection at runtime.
 
 System components (an application, driver, virtualization layer, etc.) can be
 implemented in either a capsule or process, but each mechanism trades off
@@ -112,25 +112,24 @@ language and to be safely loaded at runtime.
 
 Processes are isolated from each other, the kernel, and the underlying hardware
 explicitly by the hardware Memory Protection Unit (MPU). The MPU limits which
-memory addresses a process can access. Accesses outside of a process’s permitted
+memory addresses a process can access. Accesses outside of a process's permitted
 region result in a fault and trap to the kernel.
 
-Code, stored in flash, is made
-accessible with a read-only memory protection region. Each process is allocated
-a contiguous region of RAM. One novel aspect of a process is the presence of a
-“grant” region at the top of the address space. This is memory allocated to the
-process covered by a memory protection region that the process can neither read
-nor write. The grant region, discussed below, is needed for the kernel to be able
-to borrow memory from a process in order to ensure liveness and safety in
-response to system calls.
+Code, stored in flash, is made accessible with a read-only memory protection
+region. Each process is allocated a contiguous region of RAM. One novel aspect
+of a process is the presence of a "grant" region at the top of the address
+space. This is memory allocated to the process covered by a memory protection
+region that the process can neither read nor write. The grant region, discussed
+below, is needed for the kernel to be able to borrow memory from a process in
+order to ensure liveness and safety in response to system calls.
 
 ### Grants
 
-Capsules are not allowed to allocate memory dynamically since dynamic
-allocation in the kernel makes it hard to predict if memory will be exhausted.
-A single capsule with poor memory management could cause the rest of the kernel
-to fail. Moreover, since it uses a single stack, the kernel cannot easily
-recover from capsule failures.
+Capsules are not allowed to allocate memory dynamically since dynamic allocation
+in the kernel makes it hard to predict if memory will be exhausted. A single
+capsule with poor memory management could cause the rest of the kernel to fail.
+Moreover, since it uses a single stack, the kernel cannot easily recover from
+capsule failures.
 
 However, capsules often need to dynamically allocate memory in response to
 process requests. For example, a virtual timer driver must allocate a structure
@@ -153,9 +152,9 @@ three properties:
   3. The kernel must be able to reclaim memory from a terminated process.
 
 Tock provides a safe memory allocation mechanism that meets these three
-requirements through memory grants. Capsules can allocate data of arbitrary
-type from the memory of processes that interact with them. This memory is
-allocated from the grant segment.
+requirements through memory grants. Capsules can allocate data of arbitrary type
+from the memory of processes that interact with them. This memory is allocated
+from the grant segment.
 
 Just as with buffers passed through allow, references to granted memory are
 wrapped in a type-safe struct that ensures the process is still alive before
@@ -176,38 +175,33 @@ ecosystem evolve.
 
 Generally, the Tock kernel is structured into three layers:
 
-1. Chip-specific drivers: these typically live in a crate in the
-   `chips` subdirectory, or an equivalent crate in an different repository
-   (e.g. the Titan port is out of tree but its `h1b` create is the
-   equivalent here). These drivers have implementations that are specific
-   to the hardware of a particular microcontroller. Ideally,
-   their implementation is fairly simple, and they merely adhere to a
-   common interface (a HIL). That's not always the case, but that's
-   the ideal.
+1. Chip-specific drivers: these typically live in a crate in the `chips`
+   subdirectory, or an equivalent crate in an different repository (e.g. the
+   Titan port is out of tree but its `h1b` create is the equivalent here). These
+   drivers have implementations that are specific to the hardware of a
+   particular microcontroller. Ideally, their implementation is fairly simple,
+   and they merely adhere to a common interface (a HIL). That's not always the
+   case, but that's the ideal.
 
-2. Chip-agnostic, portable, peripheral drivers and subsystems. These
-   typically live in the `capsules` crate. These include things like
-   virtual alarms and virtual I2C stack, as well as drivers for
-   hardware peripherals not on the chip itself (e.g. sensors, radios,
-   etc). These drivers typically rely on the chip-specific drivers
-   through the HILs.
+2. Chip-agnostic, portable, peripheral drivers and subsystems. These typically
+   live in the `capsules` crate. These include things like virtual alarms and
+   virtual I2C stack, as well as drivers for hardware peripherals not on the
+   chip itself (e.g. sensors, radios, etc). These drivers typically rely on the
+   chip-specific drivers through the HILs.
 
-3. System call drivers, also typically found in the `capsules`
-   crate. These are the drivers that implement a particular part of
-   the system call interfaces, and are often even more abstracted from
-   the hardware than (2) - for example, the temperature sensor system
-   call driver can use any temperature sensor, including several
-   implemented as portable peripheral drivers.
+3. System call drivers, also typically found in the `capsules` crate. These are
+   the drivers that implement a particular part of the system call interfaces,
+   and are often even more abstracted from the hardware than (2) - for example,
+   the temperature sensor system call driver can use any temperature sensor,
+   including several implemented as portable peripheral drivers.
 
-
-   The system call interface is another point of
-   standardization that can be implemented in various ways. So it’s
-   perfectly reasonable to have several implementations of the same
-   system call interface that use completely different hardware
-   stacks, and therefore HILs and chip-specific drivers (e.g. a
-   console driver that operates over USB might just be implemented as
-   a different system call driver that implements the same system
-   calls, rather than trying to fit USB into the UART HIL).
+   The system call interface is another point of standardization that can be
+   implemented in various ways. So it is perfectly reasonable to have several
+   implementations of the same system call interface that use completely
+   different hardware stacks, and therefore HILs and chip-specific drivers (e.g.
+   a console driver that operates over USB might just be implemented as a
+   different system call driver that implements the same system calls, rather
+   than trying to fit USB into the UART HIL).
 
 Because of their importance, the interfaces between these layers are a key part
 of Tock's design and implementation. These interfaces are called Tock's Hardware
@@ -265,11 +259,10 @@ general principles we follow:
 
 ### Split-phase Operation
 
-While processes are time sliced and preemptive in Tock, the kernel is
-not. Everything is run-to-completion. That is an important design
-choice because it allows the kernel to avoid allocating lots of stacks
-for lots of tasks, and it makes it possible to reason more simply
-about static and other shared variables.
+While processes are time sliced and preemptive in Tock, the kernel is not.
+Everything is run-to-completion. That is an important design choice because it
+allows the kernel to avoid allocating lots of stacks for lots of tasks, and it
+makes it possible to reason more simply about static and other shared variables.
 
 Therefore, all I/O operations in the Tock kernel are asynchronous and
 non-blocking. A method call starts an operation and returns immediately. When
@@ -409,6 +402,7 @@ code, Tock tries to merge new features into mainline Tock. This both eases the
 maintenance burden of the code (it doesn't have to be maintained out-of-tree)
 and makes the feature more visible.
 
-However, not all features catch on, or are completed, or prove useful, and having the
-code in mainline Tock becomes an overall maintenance burden. In these cases, Tock
-will move the code to an [archive repository](https://github.com/tock/tock-archive/).
+However, not all features catch on, or are completed, or prove useful, and
+having the code in mainline Tock becomes an overall maintenance burden. In these
+cases, Tock will move the code to an [archive
+repository](https://github.com/tock/tock-archive/).
