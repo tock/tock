@@ -276,8 +276,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         let counters_val = counters_ptr.read();
 
         // Parse the counters field for each of the fields
-        let upcalls_num = (counters_val & 0xFF) as u8;
-        let allow_ro_num = ((counters_val >> 8) & 0xFF) as u8;
+        let [_, _, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
 
         // Skip over the counter usize, then the stored array of `SavedAllowRo`
         // items and `SavedAllowRw` items.
@@ -317,9 +316,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
         // Create the counters usize value by correctly packing the various
         // counts into 8 bit fields.
-        let counter: usize = upcalls_num_val.0 as usize
-            | ((allow_ro_num_val.0 as usize) << 8)
-            | ((allow_rw_num_val.0 as usize) << 16);
+        let counter: usize =
+            u32::from_be_bytes([0, allow_rw_num_val.0, allow_ro_num_val.0, upcalls_num_val.0])
+                as usize;
 
         let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
         let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()) as *mut SavedAllowRo;
@@ -398,8 +397,8 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     fn get_counter_offset(&self, offset_bits: usize) -> usize {
         // # Safety
         //
-        // Creating a `EnteredGrantKernelManagedLayout` object requires that the pointers
-        // are well aligned and point to valid memory.
+        // Creating a `EnteredGrantKernelManagedLayout` object requires that the
+        // pointers are well aligned and point to valid memory.
         let counters_val = unsafe { self.counters_ptr.read() };
         (counters_val >> offset_bits) & 0xFF
     }
