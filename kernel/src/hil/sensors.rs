@@ -63,13 +63,13 @@ pub trait AirQualityClient {
     ///
     /// - `value`: will contain the latest CO2 reading in ppm. An example value
     ///            might be `400`.
-    fn co2_data_available(&self, value: u32);
+    fn co2_data_available(&self, value: Result<u32, ErrorCode>);
 
     /// Called when a Total Organic Compound (TVOC) reading has completed.
     ///
     /// - `value`: will contain the latest TVOC reading in ppb. An example value
     ///            might be `0`.
-    fn tvoc_data_available(&self, value: u32);
+    fn tvoc_data_available(&self, value: Result<u32, ErrorCode>);
 }
 
 /// A basic interface for a proximity sensor
