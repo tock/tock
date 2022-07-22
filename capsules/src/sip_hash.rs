@@ -72,7 +72,7 @@ struct State {
 }
 
 impl<'a> SipHasher24<'a> {
-    pub const fn new(deferred_caller: &'static DynamicDeferredCall) -> Self {
+    pub fn new(deferred_caller: &'static DynamicDeferredCall) -> Self {
         let hasher = SipHasher {
             k0: 0,
             k1: 0,
@@ -99,11 +99,7 @@ impl<'a> SipHasher24<'a> {
         }
     }
 
-    pub const fn new_with_keys(
-        deferred_caller: &'static DynamicDeferredCall,
-        k0: u64,
-        k1: u64,
-    ) -> Self {
+    pub fn new_with_keys(deferred_caller: &'static DynamicDeferredCall, k0: u64, k1: u64) -> Self {
         let hasher = SipHasher {
             k0,
             k1,

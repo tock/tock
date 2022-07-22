@@ -16,7 +16,7 @@ pub struct TakeCell<'a, T: 'a + ?Sized> {
 }
 
 impl<'a, T: ?Sized> TakeCell<'a, T> {
-    pub const fn empty() -> TakeCell<'a, T> {
+    pub fn empty() -> TakeCell<'a, T> {
         TakeCell {
             val: Cell::new(None),
         }

@@ -149,7 +149,7 @@ const SPI_HOST_CMD_BIDIRECTIONAL: u32 = 3;
 const SPI_HOST_CMD_STANDARD_SPI: u32 = 0;
 
 impl SpiHost {
-    pub const fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
+    pub fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
         SpiHost {
             registers: base,
             client: OptionalCell::empty(),

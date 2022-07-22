@@ -435,11 +435,7 @@ const FREQ_PS1_FWS_0_MAX_FREQ: u32 = 8000000;
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
 impl FLASHCALW {
-    pub const fn new(
-        ahb_clk: pm::HSBClock,
-        hramc1_clk: pm::HSBClock,
-        pb_clk: pm::PBBClock,
-    ) -> FLASHCALW {
+    pub fn new(ahb_clk: pm::HSBClock, hramc1_clk: pm::HSBClock, pb_clk: pm::PBBClock) -> FLASHCALW {
         FLASHCALW {
             registers: FLASHCALW_ADDRESS,
             ahb_clock: pm::Clock::HSB(ahb_clk),

@@ -188,7 +188,7 @@ pub trait DMAClient {
 }
 
 impl DMAChannel {
-    pub const fn new(channel: DMAChannelNum) -> DMAChannel {
+    pub fn new(channel: DMAChannelNum) -> DMAChannel {
         DMAChannel {
             registers: unsafe {
                 StaticRef::new(

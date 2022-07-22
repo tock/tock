@@ -128,7 +128,7 @@ pub struct Aes<'a> {
 }
 
 impl<'a> Aes<'a> {
-    pub const fn new(deferred_caller: &'static DynamicDeferredCall) -> Aes<'a> {
+    pub fn new(deferred_caller: &'static DynamicDeferredCall) -> Aes<'a> {
         Aes {
             registers: AES_BASE,
             client: OptionalCell::empty(),

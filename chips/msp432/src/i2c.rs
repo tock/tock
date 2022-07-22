@@ -33,7 +33,7 @@ pub struct I2c<'a> {
 }
 
 impl<'a> I2c<'a> {
-    pub const fn new(registers: StaticRef<UsciBRegisters>) -> Self {
+    pub fn new(registers: StaticRef<UsciBRegisters>) -> Self {
         Self {
             registers: registers,
             mode: Cell::new(OperatingMode::Unconfigured),
