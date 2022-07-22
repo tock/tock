@@ -36,3 +36,32 @@ $ PORT=/dev/ttyUSB2 make flash
 
 This will flash Tock over the SparkFun Variable Loader (SVL) using the Ambiq loader.
 The SVL can always be re-flashed if you want to.
+
+
+## Debugging the board
+
+The RedBoard Artemis Nano exposes JTAG via the small headers in the middle of
+the board. See the [SparkFun hookup guide](https://learn.sparkfun.com/tutorials/hookup-guide-for-the-sparkfun-redboard-artemis-nano/all) for a picture of this.
+
+SparkFun sell accessories you can use to connecting to this. It appears
+something like the J-Link BASE will work, but that hasn't been tested by Tock.
+
+Instead, Tock has tested debugging with the [Black Magic Probe](https://black-magic.org/).
+The Black Magic Probe (BMP) is an easy to use, mostly plug and play, JTAG/SWD debugger
+for embedded microcontrollers.
+
+In order to debug with the BMP, first connect the 2x5 SWD cable to the RedBoard
+and the BMP. The ribbon on the RedBoard should face towards the USB
+connection and on the BMP away from the USB connection.
+
+Then power on both boards.
+
+Fire up an ARM GDB instance and attach to the BMP with:
+
+```
+target extended-remote /dev/ttyACM0
+monitor swdp_scan
+attach 1
+```
+
+You can then use GDB to debug the RedBoard
