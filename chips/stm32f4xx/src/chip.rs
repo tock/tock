@@ -1,7 +1,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4;
+use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -202,6 +202,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        CortexM4::print_cortexm_state(write);
     }
 }

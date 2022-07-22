@@ -4,7 +4,7 @@ use crate::deferred_call_tasks::Task;
 use crate::pm;
 
 use core::fmt::Write;
-use cortexm4;
+use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::deferred_call;
 use kernel::platform::chip::{Chip, InterruptService};
 
@@ -297,6 +297,6 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(writer);
+        CortexM4::print_cortexm_state(writer);
     }
 }

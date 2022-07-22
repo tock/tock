@@ -1,5 +1,5 @@
 use core::fmt::Write;
-use cortexm4;
+use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 
 use crate::nvic;
@@ -151,6 +151,6 @@ impl<'a, I: InterruptService<()> + 'a> Chip for Msp432<'a, I> {
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        CortexM4::print_cortexm_state(write);
     }
 }

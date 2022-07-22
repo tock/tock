@@ -17,7 +17,7 @@ use crate::timer::RPTimer;
 use crate::uart::Uart;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
-use cortexm0p::interrupt_mask;
+use cortexm0p::{interrupt_mask, CortexM0P, CortexMVariant};
 
 #[repr(u8)]
 pub enum Processor {
@@ -108,7 +108,7 @@ impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        cortexm0p::print_cortexm0_state(writer);
+        CortexM0P::print_cortexm_state(writer);
     }
 }
 
