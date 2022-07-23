@@ -6,7 +6,7 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -71,6 +71,9 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+
+//This variable is used to save initial value of unused sram start address before launching OTA_app
+static mut UNUSED_RAM_START_ADDR_INIT_VAL: usize = 0;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -532,10 +535,10 @@ pub unsafe fn main() {
         board_kernel,
         capsules::nonvolatile_storage_driver::DRIVER_NUM,
         &base_peripherals.nvmc,
-        0x00044000, // Start address for userspace accessible region
-        0x0003C000, // Length of userspace accessible region
-        0x00000000, //start address of kernel region
-        0x00040000, // length of kernel region
+        0x00040000, // Start address for userspace accessible region
+        0x00040000, // Length of userspace accessible region
+        0x00000000, // Start address of kernel region
+        0x00040000, // Length of kernel region
     )
     .finalize(components::nv_storage_component_helper!(
         nrf52833::nvmc::Nvmc
@@ -604,6 +607,22 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
+    // These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    //--------------------------------------------------------------------------
+    // PROCESSES Loader for OTA app
+    //--------------------------------------------------------------------------
+
     let process_loader = kernel::process::ProcessLoader::init(
         board_kernel,
         chip,
@@ -611,6 +630,10 @@ pub unsafe fn main() {
         &memory_allocation_capability,
         PROCESSES.as_mut_ptr(),
         NUM_PROCS,
+        &_sapps as *const u8 as usize,
+        &_eapps as *const u8 as usize,
+        &_eappmem as *const u8 as usize,
+        &UNUSED_RAM_START_ADDR_INIT_VAL,
     );
 
     //--------------------------------------------------------------------------
@@ -655,23 +678,12 @@ pub unsafe fn main() {
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
+    
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
     //--------------------------------------------------------------------------
-
-    kernel::process::load_processes(
+    
+    let res = kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -685,13 +697,11 @@ pub unsafe fn main() {
         &mut PROCESSES,
         &FAULT_RESPONSE,
         &process_management_capability,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
-
-    debug!("Initialization complete. Entering main loop.");
+    );
+    match res{
+        Ok(unused_sram_start_addr) => UNUSED_RAM_START_ADDR_INIT_VAL = unused_sram_start_addr,
+        Err(e) => debug!("Error loading processes!: {:?}", e)
+    }
 
     board_kernel.kernel_loop(&microbit, chip, Some(&microbit.ipc), &main_loop_capability);
 }
