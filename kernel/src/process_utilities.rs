@@ -11,8 +11,6 @@ use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
-use crate::process_load_utilities::{UNUSED_RAM_START_ADDRESS, INDEX_OF_PROCESSES};
-
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -163,7 +161,7 @@ pub fn load_processes_advanced<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     require_kernel_version: bool,
     _capability: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError> {
+) -> Result<usize, ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
@@ -176,6 +174,7 @@ pub fn load_processes_advanced<C: Chip>(
 
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
+    let mut unused_sram_start_addr = 0;
 
     // Try to discover up to `procs.len()` processes in flash.
     let mut index = 0;
@@ -188,7 +187,7 @@ pub fn load_processes_advanced<C: Chip>(
                 // Not enough flash to test for another app. This just means
                 // we are at the end of flash, and there are no more apps to
                 // load.
-                return Ok(());
+                return Ok(unused_sram_start_addr);
             }
         };
 
@@ -211,7 +210,7 @@ pub fn load_processes_advanced<C: Chip>(
                 // header we started to parse is intentionally invalid to signal
                 // the end of apps. This is ok and just means we have finished
                 // loading apps.
-                return Ok(());
+                return Ok(unused_sram_start_addr);
             }
         };
 
@@ -273,11 +272,6 @@ pub fn load_processes_advanced<C: Chip>(
                 // array. Padding apps mean we might detect valid headers but
                 // not actually insert a new process in the array.
                 index += 1;
-                
-                //INDEX_OF_PROCESSES (global variable) is used to identify how may processes are loaded in OTA_app
-                unsafe {
-                    INDEX_OF_PROCESSES = index;
-                }
             });
             unused_memory
         } else {
@@ -286,14 +280,10 @@ pub fn load_processes_advanced<C: Chip>(
             remaining_memory
         };
 
-        //We store the start address of unused ram memory into UNUSED_RAM_START_ADDRESS (global variable)
-        unsafe{
-            UNUSED_RAM_START_ADDRESS = remaining_memory.as_ptr() as usize;
-            //debug!("flash start address {:#010X}", UNUSED_RAM_START_ADDRESS);
-        }
+        unused_sram_start_addr = remaining_memory.as_ptr() as usize;
     }
 
-    Ok(())
+    Ok(unused_sram_start_addr)
 }
 
 /// This is a wrapper function for `load_processes_advanced` that uses
@@ -310,7 +300,7 @@ pub fn load_processes<C: Chip>(
     procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError> {
+) -> Result<usize, ProcessLoadError> {
     load_processes_advanced(
         kernel,
         chip,
