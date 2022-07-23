@@ -205,7 +205,7 @@
 
 #![no_std]
 #![deny(unsafe_code)]
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 
 pub mod async_ops;
 pub mod crc32;
