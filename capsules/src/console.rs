@@ -50,7 +50,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
 /// Default size for the read and write buffers used by the console.
 /// Boards may pass different-size buffers if needed.
-pub const DEFAULT_BUF_SIZE: usize = 64;
+pub const DEFAULT_BUF_SIZE: usize = 517;
 
 /// Ids for read-only allow buffers
 mod ro_allow {
