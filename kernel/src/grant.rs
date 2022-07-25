@@ -141,38 +141,38 @@ use crate::ErrorCode;
 /// Tracks how many upcalls a grant instance supports automatically.
 pub trait UpcallSize {
     /// The number of upcalls the grant supports.
-    const COUNT: usize;
+    const COUNT: u8;
 }
 
 /// Specifies how many upcalls a grant instance supports automatically.
-pub struct UpcallCount<const NUM: usize>;
-impl<const NUM: usize> UpcallSize for UpcallCount<NUM> {
-    const COUNT: usize = NUM;
+pub struct UpcallCount<const NUM: u8>;
+impl<const NUM: u8> UpcallSize for UpcallCount<NUM> {
+    const COUNT: u8 = NUM;
 }
 
 /// Tracks how many read-only allows a grant instance supports automatically.
 pub trait AllowRoSize {
     /// The number of read-only allows the grant supports.
-    const COUNT: usize;
+    const COUNT: u8;
 }
 
 /// Specifies how many read-only allows a grant instance supports automatically.
-pub struct AllowRoCount<const NUM: usize>;
-impl<const NUM: usize> AllowRoSize for AllowRoCount<NUM> {
-    const COUNT: usize = NUM;
+pub struct AllowRoCount<const NUM: u8>;
+impl<const NUM: u8> AllowRoSize for AllowRoCount<NUM> {
+    const COUNT: u8 = NUM;
 }
 
 /// Tracks how many read-write allows a grant instance supports automatically.
 pub trait AllowRwSize {
     /// The number of read-write allows the grant supports.
-    const COUNT: usize;
+    const COUNT: u8;
 }
 
 /// Specifies how many read-write allows a grant instance supports
 /// automatically.
-pub struct AllowRwCount<const NUM: usize>;
-impl<const NUM: usize> AllowRwSize for AllowRwCount<NUM> {
-    const COUNT: usize = NUM;
+pub struct AllowRwCount<const NUM: u8>;
+impl<const NUM: u8> AllowRwSize for AllowRwCount<NUM> {
+    const COUNT: u8 = NUM;
 }
 
 /// Helper that calculated offsets within the kernel owned memory (i.e. the
@@ -183,52 +183,72 @@ impl<const NUM: usize> AllowRwSize for AllowRwCount<NUM> {
 /// ```text,ignore
 /// 0x003FFC8  ┌────────────────────────────────────┐
 ///            │   T                                |
-/// 0x003FFxx  ├  ───────────────────────── ┐       |
-///            │   Padding (ensure T aligns)|       |
-/// 0x003FF44  ├  ───────────────────────── |       |
-///            │   SavedAllowRwN            | K     |
+/// 0x003FFxx  ├  ───────────────────────── ┐ K     |
+///            │   Padding (ensure T aligns)| e     |
+/// 0x003FF44  ├  ───────────────────────── | r     |
+///            │   SavedAllowRwN            | n     |
 ///            │   ...                      | e     | G
-///            │   SavedAllowRw1            | r     | r
-///            │   SavedAllowRw0            | n     | a
-/// 0x003FF44  ├  ───────────────────────── | e     | n
-///            │   NumAllowRw (usize)       | l     | t
-/// 0x003FF40  ├  ───────────────────────── |       |
-///            │   SavedAllowRoN            | O     | M
-///            │   ...                      | w     | e
-///            │   SavedAllowRo1            | n     | m
-///            │   SavedAllowRo0            | e     | o
-/// 0x003FF30  ├  ───────────────────────── | d     | r
-///            │   NumAllowRo (usize)       |       | y
-/// 0x003FF2C  ├  ───────────────────────── | D     | 1
-///            │   SavedUpcallN             | a     |
-///            │   ...                      | t     |
-///            │   SavedUpcall1             | a     |
-///            │   SavedUpcall0             |       |
+///            │   SavedAllowRw1            | l     | r
+///            │   SavedAllowRw0            |       | a
+/// 0x003FF44  ├  ───────────────────────── | O     | n
+///            │   SavedAllowRoN            | w     | t
+///            │   ...                      | n     |
+///            │   SavedAllowRo1            | e     | M
+///            │   SavedAllowRo0            | d     | e
+/// 0x003FF30  ├  ───────────────────────── |       | m
+///            │   SavedUpcallN             | D     | o
+///            │   ...                      | a     | r
+///            │   SavedUpcall1             | t     | y
+///            │   SavedUpcall0             | a     |
 /// 0x003FF24  ├  ───────────────────────── |       |
-///            │   NumUpcalls (usize)       |       |
+///            │   Counters (usize)         |       |
 /// 0x003FF20  └────────────────────────────────────┘
 /// ```
-struct KernelManagedLayout {
-    upcalls_num: *mut usize,
+///
+/// The counters structure is composed as:
+///
+/// ```text,ignore
+/// 0             1             2             3         bytes
+/// |-------------|-------------|-------------|-------------|
+/// | # Upcalls   | # RO Allows | # RW Allows | [unused]    |
+/// |-------------|-------------|-------------|-------------|
+/// ```
+///
+/// This type is created whenever a grant is entered, and is responsible for
+/// ensuring that the grant is closed when it is no longer used. On `Drop`, we
+/// leave the grant. This protects against calling `grant.enter()` without
+/// calling the corresponding `grant.leave()`, perhaps due to accidentally using
+/// the `?` operator.
+struct EnteredGrantKernelManagedLayout<'a> {
+    /// Leaving a grant is handled through the process implementation, so must
+    /// keep a reference to the relevant process.
+    process: &'a dyn Process,
+    /// The grant number of the entered grant that we want to ensure we leave
+    /// properly.
+    grant_num: usize,
+
+    /// The location of the counters structure for the grant.
+    counters_ptr: *mut usize,
+    /// Pointer to the array of saved upcalls.
     upcalls_array: *mut SavedUpcall,
-    allow_ro_num: *mut usize,
+    /// Pointer to the array of saved read-only allows.
     allow_ro_array: *mut SavedAllowRo,
-    allow_rw_num: *mut usize,
+    /// Pointer to the array of saved read-write allows.
     allow_rw_array: *mut SavedAllowRw,
 }
 
 /// Represents the number of the upcall elements in the kernel owned section of
 /// the grant.
 #[derive(Copy, Clone)]
-struct UpcallItems(usize);
+struct UpcallItems(u8);
 /// Represents the number of the read-only allow elements in the kernel owned
 /// section of the grant.
 #[derive(Copy, Clone)]
-struct AllowRoItems(usize);
+struct AllowRoItems(u8);
 /// Represents the number of the read-write allow elements in the kernel owned
 /// section of the grant.
 #[derive(Copy, Clone)]
-struct AllowRwItems(usize);
+struct AllowRwItems(u8);
 /// Represents the size data (in bytes) T within the grant.
 #[derive(Copy, Clone)]
 struct GrantDataSize(usize);
@@ -236,67 +256,92 @@ struct GrantDataSize(usize);
 #[derive(Copy, Clone)]
 struct GrantDataAlign(usize);
 
-impl KernelManagedLayout {
-    /// Reads the specified pointer as the base of the kernel owned grant
-    /// region.
+impl<'a> EnteredGrantKernelManagedLayout<'a> {
+    /// Reads the specified pointer as the base of the kernel owned grant region
+    /// that has previously been initialized.
     ///
     /// # Safety
     ///
     /// The incoming base pointer must be well aligned and already contain
-    /// initialized data in the expected form.
-    unsafe fn read_from_base(base_ptr: *mut u8) -> Self {
-        let upcalls_num = base_ptr as *mut usize;
-        let upcalls_array = upcalls_num.add(1) as *mut SavedUpcall;
+    /// initialized data in the expected form. There must not be any other
+    /// `EnteredGrantKernelManagedLayout` for the given `base_ptr` at the same
+    /// time, otherwise multiple mutable references to the same upcall/allow
+    /// slices could be created.
+    unsafe fn read_from_base(
+        base_ptr: *mut u8,
+        process: &'a dyn Process,
+        grant_num: usize,
+    ) -> Self {
+        let counters_ptr = base_ptr as *mut usize;
+        let counters_val = counters_ptr.read();
 
-        let allow_ro_num = upcalls_array.add(upcalls_num.read()) as *mut usize;
-        let allow_ro_array = allow_ro_num.add(1) as *mut SavedAllowRo;
+        // Parse the counters field for each of the fields
+        let [_, _, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
 
-        let allow_rw_num = allow_ro_array.add(allow_ro_num.read()) as *mut usize;
-        let allow_rw_array = allow_rw_num.add(1) as *mut SavedAllowRw;
+        // Skip over the counter usize, then the stored array of `SavedAllowRo`
+        // items and `SavedAllowRw` items.
+        let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
+        let allow_ro_array = upcalls_array.add(upcalls_num as usize) as *mut SavedAllowRo;
+        let allow_rw_array = allow_ro_array.add(allow_ro_num as usize) as *mut SavedAllowRw;
 
         Self {
-            upcalls_num,
+            process,
+            grant_num,
+            counters_ptr,
             upcalls_array,
-            allow_ro_num,
             allow_ro_array,
-            allow_rw_num,
             allow_rw_array,
         }
     }
 
-    /// Creates a layout from the specified pointer and lengths of arrays.
+    /// Creates a layout from the specified pointer and lengths of arrays and
+    /// initializes the kernel owned portion of the layout.
     ///
     /// # Safety
     ///
-    /// The incoming base pointer must be well aligned but does not need to
-    /// point to initialized data.
-    unsafe fn from_counts(
+    /// The incoming base pointer must be well aligned and reference enough
+    /// memory to hold the entire kernel managed grant structure. There must
+    /// not be any other `EnteredGrantKernelManagedLayout` for
+    /// the given `base_ptr` at the same time, otherwise multiple mutable
+    /// references to the same upcall/allow slices could be created.
+    unsafe fn initialize_from_counts(
         base_ptr: *mut u8,
         upcalls_num_val: UpcallItems,
         allow_ro_num_val: AllowRoItems,
+        allow_rw_num_val: AllowRwItems,
+        process: &'a dyn Process,
+        grant_num: usize,
     ) -> Self {
-        let upcalls_num = base_ptr as *mut usize;
-        let upcalls_array = upcalls_num.add(1) as *mut SavedUpcall;
+        let counters_ptr = base_ptr as *mut usize;
 
-        let allow_ro_num = upcalls_array.add(upcalls_num_val.0) as *mut usize;
-        let allow_ro_array = allow_ro_num.add(1) as *mut SavedAllowRo;
+        // Create the counters usize value by correctly packing the various
+        // counts into 8 bit fields.
+        let counter: usize =
+            u32::from_be_bytes([0, allow_rw_num_val.0, allow_ro_num_val.0, upcalls_num_val.0])
+                as usize;
 
-        let allow_rw_num = allow_ro_array.add(allow_ro_num_val.0) as *mut usize;
-        let allow_rw_array = allow_rw_num.add(1) as *mut SavedAllowRw;
+        let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
+        let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()) as *mut SavedAllowRo;
+        let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0.into()) as *mut SavedAllowRw;
+
+        counters_ptr.write(counter.into());
+        write_default_array(upcalls_array, upcalls_num_val.0.into());
+        write_default_array(allow_ro_array, allow_ro_num_val.0.into());
+        write_default_array(allow_rw_array, allow_rw_num_val.0.into());
 
         Self {
-            upcalls_num,
+            process,
+            grant_num,
+            counters_ptr,
             upcalls_array,
-            allow_ro_num,
             allow_ro_array,
-            allow_rw_num,
             allow_rw_array,
         }
     }
 
-    /// Returns the entire grant size including the kernel own memory, padding,
-    /// and data for T. Requires that grant_t_align be a power of 2, which is
-    /// guaranteed from align_of rust calls.
+    /// Returns the entire grant size including the kernel owned memory,
+    /// padding, and data for T. Requires that grant_t_align be a power of 2,
+    /// which is guaranteed from align_of rust calls.
     fn grant_size(
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
@@ -304,14 +349,14 @@ impl KernelManagedLayout {
         grant_t_size: GrantDataSize,
         grant_t_align: GrantDataAlign,
     ) -> usize {
-        let kernel_managed_size = 3 * size_of::<usize>()
-            + upcalls_num.0 * size_of::<SavedUpcall>()
-            + allow_ro_num.0 * size_of::<SavedAllowRo>()
-            + allow_rw_num.0 * size_of::<SavedAllowRw>();
+        let kernel_managed_size = size_of::<usize>()
+            + upcalls_num.0 as usize * size_of::<SavedUpcall>()
+            + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
+            + allow_rw_num.0 as usize * size_of::<SavedAllowRw>();
         // We know that grant_t_align is a power of 2, so we can make a mask
         // that will save only the remainder bits.
         let grant_t_align_mask = grant_t_align.0 - 1;
-        // Determine padding to get to the next multipe of grant_t_align by
+        // Determine padding to get to the next multiple of grant_t_align by
         // taking the remainder and subtracting that from the alignment, then
         // ensuring a full alignment value maps to 0.
         let padding =
@@ -343,7 +388,111 @@ impl KernelManagedLayout {
         // The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
-        NonNull::new_unchecked(base_ptr.add(grant_size - grant_t_size.0))
+        let grant_t_size_usize: usize = grant_t_size.0;
+        NonNull::new_unchecked(base_ptr.add(grant_size - grant_t_size_usize))
+    }
+
+    /// Read an 8 bit value from the counter field offset by the specified
+    /// number of bits. This is a helper function for reading the counter field.
+    fn get_counter_offset(&self, offset_bits: usize) -> usize {
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object requires that the
+        // pointers are well aligned and point to valid memory.
+        let counters_val = unsafe { self.counters_ptr.read() };
+        (counters_val >> offset_bits) & 0xFF
+    }
+
+    /// Return the number of upcalls stored by the core kernel for this grant.
+    fn get_upcalls_number(&self) -> usize {
+        self.get_counter_offset(0)
+    }
+
+    /// Return the number of read-only allow buffers stored by the core kernel
+    /// for this grant.
+    fn get_allow_ro_number(&self) -> usize {
+        self.get_counter_offset(8)
+    }
+
+    /// Return the number of read-write allow buffers stored by the core kernel
+    /// for this grant.
+    fn get_allow_rw_number(&self) -> usize {
+        self.get_counter_offset(16)
+    }
+
+    /// Return mutable access to the slice of stored upcalls for this grant.
+    /// This is necessary for storing a new upcall.
+    fn get_upcalls_slice(&mut self) -> &mut [SavedUpcall] {
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // pointer to the upcall array is valid.
+        unsafe { slice::from_raw_parts_mut(self.upcalls_array, self.get_upcalls_number()) }
+    }
+
+    /// Return mutable access to the slice of stored read-only allow buffers for
+    /// this grant. This is necessary for storing a new read-only allow.
+    fn get_allow_ro_slice(&mut self) -> &mut [SavedAllowRo] {
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // pointer to the RO allow array is valid.
+        unsafe { slice::from_raw_parts_mut(self.allow_ro_array, self.get_allow_ro_number()) }
+    }
+
+    /// Return mutable access to the slice of stored read-write allow buffers
+    /// for this grant. This is necessary for storing a new read-write allow.
+    fn get_allow_rw_slice(&mut self) -> &mut [SavedAllowRw] {
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // pointer to the RW allow array is valid.
+        unsafe { slice::from_raw_parts_mut(self.allow_rw_array, self.get_allow_rw_number()) }
+    }
+
+    /// Return slices to the kernel managed upcalls and allow buffers. This
+    /// permits using upcalls and allow buffers when a capsule is accessing a
+    /// grant.
+    fn get_resource_slices(&self) -> (&[SavedUpcall], &[SavedAllowRo], &[SavedAllowRw]) {
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // pointer to the upcall array is valid.
+        let upcall_slice =
+            unsafe { slice::from_raw_parts(self.upcalls_array, self.get_upcalls_number()) };
+
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // pointer to the RO allow array is valid.
+        let allow_ro_slice =
+            unsafe { slice::from_raw_parts(self.allow_ro_array, self.get_allow_ro_number()) };
+
+        // # Safety
+        //
+        // Creating a `KernelManagedLayout` object ensures that the pointer to
+        // the RW allow array is valid.
+        let allow_rw_slice =
+            unsafe { slice::from_raw_parts(self.allow_rw_array, self.get_allow_rw_number()) };
+
+        (upcall_slice, allow_ro_slice, allow_rw_slice)
+    }
+}
+
+// Ensure that we leave the grant once this goes out of scope.
+impl Drop for EnteredGrantKernelManagedLayout<'_> {
+    fn drop(&mut self) {
+        // ### Safety
+        //
+        // To safely call this function we must ensure that no references will
+        // exist to the grant once `leave_grant()` returns. Because using a
+        // `EnteredGrantKernelManagedLayout` object is the only only way we
+        // access the actual memory of a grant, and we are calling
+        // `leave_grant()` from its `drop()` method, we are sure there will be
+        // no remaining references to the grant.
+        unsafe {
+            self.process.leave_grant(self.grant_num);
+        }
     }
 }
 
@@ -599,34 +748,13 @@ unsafe fn write_default_array<T: Default>(base: *mut T, num: usize) {
     }
 }
 
-/// Lifetime of guard represents the lifetime a grant is held "open". On Drop,
-/// we leave grant.
-///
-/// This protects against calling `grant.enter()` without calling the
-/// corresponding `grant.leave()`, perhaps due to accidentally using the `?`
-/// operator to return early.
-struct GrantEnterLifetimeGuard<'a> {
-    /// Leaving a grant is handled through the process implementation, so must
-    /// keep a reference to the relevant process.
-    process: &'a dyn Process,
-    /// The grant number of the entered grant that we want to ensure we leave
-    /// properly.
-    grant_num: usize,
-}
-
-impl Drop for GrantEnterLifetimeGuard<'_> {
-    fn drop(&mut self) {
-        self.process.leave_grant(self.grant_num);
-    }
-}
-
 /// Enters the grant for the specified process. Caller must hold on to the grant
 /// lifetime guard while they accessing the memory in the layout (second
 /// element).
 fn enter_grant_kernel_managed(
     process: &dyn Process,
     driver_num: usize,
-) -> Result<(GrantEnterLifetimeGuard, KernelManagedLayout), ErrorCode> {
+) -> Result<EnteredGrantKernelManagedLayout, ErrorCode> {
     let grant_num = process.lookup_grant_from_driver_num(driver_num)?;
 
     // Check if the grant has been allocated, and if not we cannot enter this
@@ -643,8 +771,10 @@ fn enter_grant_kernel_managed(
     //
     // We know that this pointer is well aligned and initialized with meaningful
     // data when the grant region was allocated.
-    let layout = unsafe { KernelManagedLayout::read_from_base(grant_base_ptr) };
-    Ok((GrantEnterLifetimeGuard { process, grant_num }, layout))
+    let layout = unsafe {
+        EnteredGrantKernelManagedLayout::read_from_base(grant_base_ptr, process, grant_num)
+    };
+    Ok(layout)
 }
 
 /// Subscribe to an upcall by saving the upcall in the grant region for the
@@ -654,11 +784,10 @@ pub(crate) fn subscribe(
     upcall: Upcall,
 ) -> Result<Upcall, (Upcall, ErrorCode)> {
     // Enter grant and keep it open until _grant_open goes out of scope.
-    let (_grant_open, layout) =
-        match enter_grant_kernel_managed(process, upcall.upcall_id.driver_num) {
-            Ok(val) => val,
-            Err(e) => return Err((upcall, e)),
-        };
+    let mut layout = match enter_grant_kernel_managed(process, upcall.upcall_id.driver_num) {
+        Ok(val) => val,
+        Err(e) => return Err((upcall, e)),
+    };
 
     // Create the saved upcalls slice from the grant memory.
     //
@@ -668,8 +797,7 @@ pub(crate) fn subscribe(
     // because we were able to enter the grant the grant region must be valid
     // and initialized. We are also holding the grant open until `_grant_open`
     // goes out of scope.
-    let saved_upcalls_slice =
-        unsafe { slice::from_raw_parts_mut(layout.upcalls_array, layout.upcalls_num.read()) };
+    let saved_upcalls_slice = layout.get_upcalls_slice();
 
     // Index into the saved upcall slice to get the old upcall. Use .get in case
     // userspace passed us a bad subscribe number.
@@ -704,7 +832,7 @@ pub(crate) fn allow_ro(
     buffer: ReadOnlyProcessBuffer,
 ) -> Result<ReadOnlyProcessBuffer, (ReadOnlyProcessBuffer, ErrorCode)> {
     // Enter grant and keep it open until `_grant_open` goes out of scope.
-    let (_grant_open, layout) = match enter_grant_kernel_managed(process, driver_num) {
+    let mut layout = match enter_grant_kernel_managed(process, driver_num) {
         Ok(val) => val,
         Err(e) => return Err((buffer, e)),
     };
@@ -717,8 +845,7 @@ pub(crate) fn allow_ro(
     // because we were able to enter the grant the grant region must be valid
     // and initialized. We are also holding the grant open until _grant_open
     // goes out of scope.
-    let saved_allow_ro_slice =
-        unsafe { slice::from_raw_parts_mut(layout.allow_ro_array, layout.allow_ro_num.read()) };
+    let saved_allow_ro_slice = layout.get_allow_ro_slice();
 
     // Index into the saved slice to get the old value. Use .get in case
     // userspace passed us a bad allow number.
@@ -753,7 +880,7 @@ pub(crate) fn allow_rw(
     buffer: ReadWriteProcessBuffer,
 ) -> Result<ReadWriteProcessBuffer, (ReadWriteProcessBuffer, ErrorCode)> {
     // Enter grant and keep it open until `_grant_open` goes out of scope.
-    let (_grant_open, layout) = match enter_grant_kernel_managed(process, driver_num) {
+    let mut layout = match enter_grant_kernel_managed(process, driver_num) {
         Ok(val) => val,
         Err(e) => return Err((buffer, e)),
     };
@@ -766,8 +893,7 @@ pub(crate) fn allow_rw(
     // because we were able to enter the grant the grant region must be valid
     // and initialized. We are also holding the grant open until `_grant_open`
     // goes out of scope.
-    let saved_allow_rw_slice =
-        unsafe { slice::from_raw_parts_mut(layout.allow_rw_array, layout.allow_rw_num.read()) };
+    let saved_allow_rw_slice = layout.get_allow_rw_slice();
 
     // Index into the saved slice to get the old value. Use .get in case
     // userspace passed us a bad allow number.
@@ -899,8 +1025,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             if let Some(is_allocated) = process.grant_is_allocated(grant_num) {
                 if !is_allocated {
                     // Calculate the alignment and size for entire grant region.
-                    let alloc_align = KernelManagedLayout::grant_align(grant_t_align);
-                    let alloc_size = KernelManagedLayout::grant_size(
+                    let alloc_align = EnteredGrantKernelManagedLayout::grant_align(grant_t_align);
+                    let alloc_size = EnteredGrantKernelManagedLayout::grant_size(
                         num_upcalls,
                         num_allow_ros,
                         num_allow_rws,
@@ -920,23 +1046,22 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     //
                     // # Safety
                     //
-                    // For all below calls:
-                    // - The pointers are well aligned, yet do not have
-                    //   initialized data.
+                    // - The grant base pointer is well aligned, yet does not
+                    //   have initialized data.
                     // - The pointer points to a large enough space to correctly
                     //   write to is guaranteed by alloc of size
-                    //   `KernelManagedLayout::grant_size`.
+                    //   `EnteredGrantKernelManagedLayout::grant_size`.
                     // - There are no proper rust references that map to these
-                    //   addresses either
+                    //   addresses.
                     unsafe {
-                        let layout =
-                            KernelManagedLayout::from_counts(grant_ptr, num_upcalls, num_allow_ros);
-                        layout.upcalls_num.write(num_upcalls.0);
-                        write_default_array(layout.upcalls_array, num_upcalls.0);
-                        layout.allow_ro_num.write(num_allow_ros.0);
-                        write_default_array(layout.allow_ro_array, num_allow_ros.0);
-                        layout.allow_rw_num.write(num_allow_rws.0);
-                        write_default_array(layout.allow_rw_array, num_allow_rws.0);
+                        let _layout = EnteredGrantKernelManagedLayout::initialize_from_counts(
+                            grant_ptr,
+                            num_upcalls,
+                            num_allow_ros,
+                            num_allow_rws,
+                            process,
+                            grant_num,
+                        );
                     }
 
                     // # Safety
@@ -945,7 +1070,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     // large and is at least as aligned as grant_t_align.
                     unsafe {
                         Ok((
-                            Some(KernelManagedLayout::offset_of_grant_data_t(
+                            Some(EnteredGrantKernelManagedLayout::offset_of_grant_data_t(
                                 grant_ptr,
                                 alloc_size,
                                 grant_t_size,
@@ -1246,16 +1371,10 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                 panic!("Attempted to re-enter a grant region.");
             })
             .ok()?;
-        // Ensure we leave this grant when _grant_open goes out of scope
-        let _grant_open = GrantEnterLifetimeGuard {
-            process: self.process,
-            grant_num: self.grant_num,
-        };
-
         let grant_t_align = GrantDataAlign(align_of::<T>());
         let grant_t_size = GrantDataSize(size_of::<T>());
 
-        let alloc_size = KernelManagedLayout::grant_size(
+        let alloc_size = EnteredGrantKernelManagedLayout::grant_size(
             UpcallItems(Upcalls::COUNT),
             AllowRoItems(AllowROs::COUNT),
             AllowRwItems(AllowRWs::COUNT),
@@ -1263,17 +1382,13 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             grant_t_align,
         );
 
-        // Determine layout of entire grant alloc
+        // Parse layout of entire grant allocation using the known base pointer.
         //
         // # Safety
         //
-        // Grant pointer is well aligned and points to well initialized data
+        // Grant pointer is well aligned and points to initialized data.
         let layout = unsafe {
-            KernelManagedLayout::from_counts(
-                grant_ptr,
-                UpcallItems(Upcalls::COUNT),
-                AllowRoItems(AllowROs::COUNT),
-            )
+            EnteredGrantKernelManagedLayout::read_from_base(grant_ptr, self.process, self.grant_num)
         };
 
         // Get references to all of the saved upcall data.
@@ -1282,24 +1397,24 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         //
         // - Pointer is well aligned and initialized with data from Self::new()
         //   call.
-        // - Data will not be modify external while this immutable reference is
-        //   alive.
+        // - Data will not be modified externally while this immutable reference
+        //   is alive.
         // - Data is accessible for the entire duration of this immutable
         //   reference.
         // - No other mutable reference to this memory exists concurrently.
         //   Mutable reference to this memory are only created through the
         //   kernel in the syscall interface which is serialized in time with
         //   this call.
-        let saved_upcalls_slice =
-            unsafe { slice::from_raw_parts(layout.upcalls_array, Upcalls::COUNT) };
-        let saved_allow_ro_slice =
-            unsafe { slice::from_raw_parts(layout.allow_ro_array, AllowROs::COUNT) };
-        let saved_allow_rw_slice =
-            unsafe { slice::from_raw_parts(layout.allow_rw_array, AllowRWs::COUNT) };
+        let (saved_upcalls_slice, saved_allow_ro_slice, saved_allow_rw_slice) =
+            layout.get_resource_slices();
         let grant_data = unsafe {
-            KernelManagedLayout::offset_of_grant_data_t(grant_ptr, alloc_size, grant_t_size)
-                .cast()
-                .as_mut()
+            EnteredGrantKernelManagedLayout::offset_of_grant_data_t(
+                grant_ptr,
+                alloc_size,
+                grant_t_size,
+            )
+            .cast()
+            .as_mut()
         };
 
         // Create a wrapped objects that are passed to functor.

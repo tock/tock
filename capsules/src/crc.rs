@@ -95,7 +95,7 @@ pub const DEFAULT_CRC_BUF_LENGTH: usize = 256;
 mod ro_allow {
     pub const BUFFER: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// An opaque value maintaining state for one application's request

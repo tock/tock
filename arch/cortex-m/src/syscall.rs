@@ -2,10 +2,14 @@
 //! system call interface.
 
 use core::fmt::Write;
+use core::marker::PhantomData;
 use core::mem::{self, size_of};
 use core::ops::Range;
 use core::ptr::{read_volatile, write_volatile};
+
 use kernel::errorcode::ErrorCode;
+
+use crate::CortexMVariant;
 
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
@@ -30,11 +34,6 @@ pub static mut APP_HARD_FAULT: usize = 0;
 #[no_mangle]
 #[used]
 pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
-
-#[allow(improper_ctypes)]
-extern "C" {
-    pub fn switch_to_user(user_stack: *const usize, process_regs: &mut [usize; 8]) -> *const usize;
-}
 
 // Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
 const SVC_FRAME_SIZE: usize = 32;
@@ -111,15 +110,15 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
 
 /// Implementation of the `UserspaceKernelBoundary` for the Cortex-M non-floating point
 /// architecture.
-pub struct SysCall();
+pub struct SysCall<A: CortexMVariant>(PhantomData<A>);
 
-impl SysCall {
-    pub const unsafe fn new() -> SysCall {
-        SysCall()
+impl<A: CortexMVariant> SysCall<A> {
+    pub const unsafe fn new() -> SysCall<A> {
+        SysCall(PhantomData)
     }
 }
 
-impl kernel::syscall::UserspaceKernelBoundary for SysCall {
+impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> {
     type StoredState = CortexMStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
@@ -246,7 +245,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         app_brk: *const u8,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
-        let new_stack_pointer = switch_to_user(state.psp as *const usize, &mut state.regs);
+        let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;

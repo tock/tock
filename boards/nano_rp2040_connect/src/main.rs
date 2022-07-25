@@ -65,7 +65,7 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 
 /// Supported drivers by the platform
 pub struct NanoRP2040Connect {
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,

@@ -570,7 +570,15 @@ pub trait Process {
     /// invalid, this function will do nothing. If the process is inactive then
     /// grants are invalid and are not entered or not entered, and this function
     /// will do nothing.
-    fn leave_grant(&self, grant_num: usize);
+    ///
+    /// ### Safety
+    ///
+    /// The caller must ensure that no references to the memory inside the grant
+    /// exist after calling `leave_grant()`. Otherwise, it would be possible to
+    /// effectively enter the grant twice (once using the existing reference,
+    /// once with a new call to `enter_grant()`) which breaks the memory safety
+    /// requirements of grants.
+    unsafe fn leave_grant(&self, grant_num: usize);
 
     /// Return the count of the number of allocated grant pointers if the
     /// process is active. This does not count custom grants. This is used

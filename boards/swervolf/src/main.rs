@@ -256,7 +256,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &swervolf,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        None::<&kernel::ipc::IPC<0>>,
         &main_loop_cap,
     );
 }

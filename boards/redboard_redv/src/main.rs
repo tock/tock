@@ -304,7 +304,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(
         &redv,
         chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
+        None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
         &main_loop_cap,
     );
 }

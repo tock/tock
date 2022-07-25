@@ -251,7 +251,7 @@ pub struct FlashCtrl<'a> {
 }
 
 impl<'a> FlashCtrl<'a> {
-    pub const fn new(base: StaticRef<FlashCtrlRegisters>, region_num: FlashRegion) -> Self {
+    pub fn new(base: StaticRef<FlashCtrlRegisters>, region_num: FlashRegion) -> Self {
         FlashCtrl {
             registers: base,
             flash_client: OptionalCell::empty(),

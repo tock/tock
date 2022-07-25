@@ -14,6 +14,7 @@
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules::virtual_alarm::MuxAlarm;
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use components::bme280::Bme280Component;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -60,6 +61,8 @@ static mut PLATFORM: Option<&'static RedboardArtemisNano> = None;
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
+// Test access to sensors
+static mut BME280: Option<&'static capsules::bme280::Bme280<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -86,6 +89,8 @@ struct RedboardArtemisNano {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules::humidity::HumiditySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -103,6 +108,8 @@ impl SyscallDriverLookup for RedboardArtemisNano {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
         }
     }
@@ -162,7 +169,7 @@ unsafe fn setup() -> (
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 1], Default::default());
+        static_init!([DynamicDeferredCallClientState; 2], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -263,6 +270,26 @@ unsafe fn setup() -> (
     let _ = &peripherals.iom2.set_master_client(i2c_master);
     let _ = &peripherals.iom2.enable();
 
+    let mux_i2c =
+        components::i2c::I2CMuxComponent::new(&peripherals.iom2, None, dynamic_deferred_caller)
+            .finalize(components::i2c_mux_component_helper!());
+
+    let bme280 =
+        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_helper!());
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM,
+        bme280,
+    )
+    .finalize(());
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules::humidity::DRIVER_NUM,
+        bme280,
+    )
+    .finalize(());
+    BME280 = Some(bme280);
+
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
@@ -310,6 +337,8 @@ unsafe fn setup() -> (
             led,
             i2c_master,
             ble_radio,
+            temperature,
+            humidity,
             scheduler,
             systick,
         }
@@ -362,7 +391,7 @@ pub unsafe fn main() {
         board_kernel.kernel_loop(
             esp32_c3_board,
             chip,
-            None::<&kernel::ipc::IPC<NUM_PROCS>>,
+            None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
             &main_loop_cap,
         );
     }

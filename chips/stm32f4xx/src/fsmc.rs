@@ -173,7 +173,7 @@ pub struct Fsmc<'a> {
 }
 
 impl<'a> Fsmc<'a> {
-    pub const fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,

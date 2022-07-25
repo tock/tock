@@ -55,7 +55,7 @@ pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
 /// capsules for this platform.
 struct STM32F3Discovery {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
     led: &'static capsules::led::LedDriver<
         'static,

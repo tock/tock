@@ -1,7 +1,5 @@
 //! Tock Cell types.
 
-// Feature required with newer versions of rustc (at least 2020-10-25).
-#![feature(const_mut_refs)]
 #![no_std]
 
 pub mod map_cell;

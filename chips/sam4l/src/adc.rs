@@ -326,7 +326,7 @@ impl Adc {
     /// Create a new ADC driver.
     ///
     /// - `rx_dma_peripheral`: type used for DMA transactions
-    pub const fn new(rx_dma_peripheral: dma::DMAPeripheral, pm: &'static pm::PowerManager) -> Adc {
+    pub fn new(rx_dma_peripheral: dma::DMAPeripheral, pm: &'static pm::PowerManager) -> Adc {
         Adc {
             // pointer to memory mapped I/O registers
             registers: BASE_ADDRESS,

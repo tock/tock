@@ -76,7 +76,7 @@ struct Hail {
     >,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
     scheduler: &'static RoundRobinSched<'static>,

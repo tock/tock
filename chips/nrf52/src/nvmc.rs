@@ -209,7 +209,7 @@ pub struct Nvmc {
 }
 
 impl Nvmc {
-    pub const fn new() -> Nvmc {
+    pub fn new() -> Nvmc {
         Nvmc {
             registers: NVMC_BASE,
             client: OptionalCell::empty(),

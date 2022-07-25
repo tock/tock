@@ -203,7 +203,7 @@ pub struct Spi<'a> {
 }
 
 impl<'a> Spi<'a> {
-    const fn new(base_addr: StaticRef<SpiRegisters>, clock: SpiClock<'a>) -> Self {
+    fn new(base_addr: StaticRef<SpiRegisters>, clock: SpiClock<'a>) -> Self {
         Self {
             registers: base_addr,
             clock,
@@ -225,7 +225,7 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub const fn new_spi1(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_spi1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             SPI1_BASE,
             SpiClock(rcc::PeripheralClock::new(

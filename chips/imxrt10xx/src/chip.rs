@@ -1,7 +1,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm7;
+use cortexm7::{self, CortexM7, CortexMVariant};
 use kernel::debug;
 use kernel::platform::chip::{Chip, InterruptService};
 
@@ -39,7 +39,7 @@ pub struct Imxrt10xxDefaultPeripherals {
 }
 
 impl Imxrt10xxDefaultPeripherals {
-    pub const fn new(ccm: &'static crate::ccm::Ccm) -> Self {
+    pub fn new(ccm: &'static crate::ccm::Ccm) -> Self {
         Self {
             iomuxc: crate::iomuxc::Iomuxc::new(),
             iomuxc_snvs: crate::iomuxc_snvs::IomuxcSnvs::new(),
@@ -149,6 +149,6 @@ impl<I: InterruptService<()> + 'static> Chip for Imxrt10xx<I> {
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm7::print_cortexm7_state(write);
+        CortexM7::print_cortexm_state(write);
     }
 }

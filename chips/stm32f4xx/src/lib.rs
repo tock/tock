@@ -25,10 +25,7 @@ pub mod tim2;
 pub mod trng;
 pub mod usart;
 
-use cortexm4::{
-    hard_fault_handler, initialize_ram_jump_to_main, svc_handler, systick_handler,
-    unhandled_interrupt,
-};
+use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 
 extern "C" {
     // _estack is not really a function, but it makes the types work
@@ -45,20 +42,20 @@ extern "C" {
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     initialize_ram_jump_to_main,
-    unhandled_interrupt, // NMI
-    hard_fault_handler,  // Hard Fault
-    unhandled_interrupt, // MemManage
-    unhandled_interrupt, // BusFault
-    unhandled_interrupt, // UsageFault
+    unhandled_interrupt,          // NMI
+    CortexM4::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt,          // MemManage
+    unhandled_interrupt,          // BusFault
+    unhandled_interrupt,          // UsageFault
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
-    svc_handler,         // SVC
-    unhandled_interrupt, // DebugMon
+    CortexM4::SVC_HANDLER, // SVC
+    unhandled_interrupt,   // DebugMon
     unhandled_interrupt,
-    unhandled_interrupt, // PendSV
-    systick_handler,     // SysTick
+    unhandled_interrupt,       // PendSV
+    CortexM4::SYSTICK_HANDLER, // SysTick
 ];
 
 pub unsafe fn init() {

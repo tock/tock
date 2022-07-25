@@ -46,7 +46,7 @@ mod rw_allow {
     pub const RECV: usize = 0;
     pub const SEND: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 2;
+    pub const COUNT: u8 = 2;
 }
 
 pub struct App {

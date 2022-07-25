@@ -961,7 +961,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         Ok(custom_grant_address as *mut u8)
     }
 
-    fn leave_grant(&self, grant_num: usize) {
+    unsafe fn leave_grant(&self, grant_num: usize) {
         // Do not modify an inactive process.
         if !self.is_running() {
             return;

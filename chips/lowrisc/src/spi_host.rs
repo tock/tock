@@ -15,7 +15,7 @@ use kernel::ErrorCode;
 
 register_structs! {
     pub SpiHostRegisters {
-        //SPI: Interrupt State Register
+        //SPI: Interrupt State Register, type rw1c
         (0x000 => intr_state: ReadWrite<u32, intr::Register>),
         //SPI: Interrupt Enable Register
         (0x004 => intr_enable: ReadWrite<u32, intr::Register>),
@@ -39,7 +39,7 @@ register_structs! {
         (0x028 => tx_data: WriteOnly<u32, tx_data::Register>),
         //SPI: Controls which classes of errors raise an interrupt.
         (0x02c => err_en: ReadWrite<u32, err_en::Register>),
-        //SPI: Indicates that any errors that have occurred
+        //SPI: Indicates that any errors that have occurred, type rw1c
         (0x030 => err_status: ReadWrite<u32, err_status::Register>),
         //SPI: Controls which classes of SPI events raise an interrupt
         (0x034 => event_en: ReadWrite<u32, event_en::Register>),
@@ -149,7 +149,7 @@ const SPI_HOST_CMD_BIDIRECTIONAL: u32 = 3;
 const SPI_HOST_CMD_STANDARD_SPI: u32 = 0;
 
 impl SpiHost {
-    pub const fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
+    pub fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
         SpiHost {
             registers: base,
             client: OptionalCell::empty(),
@@ -376,21 +376,21 @@ impl SpiHost {
     /// Clear the error IRQ
     fn clear_err_interrupt(&self) {
         let regs = self.registers;
-        //Clear Error Masks
-        regs.err_status.modify(err_status::CMDBUSY::CLEAR);
-        regs.err_status.modify(err_status::OVERFLOW::CLEAR);
-        regs.err_status.modify(err_status::UNDERFLOW::CLEAR);
-        regs.err_status.modify(err_status::CMDINVAL::CLEAR);
-        regs.err_status.modify(err_status::CSIDINVAL::CLEAR);
-        regs.err_status.modify(err_status::ACCESSINVAL::CLEAR);
+        //Clear Error Masks (rw1c)
+        regs.err_status.modify(err_status::CMDBUSY::SET);
+        regs.err_status.modify(err_status::OVERFLOW::SET);
+        regs.err_status.modify(err_status::UNDERFLOW::SET);
+        regs.err_status.modify(err_status::CMDINVAL::SET);
+        regs.err_status.modify(err_status::CSIDINVAL::SET);
+        regs.err_status.modify(err_status::ACCESSINVAL::SET);
         //Clear Error IRQ
-        regs.intr_state.modify(intr::ERROR::CLEAR);
+        regs.intr_state.modify(intr::ERROR::SET);
     }
 
     /// Clear the event IRQ
     fn clear_event_interrupt(&self) {
         let regs = self.registers;
-        regs.intr_state.modify(intr::SPI_EVENT::CLEAR);
+        regs.intr_state.modify(intr::SPI_EVENT::SET);
     }
     /// Will generate a `test` interrupt on the error irq
     /// Note: Left to allow debug accessibility
@@ -484,10 +484,6 @@ impl hil::spi::SpiMaster for SpiHost {
     type ChipSelect = u32;
 
     fn init(&self) -> Result<(), ErrorCode> {
-        //TODO: Mainline Qemu needs to be patched to supported the
-        // upto-date base addresses of spi_host. Otherwise, a store-access
-        // will occur in qemu-ci at board init.
-        // This should be removed when qemu is patched.
         let regs = self.registers;
         self.event_enable();
         self.err_enable();

@@ -140,7 +140,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
 }
 
 impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
-    pub const fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
+    pub fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
         FlashUser {
             mux: mux,
             buffer: TakeCell::empty(),

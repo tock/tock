@@ -123,14 +123,14 @@ pub const DRIVER_NUM: usize = driver::NUM::BleAdvertising as usize;
 mod ro_allow {
     pub const ADV_DATA: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
     pub const SCAN_BUFFER: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Advertisement Buffer

@@ -13,6 +13,7 @@ _It is a work in progress. Comments and pull requests are appreciated!_
 - [Crate Details](#crate-details)
   * [`arch` Crate](#arch-crate)
   * [`chip` Crate](#chip-crate)
+    + [Tips and Tools](#tips-and-tools)
   * [`board` Crate](#board-crate)
     + [Board Support](#board-support)
       - [`panic!`s (aka `io.rs`)](#panics-aka-iors)
@@ -36,7 +37,7 @@ platform by stitching capsules together with the chip crates (e.g. assigning
 pins, setting baud rates, allocating hardware peripherals etc.). The chip crate
 implements the peripheral drivers (e.g. UART, GPIO, alarms, etc.) for a specific
 microcontroller by implementing the traits found in `kernel/src/hil`. If your
-platform uses a microncontroller already supported by Tock then you can use the
+platform uses a microcontroller already supported by Tock then you can use the
 existing chip crate. The arch crate implements the low-level code for a specific
 hardware architecture (e.g. what happens when the chip first boots and how
 system calls are implemented).
@@ -81,11 +82,11 @@ The `chip` crate contains microcontroller-specific implementations of the
 interfaces defined in `kernel/src/hil`.
 
 Chips have a lot of features and Tock supports a large number of interfaces to
-express them. Build up the implementation of a new chip incrementally. Get
-reset and initialization code working. Set it up to run on the chip's default
-clock and add a GPIO interface. That's a good point to put together a minimal
-board that uses the chip and validate with an end-to-end userland application
-that uses GPIOs.
+express them. Build up the implementation of a new chip incrementally. Get reset
+and initialization code working. Set it up to run on the chip's default clock
+and add a GPIO interface. That's a good point to put together a minimal board
+that uses the chip and validate with an end-to-end userland application that
+uses GPIOs.
 
 Once you have something small like GPIOs working, it's a great time to open a
 pull request to Tock. This lets others know about your efforts with this chip
@@ -96,15 +97,22 @@ Moving forward, chips tend to break down into reasonable units of work.
 Implement something like `kernel::hil::UART` for your chip, then submit a pull
 request. Pick a new peripheral and repeat!
 
-Historically, Tock chips defined peripherals as `static mut` global variables, which made
-them easy to access but encouraged use of unsafe code and prevented boards from
-instantiating only the set of peripherals they needed. Now, peripherals are instantiated
-at runtime in `main.rs`, which resolves these issues. To prevent each board from having
-to instantiate peripherals individually, chips should provide a `ChipNameDefaultPeripherals`
-struct that defines and creates all peripherals available for the chip in Tock. This will be
-used by upstream boards using the chip, without forcing the overhead and code size of all peripherals
-on more minimal out-of-tree boards.
+Historically, Tock chips defined peripherals as `static mut` global variables,
+which made them easy to access but encouraged use of unsafe code and prevented
+boards from instantiating only the set of peripherals they needed. Now,
+peripherals are instantiated at runtime in `main.rs`, which resolves these
+issues. To prevent each board from having to instantiate peripherals
+individually, chips should provide a `ChipNameDefaultPeripherals` struct that
+defines and creates all peripherals available for the chip in Tock. This will be
+used by upstream boards using the chip, without forcing the overhead and code
+size of all peripherals on more minimal out-of-tree boards.
 
+#### Tips and Tools
+
+- Using System View Description (SVD) files for specific microcontrollers can
+  help with setting up the register mappings for individual peripherals. See the
+  `tools/svd2regs.py` tool (`./svd2regs.py -h`) for help with automatically
+  generating the register mappings.
 
 ### `board` Crate
 
@@ -130,9 +138,9 @@ instantiation. The best bet is to start from an existing board's `main.rs` file
 and adapt it. Initially, you will likely want to delete most of the capsules and
 add them slowly as you get things working.
 
-> Warning: Components are singletons, that is they may not be instantiated multiple
-> times. Components should only be instantiated in the reset handler to avoid
-> any multiple instantiations.
+> Warning: Components are singletons, that is they may not be instantiated
+> multiple times. Components should only be instantiated in the reset handler to
+> avoid any multiple instantiations.
 
 #### Board Support
 
@@ -143,8 +151,8 @@ anything special that userland applications may need for this board.
 ##### `panic!`s (aka `io.rs`)
 
 Each board must author a custom routine to handle `panic!`s. Most `panic!`
-machinery is handled by the Tock kernel, but the board author must provide
-some minimalist access to hardware interfaces, specifically LEDs and/or UART.
+machinery is handled by the Tock kernel, but the board author must provide some
+minimalist access to hardware interfaces, specifically LEDs and/or UART.
 
 As a first step, it is simplest to just get LED-based `panic!` working. Have
 your `panic!` handler set up a prominent LED and then call
@@ -156,22 +164,22 @@ it's important to strip this down to a minimalist implementation. In particular,
 the supplied UART must be synchronous (note that this in contrast to the rest of
 the kernel UART interfaces, which are all asynchronous). Usually implementing a
 very simple `Writer` that simply writes one byte at a time directly to the UART
-is easiest/best. It is not important that `panic!` UART writer be efficient.
-You can then replace the call to
+is easiest/best. It is not important that `panic!` UART writer be efficient. You
+can then replace the call to
 [kernel::debug::panic_blink_forever](https://docs.tockos.org/kernel/debug/fn.panic_blink_forever.html)
 with a call to
 [kernel::debug::panic](https://docs.tockos.org/kernel/debug/fn.panic.html).
 
-For largely historical reasons, panic implementations for all boards live in
-a file named `io.rs` adjacent to the board's `main.rs` file.
+For largely historical reasons, panic implementations for all boards live in a
+file named `io.rs` adjacent to the board's `main.rs` file.
 
 ##### Board Cargo.toml, build.rs
 
 Every board crate must author a top-level manifest, `Cargo.toml`. In general,
 you can probably simply copy this from another board, modifying the board name
 and author(s) as appropriate. Note that Tock also includes a build script,
-`build.rs`, that you should also copy. The build script simply adds a
-dependency on the kernel layout.
+`build.rs`, that you should also copy. The build script simply adds a dependency
+on the kernel layout.
 
 ##### Board Makefile
 
@@ -187,26 +195,24 @@ PLATFORM=hail                   # Board name here
 include ../Makefile.common      # ../ assumes board lives in $(TOCK)/boards/<board>
 ```
 
-Tock provides `boards/Makefile.common` that drives most of the build system.
-In general, you should not need to
-dig into this Makefile -- if something doesn't seem to be working, hop on slack
-and ask.
+Tock provides `boards/Makefile.common` that drives most of the build system. In
+general, you should not need to dig into this Makefile -- if something doesn't
+seem to be working, hop on slack and ask.
 
 ###### Getting the built kernel onto a board
 
-In addition to building the kernel, the board Makefile should include rules
-for getting code onto the board. This will naturally be fairly board-specific,
-but Tock does have two targets normally supplied:
+In addition to building the kernel, the board Makefile should include rules for
+getting code onto the board. This will naturally be fairly board-specific, but
+Tock does have two targets normally supplied:
 
   - _program_: For "plug-'n-plug" loading. Usually these are boards with a
     bootloader or some other support IC. The expectation is that during normal
     operation, a user could simply plug in a board and type `make program` to
     load code.
   - _flash_: For "more direct" loading. Usually this means that a JTAG or some
-    equivalent interface is being used. Often it implies that external
-    hardware is required, though some of the development kit boards have an
-    integrated JTAG on-board, so external hardware is not a hard and fast
-    rule.
+    equivalent interface is being used. Often it implies that external hardware
+    is required, though some of the development kit boards have an integrated
+    JTAG on-board, so external hardware is not a hard and fast rule.
   - _install_: This should be an alias to either `program` or `flash`, whichever
     is the preferred approach for this board.
 

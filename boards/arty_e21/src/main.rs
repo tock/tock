@@ -295,10 +295,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &artye21,
-        chip,
-        None::<&kernel::ipc::IPC<NUM_PROCS>>,
-        &main_loop_cap,
-    );
+    board_kernel.kernel_loop(&artye21, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
 }

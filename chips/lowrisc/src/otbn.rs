@@ -100,7 +100,7 @@ pub struct Otbn<'a> {
 }
 
 impl<'a> Otbn<'a> {
-    pub const fn new(base: StaticRef<OtbnRegisters>) -> Self {
+    pub fn new(base: StaticRef<OtbnRegisters>) -> Self {
         Otbn {
             registers: base,
             client: OptionalCell::empty(),

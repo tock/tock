@@ -59,7 +59,7 @@ mod ro_allow {
     /// we still use allow number 1 now.
     pub const WRITE: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 2;
+    pub const COUNT: u8 = 2;
 }
 
 /// Ids for read-write allow buffers
@@ -69,7 +69,7 @@ mod rw_allow {
     /// we still use allow number 1 now.
     pub const READ: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 2;
+    pub const COUNT: u8 = 2;
 }
 
 #[derive(Default)]

@@ -29,7 +29,7 @@ pub const DRIVER_NUM: usize = driver::NUM::TextScreen as usize;
 mod ro_allow {
     pub const SHARED: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 #[derive(Clone, Copy, PartialEq)]
