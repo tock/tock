@@ -133,12 +133,11 @@ pub enum TbfHeaderTypes {
     TbfHeaderPersistentAcl = 7,
     TbfHeaderKernelVersion = 8,
     TbfHeaderProgram = 9,
+    TbfFooterCredentials = 128,
 
     /// Some field in the header that we do not understand. Since the TLV format
     /// specifies the length of each section, if we get a field we do not
     /// understand we just skip it, rather than throwing an error.
-    TbfFooterCredentials = 128,
-
     Unknown,
 }
 
