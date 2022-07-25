@@ -506,7 +506,9 @@ impl<'a> Iom<'_> {
                 || (self.write_len.get() > 0 && self.write_index.get() == self.write_len.get())
             {
                 self.master_client.map(|client| {
-                    client.command_complete(self.buffer.take().unwrap(), Ok(()));
+                    self.buffer.take().map(|buffer| {
+                        client.command_complete(buffer, Ok(()));
+                    });
                 });
 
                 // Finished with SMBus
