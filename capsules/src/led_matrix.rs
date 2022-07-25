@@ -1,83 +1,74 @@
-//! Provides userspace access to LEDs on an LED matrix.
+//! Service capsule for access to LEDs on a LED matrix.
 //!
 //! Usage
 //! -----
 //!
 //! ```rust
-//! let buffer = static_init!([u8; 5], [0; 5]);
+//! let led_matrix = components::led_matrix_component_helper!(
+//!     nrf52833::gpio::GPIOPin,
+//!     nrf52::rtc::Rtc<'static>,
+//!     mux_alarm,
+//!     @fps => 60,
+//!     @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[0]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[1]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[2]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[3]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[4]],
+//!     @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
 //!
-//! let cols = static_init!(
-//!     [&nrf52833::gpio::GPIOPin; 5],
-//!     [
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-//!     ]
-//! );
-//!
-//! let rows = static_init!(
-//!     [&nrf52833::gpio::GPIOPin; 5],
-//!     [
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-//!     ]
-//! );
+//! )
+//! .finalize(components::led_matrix_component_buf!(
+//!     nrf52833::gpio::GPIOPin,
+//!     nrf52::rtc::Rtc<'static>
+//! ));
 //!
 //! let led = static_init!(
-//!     capsules::led_matrix::LedMatrixDriver<
+//!     capsules::led::LedDriver<
 //!         'static,
+//!         capsules::led_matrix::LedMatrixLed<
+//!             'static,
+//!             nrf52::gpio::GPIOPin<'static>,
+//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!         >,
+//!         25,
+//!     >,
+//!     capsules::led::LedDriver::new(components::led_matrix_leds!(
 //!         nrf52::gpio::GPIOPin<'static>,
 //!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-//!     >,
-//!     capsules::led_matrix::LedMatrixDriver::new(cols, rows, buffer, led_alarm, kernel::hil::gpio::ActivationMode::ActiveLow, kernel::hil::gpio::ActivationMode::ActiveHigh, 60)
+//!         led_matrix,
+//!         (0, 0),
+//!         (1, 0),
+//!         (2, 0),
+//!         (3, 0),
+//!         (4, 0),
+//!         (0, 1),
+//!         (1, 1),
+//!         (2, 1),
+//!         (3, 1),
+//!         (4, 1),
+//!         (0, 2),
+//!         (1, 2),
+//!         (2, 2),
+//!         (3, 2),
+//!         (4, 2),
+//!         (0, 3),
+//!         (1, 3),
+//!         (2, 3),
+//!         (3, 3),
+//!         (4, 3),
+//!         (0, 4),
+//!         (1, 4),
+//!         (2, 4),
+//!         (3, 4),
+//!         (4, 4)
+//!     )),
 //! );
-//!
-//! led_alarm.set_alarm_client(led);
-//!
-//! led.init();
-//! ```
-//!
-//! let single_led = static_init!(
-//!     capsules::led_matrix::LedMatrixLed<
-//!         'static,
-//!         nrf52::gpio::GPIOPin<'static>,
-//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-//!     >,
-//!     led,
-//!     1,
-//!     2
-//! );
-//!
-//!
-//! Syscall Interface
-//! -----------------
-//!
-//! - Stability: 2 - Stable
-//!
-//! ### Command
-//!
-//! All LED operations are synchronous, so this capsule only uses the `command`
-//! syscall.
-//!
-//! #### `command_num`
-//!
-//! - `0`: Return the number of LEDs on this platform.
-//!   - `data`: Unused.
-//!   - Return: Number of LEDs.
-//! - `1`: Turn the LED on.
-//!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
-//! - `2`: Turn the LED off.
-//!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
-//! - `3`: Toggle the on/off state of the LED.
-//!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
 use core::cell::Cell;
 
