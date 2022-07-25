@@ -77,3 +77,6 @@ boards/swervolf/fusesoc_libraries/
 
 # ESP C3 temp hex
 boards/esp32-c3-devkitM-1/binary.hex
+
+# Redboard Artemis Nano test binary
+boards/redboard_artemis_nano/redboard-artemis-nano-tests.bin
