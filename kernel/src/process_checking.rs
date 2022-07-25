@@ -7,7 +7,7 @@ use crate::dynamic_deferred_call::{
 };
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha256};
-use crate::process::{Process, State};
+use crate::process::{Process, ShortID, State};
 use crate::utilities::cells::OptionalCell;
 use crate::utilities::cells::TakeCell;
 use crate::utilities::leasable_buffer::{LeasableBuffer, LeasableMutableBuffer};
@@ -53,12 +53,15 @@ pub trait AppCredentialsChecker<'a> {
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
 pub trait AppIdentification {
+    /// Returns whether `process_a` and `process_b` have a different identifier,
+    /// and so can run concurrently. If this returns `false`, the kernel
+    /// will not run `process_a` and `process_b` at the same time.
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool;
 
-    // Return whether there is a currently running process that has
-    // the same application identifier as `process`. This means that
-    // if `process` is currently running, `has_unique_identifier`
-    // returns false.
+    /// Return whether there is a currently running process that has
+    /// the same application identifier as `process`. This means that
+    /// if `process` is currently running, `has_unique_identifier`
+    /// returns false.
     fn has_unique_identifier(
         &self,
         process: &dyn Process,
@@ -84,12 +87,6 @@ pub trait AppIdentification {
         }
         true
     }
-}
-
-/// A compressed form of an Application Identifer.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct ShortID {
-    id: core::num::NonZeroU32,
 }
 
 /// Transforms Application Credentials into a corresponding ShortID.

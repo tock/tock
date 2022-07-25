@@ -20,8 +20,7 @@ use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
-use crate::process::{ProcessAddresses, ProcessSizes};
-use crate::process_checking;
+use crate::process::{ProcessAddresses, ProcessSizes, ShortID};
 use crate::process_load::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -102,7 +101,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// An application ShortID, generated from process loading and
     /// checking, which denotes the security identity of this process.
-    app_id: OptionalCell<process_checking::ShortID>,
+    app_id: OptionalCell<ShortID>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -239,7 +238,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_id.get()
     }
 
-    fn short_app_id(&self) -> Option<process_checking::ShortID> {
+    fn short_app_id(&self) -> Option<ShortID> {
         self.app_id.extract()
     }
 
@@ -282,7 +281,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
-        short_app_id: Option<process_checking::ShortID>,
+        short_app_id: Option<ShortID>,
         _capability: &dyn capabilities::ProcessApprovalCapability,
     ) -> Result<(), ErrorCode> {
         if self.state.get() != State::Unchecked {
@@ -1423,7 +1422,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let binary_end = tbf_header.get_binary_end() as usize;
         let total_size = app_flash.len();
 
-        // The portion of the application binary covered by integrity.
+        // End of the portion of the application binary covered by
+        // integrity. Now handle footers.
         let footer_region = match app_flash.get(binary_end..total_size) {
             Some(f) => f,
             None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory)),
@@ -1548,8 +1548,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                     ));
                 } else {
                     // Change the memory range to start where the process
-                    // requested it. Because of the if statement above we knpow this should
-                    // work. Doing it more cleanly would be good but was a bit beyond my borrowck
+                    // requested it. Because of the if statement above we know this should
+                    // work. Doing it more cleanly would be good but was a bit beyond my borrow
                     // ken; calling get_mut has a mutable borrow.-pal
                     &mut remaining_memory[diff..]
                 }
@@ -1790,12 +1790,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Reset the process, resetting all of its state and re-initializing it
-    /// so it can start runnning.  Assumes the process is not running but is still in
-    /// flash and still has its memory region allocated to it. This does not
-    /// start the process, as that requires the kernel to check that its application
-    /// identifier does not overlap with a running process.       
-
+    /// Reset the process, resetting all of its state and
+    /// re-initializing it so it can start runnning.  Assumes the
+    /// process is not running but is still in flash and still has its
+    /// memory region allocated to it. This does not start the
+    /// process, as that requires the kernel to check that its
+    /// application identifier does not overlap with a running
+    /// process.
     fn reset(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
