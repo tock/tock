@@ -470,6 +470,7 @@ impl<'a> Iom<'_> {
         // Ensure interrupts remain enabled
         regs.inten.set(0xFFFF_FFFF);
 
+        while regs.status.read(STATUS::IDLESET) != 1 {}
 
         if irqs.is_set(INT::CMDCMP) || irqs.is_set(INT::THR) {
             if regs.fifothr.read(FIFOTHR::FIFOWTHR) > 0 {
@@ -499,6 +500,14 @@ impl<'a> Iom<'_> {
 
                 self.read_data();
             }
+
+            // The IOM doesn't work very well when using non-blocking operations
+            // without the DMA. We can get command complete interrupts when the
+            // hardware state machine isn't idle yet.
+            // We don't currently support the DMA, so we something hit weird
+            // interrupt corner cases. So make the IOM more stable, let's wait
+            // for the idle status here. This usually is only a few us at most.
+            while regs.status.read(STATUS::IDLESET) != 1 {}
 
             if (self.read_len.get() > 0 && self.read_index.get() == self.read_len.get())
                 || (self.write_len.get() > 0 && self.write_index.get() == self.write_len.get())
