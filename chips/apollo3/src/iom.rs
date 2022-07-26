@@ -505,6 +505,7 @@ impl<'a> Iom<'_> {
             {
                 // Disable interrupts
                 regs.inten.set(0x00);
+                self.reset_fifo();
 
                 self.master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
