@@ -1,5 +1,11 @@
 //! Provides userspace access to 7 segment digit displays.
 //!
+//! This capsule was developed using the following components:
+//! - Microbit_v2
+//! - Edge Connector Breakout Board for Microbit
+//! - 7 segment display with 4 digits
+//! - breadboard, 220 ohms resistances and jump wires
+//!
 //! Usage
 //! -----
 //!
@@ -82,10 +88,12 @@
 //!         60
 //!     ),
 //! );
+//! ```
 //!
 //! virtual_alarm_digit.set_alarm_client(digit_display);
 //!
 //! digit_display.init();
+//!
 //!
 //! Syscall Interface
 //! -----------------
@@ -156,7 +164,7 @@ const DIGITS: [u8; 10] = [
 pub struct SevenSegmentDriver<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> {
     /// An array of 8 segments (7 for digit segments and one dot segment)
     segments: &'a [&'a P; 8],
-    /// An array of 4 digits
+    /// An array of `NUM_DIGITS` digits
     digits: &'a [&'a P; NUM_DIGITS],
     /// A buffer which contains the patterns displayed for each digit
     /// Each element of the buffer array represents the pattern for one digit, and
