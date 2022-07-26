@@ -177,7 +177,7 @@ Generally, the Tock kernel is structured into three layers:
 
 1. Chip-specific drivers: these typically live in a crate in the `chips`
    subdirectory, or an equivalent crate in an different repository (e.g. the
-   Titan port is out of tree but its `h1b` create is the equivalent here). These
+   Titan port is out of tree but its `h1b` crate is the equivalent here). These
    drivers have implementations that are specific to the hardware of a
    particular microcontroller. Ideally, their implementation is fairly simple,
    and they merely adhere to a common interface (a HIL). That's not always the
