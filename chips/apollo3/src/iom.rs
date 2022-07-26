@@ -467,11 +467,11 @@ impl<'a> Iom<'_> {
 
         // Clear interrrupts
         regs.intclr.set(0xFFFF_FFFF);
+        // Ensure interrupts remain enabled
+        regs.inten.set(0xFFFF_FFFF);
+
 
         if irqs.is_set(INT::CMDCMP) || irqs.is_set(INT::THR) {
-            // Enable interrupts
-            regs.inten.set(0xFFFF_FFFF);
-
             if regs.fifothr.read(FIFOTHR::FIFOWTHR) > 0 {
                 let remaining = self.write_len.get() - self.write_index.get();
 
@@ -499,12 +499,13 @@ impl<'a> Iom<'_> {
 
                 self.read_data();
             }
-        }
 
-        if irqs.is_set(INT::CMDCMP) {
             if (self.read_len.get() > 0 && self.read_index.get() == self.read_len.get())
                 || (self.write_len.get() > 0 && self.write_index.get() == self.write_len.get())
             {
+                // Disable interrupts
+                regs.inten.set(0x00);
+
                 self.master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.command_complete(buffer, Ok(()));
