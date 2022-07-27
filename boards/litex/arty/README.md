@@ -122,8 +122,8 @@ available as `lxterm`):
 $ ./litex/litex/tools/litex_term.py \
     --speed 10000000 \
 	--serial-boot \
-	--kernel $TOCK_BINARY \
-	$SERIAL_PORT
+    --kernel $TOCK_BINARY \
+    $SERIAL_PORT
 ```
 , where `TOCK_BINARY` points to the board's binary (kernel, optionally
 including optionally applications), and `SERIAL_PORT` is the UART
@@ -181,6 +181,39 @@ $ cp $PATH_TO_TOCK/target/riscv32i-unknown-none-elf/release/litex_arty.bin \
 Make sure that the tftp server is running and the firewall is
 configured correctly.
 
+### Running Applications
+
+The LiteX Arty board does not currently expose or use any persistent storage,
+other than to hold the FPGA bistream containing the LiteX BIOS. For this reason,
+Tockloader is not able to interact with this board directly. However, Tockloader
+includes a flash-file support mode which supports operating on a binary file
+representing the device's flash. This can be used to combine the kernel and
+applications in a single binary, which can then be loaded onto the board using
+the above methods. An example of this is illustrated below:
+
+```
+$ tockloader flash \
+    --board litex_arty \
+    --flash-file ./litex_arty_flash.bin \
+	-a 0x0 \
+	./tock/target/riscv32imc-unknown-none-elf/release/litex_arty.bin
+[INFO   ] Operating on flash file "./litex_arty_flash.bin".
+[INFO   ] Limiting flash size to 0x8000000 bytes.
+[STATUS ] Flashing binary to board...
+[INFO   ] Finished in 0.000 seconds
+$ tockloader install \
+    --board litex_arty \
+    --arch rv32imc \
+    --flash-file ./litex_arty_flash.bin \
+    ./libtock-c/examples/c_hello/build/c_hello.tab
+[INFO   ] Using settings from KNOWN_BOARDS["litex_arty"]
+[INFO   ] Operating on flash file "./litex_arty_flash.bin".
+[INFO   ] Limiting flash size to 0x10000000 bytes.
+[STATUS ] Installing app on the board...
+[INFO   ] Found sort order:
+[INFO   ]   App "c_hello" at address 0x41000060
+[INFO   ] Finished in 0.002 seconds
+```
 
 Debugging
 ---------

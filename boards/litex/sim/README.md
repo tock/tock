@@ -86,6 +86,41 @@ If everything works you should be greeted by the Tock kernel:
 Verilated LiteX+VexRiscv: initialization complete, entering main loop.
 ```
 
+### Running with Applications
+
+By its nature, this simulated board does not feature any persistent storage. For
+this reason, Tockloader is not able to interact with a running LiteX Simulator
+instance directly. However, Tockloader includes a flash-file support mode which
+supports operating on a binary file representing a device's flash. This can be
+used to combine the kernel and applications in a single binary, which can then
+be loaded into the simulation using the above method (passed to the `--rom-init`
+parameter). An example of this is illustrated below:
+
+```
+$ tockloader flash \
+    --board litex_sim \
+    --flash-file ./litex_sim_flash.bin \
+    -a 0x0 \
+    ./tock/target/riscv32imc-unknown-none-elf/release/litex_sim.bin
+[INFO   ] Using settings from KNOWN_BOARDS["litex_sim"]
+[INFO   ] Operating on flash file "./litex_sim_flash.bin".
+[INFO   ] Limiting flash size to 0x100000 bytes.
+[STATUS ] Flashing binary to board...
+[INFO   ] Finished in 0.000 seconds
+$ tockloader install \
+    --board litex_sim \
+    --arch rv32imc \
+    --flash-file ./litex_sim_flash.bin \
+    ./libtock-c/examples/c_hello/build/c_hello.tab
+[INFO   ] Using settings from KNOWN_BOARDS["litex_sim"]
+[INFO   ] Operating on flash file "./litex_sim_flash.bin".
+[INFO   ] Limiting flash size to 0x100000 bytes.
+[STATUS ] Installing app on the board...
+[INFO   ] Found sort order:
+[INFO   ]   App "c_hello" at address 0x80060
+[INFO   ] Finished in 0.002 seconds
+```
+
 Debugging
 ---------
 
