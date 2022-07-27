@@ -195,8 +195,8 @@ the above methods. An example of this is illustrated below:
 $ tockloader flash \
     --board litex_arty \
     --flash-file ./litex_arty_flash.bin \
-	-a 0x0 \
-	./tock/target/riscv32imc-unknown-none-elf/release/litex_arty.bin
+    -a 0x0 \
+    ./tock/target/riscv32imc-unknown-none-elf/release/litex_arty.bin
 [INFO   ] Operating on flash file "./litex_arty_flash.bin".
 [INFO   ] Limiting flash size to 0x8000000 bytes.
 [STATUS ] Flashing binary to board...
