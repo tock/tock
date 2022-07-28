@@ -338,24 +338,24 @@ a non-position-independent binary at an incorrect location.
 
 #### `6` Permissions
 
-The `Permissions` section allows an app to specify driver permissions that it
-is allowed to use. All driver syscalls that an app will use must be listed. The
+The `Permissions` section allows an app to specify driver permissions that it is
+allowed to use. All driver syscalls that an app will use must be listed. The
 list should not include drivers that are not being used by the app.
 
-The data is stored in the optional `TbfHeaderV2Permissions` field. This
-includes an array of all the `perms`.
+The data is stored in the optional `TbfHeaderV2Permissions` field. This includes
+an array of all the `perms`.
 
 ```
-0             2             4
-+-------------+-------------+---------...--+
-| Type (6)    | Length      | perms        |
-+-------------+-------------+---------...--+
+0             2             4             6
++-------------+-------------+-------------+---------...--+
+| Type (6)    | Length      | # perms     | perms        |
++-------------+-------------+-------------+---------...--+
 ```
 
 The `perms` array is made up of a number of elements of
-`TbfHeaderDriverPermission`. The length of the TLV can be used to determine
-the number of array elements. The elements in `TbfHeaderDriverPermission` are
-described below:
+`TbfHeaderDriverPermission`. The first 16-bit field in the TLV is the number of
+driver permission structures included in the `perms` array. The elements in
+`TbfHeaderDriverPermission` are described below:
 
 ```text
 Driver Permission Structure:
@@ -370,9 +370,9 @@ Driver Permission Structure:
 * `driver_number` is the number of the driver that is allowed. This for example
   could be `0x00000` to indicate that the `Alarm` syscalls are allowed.
 * `allowed_commands` is a bit mask of the allowed commands. For example a value
-   of `0b0001` indicates that only command 0 is allowed. `0b0111` would indicate
-   that commands 2, 1 and 0 are all allowed. Note that this assumes `offset` is
-   0, for more details on `offset` see below.
+  of `0b0001` indicates that only command 0 is allowed. `0b0111` would indicate
+  that commands 2, 1 and 0 are all allowed. Note that this assumes `offset` is
+  0, for more details on `offset` see below.
 * The `offset` field in `TbfHeaderDriverPermission` indicates the offset of the
   `allowed_commands` bitmask. All of the examples described in the paragraph
   above assume an `offset` of 0. The `offset` field indicates the start of the
