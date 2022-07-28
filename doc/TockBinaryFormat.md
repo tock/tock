@@ -395,21 +395,24 @@ The `Persistent ACL` section is used to identify what access the app has to
 persistent storage.
 
 The data is stored in the `TbfHeaderV2PersistentAcl` field, which includes a
-`write_id` and a number of `read_ids`.
+`write_id`, a number of `read_id`s, and a number of `access_id`s.
 
 ```
-0             2             4             6             8              x            x+2
-+-------------+---------------------------+-------------+---------...--+-------------+---------...--+
-| Type (6)    | write_id                  | read_length | read_ids     |access_ids|  access_ids  |
-+-------------+-------------+-------------+-------------+---------...--+-------------+---------...--+
+0             2             4             6             8
++-------------+---------------------------+-------------+
+| Type (7)    | Length      | write_id                  |
++-------------+-------------+-------------+-------------+
+| # Read IDs  | read_ids (4 bytes each)                 |
++-------------+------------------------------------...--+
+| # Access IDs| access_ids (4 bytes each)               |
++--------------------------------------------------...--+
 ```
 
-`write_id` indicates the id that all new persistent data is written with.
-All new data created will be stored with permissions from the `write_id`
-field. For existing data see the `access_ids` section below.
-`write_id` does not need to be unique, that is multiple apps can have the
-same id.
-A `write_id` of `0x00` indicates that the app can not perform write operations.
+`write_id` indicates the id that all new persistent data is written with. All
+new data created will be stored with permissions from the `write_id` field. For
+existing data see the `access_ids` section below. `write_id` does not need to be
+unique, that is multiple apps can have the same id. A `write_id` of `0x00`
+indicates that the app can not perform write operations.
 
 `read_ids` list all of the ids that this app has permission to read. The
 `read_length` specifies the length of the `read_ids` in elements (not bytes).
@@ -417,8 +420,8 @@ A `write_id` of `0x00` indicates that the app can not perform write operations.
 
 `access_ids` list all of the ids that this app has permission to write.
 `access_ids` are different to `write_id` in that `write_id` applies to new data
-while `access_ids` allows modification of existing data.
-The `access_length` specifies the length of the `access_ids` in elements (not bytes).
+while `access_ids` allows modification of existing data. The `access_length`
+specifies the length of the `access_ids` in elements (not bytes).
 `access_length` can be `0` indicating that there are no `access_ids`.
 
 For example an app has a `write_id` of `1`, `read_ids` of `2, 3` and
@@ -428,10 +431,9 @@ it can not read the data that it writes. The app is also able to overwrite
 existing data that was stored with id `3` or `4`.
 
 An example of when `access_ids` would be useful is on a system where each app
-logs errors in its own write_region. An error-reporting app reports these
-errors over the network, and once the reported errors are acked erases them
-from the log. In this case `access_ids` allow an app to erase multiple
-different regions.
+logs errors in its own write_region. An error-reporting app reports these errors
+over the network, and once the reported errors are acked erases them from the
+log. In this case `access_ids` allow an app to erase multiple different regions.
 
 #### `8` Kernel Version
 
