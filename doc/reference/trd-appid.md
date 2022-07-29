@@ -428,7 +428,7 @@ To support credentials, the Tock Binary Format has a
 fields, a 32-bit value specifying the `format` of the credentials and
 a variable length `data` field. The `format` field defines the format
 and size of the `data` field. Each value of the `format` field except
-`Padding` MUST have a fixed data size and format. This is the format
+`Reserved` MUST have a fixed data size and format. This is the format
 of a Credentials Footer:
 
 ```
@@ -453,7 +453,7 @@ Currently supported values of `format` are:
 
 ```rust
 pub enum TbfFooterV2CredentialsType {
-    Padding = 0,
+    Reserved = 0,
     CleartextID = 1,
     Rsa3072Key = 2,
     Rsa4096Key = 3,
@@ -465,8 +465,12 @@ pub enum TbfFooterV2CredentialsType {
 }
 ```
 
-The `Padding` type has a variable length. This credentials type is
-used to reserve space for future credentials or pad their placement.
+The `Reserved` type has a variable length. This credentials type is
+used to reserve space for future credentials (e.g., that will be added
+by another party in the deployment process). Because the `total_size`
+field of a TBF Base Header is covered by integrity, once the total
+size of the TBF Object has been decided it cannot be changed: if
+credentials need to be added later, space must be reserved for them.
 
 The `CleartextID` type has a data length of 8 bytes. It contains a
 64-bit number in big-endian format representing an application

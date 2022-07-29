@@ -223,7 +223,7 @@ struct TbfHeaderV2KernelVersion {
 
 // Types of credentials footers
 pub enum TbfFooterV2CredentialsType {
-    Padding = 0,
+    Reserved = 0,
     CleartextID = 1,
     Rsa3072Key = 2,
     Rsa4096Key = 3,
@@ -582,7 +582,7 @@ the data field is `n` bytes long, the `Length` field is 4+n. The
 
 ```rust
 pub enum TbfFooterV2CredentialsType {
-    Padding = 0,
+    Reserved = 0,
     CleartextID = 1,
     Rsa3072Key = 2,
     Rsa4096Key = 3,

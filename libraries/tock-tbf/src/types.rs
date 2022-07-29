@@ -246,7 +246,7 @@ pub struct TbfHeaderV2KernelVersion {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TbfFooterV2CredentialsType {
-    Padding = 0,
+    Reserved = 0,
     CleartextID = 1,
     Rsa3072Key = 2,
     Rsa4096Key = 3,
@@ -614,7 +614,7 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
                 .try_into()?,
         );
         let ftype = match format {
-            0 => TbfFooterV2CredentialsType::Padding,
+            0 => TbfFooterV2CredentialsType::Reserved,
             1 => TbfFooterV2CredentialsType::CleartextID,
             2 => TbfFooterV2CredentialsType::Rsa3072Key,
             3 => TbfFooterV2CredentialsType::Rsa4096Key,
@@ -628,7 +628,7 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             }
         };
         let length = match ftype {
-            TbfFooterV2CredentialsType::Padding => 0,
+            TbfFooterV2CredentialsType::Reserved => 0,
             TbfFooterV2CredentialsType::CleartextID => 8,
             TbfFooterV2CredentialsType::Rsa3072Key => 768,
             TbfFooterV2CredentialsType::Rsa4096Key => 1024,
