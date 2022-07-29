@@ -108,7 +108,9 @@ mod vexriscv_irq_raw {
     pub unsafe fn irq_getmask() -> usize {
         let mask: usize;
         use core::arch::asm;
-        asm!("csrr {mask}, {csr}", mask = out(reg) mask, csr = const CSR_IRQ_MASK);
+        // TODO: If asm_const is stabilized, transition back to below
+        //asm!("csrr {mask}, {csr}", mask = out(reg) mask, csr = const CSR_IRQ_MASK);
+        asm!("csrr {mask}, 0xBC0", mask = out(reg) mask);
         mask
     }
 
@@ -118,7 +120,9 @@ mod vexriscv_irq_raw {
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
     pub unsafe fn irq_setmask(mask: usize) {
         use core::arch::asm;
-        asm!("csrw {csr}, {mask}", csr = const CSR_IRQ_MASK, mask = in(reg) mask);
+        // TODO: If asm_const is stabilized, transition back to below
+        //asm!("csrw {csr}, {mask}", csr = const CSR_IRQ_MASK, mask = in(reg) mask);
+        asm!("csrw 0xBC0, {mask}", mask = in(reg) mask);
     }
 
     #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
@@ -130,7 +134,9 @@ mod vexriscv_irq_raw {
     pub unsafe fn irq_pending() -> usize {
         let pending: usize;
         use core::arch::asm;
-        asm!("csrr {pending}, {csr}", pending = out(reg) pending, csr = const CSR_IRQ_PENDING);
+        // TODO: If asm_const is stabilized, transition back to below
+        //asm!("csrr {pending}, {csr}", pending = out(reg) pending, csr = const CSR_IRQ_PENDING);
+        asm!("csrr {pending}, 0xFC0", pending = out(reg) pending);
         pending
     }
 }
