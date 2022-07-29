@@ -2,14 +2,13 @@
 //!
 //! This capsule was developed using the following components:
 //! - Microbit_v2
-//! - Edge Connector Breakout Board for Microbit
-//! - 7 segment display with 4 digits
+//! - Edge Connector Breakout Board for Microbit (PPMB00126)
+//! - 7 segment display with 4 digits (3461BS-1)
 //! - breadboard, 220 ohms resistances and jump wires
 //!
 //! Usage
 //! -----
 //!
-//! Cannot use simultaneously with LED matrix.
 //! Example of use for a display with 4 digits and the Microbit:
 //! Microbit Pins: https://tech.microbit.org/hardware/schematic/
 //! 4 digit 7 segment display pinout: https://www.dotnetlovers.com/images/4digit7segmentdisplay85202024001AM.jpg
@@ -180,9 +179,10 @@ const DIGITS: [u8; 10] = [
 /// Holds an array of digits and an array of segments for each digit.
 
 pub struct SevenSegmentDriver<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> {
-    /// An array of 8 segments (7 for digit segments and one dot segment)
+    /// An array of 8 segment pins (7 for digit segments and one dot segment)
     segments: &'a [&'a P; 8],
-    /// An array of `NUM_DIGITS` digits
+    /// An array of `NUM_DIGITS` digit pins, each one corresponding to one digit on the display
+    /// For each digit selected, a pattern of lit and unlit segments will be represented
     digits: &'a [&'a P; NUM_DIGITS],
     /// A buffer which contains the patterns displayed for each digit
     /// Each element of the buffer array represents the pattern for one digit, and
