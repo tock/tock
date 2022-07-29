@@ -10,8 +10,8 @@
 //! -----
 //!
 //! Example of use for a display with 4 digits and the Microbit:
-//! Microbit Pins: https://tech.microbit.org/hardware/schematic/
-//! 4 digit 7 segment display pinout: https://www.dotnetlovers.com/images/4digit7segmentdisplay85202024001AM.jpg
+//! Microbit Pins: <https://tech.microbit.org/hardware/schematic/>
+//! 4 digit 7 segment display pinout: <https://www.dotnetlovers.com/images/4digit7segmentdisplay85202024001AM.jpg>
 //!
 //! ```rust
 //! const NUM_DIGITS: usize = 4;
