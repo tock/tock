@@ -87,9 +87,9 @@ pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
 
 ### RISC-V
 
-All RISC-V boards are linked to run the `_start` function as the first
-function that gets run before jumping to `main`. This is currently
-inline assembly as of this writing:
+All RISC-V boards are linked to run the `_start` function as the first function
+that gets run before jumping to `main`. This is currently inline assembly as of
+this writing:
 
 ```rust
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
@@ -104,16 +104,19 @@ pub extern "C" fn _start() {
 
 ## Reset Handler
 
-On boot, the MCU calls the reset handler function defined in vector
-table. In Tock, the implementation of the reset handler function is
-platform-specific and defined in `boards/<board>/src/main.rs` for each
-board.
+On boot, the MCU calls the reset handler function defined in vector table. In
+Tock, the implementation of the reset handler function is architecture specific
+and handles memory initialization.
 
 ### Memory Initialization
 
-The first operation the reset handler does is setup the kernel's memory by
-copying it from flash. For the SAM4L, this is in the `init()` function in
-`chips/sam4l/src/lib.rs`.
+The main operation the reset handler does is setup the kernel's memory by
+copying it from flash. For the SAM4L, this is in the
+`initialize_ram_jump_to_main()` function in `arch/cortex-m/src/lib.rs`. Once
+finished the reset handler jumps to the `main()` function defined by each board.
+
+The memory initialization function is implemented in assembly as Rust expects
+that memory is correctly initialized before any Rust instructions execute.
 
 ### RISC-V Trap setup
 
@@ -123,39 +126,36 @@ handler is `_start_trap`, defined in `arch/rv32i/src/lib.rs`.
 
 ### MCU Setup
 
-Any normal MCU initialization is typically handled next. This includes
-things like enabling the correct clocks or setting up DMA channels.
+Any normal MCU initialization is typically handled next. This includes things
+like enabling the correct clocks or setting up DMA channels.
 
 ### Peripheral and Capsule Initialization
 
-After the MCU is set up, `main` initializes peripherals and
-capsules. Peripherals are on-chip subsystems, such as UARTs, ADCs, and
-SPI buses; they are chip-specific code that read and write
-memory-mapped I/O registers and are found in the corresponding `chips`
-directory. While peripherals are chip-specific implementations, they
-typically provide hardware-independent traits, called hardware
-independent layer (HIL) traits, found in `kernel/src/hil`.
+After the MCU is set up, `main` initializes peripherals and capsules.
+Peripherals are on-chip subsystems, such as UARTs, ADCs, and SPI buses; they are
+chip-specific code that read and write memory-mapped I/O registers and are found
+in the corresponding `chips` directory. While peripherals are chip-specific
+implementations, they typically provide hardware-independent traits, called
+hardware independent layer (HIL) traits, found in `kernel/src/hil`.
 
-Capsules are software abstractions and services; they are
-chip-independent and found in the `capsules` directory. For example,
-on the imix and hail platforms, the SAM4L SPI peripheral is
-implemented in `chips/sam4l/src/spi.rs`, while the capsule that
-virtualizes the SPI so multiple capsules can share it is in
-`capsules/src/virtual_spi.rs`.  This virtualizer can be
-chip-independent because the chip-specific code implements the SPI HIL
-(`kernel/src/hil/spi.rs`). The capsule that implements a system call
-API to the SPI for processes is in `capsules/src/spi.rs`.
+Capsules are software abstractions and services; they are chip-independent and
+found in the `capsules` directory. For example, on the imix and hail platforms,
+the SAM4L SPI peripheral is implemented in `chips/sam4l/src/spi.rs`, while the
+capsule that virtualizes the SPI so multiple capsules can share it is in
+`capsules/src/virtual_spi.rs`. This virtualizer can be chip-independent because
+the chip-specific code implements the SPI HIL (`kernel/src/hil/spi.rs`). The
+capsule that implements a system call API to the SPI for processes is in
+`capsules/src/spi.rs`.
 
-Boards that initialize many peripherals and capsules use the `Component`
-trait to encapsulate this complexity from `main`. The `Component`
-trait (`kernel/src/component.rs`) encapsulates any initialization a
-particular peripheral, capsule, or set of capsules need inside a
-call to the function `finalize()`. Changing what the build of the kernel
-includes involve changing just which Components are initialized, rather
-than changing many lines of `main`. Components are typically
-found in the `components` crate in the `/boards` folder, but may also be
-board-specifc and found inside a `components` subdirectory of the board
-directory, e.g. `boards/imix/src/imix_components`.
+Boards that initialize many peripherals and capsules use the `Component` trait
+to encapsulate this complexity from `main`. The `Component` trait
+(`kernel/src/component.rs`) encapsulates any initialization a particular
+peripheral, capsule, or set of capsules need inside a call to the function
+`finalize()`. Changing what the build of the kernel includes involve changing
+just which Components are initialized, rather than changing many lines of
+`main`. Components are typically found in the `components` crate in the
+`/boards` folder, but may also be board-specific and found inside a `components`
+subdirectory of the board directory, e.g. `boards/imix/src/imix_components`.
 
 ## Application Startup
 
@@ -180,7 +180,7 @@ invalid TBF header in flash.
 ## Scheduler Execution
 
 Tock provides a `Scheduler` trait that serves as an abstraction to allow for
-plugging in different scheduling algorithms. Schedulers should be initialized
-at the end of the reset handler.
-The final thing that the reset handler must do is call `kernel.kernel_loop()`.
-This starts the Tock scheduler and the main operation of the kernel.
+plugging in different scheduling algorithms. Schedulers should be initialized at
+the end of the reset handler. The final thing that the reset handler must do is
+call `kernel.kernel_loop()`. This starts the Tock scheduler and the main
+operation of the kernel.

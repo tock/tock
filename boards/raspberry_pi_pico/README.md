@@ -12,13 +12,15 @@ First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
 ## Flashing the kernel
 
-The Raspberry Pi Pico can be programmed via an SWD connection, which requires the Pico to be connected to a regular Raspberry Pi device that exposes the necessary pins. The kernel is transferred to the Raspberry Pi Pico using a [custom version of OpenOCD](https://github.com/raspberrypi/openocd).
+The Raspberry Pi Pico can be programmed via an SWD connection, which requires the Pico to be connected to a regular Raspberry Pi device that exposes the necessary pins OR using another Raspberry Pi Pico set up in “Picoprobe” mode. The kernel is transferred to the Raspberry Pi Pico using a [custom version of OpenOCD](https://github.com/raspberrypi/openocd).
 
-### Raspberry Pi Setup
+### Flashing Setup
+
+#### From a regular Raspberry Pi (option 1)
 
 To install OpenOCD on the Raspberry Pi run the following commands on the Pi:
 ```bash
-$ sudo apt-get update
+$ sudo apt update
 $ sudo apt install automake autoconf build-essential texinfo libtool libftdi-dev libusb-1.0-0-dev git
 $ git clone https://github.com/raspberrypi/openocd.git --recursive --branch rp2040 --depth=1
 $ cd openocd
@@ -26,7 +28,6 @@ $ ./bootstrap
 $ ./configure --enable-ftdi --enable-sysfsgpio --enable-bcm2835gpio
 $ make -j4
 $ sudo make install
-$ cd ~
 ```
 
 Enable SSH on the Raspberry Pi by following the [instructions on the Raspberry Pi website](https://www.raspberrypi.org/documentation/remote-access/ssh/).
@@ -34,7 +35,45 @@ Enable SSH on the Raspberry Pi by following the [instructions on the Raspberry P
 Next, connect the SWD pins of the Pico (the tree lower wires) to GND, GPIO 24, and GPIO 25 of the Raspberry Pi. You can follow the schematic in the [official documentation](https://datasheets.raspberrypi.org/pico/getting-started-with-pico.pdf#%5B%7B%22num%22%3A22%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C115%2C431.757%2Cnull%5D) and connect the blue, black, and purple wires.
 
 Also connect the other three wires as shown in the schematic, which will connect the Pico UART to the Raspberry Pi. This will enable the serial communication between the two devices.
-### Flash the tock kernel
+
+#### From a Linux Host using a Picoprobe (option 2)
+
+To install OpenOCD on Debian/Ubuntu run the following commands:
+```bash
+$ sudo apt update
+$ sudo apt install automake autoconf build-essential texinfo libtool libftdi-dev libusb-1.0-0-dev git
+$ git clone https://github.com/raspberrypi/openocd.git --recursive --branch rp2040 --depth=1
+$ cd openocd
+$ ./bootstrap
+$ ./configure --enable-picoprobe
+$ make -j4
+$ sudo make install
+```
+
+Download the Picoprobe UF2 file onto the USB mass storage device presented by the Pico that is going to act as Picoprobe device after plugging it into some USB port: https://datasheets.raspberrypi.com/soft/picoprobe.uf2 (the device should automatically restart after the file has been written).
+
+Next, connect the SWD pins of the Pico target (the tree lower wires, left-to-right) to GP2, GND, and GP3 of the Pico that will act as Picoprobe. You can follow the schematic in the [official documentation](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf#%5B%7B%22num%22%3A64%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C115%2C696.992%2Cnull%5D) and connect the blue, black, and purple wires.
+
+Also connect the other four wires as shown in the schematic, which will connect the Pico UART and power to the Picoprobe. This will enable the serial communication between the two devices.
+
+### Flashing the tock kernel
+
+#### Building and Deploying from the same System
+`cd` into `boards/raspberry_pi_pico` directory and run:
+
+```bash
+$ make flash OPENOCD_INTERFACE=[swd|picoprobe]
+```
+
+The *OPENOCD_INTERFACE* parameter selects which mode to flash the target Pico device in: `swd` flashes directly via SWD over GPIO (default, needs to be run a regular Raspberry Pi), `picoprobe` flashes indirectly via another Raspberry Pi Pico device.
+
+You can also open a serial console on to view debug messages:
+```bash
+$ sudo apt install picocom
+$ picocom /dev/ttyACM0 -b 115200 -l
+```
+
+#### Building on a Desktop/Laptop then Flashing via regular Raspberry Pi
 
 `cd` into `boards/raspberry_pi_pico` directory and run:
 

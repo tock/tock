@@ -268,11 +268,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// time, otherwise multiple mutable references to the same upcall/allow
     /// slices could be created.
     unsafe fn read_from_base(
-        base_ptr: *mut u8,
+        base_ptr: NonNull<u8>,
         process: &'a dyn Process,
         grant_num: usize,
     ) -> Self {
-        let counters_ptr = base_ptr as *mut usize;
+        let counters_ptr = base_ptr.as_ptr() as *mut usize;
         let counters_val = counters_ptr.read();
 
         // Parse the counters field for each of the fields
@@ -305,14 +305,14 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// the given `base_ptr` at the same time, otherwise multiple mutable
     /// references to the same upcall/allow slices could be created.
     unsafe fn initialize_from_counts(
-        base_ptr: *mut u8,
+        base_ptr: NonNull<u8>,
         upcalls_num_val: UpcallItems,
         allow_ro_num_val: AllowRoItems,
         allow_rw_num_val: AllowRwItems,
         process: &'a dyn Process,
         grant_num: usize,
     ) -> Self {
-        let counters_ptr = base_ptr as *mut usize;
+        let counters_ptr = base_ptr.as_ptr() as *mut usize;
 
         // Create the counters usize value by correctly packing the various
         // counts into 8 bit fields.
@@ -381,7 +381,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// least the alignment of T and points to a grant that is of size
     /// grant_size bytes.
     unsafe fn offset_of_grant_data_t(
-        base_ptr: *mut u8,
+        base_ptr: NonNull<u8>,
         grant_size: usize,
         grant_t_size: GrantDataSize,
     ) -> NonNull<u8> {
@@ -389,7 +389,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
         let grant_t_size_usize: usize = grant_t_size.0;
-        NonNull::new_unchecked(base_ptr.add(grant_size - grant_t_size_usize))
+        NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size_usize))
     }
 
     /// Read an 8 bit value from the counter field offset by the specified
@@ -1035,10 +1035,11 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     );
 
                     // Allocate grant, the memory is still uninitialized though.
-                    let grant_ptr = process
-                        .allocate_grant(grant_num, driver_num, alloc_size, alloc_align)
-                        .ok_or(Error::OutOfMemory)?
-                        .as_ptr();
+                    if !process.allocate_grant(grant_num, driver_num, alloc_size, alloc_align) {
+                        return Err(Error::OutOfMemory);
+                    }
+
+                    let grant_ptr = process.enter_grant(grant_num)?;
 
                     // Create a layout from the counts we have and initialize
                     // all memory so it is valid in the future to read as a
