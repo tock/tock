@@ -57,9 +57,11 @@
 // If we don't build any actual register types, we don't need unsafe
 // code in this crate
 #![cfg_attr(not(feature = "register_types"), forbid(unsafe_code))]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod fields;
 pub mod interfaces;
+pub mod internal;
 pub mod macros;
 
 #[cfg(feature = "register_types")]
@@ -126,3 +128,9 @@ pub trait RegisterLongName {}
 // Useful implementation for when no RegisterLongName is required
 // (e.g. no fields need to be accessed, just the raw register values)
 impl RegisterLongName for () {}
+
+/// An array index was out of bounds.
+pub struct TooLargeIndex;
+
+/// Indicates a register write succeeded.
+pub struct WriteSuccess;
