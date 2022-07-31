@@ -77,7 +77,7 @@ pub struct NanoRP2040Connect {
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     lsm6dsoxtr: &'static capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>,
-
+    wifinina: &'static capsules::wifinina::WiFiChip<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
 }
@@ -97,6 +97,7 @@ impl SyscallDriverLookup for NanoRP2040Connect {
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::lsm6dsoxtr::DRIVER_NUM => f(Some(self.lsm6dsoxtr)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules::wifinina::DRIVER_NUM => f(Some(self.wifinina)),
             _ => f(None),
         }
     }
@@ -305,7 +306,7 @@ pub unsafe fn main() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -349,15 +350,15 @@ pub unsafe fn main() {
             // Used for serial communication. Comment them in if you don't use serial.
             // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
             // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
-            2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
-            3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
+            // 2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
+            // 3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
             // 4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
             5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
             // 6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
             // 7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
             8 => &peripherals.pins.get_pin(RPGpio::GPIO8),
-            9 => &peripherals.pins.get_pin(RPGpio::GPIO9),
-            10 => &peripherals.pins.get_pin(RPGpio::GPIO10),
+            // 9 => &peripherals.pins.get_pin(RPGpio::GPIO9),
+            // 10 => &peripherals.pins.get_pin(RPGpio::GPIO10),
             11 => &peripherals.pins.get_pin(RPGpio::GPIO11),
             // 12 => &peripherals.pins.get_pin(RPGpio::GPIO12),
             // 13 => &peripherals.pins.get_pin(RPGpio::GPIO13),
@@ -383,6 +384,74 @@ pub unsafe fn main() {
         ),
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
+
+    use kernel::hil::spi::SpiMaster;
+    use rp2040::spi::Spi;
+
+    //set CLK, MOSI and CS pins in SPI mode
+    let spi_clk = peripherals.pins.get_pin(RPGpio::GPIO14);
+    // let spi_csn = peripherals.pins.get_pin(RPGpio::GPIO10);
+    let spi_mosi = peripherals.pins.get_pin(RPGpio::GPIO11);
+    let spi_miso = peripherals.pins.get_pin(RPGpio::GPIO8);
+    spi_clk.set_function(GpioFunction::SPI);
+    // spi_csn.set_function(GpioFunction::SPI);
+    spi_mosi.set_function(GpioFunction::SPI);
+    spi_miso.set_function(GpioFunction::SPI);
+    let _mux_spi =
+        components::spi::SpiMuxComponent::new(&peripherals.spi0, dynamic_deferred_caller)
+            .finalize(components::spi_mux_component_helper!(Spi));
+
+    let nina_spi = &peripherals.spi1;
+    //     components::spi::SpiComponent::new(mux_spi, peripherals.pins.get_pin(RPGpio::GPIO9))
+    //         .finalize(components::spi_component_helper!(Spi));
+
+    let _ = nina_spi.init();
+    let _ = nina_spi.specify_chip_select(peripherals.pins.get_pin(RPGpio::GPIO9));
+    let _ = nina_spi.set_rate(8_000_000);
+    let _ = nina_spi.set_phase(kernel::hil::spi::ClockPhase::SampleLeading);
+    let _ = nina_spi.set_polarity(kernel::hil::spi::ClockPolarity::IdleLow);
+
+    let write_buffer = static_init!([u8; 1024], [0; 1024]);
+    let read_buffer = static_init!([u8; 1024], [0; 1024]);
+    let one_byte_read_buffer = static_init!([u8; 1], [0; 1]);
+
+    use kernel::hil::time::Alarm;
+    use kernel::hil::wifinina::Network;
+    use kernel::hil::wifinina::Psk;
+    use kernel::hil::wifinina::Ssid;
+
+    let virtual_alarm_nina = static_init!(
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    virtual_alarm_nina.setup();
+
+    let networks_buffer = static_init!([Network; 10], [Network::default(); 10]);
+
+    let nina = static_init!(
+        capsules::nina_w102::NinaW102<
+            'static,
+            Spi<'static>,
+            RPGpioPin<'static>,
+            VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
+        >,
+        capsules::nina_w102::NinaW102::new(
+            nina_spi,
+            write_buffer,
+            read_buffer,
+            one_byte_read_buffer,
+            peripherals.pins.get_pin(RPGpio::GPIO9),
+            peripherals.pins.get_pin(RPGpio::GPIO10),
+            peripherals.pins.get_pin(RPGpio::GPIO3),
+            peripherals.pins.get_pin(RPGpio::GPIO2),
+            virtual_alarm_nina,
+            networks_buffer,
+        )
+    );
+    virtual_alarm_nina.set_alarm_client(nina);
+    nina_spi.set_client(nina);
+    let _ = nina.init();
 
     let led = LedsComponent::new().finalize(components::led_component_helper!(
         LedHigh<'static, RPGpioPin<'static>>,
@@ -429,6 +498,16 @@ pub unsafe fn main() {
         capsules::temperature::TemperatureSensor<'static>,
         capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
+
+    let grant_wifi = board_kernel.create_grant(capsules::wifinina::DRIVER_NUM, &grant_cap);
+
+    let wifi_driver = static_init!(
+        capsules::wifinina::WiFiChip<'static>,
+        capsules::wifinina::WiFiChip::new(nina, grant_wifi)
+    );
+
+    kernel::hil::wifinina::Scanner::set_client(nina, wifi_driver);
+    kernel::hil::wifinina::Station::set_client(nina, wifi_driver);
 
     let _ = lsm6dsoxtr
         .configure(
@@ -509,6 +588,7 @@ pub unsafe fn main() {
 
         lsm6dsoxtr: lsm6dsoxtr,
         ninedof: ninedof,
+        wifinina: wifi_driver,
 
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),

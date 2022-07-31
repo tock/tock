@@ -304,7 +304,7 @@ impl<'a> Spi<'a> {
         if self.registers.sspsr.is_set(SSPSR::TFE) {
             // if transmit fifo empty is set
             if self.tx_buffer.is_some() {
-                while self.registers.sspsr.is_set(SSPSR::TNF)
+                if self.registers.sspsr.is_set(SSPSR::TNF)
                     && self.tx_position.get() < self.len.get()
                 {
                     self.tx_buffer.map(|buf| {
@@ -324,20 +324,30 @@ impl<'a> Spi<'a> {
             }
         }
 
-        while self.registers.sspsr.is_set(SSPSR::RNE) {
+        if self.transfers.get() & SPI_READ_IN_PROGRESS != 0
+            && self.registers.sspsr.is_set(SSPSR::RNE)
+        {
             let byte = self.registers.sspdr.read(SSPDR::DATA) as u8;
+            // debug! ("spi data {}", byte);
             if self.rx_buffer.is_some() {
                 if self.rx_position.get() < self.len.get() {
                     self.rx_buffer.map(|buf| {
                         buf[self.rx_position.get()] = byte;
                     });
                     self.rx_position.set(self.rx_position.get() + 1);
-                } else {
+                }
+
+                if self.rx_position.get() >= self.len.get() {
                     self.transfers
                         .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
                 }
+            } else {
+                self.transfers
+                    .set(self.transfers.get() & !SPI_READ_IN_PROGRESS);
             }
         }
+
+        // kernel::debug!("tx {}. rx {}", self.tx_position.get(), self.rx_position.get());
 
         if self.transfers.get() == SPI_IN_PROGRESS {
             if !self.active_after.get() {
