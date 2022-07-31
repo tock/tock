@@ -38,15 +38,45 @@ sort_by_size = False  # Otherwise lexicographic order
 # A map of section name -> size
 sections = {}
 
-# These lists store 4-tuples:
-#    (name, start address, length of function, total size)
-# The "length of function" is the size of the symbol as reported in
-# objdump, which is the executable code. "Total size" includes any
-# constants embedded, including constant strings, or padding.
-# Initially the lists are populated with total_size=0; it is later
-# computed by sorting the symbols and calculating their spacing.
+# These lists store 5-tuples:
+#    (name, start address, reported size, total size, type)
+# The "reported size" is the size that the symbol table says this
+# symbol has. As a symbol table can have overlapping symbols (e.g.,
+# two different symbols with the same address and size) and have space
+# that is not covered by symbols (e.g., data embedded after a symbol),
+# the reported size is not an accurate accounting of how a symbol impacts
+# the size of a binary.
+#
+# The script calculates the "real" size of symbol and stores it in
+# "total size", with the rule that the sum of the total size of all of
+# the symbols in a section equal the size of the section. The "total
+# size" of a symbol is defined to be the space until the next
+# symbol. If there are multiple symbols with the same address, the
+# script considers the one with the largest reported size as the last
+# one. This means that all of these symbols except the one with the
+# largest reported size will have total size 0 (the next symbol has
+# the same address). The one with the largest reported size will have
+# a total size of the space until the next (different) symbol address.
+#
+# The "type" field is used to distinguish between variables and
+# functions.  This is useful in code sections as it allows the script
+# to distinguish constants and embedded data from instructions. As Rust
+# can insert a lot of embedded data (e.g., panic strings), distinguishing
+# the two is useful. Three types are used:
+#   - "variable" denotes an initialized or uninitialized variable.
+#   - "data" denotes embedded/constant data in a text section.
+#   - "function" denotes instructions/executable code in a text section.
+
+# Uninitialized variables are zeros and zeroed out at kernel boot; they
+# exist solely in RAM (the .bss section).
 kernel_uninitialized = []
+# Initialized variables start with non-zero values and are initialized
+# at kernel boot by copying their initial values from flash into RAM
+# (the .data section).
 kernel_initialized = []
+# Kernel symbols are first stored in kernel_text to perform whole
+# kernel text calculations. Then they are split into kernel_functions
+# and kernel_data to separately account for symbols of these types.
 kernel_text = []
 kernel_functions = []
 kernel_data = []
