@@ -73,6 +73,7 @@ pub mod rng;
 pub mod screen;
 pub mod sdcard;
 pub mod segger_rtt;
+pub mod seven_segment;
 pub mod sha;
 pub mod sha256;
 pub mod sht3x;

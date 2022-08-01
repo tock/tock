@@ -77,5 +77,6 @@ pub enum NUM {
     Screen                = 0x90001,
     Touch                 = 0x90002,
     TextScreen            = 0x90003,
+    SevenSegment          = 0x90004,
 }
 }
