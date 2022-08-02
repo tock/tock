@@ -102,26 +102,20 @@ pub trait Chip {
 /// where the kernel instructs the `nrf52` crate to handle interrupts, and if
 /// there is an interrupt ready then that interrupt is passed through the
 /// InterruptService objects until something can service it.
-pub trait InterruptService<T> {
+pub trait InterruptService {
     /// Service an interrupt, if supported by this chip. If this interrupt
     /// number is not supported, return false.
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
 
-    /// Service a deferred call. If this task is not supported, return false.
-    unsafe fn service_deferred_call(&self, task: T) -> bool;
+    /// Service a deferred call. If the next pending deferred call cannot be serviced,
+    /// return false.
+    unsafe fn service_next_pending_deferred_call(&self) -> bool;
 
     /// Returns true if any deferred call tasks are pending, otherwise returns false.
     /// Default implementation just returns false, and should be overriden by chips that require
     /// defferred calls.
     fn has_deferred_call_tasks(&self) -> bool {
         false
-    }
-
-    /// Returns the next pending deferred call task, if any.
-    /// Default implementation just returns None, and should be overriden by chips that require
-    /// deferred calls
-    fn next_pending_deferred_call(&self) -> Option<T> {
-        None
     }
 }
 

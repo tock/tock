@@ -2,6 +2,7 @@
 
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::deferred_call::CapsuleTask;
 
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
@@ -79,3 +80,29 @@ pub enum NUM {
     TextScreen            = 0x90003,
 }
 }
+
+enum_from_primitive! {
+#[derive(PartialEq, Clone, Copy)]
+pub enum Task {
+    Radio = 0xffff,
+}
+}
+
+impl TryFrom<usize> for Task {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Task, ()> {
+        match value {
+            0xffff => Ok(Task::Radio),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Into<usize> for Task {
+    fn into(self) -> usize {
+        self as usize
+    }
+}
+
+impl CapsuleTask for Task {}

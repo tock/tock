@@ -5,17 +5,17 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4;
-use kernel::deferred_call::DeferredCallManager;
+use kernel::deferred_call::{DeferredCallManager, DeferredCallMapper};
 use kernel::platform::chip::{Chip, InterruptService};
 
-pub struct Sam4l<I: InterruptService<Task> + 'static> {
+pub struct Sam4l<I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
 }
 
-impl<I: InterruptService<Task> + 'static> Sam4l<I> {
+impl<I: InterruptService + 'static> Sam4l<I> {
     pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -30,16 +30,16 @@ impl<I: InterruptService<Task> + 'static> Sam4l<I> {
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
-pub struct Sam4lDefaultPeripherals {
+pub struct Sam4lDefaultPeripherals<M: DeferredCallMapper<PT = Task> + 'static> {
     pub acifc: crate::acifc::Acifc<'static>,
     pub adc: crate::adc::Adc,
     pub aes: crate::aes::Aes<'static>,
     pub ast: crate::ast::Ast<'static>,
-    pub crccu: crate::crccu::Crccu<'static>,
+    pub crccu: crate::crccu::Crccu<'static, M>,
     pub dac: crate::dac::Dac,
     pub dma_channels: [crate::dma::DMAChannel; 16],
     pub eic: crate::eic::Eic<'static>,
-    pub flash_controller: crate::flashcalw::FLASHCALW,
+    pub flash_controller: crate::flashcalw::FLASHCALW<M>,
     pub gloc: crate::gloc::Gloc,
     pub pa: crate::gpio::Port<'static>,
     pub pb: crate::gpio::Port<'static>,
@@ -55,13 +55,13 @@ pub struct Sam4lDefaultPeripherals {
     pub usart2: crate::usart::USART<'static>,
     pub usart3: crate::usart::USART<'static>,
     pub usbc: crate::usbc::Usbc<'static>,
-    deferred_call_manager: &'static DeferredCallManager<Task>,
+    deferred_call_manager: &'static DeferredCallManager<M>,
 }
 
-impl Sam4lDefaultPeripherals {
+impl<M: DeferredCallMapper<PT = Task> + 'static> Sam4lDefaultPeripherals<M> {
     pub fn new(
         pm: &'static crate::pm::PowerManager,
-        dc_mgr: &'static DeferredCallManager<Task>,
+        dc_mgr: &'static DeferredCallManager<M>,
     ) -> Self {
         use crate::dma::{DMAChannel, DMAChannelNum};
         Self {
@@ -158,7 +158,7 @@ impl Sam4lDefaultPeripherals {
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
     }
 }
-impl InterruptService<Task> for Sam4lDefaultPeripherals {
+impl<M: DeferredCallMapper<PT = Task> + 'static> InterruptService for Sam4lDefaultPeripherals<M> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -232,11 +232,10 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         true
     }
 
-    unsafe fn service_deferred_call(&self, task: Task) -> bool {
-        match task {
-            crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
-            crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
-        }
+    // TODO: Remove unwrap
+    unsafe fn service_next_pending_deferred_call(&self) -> bool {
+        self.deferred_call_manager
+            .service_deferred_call(self.deferred_call_manager.next_pending().unwrap());
         true
     }
 
@@ -244,22 +243,17 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
     fn has_deferred_call_tasks(&self) -> bool {
         self.deferred_call_manager.has_tasks()
     }
-
-    #[inline]
-    fn next_pending_deferred_call(&self) -> Option<Task> {
-        self.deferred_call_manager.next_pending()
-    }
 }
 
-impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
+impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = self.interrupt_service.next_pending_deferred_call() {
-                    match self.interrupt_service.service_deferred_call(task) {
+                if self.interrupt_service.has_deferred_call_tasks() {
+                    match self.interrupt_service.service_next_pending_deferred_call() {
                         true => {}
                         false => panic!("unhandled deferred call task"),
                     }

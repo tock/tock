@@ -51,7 +51,9 @@
 use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
-use kernel::deferred_call::{DeferredCall, DeferredCallManager};
+use kernel::deferred_call::{
+    DeferredCall, DeferredCallManager, DeferredCallMapper, DeferredCallTask,
+};
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
@@ -244,7 +246,7 @@ enum State {
 }
 
 /// State for managing the CRCCU
-pub struct Crccu<'a> {
+pub struct Crccu<'a, M: DeferredCallMapper<PT = Task> + 'static> {
     registers: StaticRef<CrccuRegisters>,
     client: OptionalCell<&'a dyn Client>,
     state: Cell<State>,
@@ -263,13 +265,13 @@ pub struct Crccu<'a> {
     // Must be aligned to a 512-byte boundary, which is guaranteed by
     // the struct definition.
     descriptor: Descriptor,
-    deferred_call: DeferredCall<Task>,
+    deferred_call: DeferredCall<M>,
 }
 
-impl Crccu<'_> {
+impl<'a, M: DeferredCallMapper<PT = Task> + 'static> Crccu<'a, M> {
     pub fn new(
         base_addr: StaticRef<CrccuRegisters>,
-        dc_mgr: &'static DeferredCallManager<Task>,
+        dc_mgr: &'static DeferredCallManager<M>,
     ) -> Self {
         Crccu {
             registers: base_addr,
@@ -279,7 +281,7 @@ impl Crccu<'_> {
             current_full_buffer: Cell::new((0 as *mut u8, 0)),
             compute_requested: Cell::new(false),
             descriptor: Descriptor::new(),
-            deferred_call: DeferredCall::new(Task::CRCCU, dc_mgr),
+            deferred_call: DeferredCall::new(DeferredCallTask::Peripheral(Task::CRCCU), dc_mgr),
         }
     }
 
@@ -390,7 +392,7 @@ impl Crccu<'_> {
 }
 
 // Implement the generic CRC interface with the CRCCU
-impl<'a> Crc<'a> for Crccu<'a> {
+impl<'a, M: DeferredCallMapper<PT = Task> + 'static> Crc<'a> for Crccu<'a, M> {
     /// Set a client to receive results from the CRCCU
     fn set_client(&self, client: &'a dyn Client) {
         self.client.set(client);

@@ -2,11 +2,13 @@
 
 use crate::bpm;
 use crate::bscif;
+use crate::deferred_call_tasks::Task;
 use crate::flashcalw;
 use crate::gpio;
 use crate::scif;
 use core::cell::Cell;
 use core::sync::atomic::Ordering;
+use kernel::deferred_call::DeferredCallMapper;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
@@ -585,10 +587,10 @@ impl PowerManager {
 impl PowerManager {
     /// Sets up the system clock. This should be called as one of the first
     /// lines in the `main()` function within the platform's `main.rs`.
-    pub unsafe fn setup_system_clock(
+    pub unsafe fn setup_system_clock<M: DeferredCallMapper<PT = Task> + 'static>(
         &self,
         clock_source: SystemClockSource,
-        flash_controller: &flashcalw::FLASHCALW,
+        flash_controller: &flashcalw::FLASHCALW<M>,
     ) {
         if !self.system_initial_configs.get() {
             // For now, always go to PS2 as it enables all core speeds
@@ -812,10 +814,10 @@ impl PowerManager {
 
     // Changes the system clock to the clock passed in as clock_source and disables
     // the previous system clock
-    pub unsafe fn change_system_clock(
+    pub unsafe fn change_system_clock<M: DeferredCallMapper<PT = Task> + 'static>(
         &self,
         clock_source: SystemClockSource,
-        flash_controller: &flashcalw::FLASHCALW,
+        flash_controller: &flashcalw::FLASHCALW<M>,
     ) {
         // If the clock you want to switch to is the current system clock, do nothing
         let prev_clock_source = self.system_clock_source.get();

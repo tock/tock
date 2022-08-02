@@ -24,7 +24,9 @@ use crate::deferred_call_tasks::Task;
 use crate::pm;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::deferred_call::{DeferredCall, DeferredCallManager};
+use kernel::deferred_call::{
+    DeferredCall, DeferredCallManager, DeferredCallMapper, DeferredCallTask,
+};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -407,15 +409,15 @@ impl AsMut<[u8]> for Sam4lPage {
 }
 
 // The FLASHCALW controller
-pub struct FLASHCALW {
+pub struct FLASHCALW<M: DeferredCallMapper<PT = Task> + 'static> {
     registers: StaticRef<FlashcalwRegisters>,
     ahb_clock: pm::Clock,
     hramc1_clock: pm::Clock,
     pb_clock: pm::Clock,
-    client: OptionalCell<&'static dyn hil::flash::Client<FLASHCALW>>,
+    client: OptionalCell<&'static dyn hil::flash::Client<FLASHCALW<M>>>,
     current_state: Cell<FlashState>,
     buffer: TakeCell<'static, Sam4lPage>,
-    deferred_call: DeferredCall<Task>,
+    deferred_call: DeferredCall<M>,
 }
 
 // Few constants relating to module configuration.
@@ -433,14 +435,14 @@ const FREQ_PS1_FWS_0_MAX_FREQ: u32 = 8000000;
 #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
-impl FLASHCALW {
+impl<M: DeferredCallMapper<PT = Task> + 'static> FLASHCALW<M> {
     pub const fn new(
         ahb_clk: pm::HSBClock,
         hramc1_clk: pm::HSBClock,
         pb_clk: pm::PBBClock,
-        dc_mgr: &'static DeferredCallManager<Task>,
-    ) -> FLASHCALW {
-        FLASHCALW {
+        dc_mgr: &'static DeferredCallManager<M>,
+    ) -> Self {
+        Self {
             registers: FLASHCALW_ADDRESS,
             ahb_clock: pm::Clock::HSB(ahb_clk),
             hramc1_clock: pm::Clock::HSB(hramc1_clk),
@@ -448,7 +450,7 @@ impl FLASHCALW {
             client: OptionalCell::empty(),
             current_state: Cell::new(FlashState::Unconfigured),
             buffer: TakeCell::empty(),
-            deferred_call: DeferredCall::new(Task::Flashcalw, dc_mgr),
+            deferred_call: DeferredCall::new(DeferredCallTask::Peripheral(Task::Flashcalw), dc_mgr),
         }
     }
 
@@ -790,7 +792,7 @@ impl FLASHCALW {
 }
 
 // Implementation of high level calls using the low-lv functions.
-impl FLASHCALW {
+impl<M: DeferredCallMapper<PT = Task> + 'static> FLASHCALW<M> {
     pub fn configure(&self) {
         // Enable all clocks (if they aren't on already...).
         pm::enable_clock(self.ahb_clock);
@@ -906,13 +908,15 @@ impl FLASHCALW {
     }
 }
 
-impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FLASHCALW {
+impl<M: DeferredCallMapper<PT = Task> + 'static, C: hil::flash::Client<Self>>
+    hil::flash::HasClient<'static, C> for FLASHCALW<M>
+{
     fn set_client(&self, client: &'static C) {
         self.client.set(client);
     }
 }
 
-impl hil::flash::Flash for FLASHCALW {
+impl<M: DeferredCallMapper<PT = Task> + 'static> hil::flash::Flash for FLASHCALW<M> {
     type Page = Sam4lPage;
 
     fn read_page(
