@@ -67,19 +67,19 @@ crc32_posix_lookup_table = np.array([
 class enState(Enum):
     enInit = 0
     enInitFail = 1
-    enInitImpossible = 2
-    enWrite = 3
-    enWritePadding = 4
-    enWriteFail = 5
-    enCrc = 6
-    enCrcFail = 7
-    enAppload = 8
-    enAppLoadFail = 9
-    enAppErase = 10
-    enAppEraseFail = 11
-    enAppEraseSuccess = 12
-    enSuccess = 13
-    enFail = 14
+    enWrite = 2
+    enWritePadding = 3
+    enWriteFail = 4
+    enCrc = 5
+    enCrcFail = 6
+    enAppload = 7
+    enAppLoadFail = 8
+    enAppErase = 9
+    enAppEraseFail = 10
+    enAppEraseSuccess = 11
+    enSuccess = 12
+    enFail = 13
+    enDebug = 14
 
 class cls_ota_serial:
     
@@ -88,17 +88,19 @@ class cls_ota_serial:
     INVALID_BYTE = 0xFF
     
     #Commands from this tool to OTA app
-    COMMAND_SET_INIT = 0x5A
+    COMMAND_FIND_STADDR = 0x5A
     COMMAND_WRITE_BINARY_DATA = 0x5B
     COMMAND_WRITE_PADDING_DATA = 0x5C
     COMMAND_SEND_CRC = 0x5D
     COMMAND_APP_LOAD = 0x5E
     COMMAND_APP_ERASE = 0x5F
+    COMMAND_DEBUG = 0x60
     
+
     #Response from the OTA app. The length of response have to be 20 bytes!
     #And this size is alos have to be consistent with the size of response data from OTA app
-    RESPONSE_INIT_OK              = "init ok            \n"
-    RESPONSE_INIT_FAIL            = "init fail          \n"
+    RESPONSE_FIND_STADDR_OK       = "find staddr ok     \n"
+    RESPONSE_FIND_STADDR_FAIL     = "find staddr fail   \n"
     RESPONSE_WRITE_BINARY_OK      = "write binary ok    \n"
     RESPONSE_WRITE_BINARY_FAIL    = "write binary fail  \n"
     RESPONSE_WRITE_PADDING_OK     = "write padding ok   \n"
@@ -109,7 +111,6 @@ class cls_ota_serial:
     RESPONSE_APP_LOAD_FAIL        = "app load fail      \n"
     RESPONSE_ERASE_OK             = "erase ok           \n"
     RESPONSE_ERASE_FAIL           = "erase fail         \n"
-    RESPONSE_FLASH_IMPOSSIBLE     = "flash impossible   \n"
 
     def __init__(self, binary_size):
         #use 512 byte pages to simplify the implementations and reduce uncertainty.
@@ -142,7 +143,7 @@ class cls_ota_serial:
         sp.stopbits=1
         sp.xonxoff=0
         sp.rtscts=0
-        sp.timeout=120
+        sp.timeout=60
         # Try to set initial conditions, but not all platforms support them.
         # https://github.com/pyserial/pyserial/issues/124#issuecomment-227235402
         
@@ -156,11 +157,12 @@ class cls_ota_serial:
             except:
                 print("retrying open serial port for UART")
                 
-        time.sleep(0.1)
+        time.sleep(0.05)
         
-        #Flush buffer!
+        #Flush buffers
         sp.flushInput()
-        sp.flushOutput()        
+        sp.flushOutput() 
+        
     
     def fn_crc32_posix(self, banary_part):
         for banary in banary_part:
@@ -172,7 +174,7 @@ class cls_ota_serial:
         #1 byte (command) + 4 bytes (Optional) + 512 byte (binary data)
         if self.state == enState.enInit:
             #1 byte command
-            data_packet = self.COMMAND_SET_INIT.to_bytes(1, 'big')
+            data_packet = self.COMMAND_FIND_STADDR.to_bytes(1, 'big')
             
             #4 bytes application size (send by little endian. Need to convert, when receive data at OTA app)
             self.app_size = binary_all[4:8]
@@ -194,15 +196,12 @@ class cls_ota_serial:
             #data_in = data_in[:self.rsp_size]
             #print(data_in)
             
-            if data_in == self.RESPONSE_INIT_OK:
+            if data_in == self.RESPONSE_FIND_STADDR_OK:
                 #print("Success: Init Pass!")
                 self.state = enState.enWrite 
                 
-            elif data_in == self.RESPONSE_INIT_FAIL:
+            elif data_in == self.RESPONSE_FIND_STADDR_FAIL:
                 self.state = enState.enInitFail  
-                
-            elif data_in == self.RESPONSE_FLASH_IMPOSSIBLE:
-                self.state = enState.enInitImpossible
                 
             else:
                 self.state = enState.enFail
@@ -224,7 +223,7 @@ class cls_ota_serial:
             
             #convert to bytearray
             data_packet = bytearray(data_packet)
-      
+            
             #write data to OTA via UART
             sp.write(data_packet)
                       
@@ -232,7 +231,6 @@ class cls_ota_serial:
             data_in = sp.readline().decode("utf-8")
             #Issue 1
             #data_in = data_in[:self.rsp_size]
-            #print(data_in)
             
             if data_in == self.RESPONSE_WRITE_BINARY_OK:
                 self.page_num += 1
@@ -240,18 +238,19 @@ class cls_ota_serial:
                 
                 if self.page_num < page_cnt_max:
                     self.state = enState.enWrite
-                    #print("Success: Write!")              
+                    #print("Success: Write!")
                 else:
-                    self.state = enState.enWritePadding
-                    #print("Success: Write Complete!")    
+                    #self.state = enState.enWritePadding
+                    self.state = enState.enCrc
+                    #print("Success: Write Complete!")                           
                     
             elif data_in == self.RESPONSE_WRITE_BINARY_FAIL:
                 self.state = enState.enWriteFail
                 
             else:
                 self.state = enState.enFail 
-                print("Message from tock => " + data_in)
-        
+                print("Message from tock => " + data_in) 
+            
         elif self.state == enState.enWritePadding:
             #1 byte command
             data_packet = self.COMMAND_WRITE_PADDING_DATA.to_bytes(1, 'big')
@@ -354,6 +353,10 @@ class cls_ota_serial:
             
             if data_in == self.RESPONSE_APP_LOAD_OK:
                 self.state = enState.enSuccess
+                
+                #If you want to see some debug data, you can use enDebug state
+                #I will print out a couple of debug data after loading a new app successfully
+                #self.state = enState.enDebug
                 #print("Success: Dynamic App Load!")
                 
             elif data_in == self.RESPONSE_APP_LOAD_FAIL:
@@ -396,6 +399,27 @@ class cls_ota_serial:
                 self.state = enState.enFail 
                 print("Message from tock => " + data_in)
     
+        elif self.state == enState.enDebug:   
+            #1 byte command
+            data_packet = self.COMMAND_DEBUG.to_bytes(1, 'big')
+            
+            #4 bytes optional byte(page counter)
+            data_packet += self.OPTION_BYTE_DUMMY.to_bytes(4, 'big')
+            
+            #convert to bytearray 
+            data_packet = bytearray(data_packet)
+            
+            #append 512 bytes dummy
+            for i in range(self.page_size):
+                data_packet.append(self.INVALID_BYTE)
+            
+            sp.write(data_packet)
+
+            #read data from OTA via UART
+            data_in = sp.readline().decode("utf-8")
+            print("\n======Debug Data =========")
+            print(data_in)
+            self.state = enState.enSuccess 
             
 def main(file_name):
     
@@ -411,17 +435,13 @@ def main(file_name):
     pbar = tqdm(desc='OTA Update', total = (binary_size / ob_ota.page_size))
     
     while True:
-        ret = ob_ota.fn_ota_serial_state_machine(binary_all, sp)
+        ob_ota.fn_ota_serial_state_machine(binary_all, sp)
         
         if ob_ota.state == enState.enInitFail:
-            print("OTA Failure: Init State!")
-            break
-            
-        elif ob_ota.state == enState.enInitImpossible:
             print("OTA Failure: Application cannot be loaded more than 4!")
             print("OTA Failure: Flash region is not enough to load the new application!")
             break
-        
+
         elif ob_ota.state == enState.enWriteFail:
             print("OTA Failure: Write State!")
             break        
@@ -429,11 +449,12 @@ def main(file_name):
         elif ob_ota.state == enState.enCrcFail:
             ob_ota.state = enState.enAppErase
             print("OTA Failure: CRC consistency! We erase the loaded app..")
-            print("Please wait. It takes time..")
+            print("Please wait.. It takes time..")
             #No break. we continue to go to the next state (erase the loaded app)
 
         elif ob_ota.state == enState.enAppLoadFail:
-            ob_ota.state = enState.enAppErase
+            #ob_ota.state = enState.enAppErase
+            ob_ota.state = enState.enSuccess
             print("OTA Failure: App load Error caused by MPU alighment! We erase the loaded app.. It will take maximum 1 min..")
             #No break. we continue to go to the next state (erase the loaded app)
                     
@@ -452,8 +473,8 @@ def main(file_name):
         elif ob_ota.state == enState.enFail:
             print("OTA Failure: Internal Error! You may disable process_printer and _process_console.start() at main.rs!")
             break
-            
-        pbar.update(1)
+        
+        pbar.update(1) 
         
     #End of update
     pbar.close()
