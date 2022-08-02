@@ -74,6 +74,11 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 
 //This variable is used to save initial value of unused sram start address before launching OTA_app
 static mut UNUSED_RAM_START_ADDR_INIT_VAL: usize = 0;
+//This variable is used to save process index loaded by tockloader, which will be used in loading app by OTA_app
+static mut PROCESS_INDEX_INIT_VAL: usize = 0;
+//This arrays is used to save start address and length of process, which will be used in checking overlap region between a new app and already loaded apps
+static mut PROCESSES_REGION_START_ADDRESS: [usize; NUM_PROCS] = [0, 0, 0, 0];
+static mut PROCESSES_REGION_SIZE: [usize; NUM_PROCS] = [0, 0, 0, 0]; 
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -101,7 +106,7 @@ pub struct MicroBit <C: 'static + Chip>{
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as usize }>,
     process_loader: kernel::process_load_utilities::ProcessLoader<C>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
@@ -629,11 +634,14 @@ pub unsafe fn main() {
         &FAULT_RESPONSE,
         &memory_allocation_capability,
         PROCESSES.as_mut_ptr(),
+        PROCESSES_REGION_START_ADDRESS.as_mut_ptr(),
+        PROCESSES_REGION_SIZE.as_mut_ptr(),
         NUM_PROCS,
         &_sapps as *const u8 as usize,
         &_eapps as *const u8 as usize,
         &_eappmem as *const u8 as usize,
         &UNUSED_RAM_START_ADDR_INIT_VAL,
+        &PROCESS_INDEX_INIT_VAL,
     );
 
     //--------------------------------------------------------------------------
@@ -697,9 +705,14 @@ pub unsafe fn main() {
         &mut PROCESSES,
         &FAULT_RESPONSE,
         &process_management_capability,
+        &mut PROCESSES_REGION_START_ADDRESS,
+        &mut PROCESSES_REGION_SIZE,
     );
     match res{
-        Ok(unused_sram_start_addr) => UNUSED_RAM_START_ADDR_INIT_VAL = unused_sram_start_addr,
+        Ok((remaining_memory, index)) => {
+            UNUSED_RAM_START_ADDR_INIT_VAL = remaining_memory;
+            PROCESS_INDEX_INIT_VAL = index;
+        }
         Err(e) => debug!("Error loading processes!: {:?}", e)
     }
 
