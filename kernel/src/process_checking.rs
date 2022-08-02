@@ -196,18 +196,17 @@ pub struct AppCheckerSha256 {
     credentials: OptionalCell<TbfFooterV2Credentials>,
 }
 
-static mut CREDS: [u8; 32] = [0; 32];
-
 impl AppCheckerSha256 {
-    pub fn new(hash: &'static dyn Sha256Verifier<'static>) -> AppCheckerSha256 {
-        unsafe {
-            AppCheckerSha256 {
-                hasher: hash,
-                client: OptionalCell::empty(),
-                hash: TakeCell::new(&mut CREDS),
-                credentials: OptionalCell::empty(),
-                binary: OptionalCell::empty(),
-            }
+    pub fn new(
+        hash: &'static dyn Sha256Verifier<'static>,
+        buffer: &'static mut [u8; 32],
+    ) -> AppCheckerSha256 {
+        AppCheckerSha256 {
+            hasher: hash,
+            client: OptionalCell::empty(),
+            hash: TakeCell::new(buffer),
+            credentials: OptionalCell::empty(),
+            binary: OptionalCell::empty(),
         }
     }
 }

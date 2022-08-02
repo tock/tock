@@ -162,6 +162,7 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
+static mut SHA256_CHECKER_BUF: [u8; 32] = [0; 32];
 
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -366,7 +367,10 @@ pub unsafe fn main() {
     );
     sha.initialize_callback_handle(dynamic_deferred_caller.register(sha).unwrap());
 
-    let checker = static_init!(AppCheckerSha256, AppCheckerSha256::new(sha));
+    let checker = static_init!(
+        AppCheckerSha256,
+        AppCheckerSha256::new(sha, &mut SHA256_CHECKER_BUF)
+    );
     sha.set_client(checker);
 
     let board_kernel = static_init!(
