@@ -1,4 +1,5 @@
 //! Helper functions related to Tock processes by OTA_app. 
+use core::cmp;
 
 use crate::debug;
 use crate::config;
@@ -33,8 +34,13 @@ mod rw_allow {
 /// Variable that is stored in OTA_app grant region to support dynamic app load
 #[derive(Default)]
 struct ProcLoaderData{
+    //Index points the position where the entry point of a new app is written into PROCESS global array 
     index: usize,
+    // App size requested by ota app
+    appsize_requested_by_ota_app: usize,
+    // dynamic_flash_start_addr points the start address that a new app will be loaded
     dynamic_flash_start_addr: usize,
+    // dynamic_unsued_sram_start_addr points the start address that a new app will use
     dynamic_unsued_sram_start_addr: usize,
 }
 
@@ -43,11 +49,14 @@ pub struct ProcessLoader <C:'static + Chip>{
     chip: &'static C, 
     fault_policy: &'static dyn ProcessFaultPolicy,
     ptr_process: *mut Option<&'static (dyn Process + 'static)>,
+    ptr_process_region_start_address: *mut usize,
+    ptr_process_region_size: *mut usize,
     supported_process_num: usize,
     start_app: usize,
     end_app: usize,
     end_appmem: usize,
-    ptr_dynamic_unused_ram_start_addr_init: &'static usize,
+    dynamic_unused_ram_start_addr_init_val: &'static usize,
+    index_init_val: &'static usize,
     data: Grant<
         ProcLoaderData,
         UpcallCount<2>,
@@ -63,22 +72,28 @@ impl <C:'static + Chip> ProcessLoader <C> {
         fault_policy: &'static dyn ProcessFaultPolicy,
         memcapability: &dyn MemoryAllocationCapability,
         ptr_process: *mut Option<&'static (dyn Process + 'static)>,
+        ptr_process_region_start_address: *mut usize,
+        ptr_process_region_size: *mut usize,
         supported_process_num: usize,
         start_app: usize,
         end_app: usize,
         end_appmem: usize,
-        ptr_dynamic_unused_ram_start_addr_init: &'static usize,
+        dynamic_unused_ram_start_addr_init_val: &'static usize,
+        index_init_val: &'static usize,
     ) -> ProcessLoader <C> {
         ProcessLoader {
             kernel: kernel,
             chip: chip, 
             fault_policy: fault_policy,
             ptr_process: ptr_process,
+            ptr_process_region_start_address: ptr_process_region_start_address,
+            ptr_process_region_size: ptr_process_region_size,
             supported_process_num: supported_process_num,
             start_app: start_app,
             end_app: end_app,
             end_appmem: end_appmem,
-            ptr_dynamic_unused_ram_start_addr_init: ptr_dynamic_unused_ram_start_addr_init,
+            dynamic_unused_ram_start_addr_init_val: dynamic_unused_ram_start_addr_init_val,
+            index_init_val: index_init_val,
             data: kernel.create_grant(DRIVER_NUM, memcapability),
         }
     }
@@ -111,9 +126,8 @@ impl <C:'static + Chip> ProcessLoader <C> {
 
         if proc_data.index < self.supported_process_num 
         {        
-            // Get the first eight bytes of flash to check if there is another
-            // app.
-            let test_header_slice = match remaining_flash.get(0..8) {
+            // Get the first eight bytes of flash to check if there is another app.
+             let test_header_slice = match remaining_flash.get(0..8) {
                 Some(s) => s,
                 None => {
                     // Not enough flash to test for another app. This just means
@@ -214,60 +228,69 @@ impl <C:'static + Chip> ProcessLoader <C> {
         &self,
         proc_data: &mut ProcLoaderData,
     ) -> Result<(), ErrorCode> {
+        
         let res = self.load_processes_advanced_air(proc_data);
 
-        //Without only alignment error, we only store the entry point of the process(app)
+        // Without alignment error, we only store the entry point, the start address, and the size of the flashed application
         match res{
             Ok((sram_end, process_copy)) => {
-                //This variable will be used, when loading the another app at next load attempt by ota app
-                //This is necessary to prevent the access violation of sram memory whilch are already used by kernel and other apps.
+                // This variable will be used, when loading the another app at next load work by ota app
+                // This is necessary to prevent the access violation of sram memory whilch are already used by kernel and other apps.
                 proc_data.dynamic_unsued_sram_start_addr = sram_end;
                 
-                //Store the entry point of the flashed application into PROCESS global array
-                //Although I used unsafe keyword, I think it's okay, becasue we pass the exact pointer of PROCESS global array
+                // Store the entry point, the start address, and the size of the flashed application into PROCESS global array
+                // Although I used unsafe keyword, I think it's okay, becasue we pass the exact pointer of PROCESS global array
                 unsafe {
                     *self.ptr_process.offset(proc_data.index.try_into().unwrap()) = process_copy;
+
+                    // We also save process region information to check the validity of 'proc_data.dynamic_flash_start_addr' in future load work
+                    *self.ptr_process_region_start_address.offset(proc_data.index.try_into().unwrap()) = proc_data.dynamic_flash_start_addr;
+                    *self.ptr_process_region_size.offset(proc_data.index.try_into().unwrap()) = proc_data.appsize_requested_by_ota_app;
                 }
+
+                // We increase the index for next load work by OTA app
+                proc_data.index += 1;
 
                 return Ok(());
             }
             Err(_e) => {
-                //debug!("Error loading processes!: {:?}", e);
-                //If there is an error caused by misalignment, proc_data.dynamic_unsued_sram_start_addr will hold current unused sram start address
+                // If there is an error caused by misalignment,
+                // 'proc_data.dynamic_unsued_sram_start_addr' and 'proc_data.index' will hold current unused sram start address
                 return Err(ErrorCode::FAIL);
             }
         }
     }
     
     // This function is implemented based on load_processes_advanced
-    // the purpose is to parse the dynamically changing start address of flash memory immediately next to the last application already loaded
+    // the purpose is to parse the dynamically changing start address of flash memory satisfying MPU rules
     fn find_dynamic_start_address_of_writable_flash_advanced(
         &self,
         proc_data: &mut ProcLoaderData,
+        start_app: usize,
     ) -> Result<(), ProcessLoadError> {
 
-        let mut app_start_address: usize = self.start_app;
+        let mut app_start_address: usize = start_app;
 
-        let mut remaining_flash =  unsafe {
-            core::slice::from_raw_parts(
-                self.start_app as *const u8,
-                self.end_app - self.start_app,
-            )
-        };
-
-        let mut index = 0;
-        while index < self.supported_process_num
+        while app_start_address < self.end_app
         {
-            let test_header_slice = match remaining_flash.get(0..8) {
+            //We only need tbf header information to get the size of app which is already loaded
+            let header_info = unsafe {
+                core::slice::from_raw_parts(
+                    app_start_address as *const u8,
+                    8,
+                )
+            };
+
+            let test_header_slice = match header_info.get(0..8) {
                 Some(s) => s,
                 None => {
                     // Not enough flash to test for another app. This just means
-                    // we are at the end of flash, and there are no more apps to
-                    // load.
-                    return Ok(());
+                    // We are at the end of flash (0x80000). => This case is Error!
+                    // But we can't reach out to here in this while statement!
+                    return Err(ProcessLoadError::NotEnoughFlash);
                 }
             };
-    
+            
             let (_version, _header_length, entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
                 test_header_slice
                     .try_into()
@@ -283,30 +306,46 @@ impl <C:'static + Chip> ProcessLoader <C> {
                     // Since Tock apps use a linked list, it is very possible the
                     // header we started to parse is intentionally invalid to signal
                     // the end of apps. This is ok and just means we have finished
-                    // loading apps.
-                    return Ok(());
+                    // loading apps. => This case points the writable 'app_start_address' satisfying MPU rules for an new app
+
+                    // Before return Ok, we check whether or not 'proc_data.dynamic_flash_start_addr' + 'appsize_requested_by_ota_app' invades other regions which is already occupied by other apps
+                    // Since app_start_address jumps based on power of 2, there is no overlap region case.
+                    // However, we check overlap region for fail-safety!
+                    // If there is the overlap region, we try to find another 'app_start_address' satisfying MPU rules recursively
+                    let address_validity_check = self.check_overlap_region(proc_data);
+
+                    match address_validity_check{
+                        Ok(()) => {
+                            return Ok(());
+                        }
+                        Err((new_start_addr, _e)) => {
+                            // We try to parse again from the new start address point!
+                            app_start_address = new_start_addr;
+
+                            let new_header_slice =  unsafe {
+                                core::slice::from_raw_parts(
+                                app_start_address as *const u8,
+                                8,
+                            )};
+                        
+                            let new_entry_length = usize::from_le_bytes([new_header_slice[4], new_header_slice[5], new_header_slice[6], new_header_slice[7]]);
+                            
+                            // entry_length is replaced by new_entry_length
+                            (0 as u16, 0 as u16, new_entry_length as u32)
+                        }
+                    }
                 }
             };
 
-
-            // Save index data to grant region
-            index += 1;
-            proc_data.index = index;
-
-            // Save dynamic_flash_start_addr to grant region
-            app_start_address += entry_length as usize;
+            // Jump to the maximum length based on power of 2
+            // If 'tockloader' offers flashing app bundles with MPU subregion rules (e.g., 16k+32k consecutive), we need more logic!
+            // We have to check whether or not there is subregion, and jump to the start address of 32k (Todo!)
+            app_start_address += cmp::max(proc_data.appsize_requested_by_ota_app, entry_length.try_into().unwrap());
             proc_data.dynamic_flash_start_addr = app_start_address;
-
-            // Slice data for the next while loop
-            remaining_flash = unsafe {
-                core::slice::from_raw_parts(
-                    app_start_address as *const u8,
-                    self.end_app - app_start_address,
-                )
-            };
         }
 
-        Ok(())
+        //If we cannot parse a vaild start address satisfying MPU rules, we return Error.
+        return Err(ProcessLoadError::NotEnoughFlash);
     }
 
     // In order to match the result value of command
@@ -314,12 +353,97 @@ impl <C:'static + Chip> ProcessLoader <C> {
         &self,
         proc_data: &mut ProcLoaderData,
     ) -> Result<(), ErrorCode> {
-        self.find_dynamic_start_address_of_writable_flash_advanced(proc_data)
-        .unwrap_or_else(|err| {
-            debug!("Error finding writable flash start address: {:?}", err);
-        });
+        
+        //First, we check Index validity  
+        if proc_data.index >= self.supported_process_num
+        {
+            return Err(ErrorCode::FAIL); 
+        }
 
-        Ok(())
+        //If there is enough room in PROCESS array, we start to find a start address satisfying MPU rules
+        let res = self.find_dynamic_start_address_of_writable_flash_advanced(proc_data, self.start_app);
+
+        match res{
+            Ok(()) => {
+                return Ok(());
+            }
+            Err(_e) => {
+                return Err(ErrorCode::FAIL);
+            }
+        }
+    }
+
+    // Check validity of 'proc_data.dynamic_flash_start_addr'
+    fn check_overlap_region(
+        &self,
+        proc_data: &mut ProcLoaderData,
+    ) -> Result<(), (usize, ProcessLoadError)>{
+        
+        let mut recal :bool = false;
+        let mut index = 0;
+        let mut new_process_start_address = proc_data.dynamic_flash_start_addr;
+        let new_process_end_address = proc_data.dynamic_flash_start_addr + proc_data.appsize_requested_by_ota_app - 1;
+
+        while index < proc_data.index
+        {
+            let process_start_address = unsafe { *self.ptr_process_region_start_address.offset(index.try_into().unwrap()) };
+            let process_end_address = unsafe{ *self.ptr_process_region_start_address.offset(index.try_into().unwrap()) + *self.ptr_process_region_size.offset(index.try_into().unwrap()) -1 };
+
+            //debug!("process_start_address, process_end_address, {:#010X} {:#010X}", process_start_address, process_end_address);
+            //debug!("new_process_start_address, new_process_end_address, {:#010X} {:#010X}", new_process_start_address, new_process_end_address);
+
+            //If Else sequence is intended!
+            if new_process_end_address >= process_start_address && new_process_end_address <= process_end_address          
+            {
+                /* Case 1
+                *              _________________          _______________           _________________
+                *  ___________|__               |        |              _|_________|__               |
+                * |           |  |              |        |             | |         |  |              |
+                * |   new app |  |  app2        |   or   |   app1      | | new app |  |  app2        | 
+                * |___________|__|              |        |             |_|_________|__|              |
+                *             |_________________|        |_______________|         |_________________|
+                * 
+                * ^...........^                                           ^........^
+                * In this case, we discard this region, and we try to find another start address from the start address of app2
+                */
+                
+                return Err((process_start_address, ProcessLoadError::NotEnoughFlash));
+            }
+
+            else if new_process_start_address >= process_start_address && new_process_start_address <= process_end_address
+            {
+                /* Case 2
+                *              _________________
+                *  ___________|__               |    _______________
+                * |           |  |              |   |               |
+                * |   app2    |  |  new app     |   |     app3      |         
+                * |___________|__|              |   |_______________|
+                *             |_________________|
+                * 
+                *                 ^
+                *                 | In this case, the start address of new app is replaced by 'the end address + 1' of app2 . Since we don't know whether or not there are oter apps after pusing new app
+                *                   we check whether or not 'the recalibrated new_process_start_address + the length' invades another region occupied by app3
+                *                   It means that, if this recalibrated region commits Case 1, we discard this region, and then find another start address from app3
+                */
+
+                new_process_start_address = process_end_address + 1;
+                proc_data.dynamic_flash_start_addr = new_process_start_address;
+                recal = true;
+            }
+
+            if recal == true
+            {
+                //we check from scratch again!
+                recal = false;
+                index = 0;
+            }
+            else
+            {
+                index += 1;
+            }
+        }
+
+        return Ok(());
     }
 
     // CRC32_POSIX
@@ -359,23 +483,21 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
     ///
     /// - `0`: Driver check, always returns Ok(())
     /// - `1`: Perform loading an process flashed from OTA_app and write the entry point of the process into PROCESS global array
-    /// - `2`: Perform finding the start address of flash memory immediately next to the last application already loaded
-    /// - `3`: Return the dynamically changing start address after commnad 2
-    /// - `4`: Initialize proc_data.dynamic_unsued_sram_start_addr with sram_end_address returned from load_processes_advanced
-    ///        This initial value comes from the result value of 'kernel::process::load_processes' at main.rs (set only one time at OTA_app init stage)
-    ///        This inital value is copied to internal grant variable, and this grant variable is used in 'fn load_processes_advanced_air' and updated after loading an application
-    ///        We don't have to interrupt the sram region already used by kernel and other apps
+    /// - `2`: Perform finding dynamically changing start address of writable flash memory based on MPU rules
+    /// - `3`: Return the dynamically changing start address after commnad 2 in order to control offset of flash region from 'ota_app'
+    /// - `4`: Initialize 'proc_data.dynamic_unsued_sram_start_addr' and 'proc_data.index' with sram_end_address and index returned from load_processes_advanced respectively
+    ///        This initial values come from the result value of 'kernel::process::load_processes' at main.rs (This commnad is only executed one time at OTA_app init stage)
+    ///        This inital value is copied to internal grant variables, and this grant variables is used in 'fn load_processes_advanced_air' and updated after loading an application
+    ///        Note that we don't have to interrupt the sram region already used by kernel and other apps
     /// - `5`: Calculate CRC32-POXIS of the flashed app region and return the result value
-    /// - `6`: Return the supported maximum process number by platform
-    /// - `7`: Return the end address of flash memory (i.e., 0x80000 in case of this platform)
-    /// - `8`: Return an index that is used to store the entry point of an app flashed into PROCESS global array
+    /// - `6`: Return an index that is used to store the entry point of an app flashed into PROCESS global array
     ///        With this index, we prevent the kernel from loading 4 more than applications
-    /// - `9`: Return the start address of flash memory allocated to apps (i.e., 0x40000 in case of this platform)
+    /// - `7`: Return the start address of flash memory allocated to apps (i.e., 0x40000 in case of this platform)
     
     fn command(
         &self,
         command_num: usize,
-        _unused1: usize,
+        arg1: usize,
         _unused2: usize,
         appid: ProcessId,
     ) -> CommandReturn {
@@ -398,9 +520,10 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             }
 
             2 =>
-            /* find dynamically changing start address of writable flash memory immediately next to the last application already loaded */
+            /* find dynamically changing start address of writable flash memory based on MPU rules */
             {   
                 let res = self.data.enter(appid, |proc_data, _| {
+                    proc_data.appsize_requested_by_ota_app = arg1;
                     self.find_dynamic_start_address_of_writable_flash(proc_data)
                 })
                 .map_err(ErrorCode::from);
@@ -421,11 +544,12 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
                 .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
 
-            /* Initialize proc_data.dynamic_unsued_sram_start_addr with sram_end_address returned from load_processes_advanced */
+            /* Initialize 'proc_data.dynamic_unsued_sram_start_addr' and 'proc_data.index' with sram_end_address and index returned from load_processes_advanced respectively */
             4 =>
             {
                 let res = self.data.enter(appid, |proc_data, _| {
-                    proc_data.dynamic_unsued_sram_start_addr = *self.ptr_dynamic_unused_ram_start_addr_init;
+                    proc_data.dynamic_unsued_sram_start_addr = *self.dynamic_unused_ram_start_addr_init_val;
+                    proc_data.index = *self.index_init_val;
                 })
                 .map_err(ErrorCode::from);
         
@@ -446,18 +570,6 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             }
 
             6 =>
-            /* Return the supported maximum process number by platform */
-            {
-                CommandReturn::success_u32(self.supported_process_num as u32)
-            }
-
-            7 =>
-            /* Return the end address of flash memory (i.e., 0x80000 in case of this platform) */
-            {
-                CommandReturn::success_u32(self.end_app as u32)
-            }
-
-            8 =>
             /* Return index that is used to store the entry point of an app flashed */
             {
                 self.data.enter(appid, |proc_data, _| {
@@ -467,7 +579,7 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             }
 
             /* Return the start address of flash memory allocated to apps (i.e., 0x40000 in case of this platform)  */
-            9 =>
+            7 =>
             {
                 CommandReturn::success_u32(self.start_app as u32)
             }
