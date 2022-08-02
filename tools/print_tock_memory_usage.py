@@ -38,16 +38,48 @@ sort_by_size = False  # Otherwise lexicographic order
 # A map of section name -> size
 sections = {}
 
-# These lists store 4-tuples:
-#    (name, start address, length of function, total size)
-# The "length of function" is the size of the symbol as reported in
-# objdump, which is the executable code. "Total size" includes any
-# constants embedded, including constant strings, or padding.
-# Initially the lists are populated with total_size=0; it is later
-# computed by sorting the symbols and calculating their spacing.
+# These lists store 5-tuples:
+#    (name, start address, reported size, total size, type)
+# The "reported size" is the size that the symbol table says this
+# symbol has. As a symbol table can have overlapping symbols (e.g.,
+# two different symbols with the same address and size) and have space
+# that is not covered by symbols (e.g., data embedded after a symbol),
+# the reported size is not an accurate accounting of how a symbol impacts
+# the size of a binary.
+#
+# The script calculates the "real" size of symbol and stores it in
+# "total size", with the rule that the sum of the total size of all of
+# the symbols in a section equal the size of the section. The "total
+# size" of a symbol is defined to be the space until the next
+# symbol. If there are multiple symbols with the same address, the
+# script considers the one with the largest reported size as the last
+# one. This means that all of these symbols except the one with the
+# largest reported size will have total size 0 (the next symbol has
+# the same address). The one with the largest reported size will have
+# a total size of the space until the next (different) symbol address.
+#
+# The "type" field is used to distinguish between variables and
+# functions.  This is useful in code sections as it allows the script
+# to distinguish constants and embedded data from instructions. As Rust
+# can insert a lot of embedded data (e.g., panic strings), distinguishing
+# the two is useful. Three types are used:
+#   - "variable" denotes an initialized or uninitialized variable.
+#   - "data" denotes embedded/constant data in a text section.
+#   - "function" denotes instructions/executable code in a text section.
+
+# Uninitialized variables are zeros and zeroed out at kernel boot; they
+# exist solely in RAM (the .bss section).
 kernel_uninitialized = []
+# Initialized variables start with non-zero values and are initialized
+# at kernel boot by copying their initial values from flash into RAM
+# (the .data section).
 kernel_initialized = []
+# Kernel symbols are first stored in kernel_text to perform whole
+# kernel text calculations. Then they are split into kernel_functions
+# and kernel_data to separately account for symbols of these types.
+kernel_text = []
 kernel_functions = []
+kernel_data = []
 
 
 def usage(message):
@@ -121,6 +153,10 @@ def parse_mangled_name(name):
     demangling: for methods, it outputs the structure + method
     as a :: separated name, eliding the trait (if any)."""
 
+    # Not a mangled name, just return it unchanged.
+    if name[0:3] != "_ZN":
+        return name
+    
     # Trim a trailing . number (e.g., ".71") which breaks demangling
     match = re.search("\.\d+$", name)
     if match != None:
@@ -184,46 +220,58 @@ def process_symbol_line(line):
     Because Tock executables have a variety of symbol formats,
     first try to demangle it; if that fails, use it as is."""
     # pylint: disable=line-too-long,anomalous-backslash-in-string
+    global kernel_text
+    global kernel_initialized
+    global kernel_uninitialized
     match = re.search(
-        "^(\S+)\s+\w+\s+(\w*)\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+)\s+(.+)",
+        "^(\S+)\s+(\w*)\s+(\w*)\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+)\s+(.+)",
         line,
     )
     if match != None:
         addr = int(match.group(1), 16)
-        symbol_type = match.group(2)
-        segment = match.group(3)
-        size = int(match.group(4), 16)
-        name = match.group(5)
+        linkage = match.group(2)
+        symbol_type = match.group(3)
+        segment = match.group(4)
+        size = int(match.group(5), 16)
+        name = match.group(6)
 
+        # Compiler embeds these symbols, ignore them
+        if name[0:3] == "$t." or name[0:3] == "$d.":
+            return
+
+        # Special case end of kernel RAM, given that there is padding
+        # between it and application RAM.
+        if name == "_ezero":
+            name = "Padding at end of kernel RAM"
+            
         # Initialized data: part of the flash image, then copied into RAM
         # on start. The .data section in normal hosted C.
         if segment == "relocate":
             demangled = parse_mangled_name(name)
-            kernel_initialized.append((demangled, addr, size, 0))
+            kernel_initialized.append((demangled, addr, size, 0, "variable"))
 
         # Uninitialized data, stored in a zeroed RAM section. The
         # .bss section in normal hosted C.
         elif segment == "sram":
             demangled = parse_mangled_name(name)
-            kernel_uninitialized.append((demangled, addr, size, 0))
+            kernel_uninitialized.append((demangled, addr, size, 0, "variable"))
 
         # Code and embedded data.
         elif segment == "text":
-            # Prune symbols that aren't a function or data: these
-            # confuse calculating symbol lengths, as they are typically
-            # zero-length aliases for real symbols.
-            if symbol_type != "F" and symbol_type != "O":
-                return
             match = re.search("\$(((\w+\.\.)+)(\w+))\$", name)
-            if match != None:
-                symbol = parse_mangled_name(name)
-                kernel_functions.append((symbol, addr, size, 0))
+            # It's a function
+            if symbol_type == "F" or symbol_type == "f":
+                try:
+                    symbol = parse_mangled_name(name)
+                    kernel_text.append((symbol, addr, size, 0, "function"))
+                except cxxfilt.InvalidName:
+                    kernel_text.append((name, addr, size, 0, "function"))
             else:
                 try:
                     symbol = parse_mangled_name(name)
-                    kernel_functions.append((symbol, addr, size, 0))
+                    kernel_text.append((symbol, addr, size, 0, "data"))
                 except cxxfilt.InvalidName:
-                    kernel_functions.append((name, addr, size, 0))
+                    kernel_text.append((name, addr, size, 0, "data"))
 
 
 def print_section_information():
@@ -236,7 +284,7 @@ def print_section_information():
     if "app_memory" in sections:  # H1B-style linker file, static app section
         app_size = sections["app_memory"]
     else:  # Mainline Tock-style linker file, using APP_MEMORY
-        for (name, addr, size, tsize) in kernel_uninitialized:
+        for (name, addr, size, tsize, desc) in kernel_uninitialized:
             if name.find("APP_MEMORY") >= 0:
                 app_size = size
 
@@ -276,7 +324,7 @@ def group_symbols(groups, symbols, waste, section):
     expected_addr = 0
     waste_sum = 0
     prev_symbol = ""
-    for (symbol, addr, size, _) in symbols:
+    for (symbol, addr, size, real_size, _) in symbols:
         # If we find a gap between symbol+size and the next symbol, we might
         # have waste. But this is only true if it's not the first symbol and
         # this is actually a variable and just just a symbol (e.g., _estart)
@@ -313,6 +361,9 @@ def group_symbols(groups, symbols, waste, section):
                 key = "ARM aeabi support"
             elif symbol[0:3] == "_ZN":
                 key = "Unidentified auto-generated"
+            elif symbol == "Padding at end of kernel RAM":
+                key = symbol
+                name = symbol
             else:
                 key = "Unmangled globals (C-like code)"
                 name = symbol
@@ -327,9 +378,9 @@ def group_symbols(groups, symbols, waste, section):
                 key = key + "::"
                 name = "::".join(tokens[symbol_depth:])
         if key in groups.keys():
-            groups[key].append((name, size))
+            groups[key].append((name, real_size))
         else:
-            groups[key] = [(name, size)]
+            groups[key] = [(name, real_size)]
 
         # Set state for next iteration
         expected_addr = addr + size
@@ -394,11 +445,21 @@ def print_groups(title, groups):
     print(title + ": " + str(group_sum) + " bytes")
     print(output, end="")
 
+def split_text_into_data_and_functions():
+    global kernel_text
+    global kernel_functions
+    global kernel_data
+    for (name, addr, reported_size, real_size, desc) in kernel_text:
+        if desc == "function":
+            kernel_functions.append((name, addr, reported_size, real_size, desc))
+        elif desc == "data":
+            kernel_data.append((name, addr, reported_size, real_size, desc))
+    
 
 def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
     use."""
-    variable_groups = {}
+    split_text_into_data_and_functions()
     if print_all:
         print_all_symbol_information()
     else:
@@ -408,16 +469,19 @@ def print_all_symbols(title, symbols):
     """Print out all of the symbols passed as a list of 4-tuples,
     prefaced by the title and total size of the of symbols."""
     max_string_len = 0
+    max_byte_len = 5
     if len(symbols) > 0:
-        max_string_len = max(len(s) for (s, _, _, _) in symbols)
+        max_string_len = max(len(s) for (s, _, _, _, _) in symbols)
+#        max_byte_len = max(len(str(size)) for (_, _, _, size, _) in symbols)
     output = ""
     symbol_sum = 0
     if sort_by_size:
         symbols = sorted(symbols, key=lambda item: item[3], reverse=True)
-    for (name, addr, reported_size, real_size) in symbols:
+    for (name, addr, reported_size, real_size, desc) in symbols:
         name = name.ljust(max_string_len + 2, " ")
         symbol_sum = symbol_sum + real_size
-        output = output + "  " + name + str(real_size) + " bytes\n"
+        size_str = str(real_size).rjust(max_byte_len, " ")
+        output = output + "  " + name + size_str + " bytes\n"
     print(title + ": " + str(symbol_sum) + " bytes")
     print(output, end="")
     
@@ -428,10 +492,13 @@ def print_all_symbol_information():
     print()
     print_all_symbols("Variable groups (RAM)", kernel_uninitialized)
     print()
-    print_all_symbols("Embedded data (flash)", padding_text)
-    print()
     print_all_symbols("Function groups (flash)", kernel_functions)
-    return
+    print()
+    print_all_symbols("Embedded data (flash)", kernel_data)
+    print()
+    print_all_symbols("Padding within functions and embedded data (flash)", padding_text)
+    print()
+
         
 def print_grouped_symbol_information():
     """Print out the size taken up by symbols, with symbols grouped
@@ -448,19 +515,26 @@ def print_grouped_symbol_information():
     print_groups("Variable groups (RAM)", uninitialized_groups)
     print(gaps)
 
-    padding_groups = {}
-    gaps = group_symbols(padding_groups, padding_text, show_waste, "Flash")
-    print_groups("Embedded data (flash)", padding_groups)
-    print()
     function_groups = {}
-    # Embedded constants in code (e.g., after functions) aren't counted
-    # in the symbol's size, so detecting waste in code has too many false
-    # positives.
-    gaps = group_symbols(function_groups, kernel_functions, False, "Flash")
-
+    gaps = group_symbols(function_groups, kernel_functions, show_waste, "Flash")
     print_groups("Function groups (flash)", function_groups)
     print(gaps)
 
+    embedded_data = {}
+    gaps = group_symbols(embedded_data, kernel_data, show_waste, "Flash")
+    print_groups("Embedded data (flash)", embedded_data)
+    print(gaps)
+
+    padding = {}
+    gaps = group_symbols(padding, padding_text, False, "Flash")
+    print_groups("Padding within functions and embedded padding (flash)", padding)
+    print(gaps)
+    
+    
+def sort_value(symbol_entry):
+    """Helper function for sorting symbols by start address and size."""
+    value = (symbol_entry[1] << 16) + symbol_entry[2]
+    return value
 
 def get_addr(symbol_entry):
     """Helper function for sorting symbols by start address."""
@@ -470,29 +544,36 @@ def get_name(symbol_entry):
     """Helper function for fetching symbol names to calculate longest name."""
     return symbol_entry[0]
 
-
-def compute_padding(symbols):
+text_total = 0
+def compute_padding(symbols, text):
     """Calculate how much padding is in a list of symbols by comparing their
     reporting size with the spacing with the next function and return
     the total differences."""
-    symbols.sort(key=get_addr)
+    global text_total
+    symbols.sort(key=sort_value)
     elements = []
     func_count = len(symbols)
     diff = 0
     size_sum = 0
     for i in range(1, func_count):
-        (esymbol, eaddr, esize, _) = symbols[i - 1]
-        (symbol, laddr, _, _) = symbols[i]
+        (esymbol, eaddr, esize, _, edesc) = symbols[i - 1]
+        (symbol, laddr, _, _, desc) = symbols[i]
         total_size = laddr - eaddr
-        symbols[i - 1] = (esymbol, eaddr, esize, total_size)
-        # Sometimes multiple symbols point to the same memory. In this case,
-        # the total_size will be 0 for all but one of the symbols. Don't
-        # subtract this from the padding.
-        size_sum = size_sum + esize
+#        print("PROCESSED: ", esymbol, "has size", esize, "but real size is", total_size, "total is", text_total, "comes before", symbol)
+        symbols[i - 1] = (esymbol, eaddr, esize, total_size, edesc)
+
+        size_sum = size_sum + total_size
         padding_size = (total_size - esize)
-        if total_size != esize and total_size != 0:
-            elements.append((esymbol, 0, padding_size, padding_size))
+        # Padding represents when there is space after the end of a symbol's
+        # defined size. Sometimes, when there is embedded data, it is in space
+        # after a symbol, i.e., there is space after symbol+length and the
+        # next symbol. Other times, the embedded data is within a symbol's
+        # region. 
+        if total_size != esize and total_size > 0 and padding_size > 0:
+            elements.append((esymbol, 0, padding_size, padding_size, edesc))
             diff = diff + padding_size
+        #if total_size != 0:
+        #    print(esymbol, total_size)
     return elements
 
 
@@ -576,9 +657,9 @@ if __name__ == "__main__":
         elif objdump_output_section == "symbol_table":
             process_symbol_line(oline)
 
-    padding_init = compute_padding(kernel_initialized)
-    padding_uninit = compute_padding(kernel_uninitialized)
-    padding_text = compute_padding(kernel_functions)
+    padding_init = compute_padding(kernel_initialized, False)
+    padding_uninit = compute_padding(kernel_uninitialized, False)
+    padding_text = compute_padding(kernel_text, True)
 
     print_section_information()
     print()
