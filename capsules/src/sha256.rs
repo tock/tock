@@ -102,6 +102,7 @@ impl<'a> Sha256Software<'a> {
         self.state.set(new_state);
 
         self.buffered_length.set(0);
+        self.total_length.set(0);
         self.data_buffer.map(|b| {
             for i in 0..SHA_BLOCK_LEN_BYTES {
                 b[i] = 0;
