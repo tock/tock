@@ -77,8 +77,11 @@ pub enum ProcessLoadError {
     /// KernelVersion TBF header.
     IncompatibleKernelVersion { version: Option<(u16, u16)> },
 
-    /// The process did not contain a credentials which the process binary verifier
-    /// accepted and the verifier requires credentials.
+    /// The application checker requires credentials, but the TBF did
+    /// not include a credentials that meets the checker's
+    /// requirements. This can be either because the TBF has no
+    /// credentials or the checker policy did not accept any of the
+    /// credentials it has.
     CredentialsNoAccept,
 
     /// The process contained a credentials which was rejected by the verifier.
@@ -156,22 +159,23 @@ impl fmt::Debug for ProcessLoadError {
                 None => write!(f, "Process did not provide a TBF kernel version header"),
             },
 
-            ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
-
             ProcessLoadError::CredentialsNoAccept => write!(f, "No credentials accepted."),
 
             ProcessLoadError::CredentialsReject(index) => {
                 write!(f, "Credentials index {} rejected.", index)
             }
+
+            ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
     }
 }
 
 /// Load processes (stored as TBF objects in flash) into runnable
-/// process structures stored in the `procs` array. If a `checker` is
-/// passed, this method scans the footers in the TBF for cryptographic
-/// credentials for binary integrity, passing them to `checker` to decide
-/// whether the process has sufficient credentials to run.
+/// process structures stored in the `procs` array. If the kernel is
+/// configured with an `AppCredentialsChecker`, this method scans the
+/// footers in the TBF for cryptographic credentials for binary
+/// integrity, passing them to the checker to decide whether the
+/// process has sufficient credentials to run.
 #[inline(always)]
 #[allow(dead_code)]
 pub fn load_and_check_processes<C: Chip>(
@@ -183,7 +187,7 @@ pub fn load_and_check_processes<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
-    load_processes(
+    load_processes_from_flash(
         kernel,
         chip,
         app_flash,
@@ -197,13 +201,16 @@ pub fn load_and_check_processes<C: Chip>(
 }
 
 /// Load processes (stored as TBF objects in flash) into runnable
-/// process structures stored in the `procs` array. If a `checker` is
-/// passed, this method scans the footers in the TBF for cryptographic
-/// credentials for binary integrity, passing them to `checker` to decide
-/// whether the process has sufficient credentials to run.
+/// process structures stored in the `procs` array and mark all
+/// successfully loaded processes as runnable. This method does not
+/// check the cryptographic credentials of TBF objects. Platforms
+/// for which code size is tight and do not need to check TBF
+/// credentials can call this method instead of `load_and_check_processes`
+/// because it results in a smaller kernel, as it does not invoke
+/// the credential checking state machine.
 #[inline(always)]
 #[allow(dead_code)]
-pub fn load_processes_no_checking<C: Chip>(
+pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
@@ -212,7 +219,7 @@ pub fn load_processes_no_checking<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
-    load_processes(
+    load_processes_from_flash(
         kernel,
         chip,
         app_flash,
@@ -268,7 +275,7 @@ pub fn load_processes_no_checking<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-fn load_processes<C: Chip>(
+fn load_processes_from_flash<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],

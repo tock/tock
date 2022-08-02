@@ -568,7 +568,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes_no_checking(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

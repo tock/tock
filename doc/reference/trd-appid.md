@@ -16,13 +16,14 @@ Abstract
 
 This document describes the design and implementation of application
 identifiers (AppIDs) in the Tock operating system. AppIDs provide a
-mechanism to identify the application contained in a userspace binary.
-AppIDs allow the kernel to apply security policies to applications as
-their code evolves and their binaries change. A board defines how the
-kernel verifies AppIDs and which AppIDs the kernel will load. This
-document describes the Rust traits and software architecture for
-AppIDs as well as the reasoning behind them. This document is in full
-compliance with [TRD1][TRD1].
+mechanism to identify the application contained in a userspace binary
+that is distinct from a process identifier.  AppIDs allow the kernel
+to apply security policies to applications as their code evolves and
+their binaries change. A board defines how the kernel verifies AppIDs
+and which AppIDs the kernel will load. This document describes the
+Rust traits and software architecture for AppIDs as well as the
+reasoning behind them. This document is in full compliance with
+[TRD1][TRD1].
 
 1 Introduction
 ===============================
@@ -479,7 +480,7 @@ identifier.
 The `Rsa3072Key` type has a data of length of 768 bytes. It contains a
 public 3072-bit RSA key (384 bytes), followed by a 384-byte PKCS#1
 v1.5 signature using SHA512 (`CKM_SHA512_RSA_PKCS`). It does not
-contain a public exponnent: the Process Checker is responsible for
+contain a public exponent: the Process Checker is responsible for
 storing the public exponent for any key it recognizes.
 
 The `Rsa4096Key` type has a data of length of 1024 bytes. It contains

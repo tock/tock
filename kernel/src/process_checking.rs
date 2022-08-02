@@ -52,7 +52,7 @@ pub trait AppCredentialsChecker<'a> {
 
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
-pub trait AppIdentification {
+pub trait AppUniqueness {
     /// Returns whether `process_a` and `process_b` have a different identifier,
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
@@ -94,8 +94,8 @@ pub trait Compress {
     fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
 }
 
-pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppIdentification {}
-impl<'a, T: AppCredentialsChecker<'a> + Compress + AppIdentification> AppVerifier<'a> for T {}
+pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppUniqueness {}
+impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> AppVerifier<'a> for T {}
 
 /// A sample Credentials Checking Policy that loads and runs Userspace
 /// Binaries with unique process names; if it encounters a Userspace
@@ -165,7 +165,7 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
     }
 }
 
-impl AppIdentification for AppCheckerSimulated<'_> {
+impl AppUniqueness for AppCheckerSimulated<'_> {
     // This checker doesn't allow you to run two processes with the
     // same name.
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
@@ -255,7 +255,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
     }
 }
 
-impl AppIdentification for AppCheckerSha256 {
+impl AppUniqueness for AppCheckerSha256 {
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
         let credentials_a = process_a.get_credentials();
         let credentials_b = process_b.get_credentials();

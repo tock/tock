@@ -23,7 +23,7 @@
 
 <!-- tocstop -->
 
-Tock userspace applications must following the Tock Binary Format
+Tock userspace applications must follow the Tock Binary Format
 (TBF). A TBF Object has four parts: a Header section, which encodes
 meta-data about the TBF Object, the actual Userspace Binary, an
 optional Footer section which encodes metadata about the TBF Object,
@@ -32,8 +32,8 @@ and finally optional padding.
 TBF Headers and Footers differ in how they are handled for TBF Object
 integrity. Integrity values (e.g., hashes) for a TBF Object are
 computed over the Header section and Userspace Binary but not the
-Footer Region or padding. TBF Headers are covered by integrity, while
-TBF Footers are not covered by integrity.
+Footer Region or padding after footers. TBF Headers are covered by
+integrity, while TBF Footers are not covered by integrity.
 
 ```
 Tock App Binary:
@@ -93,7 +93,7 @@ shortest. This is to help match MPU rules about alignment.
 ## Empty Tock Apps
 
 A TBF Object can contain no code. A TBF Object can be marked as
-disabled to be padding between other objects.
+disabled to act as padding between other objects.
 
 ## TBF Header Section
 
@@ -118,7 +118,9 @@ struct TbfHeaderV2Base {
 
 After the Base Header come optional headers. Optional headers are
 structured as TLVs (type-length-values). Footers are encoded in the
-same way. Footers are also called headers for historical reasons.
+same way. Footers are also called headers for historical reasons:
+originally TBFs only had headers, and since footers follow the same
+format TBFs keep these types without changing their names.
 
 ```rust
 // Identifiers for the optional header structs.
@@ -542,7 +544,7 @@ the end of the TBF object can contain footers.
 
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
-    execute (typically the `_start` symbol).
+   	execute (typically the `_start` symbol).
   * `protected_size` the size of the protected region in bytes. Processes do not
     have write access to the protected region. TBF headers are contained in the
     protected region.

@@ -614,7 +614,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
         // Do not modify an inactive process.
-        if self.is_running() {
+        if !self.is_running() {
             return Err(Error::InactiveApp);
         }
 

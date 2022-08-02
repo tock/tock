@@ -61,6 +61,10 @@ pub struct Kernel {
     /// established.
     grants_finalized: Cell<bool>,
 
+    /// Implements the kernel policy for checking cryptographic credentials
+    /// in TBF objects to determine if the contained application can be
+    /// run as a process. If `None` then no credentials are checked and
+    /// the kernel runs all successfully loaded application binaries.
     verifier: Option<&'static dyn AppVerifier<'static>>,
 
     init_cap: KernelProcessInitCapability,
