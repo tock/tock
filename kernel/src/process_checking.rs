@@ -213,7 +213,7 @@ impl AppCheckerSha256 {
 
 impl AppCredentialsChecker<'static> for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
-        true
+        false
     }
 
     fn check_credentials(
