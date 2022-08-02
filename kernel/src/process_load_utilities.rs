@@ -327,8 +327,8 @@ impl <C:'static + Chip> ProcessLoader <C> {
                                 app_start_address as *const u8,
                                 8,
                             )};
-                        
-                            let new_entry_length = usize::from_le_bytes([new_header_slice[4], new_header_slice[5], new_header_slice[6], new_header_slice[7]]);
+
+                            let new_entry_length = u32::from_le_bytes([new_header_slice[4], new_header_slice[5], new_header_slice[6], new_header_slice[7]]);
                             
                             // entry_length is replaced by new_entry_length
                             (0 as u16, 0 as u16, new_entry_length as u32)
@@ -451,7 +451,7 @@ impl <C:'static + Chip> ProcessLoader <C> {
         &self,
         proc_data: &mut ProcLoaderData,
     ) -> u32 {
-        
+
         let appstart = proc_data.dynamic_flash_start_addr as *const u8;
 
         //Only parse the header information (8byte)
@@ -460,13 +460,13 @@ impl <C:'static + Chip> ProcessLoader <C> {
             appstart,
             8,
         )};
-       
-        let entry_length = usize::from_le_bytes([header_slice[4], header_slice[5], header_slice[6], header_slice[7]]);
+    
+        let entry_length = u32::from_le_bytes([header_slice[4], header_slice[5], header_slice[6], header_slice[7]]);
         
         let data =  unsafe {
             core::slice::from_raw_parts(
             appstart,
-            entry_length,
+            entry_length.try_into().unwrap(),
         )};
 
         let mut crc32_instance = tickv::crc32::Crc32::new();
