@@ -742,9 +742,9 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    hd.program.map_or(0, |p| p.protected_size)
+                    hd.program.map_or(0, |p| p.protected_size + (hd.base.header_size as u32))
                 } else if hd.main.is_some() {
-                    hd.main.map_or(0, |m| m.protected_size)
+                    hd.main.map_or(0, |m| m.protected_size + (hd.base.header_size as u32))
                 } else {
                     0
                 }
@@ -759,7 +759,7 @@ impl TbfHeader {
     pub fn get_app_start_offset(&self) -> u32 {
         // The application binary starts after the header plus any
         // additional protected space.
-        self.length() as u32 + self.get_protected_size()
+        self.get_protected_size()
     }
 
     /// Get the offset from the beginning of the app's flash region where the
