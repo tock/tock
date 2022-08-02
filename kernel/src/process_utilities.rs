@@ -161,7 +161,9 @@ pub fn load_processes_advanced<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     require_kernel_version: bool,
     _capability: &dyn ProcessManagementCapability,
-) -> Result<usize, ProcessLoadError> {
+    process_region_start_address: &mut [usize; 4],
+    process_region_size: &mut [usize; 4],
+) -> Result<(usize, usize), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
@@ -174,7 +176,6 @@ pub fn load_processes_advanced<C: Chip>(
 
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
-    let mut unused_sram_start_addr = 0;
 
     // Try to discover up to `procs.len()` processes in flash.
     let mut index = 0;
@@ -187,7 +188,7 @@ pub fn load_processes_advanced<C: Chip>(
                 // Not enough flash to test for another app. This just means
                 // we are at the end of flash, and there are no more apps to
                 // load.
-                return Ok(unused_sram_start_addr);
+                return Ok((remaining_memory.as_ptr() as usize, index));
             }
         };
 
@@ -210,9 +211,14 @@ pub fn load_processes_advanced<C: Chip>(
                 // header we started to parse is intentionally invalid to signal
                 // the end of apps. This is ok and just means we have finished
                 // loading apps.
-                return Ok(unused_sram_start_addr);
+                
+                return Ok((remaining_memory.as_ptr() as usize, index));
             }
         };
+
+        //Save the start address and the length of a process
+        process_region_start_address[index] = remaining_flash.as_ptr() as usize;
+        process_region_size[index] = entry_length as usize;
 
         // Now we can get a slice which only encompasses the length of flash
         // described by this tbf header.  We will either parse this as an actual
@@ -279,11 +285,9 @@ pub fn load_processes_advanced<C: Chip>(
             // same amount of process memory to allocate from.
             remaining_memory
         };
-
-        unused_sram_start_addr = remaining_memory.as_ptr() as usize;
     }
 
-    Ok(unused_sram_start_addr)
+    Ok((remaining_memory.as_ptr() as usize, index))
 }
 
 /// This is a wrapper function for `load_processes_advanced` that uses
@@ -300,7 +304,9 @@ pub fn load_processes<C: Chip>(
     procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability: &dyn ProcessManagementCapability,
-) -> Result<usize, ProcessLoadError> {
+    process_region_start_address: &mut [usize; 4],
+    process_region_size: &mut [usize; 4],
+) -> Result<(usize, usize), ProcessLoadError> {
     load_processes_advanced(
         kernel,
         chip,
@@ -310,5 +316,7 @@ pub fn load_processes<C: Chip>(
         fault_policy,
         true,
         capability,
+        process_region_start_address,
+        process_region_size,
     )
 }
