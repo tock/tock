@@ -742,9 +742,11 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    hd.program.map_or(0, |p| p.protected_size + (hd.base.header_size as u32))
+                    hd.program
+                        .map_or(0, |p| p.protected_size + (hd.base.header_size as u32))
                 } else if hd.main.is_some() {
-                    hd.main.map_or(0, |m| m.protected_size + (hd.base.header_size as u32))
+                    hd.main
+                        .map_or(0, |m| m.protected_size + (hd.base.header_size as u32))
                 } else {
                     0
                 }
