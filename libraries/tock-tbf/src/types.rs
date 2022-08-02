@@ -279,6 +279,9 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Base {
     type Error = TbfParseError;
 
     fn try_from(b: &[u8]) -> Result<TbfHeaderV2Base, Self::Error> {
+        if b.len() < 16 {
+            return Err(TbfParseError::InternalError);
+        }
         Ok(TbfHeaderV2Base {
             version: u16::from_le_bytes(
                 b.get(0..2)
@@ -352,6 +355,10 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
     type Error = TbfParseError;
 
     fn try_from(b: &[u8]) -> Result<TbfHeaderV2Main, Self::Error> {
+        // For 3 or more fields, this shortcut check reduces code size
+        if b.len() < 12 {
+            return Err(TbfParseError::InternalError);
+        }
         Ok(TbfHeaderV2Main {
             init_fn_offset: u32::from_le_bytes(
                 b.get(0..4)
@@ -374,11 +381,14 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
 
 impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
     type Error = TbfParseError;
-
     fn try_from(b: &[u8]) -> Result<TbfHeaderV2Program, Self::Error> {
+        // For 3 or more fields, this shortcut check reduces code size
+        if b.len() < 20 {
+            return Err(TbfParseError::InternalError);
+        }
         Ok(TbfHeaderV2Program {
             init_fn_offset: u32::from_le_bytes(
-                b.get(0..4)
+                b.get(4..8)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
@@ -448,6 +458,10 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderDriverPermission {
     type Error = TbfParseError;
 
     fn try_from(b: &[u8]) -> Result<TbfHeaderDriverPermission, Self::Error> {
+        // For 3 or more fields, this shortcut check reduces code size
+        if b.len() < 16 {
+            return Err(TbfParseError::InternalError);
+        }
         Ok(TbfHeaderDriverPermission {
             driver_number: u32::from_le_bytes(
                 b.get(0..4)
@@ -485,7 +499,6 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
             offset: 0,
             allowed_commands: 0,
         }; L];
-
         for i in 0..length as usize {
             let start = 2 + (i * size_of::<TbfHeaderDriverPermission>());
             let end = start + size_of::<TbfHeaderDriverPermission>();
