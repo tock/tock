@@ -54,6 +54,7 @@ enum DeviceState {
 enum Operation {
     None,
     Setup,
+    SetEnv,
     CO2,
     TVOC,
 }
@@ -113,10 +114,42 @@ impl<'a> AirQualityDriver<'a> for Ccs811<'a> {
 
     fn specify_environment(
         &self,
-        _temp: Option<i32>,
-        _humidity: Option<u32>,
+        temp: Option<i32>,
+        humidity: Option<u32>,
     ) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
+        if self.state.get() != DeviceState::Normal {
+            return Err(ErrorCode::BUSY);
+        }
+
+        if self.op.get() != Operation::None {
+            return Err(ErrorCode::BUSY);
+        }
+
+        self.buffer.take().map(|buffer| {
+            // Set the default values of 50% humidity and 25 degrees Celsius
+            buffer[0] = 0x05;
+            buffer[1] = 0x64;
+            buffer[2] = 0x00;
+            buffer[3] = 0x64;
+            buffer[4] = 0x00;
+
+            // Copy in our calibration data
+            if let Some(hum) = humidity {
+                buffer[1] = hum as u8 * 2;
+            }
+            if let Some(t) = temp {
+                if t < -25 {
+                    buffer[3] = 0;
+                } else {
+                    buffer[3] = (t as u8 + 25) * 2;
+                }
+            }
+
+            self.op.set(Operation::SetEnv);
+            self.i2c.write(buffer, 5).unwrap();
+        });
+
+        Ok(())
     }
 
     fn read_co2(&self) -> Result<(), ErrorCode> {
@@ -163,6 +196,10 @@ impl<'a> I2CClient for Ccs811<'a> {
         if status.is_err() {
             match self.op.get() {
                 Operation::None | Operation::Setup => (),
+                Operation::SetEnv => {
+                    self.client
+                        .map(|client| client.environment_specified(Err(ErrorCode::FAIL)));
+                }
                 Operation::CO2 => {
                     self.client
                         .map(|client| client.co2_data_available(Err(ErrorCode::FAIL)));
@@ -230,6 +267,10 @@ impl<'a> I2CClient for Ccs811<'a> {
                         self.buffer.replace(buffer);
                         self.handle.map(|handle| self.deferred_caller.set(*handle));
                         return;
+                    }
+                    Operation::SetEnv => {
+                        self.client
+                            .map(|client| client.environment_specified(Ok(())));
                     }
                     Operation::CO2 => {
                         let co2 = (buffer[0] as u32) << 8 | buffer[1] as u32;

@@ -78,6 +78,9 @@ pub trait AirQualityDriver<'a> {
 
 /// Client for receiving Air Quality readings
 pub trait AirQualityClient {
+    /// Called when the environment specify command has completed.
+    fn environment_specified(&self, result: Result<(), ErrorCode>);
+
     /// Called when a CO2 or equivalent CO2 (eCO2) reading has completed.
     ///
     /// - `value`: will contain the latest CO2 reading in ppm. An example value

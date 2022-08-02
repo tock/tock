@@ -93,6 +93,10 @@ impl<'a> AirQualitySensor<'a> {
 }
 
 impl hil::sensors::AirQualityClient for AirQualitySensor<'_> {
+    fn environment_specified(&self, _result: Result<(), ErrorCode>) {
+        unimplemented!();
+    }
+
     fn co2_data_available(&self, value: Result<u32, ErrorCode>) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
