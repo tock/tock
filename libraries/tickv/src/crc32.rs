@@ -15,6 +15,8 @@
 //!     MIT License (LICENSE-MIT <http://opensource.org/licenses/MIT>)
 //! at your option.
 
+use core::cell::Cell;
+
 const CRC_TABLE: [u32; 256] = [
     crc32(0x04c11db7, 0),
     crc32(0x04c11db7, 1),
@@ -307,15 +309,20 @@ const fn crc32(poly: u32, mut byte: u8) -> u32 {
     [value, reflect_32(value)][0]
 }
 
-pub struct Crc {}
-
-pub struct Digest<'a> {
-    crc: &'a Crc,
-    value: u32,
-}
+/// Internal `Crc` implementation
+///
+/// This doesn't store any state, but just performs operations
+///
+/// This is called from the public `Crc32` struct and functions
+/// which store the state.
+///
+/// We keep this seperate to clearly show the CRC implementation
+/// details (such as initial state and xorout).
+struct Crc {}
 
 impl Crc {
-    pub const fn new() -> Self {
+    /// Create a new instance for performing CRC32 operations.
+    const fn new() -> Self {
         Self {}
     }
 
@@ -339,23 +346,50 @@ impl Crc {
     const fn finalise(&self, crc: u32) -> u32 {
         crc ^ 0xffffffff
     }
-
-    pub const fn digest(&self) -> Digest {
-        Digest::new(self)
-    }
 }
 
-impl<'a> Digest<'a> {
-    const fn new(crc: &'a Crc) -> Self {
+/// A standalone CRC32 implementation
+///
+/// This is based on the CRC32 implementation
+/// from: crc-rs <https://github.com/mrhooray/crc-rs>
+///
+/// This implemented the CRC-32 checksum
+///     poly: 0x04c11db7
+///     init: 0x00000000
+///     refin: false
+///     refout: false
+///     xorout: 0xffffffff
+pub struct Crc32 {
+    crc: Crc,
+    value: Cell<u32>,
+}
+
+impl Crc32 {
+    /// Create a new instance of the CRC implementation.
+    ///
+    /// This correctly initalises the CRC
+    pub const fn new() -> Self {
+        let crc = Crc::new();
         let value = crc.init();
-        Digest { crc, value }
+        Crc32 {
+            crc,
+            value: Cell::new(value),
+        }
     }
 
+    /// Update the CRC based on the data in `bytes`
     pub fn update(&mut self, bytes: &[u8]) {
-        self.value = self.crc.update(self.value, bytes);
+        self.value.set(self.crc.update(self.value.get(), bytes));
     }
 
-    pub const fn finalise(self) -> u32 {
-        self.crc.finalise(self.value)
+    /// Complete the CRC operation and return the final value
+    ///
+    /// This will reset the CRC instance in preperation for new data
+    pub fn finalise(self) -> u32 {
+        let ret = self.crc.finalise(self.value.get());
+
+        self.value.set(self.crc.init());
+
+        ret
     }
 }
