@@ -285,8 +285,15 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 }
 
                 // Find this entries length
-                let total_length = ((region_data[offset + LEN_OFFSET] as u16) & !0xF0) << 8
-                    | region_data[offset + LEN_OFFSET + 1] as u16;
+                let total_length = ((*region_data
+                    .get(offset + LEN_OFFSET)
+                    .ok_or((false, ErrorCode::CorruptData))?
+                    as u16)
+                    & !0xF0)
+                    << 8
+                    | *region_data
+                        .get(offset + LEN_OFFSET + 1)
+                        .ok_or((false, ErrorCode::CorruptData))? as u16;
 
                 // Check to see if all fields are just 0
                 if total_length == 0 {
@@ -295,21 +302,50 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 }
 
                 // Check to see if the entry has been deleted
-                if region_data[offset + LEN_OFFSET] & 0x80 != 0x80 {
+                if *region_data
+                    .get(offset + LEN_OFFSET)
+                    .ok_or((false, ErrorCode::CorruptData))?
+                    & 0x80
+                    != 0x80
+                {
                     // Increment our offset by the length and repeat the loop
                     offset += total_length as usize;
                     continue;
                 }
 
                 // We have found a valid entry, see if it is ours.
-                if region_data[offset + HASH_OFFSET] != hash[7]
-                    || region_data[offset + HASH_OFFSET + 1] != hash[6]
-                    || region_data[offset + HASH_OFFSET + 2] != hash[5]
-                    || region_data[offset + HASH_OFFSET + 3] != hash[4]
-                    || region_data[offset + HASH_OFFSET + 4] != hash[3]
-                    || region_data[offset + HASH_OFFSET + 5] != hash[2]
-                    || region_data[offset + HASH_OFFSET + 6] != hash[1]
-                    || region_data[offset + HASH_OFFSET + 7] != hash[0]
+                if *region_data
+                    .get(offset + HASH_OFFSET)
+                    .ok_or((false, ErrorCode::CorruptData))?
+                    != *hash.get(7).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 1)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(6).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 2)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(5).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 3)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(4).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 4)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(3).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 5)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(2).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 6)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(1).ok_or((false, ErrorCode::CorruptData))?
+                    || *region_data
+                        .get(offset + HASH_OFFSET + 7)
+                        .ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.get(0).ok_or((false, ErrorCode::CorruptData))?
                 {
                     // Increment our offset by the length and repeat the loop
                     offset += total_length as usize;
@@ -433,8 +469,15 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     }
 
                     // Find this entries length
-                    let total_length = ((region_data[offset + LEN_OFFSET] as u16) & !0xF0) << 8
-                        | region_data[offset + LEN_OFFSET + 1] as u16;
+                    let total_length = ((*region_data
+                        .get(offset + LEN_OFFSET)
+                        .ok_or(ErrorCode::CorruptData)?
+                        as u16)
+                        & !0xF0)
+                        << 8
+                        | *region_data
+                            .get(offset + LEN_OFFSET + 1)
+                            .ok_or(ErrorCode::CorruptData)? as u16;
 
                     // Increment our offset by the length and repeat the loop
                     offset += total_length as usize;
@@ -446,35 +489,67 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Check to see if the entire header is 0xFFFF_FFFF_FFFF_FFFF
                 // To avoid operating on 64-bit values check every 8 bytes at a time
-                if region_data[offset + HASH_OFFSET] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 1] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 1)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 2] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 2)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 3] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 3)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 4] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 4)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 5] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 5)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 6] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 6)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
-                if region_data[offset + HASH_OFFSET + 7] != 0xFF {
+                if *region_data
+                    .get(offset + HASH_OFFSET + 7)
+                    .ok_or(ErrorCode::CorruptData)?
+                    != 0xFF
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::CorruptData);
                 }
@@ -497,7 +572,11 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 region_data[offset + HASH_OFFSET + 7] = (header.hashed_key) as u8;
 
                 // Hash the new header data
-                check_sum.update(&region_data[offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7]);
+                check_sum.update(
+                    &region_data
+                        .get(offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7)
+                        .ok_or(ErrorCode::CorruptData)?,
+                );
 
                 // Copy the value
                 let slice = region_data
@@ -614,8 +693,12 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                     // Copy in the value
                     for i in 0..(total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
-                        buf[i] = region_data[offset + HEADER_LENGTH + i];
-                        check_sum.update(&[buf[i]])
+                        *buf.get_mut(i).ok_or(ErrorCode::BufferTooSmall(
+                            total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
+                        ))? = *region_data
+                            .get(offset + HEADER_LENGTH + i)
+                            .ok_or(ErrorCode::CorruptData)?;
+                        check_sum.update(&[*buf.get(i).ok_or(ErrorCode::CorruptData)?])
                     }
 
                     // Check the hash
@@ -700,7 +783,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             match self.find_key_offset(hash, region_data) {
                 Ok((offset, _data_len)) => {
                     // We found a key, let's delete it
-                    region_data[offset + LEN_OFFSET] &= !0x80;
+                    *region_data
+                        .get_mut(offset + LEN_OFFSET)
+                        .ok_or(ErrorCode::CorruptData)? &= !0x80;
 
                     if let Err(e) = self.controller.write(
                         S * new_region as usize + offset + LEN_OFFSET,
@@ -784,11 +869,22 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 entry_found = true;
 
                 // Find this entries length
-                let total_length = ((region_data[offset + LEN_OFFSET] as u16) & !0xF0) << 8
-                    | region_data[offset + LEN_OFFSET + 1] as u16;
+                let total_length = ((*region_data
+                    .get(offset + LEN_OFFSET)
+                    .ok_or(ErrorCode::CorruptData)? as u16)
+                    & !0xF0)
+                    << 8
+                    | *region_data
+                        .get(offset + LEN_OFFSET + 1)
+                        .ok_or(ErrorCode::CorruptData)? as u16;
 
                 // Check to see if the entry has been deleted
-                if region_data[offset + LEN_OFFSET] & 0x80 != 0x80 {
+                if *region_data
+                    .get(offset + LEN_OFFSET)
+                    .ok_or(ErrorCode::CorruptData)?
+                    & 0x80
+                    != 0x80
+                {
                     // The entry has been deleted, this region might be ready
                     // for erasure.
                     // Increment our offset by the length and repeat the loop
