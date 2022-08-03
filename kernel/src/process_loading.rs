@@ -118,11 +118,11 @@ impl fmt::Debug for ProcessLoadError {
             }
 
             ProcessLoadError::NotEnoughFlash => {
-                write!(f, "Not enough flash available for app linked list")
+                write!(f, "Not enough flash available for TBF")
             }
 
             ProcessLoadError::NotEnoughMemory => {
-                write!(f, "Not able to meet memory requirements requested by apps")
+                write!(f, "Not able to provide RAM requested by app")
             }
 
             ProcessLoadError::MpuInvalidFlashLength => {
