@@ -293,7 +293,8 @@ pub fn parse_tbf_footer(
         .ok_or(types::TbfParseError::NotEnoughFlash)?;
     match tlv_header.tipe {
         types::TbfHeaderTypes::TbfFooterCredentials => {
-            let credential: types::TbfFooterV2Credentials = remaining.try_into()?;
+            let credential: types::TbfFooterV2Credentials = remaining.get(0..tlv_header.length)
+                        .ok_or(types::TbfParseError::NotEnoughFlash)?.try_into()?;
             // Check length here
             let length = tlv_header.length;
             Ok((credential, length as u32))
