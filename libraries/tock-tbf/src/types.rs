@@ -60,12 +60,6 @@ pub enum TbfParseError {
     /// fail and that will trigger a different error.
     InternalError,
 
-    /// Found a non-Footer in the footer region.
-    InvalidFooter(usize),
-
-    /// Found a non-Header in the header region.
-    InvalidHeader(usize),
-
     /// The number of variable length entries (for example the number of
     /// `TbfHeaderDriverPermission` entries in `TbfHeaderV2Permissions`) is
     /// too long for Tock to parse.
@@ -97,8 +91,6 @@ impl fmt::Debug for TbfParseError {
             TbfParseError::BadTlvEntry(tipe) => write!(f, "TLV entry type {} is invalid", tipe),
             TbfParseError::BadProcessName => write!(f, "Process name not UTF-8"),
             TbfParseError::InternalError => write!(f, "Internal kernel error. This is a bug."),
-            TbfParseError::InvalidHeader(index) => write!(f, "Header {} is invalid.", index),
-            TbfParseError::InvalidFooter(index) => write!(f, "Footer {} is invalid.", index),
             TbfParseError::TooManyEntries(tipe) => {
                 write!(
                     f,

@@ -315,27 +315,23 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             return Err(ErrorCode::NODEVICE);
         }
 
+        self.state.update(State::Yielded);
+
         // And queue up this app to be restarted.
         let flash_start = self.flash_start();
         let app_start =
             unsafe { flash_start.offset(self.header.get_app_start_offset() as isize) as usize };
         let init_fn =
             unsafe { flash_start.offset(self.header.get_init_function_offset() as isize) as usize };
-        self.kernel.increment_work();
-        self.tasks.map(|tasks| {
-            tasks.enqueue(Task::FunctionCall(FunctionCall {
-                source: FunctionCallSource::Kernel,
-                pc: init_fn,
-                argument0: app_start as usize,
-                argument1: self.memory_start as usize,
-                argument2: self.memory_len,
-                argument3: self.app_break.get() as usize,
-            }))
-        });
 
-        self.state.update(State::Yielded);
-
-        Ok(())
+        self.enqueue_task(Task::FunctionCall(FunctionCall {
+            source: FunctionCallSource::Kernel,
+            pc: init_fn,
+            argument0: app_start as usize,
+            argument1: self.memory_start as usize,
+            argument2: self.memory_len,
+            argument3: self.app_break.get() as usize,
+        }))
     }
 
     fn ready(&self) -> bool {
