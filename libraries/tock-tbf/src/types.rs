@@ -380,7 +380,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
         }
         Ok(TbfHeaderV2Program {
             init_fn_offset: u32::from_le_bytes(
-                b.get(4..8)
+                b.get(0..4)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
@@ -643,9 +643,10 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             TbfFooterV2CredentialsType::SHA384 => 48,
             TbfFooterV2CredentialsType::SHA512 => 64,
         };
+        let data = &b.get(4..(length + 4)).ok_or(TbfParseError::NotEnoughFlash)?;
         Ok(TbfFooterV2Credentials {
             format: ftype,
-            data: &b[4..(length + 4)],
+            data: data,
         })
     }
 }
