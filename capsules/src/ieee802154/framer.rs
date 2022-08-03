@@ -248,7 +248,7 @@ pub const CRYPT_BUF_SIZE: usize = radio::MAX_MTU + 3 * 16;
 /// implicitly with some equivalent logic.
 pub trait KeyProcedure {
     /// Lookup the KeyDescriptor matching the provided security level and key ID
-    /// mode and return the key associatied with it.
+    /// mode and return the key associated with it.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]>;
 }
 
@@ -322,7 +322,7 @@ pub struct Framer<'a, M: Mac, A: AES128CCM<'a>> {
     /// DeviceDescriptor lookup procedure
     device_procedure: OptionalCell<&'a dyn DeviceProcedure>,
 
-    /// Transmision pipeline state. This should never be `None`, except when
+    /// Transmission pipeline state. This should never be `None`, except when
     /// transitioning between states. That is, any method that consumes the
     /// current state should always remember to replace it along with the
     /// associated state information.
@@ -360,7 +360,7 @@ impl<'a, M: Mac, A: AES128CCM<'a>> Framer<'a, M, A> {
         self.device_procedure.set(device_procedure);
     }
 
-    /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup prodecure
+    /// Look up the key using the IEEE 802.15.4 KeyDescriptor lookup procedure
     /// implemented elsewhere.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
         self.key_procedure

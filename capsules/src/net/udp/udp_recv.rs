@@ -1,7 +1,7 @@
 //! This file contains the definition and implementation for the UDP reception
 //! interface. It follows the same virtualization model as that described in `udp_send.rs`,
 //! except that no queueing is needed because received packets are immediately dispatched to the
-//! appropriate capsule / app. Once again, port binding for userspace apps is managed seperately
+//! appropriate capsule / app. Once again, port binding for userspace apps is managed separately
 //! by the UDP userspace driver, which must correctly check bindings of kernel apps to ensure
 //! correctness when dispatching received packets to the appropriate client.
 
@@ -110,7 +110,7 @@ pub trait UDPRecvClient {
 
 /// This struct is set as the client of the MuxUdpReceiver, and passes
 /// received packets up to whatever app layer client assigns itself
-/// as the UDPRecvClient held by this UDPReciever.
+/// as the UDPRecvClient held by this UDPReceiver.
 pub struct UDPReceiver<'a> {
     client: OptionalCell<&'a dyn UDPRecvClient>,
     binding: MapCell<UdpPortBindingRx>,

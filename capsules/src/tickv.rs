@@ -434,7 +434,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::AppendKey);
                 self.key_buffer.replace(key);
@@ -480,7 +480,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::GetKey);
                 self.key_buffer.replace(key);
@@ -518,7 +518,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::InvalidateKey);
                 self.key_buffer.replace(key);
@@ -546,7 +546,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::GarbageCollect);
                 Ok(0)
