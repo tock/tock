@@ -643,7 +643,9 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             TbfFooterV2CredentialsType::SHA384 => 48,
             TbfFooterV2CredentialsType::SHA512 => 64,
         };
-        let data = &b.get(4..(length + 4)).ok_or(TbfParseError::NotEnoughFlash)?;
+        let data = &b
+            .get(4..(length + 4))
+            .ok_or(TbfParseError::NotEnoughFlash)?;
         Ok(TbfFooterV2Credentials {
             format: ftype,
             data: data,
