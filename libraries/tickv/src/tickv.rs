@@ -558,18 +558,40 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Copy in new header
                 // This is a little painful, but avoids any unsafe Rust
-                region_data[offset + VERSION_OFFSET] = header.version;
-                region_data[offset + LEN_OFFSET] =
+                *region_data
+                    .get_mut(offset + VERSION_OFFSET)
+                    .ok_or(ErrorCode::RegionFull)? = header.version;
+                *region_data
+                    .get_mut(offset + LEN_OFFSET)
+                    .ok_or(ErrorCode::RegionFull)? =
                     (header.len >> 8) as u8 & 0x0F | (header.flags << 4) & 0xF0;
-                region_data[offset + LEN_OFFSET + 1] = (header.len & 0xFF) as u8;
-                region_data[offset + HASH_OFFSET] = (header.hashed_key >> 56) as u8;
-                region_data[offset + HASH_OFFSET + 1] = (header.hashed_key >> 48) as u8;
-                region_data[offset + HASH_OFFSET + 2] = (header.hashed_key >> 40) as u8;
-                region_data[offset + HASH_OFFSET + 3] = (header.hashed_key >> 32) as u8;
-                region_data[offset + HASH_OFFSET + 4] = (header.hashed_key >> 24) as u8;
-                region_data[offset + HASH_OFFSET + 5] = (header.hashed_key >> 16) as u8;
-                region_data[offset + HASH_OFFSET + 6] = (header.hashed_key >> 8) as u8;
-                region_data[offset + HASH_OFFSET + 7] = (header.hashed_key) as u8;
+                *region_data
+                    .get_mut(offset + LEN_OFFSET + 1)
+                    .ok_or(ErrorCode::RegionFull)? = (header.len & 0xFF) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 56) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 1)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 48) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 2)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 40) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 3)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 32) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 4)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 24) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 5)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 16) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 6)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key >> 8) as u8;
+                *region_data
+                    .get_mut(offset + HASH_OFFSET + 7)
+                    .ok_or(ErrorCode::RegionFull)? = (header.hashed_key) as u8;
 
                 // Hash the new header data
                 check_sum.update(
