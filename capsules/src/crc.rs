@@ -63,7 +63,7 @@
 //! __Polynomial__: `0x04C11DB7`
 //!
 //! This algorithm uses the same polynomial as `Crc-32`, but does no post-
-//! processing on the output value.  It can be perfomed purely in hardware on
+//! processing on the output value.  It can be performed purely in hardware on
 //! the SAM4L.
 //!
 //! ### SAM4L-32C
@@ -171,7 +171,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
 
     // Start a new request. Return Ok(()) if one started, Err(FAIL) if not.
     // Issue callbacks for any requests that are invalid, either because
-    // they are zero-length or requested an invalid algoritm.
+    // they are zero-length or requested an invalid algorithm.
     fn next_request(&self) -> Result<(), ErrorCode> {
         self.app_buffer_written.set(0);
         for process in self.grant.iter() {

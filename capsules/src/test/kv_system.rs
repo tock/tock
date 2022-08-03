@@ -1,6 +1,6 @@
 //! Test for Tock KV System capsules.
 //!
-//! This capsule implements the tests for KV system libraies in Tock.
+//! This capsule implements the tests for KV system libraries in Tock.
 //! This is originally written to test TicKV.
 //!
 //! +-----------------------+
@@ -38,8 +38,8 @@
 //! ```text
 //! ---Starting TicKV Tests---
 //! Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48] was added
-//! Now retriving the key
-//! Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48, 0] was retrived
+//! Now retrieving the key
+//! Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48, 0] was retrieved
 //! Removed Key: [18, 52, 86, 120, 154, 188, 222, 240]
 //! Try to read removed key: [18, 52, 86, 120, 154, 188, 222, 240]
 //! Unable to find key: [18, 52, 86, 120, 154, 188, 222, 240]
@@ -119,7 +119,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         match result {
             Ok(()) => {
                 debug!("Key: {:?} with value {:?} was added", key, value);
-                debug!("Now retriving the key");
+                debug!("Now retrieving the key");
                 self.kv_system
                     .get_value(key, self.ret_buffer.take().unwrap())
                     .unwrap();
@@ -138,7 +138,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
     ) {
         match result {
             Ok(()) => {
-                debug!("Key: {:?} with value {:?} was retrived", key, ret_buf);
+                debug!("Key: {:?} with value {:?} was retrieved", key, ret_buf);
                 self.ret_buffer.replace(ret_buf);
                 self.kv_system.invalidate_key(key).unwrap();
             }

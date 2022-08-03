@@ -353,7 +353,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
     ///        the packet was passed to the radio. However, if Success_U32
     ///        is returned with value 1, this means the the packet was successfully passed
     ///        the radio without any errors, which tells the userland application that it does
-    ///        not need to wait for a callback to check if any errors occured while the packet
+    ///        not need to wait for a callback to check if any errors occurred while the packet
     ///        was being passed down to the radio. Any successful return value indicates that
     ///        the app should wait for a send_done() callback before attempting to queue another
     ///        packet.

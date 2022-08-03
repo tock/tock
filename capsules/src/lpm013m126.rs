@@ -291,7 +291,7 @@ where
     fn initialize(&self) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Off | State::Bug => {
-                // Even if we took Pin type that implemets Output,
+                // Even if we took Pin type that implements Output,
                 // it's still possible that it is *not configured as a output*
                 // at the moment.
                 // To ensure outputness, output must be configured at runtime,

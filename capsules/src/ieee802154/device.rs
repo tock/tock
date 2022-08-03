@@ -87,7 +87,7 @@ pub trait TxClient {
     /// returned to the client here.
     /// - `acked`: Whether the transmission was acknowledged.
     /// - `result`: This is `Ok(())` if the frame was transmitted,
-    /// otherwise an error occured in the transmission pipeline.
+    /// otherwise an error occurred in the transmission pipeline.
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>);
 }
 
