@@ -5,6 +5,7 @@ use crate::platform::chip::Chip;
 use crate::platform::scheduler_timer;
 use crate::platform::watchdog;
 use crate::process;
+use crate::process_checking;
 use crate::scheduler::Scheduler;
 use crate::syscall;
 use crate::syscall_driver::SyscallDriver;
@@ -31,6 +32,12 @@ pub trait KernelResources<C: Chip> {
     /// the kernel will use.
     type ContextSwitchCallback: ContextSwitchCallback;
 
+    /// Implements the kernel policy for checking cryptographic credentials in
+    /// TBF objects to determine if the contained application can be run as a
+    /// process. If `None` then no credentials are checked and the kernel runs
+    /// all successfully loaded application binaries.
+    type Verifier: process_checking::AppVerifier<'static>;
+
     /// The implementation of the scheduling algorithm the kernel will use.
     type Scheduler: Scheduler<C>;
 
@@ -53,6 +60,10 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the ProcessFault handler
     /// this platform wants the kernel to use.
     fn process_fault(&self) -> &Self::ProcessFault;
+
+    /// Returns a reference to the implementation of the Verifier this platform
+    /// wants the kernel to use.
+    fn verifier(&self) -> &Self::Verifier;
 
     /// Returns a reference to the implementation of the Scheduler this platform
     /// wants the kernel to use.

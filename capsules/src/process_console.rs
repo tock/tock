@@ -654,33 +654,33 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                 self.kernel
                                     .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
-                                        if proc_name == name {
-                                            let res = self.kernel.submit_process(proc);
-                                            let mut console_writer = ConsoleWriter::new();
-                                            match res {
-                                                Ok(()) => {
-                                                    let _ = write(
-                                                        &mut console_writer,
-                                                        format_args!(
-                                                            "Process {} booted\n",
-                                                            proc_name
-                                                        ),
-                                                    );
-                                                }
-                                                Err(e) => {
-                                                    let _ = write(
-                                                        &mut console_writer,
-                                                        format_args!(
-                                                            "Process {} could not boot: {:?}\n",
-                                                            proc_name, e
-                                                        ),
-                                                    );
-                                                }
-                                            }
-                                            let _ = self.write_bytes(
-                                                &(console_writer.buf)[..console_writer.size],
-                                            );
-                                        }
+                                        // if proc_name == name {
+                                        //     let res = self.kernel.submit_process(proc);
+                                        //     let mut console_writer = ConsoleWriter::new();
+                                        //     match res {
+                                        //         Ok(()) => {
+                                        //             let _ = write(
+                                        //                 &mut console_writer,
+                                        //                 format_args!(
+                                        //                     "Process {} booted\n",
+                                        //                     proc_name
+                                        //                 ),
+                                        //             );
+                                        //         }
+                                        //         Err(e) => {
+                                        //             let _ = write(
+                                        //                 &mut console_writer,
+                                        //                 format_args!(
+                                        //                     "Process {} could not boot: {:?}\n",
+                                        //                     proc_name, e
+                                        //                 ),
+                                        //             );
+                                        //         }
+                                        //     }
+                                        //     let _ = self.write_bytes(
+                                        //         &(console_writer.buf)[..console_writer.size],
+                                        //     );
+                                        // }
                                     });
                             });
                         } else if clean_str.starts_with("list") {

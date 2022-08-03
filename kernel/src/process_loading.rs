@@ -15,8 +15,10 @@ use crate::create_capability;
 use crate::debug;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
+use crate::platform::platform::KernelResources;
 use crate::process::Process;
 use crate::process_checking;
+use crate::process_checking::AppCredentialsChecker;
 use crate::process_checking::AppVerifier;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
@@ -178,15 +180,19 @@ impl fmt::Debug for ProcessLoadError {
 /// process has sufficient credentials to run.
 #[inline(always)]
 #[allow(dead_code)]
-pub fn load_and_check_processes<C: Chip>(
+pub fn load_and_check_processes<'a, KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
+    kernel_resources: &'static KR,
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability_management: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError> {
+) -> Result<(), ProcessLoadError>
+where
+    <KR as KernelResources<C>>::Verifier: 'static,
+{
     load_processes_from_flash(
         kernel,
         chip,
@@ -196,7 +202,7 @@ pub fn load_and_check_processes<C: Chip>(
         fault_policy,
         capability_management,
     )?;
-    let _res = check_processes(procs, kernel);
+    let _res = check_processes(procs, kernel, kernel_resources);
     Ok(())
 }
 
@@ -239,9 +245,6 @@ pub fn load_processes<C: Chip>(
             if config::CONFIG.debug_process_credentials {
                 debug!("Running {}", p.get_process_name());
             }
-            kernel
-                .submit_process(p)
-                .or(Err(ProcessLoadError::InternalError))?;
             Ok(())
         });
         if let Some(Err(e)) = res {
@@ -340,13 +343,17 @@ fn load_processes_from_flash<C: Chip>(
 /// `Unstarted` state are started by enqueueing a stack frame to run
 /// the initialization function as indicated in the TBF header.
 #[inline(always)]
-fn check_processes(
+fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
     procs: &'static [Option<&'static dyn Process>],
     kernel: &'static Kernel,
-) -> Result<(), ProcessLoadError> {
+    kernel_resources: &'static KR,
+) -> Result<(), ProcessLoadError>
+where
+    <KR as KernelResources<C>>::Verifier: 'static,
+{
     let capability = create_capability!(ProcessApprovalCapability);
 
-    if kernel.verifier().is_none() {
+    if !kernel_resources.verifier().require_credentials() {
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: no checker provided, load and run all processes");
         }
@@ -357,9 +364,6 @@ fn check_processes(
                 if config::CONFIG.debug_process_credentials {
                     debug!("Running {}", p.get_process_name());
                 }
-                kernel
-                    .submit_process(p)
-                    .or(Err(ProcessLoadError::InternalError))?;
                 Ok(())
             });
             if let Some(Err(e)) = res {
@@ -368,27 +372,24 @@ fn check_processes(
         }
         Ok(())
     } else {
-        kernel
-            .verifier()
-            .map_or(Err(ProcessLoadError::InternalError), |v| {
-                #[allow(unused_mut)] // machine doesn't need mut
-                let machine = unsafe {
-                    static_init!(
-                        ProcessCheckerMachine,
-                        ProcessCheckerMachine {
-                            process: Cell::new(0),
-                            footer: Cell::new(0),
-                            verifier: OptionalCell::empty(),
-                            processes: procs,
-                            kernel: kernel
-                        }
-                    )
-                };
-                v.set_client(machine);
-                machine.verifier.replace(v);
-                machine.next()?;
-                Ok(())
-            })
+        let v = kernel_resources.verifier();
+        #[allow(unused_mut)] // machine doesn't need mut
+        let machine = unsafe {
+            static_init!(
+                ProcessCheckerMachine,
+                ProcessCheckerMachine {
+                    process: Cell::new(0),
+                    footer: Cell::new(0),
+                    verifier: OptionalCell::empty(),
+                    processes: procs,
+                    kernel: kernel
+                }
+            )
+        };
+        v.set_client(machine);
+        machine.verifier.replace(v);
+        machine.next()?;
+        Ok(())
     }
 }
 
@@ -459,34 +460,36 @@ impl ProcessCheckerMachine {
                     // credentials or all credentials were Pass: apply
                     // the checker policy to see if the process
                     // should be allowed to run.
-                    let requires = self.verifier.map_or(false, |v| v.require_credentials());
-                    let _res = self.processes[proc_index].map_or(
-                        Err(ProcessLoadError::InternalError),
-                        |p| {
-                            if requires {
-                                if config::CONFIG.debug_process_credentials {
-                                    debug!(
-                                        "Checking: required, but all passes, do not run {}",
-                                        p.get_process_name()
-                                    );
+                    self.verifier.map(|v| {
+                        let requires = v.require_credentials();
+                        let _res = self.processes[proc_index].map_or(
+                            Err(ProcessLoadError::InternalError),
+                            |p| {
+                                if requires {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!(
+                                            "Checking: required, but all passes, do not run {}",
+                                            p.get_process_name()
+                                        );
+                                    }
+                                    p.mark_credentials_fail(&capability);
+                                } else {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!(
+                                            "Checking: not required, all passes, run {}",
+                                            p.get_process_name()
+                                        );
+                                    }
+                                    p.mark_credentials_pass(None, None, &capability)
+                                        .or(Err(ProcessLoadError::InternalError))?;
+                                    // self.kernel
+                                    //     .submit_process(*v, p)
+                                    //     .or(Err(ProcessLoadError::InternalError))?;
                                 }
-                                p.mark_credentials_fail(&capability);
-                            } else {
-                                if config::CONFIG.debug_process_credentials {
-                                    debug!(
-                                        "Checking: not required, all passes, run {}",
-                                        p.get_process_name()
-                                    );
-                                }
-                                p.mark_credentials_pass(None, None, &capability)
-                                    .or(Err(ProcessLoadError::InternalError))?;
-                                self.kernel
-                                    .submit_process(p)
-                                    .or(Err(ProcessLoadError::InternalError))?;
-                            }
-                            Ok(true)
-                        },
-                    );
+                                Ok(true)
+                            },
+                        );
+                    });
                     self.process.set(self.process.get() + 1);
                     self.footer.set(0);
                 }
@@ -637,7 +640,6 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
                 self.processes[self.process.get()].map(|p| {
                     let short_id = self.verifier.map_or(None, |v| v.to_short_id(&credentials));
                     let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
-                    let _res = self.kernel.submit_process(p);
                 });
                 self.process.set(self.process.get() + 1);
             }

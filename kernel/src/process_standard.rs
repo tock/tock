@@ -290,6 +290,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             self.state.update(State::Unstarted);
             self.app_id.insert(short_app_id);
             credentials.map(|c| self.credentials.replace(c));
+            self.kernel.increment_work();
             Ok(())
         }
     }
@@ -337,6 +338,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn ready(&self) -> bool {
         self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
             || self.state.get() == State::Running
+            || self.state.get() == State::Unstarted
     }
 
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
@@ -438,7 +440,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
         if let Ok(()) = self.reset() {
-            let _res = self.kernel.submit_process(self);
+            self.state.update(State::Unstarted);
         }
 
         // Decide what to do with res later. E.g., if we can't restart

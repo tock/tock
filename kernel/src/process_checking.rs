@@ -40,15 +40,21 @@ pub trait Client<'a> {
 
 /// Implements a Credentials Checking Policy.
 pub trait AppCredentialsChecker<'a> {
-    fn set_client(&self, client: &'a dyn Client<'a>);
-    fn require_credentials(&self) -> bool;
+    fn set_client(&self, _client: &'a dyn Client<'a>) {}
+    fn require_credentials(&self) -> bool {
+        false
+    }
 
     fn check_credentials(
         &self,
-        credentials: TbfFooterV2Credentials,
-        binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
+        _credentials: TbfFooterV2Credentials,
+        _binary: &'a [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        Ok(())
+    }
 }
+
+impl<'a> AppCredentialsChecker<'a> for () {}
 
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
@@ -56,7 +62,9 @@ pub trait AppUniqueness {
     /// Returns whether `process_a` and `process_b` have a different identifier,
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool;
+    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
+        true
+    }
 
     /// Return whether there is a currently running process that has
     /// the same application identifier as `process`. This means that
@@ -89,10 +97,16 @@ pub trait AppUniqueness {
     }
 }
 
+impl AppUniqueness for () {}
+
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+        None
+    }
 }
+
+impl Compress for () {}
 
 pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppUniqueness {}
 impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> AppVerifier<'a> for T {}
