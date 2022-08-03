@@ -411,6 +411,65 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> fmt::Display
 }
 
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO> {
+    /// Generate the default `PMPConfig` to be used when generating kernel regions.
+    /// This should be called to generate a config before calling
+    /// `allocate_kernel_region()` and `enable_kernel_mpu()`.
+    /// This generally should only be called once, in `main()`.
+    pub fn kernel_default() -> Self {
+        let mut regions = [None; MAX_AVAILABLE_REGIONS_OVER_TWO];
+
+        // This is a little challenging, so let's describe what's going on.
+        // A previous boot stage has enabled Machine Mode Whitelist Policy
+        // (mseccfg.MMWP), which we can't disable. That means that Tock will
+        // be denied a memory access if it doesn't match a PMP region
+        // This eventually won't matter, as Tock configures it's own regions,
+        // but it makes it difficult to setup.
+        //
+        // The fact that we can run at all means that the previous stage has
+        // set some rules that allows us to execute. When we configure our
+        // rules we might overwrite them and lock ourselves out.
+        //
+        // To allow us to setup the ePMP regions without locking ourselves out
+        // we create two special regions.
+        //
+        // We create an allow all region as the first and last region.
+        // This way no matter what the previous stage did, we should have a
+        // working fallback while we modify the rules.
+        // If the previous stage has an allow all in the first or last region,
+        // we won't get locked out. If the previous stage created a range of
+        // regions we also won't get locked out.
+        //
+        // We make sure to remove these special regions later in
+        // `enable_kernel_mpu()`
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            *(regions.last_mut().unwrap()) = Some(PMPRegion {
+                // Set the size to zero so we don't get overlap errors latter
+                location: (0x00000000 as *const u8, 0x00000000),
+                cfg: pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::SET
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR,
+            });
+
+            *(regions.first_mut().unwrap()) = Some(PMPRegion {
+                // Set the size to zero so we don't get overlap errors latter
+                location: (0x00000000 as *const u8, 0x00000000),
+                cfg: pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::SET
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR,
+            });
+        }
+
+        PMPConfig {
+            regions,
+            is_dirty: Cell::new(true),
+            app_memory_region: OptionalCell::empty(),
+        }
+    }
+
     /// Get the first unused region
     fn unused_region_number(&self, locked_region_mask: u64) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
@@ -879,7 +938,47 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
     }
 
     fn enable_kernel_mpu(&self, config: &mut Self::KernelMpuConfig) {
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            // MMWP is set, so let's edit the size of the last and first
+            // regions to allow all
+            if let Some(last) = config.regions.last_mut() {
+                if let Some(last_region) = last {
+                    last_region.location = (0x0000_0000 as *const u8, 0xFFFF_FFFF);
+                }
+            }
+
+            if let Some(first) = config.regions.first_mut() {
+                if let Some(first_region) = first {
+                    first_region.location = (0x0000_0000 as *const u8, 0xFFFF_FFFF);
+                }
+            }
+        }
+
         self.write_kernel_regions(config);
+
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            // Now that we have written an initial copy, we can remove our
+            // allow all regions. We want to do this one at a time though.
+
+            // Remove the last region and rotate the entries
+            // This maintains the first allow all region, so that we
+            // don't get locked out while writing the data.
+            if let Some(last) = config.regions.last_mut() {
+                *last = None;
+            }
+            config.regions.rotate_right(1);
+            self.write_kernel_regions(config);
+
+            // Now we can remove the first region (which is now the second)
+            if let Some(first) = config.regions.get_mut(1) {
+                *first = None;
+            }
+            self.write_kernel_regions(config);
+
+            // At this point we have configured the ePMP, we can disable debug
+            // access (if it was enabled)
+            csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
+        }
 
         // Set the Machine Mode Lockdown (mseccfg.MML) bit.
         // This is a sticky bit, meaning that once set it cannot be unset
