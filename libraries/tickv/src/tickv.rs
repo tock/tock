@@ -267,12 +267,20 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             }
 
             // Check to see if we have data
-            if region_data[offset + VERSION_OFFSET] != 0xFF {
+            if *region_data
+                .get(offset + VERSION_OFFSET)
+                .ok_or((false, ErrorCode::KeyNotFound))?
+                != 0xFF
+            {
                 // Mark that this region isn't empty
                 empty = false;
 
                 // We found a version, check that we support it
-                if region_data[offset + VERSION_OFFSET] != VERSION {
+                if *region_data
+                    .get(offset + VERSION_OFFSET)
+                    .ok_or((false, ErrorCode::KeyNotFound))?
+                    != VERSION
+                {
                     return Err((false, ErrorCode::UnsupportedVersion));
                 }
 
@@ -409,9 +417,17 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 }
 
                 // Check to see if we have data
-                if region_data[offset + VERSION_OFFSET] != 0xFF {
+                if *region_data
+                    .get(offset + VERSION_OFFSET)
+                    .ok_or(ErrorCode::KeyNotFound)?
+                    != 0xFF
+                {
                     // We found a version, check that we support it
-                    if region_data[offset + VERSION_OFFSET] != VERSION {
+                    if *region_data
+                        .get(offset + VERSION_OFFSET)
+                        .ok_or(ErrorCode::KeyNotFound)?
+                        != VERSION
+                    {
                         self.read_buffer.replace(Some(region_data));
                         return Err(ErrorCode::UnsupportedVersion);
                     }
@@ -750,9 +766,17 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             }
 
             // Check to see if we have data
-            if region_data[offset + VERSION_OFFSET] != 0xFF {
+            if *region_data
+                .get(offset + VERSION_OFFSET)
+                .ok_or(ErrorCode::KeyNotFound)?
+                != 0xFF
+            {
                 // We found a version, check that we support it
-                if region_data[offset + VERSION_OFFSET] != VERSION {
+                if *region_data
+                    .get(offset + VERSION_OFFSET)
+                    .ok_or(ErrorCode::KeyNotFound)?
+                    != VERSION
+                {
                     self.read_buffer.replace(Some(region_data));
                     return Err(ErrorCode::UnsupportedVersion);
                 }
