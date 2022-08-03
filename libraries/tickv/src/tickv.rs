@@ -484,7 +484,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 check_sum.update(&region_data[offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7]);
 
                 // Copy the value
-                let slice = &mut region_data[(offset + HEADER_LENGTH)..(offset + package_length)];
+                let slice = region_data
+                    .get_mut((offset + HEADER_LENGTH)..(offset + package_length))
+                    .ok_or(ErrorCode::ObjectTooLarge)?;
                 slice.copy_from_slice(value);
 
                 // Include the value in the hash
@@ -493,13 +495,16 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 // Append a Check Hash
                 let check_sum = check_sum.finalise();
                 let slice = &mut region_data
-                    [(offset + package_length)..(offset + package_length + CHECK_SUM_LEN)];
+                    .get_mut((offset + package_length)..(offset + package_length + CHECK_SUM_LEN))
+                    .ok_or(ErrorCode::ObjectTooLarge)?;
                 slice.copy_from_slice(&check_sum.to_ne_bytes());
 
                 // Write the data back to the region
                 if let Err(e) = self.controller.write(
                     S * new_region as usize + offset,
-                    &region_data[offset..(offset + package_length + CHECK_SUM_LEN)],
+                    &region_data
+                        .get(offset..(offset + package_length + CHECK_SUM_LEN))
+                        .ok_or(ErrorCode::ObjectTooLarge)?,
                 ) {
                     self.read_buffer.replace(Some(region_data));
                     match e {
@@ -571,7 +576,11 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             match self.find_key_offset(hash, region_data) {
                 Ok((offset, total_length)) => {
                     // Add the header data to the check hash
-                    check_sum.update(&region_data[offset..(HEADER_LENGTH + offset)]);
+                    check_sum.update(
+                        &region_data
+                            .get(offset..(HEADER_LENGTH + offset))
+                            .ok_or(ErrorCode::ObjectTooLarge)?,
+                    );
 
                     // Make sure if will fit in the buffer
                     if buf.len() < (total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
@@ -679,7 +688,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                     if let Err(e) = self.controller.write(
                         S * new_region as usize + offset + LEN_OFFSET,
-                        &region_data[offset + LEN_OFFSET..offset + LEN_OFFSET + 1],
+                        &region_data
+                            .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
+                            .ok_or(ErrorCode::ObjectTooLarge)?,
                     ) {
                         self.read_buffer.replace(Some(region_data));
                         match e {
