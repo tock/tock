@@ -704,7 +704,13 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         // The entire value is not going to fit,
                         // Let's still copy in what we can and return an error
                         for i in 0..buf.len() {
-                            buf[i] = region_data[offset + HEADER_LENGTH + i];
+                            *buf.get_mut(i).ok_or(ErrorCode::BufferTooSmall(
+                                total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
+                            ))? = *region_data.get(offset + HEADER_LENGTH + i).ok_or(
+                                ErrorCode::BufferTooSmall(
+                                    total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
+                                ),
+                            )?;
                         }
 
                         self.read_buffer.replace(Some(region_data));
