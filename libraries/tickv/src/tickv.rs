@@ -733,10 +733,22 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     let check_sum = check_sum.finalise();
                     let check_sum = check_sum.to_ne_bytes();
 
-                    if check_sum[3] != region_data[offset + total_length as usize - 1]
-                        || check_sum[2] != region_data[offset + total_length as usize - 2]
-                        || check_sum[1] != region_data[offset + total_length as usize - 3]
-                        || check_sum[0] != region_data[offset + total_length as usize - 4]
+                    if *check_sum.get(3).ok_or(ErrorCode::InvalidCheckSum)?
+                        != *region_data
+                            .get(offset + total_length as usize - 1)
+                            .ok_or(ErrorCode::InvalidCheckSum)?
+                        || *check_sum.get(2).ok_or(ErrorCode::InvalidCheckSum)?
+                            != *region_data
+                                .get(offset + total_length as usize - 2)
+                                .ok_or(ErrorCode::InvalidCheckSum)?
+                        || *check_sum.get(1).ok_or(ErrorCode::InvalidCheckSum)?
+                            != *region_data
+                                .get(offset + total_length as usize - 3)
+                                .ok_or(ErrorCode::InvalidCheckSum)?
+                        || *check_sum.get(0).ok_or(ErrorCode::InvalidCheckSum)?
+                            != *region_data
+                                .get(offset + total_length as usize - 4)
+                                .ok_or(ErrorCode::InvalidCheckSum)?
                     {
                         self.read_buffer.replace(Some(region_data));
                         return Err(ErrorCode::InvalidCheckSum);
