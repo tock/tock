@@ -752,6 +752,60 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
     }
 }
 
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER_TWO> {
+    fn write_kernel_regions(&self, config: &mut PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>) {
+        for (i, region) in config.regions.iter().rev().enumerate() {
+            let x = MAX_AVAILABLE_REGIONS_OVER_TWO - i - 1;
+            match region {
+                Some(r) => {
+                    let cfg_val = r.cfg.value as usize;
+                    let start = r.location.0 as usize;
+                    let size = r.location.1;
+
+                    match x % 2 {
+                        0 => {
+                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                            // Disable access up to the start address
+                            csr::CSR.pmpconfig_modify(
+                                x / 2,
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::CLEAR,
+                            );
+                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
+
+                            // Set access to end address
+                            let new_cfg =
+                                cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
+                        }
+                        1 => {
+                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                            // Disable access up to the start address
+                            csr::CSR.pmpconfig_modify(
+                                x / 2,
+                                csr::pmpconfig::pmpcfg::r2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a2::CLEAR,
+                            );
+                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
+
+                            // Set access to end address
+                            let new_cfg =
+                                cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
+                        }
+                        _ => break,
+                    }
+                }
+                None => {}
+            };
+        }
+    }
+}
+
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
@@ -810,55 +864,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
     }
 
     fn enable_kernel_mpu(&self, config: &mut Self::KernelMpuConfig) {
-        for (i, region) in config.regions.iter().rev().enumerate() {
-            let x = MAX_AVAILABLE_REGIONS_OVER_TWO - i - 1;
-            match region {
-                Some(r) => {
-                    let cfg_val = r.cfg.value as usize;
-                    let start = r.location.0 as usize;
-                    let size = r.location.1;
-
-                    match x % 2 {
-                        0 => {
-                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
-                            // Disable access up to the start address
-                            csr::CSR.pmpconfig_modify(
-                                x / 2,
-                                csr::pmpconfig::pmpcfg::r0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::a0::CLEAR,
-                            );
-                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
-
-                            // Set access to end address
-                            let new_cfg =
-                                cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
-                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
-                        }
-                        1 => {
-                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
-                            // Disable access up to the start address
-                            csr::CSR.pmpconfig_modify(
-                                x / 2,
-                                csr::pmpconfig::pmpcfg::r2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::a2::CLEAR,
-                            );
-                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
-
-                            // Set access to end address
-                            let new_cfg =
-                                cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
-                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
-                        }
-                        _ => break,
-                    }
-                }
-                None => {}
-            };
-        }
+        self.write_kernel_regions(config);
 
         // Set the Machine Mode Lockdown (mseccfg.MML) bit.
         // This is a sticky bit, meaning that once set it cannot be unset
