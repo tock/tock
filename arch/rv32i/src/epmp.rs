@@ -800,7 +800,23 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
                         _ => break,
                     }
                 }
-                None => {}
+                None => match x % 2 {
+                    0 => {
+                        csr::CSR.pmpaddr_set(x * 2, 0);
+                        csr::CSR.pmpaddr_set((x * 2) + 1, 0);
+
+                        let new_cfg = 0 << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
+                        csr::CSR.pmpconfig_set(x / 2, new_cfg);
+                    }
+                    1 => {
+                        csr::CSR.pmpaddr_set(x * 2, 0);
+                        csr::CSR.pmpaddr_set((x * 2) + 1, 0);
+
+                        let new_cfg = 0 << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
+                        csr::CSR.pmpconfig_set(x / 2, new_cfg);
+                    }
+                    _ => break,
+                },
             };
         }
     }
