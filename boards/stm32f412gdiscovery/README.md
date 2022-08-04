@@ -70,7 +70,7 @@ $ git fetch http://openocd.zylin.com/openocd refs/changes/21/4321/7 && git cherr
 $ ./bootstrap
 $ ./configure --disable-werror
 $ make
-# optinally use sudo make install
+# optionally use sudo make install
 ```
 
 > Please note that you may have some conflicts in a file containing a list of 

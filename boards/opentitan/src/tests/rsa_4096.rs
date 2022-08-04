@@ -204,7 +204,7 @@ fn rsa_check_exponent() {
         debug!("check rsa 4096 exponent... ");
         run_kernel_op(100);
 
-        // Possibly overwridden by other tests
+        // Possibly overridden by other tests
         otbn.set_client(rsa);
         rsa.set_client(&CALLBACK);
 

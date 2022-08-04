@@ -172,7 +172,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     // Disable the Resus clock
     peripherals.clocks.disable_resus();
 
-    // Setup the external Osciallator
+    // Setup the external Oscillator
     peripherals.xosc.init();
 
     // disable ref and sys clock aux sources

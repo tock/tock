@@ -43,7 +43,7 @@ $ make APP=/path/to/app.tbf qemu-app
 
 The TBF must be compiled for the HiFive board which is, at the time of writing,
 supported for Rust userland apps using libtock-rs. For example, you can build
-the Hello World exmple app from the libtock-rs repository by running:
+the Hello World example app from the libtock-rs repository by running:
 
 ```
 $ cd [LIBTOCK-RS-DIR]
