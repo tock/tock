@@ -172,7 +172,7 @@ impl<T: UIntLike, R: RegisterLongName> Copy for Field<T, R> {}
 macro_rules! Field_impl_for {
     ($type:ty) => {
         impl<R: RegisterLongName> Field<$type, R> {
-            pub fn val(&self, value: $type) -> FieldValue<$type, R> {
+            pub const fn val(&self, value: $type) -> FieldValue<$type, R> {
                 FieldValue::<$type, R>::new(self.mask, self.shift, value)
             }
         }
