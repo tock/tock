@@ -242,6 +242,7 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_helper!());
     // Create the debugger object that handles calls to `debug!()`.
+    panic!("text");
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
@@ -250,7 +251,6 @@ pub unsafe fn main() {
         uart_mux,
     )
     .finalize(());
-    panic!("text");
 
     // Need two debug!() calls to actually test with QEMU. QEMU seems to have
     // a much larger UART TX buffer (or it transmits faster).
