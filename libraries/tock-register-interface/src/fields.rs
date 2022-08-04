@@ -241,7 +241,7 @@ impl<T: UIntLike, R: RegisterLongName> FieldValue<T, R> {
 
     /// Get the raw bitmask represented by this FieldValue.
     #[inline]
-    pub fn mask(&self) -> T {
+    pub const fn mask(&self) -> T {
         self.mask as T
     }
 
