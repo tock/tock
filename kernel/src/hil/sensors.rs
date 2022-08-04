@@ -49,8 +49,11 @@ pub trait AirQualityDriver<'a> {
     /// - `BUSY`: Indicates that the hardware is busy with an existing
     ///           operation or initialisation/calibration.
     /// - `NOSUPPORT`: Indicates that this data type isn't supported.
-    fn specify_enviroment(&self, temp: Option<i32>, humidity: Option<u32>)
-        -> Result<(), ErrorCode>;
+    fn specify_environment(
+        &self,
+        temp: Option<i32>,
+        humidity: Option<u32>,
+    ) -> Result<(), ErrorCode>;
 
     /// Read the CO2 or equivalent CO2 (eCO2) from the sensor.
     /// This will trigger the `AirQualityClient` `co2_data_available()`

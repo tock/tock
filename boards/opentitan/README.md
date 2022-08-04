@@ -54,7 +54,7 @@ Then you need to flash the bitstream with:
 
 After which you should see some output in the serial window.
 
-Then in the Tock board directoty export the `OPENTITAN_TREE` enviroment
+Then in the Tock board directoty export the `OPENTITAN_TREE` environment
 variable to point to the OpenTitan tree.
 
 ```shell
