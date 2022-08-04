@@ -15,6 +15,7 @@ members = [
     "boards/esp32-c3-devkitM-1",
     "boards/clue_nrf52840",
     "boards/hail",
+    "boards/hifive_inventor",
     "boards/hifive1",
     "boards/imix",
     "boards/imxrt1050-evkb",
