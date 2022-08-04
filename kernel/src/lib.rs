@@ -94,6 +94,7 @@ pub const MAJOR: u16 = 2;
 pub const MINOR: u16 = 0;
 
 pub mod capabilities;
+pub mod capsule_deferred_call;
 pub mod collections;
 pub mod component;
 pub mod debug;

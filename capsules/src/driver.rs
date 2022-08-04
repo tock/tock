@@ -2,6 +2,7 @@
 
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
+use kernel::capsule_deferred_call::DeferredCallMapper;
 
 enum_from_primitive! {
 #[derive(Debug, PartialEq)]
@@ -79,4 +80,46 @@ pub enum NUM {
     TextScreen            = 0x90003,
     SevenSegment          = 0x90004,
 }
+}
+
+use core::convert::Into;
+use core::convert::TryFrom;
+
+/// A type of task to defer a call for
+#[derive(Copy, Clone)]
+pub enum Task {
+    Radio = 0xffff,
+}
+
+impl TryFrom<usize> for Task {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Task, ()> {
+        match value {
+            0xffff => Ok(Task::Radio),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Into<usize> for Task {
+    fn into(self) -> usize {
+        self as usize
+    }
+}
+
+impl kernel::capsule_deferred_call::CapsuleTask for Task {}
+
+pub struct CapsuleMapper {
+    pub radio: &'static crate::ieee802154::RadioDriver<'static>,
+}
+
+impl DeferredCallMapper for CapsuleMapper {
+    type CAT = Task;
+    fn service_deferred_call(&self, task: Task) -> bool {
+        match task {
+            Task::Radio => self.radio.handle_deferred_call(),
+        }
+        true
+    }
 }

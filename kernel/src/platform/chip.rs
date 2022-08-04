@@ -1,5 +1,6 @@
 //! Interfaces for implementing microcontrollers in Tock.
 
+use crate::capsule_deferred_call::CapsuleTask;
 use crate::platform::mpu;
 use crate::syscall;
 use core::fmt::Write;
@@ -102,13 +103,16 @@ pub trait Chip {
 /// where the kernel instructs the `nrf52` crate to handle interrupts, and if
 /// there is an interrupt ready then that interrupt is passed through the
 /// InterruptService objects until something can service it.
-pub trait InterruptService<T> {
+pub trait InterruptService<CHT, CAT: CapsuleTask> {
     /// Service an interrupt, if supported by this chip. If this interrupt
     /// number is not supported, return false.
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
 
     /// Service a deferred call. If this task is not supported, return false.
-    unsafe fn service_deferred_call(&self, task: T) -> bool;
+    unsafe fn service_deferred_call(&self, task: CHT) -> bool;
+
+    /// Service a capsule deferred call. If this task is not supported, return false.
+    unsafe fn service_capsule_deferred_call(&self, task: CAT) -> bool;
 }
 
 /// Generic operations that clock-like things are expected to support.

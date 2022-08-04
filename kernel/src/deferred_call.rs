@@ -18,7 +18,7 @@ use core::marker::Sync;
 ///
 /// Borrowed from https://github.com/japaric/heapless/blob/master/src/ring_buffer/mod.rs
 /// See: https://github.com/japaric/heapless/commit/37c8b5b63780ed8811173dc1ec8859cd99efa9ad
-struct AtomicUsize {
+pub(crate) struct AtomicUsize {
     v: UnsafeCell<usize>,
 }
 

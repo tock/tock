@@ -11,6 +11,7 @@
 
 mod imix_components;
 use capsules::alarm::AlarmDriver;
+use capsules::driver::CapsuleMapper;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
@@ -95,7 +96,9 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
+static mut CHIP: Option<
+    &'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals<CapsuleMapper>, CapsuleMapper>,
+> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -188,7 +191,9 @@ impl SyscallDriverLookup for Imix {
     }
 }
 
-impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
+impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals<CapsuleMapper>, CapsuleMapper>>
+    for Imix
+{
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -220,7 +225,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     }
 }
 
-unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
+unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals<CapsuleMapper>) {
     use sam4l::gpio::PeripheralFunction::{A, B, C, E};
 
     // Right column: Imix pin name
@@ -296,8 +301,11 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 #[inline(never)]
 unsafe fn get_peripherals(
     pm: &'static sam4l::pm::PowerManager,
-) -> &'static Sam4lDefaultPeripherals {
-    static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
+) -> &'static Sam4lDefaultPeripherals<CapsuleMapper> {
+    static_init!(
+        Sam4lDefaultPeripherals<CapsuleMapper>,
+        Sam4lDefaultPeripherals::new(pm)
+    )
 }
 
 /// Main function.
@@ -324,7 +332,7 @@ pub unsafe fn main() {
 
     peripherals.setup_dma();
     let chip = static_init!(
-        sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        sam4l::chip::Sam4l<Sam4lDefaultPeripherals<CapsuleMapper>, CapsuleMapper>,
         sam4l::chip::Sam4l::new(pm, peripherals)
     );
     CHIP = Some(chip);
@@ -539,14 +547,13 @@ pub unsafe fn main() {
 
     // Can this initialize be pushed earlier, or into component? -pal
     let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
-    let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
+    let (radio_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules::ieee802154::DRIVER_NUM,
         rf233,
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
-        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_helper!(
         capsules::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
@@ -646,6 +653,10 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
     };
+    let dc_mapper = CapsuleMapper {
+        radio: radio_driver,
+    };
+    peripherals.set_mapper(dc_mapper);
 
     // Need to initialize the UART for the nRF51 serialization.
     imix.nrf51822.initialize();

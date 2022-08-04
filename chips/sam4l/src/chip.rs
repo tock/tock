@@ -4,24 +4,30 @@ use crate::deferred_call_tasks::Task;
 use crate::pm;
 
 use core::fmt::Write;
+use core::marker::PhantomData;
 use cortexm4::{self, CortexM4, CortexMVariant};
+use kernel::capsule_deferred_call;
+use kernel::capsule_deferred_call::DeferredCallMapper;
 use kernel::deferred_call;
 use kernel::platform::chip::{Chip, InterruptService};
+use kernel::utilities::cells::OptionalCell;
 
-pub struct Sam4l<I: InterruptService<Task> + 'static> {
+pub struct Sam4l<I: InterruptService<Task, M::CAT> + 'static, M: DeferredCallMapper> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
+    _p: PhantomData<M>,
 }
 
-impl<I: InterruptService<Task> + 'static> Sam4l<I> {
+impl<M: DeferredCallMapper, I: InterruptService<Task, M::CAT> + 'static> Sam4l<I, M> {
     pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             pm,
             interrupt_service,
+            _p: PhantomData,
         }
     }
 }
@@ -30,7 +36,7 @@ impl<I: InterruptService<Task> + 'static> Sam4l<I> {
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
-pub struct Sam4lDefaultPeripherals {
+pub struct Sam4lDefaultPeripherals<M: DeferredCallMapper> {
     pub acifc: crate::acifc::Acifc<'static>,
     pub adc: crate::adc::Adc,
     pub aes: crate::aes::Aes<'static>,
@@ -55,9 +61,10 @@ pub struct Sam4lDefaultPeripherals {
     pub usart2: crate::usart::USART<'static>,
     pub usart3: crate::usart::USART<'static>,
     pub usbc: crate::usbc::Usbc<'static>,
+    deferred_call_mapper: OptionalCell<M>,
 }
 
-impl Sam4lDefaultPeripherals {
+impl<M: DeferredCallMapper> Sam4lDefaultPeripherals<M> {
     pub fn new(pm: &'static crate::pm::PowerManager) -> Self {
         use crate::dma::{DMAChannel, DMAChannelNum};
         Self {
@@ -106,6 +113,7 @@ impl Sam4lDefaultPeripherals {
             usart2: crate::usart::USART::new_usart2(pm),
             usart3: crate::usart::USART::new_usart3(pm),
             usbc: crate::usbc::Usbc::new(pm),
+            deferred_call_mapper: OptionalCell::empty(),
         }
     }
 
@@ -151,8 +159,12 @@ impl Sam4lDefaultPeripherals {
         self.adc.set_dma(&self.dma_channels[13]);
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
     }
+
+    pub fn set_mapper(&self, mapper: M) {
+        self.deferred_call_mapper.set(mapper);
+    }
 }
-impl InterruptService<Task> for Sam4lDefaultPeripherals {
+impl<M: DeferredCallMapper> InterruptService<Task, M::CAT> for Sam4lDefaultPeripherals<M> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -232,9 +244,17 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         }
         true
     }
+
+    unsafe fn service_capsule_deferred_call(&self, task: M::CAT) -> bool {
+        self.deferred_call_mapper.take().map_or(false, |m| {
+            let ret = m.service_deferred_call(task);
+            self.deferred_call_mapper.replace(m);
+            ret
+        })
+    }
 }
 
-impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
+impl<M: DeferredCallMapper, I: InterruptService<Task, M::CAT> + 'static> Chip for Sam4l<I, M> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 
@@ -244,7 +264,14 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
                 if let Some(task) = deferred_call::DeferredCall::next_pending() {
                     match self.interrupt_service.service_deferred_call(task) {
                         true => {}
-                        false => panic!("unhandled deferred call task"),
+                        false => panic!("unhandled chip deferred call task"),
+                    }
+                } else if let Some(task) =
+                    capsule_deferred_call::CapsuleDeferredCall::next_pending()
+                {
+                    match self.interrupt_service.service_capsule_deferred_call(task) {
+                        true => {}
+                        false => panic!("unhandled capsule deferred call task"),
                     }
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match self.interrupt_service.service_interrupt(interrupt) {
@@ -262,7 +289,11 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe {
+            cortexm4::nvic::has_pending()
+                || deferred_call::has_tasks()
+                || capsule_deferred_call::has_tasks()
+        }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
