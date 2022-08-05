@@ -101,7 +101,7 @@ Attendees:
      - Phil: Skittish about this namespace. Not checked or protect; collisions are possible as well.
      - Hudson: Going to need to develop something to protect ids for different users and use sets
      - Hudson: Leon, the point is good that this harder with types for downstream
- - Hudson: Doesn't get rid of globals, atomics; instead adds capsule-deferred. Basically a copy in capsules of what we did in chips today. Changes of use much smaller. Still have the same namespacing  problem, but the generics issues go away. There are some small changes for generics in chips.rs; basically assume two kinds of deferred call. Still have a mapping in main, mostly  the mapping is defined in e.g. capsules/src/driver.rs, just instantiated in board main.rs now. Still doesn't have a great story for downstream extension.
+ - Hudson: The #3127 approach: Doesn't get rid of globals, atomics; instead adds capsule-deferred. Basically a copy in capsules of what we did in chips today. Changes of use much smaller. Still have the same namespacing  problem, but the generics issues go away. There are some small changes for generics in chips.rs; basically assume two kinds of deferred call. Still have a mapping in main, mostly  the mapping is defined in e.g. capsules/src/driver.rs, just instantiated in board main.rs now. Still doesn't have a great story for downstream extension.
      - Leon: Maybe we should look into Rust type ids? Could map to integers and guarantee uniqueness?
      - Phil: Compile-time count is good for array sizing etc; key thing is conflict, duplication issue
      - Leon: Would assume most capsules would break when given a spurious deferred call
