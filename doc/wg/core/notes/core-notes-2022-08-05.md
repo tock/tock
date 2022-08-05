@@ -57,27 +57,27 @@ Attendees:
  - Hudson: That makes sense, I'll give please reply in two weeks message, but won't threaten removal. We can do judgement after that
 
 ### PR Triage
- - #3127, #3125, #3124, #3123 - Not ready yet
- - #3122 - waiting on OT bitstream update
- - #3120 - Hudson: could go? Phil: I'll look and merge.
- - #3119 - Hudson: Already approved; merge.
- - #3118 - Has changes requested (just spelling?). Not urgent. Don't block for this.
- - #3117 - Might be needed for tests to pass for this platform
- - #3114 - Not ready, 'could be months of back and forth;  hoping not...'
- - #3112 - Not a blocker.
- - #3110 - Not ready
- - #3095 - Leon/Pat will discuss after call
- - #3092 - Blocked on OT discussion
- - #3086 - WIP
- - #3085, #3056 - Not working? Still some PMP issues. Chris: Would prefer to delay bitstream until OT solidifies formal release process. This one is mine, can just close, I will open a new one when ready.
- - #3084 - Not blocking.
- - #3077, #3068 - WIP.
- - #3067 - RFC not blocker.
+ - https://github.com/tock/tock/pull/3127, https://github.com/tock/tock/pull/3125, https://github.com/tock/tock/pull/3124, https://github.com/tock/tock/pull/3123 - Not ready yet
+ - https://github.com/tock/tock/pull/3122 - waiting on OT bitstream update
+ - https://github.com/tock/tock/pull/3120 - Hudson: could go? Phil: I'll look and merge.
+ - https://github.com/tock/tock/pull/3119 - Hudson: Already approved; merge.
+ - https://github.com/tock/tock/pull/3118 - Has changes requested (just spelling?). Not urgent. Don't block for this.
+ - https://github.com/tock/tock/pull/3117 - Might be needed for tests to pass for this platform
+ - https://github.com/tock/tock/pull/3114 - Not ready, 'could be months of back and forth;  hoping not...'
+ - https://github.com/tock/tock/pull/3112 - Not a blocker.
+ - https://github.com/tock/tock/pull/3110 - Not ready
+ - https://github.com/tock/tock/pull/3095 - Leon/Pat will discuss after call
+ - https://github.com/tock/tock/pull/3092 - Blocked on OT discussion
+ - https://github.com/tock/tock/pull/3086 - WIP
+ - https://github.com/tock/tock/pull/3085, https://github.com/tock/tock/pull/3056 - Not working? Still some PMP issues. Chris: Would prefer to delay bitstream until OT solidifies formal release process. This one is mine, can just close, I will open a new one when ready.
+ - https://github.com/tock/tock/pull/3084 - Not blocking.
+ - https://github.com/tock/tock/pull/3077, https://github.com/tock/tock/pull/3068 - WIP.
+ - https://github.com/tock/tock/pull/3067 - RFC not blocker.
 
 ... At this point, all older enough to not likely be blockers; any folks want to highlight?
 
- - Leon: #2516 should be ready to go today; Leon will rebase, Hudson will review
- - Phil: #3045, lowrisc autogen register definitions? Chris: In a similar vein as the OT discussion, want to close this until the OT release process stable. You want the version of these files tied to the release tag you're going to support; these are an arbitrary day. Short term: convert to draft, indicate waiting for OT release process.
+ - Leon: https://github.com/tock/tock/pull/2516 should be ready to go today; Leon will rebase, Hudson will review
+ - Phil: https://github.com/tock/tock/pull/3045, lowrisc autogen register definitions? Chris: In a similar vein as the OT discussion, want to close this until the OT release process stable. You want the version of these files tied to the release tag you're going to support; these are an arbitrary day. Short term: convert to draft, indicate waiting for OT release process.
 
 
 ## Discussion of approaches to removing `DynamicDeferredCall`
@@ -87,7 +87,7 @@ Attendees:
     - https://github.com/tock/tock/pull/3127 also removes DynamicDeferredCall in favor of pushing capsules to a statically defined approach, but still keeps the general approach of using global (atomic) variables in the kernel. This does not help us move off Rust nightly, but lets the syntax in capsules be much nicer and requires less refactoring elsewhere. It also seems to produce smaller code, though I have not extensively tested this.
  - Hudson: Really want to do compare/contrast of these approaches.
  - Hudson: I think it makes sense to get rid of DynamicDeferredCall. In all the upstream boards/chips/capsules, we don't take advantage of the fact that at runtime you can change what structure gets calls. Things are effectively set up statically at boot. Really we have this dynamic thing because it's hard for capsules to set things up given the type limitations for the existing deferred call type (as capsules can't depend on specific chip crates, and chip crates don't depend on capsules) - so no way to create a list of deferred calls for capsules and chips.
- - Hudson: The #3123 approach has a generic deferred task that chips and capsules implement over. The board main.rs defines a mapper (`fn handle_deferred_call`) for what handles deferred calls. This also handles all the associated type definitions. Previously, this logic was contained in `chips`, now it's all surfaced to the board main.
+ - Hudson: The https://github.com/tock/tock/pull/3123 approach has a generic deferred task that chips and capsules implement over. The board main.rs defines a mapper (`fn handle_deferred_call`) for what handles deferred calls. This also handles all the associated type definitions. Previously, this logic was contained in `chips`, now it's all surfaced to the board main.
      - One thing worth considering; look at the radio capsule example ported: Previously had to allocate, now take in the manager reference, which adds a generic over deferred call manager parameter that could propagate in a challenging ergonomic way.
      - Other thing: The mapping of deferred calls, and what comes back to capsule is in trusted main.rs code; but the triggering of deferred calls currently trusts capsules to call the right one.
      - Leon: Q how does this relate to abstraction layers over trait objects? Given that all the users must be generic over deferred call mapper, will this work okay with external uses, will this leak through all later types?
@@ -101,7 +101,7 @@ Attendees:
      - Phil: Skittish about this namespace. Not checked or protect; collisions are possible as well.
      - Hudson: Going to need to develop something to protect ids for different users and use sets
      - Hudson: Leon, the point is good that this harder with types for downstream
- - Hudson: The #3127 approach: Doesn't get rid of globals, atomics; instead adds capsule-deferred. Basically a copy in capsules of what we did in chips today. Changes of use much smaller. Still have the same namespacing  problem, but the generics issues go away. There are some small changes for generics in chips.rs; basically assume two kinds of deferred call. Still have a mapping in main, mostly  the mapping is defined in e.g. capsules/src/driver.rs, just instantiated in board main.rs now. Still doesn't have a great story for downstream extension.
+ - Hudson: The https://github.com/tock/tock/pull/3127 approach: Doesn't get rid of globals, atomics; instead adds capsule-deferred. Basically a copy in capsules of what we did in chips today. Changes of use much smaller. Still have the same namespacing  problem, but the generics issues go away. There are some small changes for generics in chips.rs; basically assume two kinds of deferred call. Still have a mapping in main, mostly  the mapping is defined in e.g. capsules/src/driver.rs, just instantiated in board main.rs now. Still doesn't have a great story for downstream extension.
      - Leon: Maybe we should look into Rust type ids? Could map to integers and guarantee uniqueness?
      - Phil: Compile-time count is good for array sizing etc; key thing is conflict, duplication issue
      - Leon: Would assume most capsules would break when given a spurious deferred call
