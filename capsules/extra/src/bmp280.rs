@@ -77,8 +77,7 @@ impl CalibrationData {
         }
     }
 
-    fn temp_from_raw(&self, raw_temp: i32) -> i32 {
-        let temp = raw_temp as i32; // guaranteed to succeed because raw temp has only 20 significant bits maximum.
+    fn temp_from_raw(&self, temp: i32) -> i32 {
         let dig_t1 = self.dig_t1 as i32; // same, 16-bits
         let dig_t2 = self.dig_t2 as i32; // same, 16-bits
         let dig_t3 = self.dig_t3 as i32; // same, 16-bits

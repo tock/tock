@@ -272,10 +272,10 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                         let calib = self.calibration.get();
 
                         // note: per datasheet, measurement is 20-bit two's complement
-                        let adc_temperature: i32 = (((buffer[0] as usize) << 12
+                        let adc_temperature: i32 = ((((buffer[0] as usize) << 12
                             | (buffer[1] as usize) << 4
-                            | (((buffer[2] as usize) >> 4) & 0x0F) << 12)
-                            as i32)
+                            | (((buffer[2] as usize) >> 4) & 0x0F))
+                            << 12) as i32)
                             >> 12; // ensure sign extension
 
                         if adc_temperature == 0 {
