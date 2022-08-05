@@ -467,11 +467,12 @@ impl<'a> Iom<'_> {
 
         // Clear interrrupts
         regs.intclr.set(0xFFFF_FFFF);
+        // Ensure interrupts remain enabled
+        regs.inten.set(0xFFFF_FFFF);
+
+        while regs.status.read(STATUS::IDLESET) != 1 {}
 
         if irqs.is_set(INT::CMDCMP) || irqs.is_set(INT::THR) {
-            // Enable interrupts
-            regs.inten.set(0xFFFF_FFFF);
-
             if regs.fifothr.read(FIFOTHR::FIFOWTHR) > 0 {
                 let remaining = self.write_len.get() - self.write_index.get();
 
@@ -499,14 +500,26 @@ impl<'a> Iom<'_> {
 
                 self.read_data();
             }
-        }
 
-        if irqs.is_set(INT::CMDCMP) {
+            // The IOM doesn't work very well when using non-blocking operations
+            // without the DMA. We can get command complete interrupts when the
+            // hardware state machine isn't idle yet.
+            // We don't currently support the DMA, so we something hit weird
+            // interrupt corner cases. So make the IOM more stable, let's wait
+            // for the idle status here. This usually is only a few us at most.
+            while regs.status.read(STATUS::IDLESET) != 1 {}
+
             if (self.read_len.get() > 0 && self.read_index.get() == self.read_len.get())
                 || (self.write_len.get() > 0 && self.write_index.get() == self.write_len.get())
             {
+                // Disable interrupts
+                regs.inten.set(0x00);
+                self.reset_fifo();
+
                 self.master_client.map(|client| {
-                    client.command_complete(self.buffer.take().unwrap(), Ok(()));
+                    self.buffer.take().map(|buffer| {
+                        client.command_complete(buffer, Ok(()));
+                    });
                 });
 
                 // Finished with SMBus
