@@ -1,62 +1,50 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+
 use kernel;
 use kernel::debug;
-use kernel::platform::chip::Chip;
+use kernel::platform::chip::{Chip, InterruptService};
+
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::PMP;
 
-use crate::interrupts;
 use crate::plic::PLIC;
-use kernel::platform::chip::InterruptService;
 use sifive::plic::Plic;
 
-pub struct E310x<'a, I: InterruptService<()> + 'a> {
+use crate::interrupts;
+
+type QemuRv32VirtPMP = PMP<8>;
+
+pub struct QemuRv32VirtChip<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: PMP<4>,
+    pmp: QemuRv32VirtPMP,
     plic: &'a Plic,
     timer: &'a sifive::clint::Clint<'a>,
     plic_interrupt_service: &'a I,
 }
 
-pub struct E310xDefaultPeripherals<'a> {
-    pub uart0: sifive::uart::Uart<'a>,
-    pub gpio_port: crate::gpio::Port<'a>,
-    pub prci: sifive::prci::Prci,
-    pub pwm0: sifive::pwm::Pwm,
-    pub pwm1: sifive::pwm::Pwm,
-    pub pwm2: sifive::pwm::Pwm,
-    pub rtc: sifive::rtc::Rtc,
-    pub watchdog: sifive::watchdog::Watchdog,
+pub struct QemuRv32VirtDefaultPeripherals<'a> {
+    pub uart0: crate::uart::Uart16550<'a>,
 }
 
-impl<'a> E310xDefaultPeripherals<'a> {
+impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 16_000_000),
-            gpio_port: crate::gpio::Port::new(),
-            prci: sifive::prci::Prci::new(crate::prci::PRCI_BASE),
-            pwm0: sifive::pwm::Pwm::new(crate::pwm::PWM0_BASE),
-            pwm1: sifive::pwm::Pwm::new(crate::pwm::PWM1_BASE),
-            pwm2: sifive::pwm::Pwm::new(crate::pwm::PWM2_BASE),
-            rtc: sifive::rtc::Rtc::new(crate::rtc::RTC_BASE),
-            watchdog: sifive::watchdog::Watchdog::new(crate::watchdog::WATCHDOG_BASE),
+            uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
         }
     }
 }
 
-impl<'a> InterruptService<()> for E310xDefaultPeripherals<'a> {
+impl<'a> InterruptService<()> for QemuRv32VirtDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::UART0 => self.uart0.handle_interrupt(),
-            int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
-                let pin = &self.gpio_port[(int_pin - interrupts::GPIO0) as usize];
-                pin.handle_interrupt();
+            interrupts::UART0 => {
+                self.uart0.handle_interrupt();
             }
-
             _ => return false,
         }
         true
@@ -67,7 +55,7 @@ impl<'a> InterruptService<()> for E310xDefaultPeripherals<'a> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> E310x<'a, I> {
+impl<'a, I: InterruptService<()> + 'a> QemuRv32VirtChip<'a, I> {
     pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a sifive::clint::Clint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
@@ -96,8 +84,8 @@ impl<'a, I: InterruptService<()> + 'a> E310x<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
-    type MPU = PMP<4>;
+impl<'a, I: InterruptService<()> + 'a> Chip for QemuRv32VirtChip<'a, I> {
+    type MPU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
     fn mpu(&self) -> &Self::MPU {
@@ -132,14 +120,6 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for E310x<'a
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        // First check if the global machine timer interrupt is set.
-        // We would also need to check for additional global interrupt bits
-        // if there were to be used for anything in the future.
-        if CSR.mip.is_set(mip::mtimer) {
-            return true;
-        }
-
-        // Then we can check the PLIC.
         self.plic.get_saved_interrupts().is_some()
     }
 
@@ -235,8 +215,8 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 
 /// Trap handler for board/chip specific code.
 ///
-/// For the e310 this gets called when an interrupt occurs while the chip is
-/// in kernel mode.
+/// For the qemu-system-riscv32 virt machine this gets called when an
+/// interrupt occurs while the chip is in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
