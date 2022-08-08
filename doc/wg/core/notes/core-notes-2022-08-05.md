@@ -8,7 +8,6 @@ Attendees:
  * Philip Levis
  * Chris Frantz
  * Johnathan Van Why
- * Alexandru Radovici
  * Hudson Ayers
  * Alyssa Haroldsen
  * Pat Pannuto
