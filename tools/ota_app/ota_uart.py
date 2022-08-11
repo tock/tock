@@ -68,18 +68,19 @@ class enState(Enum):
     enInit = 0
     enInitFail = 1
     enWrite = 2
-    enWritePadding = 3
-    enWriteFail = 4
-    enCrc = 5
-    enCrcFail = 6
-    enAppload = 7
-    enAppLoadFail = 8
-    enAppErase = 9
-    enAppEraseFail = 10
-    enAppEraseSuccess = 11
-    enSuccess = 12
-    enFail = 13
-    enDebug = 14
+    enWriteFail = 3
+    enWritePadApps = 4
+    enWritePadAppsFail = 5
+    enCrc = 6
+    enCrcFail = 7
+    enAppload = 8
+    enAppLoadFail = 9
+    enAppErase = 10
+    enAppEraseFail = 11
+    enAppEraseSuccess = 12
+    enSuccess = 13
+    enFail = 14
+    enDebug = 15
 
 class cls_ota_serial:
     
@@ -90,7 +91,7 @@ class cls_ota_serial:
     #Commands from this tool to OTA app
     COMMAND_FIND_STADDR = 0x5A
     COMMAND_WRITE_BINARY_DATA = 0x5B
-    COMMAND_WRITE_PADDING_DATA = 0x5C
+    COMMAND_WRITE_PADDING_APPS = 0x5C
     COMMAND_SEND_CRC = 0x5D
     COMMAND_APP_LOAD = 0x5E
     COMMAND_APP_ERASE = 0x5F
@@ -99,18 +100,20 @@ class cls_ota_serial:
 
     #Response from the OTA app. The length of response have to be 20 bytes!
     #And this size is alos have to be consistent with the size of response data from OTA app
-    RESPONSE_FIND_STADDR_OK       = "find staddr ok     \n"
-    RESPONSE_FIND_STADDR_FAIL     = "find staddr fail   \n"
-    RESPONSE_WRITE_BINARY_OK      = "write binary ok    \n"
-    RESPONSE_WRITE_BINARY_FAIL    = "write binary fail  \n"
-    RESPONSE_WRITE_PADDING_OK     = "write padding ok   \n"
-    RESPONSE_WRITE_PADDING_FAIL   = "write padding fail \n"
-    RESPONSE_CRC_CONSISTENCY_OK   = "checksum ok        \n"
-    RESPONSE_CRC_CONSISTENCY_FAIL = "checksum fail      \n"
-    RESPONSE_APP_LOAD_OK          = "app load ok        \n"
-    RESPONSE_APP_LOAD_FAIL        = "app load fail      \n"
-    RESPONSE_ERASE_OK             = "erase ok           \n"
-    RESPONSE_ERASE_FAIL           = "erase fail         \n"
+    RESPONSE_FIND_STADDR_OK             = "find staddr ok     \n"
+    RESPONSE_FIND_STADDR_FAIL           = "find staddr fail   \n"
+    RESPONSE_WRITE_BINARY_OK            = "write binary ok    \n"
+    RESPONSE_WRITE_BINARY_FAIL          = "write binary fail  \n"
+    RESPONSE_WRITE_PADDING_OK           = "write padding ok   \n"
+    RESPONSE_WRITE_PADDING_FAIL         = "write padding fail \n"
+    RESPONSE_CRC_CONSISTENCY_OK         = "checksum ok        \n"
+    RESPONSE_CRC_CONSISTENCY_FAIL       = "checksum fail      \n"
+    RESPONSE_APP_LOAD_OK                = "app load ok        \n"
+    RESPONSE_APP_LOAD_FAIL              = "app load fail      \n"
+    RESPONSE_ERASE_OK                   = "erase ok           \n"
+    RESPONSE_ERASE_FAIL                 = "erase fail         \n"
+    RESPONSE_WRITE_PADDING_APPS_OK      = "write pad apps ok  \n"
+    RESPONSE_WRITE_PADDING_APPS_FAIL    = "write pad apps fail\n"
 
     def __init__(self, binary_size):
         #use 512 byte pages to simplify the implementations and reduce uncertainty.
@@ -240,7 +243,6 @@ class cls_ota_serial:
                     self.state = enState.enWrite
                     #print("Success: Write!")
                 else:
-                    #self.state = enState.enWritePadding
                     self.state = enState.enCrc
                     #print("Success: Write Complete!")                           
                     
@@ -249,42 +251,7 @@ class cls_ota_serial:
                 
             else:
                 self.state = enState.enFail 
-                print("Message from tock => " + data_in) 
-            
-        elif self.state == enState.enWritePadding:
-            #1 byte command
-            data_packet = self.COMMAND_WRITE_PADDING_DATA.to_bytes(1, 'big')
-            
-            #4 bytes optional byte
-            #page counter is already increased at the above write bianry data sequence
-            data_packet += self.page_num.to_bytes(4, 'big')
-
-            #convert to bytearray
-            data_packet = bytearray(data_packet)
-            
-            #512 bytes in order for tockloader recognize the boundray of an app 
-            for i in range(self.page_size):
-                data_packet.append(self.PADDING_BYTE)
-      
-            #write data to OTA via UART
-            sp.write(data_packet)
-                
-            #read data from OTA via UART
-            data_in = sp.readline().decode("utf-8")
-            #Issue 1
-            #data_in = data_in[:self.rsp_size]
-            #print(data_in)
-            
-            if data_in == self.RESPONSE_WRITE_PADDING_OK:
-                    self.state = enState.enCrc
-                    #print("Success: Write Padding!")    
-                    
-            elif data_in == self.RESPONSE_WRITE_PADDING_FAIL:
-                self.state = enState.enWriteFail
-                
-            else:
-                self.state = enState.enFail 
-                print("Message from tock => " + data_in)                  
+                print("Message from tock => " + data_in)                
                     
         elif self.state == enState.enCrc:
             #1 byte command
@@ -352,12 +319,8 @@ class cls_ota_serial:
             #print(data_in)
             
             if data_in == self.RESPONSE_APP_LOAD_OK:
-                self.state = enState.enSuccess
-                
-                #If you want to see some debug data, you can use enDebug state
-                #I will print out a couple of debug data after loading a new app successfully
-                #self.state = enState.enDebug
-                #print("Success: Dynamic App Load!")
+                #self.state = enState.enSuccess
+                self.state = enState.enWritePadApps
                 
             elif data_in == self.RESPONSE_APP_LOAD_FAIL:
                 self.state = enState.enAppLoadFail
@@ -399,6 +362,45 @@ class cls_ota_serial:
                 self.state = enState.enFail 
                 print("Message from tock => " + data_in)
     
+        elif self.state == enState.enWritePadApps:
+            #1 byte command
+            data_packet = self.COMMAND_WRITE_PADDING_APPS.to_bytes(1, 'big')
+            
+            #4 bytes dummy optional byte
+            data_packet += self.OPTION_BYTE_DUMMY.to_bytes(4, 'big')
+            
+            #convert to bytearray 
+            data_packet = bytearray(data_packet)
+            
+            #512 bytes in order for tockloader recognize the boundray of an app 
+            for i in range(self.page_size):
+                data_packet.append(self.INVALID_BYTE)
+      
+            #write data to OTA via UART
+            sp.write(data_packet)
+                
+            #read data from OTA via UART
+            data_in = sp.readline().decode("utf-8")
+            #Issue 1
+            #data_in = data_in[:self.rsp_size]
+            #print(data_in)
+            
+            if data_in == self.RESPONSE_WRITE_PADDING_APPS_OK:
+                    self.state = enState.enSuccess
+                    #self.state = enState.enDebug
+                    #print("Success: Write Padding Apps!")
+                    
+                    #If you want to see some debug data, you can use enDebug state
+                    #I will print out a couple of debug data after loading a new app successfully
+                    
+                    
+            elif data_in == self.RESPONSE_WRITE_PADDING_APPS_FAIL:
+                self.state = enState.enWritePadAppsFail
+                
+            else:
+                self.state = enState.enFail 
+                print("Message from tock => " + data_in)   
+                
         elif self.state == enState.enDebug:   
             #1 byte command
             data_packet = self.COMMAND_DEBUG.to_bytes(1, 'big')
@@ -466,6 +468,10 @@ def main(file_name):
             print("OTA Failure: App Erase ")
             break
         
+        elif ob_ota.state == enState.enWritePadAppsFail:
+            print("OTA Failure: Padding Apps ")
+            break
+            
         elif ob_ota.state == enState.enSuccess:
             print("OTA Success: Dynamic App Load!")
             break
