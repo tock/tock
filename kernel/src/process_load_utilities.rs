@@ -31,7 +31,7 @@ mod rw_allow {
     pub(crate) const COUNT: usize = 1;
 }
 
-/// Variable that is stored in OTA_app grant region to support dynamic app load
+/// Variables that are stored in OTA_app grant region to support dynamic app load
 #[derive(Default)]
 struct ProcLoaderData{
     //Index points the position where the entry point of a new app is written into PROCESS global array 
@@ -291,7 +291,8 @@ impl <C:'static + Chip> ProcessLoader <C> {
                 }
             };
             
-            let (_version, _header_length, entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
+            /*************************** In case of that the start address is at UnableToParse ***************************/
+            let (version, header_length, mut entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
                 test_header_slice
                     .try_into()
                     .or(Err(ProcessLoadError::InternalError))?,
@@ -336,6 +337,50 @@ impl <C:'static + Chip> ProcessLoader <C> {
                     }
                 }
             };
+            /****************************************************** End ******************************************************/
+
+            /*************************** In case of that the start address is at the beginning of an padding app ***************************/
+            //If a padding app is exist at the start address satisfying MPU rules, we load the new app from here!
+            let header_flash = unsafe {
+                core::slice::from_raw_parts(
+                    app_start_address as *const u8,
+                    header_length as usize,
+                )
+            };
+
+            let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, version)?;
+
+            // If this isn't an app (i.e. it is padding)
+            if !tbf_header.is_app() {
+                // Before return Ok, we check whether or not 'proc_data.dynamic_flash_start_addr' + 'appsize_requested_by_ota_app' invades other regions which is already occupied by other apps
+                // Since app_start_address jumps based on power of 2, there is no overlap region case.
+                // However, we check overlap region for fail-safety!
+                // If there is the overlap region, we try to find another 'app_start_address' satisfying MPU rules recursively
+
+                let address_validity_check = self.check_overlap_region(proc_data);
+
+                match address_validity_check{
+                    Ok(()) => {
+                        return Ok(());
+                    }
+                    Err((new_start_addr, _e)) => {
+                        // We try to parse again from the new start address point!
+                        app_start_address = new_start_addr;
+
+                        let new_header_slice =  unsafe {
+                            core::slice::from_raw_parts(
+                            app_start_address as *const u8,
+                            8,
+                        )};
+
+                        let new_entry_length = u32::from_le_bytes([new_header_slice[4], new_header_slice[5], new_header_slice[6], new_header_slice[7]]);
+                        
+                        // entry_length is replaced by new_entry_length
+                        entry_length = new_entry_length;
+                    }
+                }
+            }
+            /****************************************************** End ******************************************************/
 
             // Jump to the maximum length based on power of 2
             // If 'tockloader' offers flashing app bundles with MPU subregion rules (e.g., 16k+32k consecutive), we need more logic!
@@ -449,10 +494,11 @@ impl <C:'static + Chip> ProcessLoader <C> {
     // CRC32_POSIX
     fn cal_crc32_posix(
         &self,
-        proc_data: &mut ProcLoaderData,
+        start_address: usize,
+        mode: usize,
     ) -> u32 {
 
-        let appstart = proc_data.dynamic_flash_start_addr as *const u8;
+        let appstart = start_address as *const u8;
 
         //Only parse the header information (8byte)
         let header_slice =  unsafe {
@@ -461,7 +507,13 @@ impl <C:'static + Chip> ProcessLoader <C> {
             8,
         )};
     
-        let entry_length = u32::from_le_bytes([header_slice[4], header_slice[5], header_slice[6], header_slice[7]]);
+        let entry_length = if mode == 1 {
+            u32::from_le_bytes([header_slice[4], header_slice[5], header_slice[6], header_slice[7]])
+        }
+        else {
+            // In case of Crc32 for an padding app, we calculate only 1 pasge size (512)
+            512 
+        };
         
         let data =  unsafe {
             core::slice::from_raw_parts(
@@ -475,6 +527,41 @@ impl <C:'static + Chip> ProcessLoader <C> {
         let crc32_rst = crc32_instance.finalise();
 
         return crc32_rst;
+    }
+
+    fn kernel_version(
+        &self,
+    ) -> Result<u32, ErrorCode> {
+        
+        let header_info = unsafe {
+            core::slice::from_raw_parts(
+                self.start_app as *const u8,
+                8,
+            )
+        };
+
+        let header_slice = match header_info.get(0..8) {
+            Some(s) => s,
+            None => {
+                return Err(ErrorCode::FAIL);
+            }
+        };
+        
+        let (version, _header_length, _entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
+            header_slice
+                .try_into()
+                .or(Err(ErrorCode::FAIL))?,
+        ) {
+            Ok((v, hl, el)) => (v, hl, el),
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
+                return Err(ErrorCode::FAIL);
+            }
+            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                return Err(ErrorCode::FAIL);
+            }
+        };
+
+        return Ok(version as u32);
     }
 }
 
@@ -493,12 +580,17 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
     /// - `6`: Return an index that is used to store the entry point of an app flashed into PROCESS global array
     ///        With this index, we prevent the kernel from loading 4 more than applications
     /// - `7`: Return the start address of flash memory allocated to apps (i.e., 0x40000 in case of this platform)
+    /// - `8`: Return the number of supported process by platform (e.g., 4 in case of microbit_v2)
+    /// - `9`: Return the start address of a process
+    /// - `10`: Return the size of a process
+    /// - `11`: Return kernel version
+    /// - `12`: Return padding app header length
     
     fn command(
         &self,
         command_num: usize,
         arg1: usize,
-        _unused2: usize,
+        arg2: usize,
         appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
@@ -562,11 +654,11 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             5 =>
             /* Calculate CRC32-POXIS of the flashed app region and return the result value */
             {
-                self.data.enter(appid, |proc_data, _| {
-                    let crc32 = self.cal_crc32_posix(proc_data);
-                    CommandReturn::success_u32(crc32 as u32)
-                })
-                .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
+                let start_address = arg1;
+                let mode = arg2;
+
+                let crc32 = self.cal_crc32_posix(start_address, mode);
+                CommandReturn::success_u32(crc32 as u32)
             }
 
             6 =>
@@ -582,6 +674,47 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             7 =>
             {
                 CommandReturn::success_u32(self.start_app as u32)
+            }
+
+            /* Return the number of supported process by platform (e.g., 4 in case of microbit_v2)  */
+            8 =>
+            {
+                CommandReturn::success_u32(self.supported_process_num as u32)
+            }
+
+            /* Return the start address of a process  */
+            9 =>
+            {
+                let requested_index = arg1;
+                let start_addr = unsafe { *self.ptr_process_region_start_address.offset(requested_index.try_into().unwrap()) };
+
+                CommandReturn::success_u32(start_addr as u32)
+            }
+
+            /* Return the size of a process  */
+            10 =>
+            {
+                let requested_index = arg1;
+                let size = unsafe { *self.ptr_process_region_size.offset(requested_index.try_into().unwrap()) };
+
+                CommandReturn::success_u32(size as u32)
+            }
+
+            /* Return kernel version  */
+            11 =>
+            {
+                let res = self.kernel_version();
+
+                match res {
+                    Ok(kernel_version) => CommandReturn::success_u32(kernel_version),
+                    Err(e) => CommandReturn::failure(e),
+                }       
+            }
+
+            /* Return padding app header length  */
+            12 =>
+            {
+                CommandReturn::success_u32(16 as u32)    
             }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
