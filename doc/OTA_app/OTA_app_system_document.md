@@ -72,7 +72,7 @@ Furtuermore, if the number of application loaded on the target board reaches to
 the maximum number of application that the target board can run, 
 OTA app doesn't execute update.
 
-[2022-08-10] `OTA app` offers loading a new app at the start address satisfying
+[2022-08-01] `OTA app` offers loading a new app at the start address satisfying
 `MPU rules`. So, you can load any size of app without considering order of apps,
 if there are enough flash region to write apps. After finding the start address,
 we check whether or not a new flash region for a new app inavdes other regions
@@ -219,6 +219,15 @@ the usage of flash memory inefficiency.
 Since `tockloader` currently provides loading app bundles by decreasing size
 (large -> small consecutively). The above simple pseudo code works powerfully.
 
+[2022-08-11] 
+The loaded apps from OTA app are loaded successfully even after pushing
+the reset button. Since OTA app loads apps based on MPU rules, the loaded apps
+located sparsely in flash memory. Thus, the loaded apps from OTA app
+are not loaded after pushing the reset button. So we need to insert padding apps
+between the loaded apps. Padding apps are loaded after loading a new app 
+from OTA app. Below picture shows the result of `tockloader list --verbose`
+![ota alignment with padding apps](Alignment_With_Padding_Apps.png) 
+
 ### State Machine
 [2022-07-22] `OTA app` follows the below state machine.
 0) [Init stage]
@@ -249,7 +258,7 @@ When receving commands, the below state machine is executed.
       send the external tool fail response.
       Then, the loaded app will be erased. 
     
-5) [COMMAND_APP_LOAD ]
+5) [COMMAND_APP_LOAD]
     - Request loading the entry point of the loaded app. 
       If the flashed app doesn't meet `MPU alignment rule`, `OTA app` sends 
       the external tool fail response. Then, the loaded app will be erased. 
@@ -257,8 +266,13 @@ When receving commands, the below state machine is executed.
 6) [COMMAND_APP_ERASE]
     - When receiving the erase request, it erases the loaded app.
 
-[2022-08-10] Delete [COMMAND_WRITE_PADDING_DATA] state. It causes that 
+[2022-08-01] Delete [COMMAND_WRITE_PADDING_DATA] state. It causes that 
 a new app manipulates other regions already occupied by other apps!
+
+[2022-08-11] Add [COMMAND_WRITE_PADDING_APP]
+    - After loading a new app, insert padding apps between sparsely loaded apps
+    - So, the loaded apps will be loaded successfully even after a reset!
+    - Additionally, we also check CRC32 consistency of the inserted padding apps
 
 
 ## Guide for demo
