@@ -229,6 +229,10 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         match task {
             crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
             crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart0 => self.usart0.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart1 => self.usart1.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart2 => self.usart2.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart3 => self.usart3.handle_deferred_call(),
         }
         true
     }
