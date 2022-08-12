@@ -6,6 +6,7 @@
 //! This capsule interfaces with flash and exposes the Tock `hil::kv_system`
 //! interface to others.
 //!
+//! ```
 //! +-----------------------+
 //! |                       |
 //! |  Capsule using K-V    |
@@ -29,6 +30,7 @@
 //! +-----------------------+
 //!
 //!    hil::flash
+//! ```
 
 use core::cell::Cell;
 use kernel::hil::flash::{self, Flash};
