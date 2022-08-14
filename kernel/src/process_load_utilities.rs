@@ -269,128 +269,201 @@ impl <C:'static + Chip> ProcessLoader <C> {
         start_app: usize,
     ) -> Result<(), ProcessLoadError> {
 
-        let mut app_start_address: usize = start_app;
+        proc_data.dynamic_flash_start_addr = start_app;
 
-        while app_start_address < self.end_app
+        while proc_data.dynamic_flash_start_addr < self.end_app 
         {
-            //We only need tbf header information to get the size of app which is already loaded
-            let header_info = unsafe {
-                core::slice::from_raw_parts(
-                    app_start_address as *const u8,
-                    8,
-                )
-            };
+            let mut is_padding_app: bool = false;
+            let mut is_empty_region: bool = false;
+            let mut is_remnant_region: bool = true;
 
-            let test_header_slice = match header_info.get(0..8) {
-                Some(s) => s,
-                None => {
-                    // Not enough flash to test for another app. This just means
-                    // We are at the end of flash (0x80000). => This case is Error!
-                    // But we can't reach out to here in this while statement!
-                    return Err(ProcessLoadError::NotEnoughFlash);
+            // 1. Check whether or not app_start_address points an padding app
+            let res_padding_app = self.is_padding_app(proc_data.dynamic_flash_start_addr);
+            match res_padding_app{
+                Ok(ispadding) => {
+                    if ispadding == true {
+                        // If we found this is an padding app, we save the new app from here.
+                        // Before return Ok, do validity check
+                        is_padding_app = true;
+                    }
                 }
-            };
-            
-            /*************************** In case of that the start address is at UnableToParse ***************************/
-            let (version, header_length, mut entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
-                test_header_slice
-                    .try_into()
-                    .or(Err(ProcessLoadError::InternalError))?,
-            ) {
-                Ok((v, hl, el)) => (v, hl, el),
-                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(entry_length)) => {
-                    // If we could not parse the header, then we want to skip over
-                    // this app and look for the next one.
-                    (0, 0, entry_length)
+                Err(_e) => {
+                    return Err(ProcessLoadError::InternalError);
                 }
-                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    // Since Tock apps use a linked list, it is very possible the
-                    // header we started to parse is intentionally invalid to signal
-                    // the end of apps. This is ok and just means we have finished
-                    // loading apps. => This case points the writable 'app_start_address' satisfying MPU rules for an new app
+            }
 
-                    // Before return Ok, we check whether or not 'proc_data.dynamic_flash_start_addr' + 'appsize_requested_by_ota_app' invades other regions which is already occupied by other apps
-                    // Since app_start_address jumps based on power of 2, there is no overlap region case.
-                    // However, we check overlap region for fail-safety!
-                    // If there is the overlap region, we try to find another 'app_start_address' satisfying MPU rules recursively
-                    let address_validity_check = self.check_overlap_region(proc_data);
+            //2. Check whether or not app_start_address points empty flash region (unable to parse)
+            let res_empty_region = self.is_empty_flash_region(proc_data.dynamic_flash_start_addr);
+            match res_empty_region{
+                Ok((isempty, entry_length)) => {
+                    if isempty == true {
+                        // If we found this is empty flash region, we save the new app from here.
+                        // Before return Ok, do validity check
+                        is_empty_region = true;
+                    }
+                    else
+                    {
+                        // 3. Check whether or not the start address points a remnant app which is not erased by tockloader erase-apps command
+                        let mut index = 0;
+                        while index < proc_data.index
+                        {
+                            if proc_data.dynamic_flash_start_addr == unsafe { *self.ptr_process_region_start_address.offset(index.try_into().unwrap()) }
+                            {
+                                // If we found this is the remnant region(app), we save the new app from here.
+                                // Before return Ok, do validity check
+                                is_remnant_region = false;
+                                break;
+                            }
+                            index += 1;
+                        }
 
-                    match address_validity_check{
+                        // We only increase proc_data.dynamic_flash_start_addr, when there are the existing apps which are actually loaded into PROCESS global array
+                        if is_remnant_region == false
+                        {   
+                            // Jump to the maximum length based on power of 2
+                            // If 'tockloader' offers flashing app bundles with MPU subregion rules (e.g., 16k + 32k consecutive), we need more logic!
+                            // We have to check whether or not there is subregion, and jump to the start address of 32k (Todo!)
+                            proc_data.dynamic_flash_start_addr += cmp::max(proc_data.appsize_requested_by_ota_app, entry_length);
+                        }
+                        
+                    }
+                }
+                Err(_e) => {
+                    return Err(ProcessLoadError::InternalError);
+                }
+            }
+
+            // 4. Check whether or not the start address invades the other regions occupied by the existing apps
+            if is_padding_app == true || is_empty_region == true || is_remnant_region == true
+            {
+                let address_validity_check = self.check_overlap_region(proc_data);
+
+                    match address_validity_check {
                         Ok(()) => {
                             return Ok(());
                         }
                         Err((new_start_addr, _e)) => {
-                            // We try to parse again from the new start address point!
-                            app_start_address = new_start_addr;
-
-                            let new_header_slice =  unsafe {
-                                core::slice::from_raw_parts(
-                                app_start_address as *const u8,
-                                8,
-                            )};
-
-                            let new_entry_length = u32::from_le_bytes([new_header_slice[4], new_header_slice[5], new_header_slice[6], new_header_slice[7]]);
-                            
-                            // entry_length is replaced by new_entry_length
-                            (0 as u16, 0 as u16, new_entry_length as u32)
+                            // We try to parse again from the end address + 1 of a existing app (new_start_addr)
+                            proc_data.dynamic_flash_start_addr = new_start_addr;
                         }
                     }
-                }
-            };
-            /****************************************************** End ******************************************************/
-
-            /*************************** In case of that the start address is at the beginning of an padding app ***************************/
-            //If a padding app is exist at the start address satisfying MPU rules, we load the new app from here!
-            let header_flash = unsafe {
-                core::slice::from_raw_parts(
-                    app_start_address as *const u8,
-                    header_length as usize,
-                )
-            };
-
-            let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, version)?;
-
-            // If this isn't an app (i.e. it is padding)
-            if !tbf_header.is_app() {
-                // Before return Ok, we check whether or not 'proc_data.dynamic_flash_start_addr' + 'appsize_requested_by_ota_app' invades other regions which is already occupied by other apps
-                // Since app_start_address jumps based on power of 2, there is no overlap region case.
-                // However, we check overlap region for fail-safety!
-                // If there is the overlap region, we try to find another 'app_start_address' satisfying MPU rules recursively
-
-                let address_validity_check = self.check_overlap_region(proc_data);
-
-                match address_validity_check{
-                    Ok(()) => {
-                        return Ok(());
-                    }
-                    Err((new_start_addr, _e)) => {
-                        // We try to parse again from the new start address point!
-                        app_start_address = new_start_addr;
-
-                        let new_header_slice =  unsafe {
-                            core::slice::from_raw_parts(
-                            app_start_address as *const u8,
-                            8,
-                        )};
-
-                        let new_entry_length = u32::from_le_bytes([new_header_slice[4], new_header_slice[5], new_header_slice[6], new_header_slice[7]]);
-                        
-                        // entry_length is replaced by new_entry_length
-                        entry_length = new_entry_length;
-                    }
-                }
             }
-            /****************************************************** End ******************************************************/
-
-            // Jump to the maximum length based on power of 2
-            // If 'tockloader' offers flashing app bundles with MPU subregion rules (e.g., 16k+32k consecutive), we need more logic!
-            // We have to check whether or not there is subregion, and jump to the start address of 32k (Todo!)
-            app_start_address += cmp::max(proc_data.appsize_requested_by_ota_app, entry_length.try_into().unwrap());
-            proc_data.dynamic_flash_start_addr = app_start_address;
         }
 
         //If we cannot parse a vaild start address satisfying MPU rules, we return Error.
         return Err(ProcessLoadError::NotEnoughFlash);
+    }
+
+    fn is_padding_app(
+        &self,
+        start_addr: usize,
+    )-> Result<bool, ProcessLoadError> {
+        
+        //We only need tbf header information to get the size of app which is already loaded
+        let header_info = unsafe {
+            core::slice::from_raw_parts(
+                start_addr as *const u8,
+                8,
+            )
+        };
+
+        let test_header_slice = match header_info.get(0..8) {
+            Some(s) => s,
+            None => {
+                // Not enough flash to test for another app. This just means
+                // We are at the end of flash (0x80000). => This case is Error!
+                // But we can't reach out to here in this while statement!
+                return Err(ProcessLoadError::InternalError);
+            }
+        };
+
+        // Pass the first eight bytes to tbfheader to parse out the length of
+        // the tbf header and app. We then use those values to see if we have
+        // enough flash remaining to parse the remainder of the header.
+        let (version, header_length, _entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
+            test_header_slice
+                .try_into()
+                .or(Err(ProcessLoadError::InternalError))?,
+        ) {
+            Ok((v, hl, el)) => (v, hl, el),
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
+                // If we could not parse the header, then we want to skip over
+                // this app and look for the next one.
+                return Err(ProcessLoadError::InternalError); 
+            }
+            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                // Since Tock apps use a linked list, it is very possible the
+                // header we started to parse is intentionally invalid to signal
+                // the end of apps. This is ok and just means we have finished
+                // loading apps.
+                // => After increasing start_addr, it means that it is empty region!
+                return Ok(false);
+            }
+        };
+
+
+        //If a padding app is exist at the start address satisfying MPU rules, we load the new app from here!
+        let header_flash = unsafe {
+            core::slice::from_raw_parts(
+                start_addr as *const u8,
+                header_length as usize,
+            )
+        };
+
+        let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, version)?;
+
+        // If this isn't an app (i.e. it is padding)
+        if !tbf_header.is_app() {
+            return Ok(true);
+        }
+
+        return Ok(false);
+    }
+
+    fn is_empty_flash_region(
+        &self,
+        start_addr: usize,
+    )-> Result<(bool, usize), ProcessLoadError> {
+        
+        //We only need tbf header information to get the size of app which is already loaded
+        let header_info = unsafe {
+            core::slice::from_raw_parts(
+                start_addr as *const u8,
+                8,
+            )
+        };
+
+        let test_header_slice = match header_info.get(0..8) {
+            Some(s) => s,
+            None => {
+                // Not enough flash to test for another app. This just means
+                // We are at the end of flash (0x80000). => This case is Error!
+                // But we can't reach out to here in this while statement!
+                return Err(ProcessLoadError::NotEnoughFlash);
+            }
+        };
+
+        let (_version, _header_length, entry_length) = match tock_tbf::parse::parse_tbf_header_lengths(
+            test_header_slice
+                .try_into()
+                .or(Err(ProcessLoadError::InternalError))?,
+        ) {
+            Ok((v, hl, el)) => (v, hl, el),
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
+                // If we could not parse the header, then we want to skip over
+                // this app and look for the next one.
+                return Err(ProcessLoadError::InternalError);
+            }
+            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                // Since Tock apps use a linked list, it is very possible the
+                // header we started to parse is intentionally invalid to signal
+                // the end of apps. This is ok and just means we have finished
+                // loading apps. => This case points the writable 'start_addr' satisfying MPU rules for an new app
+                return Ok((true, 0));
+            }
+        };
+
+        return Ok((false, entry_length as usize));
     }
 
     // In order to match the result value of command
@@ -424,9 +497,8 @@ impl <C:'static + Chip> ProcessLoader <C> {
         proc_data: &mut ProcLoaderData,
     ) -> Result<(), (usize, ProcessLoadError)>{
         
-        let mut recal :bool = false;
         let mut index = 0;
-        let mut new_process_start_address = proc_data.dynamic_flash_start_addr;
+        let new_process_start_address = proc_data.dynamic_flash_start_addr;
         let new_process_end_address = proc_data.dynamic_flash_start_addr + proc_data.appsize_requested_by_ota_app - 1;
 
         while index < proc_data.index
@@ -437,7 +509,6 @@ impl <C:'static + Chip> ProcessLoader <C> {
             //debug!("process_start_address, process_end_address, {:#010X} {:#010X}", process_start_address, process_end_address);
             //debug!("new_process_start_address, new_process_end_address, {:#010X} {:#010X}", new_process_start_address, new_process_end_address);
 
-            //If Else sequence is intended!
             if new_process_end_address >= process_start_address && new_process_end_address <= process_end_address          
             {
                 /* Case 1
@@ -449,10 +520,10 @@ impl <C:'static + Chip> ProcessLoader <C> {
                 *             |_________________|        |_______________|         |_________________|
                 * 
                 * ^...........^                                           ^........^
-                * In this case, we discard this region, and we try to find another start address from the start address of app2
+                * In this case, we discard this region, and we try to find another start address from the end address + 1 of app2
                 */
                 
-                return Err((process_start_address, ProcessLoadError::NotEnoughFlash));
+                return Err((process_end_address + 1, ProcessLoadError::NotEnoughFlash));
             }
 
             else if new_process_start_address >= process_start_address && new_process_start_address <= process_end_address
@@ -466,26 +537,12 @@ impl <C:'static + Chip> ProcessLoader <C> {
                 *             |_________________|
                 * 
                 *                 ^
-                *                 | In this case, the start address of new app is replaced by 'the end address + 1' of app2 . Since we don't know whether or not there are oter apps after pusing new app
-                *                   we check whether or not 'the recalibrated new_process_start_address + the length' invades another region occupied by app3
-                *                   It means that, if this recalibrated region commits Case 1, we discard this region, and then find another start address from app3
+                *                 | In this case, the start address of new app is replaced by 'the end address + 1' of app2, and retry to find another start address from the end address + 1 of app2
                 */
-
-                new_process_start_address = process_end_address + 1;
-                proc_data.dynamic_flash_start_addr = new_process_start_address;
-                recal = true;
+                return Err((process_end_address + 1, ProcessLoadError::NotEnoughFlash));
             }
 
-            if recal == true
-            {
-                //we check from scratch again!
-                recal = false;
-                index = 0;
-            }
-            else
-            {
-                index += 1;
-            }
+            index += 1;
         }
 
         return Ok(());
@@ -580,11 +637,12 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
     /// - `6`: Return an index that is used to store the entry point of an app flashed into PROCESS global array
     ///        With this index, we prevent the kernel from loading 4 more than applications
     /// - `7`: Return the start address of flash memory allocated to apps (i.e., 0x40000 in case of this platform)
-    /// - `8`: Return the number of supported process by platform (e.g., 4 in case of microbit_v2)
-    /// - `9`: Return the start address of a process
-    /// - `10`: Return the size of a process
-    /// - `11`: Return kernel version
-    /// - `12`: Return padding app header length
+    /// - `8`: Return the end address of flash memory allocated to apps (i.e., 0x40000 in case of this platform)
+    /// - `9`: Return the number of supported process by platform (e.g., 4 in case of microbit_v2)
+    /// - `10`: Return the start address of a process
+    /// - `11`: Return the size of a process
+    /// - `12`: Return kernel version
+    /// - `13`: Return padding app header length
     
     fn command(
         &self,
@@ -676,14 +734,20 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
                 CommandReturn::success_u32(self.start_app as u32)
             }
 
-            /* Return the number of supported process by platform (e.g., 4 in case of microbit_v2)  */
+            /* Return the end address of flash memory allocated to apps (i.e., 0x80000 in case of this platform)  */
             8 =>
+            {
+                CommandReturn::success_u32(self.end_app as u32)
+            }
+
+            /* Return the number of supported process by platform (e.g., 4 in case of microbit_v2)  */
+            9 =>
             {
                 CommandReturn::success_u32(self.supported_process_num as u32)
             }
 
             /* Return the start address of a process  */
-            9 =>
+            10 =>
             {
                 let requested_index = arg1;
                 let start_addr = unsafe { *self.ptr_process_region_start_address.offset(requested_index.try_into().unwrap()) };
@@ -692,7 +756,7 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             }
 
             /* Return the size of a process  */
-            10 =>
+            11 =>
             {
                 let requested_index = arg1;
                 let size = unsafe { *self.ptr_process_region_size.offset(requested_index.try_into().unwrap()) };
@@ -701,7 +765,7 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             }
 
             /* Return kernel version  */
-            11 =>
+            12 =>
             {
                 let res = self.kernel_version();
 
@@ -712,7 +776,7 @@ impl <C:'static + Chip> SyscallDriver for ProcessLoader <C> {
             }
 
             /* Return padding app header length  */
-            12 =>
+            13 =>
             {
                 CommandReturn::success_u32(16 as u32)    
             }
