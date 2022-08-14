@@ -14,6 +14,7 @@ In addition, it describes the design overview.
   *[State Machine](#state-machine)
 - [Guide for demo](#guide-for-demo)
 - [To do list](#to-do-list)
+- [Issues](#issues)
 
 <!-- tocstop -->
 
@@ -228,6 +229,13 @@ between the loaded apps. Padding apps are loaded after loading a new app
 from OTA app. Below picture shows the result of `tockloader list --verbose`
 ![ota alignment with padding apps](Alignment_With_Padding_Apps.png) 
 
+[2022-08-14]
+Before writing TBF binary data into flash, we check TBF header validity
+1) The header length isn't greater than the entire app
+2) The header length is at least as large as the v2 required header (16 bytes)
+3) Check consistency between the requested app size and the app size in TBF header
+
+
 ### State Machine
 [2022-07-22] `OTA app` follows the below state machine.
 0) [Init stage]
@@ -236,7 +244,7 @@ from OTA app. Below picture shows the result of `tockloader list --verbose`
       the number of supported process)
     
 When receving commands, the below state machine is executed.
-1) [COMMAND_SET_INIT]
+1) [COMMAND_FIND_STADDR]
     - The size of an app which will be loaded are saved.
     - Request to find dynamically changing flash start address, and 
       get the address.
@@ -249,30 +257,39 @@ When receving commands, the below state machine is executed.
     - Write the app binary into flash memory (512 bytes)
     - Repeat writing the binary
     
-3) [COMMAND_WRITE_PADDING_DATA]
+3) [COMMAND_WRITE_PADDING_BOUNDARY]
     - Write 01, 01, 01.. (512 bytes) padding data in order to make boundaries 
       between apps.
-    
-4) [COMMAND_SEND_CRC]
+
+4) [COMMAND_WRITE_PADDING_APP]
+    - After loading a new app, insert padding apps between sparsely loaded apps
+    - So, the loaded apps will be loaded successfully even after a reset!
+    - Additionally, we also check CRC32 consistency of the inserted padding apps
+
+5) [COMMAND_SEND_CRC]
     - Check whether or not three CRC32 values are same. If not, 
       send the external tool fail response.
       Then, the loaded app will be erased. 
     
-5) [COMMAND_APP_LOAD]
+6) [COMMAND_APP_LOAD]
     - Request loading the entry point of the loaded app. 
       If the flashed app doesn't meet `MPU alignment rule`, `OTA app` sends 
       the external tool fail response. Then, the loaded app will be erased. 
     
-6) [COMMAND_APP_ERASE]
+7) [COMMAND_APP_ERASE]
     - When receiving the erase request, it erases the loaded app.
 
-[2022-08-01] Delete [COMMAND_WRITE_PADDING_DATA] state. It causes that 
+[2022-08-01] Delete [COMMAND_WRITE_PADDING_BOUNDARY] state. It causes that 
 a new app manipulates other regions already occupied by other apps!
 
 [2022-08-11] Add [COMMAND_WRITE_PADDING_APP]
     - After loading a new app, insert padding apps between sparsely loaded apps
     - So, the loaded apps will be loaded successfully even after a reset!
     - Additionally, we also check CRC32 consistency of the inserted padding apps
+
+[2022-08-14] Revive [COMMAND_WRITE_PADDING_BOUNDARY] state.
+    - Although it causes deleting a header information of an existing app 
+    - in some cases, it is conditional. So, it's ok
 
 
 ## Guide for demo
@@ -308,9 +325,28 @@ together with OTA app. Since tockloader adds 512 bytes of 01 padding
 from the end of an app, It causes manipulating the header information of 
 another app which is next to the loaded app immediately.
 
+[2022-08-14] OTA app can be used together with `tocklaoder erase-apps`, and it
+is totally compatible with `tocklaoder erase-apps`.
+
 ## To do list
 1) Adding security features (i.e., system call filter, permission header)
 2) Need to come up with an idea to meet `MPU alignment rule` [2022-08-01 Added]
 3) Document dynamic view of `OTA app`
 4) Erase function and etc..
+
+### Update Scenario
+1) Erase 1 page of an existing app
+512 bytes 01 padding which are attached to the end of a loaded app delete
+an existing app. For exampe, when loading 128k -> 64k apps, 1 page of 128k app
+will be deleted. 
+[2022-08-14] Sloved: Added a logic to check whether or not the 128k app is 
+actually loaded app. If so, we do not write 512 bytes 01 padding.
+
+2) Flash Memory Leakage
+If we iterate loading apps by OTA app and `tockloader erase-apps`, we face the
+Flash Memory Leakage issue. Because `tockloader erase-apps` does not actaully
+erase the entire region of the existing apps in flash. So, when finding a start
+address, the logic skips this remnant app.
+[2022-08-14] Sloved: Added a logic to check whether or not the existing apps are 
+actually loaded app. If not, we load a new app from there.
 
