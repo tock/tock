@@ -51,6 +51,9 @@ pub struct NonvolatileStorageComponent<
     userspace_length: usize,
     kernel_start: usize,
     kernel_length: usize,
+    supported_process_num: usize,
+    process_region_start_address: &'static [usize],
+    process_region_size: &'static [usize],
 }
 
 impl<
@@ -67,6 +70,9 @@ impl<
         userspace_length: usize,
         kernel_start: usize,
         kernel_length: usize,
+        supported_process_num: usize,
+        process_region_start_address: &'static [usize],
+        process_region_size: &'static [usize],
     ) -> Self {
         Self {
             board_kernel,
@@ -76,6 +82,9 @@ impl<
             userspace_length,
             kernel_start,
             kernel_length,
+            supported_process_num,
+            process_region_start_address,
+            process_region_size,
         }
     }
 }
@@ -117,7 +126,10 @@ impl<
                 self.userspace_length, // Length of userspace accessible region
                 self.kernel_start,    // Start address of kernel region
                 self.kernel_length,   // Length of kernel region
-                &mut capsules::nonvolatile_storage_driver::BUFFER
+                &mut capsules::nonvolatile_storage_driver::BUFFER,
+                self.supported_process_num,
+                self.process_region_start_address,
+                self.process_region_size,
             )
         );
         hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
