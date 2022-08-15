@@ -229,11 +229,29 @@ between the loaded apps. Padding apps are loaded after loading a new app
 from OTA app. Below picture shows the result of `tockloader list --verbose`
 ![ota alignment with padding apps](Alignment_With_Padding_Apps.png) 
 
+[2022-08-11] 
+There are two arrays. `PROCESSES_REGION_START_ADDRESS` and `PROCESSES_REGION_SIZE`
+at main.rs. We save the start address and the size of a loaded process into the two
+arrays respectively. The two arrays are used as below.
+1) Check whether or not a new flash region invades the other regions occupied by
+the exisiting apps at `check_overlap_region` function.
+2) Check whether or not a remnant app binaray data actually are loaded into PROCESS
+global array at `find_dynamic_start_address_of_writable_flash_advanced` function.
+3) Check whether or not a malicious ota app write data to the flash regions occupied
+by the existing apps at `check_offset_is_in_processes` function.
+
 [2022-08-14]
 Before writing TBF binary data into flash, we check TBF header validity
 1) The header length isn't greater than the entire app
 2) The header length is at least as large as the v2 required header (16 bytes)
 3) Check consistency between the requested app size and the app size in TBF header
+
+[2022-08-15]
+Added a security feature.
+1) Attack Scenario: A malicious ota app is installed via OTA app, and it deletes 
+(0xff) all of the flash region  by using `nonvolatile_storage_driver`. 
+2) Result: Although the malicious ota app manipulate the regions unoccupied by the 
+existing apps, it cannot invades the other regions occupied by the existing apps.
 
 
 ### State Machine
@@ -329,12 +347,17 @@ another app which is next to the loaded app immediately.
 is totally compatible with `tocklaoder erase-apps`.
 
 ## To do list
-1) Adding security features (i.e., system call filter, permission header)
-2) Need to come up with an idea to meet `MPU alignment rule` [2022-08-01 Added]
+1) Adding security features
+- Prevent a malicious ota app from manipulating the region occupied by
+  the existing apps [2022-08-15]  
+- System call filter and permission header [Todo]
+2) Need to come up with an idea to meet `MPU alignment rule`
+- Basic MPU alignment rules [2022-08-01]
+- Subregion MPU rules [Todo]
 3) Document dynamic view of `OTA app`
 4) Erase function and etc..
 
-### Update Scenario
+### Issues
 1) Erase 1 page of an existing app
 512 bytes 01 padding which are attached to the end of a loaded app delete
 an existing app. For exampe, when loading 128k -> 64k apps, 1 page of 128k app
