@@ -544,6 +544,9 @@ pub unsafe fn main() {
         0x00040000, // Length of userspace accessible region
         0x00000000, // Start address of kernel region
         0x00040000, // Length of kernel region
+        NUM_PROCS,
+        &PROCESSES_REGION_START_ADDRESS,
+        &PROCESSES_REGION_SIZE,
     )
     .finalize(components::nv_storage_component_helper!(
         nrf52833::nvmc::Nvmc
