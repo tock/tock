@@ -161,8 +161,8 @@ pub fn load_processes_advanced<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     require_kernel_version: bool,
     _capability: &dyn ProcessManagementCapability,
-    process_region_start_address: &mut [usize; 4],
-    process_region_size: &mut [usize; 4],
+    process_region_start_address: &mut [usize],
+    process_region_size: &mut [usize],
 ) -> Result<(usize, usize), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
@@ -304,8 +304,8 @@ pub fn load_processes<C: Chip>(
     procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability: &dyn ProcessManagementCapability,
-    process_region_start_address: &mut [usize; 4],
-    process_region_size: &mut [usize; 4],
+    process_region_start_address: &mut [usize],
+    process_region_size: &mut [usize],
 ) -> Result<(usize, usize), ProcessLoadError> {
     load_processes_advanced(
         kernel,
