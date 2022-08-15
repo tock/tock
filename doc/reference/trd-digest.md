@@ -19,7 +19,7 @@ for hash functions. A digest is the output of a hash function. It
 describes the Rust traits and other definitions for this service as
 well as the reasoning behind them. This document is in full compliance
 with [TRD1](./trd1-trds.md). The HIL in this document also adheres to
-the rules in the [HIL Design Guide](./trd-hil-design.md), which
+the rules in the [HIL Design Guide](./trd2-hil-design.md), which
 requires all callbacks to be asynchronous -- even if they could be
 synchronous.
 
