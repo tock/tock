@@ -249,9 +249,9 @@ Before writing TBF binary data into flash, we check TBF header validity
 [2022-08-15]
 Added a security feature.
 1) Attack Scenario: A malicious ota app is installed via OTA app, and it deletes 
-(0xff) all of the flash region  by using `nonvolatile_storage_driver`. 
+(0xff) all of the app flash region by using `nonvolatile_storage_driver`. 
 2) Result: Although the malicious ota app manipulate the regions unoccupied by the 
-existing apps, it cannot invades the other regions occupied by the existing apps.
+existing apps, it doesn't have to invade the other regions occupied by the existing apps.
 
 
 ### State Machine
