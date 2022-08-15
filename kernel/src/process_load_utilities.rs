@@ -504,7 +504,7 @@ impl <C:'static + Chip> ProcessLoader <C> {
         while index < proc_data.index
         {
             let process_start_address = unsafe { *self.ptr_process_region_start_address.offset(index.try_into().unwrap()) };
-            let process_end_address = unsafe{ *self.ptr_process_region_start_address.offset(index.try_into().unwrap()) + *self.ptr_process_region_size.offset(index.try_into().unwrap()) -1 };
+            let process_end_address = unsafe{ (*self.ptr_process_region_start_address.offset(index.try_into().unwrap()) + *self.ptr_process_region_size.offset(index.try_into().unwrap())) -1};
 
             //debug!("process_start_address, process_end_address, {:#010X} {:#010X}", process_start_address, process_end_address);
             //debug!("new_process_start_address, new_process_end_address, {:#010X} {:#010X}", new_process_start_address, new_process_end_address);
