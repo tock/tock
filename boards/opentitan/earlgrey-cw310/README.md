@@ -1,4 +1,4 @@
-OpenTitan ChipWhisper CW310 Board
+OpenTitan on the ChipWhisper CW310 Board
 ======================
 
 - https://opentitan.org/
