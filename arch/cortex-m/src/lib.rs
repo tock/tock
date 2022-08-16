@@ -556,7 +556,7 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
         exception_number,
         ipsr_isr_number_to_str(exception_number),
         faulting_stack as u32,
-        (_estack as *const ()) as u32,
+        (&_estack as *const u32) as u32,
         (&_sstack as *const u32) as u32,
         shcsr,
         cfsr,
