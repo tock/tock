@@ -23,7 +23,7 @@ flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).bin
 
 .PHONY: flash-app
 flash-app:
-	python ambiq/ambiq_bin2board.py --bin $(APP) --load-address-blob 0x40000 -b 115200 -port $(PORT) -r 2 -v --magic-num 0xCB --version 0x0 --load-address-wired 0x40000 -i 6 --options 0x1
+	python ambiq/ambiq_bin2board.py --bin $(APP) --load-address-blob 0x60000 -b 115200 -port $(PORT) -r 2 -v --magic-num 0xCB --version 0x0 --load-address-wired 0x40000 -i 6 --options 0x1
 
 .PHONY: test
 test:
