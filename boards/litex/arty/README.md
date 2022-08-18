@@ -120,8 +120,8 @@ To boot via serial run the LiteX-included `litex_term.py` (sometimes
 available as `lxterm`):
 ```
 $ ./litex/litex/tools/litex_term.py \
-    --speed 10000000 \
-	--serial-boot \
+    --speed 1000000 \
+    --serial-boot \
     --kernel $TOCK_BINARY \
     $SERIAL_PORT
 ```
