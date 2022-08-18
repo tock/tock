@@ -14,18 +14,6 @@ pub use cortexm::support;
 pub use cortexm::nvic;
 pub use cortexm::syscall;
 
-extern "C" {
-    // _estack is not really a function, but it makes the types work
-    // You should never actually invoke it!!
-    fn _estack();
-    static mut _sstack: u32;
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
-}
-
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 struct HardFaultStackedRegisters {
     r0: u32,
