@@ -140,6 +140,7 @@ struct LiteXArty {
             >,
         >,
     >,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -165,6 +166,7 @@ impl SyscallDriverLookup for LiteXArty {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -526,6 +528,11 @@ pub unsafe fn main() {
         led_driver,
         scheduler,
         scheduler_timer,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
     };
 
     let _ = litex_arty.pconsole.start();
@@ -563,10 +570,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &litex_arty,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_cap,
-    );
+    board_kernel.kernel_loop(&litex_arty, chip, Some(&litex_arty.ipc), &main_loop_cap);
 }
