@@ -111,6 +111,19 @@ struct LiteXArty {
         4,
     >,
     console: &'static capsules::console::Console<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        VirtualMuxAlarm<
+            'static,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+        >,
+        components::process_console::Capability,
+    >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
         capsules::virtual_uart::UartDevice<'static>,
@@ -468,6 +481,22 @@ pub unsafe fn main() {
     // Unmask all interrupt sources in the interrupt controller
     chip.unmask_interrupts();
 
+    // Setup the process console.
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        litex_vexriscv::timer::LiteXAlarm<
+            'static,
+            'static,
+            socc::SoCRegisterFmt,
+            socc::ClockFrequency,
+        >
+    ));
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -475,6 +504,7 @@ pub unsafe fn main() {
         uart_mux,
     )
     .finalize(components::console_component_helper!());
+
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -485,6 +515,20 @@ pub unsafe fn main() {
     )
     .finalize(());
 
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::coop_component_helper!(NUM_PROCS));
+
+    let litex_arty = LiteXArty {
+        console,
+        pconsole,
+        alarm,
+        lldb,
+        led_driver,
+        scheduler,
+        scheduler_timer,
+    };
+
+    let _ = litex_arty.pconsole.start();
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
 
     // These symbols are defined in the linker script.
@@ -498,18 +542,6 @@ pub unsafe fn main() {
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
-
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
-
-    let litex_arty = LiteXArty {
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
-        led_driver,
-        scheduler,
-        scheduler_timer,
-    };
 
     kernel::process::load_processes(
         board_kernel,
