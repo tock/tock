@@ -215,6 +215,7 @@ impl<'a> UDPDriver<'a> {
                             Err(ErrorCode::NOMEM),
                             |mut kernel_buffer| {
                                 if payload.len() > kernel_buffer.len() {
+                                    self.kernel_buffer.replace(kernel_buffer);
                                     return Err(ErrorCode::SIZE);
                                 }
                                 payload.copy_to_slice(&mut kernel_buffer[0..payload.len()]);
