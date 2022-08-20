@@ -103,7 +103,7 @@ pub struct MicroBit {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
-    buzzer: &'static capsules::buzzer::Buzzer<
+    buzzer_driver: &'static capsules::buzzer_driver::Buzzer<
         'static,
         capsules::buzzer_pwm::PwmBuzzer<
             'static,
@@ -135,7 +135,7 @@ impl SyscallDriverLookup for MicroBit {
             capsules::lsm303agr::DRIVER_NUM => f(Some(self.lsm303agr)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::buzzer::DRIVER_NUM => f(Some(self.buzzer)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer_driver)),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             capsules::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -344,8 +344,8 @@ pub unsafe fn main() {
         )
     );
 
-    let buzzer = static_init!(
-        capsules::buzzer::Buzzer<
+    let buzzer_driver = static_init!(
+        capsules::buzzer_driver::Buzzer<
             'static,
             capsules::buzzer_pwm::PwmBuzzer<
                 'static,
@@ -353,13 +353,17 @@ pub unsafe fn main() {
                 capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
             >,
         >,
-        capsules::buzzer::Buzzer::new(
+        capsules::buzzer_driver::Buzzer::new(
             pwm_buzzer,
-            board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
+            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+            board_kernel.create_grant(
+                capsules::buzzer_driver::DRIVER_NUM,
+                &memory_allocation_capability
+            )
         )
     );
 
-    pwm_buzzer.set_client(buzzer);
+    pwm_buzzer.set_client(buzzer_driver);
 
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
@@ -625,7 +629,7 @@ pub unsafe fn main() {
         temperature,
         lsm303agr,
         ninedof,
-        buzzer,
+        buzzer_driver,
         sound_pressure,
         adc: adc_syscall,
         alarm,

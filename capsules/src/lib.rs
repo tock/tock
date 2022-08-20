@@ -18,7 +18,7 @@ pub mod ble_advertising_driver;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
-pub mod buzzer;
+pub mod buzzer_driver;
 pub mod buzzer_pwm;
 pub mod console;
 pub mod crc;

@@ -83,7 +83,7 @@ pub struct Platform {
     gpio_async:
         &'static capsules::gpio_async::GPIOAsync<'static, capsules::mcp230xx::MCP230xx<'static>>,
     light: &'static capsules::ambient_light::AmbientLight<'static>,
-    buzzer: &'static capsules::buzzer::Buzzer<
+    buzzer: &'static capsules::buzzer_driver::Buzzer<
         'static,
         capsules::buzzer_pwm::PwmBuzzer<
             'static,
@@ -111,7 +111,7 @@ impl SyscallDriverLookup for Platform {
             capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules::gpio_async::DRIVER_NUM => f(Some(self.gpio_async)),
             capsules::ambient_light::DRIVER_NUM => f(Some(self.light)),
-            capsules::buzzer::DRIVER_NUM => f(Some(self.buzzer)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -526,7 +526,7 @@ pub unsafe fn main() {
     );
 
     let buzzer = static_init!(
-        capsules::buzzer::Buzzer<
+        capsules::buzzer_driver::Buzzer<
             'static,
             capsules::buzzer_pwm::PwmBuzzer<
                 'static,
@@ -534,9 +534,13 @@ pub unsafe fn main() {
                 capsules::virtual_pwm::PwmPinUser<'static, nrf52832::pwm::Pwm>,
             >,
         >,
-        capsules::buzzer::Buzzer::new(
+        capsules::buzzer_driver::Buzzer::new(
             pwm_buzzer,
-            board_kernel.create_grant(capsules::buzzer::DRIVER_NUM, &memory_allocation_capability)
+            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+            board_kernel.create_grant(
+                capsules::buzzer_driver::DRIVER_NUM,
+                &memory_allocation_capability
+            )
         )
     );
 
