@@ -5,7 +5,7 @@ use kernel::hil::gpio::Pin;
 use kernel::hil::spi::{self, SpiSlave};
 use sam4l::spi::SPI as SPI_SLAVE;
 
-#[allow(unused_variables,dead_code)]
+#[allow(unused_variables, dead_code)]
 pub struct SlaveCB {
     val: u8,
 }
@@ -16,11 +16,13 @@ pub static mut BUF1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 pub static mut BUF2: [u8; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
 
 impl spi::SpiSlaveClient for SlaveCB {
-    #[allow(unused_variables,dead_code)]
-    fn read_write_done(&self,
-                       write_buffer: Option<&'static mut [u8]>,
-                       read_buffer: Option<&'static mut [u8]>,
-                       len: usize) {
+    #[allow(unused_variables, dead_code)]
+    fn read_write_done(
+        &self,
+        write_buffer: Option<&'static mut [u8]>,
+        read_buffer: Option<&'static mut [u8]>,
+        len: usize,
+    ) {
         unsafe {
             SPI_SLAVE.read_write_bytes(Some(&mut BUF2), None, 8);
         }
@@ -45,9 +47,6 @@ impl spi::SpiSlaveClient for SlaveCB {
                 SPI_SLAVE.set_write_byte(BUF2[COUNTER]);
             }
             */
-
-
-
         }
     }
 }
@@ -55,9 +54,8 @@ impl spi::SpiSlaveClient for SlaveCB {
 pub static mut SPISLAVECB: SlaveCB = SlaveCB { val: 0x55 as u8 };
 
 #[inline(never)]
-#[allow(unused_variables,dead_code)]
+#[allow(unused_variables, dead_code)]
 pub unsafe fn spi_slave_dummy_test() {
-
     // set the LED to mark that we've programmed.
     // TODO: This doesn't do anything? We always blink...
     sam4l::gpio::PC[10].make_output();
@@ -84,5 +82,5 @@ pub unsafe fn spi_slave_dummy_test() {
 
     // pin2.clear();
 
-    // TODO: We clear this for the trigger, set it perminantly to behave as NSS
+    // TODO: We clear this for the trigger, set it permanently to behave as NSS
 }

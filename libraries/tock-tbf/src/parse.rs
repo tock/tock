@@ -139,7 +139,10 @@ pub fn parse_tbf_header(
                 while remaining.len() > 0 {
                     // Get the T and L portions of the next header (if it is
                     // there).
-                    let tlv_header: types::TbfTlv = remaining.try_into()?;
+                    let tlv_header: types::TbfTlv = remaining
+                        .get(0..4)
+                        .ok_or(types::TbfParseError::NotEnoughFlash)?
+                        .try_into()?;
                     remaining = remaining
                         .get(4..)
                         .ok_or(types::TbfParseError::NotEnoughFlash)?;
@@ -147,12 +150,13 @@ pub fn parse_tbf_header(
                     match tlv_header.tipe {
                         types::TbfHeaderTypes::TbfHeaderMain => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Main>();
-
                             // If there is already a header do nothing: if this is a second Main
                             // keep the first one, if it's a Program we ignore the Main
                             if main_pointer.is_none() {
                                 if tlv_header.length as usize == entry_len {
-                                    main_pointer = Some(remaining.try_into()?);
+                                    main_pointer = Some(remaining.get(0..entry_len)
+                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                                        .try_into()?);
                                 } else {
                                     return Err(types::TbfParseError::BadTlvEntry(
                                         tlv_header.tipe as usize,
@@ -164,7 +168,9 @@ pub fn parse_tbf_header(
                             let entry_len = mem::size_of::<types::TbfHeaderV2Program>();
                             if program_pointer.is_none() {
                                 if tlv_header.length as usize == entry_len {
-                                    program_pointer = Some(remaining.try_into()?);
+                                    program_pointer = Some(remaining.get(0..entry_len)
+                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                                           .try_into()?);
                                 } else {
                                     return Err(types::TbfParseError::BadTlvEntry(
                                         tlv_header.tipe as usize,
@@ -224,9 +230,14 @@ pub fn parse_tbf_header(
                         }
 
                         types::TbfHeaderTypes::TbfHeaderFixedAddresses => {
-                            let entry_len = 8;
+                            let entry_len = mem::size_of::<types::TbfHeaderV2FixedAddresses>();
                             if tlv_header.length as usize == entry_len {
-                                fixed_address_pointer = Some(remaining.try_into()?);
+                                fixed_address_pointer = Some(
+                                    remaining
+                                        .get(0..entry_len)
+                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                        .try_into()?,
+                                );
                             } else {
                                 return Err(types::TbfParseError::BadTlvEntry(
                                     tlv_header.tipe as usize,
@@ -243,9 +254,14 @@ pub fn parse_tbf_header(
                         }
 
                         types::TbfHeaderTypes::TbfHeaderKernelVersion => {
-                            let entry_len = 4;
+                            let entry_len = mem::size_of::<types::TbfHeaderV2KernelVersion>();
                             if tlv_header.length as usize == entry_len {
-                                kernel_version = Some(remaining.try_into()?);
+                                kernel_version = Some(
+                                    remaining
+                                        .get(0..entry_len)
+                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                        .try_into()?,
+                                );
                             } else {
                                 return Err(types::TbfParseError::BadTlvEntry(
                                     tlv_header.tipe as usize,

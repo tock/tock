@@ -15,6 +15,7 @@ use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules::virtual_alarm::MuxAlarm;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::bme280::Bme280Component;
+use components::ccs811::Ccs811Component;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -63,6 +64,7 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 // Test access to sensors
 static mut BME280: Option<&'static capsules::bme280::Bme280<'static>> = None;
+static mut CCS811: Option<&'static capsules::ccs811::Ccs811<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -91,6 +93,7 @@ struct RedboardArtemisNano {
     >,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    air_quality: &'static capsules::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -110,6 +113,7 @@ impl SyscallDriverLookup for RedboardArtemisNano {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
             _ => f(None),
         }
     }
@@ -169,7 +173,7 @@ unsafe fn setup() -> (
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -290,6 +294,16 @@ unsafe fn setup() -> (
     .finalize(());
     BME280 = Some(bme280);
 
+    let ccs811 = Ccs811Component::new(mux_i2c, 0x5B, dynamic_deferred_caller)
+        .finalize(components::ccs811_component_helper!());
+    let air_quality = components::air_quality::AirQualityComponent::new(
+        board_kernel,
+        capsules::temperature::DRIVER_NUM,
+        ccs811,
+    )
+    .finalize(());
+    CCS811 = Some(ccs811);
+
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
@@ -339,6 +353,7 @@ unsafe fn setup() -> (
             ble_radio,
             temperature,
             humidity,
+            air_quality,
             scheduler,
             systick,
         }

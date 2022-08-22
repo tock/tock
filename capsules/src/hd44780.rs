@@ -490,9 +490,9 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         self.lcd_command(LCD_DISPLAYCONTROL | self.display_control.get(), next_state);
     }
 
-    /// `lcd_command()` is the main funcion that communicates with the device, and
+    /// `lcd_command()` is the main function that communicates with the device, and
     /// sends certain values received as arguments to the device (through
-    /// write_4_bits function). Due to the delays, the funcion is continued in
+    /// write_4_bits function). Due to the delays, the function is continued in
     /// the fired() function.
     ///
     /// As arguments, there are:

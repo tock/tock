@@ -219,7 +219,7 @@
 //
 // Issues:
 //
-//   * On imix, the reciever sometimes fails to receive a fragment. This
+//   * On imix, the receiver sometimes fails to receive a fragment. This
 //     occurs below the Mac layer, and prevents the packet from being fully
 //     reassembled.
 //
@@ -338,7 +338,7 @@ impl<'a> TxState<'a> {
     /// global state for the entire Sixlowpan layer.
     pub fn new(sixlowpan: &'a dyn SixlowpanState<'a>) -> TxState<'a> {
         TxState {
-            // Externally setable fields
+            // Externally settable fields
             src_pan: Cell::new(0),
             dst_pan: Cell::new(0),
             src_mac_addr: Cell::new(MacAddress::Short(0)),

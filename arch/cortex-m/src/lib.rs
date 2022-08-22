@@ -412,7 +412,7 @@ pub unsafe fn switch_to_user_arm_v7m(
     // SWITCH
     svc 0xff   // It doesn't matter which SVC number we use here as it has no
                // defined meaning for the Cortex-M syscall interface. Data being
-               // returned from a syscall is transfered on the app's stack.
+               // returned from a syscall is transferred on the app's stack.
 
     // When execution returns here we have switched back to the kernel from the
     // application.
@@ -556,7 +556,7 @@ unsafe fn kernel_hardfault_arm_v7m(faulting_stack: *mut u32) -> ! {
         exception_number,
         ipsr_isr_number_to_str(exception_number),
         faulting_stack as u32,
-        (_estack as *const ()) as u32,
+        (&_estack as *const u32) as u32,
         (&_sstack as *const u32) as u32,
         shcsr,
         cfsr,

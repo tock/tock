@@ -56,7 +56,7 @@ impl BusWidth {
 pub trait Bus<'a> {
     /// Set the address to write to
     ///
-    /// If the underlaying bus does not support addresses (eg UART)
+    /// If the underlying bus does not support addresses (eg UART)
     /// this function returns ENOSUPPORT
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode>;
 

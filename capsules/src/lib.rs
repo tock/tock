@@ -8,6 +8,7 @@ pub mod net;
 
 pub mod adc;
 pub mod adc_microphone;
+pub mod air_quality;
 pub mod alarm;
 pub mod ambient_light;
 pub mod analog_comparator;
@@ -20,6 +21,7 @@ pub mod bmp280;
 pub mod bus;
 pub mod button;
 pub mod buzzer_driver;
+pub mod ccs811;
 pub mod console;
 pub mod crc;
 pub mod ctap;

@@ -592,7 +592,7 @@ impl SyscallDriver for RadioDriver<'_> {
     ///                       up to 9 bytes: the key ID.
     /// - `23`: Get the key at an index.
     ///        app_cfg (out): 16 bytes: the key.
-    /// - `24`: Add a new key with the given descripton.
+    /// - `24`: Add a new key with the given description.
     ///        app_cfg (in): 1 byte: the security level +
     ///                      1 byte: the key ID mode +
     ///                      9 bytes: the key ID (might not use all bytes) +

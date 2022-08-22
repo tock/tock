@@ -466,13 +466,13 @@ impl<
     /// above allow calls.
     ///
     /// We expect userspace not to change the value while running. If userspace
-    /// changes the value we have no guarentee of what is passed to the
+    /// changes the value we have no guarantee of what is passed to the
     /// hardware. This isn't a security issue, it will just prove the requesting
     /// app with invalid data.
     ///
-    /// The driver will take care of clearing data from the underlying impelemenation
+    /// The driver will take care of clearing data from the underlying implementation
     /// by calling the `clear_data()` function when the `hash_complete()` callback
-    /// is called or if an error is encounted.
+    /// is called or if an error is encountered.
     ///
     /// ### `command_num`
     ///
@@ -555,7 +555,7 @@ impl<
                     app.op.set(Some(UserSpaceOp::Update));
                 } else if command_num == 4 {
                     // verify
-                    // Use key and data to compute hash and comapre it against
+                    // Use key and data to compute hash and compare it against
                     // the digest
                     app.op.set(Some(UserSpaceOp::Verify));
                 }
@@ -659,7 +659,7 @@ impl<
                     }
 
                     // verify_finish
-                    // Use key and data to compute hash and comapre it against
+                    // Use key and data to compute hash and compare it against
                     // the digest, useful after a update command
                     5 => {
                         if app_match {

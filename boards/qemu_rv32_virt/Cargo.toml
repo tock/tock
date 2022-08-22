@@ -1,0 +1,14 @@
+[package]
+name = "qemu_rv32_virt"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+build = "build.rs"
+edition = "2018"
+
+[dependencies]
+components = { path = "../components" }
+sifive = { path = "../../chips/sifive" }
+rv32i = { path = "../../arch/rv32i" }
+capsules = { path = "../../capsules" }
+kernel = { path = "../../kernel" }
+qemu_rv32_virt_chip = { path = "../../chips/qemu_rv32_virt_chip" }

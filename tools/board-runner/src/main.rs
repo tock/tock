@@ -2,6 +2,7 @@ use std::env;
 
 pub mod artemis_nano;
 pub mod earlgrey_cw310;
+pub mod esp32_c3;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -19,6 +20,11 @@ fn main() {
             println!("Running Redboard tests...");
             artemis_nano::all_artemis_nano_tests();
             println!("artemis_nano SUCCESS.");
+        } else if arg == "esp32_c3" {
+            println!();
+            println!("Running ESP32-C3 tests...");
+            esp32_c3::all_tests();
+            println!("esp32_c3 SUCCESS.");
         }
     }
 }

@@ -54,7 +54,7 @@ Then you need to flash the bitstream with:
 
 After which you should see some output in the serial window.
 
-Then in the Tock board directoty export the `OPENTITAN_TREE` enviroment
+Then in the Tock board directoty export the `OPENTITAN_TREE` environment
 variable to point to the OpenTitan tree.
 
 ```shell
@@ -172,7 +172,7 @@ RISC-V, allowing quick and easy testing. This is also a good option for
 those who can't afford the FPGA development board.
 
 Unfortunately you need QEMU 6.1, which at the time of writing is unlikely
-to be avaliable in your distro. Luckily Tock can build QEMU for you. From
+to be available in your distro. Luckily Tock can build QEMU for you. From
 the top level of the Tock source just run `make ci-setup-qemu` and
 follow the steps.
 
@@ -234,7 +234,7 @@ or with an app ready to be loaded.
 $ make OPENTITAN_BOOT_ROM=<path_to_opentitan/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf> APP=/path/to/app.tbf qemu-app-gdb
 ```
 
-In a seperate shell, start gdb
+In a separate shell, start gdb
 
 **Arch**
 
@@ -251,7 +251,7 @@ $ gdb-multiarch [/path/to/tock.elf]
 > target remote:1234            #1234 is the specified default port
 ```
 
-Once attached, standard gdb functionality is avaliable. Additional debug symbols can be added with.
+Once attached, standard gdb functionality is available. Additional debug symbols can be added with.
 ```
 add-symbol-file <tock.elf>
 add-symbol-file <app.elf>
@@ -319,8 +319,8 @@ check otbn run binary...
 start TicKV append key test...
 ---Starting TicKV Tests---
 Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48] was added
-Now retriving the key
-Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48, 0] was retrived
+Now retrieving the key
+Key: [18, 52, 86, 120, 154, 188, 222, 240] with value [16, 32, 48, 0] was retrieved
 Removed Key: [18, 52, 86, 120, 154, 188, 222, 240]
 Try to read removed key: [18, 52, 86, 120, 154, 188, 222, 240]
 Unable to find key: [18, 52, 86, 120, 154, 188, 222, 240]
