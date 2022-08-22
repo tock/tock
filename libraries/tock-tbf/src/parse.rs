@@ -154,9 +154,12 @@ pub fn parse_tbf_header(
                             // keep the first one, if it's a Program we ignore the Main
                             if main_pointer.is_none() {
                                 if tlv_header.length as usize == entry_len {
-                                    main_pointer = Some(remaining.get(0..entry_len)
-                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
-                                                        .try_into()?);
+                                    main_pointer = Some(
+                                        remaining
+                                            .get(0..entry_len)
+                                            .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                            .try_into()?,
+                                    );
                                 } else {
                                     return Err(types::TbfParseError::BadTlvEntry(
                                         tlv_header.tipe as usize,
@@ -168,9 +171,12 @@ pub fn parse_tbf_header(
                             let entry_len = mem::size_of::<types::TbfHeaderV2Program>();
                             if program_pointer.is_none() {
                                 if tlv_header.length as usize == entry_len {
-                                    program_pointer = Some(remaining.get(0..entry_len)
-                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
-                                                           .try_into()?);
+                                    program_pointer = Some(
+                                        remaining
+                                            .get(0..entry_len)
+                                            .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                            .try_into()?,
+                                    );
                                 } else {
                                     return Err(types::TbfParseError::BadTlvEntry(
                                         tlv_header.tipe as usize,
