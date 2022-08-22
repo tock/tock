@@ -38,3 +38,19 @@ LIBTOCK_C_TREE=<libtock_c_repo> TARGET=artemis_nano make board-release-test
 
 Where `libtock_c_repo` points to the top level directory of the corresponding
 libtock-c repo.
+
+### ESP32-C3
+
+This can be used to perform Tock release testing on the Espressif ESP32-C3
+board.
+
+This assumes that the ESP32-C3 serial console is available on the machine's
+first serial port (`/dev/ttyUSB0` for Unix systems). The tests can be run from
+the top level of the Tock directory with the following command
+
+```shell
+LIBTOCK_C_TREE=<libtock_c_repo> TARGET=esp32_c3 make board-release-test
+```
+
+Where `libtock_c_repo` points to the top level directory of the corresponding
+libtock-c repo.
