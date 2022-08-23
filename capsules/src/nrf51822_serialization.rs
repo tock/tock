@@ -215,13 +215,21 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                         // The app is set, check if it still exists.
                         if let Err(_err) = self.apps.enter(*appid, |_, _| {}) {
                             // The app we had as active no longer exists.
-                            self.active_app.set(*appid);
+                            self.active_app.clear();
                             self.rx_buffer
                                 .take()
-                                .map_or(CommandReturn::success_u32(len as u32), |buffer| {
+                                .map_or_else(||{
+                                    // We do not have the RF buffer as it is
+                                    // currently in use by the underlying UART.
+                                    // We don't have to do anything else except
+                                    // update the active app.
+                                    self.active_app.set(*appid);
+                                    CommandReturn::success_u32(len as u32)
+                                }, |buffer| {
                                     if len > buffer.len() {
                                         CommandReturn::failure(ErrorCode::SIZE)
                                     } else {
+                                        self.active_app.set(*appid);
                                         // Use the buffer to start the receive.
                                         let _ = self.uart.receive_automatic(buffer, len, 250);
                                         CommandReturn::success_u32(len as u32)
