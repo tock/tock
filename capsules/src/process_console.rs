@@ -382,7 +382,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         "\r\n ╔═══════════╤══════════════════════════════╗\
                     \r\n ║  Address  │ Region Name    Used (bytes)  ║\
                     \r\n ╚{:#010X}═╪══════════════════════════════╝\
-                    \r\n             │   Bss        {:6}",
+                    \r\n             │   BSS        {:6}",
                         bss_end, bss_size
                     ),
                 );
