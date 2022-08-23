@@ -44,10 +44,6 @@ pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
-    /// How many "to-do" items exist at any given time. These include
-    /// outstanding upcalls and processes in the Running state.
-    work: Cell<usize>,
-
     /// This holds a pointer to the static array of Process pointers.
     processes: &'static [Option<&'static dyn process::Process>],
 
@@ -134,7 +130,6 @@ unsafe impl capabilities::ProcessApprovalCapability for KernelProcessApprovalCap
 impl Kernel {
     pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
         Kernel {
-            work: Cell::new(0),
             processes,
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
@@ -148,52 +143,6 @@ impl Kernel {
                 approve_cap: KernelProcessApprovalCapability {},
             },
         }
-    }
-
-    /// Something was scheduled for a process, so there is more work to do.
-    ///
-    /// This is only exposed in the core kernel crate.
-    pub(crate) fn increment_work(&self) {
-        self.work.increment();
-    }
-
-    /// Something was scheduled for a process, so there is more work to do.
-    ///
-    /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `Process` need to be able to
-    /// indicate there is more process work to do.
-    pub fn increment_work_external(
-        &self,
-        _capability: &dyn capabilities::ExternalProcessCapability,
-    ) {
-        self.increment_work();
-    }
-
-    /// Something finished for a process, so we decrement how much work there is
-    /// to do.
-    ///
-    /// This is only exposed in the core kernel crate.
-    pub(crate) fn decrement_work(&self) {
-        self.work.decrement();
-    }
-
-    /// Something finished for a process, so we decrement how much work there is
-    /// to do.
-    ///
-    /// This is exposed publicly, but restricted with a capability. The intent
-    /// is that external implementations of `Process` need to be able to
-    /// indicate that some process work has finished.
-    pub fn decrement_work_external(
-        &self,
-        _capability: &dyn capabilities::ExternalProcessCapability,
-    ) {
-        self.decrement_work();
-    }
-
-    /// Helper function for determining if we should service processes or go to
-    /// sleep.
-    pub(crate) fn processes_blocked(&self) -> bool {
-        self.work.get() == 0
     }
 
     /// Helper function that moves all non-generic portions of process_map_or
@@ -482,7 +431,7 @@ impl Kernel {
                 }
                 false => {
                     // No kernel work ready, so ask scheduler for a process.
-                    match scheduler.next(self) {
+                    match scheduler.next() {
                         SchedulingDecision::RunProcess((processid, timeslice_us)) => {
                             self.process_map_or((), processid, |process| {
                                 let (reason, time_executed) =
@@ -742,9 +691,6 @@ impl Kernel {
                     // The process has valid credentials (can run in principle);
                     // now the kernel needs to check if its Application Identifier
                     // is unique among running processes.
-
-                    // This check is the work we needed to do.
-                    self.decrement_work();
 
                     if crate::process_checker::has_unique_identifiers(
                         process,

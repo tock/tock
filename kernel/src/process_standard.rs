@@ -19,7 +19,7 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
-use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, ProcessStateCell};
+use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortID};
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
@@ -196,7 +196,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// `Running` and `Yielded` states. The system can control the process by
     /// switching it to a "stopped" state to prevent the scheduler from
     /// scheduling it.
-    state: ProcessStateCell<'static>,
+    state: Cell<State>,
 
     /// How to respond if this process faults.
     fault_policy: &'a dyn ProcessFaultPolicy,
@@ -263,9 +263,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             }
         });
 
-        if ret.is_ok() {
-            self.kernel.increment_work();
-        } else {
+        if ret.is_err() {
             // On any error we were unable to enqueue the task. Record the
             // error, but importantly do _not_ increment kernel work.
             self.debug.map(|debug| {
@@ -286,18 +284,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             return Err(ErrorCode::NODEVICE);
         }
 
-        self.state.update(State::CredentialsApproved);
+        self.state.set(State::CredentialsApproved);
         self.app_id.set(short_app_id);
         credentials.map(|c| self.credentials.replace(c));
-
-        // Tell the kernel that it has work: it needs to check if this
-        // process has a unique Application Identifier.
-        self.kernel.increment_work();
         Ok(())
     }
 
     fn mark_credentials_fail(&self, _capability: &dyn capabilities::ProcessApprovalCapability) {
-        self.state.update(State::CredentialsFailed);
+        self.state.set(State::CredentialsFailed);
     }
 
     fn get_credentials(&self) -> Option<TbfFooterV2Credentials> {
@@ -318,7 +312,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             return Err(ErrorCode::NODEVICE);
         }
 
-        self.state.update(State::Yielded);
+        self.state.set(State::Yielded);
 
         // And queue up this app to be restarted.
         let flash_start = self.flash_start();
@@ -351,14 +345,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // to `upcall_id`.
                 Task::FunctionCall(function_call) => match function_call.source {
                     FunctionCallSource::Kernel => true,
-                    FunctionCallSource::Driver(id) => {
-                        if id != upcall_id {
-                            true
-                        } else {
-                            self.kernel.decrement_work();
-                            false
-                        }
-                    }
+                    FunctionCallSource::Driver(id) => id != upcall_id,
                 },
                 _ => true,
             });
@@ -388,22 +375,22 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn set_yielded_state(&self) {
         if self.state.get() == State::Running {
-            self.state.update(State::Yielded);
+            self.state.set(State::Yielded);
         }
     }
 
     fn stop(&self) {
         match self.state.get() {
-            State::Running => self.state.update(State::StoppedRunning),
-            State::Yielded => self.state.update(State::StoppedYielded),
+            State::Running => self.state.set(State::StoppedRunning),
+            State::Yielded => self.state.set(State::StoppedYielded),
             _ => {} // Do nothing
         }
     }
 
     fn resume(&self) {
         match self.state.get() {
-            State::StoppedRunning => self.state.update(State::Running),
-            State::StoppedYielded => self.state.update(State::Yielded),
+            State::StoppedRunning => self.state.set(State::Running),
+            State::StoppedYielded => self.state.set(State::Yielded),
             _ => {} // Do nothing
         }
     }
@@ -421,7 +408,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         match action {
             FaultAction::Panic => {
                 // process faulted. Panic and print status
-                self.state.update(State::Faulted);
+                self.state.set(State::Faulted);
                 panic!("Process {} had a fault", self.process_name);
             }
             FaultAction::Restart => {
@@ -434,7 +421,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // clearing all of the grant regions will cause capsules to drop
                 // this app as well.
                 self.terminate(None);
-                self.state.update(State::Faulted);
+                self.state.set(State::Faulted);
             }
         }
     }
@@ -453,8 +440,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
         if let Ok(()) = self.reset() {
-            self.state.update(State::CredentialsApproved);
-            self.kernel.increment_work();
+            self.state.set(State::CredentialsApproved);
         }
 
         // Decide what to do with res later. E.g., if we can't restart
@@ -464,13 +450,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn terminate(&self, completion_code: Option<u32>) {
         if !self.is_running() {
             return;
-        }
-
-        // Remove the tasks that were scheduled for the app from the
-        // amount of work queue.
-        let tasks_len = self.tasks.map_or(0, |tasks| tasks.len());
-        for _ in 0..tasks_len {
-            self.kernel.decrement_work();
         }
 
         // And remove those tasks
@@ -487,7 +466,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.completion_code.set(completion_code);
 
         // Mark the app as stopped so the scheduler won't try to run it.
-        self.state.update(State::Terminated);
+        self.state.set(State::Terminated);
     }
 
     fn get_restart_count(&self) -> usize {
@@ -499,12 +478,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn dequeue_task(&self) -> Option<Task> {
-        self.tasks.map_or(None, |tasks| {
-            tasks.dequeue().map(|cb| {
-                self.kernel.decrement_work();
-                cb
-            })
-        })
+        self.tasks.map_or(None, |tasks| tasks.dequeue())
     }
 
     fn pending_tasks(&self) -> usize {
@@ -1109,7 +1083,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
                 // Move this process to the "running" state so the scheduler
                 // will schedule it.
-                self.state.update(State::Running);
+                self.state.set(State::Running);
             }
 
             Some(Err(())) => {
@@ -1742,7 +1716,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.stored_state = MapCell::new(Default::default());
         // Mark this process as unverified/unrunnable: leave it to the loader to
         // verify it.
-        process.state = ProcessStateCell::new(process.kernel);
+        process.state = Cell::new(State::CredentialsUnchecked);
         process.fault_policy = fault_policy;
         process.restart_count = Cell::new(0);
         process.completion_code = OptionalCell::empty();
@@ -1942,7 +1916,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         match self.state.get() {
             State::CredentialsUnchecked | State::CredentialsFailed => Err(ErrorCode::NODEVICE),
             _ => {
-                self.state.update(State::CredentialsApproved);
+                self.state.set(State::CredentialsApproved);
                 Ok(())
             }
         }
