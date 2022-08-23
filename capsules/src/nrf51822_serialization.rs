@@ -182,17 +182,58 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
             }
             // Receive from the nRF51822
             2 => {
-                self.rx_buffer.take().map_or(CommandReturn::failure(ErrorCode::RESERVE), |buffer| {
-                    let len = arg1;
-                    if len > buffer.len() {
-                        CommandReturn::failure(ErrorCode::SIZE)
-                    } else {
-                        // Set this as the active app for the receive callback
-                        self.active_app.set(appid);
-                        let _ = self.uart.receive_automatic(buffer, len, 250);
-                        CommandReturn::success_u32(len as u32)
-                    }
-                })
+                let len = arg1;
+
+                // We only allow one app to use the NRF serialization capsule
+                // (old legacy code, and a difficult thing to virtualize).
+                // However, we would like to support restarting/updating apps.
+                // But we don't want to allow a simultaneous app to disrupt the
+                // app that got to the BLE serialization first. So we have to
+                // find a compromise.
+                //
+                // We handle this by checking if the current active app still
+                // exists. If it does, we leave it alone. Otherwise, we replace
+                // it.
+                self.active_app.map_or_else(
+                    || {
+                        // The app is not set, handle this for the normal case.
+                        self.rx_buffer
+                            .take()
+                            .map_or(CommandReturn::failure(ErrorCode::RESERVE), |buffer| {
+                                if len > buffer.len() {
+                                    CommandReturn::failure(ErrorCode::SIZE)
+                                } else {
+                                    // Set this as the active app for the
+                                    // receive callback.
+                                    self.active_app.set(appid);
+                                    let _ = self.uart.receive_automatic(buffer, len, 250);
+                                    CommandReturn::success_u32(len as u32)
+                                }
+                            })
+                    },
+                    |appid| {
+                        // The app is set, check if it still exists.
+                        if let Err(_err) = self.apps.enter(*appid, |_, _| {}) {
+                            // The app we had as active no longer exists.
+                            self.active_app.set(*appid);
+                            self.rx_buffer
+                                .take()
+                                .map_or(CommandReturn::success_u32(len as u32), |buffer| {
+                                    if len > buffer.len() {
+                                        CommandReturn::failure(ErrorCode::SIZE)
+                                    } else {
+                                        // Use the buffer to start the receive.
+                                        let _ = self.uart.receive_automatic(buffer, len, 250);
+                                        CommandReturn::success_u32(len as u32)
+                                    }
+                                })
+                        } else {
+                            // Active app exists. Return error as there can only
+                            // be one app using this capsule.
+                            CommandReturn::failure(ErrorCode::RESERVE)
+                        }
+                    },
+                )
             }
 
             // Initialize the nRF51822 by resetting it.
@@ -243,8 +284,12 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
     ) {
         self.rx_buffer.replace(buffer);
 
+        // By default we continuously receive on UART. However, if we receive
+        // and the active app is no longer existent, then we stop receiving.
+        let mut repeat_receive = true;
+
         self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |_, kernel_data| {
+            if let Err(_err) = self.apps.enter(*appid, |_, kernel_data| {
                 let len = kernel_data
                     .get_readwrite_processbuffer(rw_allow::RX)
                     .and_then(|rx| {
@@ -270,14 +315,22 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                 // hardware, regardless of how much space (if any) was
                 // available in the buffer provided by the app.
                 kernel_data.schedule_upcall(0, (4, rx_len, len)).ok();
-            });
+            }) {
+                // The app we had as active no longer exists. Clear that and
+                // stop receiving. This puts us back in an idle state. A new app
+                // can use the BLE serialization.
+                self.active_app.clear();
+                repeat_receive = false;
+            }
         });
 
-        // Restart the UART receive.
-        self.rx_buffer.take().map(|buffer| {
-            let len = buffer.len();
-            let _ = self.uart.receive_automatic(buffer, len, 250);
-        });
+        if repeat_receive {
+            // Restart the UART receive.
+            self.rx_buffer.take().map(|buffer| {
+                let len = buffer.len();
+                let _ = self.uart.receive_automatic(buffer, len, 250);
+            });
+        }
     }
 
     fn received_word(&self, _word: u32, _rcode: Result<(), ErrorCode>, _err: uart::Error) {}
