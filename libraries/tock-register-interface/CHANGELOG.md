@@ -2,6 +2,32 @@
 
 ## master
 
+## v0.8
+
+`tock-registers` now supports stable Rust!
+
+There is a small breaking change, documented below, required to support
+Rust 2021 edition. Most of the remaining changes are improvements to the
+internal self-testing infrastructure and documentation. There are also
+some additions to `FieldValue` to improve ergonomics.
+
+### **Breaking Changes**
+
+ - #2842: tock-registers: rename TryFromValue::try_from to try_from_value
+ - #2838: Update to Rust 2021 edition
+
+### Other Changes
+
+ - #3126: [trivial] tock-registers: mark two methods as `const`
+ - #3088: tock_registers/test_fields: respect struct size padding w/ alignment
+ - #3072: Update Rust nightly version + Expose virtual-function-elimination
+     - libraries/tock-register-interface: Fixup register_structs documentation
+ - #2988: Remove const_fn_trait_bound feature and update nightly (Mar 2022)
+ - #3014: tock-registers: Implement From field enum value type for FieldValue
+ - #3013: tock-register-interface: Provide none method for FieldValue type
+ - #2916: tock-register-interface: improve read_as_enum documentation
+ - #2922: tock-register-interface: replace register tests by const assertions
+
 ## v0.7
 
  - #2642: Rename `IntLike` to `UIntLike` to match semantics
