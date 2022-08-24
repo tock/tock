@@ -42,7 +42,7 @@ impl<'a> adc::Client for TemperatureSTM<'a> {
         self.status.set(Status::Idle);
         self.temperature_client.map(|client| {
             client.callback(
-                ((((self.v_25 - (sample as f32 * 3.3 / 4095.0)) * 1000.0 / self.slope) + 25.0)
+                ((((self.v_25 - (sample as f32 * 3.3 / 65535.0)) * 1000.0 / self.slope) + 25.0)
                     * 100.0) as usize,
             );
         });
