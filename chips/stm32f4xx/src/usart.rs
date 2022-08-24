@@ -1,11 +1,14 @@
 use core::cell::Cell;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use crate::deferred_calls::DeferredCallTask;
 
 use crate::dma;
 use crate::rcc;
@@ -144,6 +147,14 @@ register_bitfields![u32,
     ]
 ];
 
+static DEFERRED_CALLS: [DeferredCall<DeferredCallTask>; 3] = unsafe {
+    [
+        DeferredCall::new(DeferredCallTask::Usart1),
+        DeferredCall::new(DeferredCallTask::Usart2),
+        DeferredCall::new(DeferredCallTask::Usart3),
+    ]
+};
+
 // See Table 13. STM32F427xx and STM32F429xx register boundary addresses
 // of the STM32F429zi datasheet
 pub const USART1_BASE: StaticRef<UsartRegisters> =
@@ -163,6 +174,7 @@ pub(crate) fn get_address_dr(regs: StaticRef<UsartRegisters>) -> u32 {
 enum USARTStateRX {
     Idle,
     DMA_Receiving,
+    Aborted(Result<(), ErrorCode>, hil::uart::Error),
 }
 
 #[allow(non_camel_case_types)]
@@ -170,6 +182,7 @@ enum USARTStateRX {
 enum USARTStateTX {
     Idle,
     DMA_Transmitting,
+    Aborted(Result<(), ErrorCode>),
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
@@ -190,6 +203,12 @@ pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
 
     usart_tx_state: Cell<USARTStateTX>,
     usart_rx_state: Cell<USARTStateRX>,
+
+    partial_tx_buffer: TakeCell<'static, [u8]>,
+    partial_tx_len: Cell<usize>,
+
+    partial_rx_buffer: TakeCell<'static, [u8]>,
+    partial_rx_len: Cell<usize>,
 }
 
 // for use by `set_dma`
@@ -197,7 +216,7 @@ pub struct TxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 pub struct RxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 
 impl<'a> Usart<'a, dma::Dma1<'a>> {
-    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART2_BASE,
             UsartClock(rcc::PeripheralClock::new(
@@ -209,7 +228,7 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
         )
     }
 
-    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART3_BASE,
             UsartClock(rcc::PeripheralClock::new(
@@ -223,7 +242,7 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
 }
 
 impl<'a> Usart<'a, dma::Dma2<'a>> {
-    pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART1_BASE,
             UsartClock(rcc::PeripheralClock::new(
@@ -237,7 +256,7 @@ impl<'a> Usart<'a, dma::Dma2<'a>> {
 }
 
 impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
-    const fn new(
+    fn new(
         base_addr: StaticRef<UsartRegisters>,
         clock: UsartClock<'a>,
         tx_dma_pid: DMA::Peripheral,
@@ -260,6 +279,12 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
             usart_tx_state: Cell::new(USARTStateTX::Idle),
             usart_rx_state: Cell::new(USARTStateRX::Idle),
+
+            partial_tx_buffer: TakeCell::empty(),
+            partial_tx_len: Cell::new(0),
+
+            partial_rx_buffer: TakeCell::empty(),
+            partial_rx_len: Cell::new(0),
         }
     }
 
@@ -278,6 +303,28 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     pub fn set_dma(&self, tx_dma: TxDMA<'a, DMA>, rx_dma: RxDMA<'a, DMA>) {
         self.tx_dma.set(tx_dma.0);
         self.rx_dma.set(rx_dma.0);
+    }
+
+    pub fn handle_deferred_task(&self) {
+        if let USARTStateTX::Aborted(rcode) = self.usart_tx_state.get() {
+            // alert client
+            self.tx_client.map(|client| {
+                self.partial_tx_buffer.take().map(|buf| {
+                    client.transmitted_buffer(buf, self.partial_tx_len.get(), rcode);
+                });
+            });
+            self.usart_tx_state.set(USARTStateTX::Idle);
+        }
+
+        if let USARTStateRX::Aborted(rcode, error) = self.usart_rx_state.get() {
+            // alert client
+            self.rx_client.map(|client| {
+                self.partial_rx_buffer.take().map(|buf| {
+                    client.received_buffer(buf, self.partial_rx_len.get(), rcode, error);
+                });
+            });
+            self.usart_rx_state.set(USARTStateRX::Idle);
+        }
     }
 
     // According to section 25.4.13, we need to make sure that USART TC flag is
@@ -336,7 +383,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
     fn abort_tx(&self, rcode: Result<(), ErrorCode>) {
         self.disable_tx();
-        self.usart_tx_state.set(USARTStateTX::Idle);
+        // self.usart_tx_state.set(USARTStateTX::Idle);
 
         // get buffer
         let (mut buffer, len) = self.tx_dma.map_or((None, 0), |tx_dma| {
@@ -349,17 +396,28 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         let count = self.tx_len.get() - len as usize;
         self.tx_len.set(0);
 
-        // alert client
-        self.tx_client.map(|client| {
-            buffer.take().map(|buf| {
-                client.transmitted_buffer(buf, count, rcode);
-            });
-        });
+        if let Some(buf) = buffer.take() {
+            self.partial_tx_buffer.replace(buf);
+            self.partial_tx_len.set(count);
+
+            self.usart_tx_state.set(USARTStateTX::Aborted(rcode));
+
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*USART1_BASE) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*USART2_BASE) as *const _ {
+                DEFERRED_CALLS[1].set()
+            } else if ptr == &(*USART3_BASE) as *const _ {
+                DEFERRED_CALLS[2].set()
+            }
+        } else {
+            self.usart_tx_state.set(USARTStateTX::Idle);
+        }
     }
 
     fn abort_rx(&self, rcode: Result<(), ErrorCode>, error: hil::uart::Error) {
         self.disable_rx();
-        self.usart_rx_state.set(USARTStateRX::Idle);
+        // self.usart_rx_state.set(USARTStateRX::Idle);
 
         // get buffer
         let (mut buffer, len) = self.rx_dma.map_or((None, 0), |rx_dma| {
@@ -372,12 +430,23 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         let count = self.rx_len.get() - len as usize;
         self.rx_len.set(0);
 
-        // alert client
-        self.rx_client.map(|client| {
-            buffer.take().map(|buf| {
-                client.received_buffer(buf, count, rcode, error);
-            });
-        });
+        if let Some(buf) = buffer.take() {
+            self.partial_rx_buffer.replace(buf);
+            self.partial_rx_len.set(count);
+
+            self.usart_rx_state.set(USARTStateRX::Aborted(rcode, error));
+
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*USART1_BASE) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*USART2_BASE) as *const _ {
+                DEFERRED_CALLS[1].set()
+            } else if ptr == &(*USART3_BASE) as *const _ {
+                DEFERRED_CALLS[2].set()
+            }
+        } else {
+            self.usart_rx_state.set(USARTStateRX::Idle);
+        }
     }
 
     fn enable_transmit_complete_interrupt(&self) {
