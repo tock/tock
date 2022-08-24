@@ -213,7 +213,7 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                     },
                     |appid| {
                         // The app is set, check if it still exists.
-                        if let Err(_err) = self.apps.enter(*appid, |_, _| {}) {
+                        if let Err(kernel::process::Error::NoSuchApp) = self.apps.enter(*appid, |_, _| {}) {
                             // The app we had as active no longer exists.
                             self.active_app.clear();
                             self.rx_buffer
