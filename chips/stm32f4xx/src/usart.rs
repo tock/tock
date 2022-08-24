@@ -383,7 +383,6 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
     fn abort_tx(&self, rcode: Result<(), ErrorCode>) {
         self.disable_tx();
-        // self.usart_tx_state.set(USARTStateTX::Idle);
 
         // get buffer
         let (mut buffer, len) = self.tx_dma.map_or((None, 0), |tx_dma| {
@@ -417,7 +416,6 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
     fn abort_rx(&self, rcode: Result<(), ErrorCode>, error: hil::uart::Error) {
         self.disable_rx();
-        // self.usart_rx_state.set(USARTStateRX::Idle);
 
         // get buffer
         let (mut buffer, len) = self.rx_dma.map_or((None, 0), |rx_dma| {
