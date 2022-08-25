@@ -15,6 +15,7 @@ pub mod analog_sensor;
 pub mod apds9960;
 pub mod app_flash_driver;
 pub mod ble_advertising_driver;
+pub mod block_storage_driver;
 pub mod bmp280;
 pub mod bus;
 pub mod button;

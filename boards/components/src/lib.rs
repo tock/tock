@@ -5,6 +5,7 @@ pub mod adc_microphone;
 pub mod alarm;
 pub mod analog_comparator;
 pub mod app_flash_driver;
+pub mod block_storage;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
