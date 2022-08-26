@@ -223,18 +223,13 @@ unsafe fn set_pin_primary_functions(
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 
-    // Arduino A3
-    gpio_ports.get_pin(PinId::PF03).map(|pin| {
+    // Arduino A6
+    gpio_ports.get_pin(PinId::PB01).map(|pin| {
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 
-    // Arduino A4
-    gpio_ports.get_pin(PinId::PF05).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
-    });
-
-    // Arduino A5
-    gpio_ports.get_pin(PinId::PF10).map(|pin| {
+    // Arduino A7
+    gpio_ports.get_pin(PinId::PC02).map(|pin| {
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 }
@@ -474,19 +469,19 @@ pub unsafe fn main() {
             68 => gpio_ports.pins[5][0].as_ref().unwrap(), //D68
             69 => gpio_ports.pins[5][1].as_ref().unwrap(), //D69
             70 => gpio_ports.pins[5][2].as_ref().unwrap(), //D70
-            71 => gpio_ports.pins[0][7].as_ref().unwrap()  //D71
+            71 => gpio_ports.pins[0][7].as_ref().unwrap(),  //D71
 
             // ADC Pins
             // Enable the to use the ADC pins as GPIO
             // 72 => gpio_ports.pins[0][3].as_ref().unwrap(), //A0
             // 73 => gpio_ports.pins[2][0].as_ref().unwrap(), //A1
             // 74 => gpio_ports.pins[2][3].as_ref().unwrap(), //A2
-            // 75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
-            // 76 => gpio_ports.pins[5][5].as_ref().unwrap(), //A4
-            // 77 => gpio_ports.pins[5][10].as_ref().unwrap(), //A5
+            75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
+            76 => gpio_ports.pins[5][5].as_ref().unwrap(), //A4
+            77 => gpio_ports.pins[5][10].as_ref().unwrap(), //A5
             // 78 => gpio_ports.pins[1][1].as_ref().unwrap(), //A6
             // 79 => gpio_ports.pins[2][2].as_ref().unwrap(), //A7
-            // 80 => gpio_ports.pins[5][4].as_ref().unwrap()  //A8
+            80 => gpio_ports.pins[5][4].as_ref().unwrap()  //A8
         ),
     )
     .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
@@ -531,11 +526,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
 
     let adc_channel_4 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel15)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
-
-    let adc_channel_5 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel8)
+        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel12)
             .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
 
     let adc_syscall =
@@ -546,7 +537,6 @@ pub unsafe fn main() {
                 adc_channel_2,
                 adc_channel_3,
                 adc_channel_4,
-                adc_channel_5
             ));
 
     let process_printer =
