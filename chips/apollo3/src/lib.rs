@@ -70,7 +70,12 @@ pub static IRQS: [unsafe extern "C" fn(); 32] = [CortexM4::GENERIC_ISR; 32];
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 
+// WARN: This is a short-term patch applied to allow this board to
+// boot for the 2.1 release. This `inline` will be removed immediately
+// after the 2.1 release pending the fixes to cortex-m context switching
+// which should come in 2.2.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
+#[inline(always)]
 pub unsafe fn init() {
     use core::arch::asm;
     let cache_ctrl = crate::cachectrl::CacheCtrl::new();
