@@ -1,4 +1,3 @@
-use crate::stm32f412g_nvic;
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 use stm32f4xx::deferred_calls::DeferredCallTask;
 
