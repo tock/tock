@@ -24,38 +24,17 @@ $ make flash-debug
 
 ## Flashing app
 
-Apps are built out-of-tree. Once an app is built, you can use
-`arm-none-eabi-objcopy` with `--update-section` to create an ELF image with the
-apps included.
-
-```bash
-$ arm-none-eabi-objcopy  \
-    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
-    target/thumbv7em-none-eabi/release/discovery_f412g.elf \
-    target/thumbv7em-none-eabi/release/discovery_f412g-app.elf
-```
-
-For example, you can update `Makefile` as follows.
-
-```
-APP=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf
-KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
-
-.PHONY: program
-program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
-```
-
-After setting `APP`, `KERNEL`, `KERNEL_WITH_APP`, and `program` target
-dependency, you can do
-
+Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
 ```bash
 $ make program
 ```
 
-to flash the image.
+or you can define the APP variable in the command line
+
+```bash
+$ make program APP=path_to_tbf
+```
+
 
 ## OpenOCD Note
 The release version of openocd does not fully support stm32412g discovery kit. Uploading seems to work
