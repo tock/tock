@@ -334,7 +334,7 @@ impl Bus8080<'static> for Fsmc<'_> {
                         | (buffer[bytes * pos
                             + match data_width {
                                 BusWidth::Bits8 | BusWidth::Bits16LE => byte,
-                                BusWidth::Bits16BE => (bytes - byte - 1),
+                                BusWidth::Bits16BE => bytes - byte - 1,
                             }] as u16)
                             << (8 * byte);
                 }
@@ -364,7 +364,7 @@ impl Bus8080<'static> for Fsmc<'_> {
                         buffer[bytes * pos
                             + match data_width {
                                 BusWidth::Bits8 | BusWidth::Bits16LE => byte,
-                                BusWidth::Bits16BE => (bytes - byte - 1),
+                                BusWidth::Bits16BE => bytes - byte - 1,
                             }] = (data >> (8 * byte)) as u8;
                     }
                 } else {
