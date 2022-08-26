@@ -360,6 +360,7 @@ unsafe fn setup_peripherals(
     // FSMC
     fsmc.enable();
 
+    // RNG
     trng.enable_clock();
 }
 
@@ -405,7 +406,7 @@ pub unsafe fn main() {
     setup_peripherals(
         &base_peripherals.tim2,
         &base_peripherals.fsmc,
-        &peripherals.trng,
+        &base_peripherals.trng,
     );
 
     // We use the default HSI 16Mhz clock
@@ -600,8 +601,12 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    let rng = RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     // FT6206
 

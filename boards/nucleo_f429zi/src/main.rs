@@ -61,6 +61,7 @@ struct NucleoF429ZI {
     >,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -81,6 +82,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -240,7 +242,7 @@ unsafe fn set_pin_primary_functions(
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
+unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::trng::Trng) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
 
@@ -248,6 +250,9 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
     tim2.enable_clock();
     tim2.start();
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
+
+    // RNG
+    trng.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -292,7 +297,7 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2);
+    setup_peripherals(&base_peripherals.tim2, &base_peripherals.trng);
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -553,6 +558,14 @@ pub unsafe fn main() {
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
 
+    // RNG
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(());
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -581,6 +594,7 @@ pub unsafe fn main() {
         button: button,
         alarm: alarm,
         gpio: gpio,
+        rng: rng,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
