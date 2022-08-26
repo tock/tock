@@ -92,8 +92,25 @@ impl PartialEq for ProcessId {
 impl Eq for ProcessId {}
 
 impl fmt::Debug for ProcessId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.identifier)
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        // We handle alignment and width.
+        if let Some(width) = formatter.width() {
+            match formatter.align() {
+                Some(fmt::Alignment::Left) => {
+                    write!(formatter, "{:<width$}", self.identifier, width = width)
+                }
+                Some(fmt::Alignment::Right) => {
+                    write!(formatter, "{:width$}", self.identifier, width = width)
+                }
+                Some(fmt::Alignment::Center) => {
+                    write!(formatter, "{:^width$}", self.identifier, width = width)
+                }
+                None => write!(formatter, "{:width$}", self.identifier, width = width),
+            }
+        } else {
+            // Otherwise just do default.
+            write!(formatter, "{}", self.identifier)
+        }
     }
 }
 
