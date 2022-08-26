@@ -140,7 +140,8 @@ pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
-const VALID_COMMANDS_STR: &[u8] = b"help status list stop start fault terminate process kernel\r\n";
+const VALID_COMMANDS_STR: &[u8] =
+    b"help status list stop start fault terminate process kernel panic\r\n";
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -751,6 +752,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             // Prints kernel memory by moving the writer to the
                             // start state.
                             self.writer_state.replace(WriterState::KernelStart);
+                        } else if clean_str.starts_with("panic") {
+                            panic!("Process Console forced a kernel panic.");
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self.write_bytes(VALID_COMMANDS_STR);
