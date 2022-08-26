@@ -12,6 +12,7 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
+//!  - 'boot n' tries to boot an unstarted process with name n
 //!  - 'terminate n' terminates the process with name n
 //!  - 'panic' causes the kernel to run the panic handler
 //!  - 'process n' prints the memory map of process with name n
@@ -141,7 +142,7 @@ pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
-    b"help status list stop start fault terminate process kernel panic\r\n";
+    b"help status list stop start fault boot terminate process kernel panic\r\n";
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -642,6 +643,26 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                             let _ = write(
                                                 &mut console_writer,
                                                 format_args!("Process {} terminated\n", proc_name),
+                                            );
+
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
+                                        }
+                                    });
+                            });
+                        } else if clean_str.starts_with("boot") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.try_restart(None);
+                                            let mut console_writer = ConsoleWriter::new();
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} booted\n", proc_name),
                                             );
 
                                             let _ = self.write_bytes(
