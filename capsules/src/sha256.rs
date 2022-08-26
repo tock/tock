@@ -11,6 +11,7 @@ use kernel::dynamic_deferred_call::{
 };
 
 use kernel::hil::digest::Client;
+use kernel::hil::digest::Sha256;
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
@@ -493,5 +494,12 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                 });
             }
         }
+    }
+}
+
+impl Sha256 for Sha256Software<'_> {
+    /// Call before adding data to perform Sha256
+    fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
+        Ok(())
     }
 }
