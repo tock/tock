@@ -319,8 +319,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
             &mut console_writer,
             format_args!(
                 "Kernel version: {}.{} (build {})\r\n",
-                kernel::MAJOR,
-                kernel::MINOR,
+                kernel::KERNEL_MAJOR_VERSION,
+                kernel::KERNEL_MINOR_VERSION,
                 option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
             ),
         );
@@ -718,8 +718,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                 &mut console_writer,
                                 format_args!(
                                     "Kernel version: {}.{} (build {})\r\n",
-                                    kernel::MAJOR,
-                                    kernel::MINOR,
+                                    kernel::KERNEL_MAJOR_VERSION,
+                                    kernel::KERNEL_MINOR_VERSION,
                                     option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown")
                                 ),
                             );
