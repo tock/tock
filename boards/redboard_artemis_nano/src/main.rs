@@ -151,6 +151,9 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     }
 }
 
+// WARN: This is a short-term patch applied to allow this board to boot for the
+// 2.1 release. This `inline` will be removed immediately after the 2.1 release
+// pending the fixes to cortex-m context switching which should come in 2.2.
 #[inline(never)]
 unsafe fn setup() -> (
     &'static kernel::Kernel,
@@ -158,6 +161,13 @@ unsafe fn setup() -> (
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
     &'static Apollo3DefaultPeripherals,
 ) {
+    // WARN: This is a short-term patch applied to allow this board to
+    // boot for the 2.1 release. This will be returned here immediately
+    // after the 2.1 release pending the fixes to cortex-m context switching
+    // which should come in 2.2.
+    //
+    // apollo3::init();
+
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
 
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
@@ -393,6 +403,10 @@ unsafe fn setup() -> (
 /// setup and RAM initialization.
 #[no_mangle]
 pub unsafe fn main() {
+    // WARN: This is a short-term patch applied to allow this board to
+    // boot for the 2.1 release. `init` will be removed here immediately
+    // after the 2.1 release pending the fixes to cortex-m context switching
+    // which should come in 2.2.
     apollo3::init();
 
     #[cfg(test)]
