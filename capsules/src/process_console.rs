@@ -21,16 +21,16 @@
 //! - `PID`: The identifier for the process. This can change if the process
 //!   restarts.
 //! - `Name`: The process name.
-//! - `Quanta`: How many times this process has exceeded its alloted time
+//! - `Quanta`: How many times this process has exceeded its allotted time
 //!   quanta.
 //! - `Syscalls`: The number of system calls the process has made to the kernel.
 //! - `Dropped Upcalls`: How many upcalls were dropped for this process
 //!   because the queue was full.
 //! - `Restarts`: How many times this process has crashed and been restarted by
 //!   the kernel.
-//! - `State`: The state the process is in.
 //! - `Grants`: The number of grants that have been initialized for the process
 //!   out of the total number of grants defined by the kernel.
+//! - `State`: The state the process is in.
 //!
 //! Setup
 //! -----
@@ -85,9 +85,9 @@
 //! Initialization complete. Entering main loop
 //! Hello World!
 //! list
-//! PID    Name    Quanta  Syscalls  Dropped Upcalls  Restarts    State  Grants
-//! 00     blink        0       113                0         0  Yielded    1/12
-//! 01     c_hello      0         8                0         0  Yielded    3/12
+//! PID    Name    Quanta  Syscalls  Dropped Upcalls  Restarts Grants  State
+//! 00     blink        0       113                0         0  1/12   Yielded
+//! 01     c_hello      0         8                0         0  3/12   Yielded
 //! ```
 //!
 //! To get a general view of the system, use the status command:
@@ -512,16 +512,16 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    "  {:?}\t{:<20}{:6}{:10}{:17}{:10}  {:?}{:5}/{}\r\n",
+                                    " {:<7?}{:<20}{:6}{:10}{:17}{:10}  {:2}/{:2}   {:?}\r\n",
                                     process_id,
                                     pname,
                                     process.debug_timeslice_expiration_count(),
                                     process.debug_syscall_count(),
                                     process.debug_dropped_upcall_count(),
                                     process.get_restart_count(),
-                                    process.get_state(),
                                     grants_used,
-                                    grants_total
+                                    grants_total,
+                                    process.get_state(),
                                 ),
                             );
 
@@ -630,7 +630,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         } else if clean_str.starts_with("list") {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");
                             let _ = self.write_bytes(b"Syscalls  Dropped Upcalls  ");
-                            let _ = self.write_bytes(b"Restarts    State  Grants\r\n");
+                            let _ = self.write_bytes(b"Restarts  Grants  State\r\n");
 
                             // Count the number of current processes.
                             let mut count = 0;
