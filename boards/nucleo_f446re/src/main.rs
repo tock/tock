@@ -196,6 +196,11 @@ unsafe fn set_pin_primary_functions(
         pin.enable_interrupt();
     });
 
+    // enable interrupt for gpio 2
+    gpio_ports.get_pin(PinId::PA10).map(|pin| {
+        pin.enable_interrupt();
+    });
+
     // Arduino A0
     gpio_ports.get_pin(PinId::PA00).map(|pin| {
         pin.set_mode(stm32f446re::gpio::Mode::AnalogMode);
