@@ -23,6 +23,9 @@ In situations where a parameter cannot be configured
 (e.g. fixed resolution), they return value may be hardcoded.
 Otherwise, the driver should query the hardware directly,
 and return OFF if it's not powered.
+
+Configuration sets cause a `command_complete` callback
+unless noted otherwise.
 */
 
 use crate::ErrorCode;
