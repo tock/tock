@@ -459,6 +459,7 @@ where
                 self.frame_buffer
                     .take()
                     .map_or(Err(ErrorCode::NOMEM), |mut frame_buffer| {
+                        // TODO: reject if buffer is shorter than frame
                         frame_buffer.blit(&buffer[..cmp::min(buffer.len(), len)], &frame);
                         let send_buf = FrameBuffer::with_raw_rows(
                             frame_buffer,
@@ -543,7 +544,7 @@ where
 
     fn set_brightness(&self, _brightness: usize) -> Result<(), ErrorCode> {
         // TODO: add LED PWM
-        Ok(())
+        Err(ErrorCode::NOSUPPORT)
     }
 
     fn set_invert(&self, _inverted: bool) -> Result<(), ErrorCode> {
