@@ -292,7 +292,7 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2, &base_peripherals.trng);
+    setup_peripherals(&base_peripherals.tim2, &peripherals.trng);
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -552,7 +552,7 @@ pub unsafe fn main() {
     let rng = components::rng::RngComponent::new(
         board_kernel,
         capsules::rng::DRIVER_NUM,
-        &base_peripherals.trng,
+        &peripherals.trng,
     )
     .finalize(());
 

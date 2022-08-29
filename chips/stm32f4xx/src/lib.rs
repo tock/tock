@@ -22,7 +22,6 @@ pub mod rcc;
 pub mod spi;
 pub mod syscfg;
 pub mod tim2;
-pub mod trng;
 pub mod usart;
 
 use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
