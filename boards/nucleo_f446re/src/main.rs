@@ -65,7 +65,9 @@ struct NucleoF446RE {
         'static,
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
-    rng: &'static capsules::rng::RngDriver<'static>,
+
+    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    gpio: &'static capsules::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -441,13 +443,41 @@ pub unsafe fn main() {
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
 
-    // RNG
-    let rng = components::rng::RngComponent::new(
+    // GPIO
+    let gpio = GpioComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
-        &base_peripherals.trng,
+        capsules::gpio::DRIVER_NUM,
+        components::gpio_component_helper!(
+            stm32f446re::gpio::Pin,
+            // Arduino like RX/TX
+            // 0 => gpio_ports.get_pin(PinId::PA03).unwrap(), //D0
+            // 1 => gpio_ports.get_pin(PinId::PA02).unwrap(), //D1
+            2 => gpio_ports.get_pin(PinId::PA10).unwrap(), //D2
+            3 => gpio_ports.get_pin(PinId::PB03).unwrap(), //D3
+            4 => gpio_ports.get_pin(PinId::PB05).unwrap(), //D4
+            5 => gpio_ports.get_pin(PinId::PB04).unwrap(), //D5
+            6 => gpio_ports.get_pin(PinId::PB10).unwrap(), //D6
+            7 => gpio_ports.get_pin(PinId::PA08).unwrap(), //D7
+            8 => gpio_ports.get_pin(PinId::PA09).unwrap(), //D8
+            9 => gpio_ports.get_pin(PinId::PC07).unwrap(), //D9
+            10 => gpio_ports.get_pin(PinId::PB06).unwrap(), //D10
+            11 => gpio_ports.get_pin(PinId::PA07).unwrap(),  //D11
+            12 => gpio_ports.get_pin(PinId::PA06).unwrap(),  //D12
+            13 => gpio_ports.get_pin(PinId::PA05).unwrap(),  //D13
+            14 => gpio_ports.get_pin(PinId::PB09).unwrap(), //D14
+            15 => gpio_ports.get_pin(PinId::PB08).unwrap(), //D15
+
+            // ADC Pins
+            // Enable the to use the ADC pins as GPIO
+            // 16 => gpio_ports.get_pin(PinId::PA00).unwrap(), //A0
+            // 17 => gpio_ports.get_pin(PinId::PA01).unwrap(), //A1
+            // 18 => gpio_ports.get_pin(PinId::PA04).unwrap(), //A2
+            // 19 => gpio_ports.get_pin(PinId::PB00).unwrap(), //A3
+            // 20 => gpio_ports.get_pin(PinId::PC01).unwrap(), //A4
+            // 21 => gpio_ports.get_pin(PinId::PC00).unwrap(), //A5
+        ),
     )
-    .finalize(());
+    .finalize(components::gpio_component_buf!(stm32f446re::gpio::Pin));
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -475,7 +505,6 @@ pub unsafe fn main() {
         button: button,
         adc: adc_syscall,
         alarm: alarm,
-        rng: rng,
 
         temperature: temp,
         gpio: gpio,
