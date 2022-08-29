@@ -149,7 +149,7 @@ endif
 # Ask git what version of the Tock kernel we are compiling, so we can include
 # this within the binary. If Tock is not within a git repo then we fallback to
 # a set string which should be updated with every release.
-export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "2.1")
+export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "2.1+")
 
 # Allow users to opt out of using rustup.
 ifeq ($(NO_RUSTUP),)
