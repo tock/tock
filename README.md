@@ -17,27 +17,16 @@ kernel.
 
 [tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
-Tock 2.0!
+Tock 2.x!
 ---------
 
-Tock is now on its second major release! Here are some 2.0 highlights, and see
-the [release notes](https://github.com/tock/tock/releases/tag/release-2.0) for
-more detail, or the [changelog](CHANGELOG.md#new-in-20) for the complete set of
-changes.
+Tock is now on its second major release! Tock 2.x includes significant changes
+from Tock 1.x, including:
 
 - Revamped system call interface.
 - Support for 11 new hardware platforms.
 - Updated kernel types.
 - Many new and improved HILs.
-
-As 2.0 includes many breaking changes, to use the new kernel you will need to
-ensure you have updated versions of userspace apps and the various Tock tools.
-We recommend if you are using git that you do a `git pull`, and if you are using
-tagged releases be sure to update to the 2.0 release.
-
-Initially, only [libtock-c](https://github.com/tock/libtock-c) is compatible
-with Tock 2.0. Work on supporting Tock 2.0 for libtock-rs is [under
-development](https://github.com/tock/libtock-rs/issues/322).
 
 
 Learn More
