@@ -89,9 +89,9 @@
 #![warn(unreachable_pub)]
 #![no_std]
 
-// Define the kernel major and minor versions
-pub const MAJOR: u16 = 2;
-pub const MINOR: u16 = 0;
+// Define the kernel major and minor versions.
+pub const KERNEL_MAJOR_VERSION: u16 = 2;
+pub const KERNEL_MINOR_VERSION: u16 = 1;
 
 pub mod capabilities;
 pub mod collections;
