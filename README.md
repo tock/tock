@@ -28,6 +28,9 @@ from Tock 1.x, including:
 - Updated kernel types.
 - Many new and improved HILs.
 
+For a summary of the latest new features and improvements, check out the
+[changelog](CHANGELOG.md).
+
 
 Learn More
 ----------
