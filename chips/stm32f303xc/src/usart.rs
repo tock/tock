@@ -370,6 +370,33 @@ impl<'a> Usart<'a> {
         self.clock.disable();
     }
 
+    pub fn handle_deferred_task(&self) {
+        if self.tx_status.get() == USARTStateTX::AbortRequested {
+            // alert client
+            self.tx_client.map(|client| {
+                self.tx_buffer.take().map(|buf| {
+                    client.transmitted_buffer(buf, self.tx_position.get(), Err(ErrorCode::CANCEL));
+                });
+            });
+            self.tx_status.set(USARTStateTX::Idle);
+        }
+
+        if self.rx_status.get() == USARTStateRX::AbortRequested {
+            // alert client
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|buf| {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        Err(ErrorCode::CANCEL),
+                        hil::uart::Error::Aborted,
+                    );
+                });
+            });
+            self.rx_status.set(USARTStateRX::Idle);
+        }
+    }
+
     // for use by panic in io.rs
     pub fn send_byte(&self, byte: u8) {
         // loop till TXE (Transmit data register empty) becomes 1
@@ -532,6 +559,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
         if self.tx_status.get() != USARTStateTX::Idle {
+            self.disable_transmit_interrupt();
             self.tx_status.set(USARTStateTX::AbortRequested);
             Err(ErrorCode::BUSY)
         } else {
@@ -616,6 +644,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
         if self.rx_status.get() != USARTStateRX::Idle {
+            self.disable_receive_interrupt();
             self.rx_status.set(USARTStateRX::AbortRequested);
             Err(ErrorCode::BUSY)
         } else {
