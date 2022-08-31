@@ -450,17 +450,6 @@ impl<'a> Usart<'a> {
                         }
                     });
                 }
-            } else if self.tx_status.get() == USARTStateTX::AbortRequested {
-                self.tx_status.replace(USARTStateTX::Idle);
-                self.tx_client.map(|client| {
-                    if let Some(buf) = self.tx_buffer.take() {
-                        client.transmitted_buffer(
-                            buf,
-                            self.tx_position.get(),
-                            Err(ErrorCode::CANCEL),
-                        );
-                    }
-                });
             }
         }
 
@@ -495,18 +484,6 @@ impl<'a> Usart<'a> {
                         }
                     });
                 }
-            } else if self.rx_status.get() == USARTStateRX::AbortRequested {
-                self.rx_status.replace(USARTStateRX::Idle);
-                self.rx_client.map(|client| {
-                    if let Some(buf) = self.rx_buffer.take() {
-                        client.received_buffer(
-                            buf,
-                            self.rx_position.get(),
-                            Err(ErrorCode::CANCEL),
-                            hil::uart::Error::Aborted,
-                        );
-                    }
-                });
             }
         }
 
