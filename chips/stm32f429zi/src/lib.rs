@@ -6,6 +6,7 @@ pub use stm32f4xx::{adc, chip, dbg, dma, exti, gpio, nvic, rcc, spi, syscfg, tim
 
 pub mod interrupt_service;
 pub mod stm32f429zi_nvic;
+pub mod trng_registers;
 
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]

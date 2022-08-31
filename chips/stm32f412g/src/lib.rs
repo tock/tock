@@ -8,6 +8,7 @@ pub use stm32f4xx::{
 
 pub mod interrupt_service;
 pub mod stm32f412g_nvic;
+mod trng_registers;
 
 // STM32F412g has total of 97 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
