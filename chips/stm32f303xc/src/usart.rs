@@ -1,5 +1,6 @@
 // use core::cell::Cell;
 use core::cell::Cell;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -8,6 +9,7 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::deferred_call_tasks::DeferredCallTask;
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -265,6 +267,14 @@ register_bitfields![u32,
         PECF OFFSET(0) NUMBITS(1) []
     ]
 ];
+
+static DEFERRED_CALLS: [DeferredCall<DeferredCallTask>; 3] = unsafe {
+    [
+        DeferredCall::new(DeferredCallTask::Usart1),
+        DeferredCall::new(DeferredCallTask::Usart2),
+        DeferredCall::new(DeferredCallTask::Usart3),
+    ]
+};
 
 const USART1_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40013800 as *const UsartRegisters) };
@@ -538,6 +548,16 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
         if self.tx_status.get() != USARTStateTX::Idle {
             self.disable_transmit_interrupt();
             self.tx_status.set(USARTStateTX::AbortRequested);
+
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*USART1_BASE) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*USART2_BASE) as *const _ {
+                DEFERRED_CALLS[1].set()
+            } else if ptr == &(*USART3_BASE) as *const _ {
+                DEFERRED_CALLS[2].set()
+            }
+
             Err(ErrorCode::BUSY)
         } else {
             Ok(())
@@ -623,6 +643,16 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
         if self.rx_status.get() != USARTStateRX::Idle {
             self.disable_receive_interrupt();
             self.rx_status.set(USARTStateRX::AbortRequested);
+
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*USART1_BASE) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*USART2_BASE) as *const _ {
+                DEFERRED_CALLS[1].set()
+            } else if ptr == &(*USART3_BASE) as *const _ {
+                DEFERRED_CALLS[2].set()
+            }
+
             Err(ErrorCode::BUSY)
         } else {
             Ok(())
