@@ -43,7 +43,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
+pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -163,7 +163,7 @@ pub unsafe fn main() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.uart0,
-        115200,
+        19200,
         dynamic_deferred_caller,
     )
     .finalize(());

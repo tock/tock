@@ -1,67 +1,39 @@
-SiFive HiFive1 Rev B RISC-V Board
-==================================
+# BBC HiFive Inventor - FE310-G003 RISC-V Board
 
-- https://www.sifive.com/boards/hifive1-rev-b
+<img src="https://www.hifiveinventor.com/image/hifive/support/gs-2-overview.png" width="35%">
 
-Arduino-compatible dev board for RISC-V. This is the second release of this
-board ("Rev B").
+The [BBC HiFive Inventor](https://www.hifiveinventor.com/) is a
+board based on the SiFive FE310-G003 chip built around the
+[E31 Core](https://www.sifive.com/cores/e31). It includes the following
+peripherals:
 
-Programming
------------
+- 6x8 RGB LED Matrix
+- Light Sensor
+- LSM303AGR compass and accelerometer
+- Bluetooth and Wi-Fi connectivity co-processor
 
-Running `make flash` should load the kernel onto the board. You will need a
-relatively new (i.e. from git) version of OpenOCD.
+**At present, the peripherals are not set up.** 
 
-The kernel also assumes there is the default HiFive1 software bootloader running
-on the chip.
+## Programming
 
-Running in QEMU
----------------
+### Using J-Link
 
-The HiFive1 application can be run in the QEMU emulation platform for RISC-V, allowing quick and easy testing.
+Running `make flash-jlink` should load the kernel onto the board. It requires
+you install [J-Link](https://www.segger.com/downloads/jlink#J-LinkSoftwareAndDocumentationPack).
+Make sure that the `JLinkExe` executable is accessible starting from your
+`PATH` variable.
 
-Unfortunately you need QEMU 5.1, which at the time of writing is unlikely to be avaliable in your distro. Luckily Tock can build QEMU for you. From the top level of the Tock source just run `make ci-setup-qemu` and follow the steps.
-
-QEMU can be started with Tock using the following arguments (in Tock's top-level directory):
-
-```bash
-$ qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf  -nographic
-```
-
-Or with the `qemu` make target:
+If need, use `gdb` to debug the kernel. Start a custom gdb server with
+`JLinkGDBServerExe`, or use the following configuration:
 
 ```bash
-$ make qemu
+$ JLinkGDBServerCLExe -select USB -device FE310 -endian little -if JTAG -speed 1200 -noir -noLocalhostOnly
 ```
 
-QEMU can be started with Tock and a userspace app using the following arguments (in Tock's top-level directory):
+### Other tools
 
-```
-qemu-system-riscv32 -M sifive_e,revb=true -kernel $TOCK_ROOT/target/riscv32imac-unknown-none-elf/release/hifive1.elf -device loader,file=./examples/hello.tbf,addr=0x20040000 -nographic
-```
-Or with the `qemu-app` make target:
+I would also like to note that `openocd` support is in developement.
+[A update](https://review.openocd.org/c/openocd/+/7135) for adding the flash
+ISSI IS25LQ040 chip is on it's way.
 
-```bash
-$ make APP=/path/to/app.tbf qemu-app
-```
-
-The TBF must be compiled for the HiFive board which is, at the time of writing,
-supported for Rust userland apps using libtock-rs. For example, you can build
-the Hello World exmple app from the libtock-rs repository by running:
-
-```
-$ cd [LIBTOCK-RS-DIR]
-$ make EXAMPLE=hello_world flash-hifive1
-$ tar xf target/riscv32imac-unknown-none-elf/tab/hifive1/hello_world.tab
-$ cd [TOCK_ROOT]/boards/hifive
-$ make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
-```
-
-HiFive1 Revision A
-------------------
-
-Tock has dropped support for the older ("Rev A") version of this board. Since
-that version of the hardware is no longer being produced, Tock has decided to no
-longer maintain the older board file. If would like to run Tock on the rev A
-version, you should use the [version 1.5
-release](https://github.com/tock/tock/releases/tag/release-1.5) of Tock.
+Running in QEMU has not been tested, yet.
