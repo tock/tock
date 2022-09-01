@@ -79,6 +79,7 @@ struct Hail {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules::dac::Dac<'static>,
+    // squared: &'static capsules::squared::Squared,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -109,7 +110,7 @@ impl SyscallDriverLookup for Hail {
             capsules::crc::DRIVER_NUM => f(Some(self.crc)),
 
             capsules::dac::DRIVER_NUM => f(Some(self.dac)),
-
+            // capsules::squared::DRIVER_NUM => f(Some(self.squared)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -512,6 +513,9 @@ pub unsafe fn main() {
     // );
     // peripherals.pa[16].set_client(debug_process_restart);
 
+    // // DEBUG syscall return types with the squared capsule.
+    // let squared = static_init!(capsules::squared::Squared, capsules::squared::Squared {});
+
     // Configure application fault policy
     let fault_policy = static_init!(
         kernel::process::ThresholdRestartThenPanicFaultPolicy,
@@ -542,6 +546,7 @@ pub unsafe fn main() {
         ),
         crc,
         dac,
+        // squared,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
     };
