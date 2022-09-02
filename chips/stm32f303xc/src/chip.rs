@@ -83,6 +83,9 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> 
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         match task {
             DeferredCallTask::Flash => self.flash.handle_interrupt(),
+            DeferredCallTask::Usart1 => self.usart1.handle_deferred_task(),
+            DeferredCallTask::Usart2 => self.usart2.handle_deferred_task(),
+            DeferredCallTask::Usart3 => self.usart3.handle_deferred_task(),
         }
         true
     }
