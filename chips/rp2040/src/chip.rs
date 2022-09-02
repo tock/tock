@@ -7,6 +7,7 @@ use kernel::platform::chip::InterruptService;
 
 use crate::adc;
 use crate::clocks::Clocks;
+use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::{RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
@@ -25,7 +26,7 @@ pub enum Processor {
     Processor1 = 1,
 }
 
-pub struct Rp2040<'a, I: InterruptService<()> + 'a> {
+pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
     mpu: cortexm0p::mpu::MPU,
     userspace_kernel_boundary: cortexm0p::syscall::SysCall,
     interrupt_service: &'a I,
@@ -34,7 +35,7 @@ pub struct Rp2040<'a, I: InterruptService<()> + 'a> {
     processor1_interrupt_mask: (u128, u128),
 }
 
-impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
         Self {
             mpu: cortexm0p::mpu::MPU::new(),
@@ -47,7 +48,7 @@ impl<'a, I: InterruptService<()>> Rp2040<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
 
@@ -58,7 +59,11 @@ impl<'a, I: InterruptService<()>> Chip for Rp2040<'a, I> {
                 Processor::Processor1 => self.processor1_interrupt_mask,
             };
             loop {
-                if let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
+                if let Some(task) = deferred_call::DeferredCall::next_pending() {
+                    if !self.interrupt_service.service_deferred_call(task) {
+                        panic!("unhandled deferred call");
+                    }
+                } else if let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
                     // ignore SIO_IRQ_PROC1 as it is intended for processor 1
                     // not able to unset its pending status
                     // probably only processor 1 can unset the pending by reading the fifo
@@ -121,6 +126,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub watchdog: Watchdog,
     pub pins: RPPins<'a>,
     pub uart0: Uart<'a>,
+    pub uart1: Uart<'a>,
     pub adc: adc::Adc,
     pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
@@ -138,6 +144,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             watchdog: Watchdog::new(),
             pins: RPPins::new(),
             uart0: Uart::new_uart0(),
+            uart1: Uart::new_uart1(),
             adc: adc::Adc::new(),
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
@@ -152,7 +159,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
     }
 }
 
-impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
+impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TIMER_IRQ_0 => {
@@ -191,7 +198,11 @@ impl InterruptService<()> for Rp2040DefaultPeripherals<'_> {
         }
     }
 
-    unsafe fn service_deferred_call(&self, _task: ()) -> bool {
-        false
+    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
+        match task {
+            DeferredCallTask::Uart0 => self.uart0.handle_deferred_call(),
+            DeferredCallTask::Uart1 => self.uart1.handle_deferred_call(),
+        }
+        true
     }
 }
