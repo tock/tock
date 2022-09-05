@@ -120,6 +120,14 @@ impl<'a, I: InterruptService<()> + 'a> Chip for QemuRv32VirtChip<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
+        // First check if the global machine timer interrupt is set.
+        // We would also need to check for additional global interrupt bits
+        // if there were to be used for anything in the future.
+        if CSR.mip.is_set(mip::mtimer) {
+            return true;
+        }
+
+        // Then we can check the PLIC.
         self.plic.get_saved_interrupts().is_some()
     }
 
