@@ -84,7 +84,7 @@ but may not see much practical use to date.
 
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
-| [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes (duh)     |
+| [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes           |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
 
