@@ -658,13 +658,11 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        let (region_start, region_size) = match config.regions[APP_MEMORY_REGION_NUM].location() {
-            Some((start, size)) => (start as usize, size),
-            None => {
-                // Error: Process tried to update app memory MPU region before it was created.
-                return Err(());
-            }
-        };
+        // Get app memory MPU region, or error if the process tried to update
+        // app memory MPU region before it was created.
+        let (region_start_ptr, region_size) =
+            config.regions[APP_MEMORY_REGION_NUM].location().ok_or(())?;
+        let region_start = region_start_ptr as usize;
 
         let app_memory_break = app_memory_break as usize;
         let kernel_memory_break = kernel_memory_break as usize;
