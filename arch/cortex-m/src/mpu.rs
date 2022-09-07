@@ -151,7 +151,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
 ///
 /// The cortex-m MPU has eight regions, all of which must be configured (though
 /// unused regions may be configured as disabled). This struct caches the result
-/// of region configuration calculation
+/// of region configuration calculation.
 pub struct CortexMConfig<const NUM_REGIONS: usize> {
     /// The computed region configuration for this process.
     regions: [CortexMRegion; NUM_REGIONS],
@@ -160,7 +160,11 @@ pub struct CortexMConfig<const NUM_REGIONS: usize> {
     is_dirty: Cell<bool>,
 }
 
-const APP_MEMORY_REGION_NUM: usize = 0;
+/// Records the index of the last region used for application RAM memory.
+/// Regions 0-APP_MEMORY_REGION_MAX_NUM are used for application RAM. Regions
+/// with indices above APP_MEMORY_REGION_MAX_NUM can be used for other MPU
+/// needs.
+const APP_MEMORY_REGION_MAX_NUM: usize = 0;
 
 impl<const NUM_REGIONS: usize> Default for CortexMConfig<NUM_REGIONS> {
     fn default() -> Self {
@@ -233,7 +237,7 @@ impl<const NUM_REGIONS: usize> fmt::Display for CortexMConfig<NUM_REGIONS> {
 impl<const NUM_REGIONS: usize> CortexMConfig<NUM_REGIONS> {
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
-            if number == APP_MEMORY_REGION_NUM {
+            if number <= APP_MEMORY_REGION_MAX_NUM {
                 continue;
             }
             if let None = region.location() {
@@ -534,7 +538,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             .find(|(_idx, r)| **r == region)
             .ok_or(())?;
 
-        if idx == APP_MEMORY_REGION_NUM {
+        if idx <= APP_MEMORY_REGION_MAX_NUM {
             return Err(());
         }
 
@@ -635,12 +639,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             region_size,
             region_start as *const u8,
             region_size,
-            APP_MEMORY_REGION_NUM,
+            APP_MEMORY_REGION_MAX_NUM,
             Some((0, num_subregions_used - 1)),
             permissions,
         );
 
-        config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.regions[APP_MEMORY_REGION_MAX_NUM] = region;
         config.is_dirty.set(true);
 
         Some((region_start as *const u8, region_size))
@@ -655,8 +659,9 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
     ) -> Result<(), ()> {
         // Get app memory MPU region, or error if the process tried to update
         // app memory MPU region before it was created.
-        let (region_start_ptr, region_size) =
-            config.regions[APP_MEMORY_REGION_NUM].location().ok_or(())?;
+        let (region_start_ptr, region_size) = config.regions[APP_MEMORY_REGION_MAX_NUM]
+            .location()
+            .ok_or(())?;
         let region_start = region_start_ptr as usize;
 
         let app_memory_break = app_memory_break as usize;
@@ -690,12 +695,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             region_size,
             region_start as *const u8,
             region_size,
-            APP_MEMORY_REGION_NUM,
+            APP_MEMORY_REGION_MAX_NUM,
             Some((0, num_subregions_used - 1)),
             permissions,
         );
 
-        config.regions[APP_MEMORY_REGION_NUM] = region;
+        config.regions[APP_MEMORY_REGION_MAX_NUM] = region;
         config.is_dirty.set(true);
 
         Ok(())
