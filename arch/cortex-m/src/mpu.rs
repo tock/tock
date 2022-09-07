@@ -595,13 +595,8 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         // multiple of an eighth of the MPU region length.
 
         // Determine the number of subregions to enable.
-        let mut num_subregions_used = {
-            if initial_kernel_memory_size == 0 {
-                8
-            } else {
-                initial_app_memory_size * 8 / region_size + 1
-            }
-        };
+        // Want `round_up(app_memory_size / subregion_size)`.
+        let mut num_subregions_used = initial_app_memory_size * 8 / region_size + 1;
 
         let subregion_size = region_size / 8;
 
@@ -676,26 +671,13 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 
         // Number of bytes the process wants access to.
         let app_memory_size = app_memory_break - region_start;
-        // Number of bytes the kernel has reserved.
-        let kernel_memory_size = region_start + region_size - kernel_memory_break;
 
         // There are eight subregions for every region in the Cortex-M3/4 MPU.
         let subregion_size = region_size / 8;
 
         // Determine the number of subregions to enable.
-        let num_subregions_used = {
-            if kernel_memory_size == 0 {
-                // We can give all of the memory to the app, i.e. enable
-                // all eight subregions.
-                8
-            } else {
-                // Calculate the minimum number of subregions needed to cover
-                // the `app_memory_size`.
-                //
-                // Want `round_up(app_memory_size / subregion_size)`.
-                (app_memory_size + subregion_size - 1) / subregion_size
-            }
-        };
+        // Want `round_up(app_memory_size / subregion_size)`.
+        let num_subregions_used = (app_memory_size + subregion_size - 1) / subregion_size;
 
         let subregions_end = region_start + subregion_size * num_subregions_used;
 
