@@ -164,7 +164,7 @@ pub struct CortexMConfig<const NUM_REGIONS: usize> {
 /// Regions 0-APP_MEMORY_REGION_MAX_NUM are used for application RAM. Regions
 /// with indices above APP_MEMORY_REGION_MAX_NUM can be used for other MPU
 /// needs.
-const APP_MEMORY_REGION_MAX_NUM: usize = 0;
+const APP_MEMORY_REGION_MAX_NUM: usize = 1;
 
 impl<const NUM_REGIONS: usize> Default for CortexMConfig<NUM_REGIONS> {
     fn default() -> Self {
@@ -548,6 +548,9 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         Ok(())
     }
 
+    // When allocating memory for apps, we use two regions, each a power of two
+    // in size. By using two regions we halve their size, and also halve their
+    // alignment restrictions.
     fn allocate_app_memory_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -558,7 +561,8 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        // Check that no previously allocated regions overlap the unallocated memory.
+        // Check that no previously allocated regions overlap the unallocated
+        // memory.
         for region in config.regions.iter() {
             if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
                 return None;
@@ -571,83 +575,110 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             initial_app_memory_size + initial_kernel_memory_size,
         );
 
-        // Size must be a power of two, so: https://www.youtube.com/watch?v=ovo6zwv6DX4
-        let mut region_size = math::closest_power_of_two(memory_size as u32) as usize;
-        let exponent = math::log_base_two(region_size as u32);
+        // Size must be a power of two, so:
+        // https://www.youtube.com/watch?v=ovo6zwv6DX4.
+        let mut memory_size_po2 = math::closest_power_of_two(memory_size as u32) as usize;
+        let exponent = math::log_base_two(memory_size_po2 as u32);
 
-        if exponent < 8 {
-            // Region sizes must be 256 Bytes or larger in order to support subregions
-            region_size = 256;
+        // Check for compliance with the constraints of the MPU.
+        if exponent < 9 {
+            // Region sizes must be 256 bytes or larger to support subregions.
+            // Since we are using two regions, and each must be at least 256
+            // bytes, we need the entire memory region to be at least 512 bytes.
+            memory_size_po2 = 512;
         } else if exponent > 32 {
-            // Region sizes must be 4GB or smaller
+            // Region sizes must be 4GB or smaller.
             return None;
         }
 
-        // The region should start as close as possible to the start of the unallocated memory.
+        // Region size is the actual size the MPU region will be set to, and is
+        // half of the total power of two size we are allocating to the app.
+        let mut region_size = memory_size_po2 / 2;
+
+        // The region should start as close as possible to the start of the
+        // unallocated memory.
         let mut region_start = unallocated_memory_start as usize;
 
-        // If the start and length don't align, move region up until it does
+        // If the start and length don't align, move region up until it does.
         if region_start % region_size != 0 {
             region_start += region_size - (region_start % region_size);
         }
 
-        // We allocate an MPU region exactly over the process memory block, and we disable
-        // subregions at the end of this region to disallow access to the memory past the app
-        // break. As the app break later increases, we will be able to linearly grow
-        // the logical region covering app-owned memory by enabling more and more subregions.
-        // The Cortex-M MPU supports 8 subregions, so the size of this logical region is always a
-        // multiple of an eighth of the MPU region length.
+        // We allocate two MPU regions exactly over the process memory block,
+        // and we disable subregions at the end of this region to disallow
+        // access to the memory past the app break. As the app break later
+        // increases, we will be able to linearly grow the logical region
+        // covering app-owned memory by enabling more and more subregions. The
+        // Cortex-M MPU supports 8 subregions per region, so the size of this
+        // logical region is always a multiple of a sixteenth of the MPU region
+        // length.
 
         // Determine the number of subregions to enable.
         // Want `round_up(app_memory_size / subregion_size)`.
-        let mut num_subregions_used = initial_app_memory_size * 8 / region_size + 1;
+        let mut num_enabled_subregions = initial_app_memory_size * 8 / region_size + 1;
 
         let subregion_size = region_size / 8;
 
-        // Calculates the end address of the enabled subregions and the initial kernel memory break.
-        let subregions_end = region_start + num_subregions_used * subregion_size;
-        let kernel_memory_break = region_start + region_size - initial_kernel_memory_size;
+        // Calculates the end address of the enabled subregions and the initial
+        // kernel memory break.
+        let subregions_enabled_end = region_start + num_enabled_subregions * subregion_size;
+        let kernel_memory_break = region_start + memory_size_po2 - initial_kernel_memory_size;
 
-        // If the last subregion covering app-owned memory overlaps the start of kernel-owned
-        // memory, we make the entire process memory block twice as big so there is plenty of space
-        // between app-owned and kernel-owned memory.
-        if subregions_end > kernel_memory_break {
+        // If the last subregion covering app-owned memory overlaps the start of
+        // kernel-owned memory, we make the entire process memory block twice as
+        // big so there is plenty of space between app-owned and kernel-owned
+        // memory.
+        if subregions_enabled_end > kernel_memory_break {
             region_size *= 2;
 
             if region_start % region_size != 0 {
                 region_start += region_size - (region_start % region_size);
             }
 
-            num_subregions_used = {
-                if initial_kernel_memory_size == 0 {
-                    8
-                } else {
-                    initial_app_memory_size * 8 / region_size + 1
-                }
-            };
+            num_enabled_subregions = initial_app_memory_size * 8 / region_size + 1;
         }
 
         // Make sure the region fits in the unallocated memory.
-        if region_start + region_size
+        if region_start + memory_size_po2
             > (unallocated_memory_start as usize) + unallocated_memory_size
         {
             return None;
         }
 
-        let region = CortexMRegion::new(
+        // Get the number of subregions enabled in each of the two MPU regions.
+        let num_enabled_subregions0 = cmp::min(num_enabled_subregions, 8);
+        let num_enabled_subregions1 = num_enabled_subregions.saturating_sub(8);
+
+        let region0 = CortexMRegion::new(
             region_start as *const u8,
             region_size,
             region_start as *const u8,
             region_size,
-            APP_MEMORY_REGION_MAX_NUM,
-            Some((0, num_subregions_used - 1)),
+            0,
+            Some((0, num_enabled_subregions0 - 1)),
             permissions,
         );
 
-        config.regions[APP_MEMORY_REGION_MAX_NUM] = region;
+        // We cannot have a completely unused MPU region
+        let region1 = if num_enabled_subregions1 == 0 {
+            CortexMRegion::empty(1)
+        } else {
+            CortexMRegion::new(
+                (region_start + region_size) as *const u8,
+                region_size,
+                (region_start + region_size) as *const u8,
+                region_size,
+                1,
+                Some((0, num_enabled_subregions1 - 1)),
+                permissions,
+            )
+        };
+
+        config.regions[0] = region0;
+        config.regions[1] = region1;
         config.is_dirty.set(true);
 
-        Some((region_start as *const u8, region_size))
+        Some((region_start as *const u8, memory_size_po2))
     }
 
     fn update_app_memory_region(
@@ -657,11 +688,9 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        // Get app memory MPU region, or error if the process tried to update
-        // app memory MPU region before it was created.
-        let (region_start_ptr, region_size) = config.regions[APP_MEMORY_REGION_MAX_NUM]
-            .location()
-            .ok_or(())?;
+        // Get first region, or error if the process tried to update app memory
+        // MPU region before it was created.
+        let (region_start_ptr, region_size) = config.regions[0].location().ok_or(())?;
         let region_start = region_start_ptr as usize;
 
         let app_memory_break = app_memory_break as usize;
@@ -680,27 +709,46 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 
         // Determine the number of subregions to enable.
         // Want `round_up(app_memory_size / subregion_size)`.
-        let num_subregions_used = (app_memory_size + subregion_size - 1) / subregion_size;
+        let num_enabled_subregions = (app_memory_size + subregion_size - 1) / subregion_size;
 
-        let subregions_end = region_start + subregion_size * num_subregions_used;
+        let subregions_enabled_end = region_start + subregion_size * num_enabled_subregions;
 
-        // If we can no longer cover app memory with an MPU region without overlapping kernel
-        // memory, we fail.
-        if subregions_end > kernel_memory_break {
+        // If we can no longer cover app memory with an MPU region without
+        // overlapping kernel memory, we fail.
+        if subregions_enabled_end > kernel_memory_break {
             return Err(());
         }
 
-        let region = CortexMRegion::new(
+        // Get the number of subregions enabled in each of the two MPU regions.
+        let num_enabled_subregions0 = cmp::min(num_enabled_subregions, 8);
+        let num_enabled_subregions1 = num_enabled_subregions.saturating_sub(8);
+
+        let region0 = CortexMRegion::new(
             region_start as *const u8,
             region_size,
             region_start as *const u8,
             region_size,
-            APP_MEMORY_REGION_MAX_NUM,
-            Some((0, num_subregions_used - 1)),
+            0,
+            Some((0, num_enabled_subregions0 - 1)),
             permissions,
         );
 
-        config.regions[APP_MEMORY_REGION_MAX_NUM] = region;
+        let region1 = if num_enabled_subregions1 == 0 {
+            CortexMRegion::empty(1)
+        } else {
+            CortexMRegion::new(
+                (region_start + region_size) as *const u8,
+                region_size,
+                (region_start + region_size) as *const u8,
+                region_size,
+                1,
+                Some((0, num_enabled_subregions1 - 1)),
+                permissions,
+            )
+        };
+
+        config.regions[0] = region0;
+        config.regions[1] = region1;
         config.is_dirty.set(true);
 
         Ok(())
