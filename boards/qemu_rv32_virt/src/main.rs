@@ -133,7 +133,7 @@ pub unsafe fn main() {
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     // Create a board kernel instance
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
 
     // Some capsules require a callback from a different stack
     // frame. The dynamic deferred call infrastructure can be used to
