@@ -26,6 +26,29 @@ but the approximate definitions:
 
  - **Other:** See each board for specific details.
 
+---
+
+> #### RISC-V?
+>
+> Tock has solid support for the RISC-V architecture, but no tier 1 or 2 support
+> for any single RISC-V board. If you are interested in running Tock on RISC-V
+> there are a few options:
+>
+> 1. If you would like a cheap RISC-V development board you can use the
+>    [ESP32-C3-DevKitM-1](esp32-c3-devkitM-1/README.md). This board is
+>    under active development to move to Tier 2 support.
+> 1. For a fully virtual platform on QEMU you can use the
+>    [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md) board. This
+>    can be quickly started and run on a host computer.
+> 1. For a simulation environment you can use Verilator with
+>    [OpenTitan Earlgrey on CW310](opentitan/earlgrey-cw310/README.md) or
+>    [Verilated LiteX Simulation](litex/sim/README.md).
+> 1. For an FPGA setup you can use
+>    [OpenTitan Earlgrey on CW310](opentitan/earlgrey-cw310/README.md) or
+>    [LiteX on Digilent Arty A-7](litex/arty/README.md).
+
+---
+
 ### Tier 1
 
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
