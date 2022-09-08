@@ -661,13 +661,19 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                                 Ok(()) => {
                                                     let _ = write(
                                                         &mut console_writer,
-                                                        format_args!("Process {} booted\n", proc_name),
+                                                        format_args!(
+                                                            "Process {} booted\n",
+                                                            proc_name
+                                                        ),
                                                     );
-                                                },
+                                                }
                                                 Err(e) => {
                                                     let _ = write(
                                                         &mut console_writer,
-                                                        format_args!("Process {} could not boot: {:?}\n", proc_name, e),
+                                                        format_args!(
+                                                            "Process {} could not boot: {:?}\n",
+                                                            proc_name, e
+                                                        ),
                                                     );
                                                 }
                                             }
