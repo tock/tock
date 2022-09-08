@@ -91,7 +91,7 @@ but the approximate definitions:
 
 ### Other
 
-An FPGA and Verilator implementation that is well supported and extensivley tested.
+An FPGA and Verilator implementation that is well supported and is regularly tested as part of CI.
 
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
