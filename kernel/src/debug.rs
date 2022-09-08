@@ -60,6 +60,7 @@ use crate::hil;
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessPrinter;
+use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::{MapCell, TakeCell};
@@ -428,11 +429,11 @@ impl DebugWriter {
     }
 
     /// Write as many of the bytes from the internal_buffer to the output
-    /// mechanism as possible.
-    fn publish_bytes(&self) {
+    /// mechanism as possible, returning the number written.
+    fn publish_bytes(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
-        self.internal_buffer.map(|ring_buffer| {
+        self.internal_buffer.map_or(0, |ring_buffer| {
             if let Some(out_buffer) = self.output_buffer.take() {
                 let mut count = 0;
 
@@ -456,8 +457,11 @@ impl DebugWriter {
                         self.output_buffer.put(None);
                     }
                 }
+                count
+            } else {
+                0
             }
-        });
+        })
     }
 
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
@@ -495,10 +499,10 @@ impl DebugWriterWrapper {
         self.dw.map_or(0, |dw| dw.get_count())
     }
 
-    fn publish_bytes(&self) {
-        self.dw.map(|dw| {
-            dw.publish_bytes();
-        });
+    fn publish_bytes(&self) -> usize {
+        self.dw.map_or(0, |dw| {
+            dw.publish_bytes()
+        })
     }
 
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
@@ -547,12 +551,22 @@ pub fn debug_print(args: Arguments) {
     writer.publish_bytes();
 }
 
-pub fn debug_println(args: Arguments) {
+pub fn debug_println(args: Arguments) -> usize {
     let writer = unsafe { get_debug_writer() };
 
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
-    writer.publish_bytes();
+    writer.publish_bytes()
+}
+
+pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
+    let writer = unsafe { get_debug_writer() };
+
+    for b in slice.iter() {
+        let buf: [u8; 1] = [b.get(); 1];
+        let _ = writer.write(&buf);
+    }
+    writer.publish_bytes()
 }
 
 fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
@@ -586,10 +600,33 @@ macro_rules! debug {
         debug!("")
     });
     ($msg:expr $(,)?) => ({
+        $crate::debug::debug_println(format_args!($msg));
+    });
+    ($fmt:expr, $($arg:tt)+) => ({
+        $crate::debug::debug_println(format_args!($fmt, $($arg)+));
+    });
+}
+
+/// In-kernel `println()` debugging that returns the length written.
+#[macro_export]
+macro_rules! debug_len {
+    () => ({
+        // Allow an empty debug!() to print the location when hit
+        debug!("")
+    });
+    ($msg:expr $(,)?) => ({
         $crate::debug::debug_println(format_args!($msg))
     });
     ($fmt:expr, $($arg:tt)+) => ({
         $crate::debug::debug_println(format_args!($fmt, $($arg)+))
+    });
+}
+
+/// In-kernel `println()` debugging that can take a process slice.
+#[macro_export]
+macro_rules! debug_process_slice {
+    ($msg:expr $(,)?) => ({
+        $crate::debug::debug_slice($msg)
     });
 }
 

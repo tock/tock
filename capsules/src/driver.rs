@@ -18,7 +18,8 @@ pub enum NUM {
     AnalogComparator      = 0x00007,
     LowLevelDebug         = 0x00008,
     ReadOnlyState         = 0x00009,
-
+    PrintLog              = 0x0000a,
+    
     // Kernel
     Ipc                   = 0x10000,
 

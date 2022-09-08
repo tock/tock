@@ -143,6 +143,7 @@ struct Imix {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    printlog: &'static capsules::print_log::PrintLog<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     credentials_checking_policy: &'static AppCheckerSha256,
@@ -186,6 +187,7 @@ impl SyscallDriverLookup for Imix {
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::print_log::DRIVER_NUM => f(Some(self.printlog)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
