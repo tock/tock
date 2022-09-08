@@ -710,7 +710,7 @@ default action if the Process Checker does not wish to assign it any
 meaningful identifier that might allow additional access.  A return
 value of `None` semantically means that the process's Application
 Credentials or other state do not map to any known security group or
-set of privileges. A`Some` result means the credentials map to a known
+set of privileges. A `Some` result means the credentials map to a known
 security group or set of privileges.
 
 Generally, the Process Checker that implements `AppCredentialsChecker`
