@@ -12,6 +12,8 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
+//!  - 'boot n' tries to boot an unstarted process with name n
+//!  - 'terminate n' terminates the process with name n
 //!  - 'panic' causes the kernel to run the panic handler
 //!  - 'process n' prints the memory map of process with name n
 //!  - 'kernel' prints the kernel memory map
@@ -134,6 +136,11 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
+
+/// List of valid commands for printing help. Consolidated as these are
+/// displayed in a few different cases.
+const VALID_COMMANDS_STR: &[u8] =
+    b"help status list stop start fault boot terminate process kernel panic\r\n";
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -325,9 +332,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
         let _ = self.write_bytes(b"Welcome to the process console.\r\n");
-        let _ = self.write_bytes(
-            b"Valid commands are: help status list stop start fault process kernel\r\n",
-        );
+        let _ = self.write_bytes(b"Valid commands are: ");
+        let _ = self.write_bytes(VALID_COMMANDS_STR);
         self.prompt();
     }
 
@@ -558,9 +564,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         if clean_str.starts_with("help") {
                             let _ = self.write_bytes(b"Welcome to the process console.\r\n");
                             let _ = self.write_bytes(b"Valid commands are: ");
-                            let _ = self.write_bytes(
-                                b"help status list stop start fault process kernel\r\n",
-                            );
+                            let _ = self.write_bytes(VALID_COMMANDS_STR);
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -616,6 +620,46 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                                     "Process {} now faulted\r\n",
                                                     proc_name
                                                 ),
+                                            );
+
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
+                                        }
+                                    });
+                            });
+                        } else if clean_str.starts_with("terminate") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.terminate(None);
+                                            let mut console_writer = ConsoleWriter::new();
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} terminated\n", proc_name),
+                                            );
+
+                                            let _ = self.write_bytes(
+                                                &(console_writer.buf)[..console_writer.size],
+                                            );
+                                        }
+                                    });
+                            });
+                        } else if clean_str.starts_with("boot") {
+                            let argument = clean_str.split_whitespace().nth(1);
+                            argument.map(|name| {
+                                self.kernel
+                                    .process_each_capability(&self.capability, |proc| {
+                                        let proc_name = proc.get_process_name();
+                                        if proc_name == name {
+                                            proc.try_restart(None);
+                                            let mut console_writer = ConsoleWriter::new();
+                                            let _ = write(
+                                                &mut console_writer,
+                                                format_args!("Process {} booted\n", proc_name),
                                             );
 
                                             let _ = self.write_bytes(
@@ -725,11 +769,11 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             // Prints kernel memory by moving the writer to the
                             // start state.
                             self.writer_state.replace(WriterState::KernelStart);
+                        } else if clean_str.starts_with("panic") {
+                            panic!("Process Console forced a kernel panic.");
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
-                            let _ = self.write_bytes(
-                                b"help status list stop start fault process kernel\r\n",
-                            );
+                            let _ = self.write_bytes(VALID_COMMANDS_STR);
                         }
                     }
                     Err(_e) => {
