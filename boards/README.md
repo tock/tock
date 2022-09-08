@@ -24,7 +24,7 @@ but the approximate definitions:
                [the Porting documentation](../doc/Porting.md), but
                make no promises beyond that.
 
- - **Other:** See each board for specific details
+ - **Other:** See each board for specific details.
 
 ### Tier 1
 
