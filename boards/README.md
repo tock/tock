@@ -66,6 +66,7 @@ but the approximate definitions:
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [Nordic nRF52-DK](nordic/nrf52dk/README.md)                       | ARM Cortex-M4    | nRF52832       | jLink      | tockloader                  | No            |
 | [Nordic nRF52840-Dongle](nordic/nrf52840_dongle/README.md)        | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
+| [Particle Boron](particle_boron/README.md)                        | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
 | [ACD52832](acd52832/README.md)                                    | ARM Cortex-M4    | nRF52832       | jLink      | tockloader                  | No            |
 | [ST Nucleo F446RE](nucleo_f446re/README.md)                       | ARM Cortex-M4    | STM32F446      | openocd    | custom                      | https://github.com/tock/tock/issues/1827 |
 | [ST Nucleo F429ZI](nucleo_f429zi/README.md)                       | ARM Cortex-M4    | STM32F429      | openocd    | custom                      | https://github.com/tock/tock/issues/1827 |
