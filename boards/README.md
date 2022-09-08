@@ -24,10 +24,7 @@ but the approximate definitions:
                [the Porting documentation](../doc/Porting.md), but
                make no promises beyond that.
 
- - **Tier Z:** These are unstable _platforms_, where Tock bringup is
-               happening in parallel with hardware development. These
-               are highly experimental by their nature, though some may actually 
-               be better supported than Tier 2/3 platforms.
+ - **Other:** See each board for specific details
 
 ### Tier 1
 
@@ -69,25 +66,21 @@ but the approximate definitions:
 | [Digilent Arty A-7 100T](arty_e21/README.md)                      | RISC-V RV32IMAC  | SiFive E21     | openocd    | tockloader                  | No            |
 
 
-### Tier Z1
+### Other
 
-Unstable hardware platforms that are heavily used by core team developers.
+An FPGA and Verilator implementation that is well supported and extensivley tested.
 
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [OpenTitan Earlgrey on CW310](opentitan/earlgrey-cw310/README.md) | RISC-V RV32IMC   | EarlGrey       | custom     | custom                      | Yes (5.1)     |
 
-### Tier Z2
-
-Unstable hardware platforms that are regularly tested (e.g. part of CI flow),
-but may not see much practical use to date.
+Virtual hardware platforms that are regulary tested as part of the CI.
 
 | Board                                                             | Architecture     | MCU            | Interface  | App deployment              | QEMU Support? |
 |-------------------------------------------------------------------|------------------|----------------|------------|-----------------------------|---------------|
 | [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes           |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
-
 
 [^1]: Tockloader is not able to interact with this board directly, but
       can be used to work on a flash-image of the board, which can in
