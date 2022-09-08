@@ -1380,7 +1380,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         if let Some((major, minor)) = tbf_header.get_kernel_version() {
             // If the `KernelVersion` header is present, we read the requested
             // kernel version and compare it to the running kernel version.
-            if crate::MAJOR != major || crate::MINOR < minor {
+            if crate::KERNEL_MAJOR_VERSION != major || crate::KERNEL_MINOR_VERSION < minor {
                 // If the kernel major version is different, we prevent the
                 // process from being loaded.
                 //
@@ -1390,7 +1390,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 // process has requested. If not, we prevent the process from
                 // loading.
                 if config::CONFIG.debug_load_processes {
-                    debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})", process_name.unwrap_or("(no name)"), major, minor, (major+1), crate::MAJOR, crate::MINOR);
+                    debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})",
+                        process_name.unwrap_or("(no name)"),
+                        major,
+                        minor,
+                        (major+1),
+                        crate::KERNEL_MAJOR_VERSION,
+                        crate::KERNEL_MINOR_VERSION);
                 }
                 return Err((
                     ProcessLoadError::IncompatibleKernelVersion {

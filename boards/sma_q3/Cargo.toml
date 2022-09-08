@@ -1,0 +1,18 @@
+[package]
+name = "sma_q3"
+version = "0.1.0"
+authors = [
+    "Tock Project Developers <tock-dev@googlegroups.com>",
+    "Dorota <gihu.dcz@porcupinefactory.org>"
+]
+build = "build.rs"
+edition = "2021"
+
+[dependencies]
+components = { path = "../components" }
+cortexm4 = { path = "../../arch/cortex-m4" }
+capsules = { path = "../../capsules" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+kernel = { path = "../../kernel" }
+nrf52840 = { path = "../../chips/nrf52840" }
+nrf52_components = { path = "../nordic/nrf52_components" }

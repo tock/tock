@@ -6,6 +6,9 @@
 /// This macro creates the static buffer, ensures it is initialized to the
 /// proper type, and then returns a `&'static mut` reference to it.
 ///
+/// Note: Because this instantiates a static object, you generally cannot pass
+/// a type with generic paramters. github.com/tock/tock/issues/2995 for detail.
+///
 /// # Safety
 ///
 /// As this macro will write directly to a global area without acquiring a lock

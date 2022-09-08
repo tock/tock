@@ -111,6 +111,19 @@ struct LiteXArty {
         4,
     >,
     console: &'static capsules::console::Console<'static>,
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        VirtualMuxAlarm<
+            'static,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+        >,
+        components::process_console::Capability,
+    >,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
         capsules::virtual_uart::UartDevice<'static>,
@@ -127,6 +140,7 @@ struct LiteXArty {
             >,
         >,
     >,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -152,6 +166,7 @@ impl SyscallDriverLookup for LiteXArty {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -468,6 +483,22 @@ pub unsafe fn main() {
     // Unmask all interrupt sources in the interrupt controller
     chip.unmask_interrupts();
 
+    // Setup the process console.
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        litex_vexriscv::timer::LiteXAlarm<
+            'static,
+            'static,
+            socc::SoCRegisterFmt,
+            socc::ClockFrequency,
+        >
+    ));
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -475,6 +506,7 @@ pub unsafe fn main() {
         uart_mux,
     )
     .finalize(components::console_component_helper!());
+
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -485,6 +517,25 @@ pub unsafe fn main() {
     )
     .finalize(());
 
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::coop_component_helper!(NUM_PROCS));
+
+    let litex_arty = LiteXArty {
+        console,
+        pconsole,
+        alarm,
+        lldb,
+        led_driver,
+        scheduler,
+        scheduler_timer,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
+    };
+
+    let _ = litex_arty.pconsole.start();
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
 
     // These symbols are defined in the linker script.
@@ -499,19 +550,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
-
-    let litex_arty = LiteXArty {
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
-        led_driver,
-        scheduler,
-        scheduler_timer,
-    };
-
-    kernel::process::load_and_check_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -531,10 +570,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &litex_arty,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_cap,
-    );
+    board_kernel.kernel_loop(&litex_arty, chip, Some(&litex_arty.ipc), &main_loop_cap);
 }

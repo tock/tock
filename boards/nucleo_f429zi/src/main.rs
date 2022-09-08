@@ -61,6 +61,7 @@ struct NucleoF429ZI {
     >,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
+    rng: &'static capsules::rng::RngDriver<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -81,6 +82,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -223,24 +225,19 @@ unsafe fn set_pin_primary_functions(
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 
-    // Arduino A3
-    gpio_ports.get_pin(PinId::PF03).map(|pin| {
+    // Arduino A6
+    gpio_ports.get_pin(PinId::PB01).map(|pin| {
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 
-    // Arduino A4
-    gpio_ports.get_pin(PinId::PF05).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
-    });
-
-    // Arduino A5
-    gpio_ports.get_pin(PinId::PF10).map(|pin| {
+    // Arduino A7
+    gpio_ports.get_pin(PinId::PC02).map(|pin| {
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
+unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::trng::Trng) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
 
@@ -248,6 +245,9 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
     tim2.enable_clock();
     tim2.start();
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
+
+    // RNG
+    trng.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -292,7 +292,7 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2);
+    setup_peripherals(&base_peripherals.tim2, &peripherals.trng);
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -474,19 +474,19 @@ pub unsafe fn main() {
             68 => gpio_ports.pins[5][0].as_ref().unwrap(), //D68
             69 => gpio_ports.pins[5][1].as_ref().unwrap(), //D69
             70 => gpio_ports.pins[5][2].as_ref().unwrap(), //D70
-            71 => gpio_ports.pins[0][7].as_ref().unwrap()  //D71
+            71 => gpio_ports.pins[0][7].as_ref().unwrap(),  //D71
 
             // ADC Pins
             // Enable the to use the ADC pins as GPIO
             // 72 => gpio_ports.pins[0][3].as_ref().unwrap(), //A0
             // 73 => gpio_ports.pins[2][0].as_ref().unwrap(), //A1
             // 74 => gpio_ports.pins[2][3].as_ref().unwrap(), //A2
-            // 75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
-            // 76 => gpio_ports.pins[5][5].as_ref().unwrap(), //A4
-            // 77 => gpio_ports.pins[5][10].as_ref().unwrap(), //A5
+            75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
+            76 => gpio_ports.pins[5][5].as_ref().unwrap(), //A4
+            77 => gpio_ports.pins[5][10].as_ref().unwrap(), //A5
             // 78 => gpio_ports.pins[1][1].as_ref().unwrap(), //A6
             // 79 => gpio_ports.pins[2][2].as_ref().unwrap(), //A7
-            // 80 => gpio_ports.pins[5][4].as_ref().unwrap()  //A8
+            80 => gpio_ports.pins[5][4].as_ref().unwrap()  //A8
         ),
     )
     .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
@@ -531,11 +531,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
 
     let adc_channel_4 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel15)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
-
-    let adc_channel_5 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel8)
+        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel12)
             .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
 
     let adc_syscall =
@@ -546,12 +542,19 @@ pub unsafe fn main() {
                 adc_channel_2,
                 adc_channel_3,
                 adc_channel_4,
-                adc_channel_5
             ));
 
     let process_printer =
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
+
+    // RNG
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &peripherals.trng,
+    )
+    .finalize(());
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -581,6 +584,7 @@ pub unsafe fn main() {
         button: button,
         alarm: alarm,
         gpio: gpio,
+        rng: rng,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),

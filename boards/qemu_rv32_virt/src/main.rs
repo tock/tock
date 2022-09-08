@@ -54,6 +54,7 @@ struct QemuRv32VirtPlatform {
         'static,
         VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
     >,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
@@ -69,6 +70,7 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
     }
@@ -268,6 +270,11 @@ pub unsafe fn main() {
         lldb,
         scheduler,
         scheduler_timer,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
     };
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
@@ -292,10 +299,5 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
-        &main_loop_cap,
-    );
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
 }

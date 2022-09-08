@@ -1,6 +1,6 @@
 //! SyscallDriver for the FXOS8700CQ accelerometer.
 //!
-//! <http://www.nxp.com/assets/documents/data/en/data-sheets/FXOS8700CQ.pdf>
+//! <https://www.nxp.com/docs/en/data-sheet/FXOS8700CQ.pdf>
 //!
 //! The driver provides x, y, and z acceleration data to a callback function.
 //! It implements the `hil::sensors::NineDof` trait.
@@ -273,8 +273,8 @@ impl gpio::Client for Fxos8700cq<'_> {
 impl I2CClient for Fxos8700cq<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         // If there's an I2C error, just reset and issue a callback
-        // with all 0s. Otherwise, if there's no sensor attacherd,
-        // it's possible to have nondeterminstic behavior, where
+        // with all 0s. Otherwise, if there's no sensor attached,
+        // it's possible to have nondeterministic behavior, where
         // sometimes you get callbacks and sometimes you don't, based
         // on whether a floating interrupt line triggers. -pal 3/19/21
         if status != Ok(()) {
@@ -346,7 +346,7 @@ impl I2CClient for Fxos8700cq<'_> {
 
                 // The callback function has no error field,
                 // we can safely ignore the error value.
-                if let Err((_error, buffer)) = self.i2c.write(buffer, 3) {
+                if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
                     self.state.set(State::Disabled);
                     self.buffer.replace(buffer);
                     self.callback.map(|cb| {

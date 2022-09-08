@@ -360,6 +360,7 @@ unsafe fn setup_peripherals(
     // FSMC
     fsmc.enable();
 
+    // RNG
     trng.enable_clock();
 }
 

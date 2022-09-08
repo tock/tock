@@ -9,9 +9,9 @@ Since LiteX is a SoC builder, the individual generated SoCs can differ
 significantly depending on the release and configuration options
 used. This board definition currently targets and has been tested with
 - [the LiteX SoC generator, revision
-  c43132f81f1113](https://github.com/enjoy-digital/litex/tree/c43132f81f1113)
+  c4e635ea5c91ca](https://github.com/enjoy-digital/litex/tree/c4e635ea5c91ca)
 - using the included
-  [`litex_sim`](https://github.com/enjoy-digital/litex/blob/c43132f81f1113/litex/tools/litex_sim.py)
+  [`litex_sim`](https://github.com/enjoy-digital/litex/blob/c4e635ea5c91ca/litex/tools/litex_sim.py)
 - built around a VexRiscv-CPU with PMP, hardware multiplication and
   compressed instruction support (named `TockSecureIMC`)
 - featuring a TIMER0 with 64-bit wide hardware uptime
@@ -26,15 +26,15 @@ used. This board definition currently targets and has been tested with
   --timer-uptime
   --with-gpio
   --rom-init $PATH_TO_TOCK_BINARY
-  --with-gpio
   ```
 
 The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the
 build infrastructure in
 [pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv),
-which is patched to introduce a CPU with physical memory protection,
-hardware multiplication and compressed instruction support (such that
-it is compatible with the `rv32imc` arch).
+which is patched to introduce a CPU with a Physical Memory Protection
+(PMP) unit with Top of Range (TOR) addressing support, hardware
+multiplication and compressed instruction support (such that it is
+compatible with the `rv32imc` arch).
 
 The [`tock-litex`](https://github.com/lschuermann/tock-litex)
 repository contains helpful instructions for how to set up the local
@@ -51,7 +51,7 @@ CSR locations in memory. The companion repository
 [tock-litex](https://github.com/lschuermann/tock-litex) provides
 access to an environment with the required LiteX Python packages in
 their targeted versions. This board currently targets the release
-[2021100501](https://github.com/lschuermann/tock-litex/releases/tag/2021100501)
+[2022081701](https://github.com/lschuermann/tock-litex/releases/tag/2022081701)
 of `tock-litex`.
 
 
