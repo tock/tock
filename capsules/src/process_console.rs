@@ -137,6 +137,11 @@ pub static mut READ_BUF: [u8; 4] = [0; 4];
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
 
+/// List of valid commands for printing help. Consolidated as these are
+/// displayed in a few different cases.
+const VALID_COMMANDS_STR: &[u8] =
+    b"help status list stop start fault boot terminate process kernel panic\r\n";
+
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
 /// each section of the debug message.
@@ -327,9 +332,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         let _ = self.write_bytes(&(console_writer.buf)[..console_writer.size]);
 
         let _ = self.write_bytes(b"Welcome to the process console.\r\n");
-        let _ = self.write_bytes(
-            b"Valid commands are: help status list stop start fault process kernel\r\n",
-        );
+        let _ = self.write_bytes(b"Valid commands are: ");
+        let _ = self.write_bytes(VALID_COMMANDS_STR);
         self.prompt();
     }
 
@@ -560,9 +564,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         if clean_str.starts_with("help") {
                             let _ = self.write_bytes(b"Welcome to the process console.\r\n");
                             let _ = self.write_bytes(b"Valid commands are: ");
-                            let _ = self.write_bytes(
-                                b"help status list stop start fault process kernel\r\n",
-                            );
+                            let _ = self.write_bytes(VALID_COMMANDS_STR);
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -669,7 +671,6 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                                     );
                                                 }
                                             }
-
                                             let _ = self.write_bytes(
                                                 &(console_writer.buf)[..console_writer.size],
                                             );
@@ -777,10 +778,11 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                             // Prints kernel memory by moving the writer to the
                             // start state.
                             self.writer_state.replace(WriterState::KernelStart);
+                        } else if clean_str.starts_with("panic") {
+                            panic!("Process Console forced a kernel panic.");
                         } else {
                             let _ = self.write_bytes(b"Valid commands are: ");
-                            let _ = self
-                                .write_bytes(b"help status list stop start fault process kernel terminate boot\n");
+                            let _ = self.write_bytes(VALID_COMMANDS_STR);
                         }
                     }
                     Err(_e) => {
