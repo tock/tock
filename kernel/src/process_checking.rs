@@ -15,7 +15,7 @@ use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
-/// What a AppCredentialsChecker decided a particular applications credential
+/// What a AppCredentialsChecker decided a particular application's credential
 /// indicates about the runnability of an application binary.
 #[derive(Debug)]
 pub enum CheckResult {
