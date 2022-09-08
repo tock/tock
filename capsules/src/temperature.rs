@@ -108,15 +108,18 @@ impl<'a> TemperatureSensor<'a> {
 }
 
 impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
-    fn callback(&self, temp_val: usize) {
-        for cntr in self.apps.iter() {
-            cntr.enter(|app, upcalls| {
-                if app.subscribed {
-                    self.busy.set(false);
-                    app.subscribed = false;
-                    upcalls.schedule_upcall(0, (temp_val, 0, 0)).ok();
-                }
-            });
+    fn callback(&self, temp_val: Result<i32, ErrorCode>) {
+        if let Ok(temp_val) = temp_val {
+            // TODO: forward error conditions
+            for cntr in self.apps.iter() {
+                cntr.enter(|app, upcalls| {
+                    if app.subscribed {
+                        self.busy.set(false);
+                        app.subscribed = false;
+                        upcalls.schedule_upcall(0, (temp_val as usize, 0, 0)).ok();
+                    }
+                });
+            }
         }
     }
 }

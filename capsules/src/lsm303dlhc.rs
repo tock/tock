@@ -119,7 +119,7 @@ enum_from_primitive! {
 }
 
 // Experimental
-const TEMP_OFFSET: i8 = 17;
+const TEMP_OFFSET: i32 = 17;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -561,24 +561,21 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
                 self.state.set(State::Idle);
             }
             State::ReadTemperature => {
-                let mut temp: usize = 0;
-                let values = if status == Ok(()) {
-                    temp = ((buffer[1] as i16 | ((buffer[0] as i16) << 8)) >> 4) as usize;
-                    self.temperature_client.map(|client| {
-                        client.callback((temp as i16 / 8 + TEMP_OFFSET as i16) as usize);
-                    });
-                    true
-                } else {
-                    self.temperature_client.map(|client| {
-                        client.callback(usize::MAX);
-                    });
-                    false
+                let values = match status {
+                    Ok(()) => Ok(
+                        ((buffer[1] as i16 | ((buffer[0] as i16) << 8)) >> 4) as i32 / 8
+                            + TEMP_OFFSET,
+                    ),
+                    Err(i2c_error) => Err(i2c_error.into()),
                 };
+                self.temperature_client.map(|client| {
+                    client.callback(values);
+                });
 
                 self.current_process.map(|process_id| {
                     let _ = self.apps.enter(*process_id, |_grant, upcalls| {
-                        if values {
-                            upcalls.schedule_upcall(0, (temp, 0, 0)).ok();
+                        if let Ok(temp) = values {
+                            upcalls.schedule_upcall(0, (temp as usize, 0, 0)).ok();
                         } else {
                             upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                         }

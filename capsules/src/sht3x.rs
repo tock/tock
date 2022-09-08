@@ -178,11 +178,11 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
                                 let mut stemp = buffer[0] as u32;
                                 stemp = stemp << 8;
                                 stemp = stemp | buffer[1] as u32;
-                                stemp = ((4375 * stemp) >> 14) - 4500;
-                                self.temperature_client
-                                    .map(|cb| cb.callback(stemp as usize));
+                                let stemp = ((4375 * stemp) >> 14) as i32 - 4500;
+                                self.temperature_client.map(|cb| cb.callback(Ok(stemp)));
                             } else {
-                                self.temperature_client.map(|cb| cb.callback(usize::MAX));
+                                self.temperature_client
+                                    .map(|cb| cb.callback(Err(ErrorCode::FAIL)));
                             }
                         }
                         if self.read_hum.get() == true {
@@ -208,12 +208,13 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
                     _ => {}
                 }
             }
-            _ => {
+            Err(i2c_err) => {
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 if self.read_temp.get() == true {
                     self.read_temp.set(false);
-                    self.temperature_client.map(|cb| cb.callback(usize::MAX));
+                    self.temperature_client
+                        .map(|cb| cb.callback(Err(i2c_err.into())));
                 }
                 if self.read_hum.get() == true {
                     self.read_hum.set(false);
