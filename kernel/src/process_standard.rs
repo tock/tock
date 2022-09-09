@@ -445,7 +445,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
         if let Ok(()) = self.reset() {
+            // Mark state as ready to start and increment kernel work to trigger
+            // the kernel loop to start this process.
             self.state.update(State::Unstarted);
+            self.kernel.increment_work();
         }
 
         // Decide what to do with res later. E.g., if we can't restart
