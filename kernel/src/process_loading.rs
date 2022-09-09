@@ -209,7 +209,6 @@ pub fn load_and_check_processes<C: Chip>(
 /// because it results in a smaller kernel, as it does not invoke
 /// the credential checking state machine.
 #[inline(always)]
-#[allow(dead_code)]
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
