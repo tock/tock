@@ -2,17 +2,17 @@
 //!
 //! When kernel capsules wish to send or receive UDP packets, the UDP sending / receiving
 //! capsules will only allow this if the capsule has bound to the port it wishes to
-//! send from / receive on. Binding to a port is accompished via calls on the
+//! send from / receive on. Binding to a port is accomplished via calls on the
 //! `UdpPortManager` struct defined in this file. Calls to bind on this table enforce that only
-//! one capsule can be bound to a given port at any time. Once capsules succesfully bind
+//! one capsule can be bound to a given port at any time. Once capsules successfully bind
 //! using this table, they receive back binding structures (`UdpPortBindingTx`/`UdpPortBindingRx`)
 //! that act as proof that the holder
 //! is bound to that port. These structures can only be created within this file, and calls
 //! to unbind must consume these structures, enforcing this invariant.
 //! The UDP tx/rx capsules require these bindings be passed in order to send/receive on a given
-//! port. Seperate bindings are used for sending and receiving because the UdpReceiver must
+//! port. Separate bindings are used for sending and receiving because the UdpReceiver must
 //! hold onto the binding for as long as a capsule wishes to receive packets on a port, so
-//! a seperate binding must be available to enable sending packets on a port while
+//! a separate binding must be available to enable sending packets on a port while
 //! listening on the same port.
 //!
 //! To reduce the size of data structures required for this task, a fixed size
@@ -25,7 +25,7 @@
 //! The files `udp_send.rs` and `udp_recv.rs` enforce that only capsules possessing
 //! the correct bindings can actually send / recv on a given port.
 //!
-//! Userspace port bindings are managed seperately by the userspace UDP driver
+//! Userspace port bindings are managed separately by the userspace UDP driver
 //! (`capsules/src/net/udp/driver.rs`), because apps can be dynamically added or
 //! removed. Bindings for userspace apps are stored in the grant regions of each app,
 //! such that removing an app automatically unbinds it. This file is able to query the
@@ -284,7 +284,7 @@ impl UdpPortManager {
         sender_binding: UdpPortBindingTx,
         receiver_binding: UdpPortBindingRx,
     ) -> Result<UdpSocket, (UdpPortBindingTx, UdpPortBindingRx)> {
-        // Verfify that the indices match up
+        // Verify that the indices match up
         if sender_binding.idx != receiver_binding.idx {
             return Err((sender_binding, receiver_binding));
         }

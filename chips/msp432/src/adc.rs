@@ -507,7 +507,7 @@ pub struct Adc<'a> {
 }
 
 impl Adc<'_> {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             registers: ADC_BASE,
             resolution: DEFAULT_ADC_RESOLUTION,

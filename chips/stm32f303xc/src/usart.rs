@@ -308,7 +308,7 @@ pub struct Usart<'a> {
 }
 
 impl<'a> Usart<'a> {
-    const fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock<'a>) -> Self {
+    fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock<'a>) -> Self {
         Self {
             registers: base_addr,
             clock: clock,
@@ -328,7 +328,7 @@ impl<'a> Usart<'a> {
         }
     }
 
-    pub const fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART1_BASE,
             UsartClock(rcc::PeripheralClock::new(
@@ -338,7 +338,7 @@ impl<'a> Usart<'a> {
         )
     }
 
-    pub const fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART2_BASE,
             UsartClock(rcc::PeripheralClock::new(
@@ -348,7 +348,7 @@ impl<'a> Usart<'a> {
         )
     }
 
-    pub const fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART3_BASE,
             UsartClock(rcc::PeripheralClock::new(

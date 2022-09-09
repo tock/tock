@@ -376,11 +376,9 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
     type Error = TbfParseError;
 
     fn try_from(b: &[u8]) -> Result<TbfHeaderV2Permissions<L>, Self::Error> {
-        let length = u16::from_le_bytes(
+        let number_perms = u16::from_le_bytes(
             b.get(0..2)
-                .ok_or(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPermissions as usize,
-                ))?
+                .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
         );
 
@@ -390,15 +388,13 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
             allowed_commands: 0,
         }; L];
 
-        for i in 0..length as usize {
+        for i in 0..number_perms as usize {
             let start = 2 + (i * size_of::<TbfHeaderDriverPermission>());
             let end = start + size_of::<TbfHeaderDriverPermission>();
             if let Some(perm) = perms.get_mut(i) {
                 *perm = b
                     .get(start..end as usize)
-                    .ok_or(TbfParseError::BadTlvEntry(
-                        TbfHeaderTypes::TbfHeaderPermissions as usize,
-                    ))?
+                    .ok_or(TbfParseError::NotEnoughFlash)?
                     .try_into()?;
             } else {
                 return Err(TbfParseError::BadTlvEntry(
@@ -407,7 +403,10 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
             }
         }
 
-        Ok(TbfHeaderV2Permissions { length, perms })
+        Ok(TbfHeaderV2Permissions {
+            length: number_perms,
+            perms,
+        })
     }
 }
 
@@ -419,17 +418,13 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<
 
         let write_id = u32::from_le_bytes(
             b.get(0..4)
-                .ok_or(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
-                ))?
+                .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
         );
 
         let read_length = u16::from_le_bytes(
             b.get(4..6)
-                .ok_or(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
-                ))?
+                .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
         );
 
@@ -440,9 +435,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<
             if let Some(read_id) = read_ids.get_mut(i) {
                 *read_id = u32::from_le_bytes(
                     b.get(start..read_end as usize)
-                        .ok_or(TbfParseError::BadTlvEntry(
-                            TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
-                        ))?
+                        .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
             } else {
@@ -454,9 +447,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<
 
         let access_length = u16::from_le_bytes(
             b.get(read_end..(read_end + 2))
-                .ok_or(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
-                ))?
+                .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
         );
 
@@ -467,9 +458,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<
             if let Some(access_id) = access_ids.get_mut(i) {
                 *access_id = u32::from_le_bytes(
                     b.get(start..access_end as usize)
-                        .ok_or(TbfParseError::BadTlvEntry(
-                            TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
-                        ))?
+                        .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
             } else {

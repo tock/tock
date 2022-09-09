@@ -339,7 +339,7 @@ pub struct Lpuart<'a> {
 }
 
 impl<'a> Lpuart<'a> {
-    pub const fn new_lpuart1(ccm: &'a ccm::Ccm) -> Self {
+    pub fn new_lpuart1(ccm: &'a ccm::Ccm) -> Self {
         Lpuart::new(
             LPUART1_BASE,
             LpuartClock(ccm::PeripheralClock::ccgr5(ccm, ccm::HCLK5::LPUART1)),
@@ -348,7 +348,7 @@ impl<'a> Lpuart<'a> {
         )
     }
 
-    pub const fn new_lpuart2(ccm: &'a ccm::Ccm) -> Self {
+    pub fn new_lpuart2(ccm: &'a ccm::Ccm) -> Self {
         Lpuart::new(
             LPUART2_BASE,
             LpuartClock(ccm::PeripheralClock::ccgr0(ccm, ccm::HCLK0::LPUART2)),
@@ -357,7 +357,7 @@ impl<'a> Lpuart<'a> {
         )
     }
 
-    const fn new(
+    fn new(
         base_addr: StaticRef<LpuartRegisters>,
         clock: LpuartClock<'a>,
         tx_dma_source: dma::DmaHardwareSource,

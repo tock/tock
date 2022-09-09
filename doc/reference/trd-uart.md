@@ -5,10 +5,10 @@ Universal Asynchronous Receiver Transmitter (UART)  HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis <br/>
+**Author:** Philip Levis, Leon Schuermann <br/>
 **Draft-Created:** August 5, 2021<br/>
-**Draft-Modified:** October 24, 2021<br/>
-**Draft-Version:** 4<br/>
+**Draft-Modified:** June 5, 2022<br/>
+**Draft-Version:** 5<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -19,7 +19,7 @@ for UARTs (serial ports) in the Tock operating system kernel. It
 describes the Rust traits and other definitions for this service as
 well as the reasoning behind them. This document is in full compliance
 with [TRD1](./trd1-trds.md). The UART HIL in this document also adheres
-to the rules in the [HIL Design Guide](./trd-hil-design.md), which requires
+to the rules in the [HIL Design Guide](./trd2-hil-design.md), which requires
 all callbacks to be asynchronous -- even if they could be synchronous.
 
 
@@ -87,7 +87,20 @@ still partitioned into bytes, and the UART sends the least significant
 bits of each byte. Suppose a UART is configured to send 7-bit
 words. If a client sends 5 bytes, the UART will send 35 bits,
 transmitting the bottom 7 bits of each byte. The most significant bit
-of each byte is ignored.
+of each byte is ignored. While this HIL does support UART transfers
+with a character-width of more than 8-bit, such characters cannot be
+sent or received using the provided bulk transfer mechanisms. A
+configuration with `Width` > `8` will disable the bulk buffer transfer
+mechanisms and restrict the device to single-character
+operations. Refer to [3 `Transmit` and `TransmitClient`
+](#3-transmit-and-transmitclient) and [4 `Receive` and `ReceiveClient`
+](#4-receive-and-receiveclient-traits) respectively.
+
+Any configuration-change must not apply to operations started before
+this change. The UART implementation is free to accept a configuration
+change and apply it with the next operation, or refuse an otherwise
+valid configuration request because of an ongoing operation by
+returning `ErrorCode::BUSY`.
 
 ```rust
 pub enum StopBits {
@@ -105,7 +118,7 @@ pub enum Width {
     Six = 6,
     Seven = 7,
     Eight = 8,
-	Nine = 9,
+    Nine = 9,
 }
 
 pub struct Parameters {
@@ -121,7 +134,7 @@ pub trait Configuration {
     fn get_width(&self) -> Width;
     fn get_parity(&self) -> Parity;
     fn get_stop_bits(&self) -> StopBits;
-    fn get_flow_control(&self) -> bool;
+    fn get_hw_flow_control(&self) -> bool;
     fn get_configuration(&self) -> Configuration;
 }
 
@@ -130,7 +143,7 @@ pub trait Configure {
     fn set_width(&self, width: Width) -> Result<(), ErrorCode>;
     fn set_parity(&self, parity: Parity) -> Result<(), ErrorCode>;
     fn set_stop_bits(&self, stop: StopBits) -> Result<(), ErrorCode>;
-    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
+    fn set_hw_flow_control(&self, on: bool) -> Result<(), ErrorCode>;
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 ```
@@ -140,9 +153,18 @@ Methods in `Configure` can return the following error conditions:
     because it has not been initialized or in the case of a shared
     hardware USART controller because it is set up for SPI.
   - `INVAL`: Baud rate was set to 0.
-  - `ENOSUPPORT`: The underlying UART cannot satisfy this configuration.
+  - `NOSUPPORT`: The underlying UART cannot satisfy this configuration.
+  - `BUSY`: The UART is currently busy processing an operation which
+    would be affected by a change of the respective parameter.
   - `FAIL`: Other failure condition.
 
+`Configuration::get_configuration` can be used to retrieve a copy of
+the current UART configuration, which can later be restored using the
+`Configure::configure` method. An implementation of the
+`Configure::configure` method must ensure that this configuration is
+applied atomically: either the configuration described by the passed
+`Parameters` is applied in its entirety or the device's configuration
+shall remain unchanged, with the respective check's error returned.
 
 The UART may be unable to set the precise baud rate specified. For
 example, the UART may be driven off a fixed clock with integer
@@ -216,7 +238,9 @@ of the bytes passed in the buffer. For example, if the UART is using
 
 If a client needs to transmit characters larger than 8 bits, it should
 use `transmit_character`, as `transmit_buffer` is a buffer of 8-bit
-bytes and cannot store 9-bit values.
+bytes and cannot store 9-bit values. If the UART is configured to use
+characters wider than 8-bit, the `transmit_buffer` operation is
+disabled and calls to it must return `ErrorCode::INVAL`.
 
 There can be a single transmit operation ongoing at any
 time. Successfully calling either `transmit_buffer` or
@@ -246,7 +270,8 @@ The valid error codes for `transmit_buffer` are:
     (e.g., a USART has been configured to be a SPI).
   - `BUSY`: the UART is already transmitting and has not made a transmission
     complete callback yet.
-  - `SIZE`: `tx_len` is larger than the passed slice.
+  - `SIZE`: `tx_len` is larger than the passed slice or `tx_len == 0`.
+  - `INVAL`: the device is configured for data widths larger than 8-bit.
   - `FAIL`: some other failure.
 
 Calling `transmit_buffer` while there is an outstanding
@@ -311,15 +336,15 @@ The `transmit_abort` method allows a UART implementation to terminate
 an outstanding call to `transmit_character` or `transmit_buffer` early. The
 result of `transmit_abort` indicates two things:
 
-  1. whether a callback will occur (there is an oustanding operation), and 
+  1. whether a callback will occur (there is an oustanding operation), and
   2. if a callback will occur, whether the operation is cancelled.
-  
+
 If `transmit_abort` returns `Callback`, there will be be a future
 callback for the completion of the outstanding request. If there is
 an outstanding `transmit_buffer` or `transmit_character` operation,
 `transmit_abort` MUST return `Callback`. If there is no outstanding
 `transmit_buffer` or `transmit_abort` operation, `transmit_abort` MUST
-return `NoCallback`. 
+return `NoCallback`.
 
 The three possible values of `AbortResult` have these meanings:
   - `Callback(true)`: there was an outstanding operation, which
@@ -328,7 +353,7 @@ The three possible values of `AbortResult` have these meanings:
   - `Callback(false)`: there was an outstanding operation, which
     has not been cancelled.  A callback will be made for that operation with
     a result other than `Err(CANCEL)`.
-  - `NoCallack`: there was no outstanding request and there will be no future
+  - `NoCallback`: there was no outstanding request and there will be no future
     callback.
 
 Note that the semantics of the boolean field in
@@ -349,7 +374,9 @@ UART. They support both single-word and buffer reception. Buffer-based
 reception is more efficient, as it allows an MCU to handle only one
 interrupt for many characters. However, buffer-based reception only supports
 characters of 6, 7, and 8 bits, so clients using 9-bit words need to use
-word operations.
+word operations. If the UART is configured to use characters wider
+than 8-bit, the `receive_buffer` operation is disabled and calls to
+it must return `ErrorCode::INVAL`.
 
 Each byte received is a character for the UART. If the UART is using
 8-bit characters, each character is a byte. If the UART is using
@@ -419,7 +446,9 @@ received, `rval` MUST be `Err`. Valid return values for
     UART communication (e.g., a USART is configured to be SPI).
   - `BUSY`: the UART is already receiving (a buffer or a word)
     and has not made a reception `received` callback yet.
-  - `SIZE`: `rx_len` is larger than the passed slice.
+  - `SIZE`: `rx_len` is larger than the passed slice or `rx_len == 0`.
+  - `INVAL`: the device is configured for data widths larger than
+    8-bit.
 
 
 The `receive_abort` method can be used to cancel an outstanding buffer
@@ -537,4 +566,6 @@ Stanford University
 Stanford, CA 94305
 USA
 pal@cs.stanford.edu
+
+Leon Schuermann <leon@is.currently.online>
 ```

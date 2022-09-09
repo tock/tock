@@ -37,7 +37,7 @@ mod rw_allow {
     // | Touch 0                                                                       | Touch 1 ...
     pub const EVENTS: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 fn touch_status_to_number(status: &TouchStatus) -> usize {

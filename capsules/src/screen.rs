@@ -29,7 +29,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Screen as usize;
 mod ro_allow {
     pub const SHARED: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 fn screen_rotation_from(screen_rotation: usize) -> Option<ScreenRotation> {
@@ -58,20 +58,12 @@ enum ScreenCommand {
     Nop,
     SetBrightness(usize),
     SetPower(bool),
-    InvertOn,
-    InvertOff,
-    GetSupportedResolutionModes,
-    GetSupportedResolution(usize),
-    GetSupportedPixelFormats,
-    GetSupportedPixelFormat(usize),
-    GetRotation,
+    SetInvert(bool),
     SetRotation(ScreenRotation),
-    GetResolution,
     SetResolution {
         width: usize,
         height: usize,
     },
-    GetPixelFormat,
     SetPixelFormat(ScreenPixelFormat),
     SetWriteFrame {
         x: usize,
@@ -118,7 +110,6 @@ pub struct Screen<'a> {
     screen: &'a dyn hil::screen::Screen,
     screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
-    screen_ready: Cell<bool>,
     current_process: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
     buffer: TakeCell<'static, [u8]>,
@@ -136,7 +127,6 @@ impl<'a> Screen<'a> {
             screen_setup: screen_setup,
             apps: grant,
             current_process: OptionalCell::empty(),
-            screen_ready: Cell::new(false),
             pixel_format: Cell::new(screen.get_pixel_format()),
             buffer: TakeCell::new(buffer),
         }
@@ -162,7 +152,7 @@ impl<'a> Screen<'a> {
         {
             Err(e) => CommandReturn::failure(e),
             Ok(r) => {
-                if self.screen_ready.get() && self.current_process.is_none() {
+                if self.current_process.is_none() {
                     self.current_process.set(process_id);
                     let r = self.call_screen(command, process_id);
                     if r != Ok(()) {
@@ -185,23 +175,13 @@ impl<'a> Screen<'a> {
         match command {
             ScreenCommand::SetBrightness(brighness) => self.screen.set_brightness(brighness),
             ScreenCommand::SetPower(enabled) => self.screen.set_power(enabled),
-            ScreenCommand::InvertOn => self.screen.invert_on(),
-            ScreenCommand::InvertOff => self.screen.invert_off(),
+            ScreenCommand::SetInvert(enabled) => self.screen.set_invert(enabled),
             ScreenCommand::SetRotation(rotation) => {
                 if let Some(screen) = self.screen_setup {
                     screen.set_rotation(rotation)
                 } else {
                     Err(ErrorCode::NOSUPPORT)
                 }
-            }
-            ScreenCommand::GetRotation => {
-                let rotation = self.screen.get_rotation();
-                self.run_next_command(
-                    kernel::errorcode::into_statuscode(Ok(())),
-                    rotation as usize,
-                    0,
-                );
-                Ok(())
             }
             ScreenCommand::SetResolution { width, height } => {
                 if let Some(screen) = self.screen_setup {
@@ -210,88 +190,9 @@ impl<'a> Screen<'a> {
                     Err(ErrorCode::NOSUPPORT)
                 }
             }
-            ScreenCommand::GetResolution => {
-                let (width, height) = self.screen.get_resolution();
-                self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), width, height);
-                Ok(())
-            }
             ScreenCommand::SetPixelFormat(pixel_format) => {
                 if let Some(screen) = self.screen_setup {
                     screen.set_pixel_format(pixel_format)
-                } else {
-                    Err(ErrorCode::NOSUPPORT)
-                }
-            }
-            ScreenCommand::GetPixelFormat => {
-                let pixel_format = self.screen.get_pixel_format();
-                self.run_next_command(
-                    kernel::errorcode::into_statuscode(Ok(())),
-                    pixel_format as usize,
-                    0,
-                );
-                Ok(())
-            }
-            ScreenCommand::GetSupportedResolutionModes => {
-                if let Some(screen) = self.screen_setup {
-                    let resolution_modes = screen.get_num_supported_resolutions();
-                    self.run_next_command(
-                        kernel::errorcode::into_statuscode(Ok(())),
-                        resolution_modes,
-                        0,
-                    );
-                    Ok(())
-                } else {
-                    Err(ErrorCode::NOSUPPORT)
-                }
-            }
-            ScreenCommand::GetSupportedResolution(resolution_index) => {
-                if let Some(screen) = self.screen_setup {
-                    if let Some((width, height)) = screen.get_supported_resolution(resolution_index)
-                    {
-                        self.run_next_command(
-                            kernel::errorcode::into_statuscode(if width > 0 && height > 0 {
-                                Ok(())
-                            } else {
-                                Err(ErrorCode::INVAL)
-                            }),
-                            width,
-                            height,
-                        );
-                        Ok(())
-                    } else {
-                        Err(ErrorCode::INVAL)
-                    }
-                } else {
-                    Err(ErrorCode::NOSUPPORT)
-                }
-            }
-            ScreenCommand::GetSupportedPixelFormats => {
-                if let Some(screen) = self.screen_setup {
-                    let color_modes = screen.get_num_supported_pixel_formats();
-                    self.run_next_command(
-                        kernel::errorcode::into_statuscode(Ok(())),
-                        color_modes,
-                        0,
-                    );
-                    Ok(())
-                } else {
-                    Err(ErrorCode::NOSUPPORT)
-                }
-            }
-            ScreenCommand::GetSupportedPixelFormat(pixel_format_index) => {
-                if let Some(screen) = self.screen_setup {
-                    if let Some(pixel_format) =
-                        screen.get_supported_pixel_format(pixel_format_index)
-                    {
-                        self.run_next_command(
-                            kernel::errorcode::into_statuscode(Ok(())),
-                            pixel_format as usize,
-                            0,
-                        );
-                        Ok(())
-                    } else {
-                        Err(ErrorCode::INVAL)
-                    }
                 } else {
                     Err(ErrorCode::NOSUPPORT)
                 }
@@ -383,16 +284,12 @@ impl<'a> Screen<'a> {
     }
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
-        if !self.screen_ready.get() {
-            self.screen_ready.set(true);
-        } else {
-            self.current_process.take().map(|process_id| {
-                let _ = self.apps.enter(process_id, |app, upcalls| {
-                    app.pending_command = false;
-                    upcalls.schedule_upcall(0, (data1, data2, data3)).ok();
-                });
+        self.current_process.take().map(|process_id| {
+            let _ = self.apps.enter(process_id, |app, upcalls| {
+                app.pending_command = false;
+                upcalls.schedule_upcall(0, (data1, data2, data3)).ok();
             });
-        }
+        });
     }
 
     fn run_next_command(&self, data1: usize, data2: usize, data3: usize) {
@@ -563,23 +460,57 @@ impl<'a> SyscallDriver for Screen<'a> {
             2 => self.enqueue_command(ScreenCommand::SetPower(data1 != 0), process_id),
             // Set Brightness
             3 => self.enqueue_command(ScreenCommand::SetBrightness(data1), process_id),
-            // Invert On
-            4 => self.enqueue_command(ScreenCommand::InvertOn, process_id),
-            // Invert Off
-            5 => self.enqueue_command(ScreenCommand::InvertOff, process_id),
+            // Invert on (deprecated)
+            4 => self.enqueue_command(ScreenCommand::SetInvert(true), process_id),
+            // Invert off (deprecated)
+            5 => self.enqueue_command(ScreenCommand::SetInvert(false), process_id),
+            // Set Invert
+            6 => self.enqueue_command(ScreenCommand::SetInvert(data1 != 0), process_id),
 
-            // Get Resolution Modes Number
-            11 => self.enqueue_command(ScreenCommand::GetSupportedResolutionModes, process_id),
+            // Get Resolution Modes count
+            11 => {
+                if let Some(screen) = self.screen_setup {
+                    CommandReturn::success_u32(screen.get_num_supported_resolutions() as u32)
+                } else {
+                    CommandReturn::failure(ErrorCode::NOSUPPORT)
+                }
+            }
             // Get Resolution Mode Width and Height
-            12 => self.enqueue_command(ScreenCommand::GetSupportedResolution(data1), process_id),
+            12 => {
+                if let Some(screen) = self.screen_setup {
+                    match screen.get_supported_resolution(data1) {
+                        Some((width, height)) if width > 0 && height > 0 => {
+                            CommandReturn::success_u32_u32(width as u32, height as u32)
+                        }
+                        _ => CommandReturn::failure(ErrorCode::INVAL),
+                    }
+                } else {
+                    CommandReturn::failure(ErrorCode::NOSUPPORT)
+                }
+            }
 
-            // Get Color Depth Modes Number
-            13 => self.enqueue_command(ScreenCommand::GetSupportedPixelFormats, process_id),
-            // Get Color Depth Mode Bits per Pixel
-            14 => self.enqueue_command(ScreenCommand::GetSupportedPixelFormat(data1), process_id),
+            // Get pixel format Modes count
+            13 => {
+                if let Some(screen) = self.screen_setup {
+                    CommandReturn::success_u32(screen.get_num_supported_pixel_formats() as u32)
+                } else {
+                    CommandReturn::failure(ErrorCode::NOSUPPORT)
+                }
+            }
+            // Get supported pixel format
+            14 => {
+                if let Some(screen) = self.screen_setup {
+                    match screen.get_supported_pixel_format(data1) {
+                        Some(pixel_format) => CommandReturn::success_u32(pixel_format as u32),
+                        _ => CommandReturn::failure(ErrorCode::INVAL),
+                    }
+                } else {
+                    CommandReturn::failure(ErrorCode::NOSUPPORT)
+                }
+            }
 
             // Get Rotation
-            21 => self.enqueue_command(ScreenCommand::GetRotation, process_id),
+            21 => CommandReturn::success_u32(self.screen.get_rotation() as u32),
             // Set Rotation
             22 => self.enqueue_command(
                 ScreenCommand::SetRotation(
@@ -589,7 +520,10 @@ impl<'a> SyscallDriver for Screen<'a> {
             ),
 
             // Get Resolution
-            23 => self.enqueue_command(ScreenCommand::GetResolution, process_id),
+            23 => {
+                let (width, height) = self.screen.get_resolution();
+                CommandReturn::success_u32_u32(width as u32, height as u32)
+            }
             // Set Resolution
             24 => self.enqueue_command(
                 ScreenCommand::SetResolution {
@@ -599,9 +533,9 @@ impl<'a> SyscallDriver for Screen<'a> {
                 process_id,
             ),
 
-            // Get Color Depth
-            25 => self.enqueue_command(ScreenCommand::GetPixelFormat, process_id),
-            // Set Color Depth
+            // Get pixel format
+            25 => CommandReturn::success_u32(self.screen.get_pixel_format() as u32),
+            // Set pixel format
             26 => {
                 if let Some(pixel_format) = screen_pixel_format_from(data1) {
                     self.enqueue_command(ScreenCommand::SetPixelFormat(pixel_format), process_id)

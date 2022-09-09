@@ -728,22 +728,22 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         driver_num: usize,
         size: usize,
         align: usize,
-    ) -> Option<NonNull<u8>> {
+    ) -> bool {
         // Do not modify an inactive process.
         if !self.is_active() {
-            return None;
+            return false;
         }
 
         // Verify the grant_num is valid.
         if grant_num >= self.kernel.get_grant_count_and_finalize() {
-            return None;
+            return false;
         }
 
         // Verify that the grant is not already allocated. If the pointer is not
         // null then the grant is already allocated.
         if let Some(is_allocated) = self.grant_is_allocated(grant_num) {
             if is_allocated {
-                return None;
+                return false;
             }
         }
 
@@ -760,30 +760,30 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // If we find a match, then the driver_num must already be used and the
         // grant allocation fails.
         if exists {
-            return None;
+            return false;
         }
 
         // Use the shared grant allocator function to actually allocate memory.
         // Returns `None` if the allocation cannot be created.
         if let Some(grant_ptr) = self.allocate_in_grant_region_internal(size, align) {
             // Update the grant pointer to the address of the new allocation.
-            self.grant_pointers.map_or(None, |grant_pointers| {
+            self.grant_pointers.map_or(false, |grant_pointers| {
                 // Implement `grant_pointers[grant_num] = grant_ptr` without a
                 // chance of a panic.
                 grant_pointers
                     .get_mut(grant_num)
-                    .map_or(None, |grant_entry| {
+                    .map_or(false, |grant_entry| {
                         // Actually set the driver num and grant pointer.
                         grant_entry.driver_num = driver_num;
                         grant_entry.grant_ptr = grant_ptr.as_ptr() as *mut u8;
 
-                        // If all of this worked, return the allocated pointer.
-                        Some(grant_ptr)
+                        // If all of this worked, return true.
+                        true
                     })
             })
         } else {
             // Could not allocate the memory for the grant region.
-            None
+            false
         }
     }
 
@@ -811,7 +811,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error> {
+    fn enter_grant(&self, grant_num: usize) -> Result<NonNull<u8>, Error> {
         // Do not try to access the grant region of inactive process.
         if !self.is_active() {
             return Err(Error::InactiveApp);
@@ -843,7 +843,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
                             // And we return the grant pointer to the entered
                             // grant.
-                            Ok(grant_ptr)
+                            Ok(unsafe { NonNull::new_unchecked(grant_ptr) })
                         }
                     }
                     None => Err(Error::AddressOutOfBounds),
@@ -868,7 +868,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         Ok(custom_grant_address as *mut u8)
     }
 
-    fn leave_grant(&self, grant_num: usize) {
+    unsafe fn leave_grant(&self, grant_num: usize) {
         // Do not modify an inactive process.
         if !self.is_active() {
             return;
@@ -1283,7 +1283,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         if let Some((major, minor)) = tbf_header.get_kernel_version() {
             // If the `KernelVersion` header is present, we read the requested
             // kernel version and compare it to the running kernel version.
-            if crate::MAJOR != major || crate::MINOR < minor {
+            if crate::KERNEL_MAJOR_VERSION != major || crate::KERNEL_MINOR_VERSION < minor {
                 // If the kernel major version is different, we prevent the
                 // process from being loaded.
                 //
@@ -1293,7 +1293,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 // process has requested. If not, we prevent the process from
                 // loading.
                 if config::CONFIG.debug_load_processes {
-                    debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})", process_name.unwrap_or("(no name)"), major, minor, (major+1), crate::MAJOR, crate::MINOR);
+                    debug!("WARN process {:?} not loaded as it requires kernel version >= {}.{} and < {}.0, (running kernel {}.{})",
+                        process_name.unwrap_or("(no name)"),
+                        major,
+                        minor,
+                        (major+1),
+                        crate::KERNEL_MAJOR_VERSION,
+                        crate::KERNEL_MINOR_VERSION);
                 }
                 return Err(ProcessLoadError::IncompatibleKernelVersion {
                     version: Some((major, minor)),

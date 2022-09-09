@@ -463,13 +463,13 @@ enum Lpi2cStatus {
 }
 
 impl<'a> Lpi2c<'a> {
-    pub const fn new_lpi2c1(ccm: &'a ccm::Ccm) -> Self {
+    pub fn new_lpi2c1(ccm: &'a ccm::Ccm) -> Self {
         Lpi2c::new(
             LPI2C1_BASE,
             Lpi2cClock(ccm::PeripheralClock::ccgr2(ccm, ccm::HCLK2::LPI2C1)),
         )
     }
-    const fn new(base_addr: StaticRef<Lpi2cRegisters>, clock: Lpi2cClock<'a>) -> Self {
+    fn new(base_addr: StaticRef<Lpi2cRegisters>, clock: Lpi2cClock<'a>) -> Self {
         Self {
             registers: base_addr,
             clock,

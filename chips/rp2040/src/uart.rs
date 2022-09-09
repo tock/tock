@@ -392,7 +392,7 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub const fn new_uart0() -> Self {
+    pub fn new_uart0() -> Self {
         Self {
             registers: UART0_BASE,
             clocks: OptionalCell::empty(),
@@ -411,7 +411,7 @@ impl<'a> Uart<'a> {
             rx_status: Cell::new(UARTStateRX::Idle),
         }
     }
-    pub const fn new_uart1() -> Self {
+    pub fn new_uart1() -> Self {
         Self {
             registers: UART1_BASE,
             clocks: OptionalCell::empty(),

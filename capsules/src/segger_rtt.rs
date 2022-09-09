@@ -8,7 +8,7 @@
 //! Receiving RTT Messages
 //! ----------------------
 //!
-//! With the jlink tools, reciving RTT messages is a two step process. First,
+//! With the jlink tools, receiving RTT messages is a two step process. First,
 //! open a JTAG connection with a command like:
 //!
 //! ```shell

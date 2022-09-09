@@ -1,6 +1,5 @@
 use cortexm4::{
-    generic_isr, hard_fault_handler, initialize_ram_jump_to_main, nvic, scb, svc_handler,
-    systick_handler, unhandled_interrupt,
+    initialize_ram_jump_to_main, nvic, scb, unhandled_interrupt, CortexM4, CortexMVariant,
 };
 
 /*
@@ -33,7 +32,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // NMI
     unhandled_interrupt,
     // Hard Fault
-    hard_fault_handler,
+    CortexM4::HARD_FAULT_HANDLER,
     // Memory Management Fault
     unhandled_interrupt,
     // Bus Fault
@@ -49,7 +48,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // Reserved
     unhandled_interrupt,
     // SVCall
-    svc_handler,
+    CortexM4::SVC_HANDLER,
     // Reserved for Debug
     unhandled_interrupt,
     // Reserved
@@ -57,7 +56,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     // PendSv
     unhandled_interrupt,
     // SysTick
-    systick_handler,
+    CortexM4::SYSTICK_HANDLER,
 ];
 
 #[cfg_attr(
@@ -66,7 +65,7 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 )]
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
-pub static IRQS: [unsafe extern "C" fn(); 80] = [generic_isr; 80];
+pub static IRQS: [unsafe extern "C" fn(); 80] = [CortexM4::GENERIC_ISR; 80];
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {

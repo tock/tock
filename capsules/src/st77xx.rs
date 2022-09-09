@@ -850,12 +850,12 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn invert_on(&self) -> Result<(), ErrorCode> {
-        self.display_invert_on()
-    }
-
-    fn invert_off(&self) -> Result<(), ErrorCode> {
-        self.display_invert_off()
+    fn set_invert(&self, enabled: bool) -> Result<(), ErrorCode> {
+        if enabled {
+            self.display_invert_on()
+        } else {
+            self.display_invert_off()
+        }
     }
 }
 

@@ -15,6 +15,9 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml
+permissions:
+  contents: read
+
 jobs:
   litex-sim-ci:
     strategy:
@@ -73,13 +76,10 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: lschuermann/tock-litex
-          # Currently pointing to a fixed commit, switch to a tag on the next
-          # release with the Python requirements.txt included.
-          #
-          # Also, currently using the dev/litex-sim-ci branch, which
-          # pulls in a forked LiteX with GPIO support in the
-          # simulation and the simctrl modules
-          ref: da3f33968ae018c33dd10d705fd7e3ca04e5e056
+          # The pinned revision is different from the targeted release as
+          # documented in the LiteX boards, as the CI requires special patches
+          # to LiteX for interacting with the simulation:
+          ref: 2022081701-tock-ci-0
           path: tock-litex
 
       # Install all of the required Python packages from the tock-litex'
@@ -87,10 +87,13 @@ jobs:
       - name: Install Python packages pinned by the tock-litex revision
         run: |
           pushd tock-litex
-          # Unfortunately the valentyusb package fails to install because
-          # it does not have a setup.py. Thus ignore it, we don't need it
-          # here anyways (would need it for LiteX unit tests though).
-          sed -i '/valentyusb/d' ./requirements.txt
+          # Migen is the DSL which the LiteX ecosystem uses as its
+          # hardware-description language. It effectively provides a set of
+          # Python classes and constructs which can be translated into Verilog.
+          # It is not a package of the LiteX ecosystem, and thus not in the
+          # requirements.txt, but it is required to be present on the system.
+          # It should not require any specific or patched version.
+          pip3 install migen==0.9.2
           pip3 install -r requirements.txt
           popd
 

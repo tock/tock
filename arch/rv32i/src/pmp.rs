@@ -62,7 +62,7 @@ pub struct PMP<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// Each bit that is set in this mask indicates that the region is locked
     /// and cannot be used by Tock.
     locked_region_mask: Cell<u64>,
-    /// This is the total number of avaliable regions.
+    /// This is the total number of available regions.
     /// This will be between 0 and MAX_AVAILABLE_REGIONS_OVER_TWO * 2 depending
     /// on the hardware and previous boot stages.
     num_regions: usize,
@@ -552,7 +552,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
 /// This is still a useful implementation as it can be used to limit the
 /// kernels access, for example removing execute permission from regions
 /// we don't need to execute from and removing write permissions from
-/// executable reions.
+/// executable regions.
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {

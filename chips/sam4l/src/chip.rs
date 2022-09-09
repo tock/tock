@@ -4,7 +4,7 @@ use crate::deferred_call_tasks::Task;
 use crate::pm;
 
 use core::fmt::Write;
-use cortexm4;
+use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::deferred_call;
 use kernel::platform::chip::{Chip, InterruptService};
 
@@ -229,6 +229,10 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         match task {
             crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
             crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart0 => self.usart0.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart1 => self.usart1.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart2 => self.usart2.handle_deferred_call(),
+            crate::deferred_call_tasks::Task::Usart3 => self.usart3.handle_deferred_call(),
         }
         true
     }
@@ -297,6 +301,6 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(writer);
+        CortexM4::print_cortexm_state(writer);
     }
 }

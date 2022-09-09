@@ -6,6 +6,7 @@
 //! This capsule interfaces with flash and exposes the Tock `hil::kv_system`
 //! interface to others.
 //!
+//! ```
 //! +-----------------------+
 //! |                       |
 //! |  Capsule using K-V    |
@@ -29,13 +30,14 @@
 //! +-----------------------+
 //!
 //!    hil::flash
+//! ```
 
 use core::cell::Cell;
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 
@@ -219,14 +221,15 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<'a, 8> for TicKVStore<'a, F, H> {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<8> for TicKVStore<'a, F, H> {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.unhashed_key_buf.replace(data);
-
         self.hasher.run(self.key_buf.take().unwrap()).unwrap();
     }
 
-    fn hash_done(&'a self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+
+    fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
             cb.generate_key_complete(Ok(()), self.unhashed_key_buf.take().unwrap(), digest);
         });
@@ -389,7 +392,10 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
             Result<(), ErrorCode>,
         ),
     > {
-        if let Err((e, buf)) = self.hasher.add_data(LeasableBuffer::new(unhashed_key)) {
+        if let Err((e, buf)) = self
+            .hasher
+            .add_mut_data(LeasableMutableBuffer::new(unhashed_key))
+        {
             return Err((buf, key_buf, Err(e)));
         }
 
@@ -430,7 +436,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::AppendKey);
                 self.key_buffer.replace(key);
@@ -476,7 +482,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::GetKey);
                 self.key_buffer.replace(key);
@@ -514,7 +520,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::InvalidateKey);
                 self.key_buffer.replace(key);
@@ -542,7 +548,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
                 }
             }
             Operation::Init => {
-                // The init process is still occuring.
+                // The init process is still occurring.
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::GarbageCollect);
                 Ok(0)

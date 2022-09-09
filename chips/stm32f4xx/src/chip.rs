@@ -1,7 +1,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4;
+use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -30,6 +30,7 @@ pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub usart3: crate::usart::Usart<'a, dma::Dma1<'a>>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub fsmc: crate::fsmc::Fsmc<'a>,
+    pub trng: crate::trng::Trng<'a>,
 }
 
 impl<'a> Stm32f4xxDefaultPeripherals<'a> {
@@ -68,6 +69,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
                 ],
                 rcc,
             ),
+            trng: crate::trng::Trng::new(rcc),
         }
     }
 
@@ -126,6 +128,8 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f4xxDefaultPeripherals<'a> 
 
             nvic::TIM2 => self.tim2.handle_interrupt(),
 
+            nvic::RNG => self.trng.handle_interrupt(),
+
             _ => return false,
         }
         true
@@ -134,6 +138,9 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f4xxDefaultPeripherals<'a> 
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         match task {
             DeferredCallTask::Fsmc => self.fsmc.handle_interrupt(),
+            DeferredCallTask::Usart1 => self.usart1.handle_deferred_task(),
+            DeferredCallTask::Usart2 => self.usart2.handle_deferred_task(),
+            DeferredCallTask::Usart3 => self.usart3.handle_deferred_task(),
         }
         true
     }
@@ -202,6 +209,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        CortexM4::print_cortexm_state(write);
     }
 }

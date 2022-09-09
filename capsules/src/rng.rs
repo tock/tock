@@ -40,7 +40,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Rng as usize;
 mod rw_allow {
     pub const BUFFER: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 #[derive(Default)]

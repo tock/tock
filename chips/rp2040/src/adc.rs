@@ -182,7 +182,7 @@ impl Adc {
             }
             self.client.map(|client| {
                 self.disable_interrupt();
-                client.sample_ready(self.registers.fifo.read(FIFO::VAL) as u16)
+                client.sample_ready((self.registers.fifo.read(FIFO::VAL) << 4) as u16)
             });
         }
     }

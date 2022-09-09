@@ -16,6 +16,7 @@
 //! Versions are backwards compatible, that is new versions will only add
 //! fields, not remove existing ones or change the order.
 //!
+//! ```text
 //! Version 1:
 //!   |-------------------------|
 //!   |    Switch Count (u32)   |
@@ -25,7 +26,7 @@
 //!   |                         |
 //!   |     Time Ticks (u64)    |
 //!   |-------------------------|
-//!
+//! ```
 
 use core::cell::Cell;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};

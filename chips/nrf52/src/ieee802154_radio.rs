@@ -683,7 +683,7 @@ impl<'a> AlarmClient for Radio<'a> {
 }
 
 impl<'p> Radio<'p> {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),

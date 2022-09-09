@@ -11,6 +11,10 @@ use core::convert::TryFrom;
 pub enum Task {
     Flashcalw = 0,
     CRCCU = 1,
+    Usart0 = 2,
+    Usart1 = 3,
+    Usart2 = 4,
+    Usart3 = 5,
 }
 
 impl TryFrom<usize> for Task {
@@ -20,6 +24,10 @@ impl TryFrom<usize> for Task {
         match value {
             0 => Ok(Task::Flashcalw),
             1 => Ok(Task::CRCCU),
+            2 => Ok(Task::Usart0),
+            3 => Ok(Task::Usart1),
+            4 => Ok(Task::Usart2),
+            5 => Ok(Task::Usart3),
             _ => Err(()),
         }
     }

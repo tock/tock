@@ -55,9 +55,9 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestMuxComponent
 impl<
         A: 'static
             + digest::Digest<'static, L>
-            + digest::HMACSha256
-            + digest::HMACSha384
-            + digest::HMACSha512
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512
             + digest::Sha256
             + digest::Sha384
             + digest::Sha512,
@@ -105,9 +105,9 @@ impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestComponent<A,
 }
 
 impl<
-        A: kernel::hil::digest::HMACSha256
-            + digest::HMACSha384
-            + digest::HMACSha512
+        A: kernel::hil::digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512
             + 'static
             + digest::Digest<'static, L>,
         const L: usize,

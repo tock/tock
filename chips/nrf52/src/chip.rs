@@ -1,6 +1,6 @@
 use crate::deferred_call_tasks::DeferredCallTask;
 use core::fmt::Write;
-use cortexm4::{self, nvic};
+use cortexm4::{self, nvic, CortexM4, CortexMVariant};
 use kernel::deferred_call;
 use kernel::hil::time::Alarm;
 use kernel::platform::chip::InterruptService;
@@ -202,6 +202,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        CortexM4::print_cortexm_state(write);
     }
 }

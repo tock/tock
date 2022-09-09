@@ -47,7 +47,7 @@ pub struct Uart<'a> {
 }
 
 impl<'a> Uart<'a> {
-    pub const fn new(base: StaticRef<UartRegisters>) -> Uart<'a> {
+    pub fn new(base: StaticRef<UartRegisters>) -> Uart<'a> {
         Uart {
             registers: base,
             tx_client: OptionalCell::empty(),

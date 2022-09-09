@@ -140,7 +140,7 @@ struct LiteXSim {
             >,
         >,
     >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<

@@ -2,12 +2,15 @@
 
 pub mod adc;
 pub mod adc_microphone;
+pub mod air_quality;
 pub mod alarm;
 pub mod analog_comparator;
 pub mod app_flash_driver;
+pub mod bme280;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
+pub mod ccs811;
 pub mod cdc;
 pub mod console;
 pub mod crc;
@@ -31,6 +34,7 @@ pub mod l3gd20;
 pub mod led;
 pub mod led_matrix;
 pub mod lldb;
+pub mod lpm013m126;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
 pub mod lsm6dsox;

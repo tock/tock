@@ -46,7 +46,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// capsules for this platform.
 struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, stm32f412g::gpio::Pin<'static>>,
@@ -360,6 +360,7 @@ unsafe fn setup_peripherals(
     // FSMC
     fsmc.enable();
 
+    // RNG
     trng.enable_clock();
 }
 
@@ -405,7 +406,7 @@ pub unsafe fn main() {
     setup_peripherals(
         &base_peripherals.tim2,
         &base_peripherals.fsmc,
-        &peripherals.trng,
+        &base_peripherals.trng,
     );
 
     // We use the default HSI 16Mhz clock
@@ -600,8 +601,12 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    let rng = RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(());
 
     // FT6206
 

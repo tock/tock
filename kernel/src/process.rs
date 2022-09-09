@@ -453,7 +453,7 @@ pub trait Process {
     /// actual app_brk, as MPU alignment and size constraints may result in the
     /// MPU enforced region differing from the app_brk.
     ///
-    /// This will return `None` and fail if:
+    /// This will return `false` and fail if:
     /// - The process is inactive, or
     /// - There is not enough available memory to do the allocation, or
     /// - The grant_num is invalid, or
@@ -464,7 +464,7 @@ pub trait Process {
         driver_num: usize,
         size: usize,
         align: usize,
-    ) -> Option<NonNull<u8>>;
+    ) -> bool;
 
     /// Check if a given grant for this process has been allocated.
     ///
@@ -495,7 +495,7 @@ pub trait Process {
     /// is invalid, if the grant has not been allocated, or if the grant is
     /// already entered. If this returns `Ok()` then the pointer points to the
     /// previously allocated memory for this grant.
-    fn enter_grant(&self, grant_num: usize) -> Result<*mut u8, Error>;
+    fn enter_grant(&self, grant_num: usize) -> Result<NonNull<u8>, Error>;
 
     /// Enter a custom grant based on the `identifier`.
     ///
@@ -514,7 +514,15 @@ pub trait Process {
     /// invalid, this function will do nothing. If the process is inactive then
     /// grants are invalid and are not entered or not entered, and this function
     /// will do nothing.
-    fn leave_grant(&self, grant_num: usize);
+    ///
+    /// ### Safety
+    ///
+    /// The caller must ensure that no references to the memory inside the grant
+    /// exist after calling `leave_grant()`. Otherwise, it would be possible to
+    /// effectively enter the grant twice (once using the existing reference,
+    /// once with a new call to `enter_grant()`) which breaks the memory safety
+    /// requirements of grants.
+    unsafe fn leave_grant(&self, grant_num: usize);
 
     /// Return the count of the number of allocated grant pointers if the
     /// process is active. This does not count custom grants. This is used

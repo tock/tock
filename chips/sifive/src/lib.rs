@@ -6,6 +6,7 @@
 
 pub mod clint;
 pub mod gpio;
+pub mod plic;
 pub mod prci;
 pub mod pwm;
 pub mod rtc;

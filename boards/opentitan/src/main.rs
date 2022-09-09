@@ -11,6 +11,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+use crate::otbn::OtbnComponent;
 use capsules::virtual_aes_ccm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_hmac::VirtualMuxHmac;
@@ -37,11 +38,10 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
-#[cfg(test)]
-mod tests;
-
 pub mod io;
 mod otbn;
+#[cfg(test)]
+mod tests;
 pub mod usb;
 
 const NUM_PROCS: usize = 4;
@@ -78,6 +78,12 @@ static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes
     None;
 // Test access to SipHash
 static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
+// Test access to RSA
+static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
+
+// Test access to a software SHA256
+#[cfg(test)]
+static mut SHA256SOFT: Option<&capsules::sha256::Sha256Software<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -226,7 +232,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
+        static_init!([DynamicDeferredCallClientState; 6], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -543,11 +549,41 @@ unsafe fn setup() -> (
         capsules::tickv::TicKVKeyType,
     ));
 
-    // Newer FPGA builds of OpenTitan don't include the OTBN, so any accesses
-    // to the OTBN hardware will hang.
-    // OTBN is still connected though as it works on simulation runs
-    let _mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
+    let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_helper!(1024));
+
+    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
+
+    let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
+
+    // Use the OTBN to create an RSA engine
+    if let Ok((rsa_imem_start, rsa_imem_length, rsa_dmem_start, rsa_dmem_length)) =
+        crate::otbn::find_app(
+            "otbn-rsa",
+            core::slice::from_raw_parts(
+                &_sapps as *const u8,
+                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            ),
+        )
+    {
+        let rsa_hardware = static_init!(
+            lowrisc::rsa::OtbnRsa<'static>,
+            lowrisc::rsa::OtbnRsa::new(
+                otbn,
+                lowrisc::rsa::AppAddresses {
+                    imem_start: rsa_imem_start,
+                    imem_size: rsa_imem_length,
+                    dmem_start: rsa_dmem_start,
+                    dmem_size: rsa_dmem_length
+                },
+                otbn_rsa_internal_buf,
+            )
+        );
+        peripherals.otbn.set_client(rsa_hardware);
+        RSA_HARDWARE = Some(rsa_hardware);
+    } else {
+        debug!("Unable to find otbn-rsa, disabling RSA support");
+    }
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
@@ -605,6 +641,19 @@ unsafe fn setup() -> (
 
     AES = Some(ccm_client1);
 
+    #[cfg(test)]
+    {
+        use capsules::sha256::Sha256Software;
+
+        let sha_soft = static_init!(
+            Sha256Software<'static>,
+            Sha256Software::new(dynamic_deferred_caller)
+        );
+        sha_soft.initialize_callback_handle(dynamic_deferred_caller.register(sha_soft).unwrap());
+
+        SHA256SOFT = Some(sha_soft);
+    }
+
     hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
     hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
 
@@ -644,10 +693,10 @@ unsafe fn setup() -> (
     let earlgrey = static_init!(
         EarlGrey,
         EarlGrey {
-            gpio: gpio,
-            led: led,
-            console: console,
-            alarm: alarm,
+            gpio,
+            led,
+            console,
+            alarm,
             hmac,
             sha,
             rng,
@@ -747,12 +796,7 @@ pub unsafe fn main() {
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-        board_kernel.kernel_loop(
-            earlgrey,
-            chip,
-            None::<&kernel::ipc::IPC<NUM_PROCS>>,
-            &main_loop_cap,
-        );
+        board_kernel.kernel_loop(earlgrey, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
     }
 }
 

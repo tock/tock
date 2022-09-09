@@ -1,7 +1,7 @@
 Pico Explorer Base for the Raspberry Pi Pico - RP2040
 =====================================================
 
-<img src="https://images.ctfassets.net/tvfg2m04ppj4/4JAwYaOOSm4jWQNpdBDycI/758b83bc4ef65ecaa9043b404b12110d/Screenshot_2021-03-29_at_12.07.45.png?w=800" width="35%">
+<img src="https://cdn.shopify.com/s/files/1/0174/1800/products/PicoExplorerBase_1500x1500.jpg?v=1616398916" width="35%">
 
 The [Pico Explorer Base](https://shop.pimoroni.com/products/pico-explorer-base) is an expansion 
 board for the [Raspberry Pi Pico](https://www.raspberrypi.org/products/raspberry-pi-pico/)

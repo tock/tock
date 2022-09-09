@@ -46,7 +46,7 @@ pub trait Mac {
     /// Must be called after one or more calls to `set_*`. If
     /// `set_*` is called without calling `config_commit`, there is no guarantee
     /// that the underlying hardware configuration (addresses, pan ID) is in
-    /// line with this MAC protocol implementation. The specificed config_client is
+    /// line with this MAC protocol implementation. The specified config_client is
     /// notified on completed reconfiguration.
     fn config_commit(&self);
 

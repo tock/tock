@@ -2,9 +2,11 @@
 //!
 //! Supports UART and SPI master modes.
 
+use crate::deferred_call_tasks::Task;
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
+use kernel::deferred_call::DeferredCall;
 use kernel::hil;
 use kernel::hil::spi;
 use kernel::hil::uart;
@@ -283,6 +285,15 @@ const USART_BASE_ADDRS: [StaticRef<UsartRegisters>; 4] = unsafe {
     ]
 };
 
+static DEFERRED_CALLS: [DeferredCall<Task>; 4] = unsafe {
+    [
+        DeferredCall::new(Task::Usart0),
+        DeferredCall::new(Task::Usart1),
+        DeferredCall::new(Task::Usart2),
+        DeferredCall::new(Task::Usart3),
+    ]
+};
+
 pub struct USARTRegManager<'a> {
     registers: &'a UsartRegisters,
     clock: pm::Clock,
@@ -375,6 +386,14 @@ enum UsartClient<'a> {
     SpiMaster(&'a dyn spi::SpiMasterClient),
 }
 
+// State that needs to be stored for deferred calls
+struct DeferredCallState {
+    abort_rx_buf: Option<&'static mut [u8]>,
+    abort_rx_len: usize,
+    abort_rx_rcode: Result<(), ErrorCode>,
+    abort_rx_error: uart::Error,
+}
+
 pub struct USART<'a> {
     registers: StaticRef<UsartRegisters>,
     clock: pm::Clock,
@@ -395,6 +414,7 @@ pub struct USART<'a> {
 
     spi_chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
     pm: &'a pm::PowerManager,
+    dc_state: OptionalCell<DeferredCallState>,
 }
 
 impl<'a> USART<'a> {
@@ -428,6 +448,7 @@ impl<'a> USART<'a> {
             // This is only used if the USART is in SPI mode.
             spi_chip_select: OptionalCell::empty(),
             pm,
+            dc_state: OptionalCell::empty(),
         }
     }
 
@@ -530,16 +551,44 @@ impl<'a> USART<'a> {
                 buf
             });
             self.rx_len.set(0);
+            // Save state for deferred call
+            let dc_state = DeferredCallState {
+                abort_rx_buf: buffer.take(),
+                abort_rx_len: length,
+                abort_rx_rcode: rcode,
+                abort_rx_error: error,
+            };
+            self.dc_state.set(dc_state);
 
-            // alert client
+            // schedule a deferred call to alert the client of this particular UART
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*USART_BASE_ADDRS[0]) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*USART_BASE_ADDRS[1]) as *const _ {
+                DEFERRED_CALLS[1].set()
+            } else if ptr == &(*USART_BASE_ADDRS[2]) as *const _ {
+                DEFERRED_CALLS[2].set()
+            } else if ptr == &(*USART_BASE_ADDRS[3]) as *const _ {
+                DEFERRED_CALLS[3].set()
+            }
+        }
+    }
+
+    pub fn handle_deferred_call(&self) {
+        self.dc_state.take().map(|mut dc_state| {
             self.client.map(|usartclient| {
                 if let UsartClient::Uart(Some(rx), _tx) = usartclient {
-                    buffer
-                        .take()
-                        .map(|buf| rx.received_buffer(buf, length, rcode, error));
+                    dc_state.abort_rx_buf.take().map(|buf| {
+                        rx.received_buffer(
+                            buf,
+                            dc_state.abort_rx_len,
+                            dc_state.abort_rx_rcode,
+                            dc_state.abort_rx_error,
+                        )
+                    });
                 }
             });
-        }
+        });
     }
 
     fn abort_tx(&self, usart: &USARTRegManager, rcode: Result<(), ErrorCode>) {

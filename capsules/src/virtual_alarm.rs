@@ -238,8 +238,6 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
     /// When the underlying alarm has fired, we have to multiplex this event back to the virtual
     /// alarms that should now fire.
     fn alarm(&self) {
-        let now = self.alarm.now();
-        let half_max = A::Ticks::half_max_value();
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the alarm() callback.
         self.firing.set(true);
@@ -247,6 +245,10 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .iter()
             .filter(|cur| {
                 let dt_ref = cur.dt_reference.get();
+                // It is very important to get the current now time as the reference could have been
+                // set from now in the previous for_each iteration. We rely on the reference always
+                // being in the past when compared to now.
+                let now = self.alarm.now();
                 cur.armed.get() && !now.within_range(dt_ref.reference, dt_ref.reference_plus_dt())
             })
             .for_each(|cur| {
@@ -256,7 +258,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
                     // remaining time.
                     cur.dt_reference.set(TickDtReference {
                         reference: dt_ref.reference_plus_dt(),
-                        dt: half_max,
+                        dt: A::Ticks::half_max_value(),
                         extended: false,
                     });
                 } else {
@@ -271,6 +273,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.  This needs to happen after firing all expired
         // alarms since those may have reset new alarms.
+        let now = self.alarm.now();
         let next = self
             .virtual_alarms
             .iter()
@@ -331,7 +334,10 @@ mod tests {
         type Frequency = Freq1KHz;
 
         fn now(&self) -> Ticks32 {
-            self.now.get()
+            // Every time we get now, it needs to increment to represent a free running timer
+            let new_now = Ticks32::from(self.now.get().into_u32() + 1);
+            self.now.set(new_now);
+            new_now
         }
     }
 
@@ -431,5 +437,56 @@ mod tests {
         run_until_disarmed(&alarm);
 
         assert_eq!(client.count(), 3);
+    }
+
+    struct SetAlarmClient<'a> {
+        alarm: &'a VirtualMuxAlarm<'a, FakeAlarm<'a>>,
+        dt: u32,
+    }
+
+    impl<'a> SetAlarmClient<'a> {
+        fn new(alarm: &'a VirtualMuxAlarm<'a, FakeAlarm<'a>>, dt: u32) -> Self {
+            Self { alarm, dt }
+        }
+    }
+
+    impl AlarmClient for SetAlarmClient<'_> {
+        fn alarm(&self) {
+            self.alarm.set_alarm(self.alarm.now(), self.dt.into());
+        }
+    }
+
+    #[test]
+    fn test_second_alarm_set_during_first_alarm_firing() {
+        let alarm = FakeAlarm::new();
+        let mux = MuxAlarm::new(&alarm);
+        alarm.set_alarm_client(&mux);
+
+        // It is important that 0 is setup last so it is first in the linked list
+        let v_alarms = &[VirtualMuxAlarm::new(&mux), VirtualMuxAlarm::new(&mux)];
+        v_alarms[1].setup();
+        v_alarms[0].setup();
+
+        let set_v1_alarm = SetAlarmClient::new(&v_alarms[1], 100);
+        v_alarms[0].set_alarm_client(&set_v1_alarm);
+
+        let counter = ClientCounter::new();
+        v_alarms[1].set_alarm_client(&counter);
+
+        // Set the first alarm for 10 ticks in the future. This should then set the second alarm,
+        // but not call fired for the second alarm until the timer gets to 100
+        v_alarms[0].set_alarm(0.into(), 10.into());
+        let still_armed = alarm.trigger_next_alarm();
+
+        // Second alarm should not have triggered yet
+        assert!(alarm.now().into_u32() < 100);
+        assert_eq!(counter.count(), 0);
+        assert!(still_armed);
+
+        let still_armed = alarm.trigger_next_alarm();
+
+        assert!(alarm.now().into_u32() > 100);
+        assert_eq!(counter.count(), 1);
+        assert!(!still_armed);
     }
 }

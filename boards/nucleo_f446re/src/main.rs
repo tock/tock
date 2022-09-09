@@ -51,7 +51,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// capsules for this platform.
 struct NucleoF446RE {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules::led::LedDriver<
         'static,
         LedHigh<'static, stm32f446re::gpio::Pin<'static>>,
@@ -62,6 +62,7 @@ struct NucleoF446RE {
         'static,
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
+    rng: &'static capsules::rng::RngDriver<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -79,6 +80,7 @@ impl SyscallDriverLookup for NucleoF446RE {
             capsules::button::DRIVER_NUM => f(Some(self.button)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -192,7 +194,7 @@ unsafe fn set_pin_primary_functions(
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
+unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2, trng: &stm32f446re::trng::Trng) {
     // USART2 IRQn is 38
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::USART2).enable();
 
@@ -200,6 +202,9 @@ unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
     tim2.enable_clock();
     tim2.start();
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::TIM2).enable();
+
+    // RNG
+    trng.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -244,7 +249,7 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2);
+    setup_peripherals(&base_peripherals.tim2, &base_peripherals.trng);
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -342,6 +347,14 @@ pub unsafe fn main() {
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
 
+    // RNG
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(());
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -367,6 +380,7 @@ pub unsafe fn main() {
         led: led,
         button: button,
         alarm: alarm,
+        rng: rng,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
