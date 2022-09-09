@@ -62,7 +62,7 @@ jobs:
       # Install elf2tabl to be able to build userspace apps
       - name: Install elf2tab
         run: |
-          cargo install elf2tab
+          cargo install elf2tab@0.9.0
 
       # Install tockloader, which is used to prepare binaries with userspace
       # applications.
