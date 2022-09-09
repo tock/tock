@@ -10,6 +10,7 @@ use core::ptr::NonNull;
 
 use crate::capabilities;
 use crate::config;
+use crate::create_capability;
 use crate::debug;
 use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::errorcode::ErrorCode;
@@ -723,14 +724,33 @@ impl Kernel {
                     }
                 }
                 process::State::Unstarted => {
+                    // We try to transition an `Unstarted` process to one that
+                    // is active.
+
+                    // We decrement our work counter as attempting to transition
+                    // from Unstarted->Started is the work that we needed to do.
+                    self.decrement_work();
+
+                    // We must ensure this process has a unique ID before we can
+                    // run it.
                     if resources
                         .verifier()
                         .has_unique_identifier(process, self.processes)
                     {
-                        self.decrement_work();
-                        process.enqueue_init_task(&self.init_cap);
+                        // Process is unique, attempt to enqueue its entry
+                        // point. This can fail if the process is in a state
+                        // which cannot be started, if the task queue doesn't
+                        // exist, or if the task queue is full. We have no
+                        // recourse for any of these failures, so we just ignore
+                        // them.
+                        let _ = process.enqueue_init_task(&self.init_cap);
                     } else {
-                        // need to disable this process
+                        // If this process is not unique then we cannot execute
+                        // it. We mark it as failing the credential check to
+                        // ensure it is not run.
+                        let process_approval_cap =
+                            create_capability!(crate::capabilities::ProcessApprovalCapability);
+                        process.mark_credentials_fail(&process_approval_cap);
                     }
                 }
                 process::State::Faulted
