@@ -482,9 +482,6 @@ impl ProcessCheckerMachine {
                                     }
                                     p.mark_credentials_pass(None, None, &capability)
                                         .or(Err(ProcessLoadError::InternalError))?;
-                                    // self.kernel
-                                    //     .submit_process(*v, p)
-                                    //     .or(Err(ProcessLoadError::InternalError))?;
                                 }
                                 Ok(true)
                             },

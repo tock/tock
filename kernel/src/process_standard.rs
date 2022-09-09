@@ -285,14 +285,19 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         _capability: &dyn capabilities::ProcessApprovalCapability,
     ) -> Result<(), ErrorCode> {
         if self.state.get() != State::Unchecked {
-            Err(ErrorCode::NODEVICE)
-        } else {
-            self.state.update(State::Unstarted);
-            self.app_id.insert(short_app_id);
-            credentials.map(|c| self.credentials.replace(c));
-            self.kernel.increment_work();
-            Ok(())
+            return Err(ErrorCode::NODEVICE);
         }
+
+        // Update state to Unstarted and save per-process credentials state.
+        self.state.update(State::Unstarted);
+        self.app_id.insert(short_app_id);
+        credentials.map(|c| self.credentials.replace(c));
+
+        // Increment kernel work to trigger the kernel loop to start this
+        // process.
+        self.kernel.increment_work();
+
+        Ok(())
     }
 
     fn mark_credentials_fail(&self, _capability: &dyn capabilities::ProcessApprovalCapability) {
