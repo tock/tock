@@ -195,12 +195,11 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Argument 2**: unused
 
-    **Returns**: A single u32 value.
-    0: 8 pixels per byte monochromatic, pixels more to the left are more significant bits. 1 is light, 0 is dark.
-    1: RGB_233, 2-bit red channel, 3-bit green channel, 3-bit blue channel.
-    2: RGB_565, 5-bit red channel, 6-bit green channel, 5-bit blue channel.
-    3: RGB_888
-    4: ARGB_8888 (RGB with transparency)
+    **Returns**: A pair of (u64, u32).
+    The first value is the current pixel grid encoded as 4 u16 values.
+    In order from the highest to lowest bits:
+    width | height | x_offset | y_offset.
+    For the second value, see `capsules::screen::pixel_format_from`.
 
   * ### Command number: `26` 
 
