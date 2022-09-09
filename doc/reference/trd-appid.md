@@ -313,7 +313,7 @@ use B as the Global Application Identifier.
 
 Tock defines its process loading algorithm in order to provide
 deterministic behavior in the presence of colliding Application
-Identifiers.  This algorithm is designed to protect agains downgrading
+Identifiers.  This algorithm is designed to protect against downgrade
 attacks and misconfiguration. Processes have five possible states in
 the loading stage: Unloaded, Unchecked, Failed, Unstarted and
 Running. Processes start in the Unloaded state.
@@ -574,7 +574,7 @@ uses it to check whether each of the loaded proceses is safe to run.
 If no `AppCredentialsChecker` is provided, the kernel skips this check
 and transitions the process into the Unstarted state.
 
-To check the integrity of a process, the kernel scans the footers in
+To check the integrity of a process, the kernel scans the footers
 in order, starting at the beginning of that process's footer
 region. At each `TbfFooterV2Credentials` footer it encounters, the
 kernel calls `check_credentials` on the provided
@@ -609,7 +609,7 @@ Header. The size of this slice is therefore equal to
 ==============================
 
 The `ApplicationIdentification` trait defines the API the Process
-Checker provides to decides whether two processes have the same
+Checker provides to decide whether two processes have the same
 Application Identifier.  An implementer of `ApplicationIdentification`
 implements the `different_identifier` method, which performs a
 pairwise comparison of two processes. There is also a
@@ -737,18 +737,17 @@ Application running: they can create conflicting responses and
 behaviors.
 
 For example, suppose there is a system that wants to grant extra
-permissions to Tock binaries with a `TbfFooterV2Credentials` of
-`Rsa4096Key` with a certain public key. The public key is the Global
-Application Identifier of the process binary. Note this means only one
-process signed with that key can run at any time.
-
-The Process Checker implementing `AppCredentialsChecker` and
-`Compress` stores a copy of this key. It returns `Accept` to calls to
-`check_credentials` with valid `TbfFooterV2Credentials` using this
-key. Calls to `Compress` return `None` for all credentials except a
-`Rsa4096Key` with this key, for which it returns `ShortID {id:
-1}`. The Process Checker also has a method `privileged_id`, which
-returns `ShortID {id: 1}`.
+permissions to a particular Application. TBF Objects for this
+Application have a `TbfFooterV2Credentials` of `Rsa4096Key` with a
+certain public key, and the Identifier Policy uses this public key as
+a Global Application Identifier: only one Userspace Binary signed with
+that key can run at any time. In this example, the Process Checker
+implementing `AppCredentialsChecker` and `Compress` stores a copy of
+this key. It returns `Accept` to calls to `check_credentials` with
+valid `TbfFooterV2Credentials` using this key. Calls to `Compress`
+return `None` for all credentials except a `Rsa4096Key` with this key,
+for which it returns `ShortID {id: 1}`. The Process Checker also has a
+method `privileged_id`, which returns `ShortID {id: 1}`.
 
 Kernel modules which want to give these processes extra permissions
 can check whether the `ShortID` associated with a process matches the
