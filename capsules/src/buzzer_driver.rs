@@ -251,7 +251,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
                 .into()
             }
 
-            // Play a sound immediatelly.
+            // Play a sound immediately.
             2 => {
                 if !self.is_valid_app(appid) {
                     // A different app is trying to use the buzzer, so we return RESERVE.
