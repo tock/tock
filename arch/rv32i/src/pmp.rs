@@ -201,6 +201,10 @@ impl PMPRegion {
             (region_start, region_end)
         };
 
+        if region_start == 0 && region_end == 0 {
+            return false;
+        }
+
         // PMP addresses are not inclusive on the high end, that is
         //     pmpaddr[i-i] <= y < pmpaddr[i]
         if region_start < (other_end - 4) && other_start < (region_end - 4) {
@@ -629,8 +633,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                             // Set access to end address
-                            csr::CSR
-                                .pmpconfig_set(x / 2, cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2));
+                            let new_cfg =
+                                cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
                             // Lock the CSR
                             csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l1::SET);
                         }
@@ -647,10 +652,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                             // Set access to end address
-                            csr::CSR.pmpconfig_set(
-                                x / 2,
-                                cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
-                            );
+                            let new_cfg =
+                                cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
                             // Lock the CSR
                             csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
                         }
