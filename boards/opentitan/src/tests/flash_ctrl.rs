@@ -107,7 +107,7 @@ fn flash_ctl_read_write_page() {
 
     #[cfg(feature = "hardware_tests")]
     {
-        let page_num: usize = 5;
+        let page_num: usize = 511;
         run_kernel_op(100);
         // Lets do a page erase
         assert!(flash_ctl.erase_page(page_num).is_ok());
@@ -167,7 +167,7 @@ fn flash_ctl_erase_page() {
 
     #[cfg(feature = "hardware_tests")]
     {
-        let page_num: usize = 128;
+        let page_num: usize = 500;
         run_kernel_op(100);
         // Lets do a page erase
         assert!(flash_ctl.erase_page(page_num).is_ok());
