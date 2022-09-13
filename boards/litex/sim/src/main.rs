@@ -385,7 +385,7 @@ pub unsafe fn main() {
     // verilated simulation.
     let uart_mux =
         components::console::UartMuxComponent::new(uart0, 115200, dynamic_deferred_caller)
-            .finalize(());
+            .finalize(components::uart_mux_component_helper!(64));
 
     // ---------- ETHERNET ----------
 

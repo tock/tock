@@ -338,7 +338,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_helper!(64));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

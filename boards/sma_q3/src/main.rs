@@ -288,7 +288,7 @@ pub unsafe fn main() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux =
         components::console::UartMuxComponent::new(uart_channel, 115200, dynamic_deferred_caller)
-            .finalize(());
+            .finalize(components::uart_mux_component_helper!(64));
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,

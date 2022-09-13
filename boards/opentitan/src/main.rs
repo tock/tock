@@ -257,7 +257,7 @@ unsafe fn setup() -> (
         earlgrey::uart::UART0_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_helper!(64));
 
     // LEDs
     // Start with half on and half off
