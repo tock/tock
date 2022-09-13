@@ -14,6 +14,7 @@ use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::buzzer::Buzzer;
 use kernel::hil::gpio::Interrupt;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
@@ -162,7 +163,11 @@ pub struct Platform {
     >,
     buzzer: &'static capsules::buzzer_driver::Buzzer<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        capsules::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        >,
     >,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -406,14 +411,30 @@ pub unsafe fn main() {
     );
     virtual_alarm_buzzer.setup();
 
+    let pwm_buzzer = static_init!(
+        capsules::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        >,
+        capsules::buzzer_pwm::PwmBuzzer::new(
+            virtual_pwm_buzzer,
+            virtual_alarm_buzzer,
+            capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
+        )
+    );
+
     let buzzer = static_init!(
         capsules::buzzer_driver::Buzzer<
             'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+            capsules::buzzer_pwm::PwmBuzzer<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            >,
         >,
         capsules::buzzer_driver::Buzzer::new(
-            virtual_pwm_buzzer,
-            virtual_alarm_buzzer,
+            pwm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
             board_kernel.create_grant(
                 capsules::buzzer_driver::DRIVER_NUM,
@@ -421,7 +442,10 @@ pub unsafe fn main() {
             )
         )
     );
-    virtual_alarm_buzzer.set_alarm_client(buzzer);
+
+    pwm_buzzer.set_client(buzzer);
+
+    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG

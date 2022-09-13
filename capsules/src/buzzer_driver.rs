@@ -26,24 +26,44 @@
 //! );
 //! virtual_alarm_buzzer.setup();
 //!
-//! let buzzer = static_init!(
-//!     capsules::buzzer_driver::Buzzer<
+//! let pwm_buzzer = static_init!(
+//!     capsules::buzzer_pwm::PwmBuzzer<
 //!         'static,
-//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf5x::rtc::Rtc>>,
-//!     capsules::buzzer_driver::Buzzer::new(
+//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+//!         capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+//!     >,
+//!     capsules::buzzer_pwm::PwmBuzzer::new(
 //!         virtual_pwm_buzzer,
 //!         virtual_alarm_buzzer,
-//!         capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
-//!         board_kernel.create_grant(&grant_cap))
+//!         capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
+//!     )
 //! );
-//! virtual_alarm_buzzer.set_client(buzzer);
+//!
+//! let buzzer_driver = static_init!(
+//!     capsules::buzzer_driver::Buzzer<
+//!         'static,
+//!         capsules::buzzer_pwm::PwmBuzzer<
+//!             'static,
+//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+//!             capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+//!         >,
+//!     >,
+//!     capsules::buzzer_driver::Buzzer::new(
+//!         pwm_buzzer,
+//!         capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+//!         board_kernel.create_grant(capsules::buzzer_driver::DRIVER_NUM, &memory_allocation_capability)
+//!     )
+//! );
+//!
+//! pwm_buzzer.set_client(buzzer_driver);
+//!
+//! virtual_alarm_buzzer.set_client(pwm_buzzer);
 //! ```
 
 use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::hil::time::Frequency;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::OptionalCell;
 use kernel::{ErrorCode, ProcessId};
@@ -68,29 +88,25 @@ pub struct App {
     pending_command: Option<BuzzerCommand>, // What command to run when the buzzer is free.
 }
 
-pub struct Buzzer<'a, A: hil::time::Alarm<'a>> {
-    // The underlying PWM generator to make the buzzer buzz.
-    pwm_pin: &'a dyn hil::pwm::PwmPin,
-    // Alarm to stop the buzzer after some time.
-    alarm: &'a A,
-    // Per-app state.
+pub struct Buzzer<'a, B: hil::buzzer::Buzzer<'a>> {
+    /// The service capsule buzzer.
+    buzzer: &'a B,
+    /// Per-app state.
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    // Which app is currently using the buzzer.
+    /// Which app is currently using the buzzer.
     active_app: OptionalCell<ProcessId>,
-    // Max buzz time.
+    /// Max buzz time.
     max_duration_ms: usize,
 }
 
-impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
+impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     pub fn new(
-        pwm_pin: &'a dyn hil::pwm::PwmPin,
-        alarm: &'a A,
+        buzzer: &'a B,
         max_duration_ms: usize,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Buzzer<'a, A> {
+    ) -> Buzzer<'a, B> {
         Buzzer {
-            pwm_pin: pwm_pin,
-            alarm: alarm,
+            buzzer: buzzer,
             apps: grant,
             active_app: OptionalCell::empty(),
             max_duration_ms: max_duration_ms,
@@ -104,7 +120,12 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
             self.active_app.set(app_id);
-            self.buzz(command)
+            match command {
+                BuzzerCommand::Buzz {
+                    frequency_hz,
+                    duration_ms,
+                } => self.buzzer.buzz(frequency_hz, duration_ms),
+            }
         } else {
             // There is an active app, so queue this request (if possible).
             self.apps
@@ -124,30 +145,6 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
         }
     }
 
-    fn buzz(&self, command: BuzzerCommand) -> Result<(), ErrorCode> {
-        match command {
-            BuzzerCommand::Buzz {
-                frequency_hz,
-                duration_ms,
-            } => {
-                // Start the PWM output at the specified frequency with a 50%
-                // duty cycle.
-                let ret = self
-                    .pwm_pin
-                    .start(frequency_hz, self.pwm_pin.get_maximum_duty_cycle() / 2);
-                if ret != Ok(()) {
-                    return ret;
-                }
-
-                // Now start a timer so we know when to stop the PWM.
-                let interval = (duration_ms as u32) * <A::Frequency>::frequency() / 1000;
-                self.alarm
-                    .set_alarm(self.alarm.now(), A::Ticks::from(interval));
-                Ok(())
-            }
-        }
-    }
-
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
             let appid = appiter.processid();
@@ -157,7 +154,12 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
                     // Mark this driver as being in use.
                     self.active_app.set(appid);
                     // Actually make the buzz happen.
-                    self.buzz(command) == Ok(())
+                    match command {
+                        BuzzerCommand::Buzz {
+                            frequency_hz,
+                            duration_ms,
+                        } => self.buzzer.buzz(frequency_hz, duration_ms) == Ok(()),
+                    }
                 })
             });
             if started_command {
@@ -165,19 +167,39 @@ impl<'a, A: hil::time::Alarm<'a>> Buzzer<'a, A> {
             }
         }
     }
+
+    /// For buzzing immediatelly
+    /// Checks whether an app is valid or not. The app is valid if
+    /// there is no current active_app using the driver, or if the app corresponds
+    /// to the current active_app. Otherwise, a different app is trying to
+    /// use the driver while it is already in use, therefore it is not valid.
+    pub fn is_valid_app(&self, appid: ProcessId) -> bool {
+        self.active_app.map_or(
+            true,
+            |owning_app| {
+                if owning_app == &appid {
+                    true
+                } else {
+                    false
+                }
+            },
+        )
+    }
 }
 
-impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
-    fn alarm(&self) {
-        // All we have to do is stop the PWM and check if there are any pending
-        // uses of the buzzer.
-        let _ = self.pwm_pin.stop();
+impl<'a, B: hil::buzzer::Buzzer<'a>> hil::buzzer::BuzzerClient for Buzzer<'a, B> {
+    fn buzzer_done(&self, status: Result<(), ErrorCode>) {
         // Mark the active app as None and see if there is a callback.
         self.active_app.take().map(|app_id| {
             let _ = self.apps.enter(app_id, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                upcalls
+                    .schedule_upcall(0, (kernel::errorcode::into_statuscode(status), 0, 0))
+                    .ok();
             });
         });
+
+        // Remove the current app.
+        self.active_app.clear();
 
         // Check if there is anything else to do.
         self.check_queue();
@@ -185,7 +207,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for Buzzer<'a, A> {
 }
 
 /// Provide an interface for userland.
-impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for Buzzer<'a, A> {
+impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
     // Setup callbacks.
     //
     // ### `subscribe_num`
@@ -197,9 +219,13 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for Buzzer<'a, A> {
     /// ### `command_num`
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
-    /// - `1`: Buzz the buzzer. `data1` is used for the frequency in hertz, and
+    /// - `1`: Buzz the buzzer when available. `data1` is used for the frequency in hertz, and
     ///   `data2` is the duration in ms. Note the duration is capped at 5000
     ///   milliseconds.
+    /// - `2`: Buzz the buzzer immediatelly. `data1` is used for the frequency in hertz, and
+    ///   `data2` is the duration in ms. Note the duration is capped at 5000
+    ///   milliseconds.
+    /// - `3`: Stop the buzzer.
     fn command(
         &self,
         command_num: usize,
@@ -208,12 +234,10 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for Buzzer<'a, A> {
         appid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 =>
-            /* This driver exists. */
-            {
-                CommandReturn::success()
-            }
+            // Check whether the driver exists.
+            0 => CommandReturn::success(),
 
+            // Play a sound when available.
             1 => {
                 let frequency_hz = data1;
                 let duration_ms = cmp::min(data2, self.max_duration_ms);
@@ -225,6 +249,32 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for Buzzer<'a, A> {
                     appid,
                 )
                 .into()
+            }
+
+            // Play a sound immediately.
+            2 => {
+                if !self.is_valid_app(appid) {
+                    // A different app is trying to use the buzzer, so we return RESERVE.
+                    CommandReturn::failure(ErrorCode::RESERVE)
+                } else {
+                    // If there is no active app or the same app is trying to use the buzzer,
+                    // we set/replace the frequency and duration.
+                    self.active_app.set(appid);
+                    self.buzzer.buzz(data1, data2).into()
+                }
+            }
+
+            // Stop the current sound.
+            3 => {
+                if !self.is_valid_app(appid) {
+                    CommandReturn::failure(ErrorCode::RESERVE)
+                } else if self.active_app.is_none() {
+                    // If there is no active app, the buzzer isn't playing, so we return OFF.
+                    CommandReturn::failure(ErrorCode::OFF)
+                } else {
+                    self.active_app.set(appid);
+                    self.buzzer.stop().into()
+                }
             }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
