@@ -24,6 +24,19 @@ macro_rules! static_init {
     }};
 }
 
+/// An `#[inline(never)]` function that panics internally for use within
+/// the `static_buf!()` macro, which removes the size bloat of track_caller
+/// saving the location of every single call to `static_init!()`.
+/// If you hit this panic, you are either calling `static_buf!()` in
+/// a loop or calling a function multiple times which internally
+/// contains a call to `static_buf!()`. Typically, calls to
+/// `static_buf!()` are hidden within calls to `static_init!()` or
+/// component helper macros, so start your search there.
+#[inline(never)]
+pub fn static_buf_panic() -> ! {
+    panic!("Error! Single static_buf!() called twice.");
+}
+
 /// Allocates a statically-sized global array of memory for data structures but
 /// does not initialize the memory. Checks that the buffer is not aliased and is
 /// only used once.
@@ -55,34 +68,40 @@ macro_rules! static_buf {
         // return a reference to it.
 
         // Create a static buffer that we will eventually initialize with our
-        // static object. Wrap it in an option to track if the same `BUF` has
+        // static object. Pair it with a bool to track if the same `BUF` has
         // been initialized before. This protects against repeated calls to the
         // same `static_buf!()` usage.
-        static mut BUF: Option<$crate::utilities::static_init::UninitializedBuffer<$T>> = None;
+        // this is a tuple of a buf and a bool because using an Option here is
+        // problematic:  Due to niche-optimization, an Option could end
+        // up producing a non-zero initializer value which would move the entire
+        // static from `.bss` into `.data`. Also, this approach allows us to
+        // execute `UninitializedBuffer::new()` at compile time, rather than
+        // runtime, saving the code from that function from being included in
+        // the final binary. Tuple-over-option approach borrowed from
+        // https://docs.rs/cortex-m/0.7.6/src/cortex_m/macros.rs.html#66-70
+        static mut BUF: (
+            $crate::utilities::static_init::UninitializedBuffer<$T>,
+            bool,
+        ) = (
+            $crate::utilities::static_init::UninitializedBuffer::new(),
+            false,
+        );
 
         // Check if this `BUF` has already been declared and initialized. If it
         // has, then this is a repeated `static_buf!()` call which is an error
         // as it will alias the same `BUF`.
-        let used = BUF.is_some();
-
-        BUF = if used {
-            // Clear the static buffer option so that the unwrap()/expect()
-            // fails.
-            None
+        let used = BUF.1;
+        if used {
+            // panic, this buf has already been declared and initialized.
+            $crate::utilities::static_init::static_buf_panic();
         } else {
-            // Otherwise we create an uninitialized buffer as intended.
-            Some($crate::utilities::static_init::UninitializedBuffer::new())
-        };
-
-        // Actually force the check to see if the identical `static_buf!()` was
-        // called multiple times.
-        let unique_buffer = BUF
-            .as_mut()
-            .expect("ERROR! The same static_buf!() cannot be used multiple times.");
+            // Otherwise, mark our uninitialized buffer as used.
+            BUF.1 = true;
+        }
 
         // If we get to this point we can wrap our buffer to be eventually
         // initialized.
-        $crate::utilities::static_init::StaticUninitializedBuffer::new(unique_buffer)
+        $crate::utilities::static_init::StaticUninitializedBuffer::new(&mut BUF.0)
     }};
 }
 
