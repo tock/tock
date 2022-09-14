@@ -19,8 +19,6 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
 
-use core::mem::MaybeUninit;
-
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
@@ -39,9 +37,10 @@ macro_rules! uart_mux_component_helper {
     ($rx_buffer_len: literal) => {{
         use capsules::virtual_uart::MuxUart;
         use core::mem::MaybeUninit;
-        static mut UART_MUX: MaybeUninit<MuxUart<'static>> = MaybeUninit::uninit();
-        static mut RX_BUF: [u8; $rx_buffer_len] = [0; $rx_buffer_len];
-        (&mut UART_MUX, &mut RX_BUF)
+        use kernel::static_buf;
+        let UART_MUX = static_buf!(MuxUart<'static>);
+        let RX_BUF = static_buf!([u8; $rx_buffer_len]);
+        (UART_MUX, RX_BUF)
     }};
 }
 
@@ -67,17 +66,19 @@ impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
 
 impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
     type StaticInput = (
-        &'static mut MaybeUninit<MuxUart<'static>>,
-        &'static mut [u8; RX_BUF_LEN],
+        StaticUninitializedBuffer<MuxUart<'static>>,
+        StaticUninitializedBuffer<[u8; RX_BUF_LEN]>,
     );
     type Output = &'static MuxUart<'static>;
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let uart_mux = static_init_half!(
-            s.0,
-            MuxUart<'static>,
-            MuxUart::new(self.uart, s.1, self.baud_rate, self.deferred_caller,)
-        );
+        let rx_buf = s.1.initialize([0; RX_BUF_LEN]);
+        let uart_mux = s.0.initialize(MuxUart::new(
+            self.uart,
+            rx_buf,
+            self.baud_rate,
+            self.deferred_caller,
+        ));
         uart_mux.initialize_callback_handle(
             self.deferred_caller.register(uart_mux).unwrap(), // Unwrap fail = no deferred call slot available for uart mux
         );
