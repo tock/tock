@@ -25,7 +25,8 @@ macro_rules! static_init {
 }
 
 /// Allocates a statically-sized global array of memory for data structures but
-/// does not initialize the memory.
+/// does not initialize the memory. Checks that the buffer is not aliased and is
+/// only used once.
 ///
 /// This macro creates the static buffer, and returns a
 /// `StaticUninitializedBuffer` wrapper containing the buffer. The memory is
@@ -52,9 +53,36 @@ macro_rules! static_buf {
         // Statically allocate a read-write buffer for the value, write our
         // initial value into it (without dropping the initial zeros) and
         // return a reference to it.
-        static mut BUF: $crate::utilities::static_init::UninitializedBuffer<$T> =
-            $crate::utilities::static_init::UninitializedBuffer::new();
-        $crate::utilities::static_init::StaticUninitializedBuffer::new(&mut BUF)
+
+        // Create a static buffer that we will eventually initialize with our
+        // static object. Wrap it in an option to track if the same `BUF` has
+        // been initialized before. This protects against repeated calls to the
+        // same `static_buf!()` usage.
+        static mut BUF: Option<$crate::utilities::static_init::UninitializedBuffer<$T>> = None;
+
+        // Check if this `BUF` has already been declared and initialized. If it
+        // has, then this is a repeated `static_buf!()` call which is an error
+        // as it will alias the same `BUF`.
+        let used = BUF.is_some();
+
+        BUF = if used {
+            // Clear the static buffer option so that the unwrap()/expect()
+            // fails.
+            None
+        } else {
+            // Otherwise we create an uninitialized buffer as intended.
+            Some($crate::utilities::static_init::UninitializedBuffer::new())
+        };
+
+        // Actually force the check to see if the identical `static_buf!()` was
+        // called multiple times.
+        let unique_buffer = BUF
+            .as_mut()
+            .expect("ERROR! The same static_buf!() cannot be used multiple times.");
+
+        // If we get to this point we can wrap our buffer to be eventually
+        // initialized.
+        $crate::utilities::static_init::StaticUninitializedBuffer::new(unique_buffer)
     }};
 }
 
