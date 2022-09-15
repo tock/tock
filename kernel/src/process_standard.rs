@@ -101,7 +101,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// An application ShortID, generated from process loading and
     /// checking, which denotes the security identity of this process.
-    app_id: OptionalCell<ShortID>,
+    app_id: Cell<ShortID>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -238,8 +238,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_id.get()
     }
 
-    fn short_app_id(&self) -> Option<ShortID> {
-        self.app_id.extract()
+    fn short_app_id(&self) -> ShortID {
+        self.app_id.get()
     }
 
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
@@ -281,17 +281,21 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
-        short_app_id: Option<ShortID>,
+        short_app_id: ShortID,
         _capability: &dyn capabilities::ProcessApprovalCapability,
     ) -> Result<(), ErrorCode> {
-        if self.state.get() != State::Unchecked {
-            Err(ErrorCode::NODEVICE)
-        } else {
-            self.state.update(State::Unstarted);
-            self.app_id.insert(short_app_id);
-            credentials.map(|c| self.credentials.replace(c));
-            Ok(())
+        if self.state.get() != State::CredentialsUnchecked {
+            return Err(ErrorCode::NODEVICE);
         }
+        
+        self.state.update(State::CredentialsApproved);
+        self.app_id.set(short_app_id);
+        credentials.map(|c| self.credentials.replace(c));
+
+        // Tell the kernel that it has work: it needs to check if this
+        // process has a unique Application Identifier.
+        self.kernel.increment_work();
+        Ok(())
     }
 
     fn mark_credentials_fail(&self, _capability: &dyn capabilities::ProcessApprovalCapability) {
@@ -311,7 +315,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         _cap: &dyn capabilities::ProcessInitCapability,
     ) -> Result<(), ErrorCode> {
-        if self.state.get() != State::Unstarted && self.state.get() != State::Terminated {
+        if self.state.get() != State::CredentialsApproved && self.state.get() != State::Terminated {
             return Err(ErrorCode::NODEVICE);
         }
 
@@ -337,6 +341,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn ready(&self) -> bool {
         self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
             || self.state.get() == State::Running
+            || self.state.get() == State::CredentialsApproved
     }
 
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
@@ -408,7 +413,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // Use the per-process fault policy to determine what action the kernel
         // should take since the process faulted.
         let action = self.fault_policy.action(self);
-
+        let state = self.state.get();
+        // Accidentally calling faulted on an unchecked or failed process should
+        // not make it eventually runnable.
+        if state == State::CredentialsFailed ||
+           state == State::CredentialsUnchecked {
+            return;
+        }
         match action {
             FaultAction::Panic => {
                 // process faulted. Panic and print status
@@ -431,6 +442,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn try_restart(&self, completion_code: Option<u32>) {
+        let current_state = self.state.get();
+        if current_state == State::CredentialsFailed ||
+           current_state == State::CredentialsUnchecked {
+               // Can't restart an unchecked or failed process
+               return;
+        }
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
@@ -438,7 +455,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // If there is a kernel policy that controls restarts, it should be
         // implemented here. For now, always restart.
         if let Ok(()) = self.reset() {
-            let _res = self.kernel.submit_process(self);
+            self.state.update(State::CredentialsApproved);
+            self.kernel.increment_work();
         }
 
         // Decide what to do with res later. E.g., if we can't restart
@@ -580,7 +598,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     return new_region;
                 }
             }
-
+            
             // Not enough room in Process struct to store the MPU region.
             None
         })
@@ -1707,7 +1725,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process
             .process_id
             .set(ProcessId::new(kernel, unique_identifier, index));
-        process.app_id = OptionalCell::empty();
+        process.app_id.set(ShortID::LocallyUnique);
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
@@ -1922,11 +1940,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         self.restart_count.increment();
 
-        // Mark the state as `Unstarted` for the scheduler.
+        // Mark the state as `CredentialsApproved` for the scheduler.
         match self.state.get() {
-            State::Unchecked | State::CredentialsFailed => Err(ErrorCode::NODEVICE),
+            State::CredentialsUnchecked | State::CredentialsFailed => Err(ErrorCode::NODEVICE),
             _ => {
-                self.state.update(State::Unstarted);
+                self.state.update(State::CredentialsApproved);
                 Ok(())
             }
         }

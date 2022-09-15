@@ -15,9 +15,10 @@ use crate::create_capability;
 use crate::debug;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::process::Process;
+use crate::platform::platform::KernelResources;
+use crate::process::{Process, ShortID};
 use crate::process_checking;
-use crate::process_checking::AppVerifier;
+use crate::process_checking::{AppCredentialsChecker, CredentialsCheckingPolicy};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::static_init;
@@ -178,15 +179,18 @@ impl fmt::Debug for ProcessLoadError {
 /// process has sufficient credentials to run.
 #[inline(always)]
 #[allow(dead_code)]
-pub fn load_and_check_processes<C: Chip>(
+pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
+    kernel_resources: &KR,
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability_management: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError> {
+) -> Result<(), ProcessLoadError>
+  where <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static {
+
     load_processes_from_flash(
         kernel,
         chip,
@@ -196,7 +200,7 @@ pub fn load_and_check_processes<C: Chip>(
         fault_policy,
         capability_management,
     )?;
-    let _res = check_processes(procs, kernel);
+    let _res = check_processes(procs, kernel_resources);
     Ok(())
 }
 
@@ -234,14 +238,11 @@ pub fn load_processes<C: Chip>(
     let capability = create_capability!(ProcessApprovalCapability);
     for proc in procs.iter() {
         let res = proc.map(|p| {
-            p.mark_credentials_pass(None, None, &capability)
+            p.mark_credentials_pass(None, ShortID::LocallyUnique, &capability)
                 .or(Err(ProcessLoadError::InternalError))?;
             if config::CONFIG.debug_process_credentials {
                 debug!("Running {}", p.get_process_name());
             }
-            kernel
-                .submit_process(p)
-                .or(Err(ProcessLoadError::InternalError))?;
             Ok(())
         });
         if let Some(Err(e)) = res {
@@ -340,56 +341,29 @@ fn load_processes_from_flash<C: Chip>(
 /// `Unstarted` state are started by enqueueing a stack frame to run
 /// the initialization function as indicated in the TBF header.
 #[inline(always)]
-fn check_processes(
+fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
     procs: &'static [Option<&'static dyn Process>],
-    kernel: &'static Kernel,
-) -> Result<(), ProcessLoadError> {
-    let capability = create_capability!(ProcessApprovalCapability);
-
-    if kernel.verifier().is_none() {
-        if config::CONFIG.debug_process_credentials {
-            debug!("Checking: no checker provided, load and run all processes");
-        }
-        for proc in procs.iter() {
-            let res = proc.map(|p| {
-                p.mark_credentials_pass(None, None, &capability)
-                    .or(Err(ProcessLoadError::InternalError))?;
-                if config::CONFIG.debug_process_credentials {
-                    debug!("Running {}", p.get_process_name());
-                }
-                kernel
-                    .submit_process(p)
-                    .or(Err(ProcessLoadError::InternalError))?;
-                Ok(())
-            });
-            if let Some(Err(e)) = res {
-                return Err(e);
+    kernel_resources: &KR,
+) -> Result<(), ProcessLoadError>
+//    where <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static,
+{
+    let policy = kernel_resources.credentials_checking_policy();
+    #[allow(unused_mut)]
+    let machine = unsafe {
+        static_init!(
+            ProcessCheckerMachine,
+            ProcessCheckerMachine {
+                process: Cell::new(0),
+                footer: Cell::new(0),
+                checker: OptionalCell::empty(),
+                processes: procs,
             }
-        }
-        Ok(())
-    } else {
-        kernel
-            .verifier()
-            .map_or(Err(ProcessLoadError::InternalError), |v| {
-                #[allow(unused_mut)] // machine doesn't need mut
-                let machine = unsafe {
-                    static_init!(
-                        ProcessCheckerMachine,
-                        ProcessCheckerMachine {
-                            process: Cell::new(0),
-                            footer: Cell::new(0),
-                            verifier: OptionalCell::empty(),
-                            processes: procs,
-                            kernel: kernel
-                        }
-                    )
-                };
-                v.set_client(machine);
-                machine.verifier.replace(v);
-                machine.next()?;
-                Ok(())
-            })
-    }
+        )
+    };
+    policy.set_client(machine);
+    machine.checker.replace(policy);
+    machine.next()?;
+    Ok(())
 }
 
 /// Iterates across the `processes` array, checking footers and deciding
@@ -399,9 +373,8 @@ fn check_processes(
 struct ProcessCheckerMachine {
     process: Cell<usize>,
     footer: Cell<usize>,
-    verifier: OptionalCell<&'static dyn AppVerifier<'static>>,
+    checker: OptionalCell<&'static dyn CredentialsCheckingPolicy<'static>>,
     processes: &'static [Option<&'static dyn Process>],
-    kernel: &'static Kernel,
 }
 
 #[derive(Debug)]
@@ -441,9 +414,10 @@ impl ProcessCheckerMachine {
 
             let footer_index = self.footer.get();
             // Try to check the next footer.
-            let check_result = self.verifier.map_or(FooterCheckResult::Error, |v| {
-                check_footer(self.processes[proc_index], *v, footer_index)
+            let check_result = self.checker.map_or(FooterCheckResult::Error, |c| {
+                check_footer(self.processes[proc_index], *c, footer_index)
             });
+
             if config::CONFIG.debug_process_credentials {
                 debug!(
                     "Checking: Check status for process {}, footer {}: {:?}",
@@ -459,34 +433,33 @@ impl ProcessCheckerMachine {
                     // credentials or all credentials were Pass: apply
                     // the checker policy to see if the process
                     // should be allowed to run.
-                    let requires = self.verifier.map_or(false, |v| v.require_credentials());
-                    let _res = self.processes[proc_index].map_or(
-                        Err(ProcessLoadError::InternalError),
-                        |p| {
-                            if requires {
-                                if config::CONFIG.debug_process_credentials {
-                                    debug!(
-                                        "Checking: required, but all passes, do not run {}",
-                                        p.get_process_name()
-                                    );
+                    self.checker.map(|c| {
+                        let requires = c.require_credentials();
+                        let _res = self.processes[proc_index].map_or(
+                            Err(ProcessLoadError::InternalError),
+                            |p| {
+                                if requires {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!(
+                                            "Checking: required, but all passes, do not run {}",
+                                            p.get_process_name()
+                                        );
+                                    }
+                                    p.mark_credentials_fail(&capability);
+                                } else {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!(
+                                            "Checking: not required, all passes, run {}",
+                                            p.get_process_name()
+                                        );
+                                    }
+                                    p.mark_credentials_pass(None, ShortID::LocallyUnique, &capability)
+                                        .or(Err(ProcessLoadError::InternalError))?;
                                 }
-                                p.mark_credentials_fail(&capability);
-                            } else {
-                                if config::CONFIG.debug_process_credentials {
-                                    debug!(
-                                        "Checking: not required, all passes, run {}",
-                                        p.get_process_name()
-                                    );
-                                }
-                                p.mark_credentials_pass(None, None, &capability)
-                                    .or(Err(ProcessLoadError::InternalError))?;
-                                self.kernel
-                                    .submit_process(p)
-                                    .or(Err(ProcessLoadError::InternalError))?;
-                            }
-                            Ok(true)
-                        },
-                    );
+                                Ok(true)
+                            },
+                        );
+                    });
                     self.process.set(self.process.get() + 1);
                     self.footer.set(0);
                 }
@@ -512,7 +485,7 @@ impl ProcessCheckerMachine {
 // it reached the end of the footer region.
 fn check_footer(
     popt: Option<&'static dyn Process>,
-    verifier: &'static dyn AppVerifier,
+    checker: &'static dyn CredentialsCheckingPolicy<'static>,
     next_footer: usize,
 ) -> FooterCheckResult {
     popt.map_or(FooterCheckResult::NoProcess, |process| {
@@ -578,7 +551,7 @@ fn check_footer(
                         Some(slice) => {
                             footer_slice = slice;
                             if current_footer == next_footer {
-                                match verifier.check_credentials(footer, binary_slice) {
+                                match checker.check_credentials(footer, binary_slice) {
                                     Ok(()) => {
                                         if config::CONFIG.debug_process_credentials {
                                             debug!("Checking: Found {}, checking", current_footer);
@@ -635,9 +608,9 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let short_id = self.verifier.map_or(None, |v| v.to_short_id(&credentials));
+                    let short_id = self.checker.map_or(ShortID::LocallyUnique,
+                                                       |c| c.to_short_id(&credentials));
                     let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
-                    let _res = self.kernel.submit_process(p);
                 });
                 self.process.set(self.process.get() + 1);
             }

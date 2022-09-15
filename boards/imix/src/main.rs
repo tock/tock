@@ -110,10 +110,10 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 struct Imix {
     pconsole: &'static capsules::process_console::ProcessConsole<
-        'static,
+            'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
         components::process_console::Capability,
-    >,
+        >,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
@@ -122,32 +122,33 @@ struct Imix {
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
     led: &'static capsules::led::LedDriver<
-        'static,
+            'static,
         LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
         1,
-    >,
+        >,
     button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
-        'static,
+            'static,
         sam4l::acifc::Acifc<'static>,
-    >,
+        >,
     spi: &'static capsules::spi_controller::Spi<
-        'static,
+            'static,
         VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
-    >,
+        >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     usb_driver: &'static capsules::usb::usb_user::UsbSyscallDriver<
-        'static,
+            'static,
         capsules::usb::usbc_client::Client<'static, sam4l::usbc::Usbc<'static>>,
-    >,
+        >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    credentials_checking_policy: &'static AppCheckerSha256,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -198,6 +199,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = AppCheckerSha256;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -211,6 +213,9 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
+        self.credentials_checking_policy
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -375,7 +380,7 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(
         kernel::Kernel,
-        kernel::Kernel::new(&PROCESSES, Some(checker))
+        kernel::Kernel::new(&PROCESSES)
     );
 
     let process_printer =
@@ -666,6 +671,7 @@ pub unsafe fn main() {
         nonvolatile_storage,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
+        credentials_checking_policy: checker,
     };
 
     // Need to initialize the UART for the nRF51 serialization.
@@ -745,6 +751,7 @@ pub unsafe fn main() {
 
     kernel::process::load_and_check_processes(
         board_kernel,
+        &imix,
         chip,
         core::slice::from_raw_parts(
             &_sapps as *const u8,

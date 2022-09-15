@@ -23,8 +23,8 @@ use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
-use crate::process::{self, Process, ProcessId, Task};
-use crate::process_checking::AppVerifier;
+use crate::process::{self, ProcessId, Task};
+use crate::process_checking::AppUniqueness;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
@@ -60,12 +60,6 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
-
-    /// Implements the kernel policy for checking cryptographic credentials
-    /// in TBF objects to determine if the contained application can be
-    /// run as a process. If `None` then no credentials are checked and
-    /// the kernel runs all successfully loaded application binaries.
-    verifier: Option<&'static dyn AppVerifier<'static>>,
 
     init_cap: KernelProcessInitCapability,
 }
@@ -130,7 +124,6 @@ unsafe impl capabilities::ProcessInitCapability for KernelProcessInitCapability 
 impl Kernel {
     pub fn new(
         processes: &'static [Option<&'static dyn process::Process>],
-        verifier: Option<&'static dyn AppVerifier>,
     ) -> Kernel {
         Kernel {
             work: Cell::new(0),
@@ -138,13 +131,8 @@ impl Kernel {
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
-            verifier: verifier,
             init_cap: KernelProcessInitCapability {},
         }
-    }
-
-    pub(crate) fn verifier(&self) -> Option<&'static dyn AppVerifier<'static>> {
-        self.verifier
     }
 
     /// Something was scheduled for a process, so there is more work to do.
@@ -689,7 +677,7 @@ impl Kernel {
                         }
                     }
                 }
-                process::State::Yielded | process::State::Unstarted => {
+                process::State::Yielded => {
                     // If the process is yielded or hasn't been started it is
                     // waiting for a upcall. If there is a task scheduled for
                     // this process go ahead and set the process to execute it.
@@ -735,9 +723,27 @@ impl Kernel {
                         },
                     }
                 }
+                process::State::CredentialsApproved => {
+                    // The process has valid credentials (can run in principle);
+                    // now the kernel needs to check if its Application Identifier
+                    // is unique among running processes.
+
+                    // This check is the work we needed to do.
+                    self.decrement_work();
+
+                    if resources.credentials_checking_policy().has_unique_identifier(process, self.processes) {
+                        // Has a unique Application Identifier, push the first stack frame
+                        // and make it runnable.
+                        let _ = process.enqueue_init_task(&self.init_cap);
+                    } else {
+                        // Its Application Identifier collides with a running process; enter
+                        // the Terminated state (could be made runnable later).
+                        process.terminate(None);
+                    }
+                }
                 process::State::Faulted
                 | process::State::Terminated
-                | process::State::Unchecked
+                | process::State::CredentialsUnchecked
                 | process::State::CredentialsFailed => {
                     // We should never be scheduling an unrunnable process.
                     // This is a potential security flaw: panic.
@@ -1328,18 +1334,4 @@ impl Kernel {
         }
     }
 
-    /// Submit a process that has been checked to the kernel to run,
-    /// so the kernel can check whether its application identifier is
-    /// unique to determine if it is runnable.  The process must be in
-    /// the `Unstarted` or `Terminated` state.
-    pub fn submit_process(&self, process: &dyn Process) -> Result<(), ErrorCode> {
-        if self
-            .verifier()
-            .map_or(true, |v| v.has_unique_identifier(process, self.processes))
-        {
-            process.enqueue_init_task(&self.init_cap)
-        } else {
-            Err(ErrorCode::BUSY)
-        }
-    }
 }

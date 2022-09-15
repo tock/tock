@@ -574,16 +574,16 @@ uses it to check whether each of the loaded proceses is safe to run.
 If no `AppCredentialsChecker` is provided, the kernel skips this check
 and transitions the process into the Unstarted state.
 
-To check the integrity of a process, the kernel scans the footers
-in order, starting at the beginning of that process's footer
-region. At each `TbfFooterV2Credentials` footer it encounters, the
-kernel calls `check_credentials` on the provided
-`AppCredentialsChecker`. If `check_credentials` returns `Accept`, the
-kernel stops processing credentials and calls `mark_credentials_pass`
-on the process, which transitions it to the Unstarted state. If the
-`Verifier` returns `Reject`, the kernel stops processing credentials
-and calls `mark_credentials_fail` on the process, which transitions it
-to the Failed state.
+To check the integrity of a process, the kernel scans the footers in
+order, starting at the beginning of that process's footer region. At
+each `TbfFooterV2Credentials` footer it encounters, the kernel calls
+`check_credentials` on the provided `AppCredentialsChecker`. If
+`check_credentials` returns `Accept`, the kernel stops processing
+credentials and calls `mark_credentials_pass` on the process, which
+transitions it to the Unstarted state. If the `AppCredentialsChecker`
+returns `Reject`, the kernel stops processing credentials and calls
+`mark_credentials_fail` on the process, which transitions it to the
+Failed state.
 
 If the `AppCredentialsChecker` returns `Pass`, the kernel tries the
 next `TbfFooterV2Credentials`, if there is one. If the kernel reaches
@@ -755,7 +755,7 @@ can check whether the `ShortID` associated with a process matches the
 initialized, they can be passed a slice or array of `ShortID`s which
 are allowed; system initialization generates this set once and passes
 it into the module so it does not need to maintain a reference to the
-structure implementing `Verifier` and `Compress`.
+structure implementing `AppCredentialsChecker` and `Compress`.
 
 It is RECOMMENDED that the `id` field of `ShortID` be completely
 hidden and unknown to modules that use `ShortID` to manage security
@@ -771,13 +771,27 @@ then it is by definition persistent, since it is a determinstic
 mapping from the identifier. `ShortID` values derived from local
 application identifiers, however, MAY be transient and not persist.
 
-9 Capsules
+
+9 The `CredentialsCheckingPolicy` Trait
 ===============================
 
-10 Implementation Considerations
+The `CredentialsCheckingPolicy` trait is a composite trait that
+combines `AppCredentialsChecker`, `AppIdentification`, and `Compress`
+into a single trait so it can be passed as a single reference.
+
+```rust
+pub trait CredentialsCheckingPolicy<'a>: AppCredentialsChecker<'a> + AppIdentification + Compress {}
+impl<'a, T: AppCredentialsChecker<'a> + AppIdentification + Compress> CredentialsCheckingPolicy<'a> for T {}
+```
+
+
+10 Capsules
 ===============================
 
-11 Authors' Addresses
+11 Implementation Considerations
+===============================
+
+12 Authors' Addresses
 ===============================
 ```
 Philip Levis

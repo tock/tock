@@ -120,7 +120,7 @@ use kernel::debug;
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::hil::uart;
 use kernel::introspection::KernelInfo;
-use kernel::process::{ProcessPrinter, ProcessPrinterContext};
+use kernel::process::{ProcessPrinter, ProcessPrinterContext, State};
 use kernel::utilities::binary_write::BinaryWrite;
 use kernel::ErrorCode;
 use kernel::Kernel;
@@ -654,34 +654,12 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                 self.kernel
                                     .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
-                                        if proc_name == name {
-                                            let res = self.kernel.submit_process(proc);
-                                            let mut console_writer = ConsoleWriter::new();
-                                            match res {
-                                                Ok(()) => {
-                                                    let _ = write(
-                                                        &mut console_writer,
-                                                        format_args!(
-                                                            "Process {} booted\n",
-                                                            proc_name
-                                                        ),
-                                                    );
-                                                }
-                                                Err(e) => {
-                                                    let _ = write(
-                                                        &mut console_writer,
-                                                        format_args!(
-                                                            "Process {} could not boot: {:?}\n",
-                                                            proc_name, e
-                                                        ),
-                                                    );
-                                                }
+                                        if proc_name == name &&
+                                            proc.get_state() == State::Terminated {
+                                                proc.try_restart(None);
                                             }
-                                            let _ = self.write_bytes(
-                                                &(console_writer.buf)[..console_writer.size],
-                                            );
-                                        }
                                     });
+                                    
                             });
                         } else if clean_str.starts_with("list") {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");

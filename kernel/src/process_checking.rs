@@ -68,7 +68,10 @@ pub trait AppUniqueness {
         processes: &[Option<&dyn Process>],
     ) -> bool {
         let len = processes.len();
-        if process.get_state() != State::Unstarted && process.get_state() != State::Terminated {
+        // If the process is running or not runnable it does not have a unique identifier;
+        // these two states describe a process that is potentially runnable, dependent on
+        // checking for identifier uniqueness at runtime.
+        if process.get_state() != State::CredentialsApproved && process.get_state() != State::Terminated {
             return false;
         }
 
@@ -91,11 +94,11 @@ pub trait AppUniqueness {
 
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID;
 }
 
-pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppUniqueness {}
-impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> AppVerifier<'a> for T {}
+pub trait CredentialsCheckingPolicy<'a>: AppCredentialsChecker<'a> + Compress + AppUniqueness {}
+impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> CredentialsCheckingPolicy<'a> for T {}
 
 /// A sample Credentials Checking Policy that loads and runs Userspace
 /// Binaries with unique process names; if it encounters a Userspace
@@ -176,8 +179,8 @@ impl AppUniqueness for AppCheckerSimulated<'_> {
 }
 
 impl Compress for AppCheckerSimulated<'_> {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
-        None
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+        ShortID::LocallyUnique
     }
 }
 
@@ -213,7 +216,7 @@ impl AppCheckerSha256 {
 
 impl AppCredentialsChecker<'static> for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
-        false
+        true
     }
 
     fn check_credentials(
@@ -342,15 +345,15 @@ impl Compress for AppCheckerSha256 {
     // hash and sets the first bit to be 1 to ensure it is non-zero.
     // Note that since these identifiers are only 31 bits, they do not
     // provide sufficient collision resistance to verify a unique identity.
-    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
         let id: u32 = 0x8000000 as u32
             | (credentials.data()[0] as u32) << 24
             | (credentials.data()[1] as u32) << 16
             | (credentials.data()[2] as u32) << 8
             | (credentials.data()[3] as u32);
         match core::num::NonZeroU32::new(id) {
-            Some(nzid) => Some(ShortID { id: nzid }),
-            None => None,
+            Some(nzid) => ShortID::Fixed(nzid),
+            None => ShortID::LocallyUnique, // Should never be generated
         }
     }
 }
