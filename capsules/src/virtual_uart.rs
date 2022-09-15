@@ -52,6 +52,8 @@ use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
+pub const RX_BUF_LEN: usize = 64;
+
 pub struct MuxUart<'a> {
     uart: &'a dyn uart::Uart<'a>,
     speed: u32,

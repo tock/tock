@@ -172,7 +172,7 @@ unsafe fn setup() -> (
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!(64));
+    .finalize(components::uart_mux_component_helper!());
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,

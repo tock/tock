@@ -251,15 +251,15 @@ unsafe fn set_pin_primary_functions(
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
-    // channel 3
-    gpio_ports.get_pin(PinId::PA02).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // // channel 3
+    // gpio_ports.get_pin(PinId::PA02).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
-    // channel 4
-    gpio_ports.get_pin(PinId::PA03).map(|pin| {
-        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    });
+    // // channel 4
+    // gpio_ports.get_pin(PinId::PA03).map(|pin| {
+    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    // });
 
     // channel 5
     gpio_ports.get_pin(PinId::PF04).map(|pin| {
@@ -329,6 +329,8 @@ unsafe fn set_pin_primary_functions(
 unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
     // USART1 IRQn is 37
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART1).enable();
+    // USART2 IRQn is 38
+    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART2).enable();
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
@@ -388,7 +390,7 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -405,12 +407,14 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     peripherals.usart1.enable_clock();
+    peripherals.usart2.enable_clock();
+
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.usart1,
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!(64));
+    .finalize(components::uart_mux_component_helper!());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.

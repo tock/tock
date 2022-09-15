@@ -12,7 +12,7 @@
 //! ```rust
 //! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3,
 //!                                      115200,
-//!                                      deferred_caller).finalize(components::uart_mux_component_helper!(64));
+//!                                      deferred_caller).finalize(components::uart_mux_component_helper!());
 //! let console = ConsoleComponent::new(board_kernel, uart_mux)
 //!    .finalize(console_component_helper!());
 //! ```
@@ -34,7 +34,10 @@ use capsules::console::DEFAULT_BUF_SIZE;
 
 #[macro_export]
 macro_rules! uart_mux_component_helper {
-    ($rx_buffer_len: literal) => {{
+    () => {{
+        $crate::uart_mux_component_helper!(capsules::virtual_uart::RX_BUF_LEN)
+    }};
+    ($rx_buffer_len: expr) => {{
         use capsules::virtual_uart::MuxUart;
         use core::mem::MaybeUninit;
         use kernel::static_buf;

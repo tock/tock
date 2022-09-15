@@ -408,7 +408,7 @@ pub unsafe fn main() {
         socc::UART_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!(64));
+    .finalize(components::uart_mux_component_helper!());
 
     // ---------- ETHERNET ----------
 

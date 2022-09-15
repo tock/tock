@@ -173,7 +173,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!(64));
+    .finalize(components::uart_mux_component_helper!());
 
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(

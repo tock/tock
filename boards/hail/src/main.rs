@@ -286,7 +286,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!(64));
+    .finalize(components::uart_mux_component_helper!());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&peripherals.usart0, uart_mux);

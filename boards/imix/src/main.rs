@@ -365,7 +365,7 @@ pub unsafe fn main() {
     // Create a shared UART channel for the consoles and for kernel debug.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = UartMuxComponent::new(&peripherals.usart3, 115200, dynamic_deferred_caller)
-        .finalize(components::uart_mux_component_helper!(64));
+        .finalize(components::uart_mux_component_helper!());
 
     // # TIMER
     let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)

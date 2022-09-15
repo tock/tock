@@ -263,7 +263,7 @@ pub unsafe fn main() {
         115_200,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!(64));
+    .finalize(components::uart_mux_component_helper!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
