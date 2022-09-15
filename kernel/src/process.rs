@@ -198,7 +198,12 @@ impl ProcessId {
 
 /// A compressed form of an Application Identifier.
 pub enum ShortID {
+    /// If the `ShortID` is `LocalUnique` the specific value of the identifier
+    /// is unspecified, but the kernel can treat the process as having a unique
+    /// identifier. This implies that the identifier is not persistent.
     LocalUnique,
+    /// A `Fixed` `ShortID` means the process does have an explicit ID value.
+    /// Zero is reserved and may not be used as an explicit `ShortID`.
     Fixed(core::num::NonZeroU32),
 }
 
