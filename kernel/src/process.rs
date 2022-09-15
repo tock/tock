@@ -197,6 +197,7 @@ impl ProcessId {
 }
 
 /// A compressed form of an Application Identifier.
+#[derive(Clone, Copy)]
 pub enum ShortID {
     /// If the `ShortID` is `LocalUnique` the specific value of the identifier
     /// is unspecified, but the kernel can treat the process as having a unique

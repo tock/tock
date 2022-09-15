@@ -91,7 +91,7 @@ pub trait AppUniqueness {
 
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID>;
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID;
 }
 
 pub trait AppVerifier<'a>: AppCredentialsChecker<'a> + Compress + AppUniqueness {}
@@ -176,8 +176,8 @@ impl AppUniqueness for AppCheckerSimulated<'_> {
 }
 
 impl Compress for AppCheckerSimulated<'_> {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
-        None
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+        ShortID::LocalUnique
     }
 }
 
@@ -342,15 +342,15 @@ impl Compress for AppCheckerSha256 {
     // hash and sets the first bit to be 1 to ensure it is non-zero.
     // Note that since these identifiers are only 31 bits, they do not
     // provide sufficient collision resistance to verify a unique identity.
-    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> Option<ShortID> {
+    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
         let id: u32 = 0x8000000 as u32
             | (credentials.data()[0] as u32) << 24
             | (credentials.data()[1] as u32) << 16
             | (credentials.data()[2] as u32) << 8
             | (credentials.data()[3] as u32);
         match core::num::NonZeroU32::new(id) {
-            Some(nzid) => Some(ShortID { id: nzid }),
-            None => None,
+            Some(nzid) => ShortID::Fixed(nzid),
+            None => ShortID::LocalUnique,
         }
     }
 }

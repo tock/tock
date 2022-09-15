@@ -15,7 +15,7 @@ use crate::create_capability;
 use crate::debug;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::process::Process;
+use crate::process::{Process, ShortID};
 use crate::process_checking;
 use crate::process_checking::AppVerifier;
 use crate::process_policies::ProcessFaultPolicy;
@@ -234,7 +234,7 @@ pub fn load_processes<C: Chip>(
     let capability = create_capability!(ProcessApprovalCapability);
     for proc in procs.iter() {
         let res = proc.map(|p| {
-            p.mark_credentials_pass(None, None, &capability)
+            p.mark_credentials_pass(None, ShortID::LocalUnique, &capability)
                 .or(Err(ProcessLoadError::InternalError))?;
             if config::CONFIG.debug_process_credentials {
                 debug!("Running {}", p.get_process_name());
@@ -352,7 +352,7 @@ fn check_processes(
         }
         for proc in procs.iter() {
             let res = proc.map(|p| {
-                p.mark_credentials_pass(None, None, &capability)
+                p.mark_credentials_pass(None, ShortID::LocalUnique, &capability)
                     .or(Err(ProcessLoadError::InternalError))?;
                 if config::CONFIG.debug_process_credentials {
                     debug!("Running {}", p.get_process_name());
@@ -478,7 +478,7 @@ impl ProcessCheckerMachine {
                                         p.get_process_name()
                                     );
                                 }
-                                p.mark_credentials_pass(None, None, &capability)
+                                p.mark_credentials_pass(None, ShortID::LocalUnique, &capability)
                                     .or(Err(ProcessLoadError::InternalError))?;
                                 self.kernel
                                     .submit_process(p)
@@ -635,7 +635,9 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let short_id = self.verifier.map_or(None, |v| v.to_short_id(&credentials));
+                    let short_id = self
+                        .verifier
+                        .map_or(ShortID::LocalUnique, |v| v.to_short_id(&credentials));
                     let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
                     let _res = self.kernel.submit_process(p);
                 });

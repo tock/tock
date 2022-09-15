@@ -101,7 +101,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// An application ShortID, generated from process loading and
     /// checking, which denotes the security identity of this process.
-    app_id: OptionalCell<ShortID>,
+    app_id: Cell<ShortID>,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -238,8 +238,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_id.get()
     }
 
-    fn short_app_id(&self) -> Option<ShortID> {
-        self.app_id.extract()
+    fn short_app_id(&self) -> ShortID {
+        self.app_id.get()
     }
 
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
@@ -281,14 +281,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
-        short_app_id: Option<ShortID>,
+        short_app_id: ShortID,
         _capability: &dyn capabilities::ProcessApprovalCapability,
     ) -> Result<(), ErrorCode> {
         if self.state.get() != State::Unchecked {
             Err(ErrorCode::NODEVICE)
         } else {
             self.state.update(State::Unstarted);
-            self.app_id.insert(short_app_id);
+            self.app_id.set(short_app_id);
             credentials.map(|c| self.credentials.replace(c));
             Ok(())
         }
@@ -1707,7 +1707,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process
             .process_id
             .set(ProcessId::new(kernel, unique_identifier, index));
-        process.app_id = OptionalCell::empty();
+        process.app_id = Cell::new(ShortID::LocalUnique);
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
