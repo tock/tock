@@ -197,7 +197,7 @@ impl ProcessId {
 }
 
 /// A compressed form of an Application Identifier.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq)]
 pub enum ShortID {
     /// If the `ShortID` is `LocalUnique` the specific value of the identifier
     /// is unspecified, but the kernel can treat the process as having a unique
@@ -206,6 +206,18 @@ pub enum ShortID {
     /// A `Fixed` `ShortID` means the process does have an explicit ID value.
     /// Zero is reserved and may not be used as an explicit `ShortID`.
     Fixed(core::num::NonZeroU32),
+}
+
+impl PartialEq for ShortID {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            ShortID::LocalUnique => false,
+            ShortID::Fixed(a) => match other {
+                ShortID::LocalUnique => false,
+                ShortID::Fixed(b) => a == b,
+            },
+        }
+    }
 }
 
 /// This trait represents a generic process that the Tock scheduler can
