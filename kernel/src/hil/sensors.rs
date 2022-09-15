@@ -13,8 +13,8 @@ pub trait TemperatureClient {
     /// Called when a temperature reading has completed.
     ///
     /// - `value`: the most recently read temperature in hundredths of degrees
-    /// centigrate.
-    fn callback(&self, value: usize);
+    /// centigrade (centiCelsius), or Err on failure.
+    fn callback(&self, value: Result<i32, ErrorCode>);
 }
 
 /// A basic interface for a humidity sensor

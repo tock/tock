@@ -205,9 +205,9 @@ impl<'a, A: time::Alarm<'a>> i2c::I2CClient for SI7021<'a, A> {
             State::GotTempMeasurement => {
                 // Temperature in hundredths of degrees centigrade
                 let temp_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
-                let temp = (((temp_raw * 17572) / 65536) - 4685) as i16;
+                let temp = ((temp_raw * 17572) / 65536) as i32 - 4685;
 
-                self.temp_callback.map(|cb| cb.callback(temp as usize));
+                self.temp_callback.map(|cb| cb.callback(Ok(temp)));
 
                 match self.on_deck.get() {
                     OnDeck::Humidity => {

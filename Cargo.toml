@@ -28,6 +28,7 @@ members = [
     "boards/sma_q3",
     "boards/nucleo_f429zi",
     "boards/nucleo_f446re",
+    "boards/particle_boron",
     "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
     "boards/redboard_artemis_nano",

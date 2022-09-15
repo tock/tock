@@ -711,7 +711,7 @@ unsafe fn setup() -> (
         }
     );
 
-    let mut mpu_config = rv32i::epmp::PMPConfig::default();
+    let mut mpu_config = rv32i::epmp::PMPConfig::kernel_default();
     // The kernel stack
     chip.pmp.allocate_kernel_region(
         &_sstack as *const u8,
