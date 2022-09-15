@@ -70,42 +70,113 @@ Opentitan is supported on both an FPGA and in Verilator. Slightly different
 versions of the EarlGrey chip implementation are required for the different
 platforms. By default the kernel is compiled for the FPGA.
 
-## Setting up Verilator
-
-For a full guide see the official OpenTitan documentation: https://docs.opentitan.org/doc/ug/getting_started_verilator/
-
-A quick summary on how to do this is included below though
-
-### Build FuseSoc
+### Setup OpenTitan
 
 ```shell
 git clone https://github.com/lowRISC/opentitan.git
 cd opentitan
+
+# Use the OpenTitan_SHA currently supported by Tock
 git checkout <OpenTitan_SHA>
 pip3 install --user -r python-requirements.txt
+```
+Make sure to follow [OpenTitan getting started instructions](https://docs.opentitan.org/doc/getting_started/) to setup required dependencies/toolchains.
 
-./bazelisk.sh build //sw/...
-./bazelisk.sh test --test_tag_filters=verilator --test_output=streamed //sw/device/tests:uart_smoketest
+### **Fedora dependencies quick install**
+
+Note: the OpenTitan documentation provides an easy installation for packages for Ubuntu based distributions. This is an equivalent command to install the (mostly) same packages for Fedora users.
+
+```shell
+sudo dnf install autoconf bison make automake gcc gcc-c++ kernel-devel \
+		 clang-tools-extra clang cmake curl \
+		 doxygen flex g++ git golang lcov elfutils-libelf \
+ 		 libftdi libftdi-devel ncurses-compat-libs openssl-devel \
+		 systemd-devel libusb redhat-lsb-core \
+		 make ninja-build perl pkgconf python3 python3-pip python3-setuptools \
+		 python3-urllib3 python3-wheel srecord tree xsltproc zlib-devel xz clang-tools-extra \
+		 clang11-libs clang-devel elfutils-libelf-devel
+```
+
+## Setting up Verilator
+
+For a full guide see the official [OpenTitan Verilator documentation](https://docs.opentitan.org/doc/ug/getting_started_verilator/)
+
+A quick summary on how to do this is included below though
+
+### Build Boot (test) Rom/OTP Image and FuseSOC
+
+Build **only the targets** we care about. Note: the following commands assume  `bazelisk.sh` has been aliased to `bazel`. You may do so with `alias bazel="PATH_TO/bazelisk.sh"` (from the root of the OpenTitan directory).
+
+```shell
+# To build the test-ROM
+bazel build //sw/device/lib/testing/test_rom:test_rom
+
+# To build OTP
+bazel build //hw/ip/otp_ctrl/...
+
+# To build FuseSOC
+bazel build //hw:verilator
 ```
 
 ### Test Verilator
 
+You can use the following to automatically build the relevant targets and run a quick test with
+
 ```shell
-./bazelisk.sh test --test_tag_filters=verilator --test_output=streamed //sw/device/tests:uart_smoketest
+bazel test --test_output=streamed //sw/device/tests:uart_smoketest_sim_verilator
+```
+
+or manually with
+
+```shell
+
+bazel-out/k8-fastbuild/bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
+                                    --meminit=rom,./bazel-out/k8-fastbuild-ST-97f470ee3b14/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
+                                    --meminit=otp,./bazel-out/k8-fastbuild/bin/hw/ip/otp_ctrl/data/rma_image_verilator.vmem
+
+# Read the output, you want to attach screen to UART, for example
+# "UART: Created /dev/pts/4 for uart0. Connect to it with any terminal program, "
+
+screen /dev/pts/4
 
 # Wait a few minutes
 # You should eventually see messages in screen
+# Once you see "Test ROM complete, jumping to flash!" you know it works, note at this point we haven't provided flash image (so it ends here).
+```
+
+At this point Opentitan on Verilator should be ready to go!
+
+### Bazel CQuery [Optional]
+
+To quickly find paths of the OTP/test ROM and FuseSOC targets, Bazel can be invoked with the following commands to use cquery. Note, you must be in the OpenTitan repo to invoke these.
+
+```shell
+# Test ROM:
+	bazel cquery //sw/device/lib/testing/test_rom:test_rom_sim_verilator_scr_vmem --output starlark --starlark:expr="target.files.to_list()[0].path" 2> /dev/null
+
+# OTP:
+	bazel cquery //hw/ip/otp_ctrl/data:rma_image_verilator --output starlark --starlark:expr="target.files.to_list()[0].path" 2> /dev/null
+
+# FuseSOC:
+    bazel cquery //hw:verilator --output starlark --starlark:expr="target.files.to_list()[0].path" 2> /dev/null
 ```
 
 ### Build and Run Tock
 
-To compile Tock for Verilator, run:
+You can also use the Tock Make target to automatically build Tock and run it with Verilator (within `boards/opentitan/earlgrey-cw310`) run:
+
+```shell
+make BOARD_CONFIGURATION=sim_verilator verilator
+```
+The above command should **compile relevant targets and start Verilator simulation**.
+
+However, to manually compile Tock for Verilator, run:
 
 ```shell
 make BOARD_CONFIGURATION=sim_verilator
 ```
 
-You will then need to generate a vmem file:
+You will then need to generate a vmem file (must be at the TOP_DIR of tock to execute the following):
 
 ```shell
 srec_cat \
@@ -118,19 +189,13 @@ srec_cat \
 And Verilator can be run with:
 
 ```shell
-${OPENTITAN_TREE}/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
-    --meminit=rom,${OPENTITAN_TREE}/build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
+${OPENTITAN_TREE}/bazel-out/k8-fastbuild/bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
+    --meminit=rom,${OPENTITAN_TREE}/bazel-out/k8-fastbuild-ST-97f470ee3b14/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
     --meminit=flash,./binary.64.vmem \
-    --meminit=otp,${OPENTITAN_TREE}/build-bin/sw/device/otp_img/otp_img_sim_verilator.vmem
+    --meminit=otp,${OPENTITAN_TREE}/bazel-out/k8-fastbuild/bin/hw/ip/otp_ctrl/data/rma_image_verilator.vmem
 ````
 
-You can also use the Tock Make target to automatically build Tock and run it with Verilator
-
-```shell
-make BOARD_CONFIGURATION=sim_verilator verilator
-```
-
-In both cases expect Verilator to run for tens of minutes before you see anything.
+In both cases expect Verilator to run for **tens of minutes** before you see anything.
 
 Programming Apps
 ----------------
@@ -147,7 +212,7 @@ the steps above but instead run the `flash-app` make target.
 $ make flash-app APP=<...> OPENTITAN_TREE=/home/opentitan/
 ```
 
-You will need to have the GCC version of RISC-V 32-bit objcopy installed as
+You will need to have the GCC version of [RISC-V 32-bit objcopy](https://github.com/riscv-collab/riscv-gnu-toolchain/blob/master/README.md) installed as
 the LLVM one doesn't support updating sections.
 
 Running in QEMU
