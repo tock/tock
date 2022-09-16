@@ -63,7 +63,7 @@ pub trait AppUniqueness {
     /// Returns whether `process_a` and `process_b` have a different identifier,
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
+    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
         true
     }
 
