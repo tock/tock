@@ -158,7 +158,12 @@ Identifier. An example of a Local Application Identifier is an
 incrementing counter that the Credentials Checking Policy checks for
 uniqueness (skipping values already in use if it loops around).
 
-**Locally Unique Application Identifier**:
+**Locally Unique Application Identifier**: a special kind of 
+Application Identifier that is by definition unique from all
+other Application Identifier. Locally Unique Application
+Indentifiers do not have a concrete value that can be
+examined or stored. All tests for equality with a Locally Unique
+Application Identifier returns false.
 
 **Short ID**: a 32-bit compressed representation of an Application
 Identifier.
@@ -707,18 +712,30 @@ credentials. Access control systems within the kernel can define their
 policies in terms of these identifiers, such that they can check
 access by comparing 32-bit integers rather than 384-byte keys.
 
+
 The 32-bit value MUST be non-zero. `ShortID` uses `core::num::NonZeroU32`
 so that an `Option<ShortID>` can be 32 bits in size, with 0 reserved
 for `None`.
 
 ```rust
-#[derive(Clone, Copy, Eq)]
-struct ShortID {
-    id: core::num::NonZeroU32
+#[derive(Clone, Copy)]
+enum ShortID {
+    LocallyUnique,
+    Fixed(core::num::NonZeroU32),
 }
 
+impl PartialEq for ShortID {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+           (ShortID::Fixed(a), ShortID::Fixed(b)) => a == b,
+           _ => false
+        }
+    }
+}
+impl Eq for ShortID {}
+
 pub trait Compress {
-    fn to_short_id(process: &dyn Process) -> Option<ShortID>;
+    fn to_short_id(process: &dyn Process) -> ShortID;
 }
 ```
 
@@ -743,6 +760,19 @@ manner that minimizes the chance that two different Application
 Identifiers compress to the same Short ID (e.g., taking the low-order
 bits of a strong cryptographic hash function, or using a known,
 deterministic mapping).
+
+Locally Unique Application Identifiers have a special Short ID value,
+`LocallyUnique`. This represents a Short ID which is different from
+all other Short IDs, but cannot be stored or inspected. All equality
+tests with Locally Unique Short IDs return false. This means, for
+example, that if a process has a Locally Unique Short ID, testing
+equality between its own Short ID and itself returns false. Locally
+Unique Short IDs allow Tock to easily ensure that processes which do
+not need persistent identifiers can always have a unique Short ID and
+so are never blocked from running by another process having the same
+Short ID. Otherwise, ensuring one process does not accidentally prevent
+a Userspace Binary from running  requires that `Compress` can inspect
+the Short IDs of all running processes.
 
 Short IDs are locally unique for three reasons. First, it simplifies
 process management and naming: a particular application identifier
