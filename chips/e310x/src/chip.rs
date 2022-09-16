@@ -6,6 +6,7 @@ use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i;
+use rv32i::csr;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::PMP;
 
@@ -79,9 +80,18 @@ impl<'a, I: InterruptService<()> + 'a> E310x<'a, I> {
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        self.plic.disable_all();
-        self.plic.clear_all_pending();
+        /* Manual, PLIC Chapter: A pending bit in the PLIC core can be cleared
+         * by setting the associated enable bit then performing a claim.
+         */
+        let old_mie = csr::CSR
+            .mstatus
+            .read_and_clear_field(csr::mstatus::mstatus::mie);
+
         self.plic.enable_all();
+        self.plic.clear_all_pending();
+        csr::CSR
+            .mstatus
+            .modify(csr::mstatus::mstatus::mie.val(old_mie));
     }
 
     unsafe fn handle_plic_interrupts(&self) {

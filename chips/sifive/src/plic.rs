@@ -46,10 +46,16 @@ impl Plic {
         }
     }
 
-    /// Clear all pending interrupts.
+    /// Clear all pending interrupts. Calims each interrupt.
     pub fn clear_all_pending(&self) {
-        for pending in self.registers.pending.iter() {
-            pending.set(0);
+        let regs = self.registers;
+
+        loop {
+            let id = regs.claim.get();
+            if id == 0 {
+                break;
+            }
+            regs.claim.set(id);
         }
     }
 
