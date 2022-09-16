@@ -106,6 +106,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
@@ -118,6 +119,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -297,7 +301,7 @@ pub unsafe fn main() {
 
     CHIP = Some(chip);
 
-    let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES, None));
+    let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES));
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -538,7 +542,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_and_check_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

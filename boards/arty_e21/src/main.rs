@@ -12,7 +12,6 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process_checking::AppCheckerNull;
 use kernel::scheduler::priority::PrioritySched;
 use kernel::{create_capability, debug, static_init};
 
@@ -59,7 +58,6 @@ struct ArtyE21 {
     button: &'static capsules::button::Button<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     // ipc: kernel::ipc::IPC<NUM_PROCS>,
     scheduler: &'static PrioritySched,
-    credentials_checking_policy: &'static AppCheckerNull<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -88,7 +86,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = AppCheckerNull<'static>;
+    type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = ();
     type WatchDog = ();
@@ -104,7 +102,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
         &()
     }
     fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        self.credentials_checking_policy
+        &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -245,10 +243,6 @@ pub unsafe fn main() {
     chip.enable_all_interrupts();
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-    let policy = static_init!(
-        AppCheckerNull<'static>,
-        AppCheckerNull::new(),
-    );
     let artye21 = ArtyE21 {
         console: console,
         gpio: gpio,
@@ -257,7 +251,6 @@ pub unsafe fn main() {
         button: button,
         // ipc: kernel::ipc::IPC::new(board_kernel),
         scheduler,
-        credentials_checking_policy: policy,
     };
 
     // Create virtual device for kernel debug.

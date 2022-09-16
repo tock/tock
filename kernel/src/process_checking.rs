@@ -2,7 +2,6 @@
 //! checkers, used to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
-use core::marker;
 
 use crate::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
@@ -42,15 +41,22 @@ pub trait Client<'a> {
 
 /// Implements a Credentials Checking Policy.
 pub trait AppCredentialsChecker<'a> {
-    fn set_client(&self, client: &'a dyn Client<'a>);
-    fn require_credentials(&self) -> bool;
+    fn set_client(&self, _client: &'a dyn Client<'a>) {}
+    fn require_credentials(&self) -> bool {
+        false
+    }
 
     fn check_credentials(
         &self,
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        Err((ErrorCode::NOSUPPORT, credentials, binary))
+    }
 }
+
+/// Default implementation.
+impl<'a> AppCredentialsChecker<'a> for () {}
 
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
@@ -58,7 +64,12 @@ pub trait AppUniqueness {
     /// Returns whether `process_a` and `process_b` have a different identifier,
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool;
+    /// The default implemention uses process names. 
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
+        let a = process_a.get_process_name();
+        let b = process_b.get_process_name();
+        !a.eq(b)
+    }
 
     /// Return whether there is a currently running process that has
     /// the same application identifier as `process`. This means that
@@ -96,10 +107,17 @@ pub trait AppUniqueness {
     }
 }
 
+/// Default implementation.
+impl AppUniqueness for () {}
+
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID;
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+        ShortID::LocallyUnique
+    }
 }
+
+impl Compress for () {}
 
 pub trait CredentialsCheckingPolicy<'a>:
     AppCredentialsChecker<'a> + Compress + AppUniqueness
@@ -108,54 +126,6 @@ pub trait CredentialsCheckingPolicy<'a>:
 impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> CredentialsCheckingPolicy<'a>
     for T
 {
-}
-
-
-/// A Credentials Checking Policy that does nothing. This is an
-/// empty placeholder for platforms that do not check credentials.
-/// Application identifiers are process names.
-pub struct AppCheckerNull<'a> {
-    pub data: marker::PhantomData<&'a u32>
-}
-
-impl<'a> AppCheckerNull<'a> {
-    pub fn new() -> AppCheckerNull<'a> {
-        AppCheckerNull {
-            data: marker::PhantomData
-        }
-    }
-}
-
-impl<'a> AppCredentialsChecker<'a> for AppCheckerNull<'a> {
-    fn require_credentials(&self) -> bool {
-        false
-    }
-
-    fn check_credentials(
-        &self,
-        credentials: TbfFooterV2Credentials,
-        binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        Err((ErrorCode::NOSUPPORT, credentials, binary))
-    }
-
-    fn set_client(&self, _client: &'a dyn Client<'a>) {}
-}
-
-impl Compress for AppCheckerNull<'_> {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
-        ShortID::LocallyUnique
-    }
-}
-
-impl AppUniqueness for AppCheckerNull<'_> {
-    // This checker doesn't allow you to run two processes with the
-    // same name.
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
-        let a = process_a.get_process_name();
-        let b = process_b.get_process_name();
-        !a.eq(b)
-    }
 }
 
 /// A sample Credentials Checking Policy that loads and runs Userspace

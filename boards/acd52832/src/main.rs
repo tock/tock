@@ -20,7 +20,6 @@ use kernel::hil::led::LedLow;
 use kernel::hil::rng::Rng;
 use kernel::hil::time::{Alarm, Counter};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process_checking::AppCheckerNull;
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -94,7 +93,6 @@ pub struct Platform {
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    credentials_checking_policy: &'static AppCheckerNull<'static>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -126,7 +124,7 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = AppCheckerNull<'static>;
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -142,7 +140,7 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
         &()
     }
     fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        self.credentials_checking_policy
+        &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -569,10 +567,6 @@ pub unsafe fn main() {
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
-    let policy = static_init!(
-        AppCheckerNull<'static>,
-        AppCheckerNull::new(),
-    );
     let platform = Platform {
         button: button,
         ble_radio: ble_radio,
@@ -592,7 +586,6 @@ pub unsafe fn main() {
         ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
-        credentials_checking_policy: policy
     };
 
     let chip = static_init!(
