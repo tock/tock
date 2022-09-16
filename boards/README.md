@@ -87,6 +87,7 @@ but the approximate definitions:
 | [ESP32-C3-DevKitM-1](esp32-c3-devkitM-1/README.md)                | RISC-V-ish RV32I | ESP32-C3       | custom     | custom                      | No            |
 | [i.MX RT 1052 Evaluation Kit](imxrt1050-evkb/README.md)           | ARM Cortex-M7    | i.MX RT 1052   | custom     | custom                      | No            |
 | [Teensy 4.0](teensy40/README.md)                                  | ARM Cortex-M7    | i.MX RT 1062   | custom     | custom                      | No            |
+| [BBC HiFive Inventor](hifive1/README.md)                         | RISC-V           | FE310-G003     | tockloader    | ?                  | No     |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                      | RISC-V RV32IMAC  | SiFive E21     | openocd    | tockloader                  | No            |
 
 

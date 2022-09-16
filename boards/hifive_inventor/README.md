@@ -12,7 +12,7 @@ peripherals:
 - LSM303AGR compass and accelerometer
 - Bluetooth and Wi-Fi connectivity co-processor
 
-**At present, the peripherals are not set up.** 
+**At present, the peripherals are not set up.** We are waiting for the schematic.
 
 ## Programming
 

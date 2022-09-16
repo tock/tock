@@ -10,7 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use e310x::chip::E310xDefaultPeripherals;
+use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -33,7 +33,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static e310x::chip::E310x<E310xDefaultPeripherals>> = None;
+static mut CHIP: Option<&'static e310_g002::chip::E310x<E310G002DefaultPeripherals>> = None;
 // Reference to the process printer for panic dumps.
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
@@ -83,7 +83,9 @@ impl SyscallDriverLookup for HiFive1 {
     }
 }
 
-impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static>>> for HiFive1 {
+impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<'static>>>
+    for HiFive1
+{
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -125,19 +127,24 @@ pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
-    let peripherals = static_init!(E310xDefaultPeripherals, E310xDefaultPeripherals::new());
+    let peripherals = static_init!(
+        E310G002DefaultPeripherals,
+        E310G002DefaultPeripherals::new()
+    );
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    peripherals.watchdog.disable();
-    peripherals.rtc.disable();
-    peripherals.pwm0.disable();
-    peripherals.pwm1.disable();
-    peripherals.pwm2.disable();
+    peripherals.e310x.watchdog.disable();
+    peripherals.e310x.rtc.disable();
+    peripherals.e310x.pwm0.disable();
+    peripherals.e310x.pwm1.disable();
+    peripherals.e310x.pwm2.disable();
+    peripherals.e310x.uart1.disable();
 
     peripherals
+        .e310x
         .prci
         .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
 
@@ -155,14 +162,14 @@ pub unsafe fn main() {
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
-        Some(&peripherals.gpio_port[22]), // Red
+        Some(&peripherals.e310x.gpio_port[22]), // Red
         None,
         None,
     );
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
+        &peripherals.e310x.uart0,
         115200,
         dynamic_deferred_caller,
     )
@@ -171,18 +178,23 @@ pub unsafe fn main() {
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, sifive::gpio::GpioPin>,
-        LedLow::new(&peripherals.gpio_port[22]), // Red
-        LedLow::new(&peripherals.gpio_port[19]), // Green
-        LedLow::new(&peripherals.gpio_port[21]), // Blue
+        LedLow::new(&peripherals.e310x.gpio_port[22]), // Red
+        LedLow::new(&peripherals.e310x.gpio_port[19]), // Green
+        LedLow::new(&peripherals.e310x.gpio_port[21]), // Blue
     ));
 
-    peripherals
-        .uart0
-        .initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
+    peripherals.e310x.uart0.initialize_gpio_pins(
+        &peripherals.e310x.gpio_port[17],
+        &peripherals.e310x.gpio_port[16],
+    );
+    peripherals.e310x.uart1.initialize_gpio_pins(
+        &peripherals.e310x.gpio_port[18],
+        &peripherals.e310x.gpio_port[23],
+    );
 
     let hardware_timer = static_init!(
         sifive::clint::Clint,
-        sifive::clint::Clint::new(&e310x::clint::CLINT_BASE)
+        sifive::clint::Clint::new(&e310_g002::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
@@ -216,8 +228,8 @@ pub unsafe fn main() {
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
-        e310x::chip::E310x<E310xDefaultPeripherals>,
-        e310x::chip::E310x::new(peripherals, hardware_timer)
+        e310_g002::chip::E310x<E310G002DefaultPeripherals>,
+        e310_g002::chip::E310x::new(peripherals, hardware_timer)
     );
     CHIP = Some(chip);
 

@@ -1,8 +1,6 @@
-//! Board file for SiFive HiFive1b RISC-V development platform.
+//! Board file for BBC HiFive Inventor RISC-V development platform.
 //!
-//! - <https://www.sifive.com/boards/hifive1-rev-b>
-//!
-//! This board file is only compatible with revision B of the HiFive1.
+//! - <https://www.hifiveinventor.com/>
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
@@ -10,12 +8,11 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use e310x::chip::E310xDefaultPeripherals;
+use e310_g003::interrupt_service::E310G003DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::hil::led::LedLow;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -33,7 +30,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static e310x::chip::E310x<E310xDefaultPeripherals>> = None;
+static mut CHIP: Option<&'static e310_g003::chip::E310x<E310G003DefaultPeripherals>> = None;
 // Reference to the process printer for panic dumps.
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
@@ -48,11 +45,6 @@ pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led: &'static capsules::led::LedDriver<
-        'static,
-        LedLow<'static, sifive::gpio::GpioPin<'static>>,
-        3,
-    >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -74,7 +66,6 @@ impl SyscallDriverLookup for HiFive1 {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
@@ -83,7 +74,9 @@ impl SyscallDriverLookup for HiFive1 {
     }
 }
 
-impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static>>> for HiFive1 {
+impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<'static>>>
+    for HiFive1
+{
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -125,21 +118,35 @@ pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
-    let peripherals = static_init!(E310xDefaultPeripherals, E310xDefaultPeripherals::new());
+    let peripherals = static_init!(
+        E310G003DefaultPeripherals,
+        E310G003DefaultPeripherals::new()
+    );
+
+    peripherals
+        .e310x
+        .prci
+        .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
+
+    peripherals.e310x.uart0.initialize_gpio_pins(
+        &peripherals.e310x.gpio_port[17],
+        &peripherals.e310x.gpio_port[16],
+    );
+    peripherals.e310x.uart1.initialize_gpio_pins(
+        &peripherals.e310x.gpio_port[18],
+        &peripherals.e310x.gpio_port[23],
+    );
+
+    peripherals.e310x.watchdog.disable();
+    peripherals.e310x.rtc.disable();
+    peripherals.e310x.pwm0.disable();
+    peripherals.e310x.pwm1.disable();
+    peripherals.e310x.pwm2.disable();
+    peripherals.e310x.uart1.disable();
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-    peripherals.watchdog.disable();
-    peripherals.rtc.disable();
-    peripherals.pwm0.disable();
-    peripherals.pwm1.disable();
-    peripherals.pwm2.disable();
-
-    peripherals
-        .prci
-        .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
@@ -154,35 +161,19 @@ pub unsafe fn main() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&peripherals.gpio_port[22]), // Red
-        None,
-        None,
-    );
+    kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        19200,
+        &peripherals.e310x.uart0,
+        115200,
         dynamic_deferred_caller,
     )
     .finalize(());
 
-    // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
-        LedLow<'static, sifive::gpio::GpioPin>,
-        LedLow::new(&peripherals.gpio_port[22]), // Red
-        LedLow::new(&peripherals.gpio_port[19]), // Green
-        LedLow::new(&peripherals.gpio_port[21]), // Blue
-    ));
-
-    peripherals
-        .uart0
-        .initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
-
     let hardware_timer = static_init!(
         sifive::clint::Clint,
-        sifive::clint::Clint::new(&e310x::clint::CLINT_BASE)
+        sifive::clint::Clint::new(&e310_g003::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
@@ -216,8 +207,8 @@ pub unsafe fn main() {
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let chip = static_init!(
-        e310x::chip::E310x<E310xDefaultPeripherals>,
-        e310x::chip::E310x::new(peripherals, hardware_timer)
+        e310_g003::chip::E310x<E310G003DefaultPeripherals>,
+        e310_g003::chip::E310x::new(peripherals, hardware_timer)
     );
     CHIP = Some(chip);
 
@@ -280,7 +271,6 @@ pub unsafe fn main() {
         console: console,
         alarm: alarm,
         lldb: lldb,
-        led,
         scheduler,
         scheduler_timer,
     };

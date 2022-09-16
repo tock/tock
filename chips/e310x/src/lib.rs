@@ -4,8 +4,6 @@
 #![crate_name = "e310x"]
 #![crate_type = "rlib"]
 
-mod interrupts;
-
 pub mod chip;
 pub mod clint;
 pub mod gpio;
