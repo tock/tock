@@ -621,7 +621,7 @@ pub unsafe fn main() {
         capsules::temperature::DRIVER_NUM,
         sht3x,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
 
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
