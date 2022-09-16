@@ -520,7 +520,7 @@ pub unsafe fn main() {
         capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
 
     let rng = components::rng::RngComponent::new(
         board_kernel,

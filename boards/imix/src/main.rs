@@ -413,7 +413,7 @@ pub unsafe fn main() {
         capsules::temperature::DRIVER_NUM,
         si7021,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
     let humidity =
         HumidityComponent::new(board_kernel, capsules::humidity::DRIVER_NUM, si7021).finalize(());
     let ninedof = NineDofComponent::new(

@@ -285,7 +285,7 @@ unsafe fn setup() -> (
         capsules::temperature::DRIVER_NUM,
         bme280,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules::humidity::DRIVER_NUM,
