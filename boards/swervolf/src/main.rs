@@ -74,6 +74,7 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
@@ -86,6 +87,9 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -119,7 +123,7 @@ pub unsafe fn main() {
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 1], Default::default());
@@ -233,7 +237,7 @@ pub unsafe fn main() {
         scheduler_timer: chip.get_scheduler_timer(),
     };
 
-    kernel::process::load_and_check_processes(
+    kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(

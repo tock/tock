@@ -87,6 +87,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
@@ -100,6 +101,9 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -133,7 +137,7 @@ pub unsafe fn main() {
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     // Create a board kernel instance
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, None));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // Some capsules require a callback from a different stack
     // frame. The dynamic deferred call infrastructure can be used to
