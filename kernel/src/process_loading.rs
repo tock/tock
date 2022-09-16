@@ -189,8 +189,9 @@ pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError>
-  where <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static {
-
+where
+    <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static,
+{
     load_processes_from_flash(
         kernel,
         chip,
@@ -453,8 +454,12 @@ impl ProcessCheckerMachine {
                                             p.get_process_name()
                                         );
                                     }
-                                    p.mark_credentials_pass(None, ShortID::LocallyUnique, &capability)
-                                        .or(Err(ProcessLoadError::InternalError))?;
+                                    p.mark_credentials_pass(
+                                        None,
+                                        ShortID::LocallyUnique,
+                                        &capability,
+                                    )
+                                    .or(Err(ProcessLoadError::InternalError))?;
                                 }
                                 Ok(true)
                             },
@@ -608,8 +613,9 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let short_id = self.checker.map_or(ShortID::LocallyUnique,
-                                                       |c| c.to_short_id(&credentials));
+                    let short_id = self
+                        .checker
+                        .map_or(ShortID::LocallyUnique, |c| c.to_short_id(&credentials));
                     let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
                 });
                 self.process.set(self.process.get() + 1);

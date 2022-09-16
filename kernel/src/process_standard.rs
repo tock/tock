@@ -287,7 +287,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         if self.state.get() != State::CredentialsUnchecked {
             return Err(ErrorCode::NODEVICE);
         }
-        
+
         self.state.update(State::CredentialsApproved);
         self.app_id.set(short_app_id);
         credentials.map(|c| self.credentials.replace(c));
@@ -416,8 +416,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let state = self.state.get();
         // Accidentally calling faulted on an unchecked or failed process should
         // not make it eventually runnable.
-        if state == State::CredentialsFailed ||
-           state == State::CredentialsUnchecked {
+        if state == State::CredentialsFailed || state == State::CredentialsUnchecked {
             return;
         }
         match action {
@@ -443,10 +442,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn try_restart(&self, completion_code: Option<u32>) {
         let current_state = self.state.get();
-        if current_state == State::CredentialsFailed ||
-           current_state == State::CredentialsUnchecked {
-               // Can't restart an unchecked or failed process
-               return;
+        if current_state == State::CredentialsFailed || current_state == State::CredentialsUnchecked
+        {
+            // Can't restart an unchecked or failed process
+            return;
         }
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
@@ -598,7 +597,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     return new_region;
                 }
             }
-            
+
             // Not enough room in Process struct to store the MPU region.
             None
         })

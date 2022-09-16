@@ -60,7 +60,7 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the credentials
     /// checking policy this platform wants the kernel to use.
     fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy;
-    
+
     /// Returns a reference to the implementation of the Scheduler this platform
     /// wants the kernel to use.
     fn scheduler(&self) -> &Self::Scheduler;

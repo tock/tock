@@ -201,7 +201,7 @@ impl ProcessId {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ShortID {
     LocallyUnique,
-    Fixed(core::num::NonZeroU32)
+    Fixed(core::num::NonZeroU32),
 }
 
 /// This trait represents a generic process that the Tock scheduler can
@@ -800,7 +800,7 @@ pub enum State {
     /// `AppCredentialsChecker` to be transitioned into the
     /// `Unstarted` or `CredentialsFailed` state.
     CredentialsUnchecked,
-    
+
     /// The Userspace Binary's credentials have been approved by the Process Checking
     /// Policy but the process is not running (does not have an active stack).
     /// Before making the process runnable, the kernel needs to check its

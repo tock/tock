@@ -122,9 +122,7 @@ struct KernelProcessInitCapability {}
 unsafe impl capabilities::ProcessInitCapability for KernelProcessInitCapability {}
 
 impl Kernel {
-    pub fn new(
-        processes: &'static [Option<&'static dyn process::Process>],
-    ) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes,
@@ -731,7 +729,10 @@ impl Kernel {
                     // This check is the work we needed to do.
                     self.decrement_work();
 
-                    if resources.credentials_checking_policy().has_unique_identifier(process, self.processes) {
+                    if resources
+                        .credentials_checking_policy()
+                        .has_unique_identifier(process, self.processes)
+                    {
                         // Has a unique Application Identifier, push the first stack frame
                         // and make it runnable.
                         let _ = process.enqueue_init_task(&self.init_cap);
@@ -1333,5 +1334,4 @@ impl Kernel {
             },
         }
     }
-
 }

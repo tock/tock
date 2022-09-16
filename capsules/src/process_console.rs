@@ -654,12 +654,12 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                                 self.kernel
                                     .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
-                                        if proc_name == name &&
-                                            proc.get_state() == State::Terminated {
-                                                proc.try_restart(None);
-                                            }
+                                        if proc_name == name
+                                            && proc.get_state() == State::Terminated
+                                        {
+                                            proc.try_restart(None);
+                                        }
                                     });
-                                    
                             });
                         } else if clean_str.starts_with("list") {
                             let _ = self.write_bytes(b" PID    Name                Quanta  ");

@@ -2,6 +2,8 @@
 //! checkers, used to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
+use core::marker;
+
 use crate::dynamic_deferred_call::{
     DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
 };
@@ -71,7 +73,9 @@ pub trait AppUniqueness {
         // If the process is running or not runnable it does not have a unique identifier;
         // these two states describe a process that is potentially runnable, dependent on
         // checking for identifier uniqueness at runtime.
-        if process.get_state() != State::CredentialsApproved && process.get_state() != State::Terminated {
+        if process.get_state() != State::CredentialsApproved
+            && process.get_state() != State::Terminated
+        {
             return false;
         }
 
@@ -97,8 +101,62 @@ pub trait Compress {
     fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID;
 }
 
-pub trait CredentialsCheckingPolicy<'a>: AppCredentialsChecker<'a> + Compress + AppUniqueness {}
-impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> CredentialsCheckingPolicy<'a> for T {}
+pub trait CredentialsCheckingPolicy<'a>:
+    AppCredentialsChecker<'a> + Compress + AppUniqueness
+{
+}
+impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> CredentialsCheckingPolicy<'a>
+    for T
+{
+}
+
+
+/// A Credentials Checking Policy that does nothing. This is an
+/// empty placeholder for platforms that do not check credentials.
+/// Application identifiers are process names.
+pub struct AppCheckerNull<'a> {
+    pub data: marker::PhantomData<&'a u32>
+}
+
+impl<'a> AppCheckerNull<'a> {
+    pub fn new() -> AppCheckerNull<'a> {
+        AppCheckerNull {
+            data: marker::PhantomData
+        }
+    }
+}
+
+impl<'a> AppCredentialsChecker<'a> for AppCheckerNull<'a> {
+    fn require_credentials(&self) -> bool {
+        false
+    }
+
+    fn check_credentials(
+        &self,
+        credentials: TbfFooterV2Credentials,
+        binary: &'a [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        Err((ErrorCode::NOSUPPORT, credentials, binary))
+    }
+
+    fn set_client(&self, _client: &'a dyn Client<'a>) {}
+}
+
+impl Compress for AppCheckerNull<'_> {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+        ShortID::LocallyUnique
+    }
+}
+
+impl AppUniqueness for AppCheckerNull<'_> {
+    // This checker doesn't allow you to run two processes with the
+    // same name.
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
+        let a = process_a.get_process_name();
+        let b = process_b.get_process_name();
+        !a.eq(b)
+    }
+}
 
 /// A sample Credentials Checking Policy that loads and runs Userspace
 /// Binaries with unique process names; if it encounters a Userspace
