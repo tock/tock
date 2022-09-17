@@ -72,15 +72,21 @@ impl<'a, I: InterruptService<()> + 'a> E310x<'a, I> {
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        /* Manual, PLIC Chapter: A pending bit in the PLIC core can be cleared
+        /* E31 core manual
+         * https://sifive.cdn.prismic.io/sifive/c29f9c69-5254-4f9a-9e18-24ea73f34e81_e31_core_complex_manual_21G2.pdf
+         * PLIC Chapter 9.4 p.114: A pending bit in the PLIC core can be cleared
          * by setting the associated enable bit then performing a claim.
          */
+
+        // first disable interrupts globally
         let old_mie = csr::CSR
             .mstatus
             .read_and_clear_field(csr::mstatus::mstatus::mie);
 
         self.plic.enable_all();
         self.plic.clear_all_pending();
+
+        // restore the old external interrupt enable bit
         csr::CSR
             .mstatus
             .modify(csr::mstatus::mstatus::mie.val(old_mie));

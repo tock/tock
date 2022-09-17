@@ -46,7 +46,13 @@ impl Plic {
         }
     }
 
-    /// Clear all pending interrupts. Calims each interrupt.
+    /// Clear all pending interrupts. The [`E31 core manual`] PLIC Chapter 9.8
+    /// p 117: A successful claim also atomically clears the corresponding
+    /// pending bit on the interrupt source.
+    /// Note that this function requires you call `enable_all()` first! (As ch.
+    /// 9.4 p.114 writes.)
+    ///
+    /// [`E31 core manual`]: https://sifive.cdn.prismic.io/sifive/c29f9c69-5254-4f9a-9e18-24ea73f34e81_e31_core_complex_manual_21G2.pdf
     pub fn clear_all_pending(&self) {
         let regs = self.registers;
 
