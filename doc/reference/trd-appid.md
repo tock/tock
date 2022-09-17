@@ -712,10 +712,9 @@ credentials. Access control systems within the kernel can define their
 policies in terms of these identifiers, such that they can check
 access by comparing 32-bit integers rather than 384-byte keys.
 
-
 The 32-bit value MUST be non-zero. `ShortID` uses `core::num::NonZeroU32`
-so that an `Option<ShortID>` can be 32 bits in size, with 0 reserved
-for `None`.
+so that an `ShortID` can be 32 bits in size, with 0 reserved
+for `LocallyUnique`.
 
 ```rust
 #[derive(Clone, Copy)]
@@ -739,14 +738,6 @@ pub trait Compress {
 }
 ```
 
-The `to_short_id` method returns an `Option` so that it has a clear
-default action if the Process Checker does not wish to assign it any
-meaningful identifier that might allow additional access.  A return
-value of `None` semantically means that the process's Application
-Credentials or other state do not map to any known security group or
-set of privileges. A `Some` result means the credentials map to a known
-security group or set of privileges.
-
 Generally, the Process Checker that implements `AppCredentialsChecker`
 and `AppIdentification` also implements `Compress`. This allows it to
 share copies of public keys or other credentials that it uses to make
@@ -763,7 +754,8 @@ deterministic mapping).
 
 Locally Unique Application Identifiers have a special Short ID value,
 `LocallyUnique`. This represents a Short ID which is different from
-all other Short IDs, but cannot be stored or inspected. All equality
+all other Short IDs but has no concrete value. A `LocallyUnique` Short ID
+cannot be stored or inspected. All equality
 tests with Locally Unique Short IDs return false. This means, for
 example, that if a process has a Locally Unique Short ID, testing
 equality between its own Short ID and itself returns false. Locally
@@ -817,7 +809,6 @@ binary. If `ShortID` is derived from a Global Application Identifier,
 then it is by definition persistent, since it is a determinstic
 mapping from the identifier. `ShortID` values derived from local
 application identifiers, however, MAY be transient and not persist.
-
 
 9 The `CredentialsCheckingPolicy` Trait
 ===============================
