@@ -551,16 +551,6 @@ v1.5 signature using SHA512 (`CKM_SHA512_RSA_PKCS`). It does not
 contain a public exponent: the Process Checker is responsible for
 storing the public exponent for any key it recognizes.
 
-The `Rsa3072KeyWithID` type has a data of length of 768 bytes. It
-contains a public 3072-bit RSA key (384 bytes), followed by a 384-byte
-signature that contains a 32-bit identifier. **Exact signature
-algorithm/approach to be determined.**
-
-The `Rsa4096KeyWithID` type has a data of length of 1024 bytes. It
-contains a public 4096-bit RSA key (512 bytes), followed by a 512-byte
-signature that contains a 32-bit identifier. **Exact signature
-algorithm/approach to be determined.**
-
 The `SHA256` type has a data length of 32 bytes. It contains a 256-bit
 (32 byte) SHA256 hash of the application binary.
 
@@ -797,13 +787,12 @@ bits of a strong cryptographic hash function, or using a known,
 deterministic mapping).
 
 Short IDs are locally unique for three reasons. First, it simplifies
-process management and naming: a particular application identifier
-uniquely identifies a running process. Second, it ensures that
-resources bound to an application identifier (such as non-volatile
-storage) do not have to handle concurrent accesses from multiple
-processes. Finally, generally one does not want two copies of the same
-Application running: they can create conflicting responses and
-behaviors.
+process management and naming: a particular Short ID uniquely
+identifies a running process. Second, it ensures that resources bound
+to an application identifier (such as non-volatile storage) do not
+have to handle concurrent accesses from multiple processes. Finally,
+generally one does not want two copies of the same Application
+running: they can create conflicting responses and behaviors.
 
 For example, suppose there is a system that wants to grant extra
 permissions to a particular Application. TBF Objects for this
