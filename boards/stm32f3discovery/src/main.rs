@@ -251,15 +251,15 @@ unsafe fn set_pin_primary_functions(
         pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
     });
 
-    // // channel 3
-    // gpio_ports.get_pin(PinId::PA02).map(|pin| {
-    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    // });
+    // channel 3
+    gpio_ports.get_pin(PinId::PA02).map(|pin| {
+        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    });
 
-    // // channel 4
-    // gpio_ports.get_pin(PinId::PA03).map(|pin| {
-    //     pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
-    // });
+    // channel 4
+    gpio_ports.get_pin(PinId::PA03).map(|pin| {
+        pin.set_mode(stm32f303xc::gpio::Mode::AnalogMode);
+    });
 
     // channel 5
     gpio_ports.get_pin(PinId::PF04).map(|pin| {
