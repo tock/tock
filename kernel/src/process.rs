@@ -207,13 +207,12 @@ pub enum ShortID {
 impl PartialEq for ShortID {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-           (ShortID::Fixed(a), ShortID::Fixed(b)) => a == b,
-           _ => false
+            (ShortID::Fixed(a), ShortID::Fixed(b)) => a == b,
+            _ => false,
         }
     }
 }
 impl Eq for ShortID {}
-
 
 /// This trait represents a generic process that the Tock scheduler can
 /// schedule.
