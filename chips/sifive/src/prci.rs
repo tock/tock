@@ -1,5 +1,6 @@
 //! Power Reset Clock Interrupt controller driver.
 
+use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 
@@ -59,10 +60,17 @@ impl Prci {
     }
 
     pub fn set_clock_frequency(&self, frequency: ClockFrequency) {
-        let _regs = self.registers;
+        let regs = self.registers;
 
         match frequency {
-            ClockFrequency::Freq16Mhz => {}
+            ClockFrequency::Freq16Mhz => {
+                regs.pllcfg
+                    .modify(pllcfg::bypass::SET + pllcfg::refsel::SET);
+                regs.plloutdiv
+                    .modify(plloutdiv::divby1.val(1) + plloutdiv::div.val(0));
+                regs.pllcfg.modify(pllcfg::sel::SET);
+                regs.hfrosccfg.modify(hfrosccfg::enable::CLEAR);
+            }
         };
     }
 }
