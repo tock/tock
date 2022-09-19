@@ -324,9 +324,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // And queue up this app to be restarted.
         let flash_start = self.flash_start();
         let app_start =
-            unsafe { flash_start.offset(self.header.get_app_start_offset() as isize) as usize };
+            flash_start.wrapping_offset(self.header.get_app_start_offset() as isize) as usize;
         let init_fn =
-            unsafe { flash_start.offset(self.header.get_init_function_offset() as isize) as usize };
+            flash_start.wrapping_offset(self.header.get_init_function_offset() as isize) as usize;
 
         self.enqueue_task(Task::FunctionCall(FunctionCall {
             source: FunctionCallSource::Kernel,

@@ -253,14 +253,6 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
             TbfFooterV2CredentialsType::Reserved | TbfFooterV2CredentialsType::CleartextID => {
                 Err((ErrorCode::ALREADY, credentials, binary))
             }
-            TbfFooterV2CredentialsType::Rsa3072Key
-            | TbfFooterV2CredentialsType::Rsa4096Key
-            | TbfFooterV2CredentialsType::Rsa3072KeyWithID
-            | TbfFooterV2CredentialsType::Rsa4096KeyWithID
-            | TbfFooterV2CredentialsType::SHA384
-            | TbfFooterV2CredentialsType::SHA512 => {
-                Err((ErrorCode::NOSUPPORT, credentials, binary))
-            }
             TbfFooterV2CredentialsType::SHA256 => {
                 self.hash.map(|h| {
                     for i in 0..32 {
@@ -273,6 +265,10 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
                     Err((e, b)) => Err((e, credentials, b.take())),
                 }
             }
+            _ => {
+                Err((ErrorCode::NOSUPPORT, credentials, binary))
+            }
+
         }
     }
 

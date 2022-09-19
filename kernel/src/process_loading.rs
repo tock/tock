@@ -178,7 +178,6 @@ impl fmt::Debug for ProcessLoadError {
 /// integrity, passing them to the checker to decide whether the
 /// process has sufficient credentials to run.
 #[inline(always)]
-#[allow(dead_code)]
 pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
     kernel_resources: &KR,
@@ -416,7 +415,9 @@ impl ProcessCheckerMachine {
             let footer_index = self.footer.get();
             // Try to check the next footer.
             let check_result = self.checker.map_or(FooterCheckResult::Error, |c| {
-                check_footer(self.processes[proc_index], *c, footer_index)
+                self.processes[proc_index].map_or(FooterCheckResult::NoProcess, |p| {
+                    check_footer(p, *c, footer_index)
+                })
             });
 
             if config::CONFIG.debug_process_credentials {
@@ -489,114 +490,112 @@ impl ProcessCheckerMachine {
 // Iterates through the footer list until if finds `next_footer` or
 // it reached the end of the footer region.
 fn check_footer(
-    popt: Option<&'static dyn Process>,
+    process: &'static dyn Process,
     checker: &'static dyn CredentialsCheckingPolicy<'static>,
     next_footer: usize,
 ) -> FooterCheckResult {
-    popt.map_or(FooterCheckResult::NoProcess, |process| {
-        if config::CONFIG.debug_process_credentials {
-            debug!(
-                "Checking: Checking {} footer {}",
-                process.get_process_name(),
-                next_footer
-            );
-        }
-        let footers_position_ptr = process.get_addresses().flash_integrity_end;
-        let mut footers_position = footers_position_ptr as usize;
-
-        let flash_start_ptr = process.get_addresses().flash_start as *const u8;
-        let flash_start = flash_start_ptr as usize;
-        let flash_integrity_len = footers_position - flash_start;
-        let flash_end = process.get_addresses().flash_end as usize;
-        let footers_len = flash_end - footers_position;
-
-        if config::CONFIG.debug_process_credentials {
-            debug!(
-                "Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
-                flash_start,
-                flash_start + flash_integrity_len,
-                footers_position,
-                flash_end
-            );
-        }
-        let mut current_footer = 0;
-        let mut footer_slice = unsafe { slice::from_raw_parts(footers_position_ptr, footers_len) };
-        let binary_slice = unsafe { slice::from_raw_parts(flash_start_ptr, flash_integrity_len) };
-        while current_footer <= next_footer && footers_position < flash_end {
-            let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
-            match parse_result {
-                Err(TbfParseError::NotEnoughFlash) => {
-                    return FooterCheckResult::PastLastFooter;
+    if config::CONFIG.debug_process_credentials {
+        debug!(
+            "Checking: Checking {} footer {}",
+            process.get_process_name(),
+            next_footer
+        );
+    }
+    let footers_position_ptr = process.get_addresses().flash_integrity_end;
+    let mut footers_position = footers_position_ptr as usize;
+    
+    let flash_start_ptr = process.get_addresses().flash_start as *const u8;
+    let flash_start = flash_start_ptr as usize;
+    let flash_integrity_len = footers_position - flash_start;
+    let flash_end = process.get_addresses().flash_end as usize;
+    let footers_len = flash_end - footers_position;
+    
+    if config::CONFIG.debug_process_credentials {
+        debug!(
+            "Checking: Integrity region is {:x}-{:x}; footers at {:x}-{:x}",
+            flash_start,
+            flash_start + flash_integrity_len,
+            footers_position,
+            flash_end
+        );
+    }
+    let mut current_footer = 0;
+    let mut footer_slice = unsafe { slice::from_raw_parts(footers_position_ptr, footers_len) };
+    let binary_slice = unsafe { slice::from_raw_parts(flash_start_ptr, flash_integrity_len) };
+    while current_footer <= next_footer && footers_position < flash_end {
+        let parse_result = tock_tbf::parse::parse_tbf_footer(footer_slice);
+        match parse_result {
+            Err(TbfParseError::NotEnoughFlash) => {
+                return FooterCheckResult::PastLastFooter;
+            }
+            Err(TbfParseError::BadTlvEntry(t)) => {
+                if config::CONFIG.debug_process_credentials {
+                    debug!("Checking: Bad TLV entry, type: {:?}", t);
                 }
-                Err(TbfParseError::BadTlvEntry(t)) => {
-                    if config::CONFIG.debug_process_credentials {
-                        debug!("Checking: Bad TLV entry, type: {:?}", t);
-                    }
-                    return FooterCheckResult::BadFooter;
+                return FooterCheckResult::BadFooter;
+            }
+            Err(e) => {
+                if config::CONFIG.debug_process_credentials {
+                    debug!("Checking: Error parsing footer: {:?}", e);
                 }
-                Err(e) => {
-                    if config::CONFIG.debug_process_credentials {
-                        debug!("Checking: Error parsing footer: {:?}", e);
-                    }
-                    return FooterCheckResult::BadFooter;
+                return FooterCheckResult::BadFooter;
+            }
+            Ok((footer, len)) => {
+                let slice_result = footer_slice.get(len as usize + 4..);
+                if config::CONFIG.debug_process_credentials {
+                    debug!(
+                        "ProcessLoad: @{:x} found a len {} footer: {:?}",
+                        footers_position, len, footer
+                    );
                 }
-                Ok((footer, len)) => {
-                    let slice_result = footer_slice.get(len as usize + 4..);
-                    if config::CONFIG.debug_process_credentials {
-                        debug!(
-                            "ProcessLoad: @{:x} found a len {} footer: {:?}",
-                            footers_position, len, footer
-                        );
+                footers_position = footers_position + len as usize + 4;
+                match slice_result {
+                    None => {
+                        return FooterCheckResult::BadFooter;
                     }
-                    footers_position = footers_position + len as usize + 4;
-                    match slice_result {
-                        None => {
-                            return FooterCheckResult::BadFooter;
-                        }
-                        Some(slice) => {
-                            footer_slice = slice;
-                            if current_footer == next_footer {
-                                match checker.check_credentials(footer, binary_slice) {
-                                    Ok(()) => {
-                                        if config::CONFIG.debug_process_credentials {
-                                            debug!("Checking: Found {}, checking", current_footer);
-                                        }
-                                        return FooterCheckResult::Checking;
+                    Some(slice) => {
+                        footer_slice = slice;
+                        if current_footer == next_footer {
+                            match checker.check_credentials(footer, binary_slice) {
+                                Ok(()) => {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!("Checking: Found {}, checking", current_footer);
                                     }
-                                    Err((ErrorCode::NOSUPPORT, _, _)) => {
-                                        if config::CONFIG.debug_process_credentials {
-                                            debug!(
-                                                "Checking: Found {}, not supported",
-                                                current_footer
-                                            );
-                                        }
-                                        return FooterCheckResult::FooterNotCheckable;
+                                    return FooterCheckResult::Checking;
+                                }
+                                Err((ErrorCode::NOSUPPORT, _, _)) => {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!(
+                                            "Checking: Found {}, not supported",
+                                            current_footer
+                                        );
                                     }
-                                    Err((ErrorCode::ALREADY, _, _)) => {
-                                        if config::CONFIG.debug_process_credentials {
-                                            debug!("Checking: Found {}, already", current_footer);
-                                        }
-                                        return FooterCheckResult::FooterNotCheckable;
+                                    return FooterCheckResult::FooterNotCheckable;
+                                }
+                                Err((ErrorCode::ALREADY, _, _)) => {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!("Checking: Found {}, already", current_footer);
                                     }
-                                    Err(e) => {
-                                        if config::CONFIG.debug_process_credentials {
-                                            debug!(
-                                                "Checking: Found {}, error {:?}",
-                                                current_footer, e
-                                            );
-                                        }
-                                        return FooterCheckResult::Error;
+                                    return FooterCheckResult::FooterNotCheckable;
+                                }
+                                Err(e) => {
+                                    if config::CONFIG.debug_process_credentials {
+                                        debug!(
+                                            "Checking: Found {}, error {:?}",
+                                            current_footer, e
+                                        );
                                     }
+                                    return FooterCheckResult::Error;
                                 }
                             }
                         }
                     }
                 }
-            }
-            current_footer = current_footer + 1;
+                }
         }
-        FooterCheckResult::PastLastFooter
-    })
+        current_footer = current_footer + 1;
+    }
+    FooterCheckResult::PastLastFooter
 }
 
 impl process_checking::Client<'static> for ProcessCheckerMachine {
