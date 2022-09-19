@@ -874,7 +874,7 @@ also makes it less likely that the two are inconsistent.
 -------------------------------
 
 **This text is not consistent with the text in 8.1 and should be 
-ignored for now. -pal **
+ignored for now. -pal**
 
 `ShortID` values MUST be locally unique among running processes. 
 Global Application Identifiers MUST have a deterministic mapping
