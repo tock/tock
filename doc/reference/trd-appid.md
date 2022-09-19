@@ -687,7 +687,7 @@ process's application identifier.
 ===============================
 
 While `TbfFooterV2Credentials` typically define the identity and
-credentials of an application, they are typically large data
+credentials of an application, they are often large data
 structures that are too large to store in RAM. When parts of the
 kernel wish to apply security or access policies based on Application
 Identifiers, they need a concise way to represent these
@@ -706,9 +706,11 @@ policies.
 For example, suppose that a device wants to grant access to
 all Userspace Binaries signed by a certain 3072-bit RSA key K and has
 no other security policies. The Credentials Checking Policy only
-accepts `Rsa3072KeyWithID` credentials with key K. The `Compress`
-trait implementation assigns a Short ID as the ID stored in the
-credentials. Access control systems within the kernel can define their
+accepts `Rsa3072Key` credentials with key K. The `Compress`
+trait implementation assigns a Short ID based on a string match
+with the process package name, with certain names receiving 
+particular Short IDs.
+Access control systems within the kernel can define their
 policies in terms of these identifiers, such that they can check
 access by comparing 32-bit integers rather than 384-byte keys.
 
@@ -744,9 +746,9 @@ share copies of public keys or other credentials that it uses to make
 decisions, reducing flash space dedicated to these constants. Doing so
 also makes it less likely that the two are inconsistent.
 
-`ShortID` values MUST be locally unique among running processes.  The
-mapping between Global Application Identifiers and `ShortID` values
-MUST be deterministic.  Kernels SHOULD implement `Compress` in a
+`ShortID` values MUST be locally unique among running processes. 
+Global Application Identifiers MUST have a deterministic mapping
+to `ShortID` values. Kernels SHOULD implement `Compress` in a
 manner that minimizes the chance that two different Application
 Identifiers compress to the same Short ID (e.g., taking the low-order
 bits of a strong cryptographic hash function, or using a known,
