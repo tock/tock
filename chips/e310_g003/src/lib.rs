@@ -7,4 +7,4 @@
 pub use e310x::{chip, clint, gpio, plic, prci, pwm, rtc, uart, watchdog};
 
 pub mod interrupt_service;
-pub mod interrupts;
+mod interrupts;

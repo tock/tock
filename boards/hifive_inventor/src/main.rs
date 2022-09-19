@@ -44,7 +44,7 @@ pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
-struct HiFive1 {
+struct HiFiveInventor {
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -60,7 +60,7 @@ struct HiFive1 {
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for HiFive1 {
+impl SyscallDriverLookup for HiFiveInventor {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -75,7 +75,7 @@ impl SyscallDriverLookup for HiFive1 {
 }
 
 impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<'static>>>
-    for HiFive1
+    for HiFiveInventor
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
@@ -267,7 +267,7 @@ pub unsafe fn main() {
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
 
-    let hifive1 = HiFive1 {
+    let hifive1 = HiFiveInventor {
         console: console,
         alarm: alarm,
         lldb: lldb,

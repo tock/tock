@@ -3,7 +3,7 @@
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 #[repr(C)]
@@ -13,7 +13,7 @@ pub struct PlicRegisters {
     priority: [ReadWrite<u32, priority::Register>; 51],
     _reserved1: [u8; 3888],
     /// Interrupt Pending Register
-    pending: [ReadWrite<u32>; 2],
+    pending: [ReadOnly<u32>; 2],
     _reserved2: [u8; 4088],
     /// Interrupt Enable Register
     enable: [ReadWrite<u32>; 2],
