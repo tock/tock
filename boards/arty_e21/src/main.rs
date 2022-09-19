@@ -7,6 +7,7 @@
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
