@@ -263,10 +263,10 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-    // Need two debug!() calls to actually test with QEMU. QEMU seems to have
-    // a much larger UART TX buffer (or it transmits faster).
-    debug!("HiFive1 initialization complete.");
-    debug!("Entering main loop.");
+    // If you plan using this through QEMU, please consider using two debug!
+    // statements as there seems to be a QEMU issue, either having a much larger
+    // UART TX buffer (or it transmits faster).
+    debug!("HiFive1 initialization complete. Entering main loop.");
 
     // These symbols are defined in the linker script.
     extern "C" {
