@@ -265,10 +265,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
                     Err((e, b)) => Err((e, credentials, b.take())),
                 }
             }
-            _ => {
-                Err((ErrorCode::NOSUPPORT, credentials, binary))
-            }
-
+            _ => Err((ErrorCode::NOSUPPORT, credentials, binary)),
         }
     }
 
