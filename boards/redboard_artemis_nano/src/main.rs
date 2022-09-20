@@ -301,7 +301,7 @@ unsafe fn setup() -> (
         capsules::temperature::DRIVER_NUM,
         ccs811,
     )
-    .finalize(());
+    .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
 
     // Setup BLE
