@@ -415,7 +415,7 @@ pub unsafe fn main() {
     )
     .finalize(());
     let humidity =
-        HumidityComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM, si7021).finalize(());
+        HumidityComponent::new(board_kernel, capsules::humidity::DRIVER_NUM, si7021).finalize(());
     let ninedof = NineDofComponent::new(
         board_kernel,
         capsules::ninedof::DRIVER_NUM,
