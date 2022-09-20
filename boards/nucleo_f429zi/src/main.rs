@@ -554,7 +554,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
