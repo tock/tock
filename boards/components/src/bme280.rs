@@ -4,19 +4,19 @@
 //! -----
 //! ```rust
 //!     let bme280 =
-//!         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_helper!());
+//!         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
 //!     let temperature = components::temperature::TemperatureComponent::new(
 //!         board_kernel,
 //!         capsules::temperature::DRIVER_NUM,
 //!         bme280,
 //!     )
-//!     .finalize(());
+//!     .finalize(components::temperature_component_static!());
 //!     let humidity = components::humidity::HumidityComponent::new(
 //!         board_kernel,
 //!         capsules::humidity::DRIVER_NUM,
 //!         bme280,
 //!     )
-//!     .finalize(());
+//!     .finalize(components::humidity_component_static!());
 //! ```
 
 use capsules::bme280::Bme280;
