@@ -349,13 +349,14 @@ pub unsafe fn main() {
     .finalize(());
 
     // Configure the ISL29035, device address 0x44
+    let isl29035 = components::isl29035::Isl29035Component::new(sensors_i2c, mux_alarm)
+        .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
     let ambient_light = components::isl29035::AmbientLightComponent::new(
         board_kernel,
         capsules::ambient_light::DRIVER_NUM,
-        sensors_i2c,
-        mux_alarm,
+        isl29035,
     )
-    .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
+    .finalize(components::ambient_light_component_static!());
 
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(

@@ -42,6 +42,7 @@ use components::crc::CrcComponent;
 use components::debug_writer::DebugWriterComponent;
 use components::gpio::GpioComponent;
 use components::isl29035::AmbientLightComponent;
+use components::isl29035::Isl29035Component;
 use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
@@ -399,13 +400,12 @@ pub unsafe fn main() {
     );
     peripherals.i2c2.set_master_client(mux_i2c);
 
-    let ambient_light = AmbientLightComponent::new(
-        board_kernel,
-        capsules::ambient_light::DRIVER_NUM,
-        mux_i2c,
-        mux_alarm,
-    )
-    .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
+    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm)
+        .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
+    let ambient_light =
+        AmbientLightComponent::new(board_kernel, capsules::ambient_light::DRIVER_NUM, isl29035)
+            .finalize(components::ambient_light_component_static!());
+
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
     let temp = components::temperature::TemperatureComponent::new(
