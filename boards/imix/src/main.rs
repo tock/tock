@@ -516,8 +516,8 @@ pub unsafe fn main() {
         capsules::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
+        .finalize(components::rng_component_static!());
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits

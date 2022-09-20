@@ -601,8 +601,8 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
+        .finalize(components::rng_component_static!());
 
     // FT6206
 
