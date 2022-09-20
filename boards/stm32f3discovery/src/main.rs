@@ -696,11 +696,11 @@ pub unsafe fn main() {
             .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
-        .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));
+        .finalize(components::adc_mux_component_static!(stm32f303xc::adc::Adc));
 
     // Uncomment this if you want to use ADC MCU temp sensor
     // let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(4.3, 1.43)
-    //     .finalize(components::temperaturestm_adc_component_helper!(
+    //     .finalize(components::temperaturestm_adc_component_static!(
     //         // spi type
     //         stm32f303xc::adc::Adc,
     //         // chip select
@@ -720,23 +720,23 @@ pub unsafe fn main() {
     // shared with button
     // let adc_channel_1 =
     //     components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel1)
-    //         .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+    //         .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel2)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_3 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel3)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_4 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel4)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_5 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel5)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)

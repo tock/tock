@@ -678,17 +678,17 @@ pub unsafe fn main() {
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)
-        .finalize(components::adc_mux_component_helper!(stm32f412g::adc::Adc));
+        .finalize(components::adc_mux_component_static!(stm32f412g::adc::Adc));
 
-    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(2.5, 0.76)
-        .finalize(components::temperaturestm_adc_component_helper!(
-            // spi type
-            stm32f412g::adc::Adc,
-            // chip select
-            stm32f412g::adc::Channel::Channel18,
-            // spi mux
-            adc_mux
-        ));
+    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(
+        adc_mux,
+        stm32f412g::adc::Channel::Channel18,
+        2.5,
+        0.76,
+    )
+    .finalize(components::temperature_stm_adc_component_static!(
+        stm32f412g::adc::Adc
+    ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
@@ -701,27 +701,27 @@ pub unsafe fn main() {
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel1)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_1 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel11)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel13)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_3 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel14)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_4 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel15)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_5 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)

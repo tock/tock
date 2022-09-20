@@ -401,14 +401,17 @@ pub unsafe fn main() {
     peripherals.adc.init();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(Adc));
+        .finalize(components::adc_mux_component_static!(Adc));
 
-    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(1.721, 0.706)
-        .finalize(components::temperaturerp2040_adc_component_helper!(
-            rp2040::adc::Adc,
-            Channel::Channel4,
-            adc_mux
-        ));
+    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(
+        adc_mux,
+        Channel::Channel4,
+        1.721,
+        0.706,
+    )
+    .finalize(components::temperature_rp2040_adc_component_static!(
+        rp2040::adc::Adc
+    ));
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
@@ -421,16 +424,16 @@ pub unsafe fn main() {
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_3 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel3)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
