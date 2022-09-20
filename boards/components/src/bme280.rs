@@ -23,16 +23,23 @@ use capsules::bme280::Bme280;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! bme280_component_helper {
+macro_rules! bme280_component_static {
     () => {{
-        use capsules::bme280::Bme280;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<Bme280<'static>> = MaybeUninit::uninit();
-        &mut BUF1
+        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_buffer = kernel::static_buf!([u8; 26]);
+        let bme280 = kernel::static_buf!(capsules::bme280::Bme280<'static>);
+
+        (i2c_device, i2c_buffer, bme280)
+    };};
+}
+
+#[macro_export]
+macro_rules! temperature_component_static {
+    () => {{
+        kernel::static_buf!(capsules::temperature::TemperatureSensor<'static>)
     };};
 }
 
@@ -50,19 +57,19 @@ impl Bme280Component {
     }
 }
 
-static mut I2C_BUF: [u8; 26] = [0; 26];
-
 impl Component for Bme280Component {
-    type StaticInput = &'static mut MaybeUninit<Bme280<'static>>;
+    type StaticInput = (
+        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<[u8; 26]>,
+        &'static mut MaybeUninit<Bme280<'static>>,
+    );
     type Output = &'static Bme280<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let bme280_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, self.i2c_address));
-        let bme280 = static_init_half!(
-            static_buffer,
-            Bme280<'static>,
-            Bme280::new(bme280_i2c, &mut I2C_BUF)
-        );
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let bme280_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
+        let i2c_buffer = s.1.write([0; 26]);
+
+        let bme280 = s.2.write(Bme280::new(bme280_i2c, i2c_buffer));
 
         bme280_i2c.set_client(bme280);
         bme280.startup();
