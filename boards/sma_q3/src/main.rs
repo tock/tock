@@ -274,7 +274,8 @@ pub unsafe fn main() {
     // Initialize early so any panic beyond this point can use the RTT memory object.
     let uart_channel = {
         // RTT communication channel
-        let mut rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+        let mut rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+            .finalize(components::segger_rtt_memory_component_static!());
 
         // TODO: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
         // aliases reference is only used inside a panic handler, which should be OK, but maybe we
@@ -282,7 +283,7 @@ pub unsafe fn main() {
         self::io::set_rtt_memory(&mut *rtt_memory.get_rtt_memory_ptr());
 
         components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
-            .finalize(components::segger_rtt_component_helper!(nrf52840::rtc::Rtc))
+            .finalize(components::segger_rtt_component_static!(nrf52840::rtc::Rtc))
     };
 
     // Create a shared UART channel for the console and for kernel debug.
