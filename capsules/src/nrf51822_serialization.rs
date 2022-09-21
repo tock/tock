@@ -53,8 +53,8 @@ pub struct App;
 
 // Local buffer for passing data between applications and the underlying
 // transport hardware.
-pub static mut WRITE_BUF: [u8; 600] = [0; 600];
-pub static mut READ_BUF: [u8; 600] = [0; 600];
+pub const WRITE_BUF_LEN: usize = 600;
+pub const READ_BUF_LEN: usize = 600;
 
 // We need two resources: a UART HW driver and driver state for each
 // application.

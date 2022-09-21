@@ -324,7 +324,7 @@ pub unsafe fn main() {
         &peripherals.usart3,
         &peripherals.pa[17],
     )
-    .finalize(());
+    .finalize(components::nrf51822_component_static!());
 
     let sensors_i2c = static_init!(
         MuxI2C<'static>,
