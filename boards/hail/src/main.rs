@@ -484,7 +484,7 @@ pub unsafe fn main() {
         capsules::crc::DRIVER_NUM,
         &peripherals.crccu,
     )
-    .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+    .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     // DAC
     let dac = static_init!(
