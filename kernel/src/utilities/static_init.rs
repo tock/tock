@@ -113,7 +113,7 @@ pub struct StaticUninitializedBuffer<T: 'static> {
     buf: &'static mut UninitializedBuffer<T>,
 }
 
-impl<T> StaticUninitializedBuffer<T> {
+impl<T: 'static> StaticUninitializedBuffer<T> {
     /// This function is not intended to be called publicly. It's only meant to
     /// be called within `static_buf!` macro, but Rust's visibility rules
     /// require it to be public, so that the macro's body can be instantiated.
@@ -126,10 +126,8 @@ impl<T> StaticUninitializedBuffer<T> {
     /// allows for runtime initialization of `static` values that do not have a
     /// `const` constructor.
     pub unsafe fn initialize(self, value: T) -> &'static mut T {
-        self.buf.0.as_mut_ptr().write(value);
-        // TODO: use MaybeUninit::get_mut() once that is stabilized (see
-        // https://github.com/rust-lang/rust/issues/63568).
-        &mut *self.buf.0.as_mut_ptr() as &'static mut T
+        self.buf.0.write(value);
+        self.buf.0.assume_init_mut()
     }
 }
 
