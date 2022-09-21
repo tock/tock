@@ -477,8 +477,8 @@ pub unsafe fn main() {
                 adc_channel_3,
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE

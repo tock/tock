@@ -635,8 +635,8 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let _process_console = components::process_console::ProcessConsoleComponent::new(

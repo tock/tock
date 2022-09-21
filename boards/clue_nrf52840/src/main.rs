@@ -723,8 +723,8 @@ pub unsafe fn main() {
         nrf52840::aes::AesECB<'static>
     ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(

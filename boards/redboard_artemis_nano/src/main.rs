@@ -257,8 +257,8 @@ unsafe fn setup() -> (
     ALARM = Some(mux_alarm);
 
     // Create a process printer for panic.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Init the I2C device attached via Qwiic

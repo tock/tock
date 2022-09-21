@@ -469,8 +469,8 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
 
     PANIC_REFERENCES.process_printer = Some(process_printer);
 

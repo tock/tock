@@ -363,8 +363,8 @@ pub unsafe fn main() {
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Process Printer for displaying process information.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
