@@ -478,7 +478,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
         .finalize(components::adc_component_helper!(Adc));

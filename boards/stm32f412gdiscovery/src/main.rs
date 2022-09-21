@@ -659,7 +659,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     let touch = components::touch::MultiTouchComponent::new(
         board_kernel,
