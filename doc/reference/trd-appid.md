@@ -139,24 +139,19 @@ Credentials. The boot sequence typically passes the Credentials
 Checking Policy to the kernel at startup, which the Process
 Checker then uses when the kernel loads processes.
 
-**Global Application Identifier**: an application identifier which,
+**Global Application Identifier**: an Application Identifier which,
 given an expected combination of Credentials Checking Policy and
 Identifier Policy, is both globally consistent across all TBF objects
 for a particular Application and unique to that Application. All
 instances of the Application loaded with this combination of policies
 have this Application Identifier. No instances of other Applications
 loaded with this Credentials Checking Policy have this Application
-Identifier. An example of a Global Application Identifer is a public
+Identifier. One example of a Global Application Identifer is a public
 key used to verify the digital signature of every TBF Object of a
-single Application. 
-
-**Local Application Identifier**: an Application Identifier which is
-locally unique for the Credentials Checking Policy that assigned
-it. The same TBF Object, loaded with the same Credentials Checking
-Policy on another Tock node, may have a different Application
-Identifier. An example of a Local Application Identifier is an
-incrementing counter that the Credentials Checking Policy checks for
-uniqueness (skipping values already in use if it loops around).
+single Application. Another example of a Global Application Identifier
+is a string name stored in a TBF Object header; in this case the party
+installing TBF Objects needs to make sure there are no unintended
+collisions between these string names.
 
 **Locally Unique Application Identifier**: a special kind of
 Application Identifier that is by definition unique from all other
@@ -223,33 +218,7 @@ the Application Identifier of a process to be the public key, the
 system can map this key to a Short IDs (described below) that gives
 access to retricted functionality.
 
-3.1.1 Local Identifiers and the "Locally Unique" Identifier
--------------------------------
-
-Local Identifiers are unique on a single Tock system, but are not
-necessarily consistent across Tock systems or across reboots of the
-kernel. An example of a Local Identifier is index of the Userspace
-Binary's TBF Object in the application flash region of a Tock system.
-The kernel can use this Local Indentifier to account for or restrict
-access to storage records. However, if the kernel reboots with a new
-arrangement of Userspace Binaries, identifiers may change and so the
-kernel SHOULD NOT assume they persist across reboots. In situations
-where identifiers are used for operational security decisions, the
-kernel MUST NOT assume they persist across reboots.
-
-Some Tock use cases have no real notion of Application identity.  In
-many research or prototype systems, for example, every Userspace
-Binary has complete access to the system and there is no need for
-persistent storage or identity. In such use cases, the Identifier
-Policy can assign a special Application Identifier called the "Locally
-Unique" Identifier.  This identifier does not have a concrete value:
-it is simply a value that is by definition different from all other
-Application Identifiers. Because it does not have a concrete value,
-one cannot test for equality with Locally Unique Application
-Identifier. All comparisons with a Locally Unique Application
-Identifier return false.
-
-3.1.2 Global Application Identifiers
+3.1.1 Global Application Identifiers
 -------------------------------
 
 Global Application Identifiers are a class of Application Identifiers
@@ -261,11 +230,40 @@ one-to-one mapping between Applications and Global Application
 Identifiers. If an Application has a Global Application Identifier,
 then every process running that Application has that Global
 Application Identifier. Conversely, that Global Application Identifier
-is unique to that Application; no two Applications share a Global
+is unique to that Application; two Applications do not share a Global
 Application Identifier.
 
 One important implication of this mapping is that Global Application
 Identifiers MUST persist across process restarts or reloads.
+
+Of course, poor management of Global Application Identifiers can lead
+to unintended collisions. For example, an Identifier Policy might
+define the Global Application Identifier of processes to be the public
+key of a key pair to sign an Application Credential. If a developer
+accidentally uses the wrong key to sign a Userspace Binary, the Tock
+kernel will think that Userspace Binary is a different Application.
+Similarly, if the Identifier Policy uses a string name in a TBF Object
+header as the Global Application Identifier, then incorrectly giving
+two different programs the same name could lead them to sharing data.
+
+3.1.2 The "Locally Unique" Identifier
+-------------------------------
+
+Some Tock use cases do not required a real notion of Application
+identity.  In many research or prototype systems, for example, every
+Userspace Binary has complete access to the system and there is no
+need for persistent storage or identity. Running processes need an
+Application Identifier, but in these cases it is not necessary for a
+Tock kernel and Application build system to manage Global Application
+Identifiers.
+
+In such use cases, the Identifier Policy can assign a special
+Application Identifier called the "Locally Unique" Identifier.  This
+identifier does not have a concrete value: it is simply a value that
+is by definition different from all other Application
+Identifiers. Because it does not have a concrete value, one cannot
+test for equality with Locally Unique Application Identifier. All
+comparisons with a Locally Unique Application Identifier return false.
 
 3.2 Application Credentials
 -------------------------------
@@ -283,17 +281,16 @@ Credentials to run, and have an Identifier Policy that defines
 Application Identifiers to be the ASCII name stored in a TBF header.
 
 In cases when a TBF Object does not have any Application Credentials,
-the Identifier Policy MAY assign it a Global Application Identifier or
-a Local Application Identifier. 
+the Identifier Policy MAY assign it a Global Application Identifier.
 
 The Tock kernel assigns each Tock process a unique process identifier,
 which can be re-used over time (like POSIX process identifiers). These
-process identifiers are orthogonal to Application Identifiers.  An
-Application Identifier identifies an Application, while a process
-identifier identifies a particular execution of a binary. For example,
-if a Userspace Binary exits and runs a second time, the second execution
-will have the same Application Identifier but may have a different process
-identifier.
+process identifiers are completely separate from Application
+Identifiers.  An Application Identifier identifies an Application,
+while a process identifier identifies a particular execution of a
+binary. For example, if a Userspace Binary exits and runs a second
+time, the second execution will have the same Application Identifier
+but may have a different process identifier.
 
 3.3 Example Use Cases
 -------------------------------
@@ -517,14 +514,11 @@ Currently supported values of `format` are:
 ```rust
 pub enum TbfFooterV2CredentialsType {
     Reserved = 0,
-    CleartextID = 1,
-    Rsa3072Key = 2,
-    Rsa4096Key = 3,
-    Rsa3072KeyWithID = 4,
-    Rsa4096KeyWithID = 5,
-        SHA256 = 6,
-        SHA384 = 7,
-        SHA512 = 8,
+    Rsa3072Key = 1,
+    Rsa4096Key = 2,
+	SHA256 = 3,
+	SHA384 = 4,
+	SHA512 = 5,
 }
 ```
 
@@ -534,10 +528,6 @@ by another party in the deployment process). Because the `total_size`
 field of a TBF Base Header is covered by integrity, once the total
 size of the TBF Object has been decided it cannot be changed: if
 credentials need to be added later, space must be reserved for them.
-
-The `CleartextID` type has a data length of 8 bytes. It contains a
-64-bit number in big-endian format representing an application
-identifier.
 
 The `Rsa3072Key` type has a data of length of 768 bytes. It contains a
 public 3072-bit RSA key (384 bytes), followed by a 384-byte PKCS#1
@@ -742,30 +732,74 @@ IDs.  Access control systems within the kernel can define their
 policies in terms of these identifiers, such that they can check
 access by comparing 32-bit integers rather than 384-byte keys.
 
+Short IDs support the concept of a "Locally Unique" identifier by
+having a special `LocallyUnique` value. All tests for equality with
+`ShortID::LocallyUnique` return false.
+
 8.1 Short ID Properties and Examples
 -------------------------------
 
-Short IDs have the following properties. Short IDs:
+Given a particular combination of deterministic Identifier Policy and
+Credentials Checking Policy, Short IDs have two requirements. They
 
-  - MUST be unique across running processes,
-  - MAY be consistent across all reboots of a Userspace Binary on a Tock system, and
-  - MAY be consistent across all running instances of an Application on Tock systems.
+  1. MUST be unique across running processes,
+  1. MUST be consistent across all running instances of an Application
+     on Tock systems.
 
-A basic challenge that arises with Short IDs is that because they are
-a form of compression. If there is a deterministic mapping between
-Application Identifiers and Short IDs, it can be that multiple
-Application Identifiers map to the same Short ID.  The requirement
-that every running process has a unique Short ID means that if
-multiple Application Identifiers map to the same Short ID, only one of
-those Applications may run at a time. This is typically not a
-desirable behavior, so Identifer Policies should be careful to avoid
-this.
+Short IDs are locally unique for three reasons. First, it simplifies
+process management and naming: a particular Short ID uniquely
+identifies a running process. Second, it ensures that resources bound
+to an application identifier (such as non-volatile storage) do not
+have to handle concurrent accesses from multiple processes. Finally,
+generally one does not want two copies of the same Application
+running: they can create conflicting responses and behaviors.
 
-Here are three example use cases of Short IDs. The first example requires the
-only first property. The second example requires the first two properties. The
-third example requires all three.
+These two requirements restrict the set of possible combinations of
+Credentials Checking Policy and Identifier Policy. For example, a
+Short ID cannot be an incrementing counter; it must be
+deterministically derived from the Application Identifier.
 
-8.1.1 Use Case 1: Anonymous Applications
+A basic challenge that arises with Short IDs is that they are a form
+of compression.  In the ideal case, Short IDs would have two
+additional properties:
+  - Different Application Identifiers map to different Short IDs, and
+  - All Application Identifiers have a concrete Short ID that identifies the Application.
+  
+Unfortunately, it is not possible to satisfy both of these properties
+simultaneously. This is because Short IDs potentially compress
+Application Identifiers. Consider, for example, a system where the
+Application Identifier is the public key in an Rsa4096Key
+credential. Short IDs are 32 bits, but there are more than 2^32
+4096-bit RSA keys. If every RSA key receives a different Short ID, and
+that Short ID is always the same, after 2^32 keys the Short ID space
+is exhausted.
+
+Every algorithm to map Application Identifiers to Short IDs therefore
+sacrificies one of these two properties:
+  - **Different Application Identifiers can map to the same Short
+  ID:** An Identifier Policy with this property is one that uses
+  string names as Global Application Identifiers and calculates the
+  Short ID of process to be the checksum (or hash) of the string name.
+  Two different names can checksum or hash to the same value. These
+  collisions, however, can be acceptable if a developer is willing to
+  pick string names that do not collide or change them when they do.
+  A research or prototyping system might use this Identifier Policy.
+  - **Some Application Identifiers do not receive concrete Short
+  IDs:** An Identifier Policy with this property is one that uses
+  public keys in signature credentials as Application Identifiers and
+  has a set of public keys it knows and trust. It maps these known
+  keys to a small set of Short IDs (e.g., 1 through N). The system may
+  run Userspace Binaries signed by other keys, but assigns them a
+  Locally Unique Application identifier, which results in a
+  Lcocally Unique Short ID.
+
+
+8.2 Example Short ID use cases
+-------------------------------
+
+Here are three example use cases of Short IDs. 
+
+8.2.1 Use Case 1: Anonymous Applications
 -------------------------------
 
 There are many Tock systems that do not particularly care about the
@@ -780,53 +814,31 @@ Tock kernel does not care about the identity of Applications, it has
 no security policies for limiting access to functionality or resources
 (e.g., system call filters).
 
-In this use case, an Application Identifier is just a locally unique
-identifier that has no promise of persistence or consistency. The same
-is true of the Short ID. For both the Application Identifier and the
-Short ID, a Tock kernel could use a Locally Unique identifier.
+In this use case, the Credentials Checking Policy accepts all
+correctly formatted TBF Objects and the Identifier Policy assigns
+every process a Locally Unique Identifier and a Locally Unique Short
+ID.
 
-8.1.2 Use Case 2: Installation Consistency
+8.2.2 Use Case 2: U2F Application
 -------------------------------
 
-In this use case, some Applications need a consistent identity over
-reboots of their Userspace Binary or the system but not necessarily
-over re-installations of the Application. An example of such an
-application is a sensor network application that must deal with
-intermittent power. The application stores data locally in flash,
-occassionally processing and sending it. If the Application is
-reinstalled, it might have different data formats and so should not
-expect to access earlier data; if the on-board data is needed, someone
-upgrading the Application or reinstalling the Userspace Binary is
-expected to read the data off first.
+In this use case, Tock needs to run a Universal 2nd Factor
+Authentication (U2F) application. This Application needs to store a
+private key in flash. No other Application should be able to access
+this key. The Tock kernel also restricts certain system calls to only
+the U2F Application, such as invoking cryptographic accelerators.
+Finally, the U2F Application needs a consistent identity over reboots
+of its Userspace Binary, the kernel, and upgrades of the Application
+with new versions (and Userspace Binaries).
 
-One possible Identifier Policy for this use case is to define the
-Application Identifier as a Local Identifer, equal to the start
-address of the Userspace Binary. The Short ID is the same value. This
-Identifier Policy precludes running the same Userspace Binary in two
-different processes simultaneously. If such functionality is needed,
-the system can define a different Identifier Policy.
-
-8.1.3 Use Case 3: Application Consistency
--------------------------------
-
-In this use case, an Application needs a consistent identity over
-reboots of its Userspace Binary, the kernel, and upgrades of the
-Application with new versions (and Userspace Binaries). In this use
-case, the Application Identifier is a Global Identifier. An example of
-such an Application is a Universal 2nd Factor Authentication (U2F)
-application that needs to store a private key in flash. This key
-should be accessible to new versions of the Application but not to any
-other Application. The Tock system running this Application also
-places access restrictions on certain system calls, such as reading
-and writing flash storage or invoking cryptographic accelerators.
-
-In this use case, to establish the authenticity and integrity of the
-U2F Application, the Credential Checking Policy requires that an
-Application has a valid Rsa4096Key credential. The system assumes that
-each Application has its own public-private key pair. While the system
-will load and run any process whose Userspace Binary has a valid
-Rsa4096Key credential, it only gives special permissions and access to
-the U2F Application.
+In this use case, the Application Identifier is a Global Identifier.
+To establish the authenticity and integrity of the U2F Application,
+the Credential Checking Policy requires that an Application has a
+valid Rsa4096Key credential. The system assumes that each Application
+has its own public-private key pair. While the system will load and
+run any process whose Userspace Binary has a valid Rsa4096Key
+credential, it only gives special permissions and access to the U2F
+Application.
 
 The Identifier Policy defines the Application Identifier of a process
 to depend on the public key of its Rsa4096Key credential. If it is the
@@ -835,7 +847,37 @@ is the key. If the key is not recognized, the Application Identifier
 is a Locally Unique Identifier. The Short ID of the U2F Application is
 1 and the Short ID of all other Applications is Locally Unique.
 
-8.2 Short ID Format
+8.2.3 Use Case 3: Application Isolation
+-------------------------------
+
+In this use case, Tock needs to support multiple Applications that can
+read and write local flash. Each Application has its own flash
+storage, and Tock isolates their flash storage from one another. An
+Application cannot access the flash of another Application. However,
+this is a development system or a system which does not require
+confidentiality. While there is storage isolation between
+Applications, this is for debuggability, easy of composition, and
+simplicity and not to meet security requirements. The Credentials
+Checking Policy is permissive and tries to run every properly
+formatted TBF Objects.
+
+In this use case, the Application Identifier is a Global Identifier.
+It is the string name of the TBF Object as encoded in a TBF Header.
+The Short ID is a one's complement checksum of the string name.
+
+If a developer installs two TBF Objects with the same string name, the
+Tock kernel thinks they are the same Application and only runs one of
+them. If a developer accidentally uses two different string names that
+have the same checksum (e.g. both "dog" and "mal" checksum to 0x13a),
+the Tock kernel also only runs one of them. Some local modifications
+to `tockloader` check for these collisions and prevent the developer
+from accidentally installing colliding Applications.
+
+Note that in this case it is possible that the "mal" application could
+read data stored by the "dog" application.
+
+
+8.3 Short ID Format
 -------------------------------
 
 The 32-bit value MUST be non-zero. `ShortID` uses `core::num::NonZeroU32`
@@ -870,78 +912,28 @@ share copies of public keys or other credentials that it uses to make
 decisions, reducing flash space dedicated to these constants. Doing so
 also makes it less likely that the two are inconsistent.
 
-8.3 Short IDs
+8.4 Short ID Considerations
 -------------------------------
-
-**This text is not consistent with the text in 8.1 and should be 
-ignored for now. -pal**
-
-`ShortID` values MUST be locally unique among running processes. 
-Global Application Identifiers MUST have a deterministic mapping
-to `ShortID` values. Kernels SHOULD implement `Compress` in a
-manner that minimizes the chance that two different Application
-Identifiers compress to the same Short ID (e.g., taking the low-order
-bits of a strong cryptographic hash function, or using a known,
-deterministic mapping).
-
-Short IDs are locally unique for three reasons. First, it simplifies
-process management and naming: a particular Short ID uniquely
-identifies a running process. Second, it ensures that resources bound
-to an application identifier (such as non-volatile storage) do not
-have to handle concurrent accesses from multiple processes. Finally,
-generally one does not want two copies of the same Application
-running: they can create conflicting responses and behaviors.
-
-For example, suppose there is a system that wants to grant extra
-permissions to a particular Application. TBF Objects for this
-Application have a `TbfFooterV2Credentials` of `Rsa4096Key` with a
-certain public key, and the Identifier Policy uses this public key as
-a Global Application Identifier: only one Userspace Binary signed with
-that key can run at any time. In this example, the Process Checker
-implementing `AppCredentialsChecker` and `Compress` stores a copy of
-this key. It returns `Accept` to calls to `check_credentials` with
-valid `TbfFooterV2Credentials` using this key. Calls to `Compress`
-return `None` for all credentials except a `Rsa4096Key` with this key,
-for which it returns `ShortID {id: 1}`. The Process Checker also has a
-method `privileged_id`, which returns `ShortID {id: 1}`.
-
-Kernel modules which want to give these processes extra permissions
-can check whether the `ShortID` associated with a process matches the
-`ShortID` returned from `privileged_id`. Alternatively, when they are
-initialized, they can be passed a slice or array of `ShortID`s which
-are allowed; system initialization generates this set once and passes
-it into the module so it does not need to maintain a reference to the
-structure implementing `AppCredentialsChecker` and `Compress`.
 
 It is RECOMMENDED that the `id` field of `ShortID` be completely
 hidden and unknown to modules that use `ShortID` to manage security
 policies. They should depend on obtaining `ShortID` values based on
-known names or methods, as in the `privileged_id` example above. The
-exact `id` values used is an internal implementation decision for the
-implementer of `Compress`. Doing so more cleanly decouples modules
-through APIs and does not leak internal state.
-
-`ShortID` values MAY persist across boots and restarts of a process
-binary. If `ShortID` is derived from a Global Application Identifier,
-then it is by definition persistent, since it is a determinstic
-mapping from the identifier. `ShortID` values derived from local
-application identifiers, however, MAY be transient and not persist.
-
-Locally Unique Application Identifiers have a special Short ID value,
-`LocallyUnique`. This represents a Short ID which is different from
-all other Short IDs but has no concrete value. A `LocallyUnique` Short
-ID cannot be stored or inspected. All equality tests with Locally
-Unique Short IDs return false. This means, for example, that if a
-process has a Locally Unique Short ID, testing equality between its
-own Short ID and itself returns false. Locally Unique Short IDs allow
-Tock to easily ensure that processes which do not need persistent
-identifiers can always have a unique Short ID and so are never blocked
-from running by another process having the same Short ID. Otherwise,
-ensuring one process does not accidentally prevent a Userspace Binary
-from running requires that `Compress` can inspect the Short IDs of all
-running processes.
+known names or methods. For example, the implementation of an
+Identifier Policy can define a method, `privileged_id`, which returns
+the Short ID associated with special privileges. Kernel modules which
+want to give these processes extra permissions can check whether the
+`ShortID` associated with a process matches the `ShortID` returned
+from `privileged_id`. Alternatively, when they are initialized, they
+can be passed a slice or array of `ShortID`s which are allowed; system
+initialization generates this set once and passes it into the module
+so it does not need to maintain a reference to the structure
+implementing `AppCredentialsChecker` and `Compress`.
 
 
+The exact `id` values used is an internal implementation decision for
+the implementer of `Compress` and the Identifier Poloicy. Doing so
+cleanly decouples modules through APIs and does not leak internal
+state.
 
 9 The `CredentialsCheckingPolicy` Trait
 ===============================
