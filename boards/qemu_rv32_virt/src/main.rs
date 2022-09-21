@@ -239,7 +239,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
     debug!("Entering main loop.");

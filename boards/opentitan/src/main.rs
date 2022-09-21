@@ -361,7 +361,7 @@ unsafe fn setup() -> (
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
         components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),

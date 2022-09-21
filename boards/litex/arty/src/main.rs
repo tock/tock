@@ -515,7 +515,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
         .finalize(components::coop_component_helper!(NUM_PROCS));

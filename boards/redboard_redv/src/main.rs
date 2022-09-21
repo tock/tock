@@ -245,7 +245,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     // Need two debug!() calls to actually test with QEMU. QEMU seems to have
     // a much larger UART TX buffer (or it transmits faster).
