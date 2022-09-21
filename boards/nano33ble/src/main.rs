@@ -509,7 +509,7 @@ pub unsafe fn main() {
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
-        .finalize(components::hts221_component_helper!());
+        .finalize(components::hts221_component_static!());
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
