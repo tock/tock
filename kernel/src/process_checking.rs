@@ -40,6 +40,17 @@ pub trait Client<'a> {
 
 /// Implements a Credentials Checking Policy.
 pub trait AppCredentialsChecker<'a> {
+    fn set_client(&self, _client: &'a dyn Client<'a>);
+    fn require_credentials(&self) -> bool;
+    fn check_credentials(
+        &self,
+        credentials: TbfFooterV2Credentials,
+        binary: &'a [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
+}
+
+/// Default implementation.
+impl<'a> AppCredentialsChecker<'a> for () {
     fn set_client(&self, _client: &'a dyn Client<'a>) {}
     fn require_credentials(&self) -> bool {
         false
@@ -54,18 +65,13 @@ pub trait AppCredentialsChecker<'a> {
     }
 }
 
-/// Default implementation.
-impl<'a> AppCredentialsChecker<'a> for () {}
-
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
 pub trait AppUniqueness {
     /// Returns whether `process_a` and `process_b` have a different identifier,
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
-    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
-        true
-    }
+    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool;
 
     /// Return whether there is a currently running process that has
     /// the same application identifier as `process`. This means that
@@ -104,16 +110,22 @@ pub trait AppUniqueness {
 }
 
 /// Default implementation.
-impl AppUniqueness for () {}
+impl AppUniqueness for () {
+    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
+        true
+    }
+}
 
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID;
+}
+
+impl Compress for () {
     fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
         ShortID::LocallyUnique
     }
 }
-
-impl Compress for () {}
 
 pub trait CredentialsCheckingPolicy<'a>:
     AppCredentialsChecker<'a> + Compress + AppUniqueness

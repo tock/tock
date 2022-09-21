@@ -28,6 +28,8 @@ pub trait KernelResources<C: Chip> {
     /// will use.
     type ProcessFault: ProcessFault;
 
+    /// The implementation of the Credentials Checking Policy the kernel
+    /// will use.
     type CredentialsCheckingPolicy: CredentialsCheckingPolicy<'static> + 'static;
 
     /// The implementation of the context switch callback handler

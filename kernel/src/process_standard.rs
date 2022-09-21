@@ -276,8 +276,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         ret
     }
 
-    /// Transition an unverified process into the State::Unstarted state.
-    /// Should require a capability. -pal
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
@@ -310,7 +308,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     /// Enqueue the initialization function of a process onto its task list;
     /// this is used to start a process. Should only be called when a process
-    /// is in the `State::Unstarted` state.
+    /// is in the `State::Unstarted` state. If this returns `Err` the process
+    /// will not start execution.
     fn enqueue_init_task(
         &self,
         _cap: &dyn capabilities::ProcessInitCapability,

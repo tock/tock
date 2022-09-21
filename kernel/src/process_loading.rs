@@ -344,9 +344,7 @@ fn load_processes_from_flash<C: Chip>(
 fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
     procs: &'static [Option<&'static dyn Process>],
     kernel_resources: &KR,
-) -> Result<(), ProcessLoadError>
-//    where <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static,
-{
+) -> Result<(), ProcessLoadError> {
     let policy = kernel_resources.credentials_checking_policy();
     #[allow(unused_mut)]
     let machine = unsafe {
