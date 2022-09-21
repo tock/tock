@@ -24,7 +24,8 @@ macro_rules! static_init {
     }};
 }
 
-/// An `#[inline(never)]` function that panics internally for use within
+/// An `#[inline(never)]` function that panics internally if the passed reference
+/// is `true`. This function is intended for use within
 /// the `static_buf!()` macro, which removes the size bloat of track_caller
 /// saving the location of every single call to `static_init!()`.
 /// If you hit this panic, you are either calling `static_buf!()` in
@@ -33,11 +34,22 @@ macro_rules! static_init {
 /// `static_buf!()` are hidden within calls to `static_init!()` or
 /// component helper macros, so start your search there.
 #[inline(never)]
-pub fn static_buf_panic() -> ! {
-    panic!("Error! Single static_buf!() called twice.");
+pub fn static_buf_check_used(used: &mut bool) {
+    // Check if this `BUF` has already been declared and initialized. If it
+    // has, then this is a repeated `static_buf!()` call which is an error
+    // as it will alias the same `BUF`.
+    if *used {
+        // panic, this buf has already been declared and initialized.
+        // NOTE: To save 144 bytes of code size, use loop {} instead of this
+        // panic.
+        panic!("Error! Single static_buf!() called twice.");
+    } else {
+        // Otherwise, mark our uninitialized buffer as used.
+        *used = true;
+    }
 }
 
-/// Allocates a statically-sized global array of memory for data structures but
+/// Allocates a statically-sized global region of memory for data structures but
 /// does not initialize the memory. Checks that the buffer is not aliased and is
 /// only used once.
 ///
@@ -64,21 +76,17 @@ pub fn static_buf_panic() -> ! {
 macro_rules! static_buf {
     ($T:ty $(,)?) => {{
         // Statically allocate a read-write buffer for the value without
-        // actually writing anything.
+        // actually writing anything, as well as a flag to track if
+        // this memory has been initialized yet.
         static mut BUF: (core::mem::MaybeUninit<$T>, bool) =
             (core::mem::MaybeUninit::uninit(), false);
 
-        // Check if this `BUF` has already been declared and initialized. If it
-        // has, then this is a repeated `static_buf!()` call which is an error
-        // as it will alias the same `BUF`.
-        let used = BUF.1;
-        if used {
-            // panic, this buf has already been declared and initialized.
-            $crate::utilities::static_init::static_buf_panic();
-        } else {
-            // Otherwise, mark our uninitialized buffer as used.
-            BUF.1 = true;
-        }
+        // To minimize the amount of code duplicated across every invocation
+        // of this macro, all of the logic for checking if the buffer has been
+        // used is contained within the static_buf_check_used function,
+        // which panics if the passed boolean has been used and sets the
+        // boolean to true otherwise.
+        $crate::utilities::static_init::static_buf_check_used(&mut BUF.1);
 
         // If we get to this point we can wrap our buffer to be eventually
         // initialized.
