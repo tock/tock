@@ -524,7 +524,7 @@ pub unsafe fn main() {
         capsules::sound_pressure::DRIVER_NUM,
         adc_microphone,
     )
-    .finalize(());
+    .finalize(components::sound_pressure_component_static!());
 
     //--------------------------------------------------------------------------
     // STORAGE
