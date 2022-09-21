@@ -662,14 +662,14 @@ implementation of this method, but implementations may override it.
 ```rust
 trait AppIdentification {
     // Returns true if the two processes have different application
-        // identifiers.
-        fn different_identifier(&self,
-                                processA: &dyn Process,
-                                                    processB: &dyn Process) -> bool;
+	// identifiers.
+	fn different_identifier(&self,
+	                        processA: &dyn Process,
+                            processB: &dyn Process) -> bool;
 
-        // Return whether `process` has a unique application identifier (whether
-        // it does not collide with the application identifier of any `Process`
-        // in `processes`.
+    // Return whether `process` has a unique application identifier (whether
+    // it does not collide with the application identifier of any `Process`
+    // in `processes`.
     fn has_unique_identifier(&self,
                              process: &dyn Process,
                              processes: &[Option<&dyn Process>]) -> bool {
