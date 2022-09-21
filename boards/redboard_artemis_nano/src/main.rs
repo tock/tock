@@ -295,7 +295,7 @@ unsafe fn setup() -> (
     BME280 = Some(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B, dynamic_deferred_caller)
-        .finalize(components::ccs811_component_helper!());
+        .finalize(components::ccs811_component_static!());
     let air_quality = components::air_quality::AirQualityComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
