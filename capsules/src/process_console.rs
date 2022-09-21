@@ -126,16 +126,16 @@ use kernel::ErrorCode;
 use kernel::Kernel;
 
 /// Buffer to hold outgoing data that is passed to the UART hardware.
-pub static mut WRITE_BUF: [u8; 500] = [0; 500];
+pub const WRITE_BUF_LEN: usize = 500;
 /// Buffer responses are initially held in until copied to the TX buffer and
 /// transmitted.
-pub static mut QUEUE_BUF: [u8; 300] = [0; 300];
+pub const QUEUE_BUF_LEN: usize = 300;
 /// Since reads are byte-by-byte, to properly echo what's typed,
 /// we can use a very small read buffer.
-pub static mut READ_BUF: [u8; 4] = [0; 4];
+pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
-pub static mut COMMAND_BUF: [u8; 32] = [0; 32];
+pub const COMMAND_BUF_LEN: usize = 32;
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
