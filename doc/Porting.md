@@ -10,6 +10,7 @@ _It is a work in progress. Comments and pull requests are appreciated!_
 <!-- toc -->
 
 - [Overview](#overview)
+- [Is Tock a Good Fit for my Hardware?](#is-tock-a-good-fit-for-my-hardware)
 - [Crate Details](#crate-details)
   * [`arch` Crate](#arch-crate)
   * [`chip` Crate](#chip-crate)
@@ -41,6 +42,30 @@ platform uses a microcontroller already supported by Tock then you can use the
 existing chip crate. The arch crate implements the low-level code for a specific
 hardware architecture (e.g. what happens when the chip first boots and how
 system calls are implemented).
+
+
+Is Tock a Good Fit for my Hardware?
+-----------------------------------
+
+Before porting Tock to a new platform or microcontroller, you should determine
+if Tock is a good fit. While we do not have an exact rubric, there are some
+requirements that we generally look for:
+
+- Must have requirements:
+
+  - Memory protection support. This is generally the MPU on Cortex-M platforms
+    or the PMP on RISC-V platforms.
+  - At least 32-bit support. Tock is not designed for 16-bit platforms.
+  - Enough RAM and flash to support userspace applications. "Enough" is
+    underspecified, but generally boards should have at least 64 kB of RAM and
+    128 kB of flash.
+
+- Generally expected requirements:
+
+  - The platform should be 32-bit. Tock may support 64-bit in the future.
+  - The platform should be single core. A multicore CPU is OK, but the
+    expectation is that only one core will be used with Tock.
+
 
 Crate Details
 -------------
