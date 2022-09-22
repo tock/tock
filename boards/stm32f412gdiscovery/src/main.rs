@@ -614,12 +614,14 @@ pub unsafe fn main() {
     .finalize(components::i2c_mux_component_helper!());
 
     let ft6x06 = components::ft6x06::Ft6x06Component::new(
+        mux_i2c,
+        0x38,
         base_peripherals
             .gpio_ports
             .get_pin(stm32f412g::gpio::PinId::PG05)
             .unwrap(),
     )
-    .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
+    .finalize(components::ft6x06_component_static!());
 
     let bus = components::bus::Bus8080BusComponent::new().finalize(
         components::bus8080_bus_component_helper!(
