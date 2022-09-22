@@ -399,21 +399,16 @@ unsafe fn setup() -> (
 
     digest.set_hmac_client(hmac);
 
-    let sha_data_buffer = static_init!([u8; 64], [0; 64]);
-    let sha_dest_buffer = static_init!([u8; 32], [0; 32]);
-
     let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::sha_mux_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
     let sha = components::sha::ShaComponent::new(
         board_kernel,
         capsules::sha::DRIVER_NUM,
         &mux_sha,
-        sha_data_buffer,
-        sha_dest_buffer,
     )
-    .finalize(components::sha_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
+    .finalize(components::sha_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
 
     digest.set_sha_client(sha);
 
