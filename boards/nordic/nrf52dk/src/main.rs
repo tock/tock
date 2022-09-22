@@ -414,16 +414,16 @@ pub unsafe fn main() {
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
-    let analog_comparator = components::analog_comparator::AcComponent::new(
+    let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
-        components::acomp_component_helper!(
+        components::analog_comparator_component_helper!(
             nrf52832::acomp::Channel,
             &nrf52832::acomp::CHANNEL_AC0
         ),
         board_kernel,
         capsules::analog_comparator::DRIVER_NUM,
     )
-    .finalize(components::acomp_component_buf!(
+    .finalize(components::analog_comparator_component_static!(
         nrf52832::acomp::Comparator
     ));
 

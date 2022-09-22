@@ -503,9 +503,9 @@ pub unsafe fn main() {
         sam4l::acifc::AcChannel,
         sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
     );
-    let analog_comparator = components::analog_comparator::AcComponent::new(
+    let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &peripherals.acifc,
-        components::acomp_component_helper!(
+        components::analog_comparator_component_helper!(
             <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
             ac_0,
             ac_1,
@@ -515,7 +515,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules::analog_comparator::DRIVER_NUM,
     )
-    .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
+    .finalize(components::analog_comparator_component_static!(
+        sam4l::acifc::Acifc
+    ));
     let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
         .finalize(components::rng_component_static!());
 
