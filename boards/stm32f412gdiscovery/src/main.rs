@@ -668,7 +668,7 @@ pub unsafe fn main() {
         Some(ft6x06),
         Some(tft),
     )
-    .finalize(());
+    .finalize(components::touch_component_static!());
 
     touch.set_screen_rotation_offset(ScreenRotation::Rotated90);
 
