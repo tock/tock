@@ -752,7 +752,7 @@ pub unsafe fn main() {
         &_sstorage as *const u8 as usize,
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize,
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         stm32f303xc::flash::Flash
     ));
 

@@ -579,7 +579,7 @@ pub unsafe fn main() {
         &_sstorage as *const u8 as usize, //start address of kernel region
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         sam4l::flashcalw::FLASHCALW
     ));
 

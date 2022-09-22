@@ -572,7 +572,7 @@ pub unsafe fn main() {
         0,         // Start address of kernel region
         0x60000,   // Length of kernel region
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         capsules::mx25r6435f::MX25R6435F<
             'static,
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
