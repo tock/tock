@@ -291,7 +291,7 @@ unsafe fn setup() -> (
         capsules::humidity::DRIVER_NUM,
         bme280,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
     BME280 = Some(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B, dynamic_deferred_caller)

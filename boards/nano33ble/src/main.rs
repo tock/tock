@@ -521,7 +521,7 @@ pub unsafe fn main() {
         capsules::humidity::DRIVER_NUM,
         hts221,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
 
     //--------------------------------------------------------------------------
     // WIRELESS
