@@ -376,7 +376,7 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(fxos8700));
+            .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.

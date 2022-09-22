@@ -455,7 +455,7 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(lsm303agr));
+            .finalize(components::ninedof_component_static!(lsm303agr));
 
     // Temperature
 

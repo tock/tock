@@ -444,7 +444,7 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(fxos8700));
+            .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)

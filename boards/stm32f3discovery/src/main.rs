@@ -689,7 +689,7 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
+            .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
         .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));

@@ -423,7 +423,7 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(lsm6dsoxtr));
+            .finalize(components::ninedof_component_static!(lsm6dsoxtr));
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
