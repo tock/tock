@@ -385,7 +385,7 @@ pub unsafe fn main() {
             0 => peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         imxrt1050::gpio::Pin<'static>
     ));
 

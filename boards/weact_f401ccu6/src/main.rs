@@ -386,7 +386,7 @@ pub unsafe fn main() {
             46 => gpio_ports.pins[1][9].as_ref().unwrap(), // B9
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f401cc::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f401cc::gpio::Pin));
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)

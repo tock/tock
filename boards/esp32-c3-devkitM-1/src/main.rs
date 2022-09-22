@@ -193,7 +193,7 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio[15]
         ),
     )
-    .finalize(components::gpio_component_buf!(esp32::gpio::GpioPin));
+    .finalize(components::gpio_component_static!(esp32::gpio::GpioPin));
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.

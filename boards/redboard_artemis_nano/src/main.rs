@@ -256,7 +256,7 @@ unsafe fn setup() -> (
             5 => &&peripherals.gpio_port[31]  // A5
         ),
     )
-    .finalize(components::gpio_component_buf!(apollo3::gpio::GpioPin));
+    .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
     // Create a shared virtualisation mux layer on top of a single hardware
     // alarm.

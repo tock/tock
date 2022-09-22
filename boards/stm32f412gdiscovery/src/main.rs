@@ -602,7 +602,7 @@ pub unsafe fn main() {
             // 20 => base_peripherals.gpio_ports.get_pin(stm32f412g::gpio::PinId::PB00).unwrap() //A5
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f412g::gpio::Pin));
 
     // RNG
     let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
