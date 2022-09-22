@@ -265,7 +265,8 @@ pub unsafe fn main() {
     )
     .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // Setup the console
     let console = components::console::ConsoleComponent::new(
