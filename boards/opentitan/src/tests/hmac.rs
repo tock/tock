@@ -72,21 +72,23 @@ impl<'a> digest::ClientVerify<32> for HmacTestCallback {
 
 /// Static init an HmacTestCallback, with
 /// respective buffers allocated for data fields.
-unsafe fn static_init_test_cb() -> &'static HmacTestCallback {
-    let input_data = static_init!([u8; 32], [32; 32]);
-    let digest_data = static_init!(
-        [u8; 32],
-        [
-            0xdc, 0x55, 0x51, 0x5e, 0x30, 0xac, 0x50, 0xc7, 0x65, 0xbd, 0xe, 0x2, 0x82, 0xf7, 0x8b,
-            0xe1, 0xef, 0xd1, 0xb, 0xdc, 0xa8, 0xba, 0xe1, 0xfa, 0x11, 0x3f, 0xf6, 0xeb, 0xaf,
-            0x58, 0x57, 0x40,
-        ]
-    );
+macro_rules! static_init_test_cb {
+    () => {{
+        let input_data = static_init!([u8; 32], [32; 32]);
+        let digest_data = static_init!(
+            [u8; 32],
+            [
+                0xdc, 0x55, 0x51, 0x5e, 0x30, 0xac, 0x50, 0xc7, 0x65, 0xbd, 0xe, 0x2, 0x82, 0xf7,
+                0x8b, 0xe1, 0xef, 0xd1, 0xb, 0xdc, 0xa8, 0xba, 0xe1, 0xfa, 0x11, 0x3f, 0xf6, 0xeb,
+                0xaf, 0x58, 0x57, 0x40,
+            ]
+        );
 
-    static_init!(
-        HmacTestCallback,
-        HmacTestCallback::new(input_data, digest_data)
-    )
+        static_init!(
+            HmacTestCallback,
+            HmacTestCallback::new(input_data, digest_data)
+        )
+    };};
 }
 
 #[test_case]
@@ -94,7 +96,7 @@ fn hmac_check_load_binary() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let hmac = &perf.hmac;
 
-    let callback = unsafe { static_init_test_cb() };
+    let callback = unsafe { static_init_test_cb!() };
     let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac load binary... ");
@@ -120,7 +122,7 @@ fn hmac_check_verify() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let hmac = &perf.hmac;
 
-    let callback = unsafe { static_init_test_cb() };
+    let callback = unsafe { static_init_test_cb!() };
 
     let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
 

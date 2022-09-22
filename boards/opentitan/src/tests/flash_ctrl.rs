@@ -68,26 +68,28 @@ impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashCtlCallBack {
     }
 }
 
-unsafe fn static_init_test() -> &'static FlashCtlCallBack {
-    let r_in_page = static_init!(
-        lowrisc::flash_ctrl::LowRiscPage,
-        lowrisc::flash_ctrl::LowRiscPage::default()
-    );
-    let w_in_page = static_init!(
-        lowrisc::flash_ctrl::LowRiscPage,
-        lowrisc::flash_ctrl::LowRiscPage::default()
-    );
-    let mut val: u8 = 0;
+macro_rules! static_init_test {
+    () => {{
+        let r_in_page = static_init!(
+            lowrisc::flash_ctrl::LowRiscPage,
+            lowrisc::flash_ctrl::LowRiscPage::default()
+        );
+        let w_in_page = static_init!(
+            lowrisc::flash_ctrl::LowRiscPage,
+            lowrisc::flash_ctrl::LowRiscPage::default()
+        );
+        let mut val: u8 = 0;
 
-    for i in 0..lowrisc::flash_ctrl::PAGE_SIZE {
-        val = val.wrapping_add(10);
-        r_in_page[i] = 0x00;
-        w_in_page[i] = 0xAA; // Arbitrary Data
-    }
-    static_init!(
-        FlashCtlCallBack,
-        FlashCtlCallBack::new(r_in_page, w_in_page)
-    )
+        for i in 0..lowrisc::flash_ctrl::PAGE_SIZE {
+            val = val.wrapping_add(10);
+            r_in_page[i] = 0x00;
+            w_in_page[i] = 0xAA; // Arbitrary Data
+        }
+        static_init!(
+            FlashCtlCallBack,
+            FlashCtlCallBack::new(r_in_page, w_in_page)
+        )
+    };};
 }
 
 /// Tests: Erase Page -> Write Page -> Read Page
@@ -99,7 +101,7 @@ fn flash_ctl_read_write_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
-    let cb = unsafe { static_init_test() };
+    let cb = unsafe { static_init_test!() };
     flash_ctl.set_client(cb);
     cb.reset();
 
@@ -159,7 +161,7 @@ fn flash_ctl_erase_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
-    let cb = unsafe { static_init_test() };
+    let cb = unsafe { static_init_test!() };
     cb.reset();
     flash_ctl.set_client(cb);
 
