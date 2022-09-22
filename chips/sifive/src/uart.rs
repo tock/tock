@@ -64,14 +64,14 @@ register_bitfields![u32,
 enum UARTStateTX {
     Idle,
     Transmitting,
-    AbortRequested,
+    _AbortRequested,
 }
 
 #[derive(Copy, Clone, PartialEq)]
 enum UARTStateRX {
     Idle,
     Receiving,
-    AbortRequested,
+    _AbortRequested,
 }
 
 pub struct Uart<'a> {
@@ -177,7 +177,7 @@ impl<'a> Uart<'a> {
         !self.registers.txdata.is_set(txdata::full)
     }
 
-    fn fill_fifo(&self) {
+    fn tx_progress(&self) {
         while self.uart_is_writable() && self.tx_position.get() < self.tx_len.get() {
             self.tx_buffer.map(|buf| {
                 self.registers
@@ -194,27 +194,64 @@ impl<'a> Uart<'a> {
         // Get a copy so we can check each interrupt flag in the register.
         let pending_interrupts = regs.ip.extract();
 
-        // Determine why an interrupt occurred.
+        // Determine why an interrupt occurred. Ok?
         if self.tx_status.get() == UARTStateTX::Transmitting
             && pending_interrupts.is_set(interrupt::txwm)
         {
             // Got a TX interrupt which means the number of bytes in the FIFO
             // has fallen to zero. If there is more to send do that, otherwise
             // send a callback to the client.
-            if self.tx_len.get() == self.tx_position.get() {
+
+            if self.tx_position.get() == self.tx_len.get() {
                 // We are done.
                 regs.txctrl.write(txctrl::txen::CLEAR);
                 self.disable_tx_interrupt();
                 self.tx_status.set(UARTStateTX::Idle);
 
-                // Signal client write done
+                // Signal client write is done
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|buffer| {
                         client.transmitted_buffer(buffer, self.tx_len.get(), Ok(()));
                     });
                 });
             } else {
-                self.fill_fifo();
+                self.tx_progress();
+            }
+        }
+
+        if self.rx_status.get() == UARTStateRX::Receiving
+            && pending_interrupts.is_set(interrupt::rxwm)
+        {
+            // Ok?
+            // self.disable_rx_interrupt();
+            // Got a RX interrupt which means the number of bytes in the FIFO
+            // is greater than zero. Read them.
+            if self.rx_position.get() < self.rx_len.get() {
+                self.rx_buffer.map(|buf| {
+                    buf[self.rx_position.get()] = self.registers.rxdata.read(rxdata::data) as u8;
+                    self.rx_position.replace(self.rx_position.get() + 1);
+                });
+            }
+            // Ok?
+            // self.rx_progress();
+
+            if self.rx_position.get() == self.rx_len.get() {
+                // reception done
+                regs.rxctrl.write(rxctrl::enable::CLEAR);
+                self.disable_rx_interrupt();
+                self.rx_status.replace(UARTStateRX::Idle);
+
+                // Signal client read is done
+                self.rx_client.map(|client| {
+                    if let Some(buf) = self.rx_buffer.take() {
+                        client.received_buffer(
+                            buf,
+                            self.rx_len.get(),
+                            Ok(()),
+                            hil::uart::Error::None,
+                        );
+                    }
+                });
             }
         }
     }
@@ -268,7 +305,6 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         } else if tx_len == 0 || tx_len > tx_buffer.len() {
             Err((ErrorCode::SIZE, tx_buffer))
         } else {
-            // self.disable_tx_interrupt();
             self.tx_status.set(UARTStateTX::Transmitting);
 
             // Save the buffer so we can keep sending it.
@@ -276,7 +312,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             self.tx_len.set(tx_len);
             self.tx_position.set(0);
 
-            // Enable transmissions, and wait until the FIFO is empty before getting
+            // Enable transmissions and wait until the FIFO is empty before getting
             // an interrupt.
             self.registers
                 .txctrl
@@ -306,9 +342,29 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        Err((ErrorCode::FAIL, rx_buffer))
+        if self.rx_status.get() != UARTStateRX::Idle {
+            Err((ErrorCode::BUSY, rx_buffer))
+        } else if rx_len > rx_buffer.len() {
+            Err((ErrorCode::SIZE, rx_buffer))
+        } else {
+            self.rx_status.set(UARTStateRX::Receiving);
+
+            self.rx_buffer.put(Some(rx_buffer));
+            self.rx_position.set(0);
+            self.rx_len.set(rx_len);
+
+            // Enable receptions and wait until the FIFO has at least one byte
+            // before getting an interrupt.
+            self.registers
+                .rxctrl
+                .write(rxctrl::enable::SET + rxctrl::counter.val(0));
+
+            self.enable_rx_interrupt();
+
+            Ok(())
+        }
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
