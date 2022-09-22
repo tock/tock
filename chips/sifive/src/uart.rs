@@ -106,9 +106,23 @@ impl<'a> Uart<'a> {
         regs.div.write(div::div.val(divisor));
     }
 
+    pub fn disable(&self) {
+        let regs = self.registers;
+        regs.txctrl.modify(txctrl::txen::CLEAR);
+        regs.rxctrl.modify(rxctrl::enable::CLEAR);
+
+        self.disable_rx_interrupt();
+        self.disable_tx_interrupt();
+    }
+
     fn enable_tx_interrupt(&self) {
         let regs = self.registers;
         regs.ie.modify(interrupt::txwm::SET);
+    }
+
+    fn disable_rx_interrupt(&self) {
+        let regs = self.registers;
+        regs.ie.write(interrupt::rxwm::CLEAR);
     }
 
     fn disable_tx_interrupt(&self) {

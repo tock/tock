@@ -1,5 +1,5 @@
 [package]
-name = "hifive1"
+name = "hifive_inventor"
 version = "0.1.0"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 build = "build.rs"
@@ -10,5 +10,5 @@ components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-e310_g002 = { path = "../../chips/e310_g002" }
+e310_g003 = { path = "../../chips/e310_g003" }
 sifive = { path = "../../chips/sifive" }
