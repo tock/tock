@@ -188,13 +188,28 @@ impl<'a> Uart<'a> {
         }
     }
 
+    fn rx_progress(&self) {
+        while self.rx_position.get() < self.rx_len.get() {
+            let rxdata_copy = self.registers.rxdata.extract();
+
+            if rxdata_copy.read(rxdata::empty) == 1 {
+                break;
+            }
+
+            self.rx_buffer.map(|buf| {
+                buf[self.rx_position.get()] = rxdata_copy.read(rxdata::data) as u8;
+                self.rx_position.replace(self.rx_position.get() + 1);
+            });
+        }
+    }
+
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
 
         // Get a copy so we can check each interrupt flag in the register.
         let pending_interrupts = regs.ip.extract();
 
-        // Determine why an interrupt occurred. Ok?
+        // Determine why an interrupt occurred.
         if self.tx_status.get() == UARTStateTX::Transmitting
             && pending_interrupts.is_set(interrupt::txwm)
         {
@@ -222,23 +237,14 @@ impl<'a> Uart<'a> {
         if self.rx_status.get() == UARTStateRX::Receiving
             && pending_interrupts.is_set(interrupt::rxwm)
         {
-            // Ok?
-            // self.disable_rx_interrupt();
+            self.disable_rx_interrupt();
             // Got a RX interrupt which means the number of bytes in the FIFO
             // is greater than zero. Read them.
-            if self.rx_position.get() < self.rx_len.get() {
-                self.rx_buffer.map(|buf| {
-                    buf[self.rx_position.get()] = self.registers.rxdata.read(rxdata::data) as u8;
-                    self.rx_position.replace(self.rx_position.get() + 1);
-                });
-            }
-            // Ok?
-            // self.rx_progress();
+            self.rx_progress();
 
             if self.rx_position.get() == self.rx_len.get() {
                 // reception done
                 regs.rxctrl.write(rxctrl::enable::CLEAR);
-                self.disable_rx_interrupt();
                 self.rx_status.replace(UARTStateRX::Idle);
 
                 // Signal client read is done
@@ -252,6 +258,8 @@ impl<'a> Uart<'a> {
                         );
                     }
                 });
+            } else {
+                self.enable_rx_interrupt();
             }
         }
     }
