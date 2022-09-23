@@ -22,7 +22,6 @@ use crate::process_checking::{AppCredentialsChecker, CredentialsCheckingPolicy};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::static_init;
-use crate::utilities::cells::OptionalCell;
 use crate::ErrorCode;
 
 use tock_tbf::types::TbfFooterV2Credentials;
@@ -353,13 +352,12 @@ fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
             ProcessCheckerMachine {
                 process: Cell::new(0),
                 footer: Cell::new(0),
-                checker: OptionalCell::empty(),
+                checker: policy,
                 processes: procs,
             }
         )
     };
     policy.set_client(machine);
-    machine.checker.replace(policy);
     machine.next()?;
     Ok(())
 }
@@ -371,7 +369,7 @@ fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
 struct ProcessCheckerMachine {
     process: Cell<usize>,
     footer: Cell<usize>,
-    checker: OptionalCell<&'static dyn CredentialsCheckingPolicy<'static>>,
+    checker: &'static dyn CredentialsCheckingPolicy<'static>,
     processes: &'static [Option<&'static dyn Process>],
 }
 
@@ -382,7 +380,7 @@ enum FooterCheckResult {
     FooterNotCheckable, // The footer isn't a credential, no check started
     BadFooter,          // The footer is invalid, no check started
     NoProcess,          // No process was provided, no check started
-    Error,              // An internal error occured, no check started
+    Error,              // An internal error occurred, no check started
 }
 
 impl ProcessCheckerMachine {
@@ -412,11 +410,10 @@ impl ProcessCheckerMachine {
 
             let footer_index = self.footer.get();
             // Try to check the next footer.
-            let check_result = self.checker.map_or(FooterCheckResult::Error, |c| {
-                self.processes[proc_index].map_or(FooterCheckResult::NoProcess, |p| {
-                    check_footer(p, *c, footer_index)
-                })
-            });
+            let check_result = self.processes[proc_index]
+                .map_or(FooterCheckResult::NoProcess, |p| {
+                    check_footer(p, self.checker, footer_index)
+                });
 
             if config::CONFIG.debug_process_credentials {
                 debug!(
@@ -433,37 +430,31 @@ impl ProcessCheckerMachine {
                     // credentials or all credentials were Pass: apply
                     // the checker policy to see if the process
                     // should be allowed to run.
-                    self.checker.map(|c| {
-                        let requires = c.require_credentials();
-                        let _res = self.processes[proc_index].map_or(
-                            Err(ProcessLoadError::InternalError),
-                            |p| {
-                                if requires {
-                                    if config::CONFIG.debug_process_credentials {
-                                        debug!(
-                                            "Checking: required, but all passes, do not run {}",
-                                            p.get_process_name()
-                                        );
-                                    }
-                                    p.mark_credentials_fail(&capability);
-                                } else {
-                                    if config::CONFIG.debug_process_credentials {
-                                        debug!(
-                                            "Checking: not required, all passes, run {}",
-                                            p.get_process_name()
-                                        );
-                                    }
-                                    p.mark_credentials_pass(
-                                        None,
-                                        ShortID::LocallyUnique,
-                                        &capability,
-                                    )
-                                    .or(Err(ProcessLoadError::InternalError))?;
+                    let requires = self.checker.require_credentials();
+                    let _res = self.processes[proc_index].map_or(
+                        Err(ProcessLoadError::InternalError),
+                        |p| {
+                            if requires {
+                                if config::CONFIG.debug_process_credentials {
+                                    debug!(
+                                        "Checking: required, but all passes, do not run {}",
+                                        p.get_process_name()
+                                    );
                                 }
-                                Ok(true)
-                            },
-                        );
-                    });
+                                p.mark_credentials_fail(&capability);
+                            } else {
+                                if config::CONFIG.debug_process_credentials {
+                                    debug!(
+                                        "Checking: not required, all passes, run {}",
+                                        p.get_process_name()
+                                    );
+                                }
+                                p.mark_credentials_pass(None, ShortID::LocallyUnique, &capability)
+                                    .or(Err(ProcessLoadError::InternalError))?;
+                            }
+                            Ok(true)
+                        },
+                    );
                     self.process.set(self.process.get() + 1);
                     self.footer.set(0);
                 }
@@ -604,9 +595,7 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checking::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let short_id = self
-                        .checker
-                        .map_or(ShortID::LocallyUnique, |c| c.to_short_id(&credentials));
+                    let short_id = self.checker.to_short_id(&credentials);
                     let _r = p.mark_credentials_pass(Some(credentials), short_id, &capability);
                 });
                 self.process.set(self.process.get() + 1);
