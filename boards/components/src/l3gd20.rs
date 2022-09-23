@@ -1,66 +1,66 @@
 //! Components for the L3GD20 sensor.
 //!
-//! SPI Interface
+//! Uses a SPI Interface.
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let l3gd20 = components::l3gd20::L3gd20SpiComponent::new().finalize(
-//!     components::l3gd20_spi_component_helper!(
-//!         // spi type
-//!         stm32f429zi::spi::Spi,
-//!         // chip select
-//!         stm32f429zi::gpio::PinId::PE03,
-//!         // spi mux
-//!         spi_mux
-//!     )
-//! );
+//! let l3gd20 = components::l3gd20::L3gd20Component::new(spi_mux, stm32f429zi::gpio::PinId::PE03).finalize(
+//!     components::l3gd20_component_static!(stm32f429zi::spi::Spi));
 //! ```
+
 use capsules::l3gd20::L3gd20Spi;
-use capsules::virtual_spi::VirtualSpiMasterDevice;
-use core::marker::PhantomData;
+use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::SpiMasterDevice;
-use kernel::{create_capability, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! l3gd20_spi_component_helper {
-    ($A:ty, $select:expr, $spi_mux:expr $(,)?) => {{
-        use capsules::l3gd20::L3gd20Spi;
-        use capsules::virtual_spi::VirtualSpiMasterDevice;
-        use core::mem::MaybeUninit;
-        let mut l3gd20_spi: &'static capsules::virtual_spi::VirtualSpiMasterDevice<'static, $A> =
-            components::spi::SpiComponent::new($spi_mux, $select)
-                .finalize(components::spi_component_helper!($A));
-        static mut l3gd20spi: MaybeUninit<L3gd20Spi<'static>> = MaybeUninit::uninit();
-        (&mut l3gd20_spi, &mut l3gd20spi)
+macro_rules! l3gd20_component_static {
+    ($A:ty $(,)?) => {{
+        let txbuffer = kernel::static_buf!([u8; capsules::l3gd20::TX_BUF_LEN]);
+        let rxbuffer = kernel::static_buf!([u8; capsules::l3gd20::RX_BUF_LEN]);
+
+        let spi = kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $A>);
+        let l3gd20spi = kernel::static_buf!(capsules::l3gd20::L3gd20Spi<'static>);
+
+        (spi, l3gd20spi, txbuffer, rxbuffer)
     };};
 }
 
-pub struct L3gd20SpiComponent<S: 'static + spi::SpiMaster> {
-    _select: PhantomData<S>,
+pub struct L3gd20Component<S: 'static + spi::SpiMaster> {
+    spi_mux: &'static MuxSpiMaster<'static, S>,
+    chip_select: S::ChipSelect,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<S: 'static + spi::SpiMaster> L3gd20SpiComponent<S> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> L3gd20SpiComponent<S> {
-        L3gd20SpiComponent {
-            _select: PhantomData,
-            board_kernel: board_kernel,
+impl<S: 'static + spi::SpiMaster> L3gd20Component<S> {
+    pub fn new(
+        spi_mux: &'static MuxSpiMaster<'static, S>,
+        chip_select: S::ChipSelect,
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+    ) -> L3gd20Component<S> {
+        L3gd20Component {
+            spi_mux,
+            chip_select,
+            board_kernel,
             driver_num,
         }
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for L3gd20SpiComponent<S> {
+impl<S: 'static + spi::SpiMaster> Component for L3gd20Component<S> {
     type StaticInput = (
-        &'static VirtualSpiMasterDevice<'static, S>,
+        &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<L3gd20Spi<'static>>,
+        &'static mut MaybeUninit<[u8; capsules::l3gd20::TX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules::l3gd20::RX_BUF_LEN]>,
     );
     type Output = &'static L3gd20Spi<'static>;
 
@@ -68,17 +68,18 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20SpiComponent<S> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let l3gd20 = static_init_half!(
-            static_buffer.1,
-            L3gd20Spi<'static>,
-            L3gd20Spi::new(
-                static_buffer.0,
-                &mut capsules::l3gd20::TXBUFFER,
-                &mut capsules::l3gd20::RXBUFFER,
-                grant
-            )
-        );
-        static_buffer.0.set_client(l3gd20);
+        let spi_device = static_buffer
+            .0
+            .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        spi_device.setup();
+
+        let txbuffer = static_buffer.2.write([0; capsules::l3gd20::TX_BUF_LEN]);
+        let rxbuffer = static_buffer.3.write([0; capsules::l3gd20::RX_BUF_LEN]);
+
+        let l3gd20 = static_buffer
+            .1
+            .write(L3gd20Spi::new(spi_device, txbuffer, rxbuffer, grant));
+        spi_device.set_client(l3gd20);
 
         // TODO verify SPI return value
         let _ = l3gd20.configure();

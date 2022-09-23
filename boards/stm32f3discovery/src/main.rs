@@ -635,16 +635,16 @@ pub unsafe fn main() {
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    let l3gd20 =
-        components::l3gd20::L3gd20SpiComponent::new(board_kernel, capsules::l3gd20::DRIVER_NUM)
-            .finalize(components::l3gd20_spi_component_helper!(
-                // spi type
-                stm32f303xc::spi::Spi,
-                // chip select
-                &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
-                // spi mux
-                spi_mux
-            ));
+    let l3gd20 = components::l3gd20::L3gd20Component::new(
+        spi_mux,
+        &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
+        board_kernel,
+        capsules::l3gd20::DRIVER_NUM,
+    )
+    .finalize(components::l3gd20_component_static!(
+        // spi type
+        stm32f303xc::spi::Spi
+    ));
 
     l3gd20.power_on();
 
