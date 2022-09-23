@@ -432,10 +432,13 @@ pub unsafe fn main() {
     // LSM303AGR
 
     let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new(
+        sensors_i2c_bus,
+        None,
+        None,
         board_kernel,
         capsules::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
+    .finalize(components::lsm303agr_component_static!());
 
     if let Err(error) = lsm303agr.configure(
         capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
