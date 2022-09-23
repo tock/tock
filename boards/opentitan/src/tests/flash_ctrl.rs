@@ -4,13 +4,20 @@ use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
 use kernel::debug;
+#[allow(unused_imports)]
+use kernel::errorcode::ErrorCode;
 use kernel::hil;
 #[allow(unused_imports)]
 use kernel::hil::flash::Flash;
+#[allow(unused_imports)]
+use lowrisc::flash_ctrl::FlashMPConfig;
 use kernel::hil::flash::HasClient;
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-
+#[allow(unused_imports)]
+use lowrisc::flash_ctrl::PAGE_SIZE;
+#[allow(unused_imports)]
+use lowrisc::flash_ctrl::FLASH_ADDR_OFFSET;
 #[allow(dead_code)]
 struct FlashCtlCallBack {
     read_pending: Cell<bool>,
@@ -21,6 +28,8 @@ struct FlashCtlCallBack {
     // We recover the callback returned buffer into these
     read_out_buf: TakeCell<'static, [u8]>,
     write_out_buf: TakeCell<'static, [u8]>,
+    // Flag if an MP fault was detected
+    mp_fault_detect: Cell<bool>,
 }
 
 impl<'a> FlashCtlCallBack {
@@ -35,19 +44,25 @@ impl<'a> FlashCtlCallBack {
             write_in_page: TakeCell::new(write_in_page),
             read_out_buf: TakeCell::empty(),
             write_out_buf: TakeCell::empty(),
+            mp_fault_detect: Cell::new(false),
         }
     }
 
     fn reset(&self) {
         self.read_pending.set(false);
         self.write_pending.set(false);
+        self.mp_fault_detect.set(false);
     }
 }
 
 impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashCtlCallBack {
     fn read_complete(&self, page: &'static mut F::Page, error: hil::flash::Error) {
         if self.read_pending.get() {
-            assert_eq!(error, hil::flash::Error::CommandComplete);
+            if error == hil::flash::Error::FlashMemoryProtectionError {
+                self.mp_fault_detect.set(true);
+            } else {
+                assert_eq!(error, hil::flash::Error::CommandComplete);
+            }
             self.read_out_buf.replace(page.as_mut());
             self.read_pending.set(false);
         }
@@ -55,7 +70,11 @@ impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashCtlCallBack {
 
     fn write_complete(&self, page: &'static mut F::Page, error: hil::flash::Error) {
         if self.write_pending.get() {
-            assert_eq!(error, hil::flash::Error::CommandComplete);
+            if error == hil::flash::Error::FlashMemoryProtectionError {
+                self.mp_fault_detect.set(true);
+            } else {
+                assert_eq!(error, hil::flash::Error::CommandComplete);
+            }
             self.write_out_buf.replace(page.as_mut());
             self.write_pending.set(false);
         }
@@ -64,7 +83,11 @@ impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashCtlCallBack {
     fn erase_complete(&self, error: hil::flash::Error) {
         // Caller may check by a successive page read to assert the erased
         // page is composed of 0xFF (all erased bits should be 1)
-        assert_eq!(error, hil::flash::Error::CommandComplete);
+        if error == hil::flash::Error::FlashMemoryProtectionError {
+            self.mp_fault_detect.set(true);
+        } else {
+            assert_eq!(error, hil::flash::Error::CommandComplete);
+        }
     }
 }
 
@@ -97,7 +120,7 @@ macro_rules! static_init_test {
 /// Compare the data we wrote is stored in flash with a
 /// successive read.
 #[test_case]
-fn flash_ctl_read_write_page() {
+fn flash_ctrl_read_write_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
@@ -157,7 +180,7 @@ fn flash_ctl_read_write_page() {
 /// `0xFF`. Assert this is true after writing data to a page and erasing
 /// the page.
 #[test_case]
-fn flash_ctl_erase_page() {
+fn flash_ctrl_erase_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
@@ -206,6 +229,155 @@ fn flash_ctl_erase_page() {
 
         cb.read_out_buf.replace(read_out);
     }
+    run_kernel_op(100);
+    debug!("    [ok]");
+    run_kernel_op(100);
+}
+
+#[test_case]
+/// Tests: The basic api functionality and error handling of invalid arguments.
+fn flash_ctrl_mp_basic() {
+    debug!("[FLASH_CTRL] Test memory protection api....");
+
+    #[cfg(feature = "hardware_tests")]
+    {
+        let perf = unsafe { PERIPHERALS.unwrap() };
+        let flash_ctl = &perf.flash_ctrl;
+        // BANK1
+        let base_page_addr: usize = (400 * PAGE_SIZE).saturating_add(FLASH_ADDR_OFFSET);
+        // Pages indexing starts with 0 and we have 512 pages.
+        let invalid_page_addr: usize = (512 * PAGE_SIZE).saturating_add(FLASH_ADDR_OFFSET);
+        let valid_num_pages: usize = 10;
+        // Note: Region 0 is occupied by board setup
+        let valid_region: usize = 6;
+        let invalid_region: usize = 8;
+        let num_regions = flash_ctl.mp_get_num_regions().unwrap();
+        // WARN: Revisit these tests if cfgs have changed in HW
+        assert_eq!(num_regions, lowrisc::flash_ctrl::FLASH_MP_MAX_CFGS as u32);
+
+        for region_num in 0..8 {
+            // All 8 regions should be unlocked at reset
+            assert!(flash_ctl.mp_is_region_locked(region_num).is_ok())
+        }
+
+        let cfg_set = FlashMPConfig {
+            read_en: false,
+            write_en: true,
+            erase_en: false,
+            scramble_en: false,
+            ecc_en: true,
+            he_en: false,
+        };
+        // Expect Fail
+        assert_eq!(
+            flash_ctl.mp_set_region_perms(base_page_addr, invalid_page_addr, valid_region, &cfg_set),
+            Err(ErrorCode::NOSUPPORT)
+        );
+        assert_eq!(
+            flash_ctl.mp_set_region_perms(
+                invalid_page_addr,
+                base_page_addr,
+                valid_region,
+                &cfg_set
+            ),
+            Err(ErrorCode::NOSUPPORT)
+        );
+        assert_eq!(
+            flash_ctl.mp_set_region_perms(base_page_addr, base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE), invalid_region, &cfg_set),
+            Err(ErrorCode::NOSUPPORT)
+        );
+        // Set Perms
+        assert!(flash_ctl
+            .mp_set_region_perms(base_page_addr, base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE), valid_region, &cfg_set)
+            .is_ok());
+        // Check Perms
+        assert_eq!(
+            flash_ctl.mp_read_region_perms(valid_region).unwrap(),
+            cfg_set
+        );
+        // Lock region
+        assert!(flash_ctl.mp_lock_region_cfg(valid_region).is_ok());
+        assert!(flash_ctl.mp_is_region_locked(valid_region).unwrap());
+    }
+
+    run_kernel_op(100);
+    debug!("    [ok]");
+    run_kernel_op(100);
+}
+
+#[test_case]
+/// Tests the memory protection functionality of the flash_ctrl
+/// Test: Setup memory protection -> Do bad OP/cause an MP Fault -> Expect fail/assert Err(FlashMPFault)
+fn flash_ctrl_mp_functionality() {
+    debug!("[FLASH_CTRL] Test memory protection functionality....");
+
+    #[cfg(feature = "hardware_tests")]
+    {
+        let perf = unsafe { PERIPHERALS.unwrap() };
+        let flash_ctl = &perf.flash_ctrl;
+        let cb = unsafe { static_init_test!() };
+        cb.reset();
+        flash_ctl.set_client(cb);
+
+        // BANK1
+        let page_num: usize = 450;
+        let base_page_addr: usize = (page_num * PAGE_SIZE).saturating_add(FLASH_ADDR_OFFSET);
+        let num_pages: usize = 25;
+        // Note: Region 0 is occupied by board setup
+        let region: usize = 7;
+        let invalid_region: usize = 142;
+
+        for region_num in 0..8 {
+            // All 8 regions should be unlocked at reset
+            assert!(flash_ctl.mp_is_region_locked(region_num).is_ok())
+        }
+
+        let cfg_set = FlashMPConfig {
+            // NOTE: We disable read access, then later try to read to trigger the fault
+            read_en: false,
+            write_en: true,
+            // NOTE: We disable erase perms, then later try to erase and trigger the fault
+            erase_en: false,
+            scramble_en: true,
+            ecc_en: false,
+            he_en: true,
+        };
+        // Set Perms
+        assert!(flash_ctl
+            .mp_set_region_perms(base_page_addr, base_page_addr.saturating_add(num_pages * PAGE_SIZE), region, &cfg_set)
+            .is_ok());
+        // Check Perms
+        assert_eq!(flash_ctl.mp_read_region_perms(region).unwrap(), cfg_set);
+        // Lock Config - Expect Fail
+        assert_eq!(
+            flash_ctl.mp_lock_region_cfg(invalid_region),
+            Err(ErrorCode::NOSUPPORT)
+        );
+        // Lock Config
+        assert!(flash_ctl.mp_lock_region_cfg(region).is_ok());
+        assert!(flash_ctl.mp_is_region_locked(region).unwrap());
+
+        // Functionality Test 1: We disabled erase for this region, lets try to erase
+        assert!(flash_ctl.erase_page(page_num).is_ok());
+        run_kernel_op(100);
+        // Ensure that a MP violation was detected
+        assert!(cb.mp_fault_detect.get());
+        // Clear the fault
+        cb.reset();
+
+        // Functionality Test 2: We disabled read for this region, lets try to read
+        // This should trigger an MP fault
+        // Read Page
+        let read_page = cb.read_in_page.take().unwrap();
+        assert!(flash_ctl.read_page(page_num, read_page).is_ok());
+        cb.read_pending.set(true);
+        run_kernel_op(100);
+        assert!(!cb.read_pending.get());
+        // Ensure that a MP violation was detected
+        assert!(cb.mp_fault_detect.get());
+        cb.reset();
+    }
+
     run_kernel_op(100);
     debug!("    [ok]");
     run_kernel_op(100);
