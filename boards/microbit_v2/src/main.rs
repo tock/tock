@@ -531,13 +531,13 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
-        components::flash_mux_component_helper!(nrf52833::nvmc::Nvmc),
+        components::flash_mux_component_static!(nrf52833::nvmc::Nvmc),
     );
 
     // App Flash
 
     let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
-        components::flash_user_component_helper!(nrf52833::nvmc::Nvmc),
+        components::flash_user_component_static!(nrf52833::nvmc::Nvmc),
     );
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(

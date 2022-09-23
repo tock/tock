@@ -475,7 +475,7 @@ unsafe fn setup() -> (
     );
 
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+        components::flash_mux_component_static!(lowrisc::flash_ctrl::FlashCtrl),
     );
 
     // SipHash
