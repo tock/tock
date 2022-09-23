@@ -15,7 +15,6 @@ MEMORY
   ram (rwx) : ORIGIN = 0x20006000, LENGTH = 232K
 }
 
-MPU_MIN_ALIGN = 8K;
 PAGE_SIZE = 4K;
 
 INCLUDE ../kernel_layout.ld

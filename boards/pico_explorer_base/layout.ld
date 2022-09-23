@@ -12,7 +12,6 @@ MEMORY
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 264K
 }
 
-MPU_MIN_ALIGN = 8K;
 PAGE_SIZE = 4K;
 
 ENTRY(jump_to_bootloader)
