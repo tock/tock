@@ -3,11 +3,13 @@
 use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::i2c;
+use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 const IOM0_BASE: StaticRef<IomRegisters> =
     unsafe { StaticRef::new(0x5000_4000 as *const IomRegisters) };
@@ -259,10 +261,18 @@ register_bitfields![u32,
     ]
 ];
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Operation {
+    None,
+    I2C,
+    SPI,
+}
+
 pub struct Iom<'a> {
     registers: StaticRef<IomRegisters>,
 
-    master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
+    i2c_master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
+    spi_master_client: OptionalCell<&'a dyn SpiMasterClient>,
 
     buffer: TakeCell<'static, [u8]>,
     write_len: Cell<usize>,
@@ -271,6 +281,7 @@ pub struct Iom<'a> {
     read_len: Cell<usize>,
     read_index: Cell<usize>,
 
+    op: Cell<Operation>,
     smbus: Cell<bool>,
 }
 
@@ -278,72 +289,84 @@ impl<'a> Iom<'_> {
     pub fn new0() -> Iom<'a> {
         Iom {
             registers: IOM0_BASE,
-            master_client: OptionalCell::empty(),
+            i2c_master_client: OptionalCell::empty(),
+            spi_master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),
+            op: Cell::new(Operation::None),
             smbus: Cell::new(false),
         }
     }
     pub fn new1() -> Iom<'a> {
         Iom {
             registers: IOM1_BASE,
-            master_client: OptionalCell::empty(),
+            i2c_master_client: OptionalCell::empty(),
+            spi_master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),
+            op: Cell::new(Operation::None),
             smbus: Cell::new(false),
         }
     }
     pub fn new2() -> Iom<'a> {
         Iom {
             registers: IOM2_BASE,
-            master_client: OptionalCell::empty(),
+            i2c_master_client: OptionalCell::empty(),
+            spi_master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),
+            op: Cell::new(Operation::None),
             smbus: Cell::new(false),
         }
     }
     pub fn new3() -> Iom<'a> {
         Iom {
             registers: IOM3_BASE,
-            master_client: OptionalCell::empty(),
+            i2c_master_client: OptionalCell::empty(),
+            spi_master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),
+            op: Cell::new(Operation::None),
             smbus: Cell::new(false),
         }
     }
     pub fn new4() -> Iom<'a> {
         Iom {
             registers: IOM4_BASE,
-            master_client: OptionalCell::empty(),
+            i2c_master_client: OptionalCell::empty(),
+            spi_master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),
+            op: Cell::new(Operation::None),
             smbus: Cell::new(false),
         }
     }
     pub fn new5() -> Iom<'a> {
         Iom {
             registers: IOM5_BASE,
-            master_client: OptionalCell::empty(),
+            i2c_master_client: OptionalCell::empty(),
+            spi_master_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
             read_index: Cell::new(0),
+            op: Cell::new(Operation::None),
             smbus: Cell::new(false),
         }
     }
@@ -516,7 +539,7 @@ impl<'a> Iom<'_> {
                 regs.inten.set(0x00);
                 self.i2c_reset_fifo();
 
-                self.master_client.map(|client| {
+                self.i2c_master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         client.command_complete(buffer, Ok(()));
                     });
@@ -700,12 +723,14 @@ impl<'a> Iom<'_> {
 }
 
 impl<'a> hil::i2c::I2CMaster for Iom<'a> {
-    fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
-        self.master_client.set(master_client);
+    fn set_master_client(&self, i2c_master_client: &'a dyn i2c::I2CHwMasterClient) {
+        self.i2c_master_client.set(i2c_master_client);
     }
 
     fn enable(&self) {
         let regs = self.registers;
+
+        self.op.set(Operation::I2C);
 
         // Setup the I2C
         regs.mi2ccfg.write(
@@ -739,7 +764,11 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
     fn disable(&self) {
         let regs = self.registers;
 
-        regs.submodctrl.write(SUBMODCTRL::SMOD1EN::CLEAR);
+        if self.op.get() == Operation::I2C {
+            regs.submodctrl.write(SUBMODCTRL::SMOD1EN::CLEAR);
+
+            self.op.set(Operation::None);
+        }
     }
 
     fn write_read(
@@ -749,6 +778,9 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         write_len: u8,
         read_len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        if self.op.get() != Operation::I2C {
+            return Err((hil::i2c::Error::Busy, data));
+        }
         self.i2c_tx_rx(addr, data, write_len, read_len)
     }
 
@@ -758,6 +790,9 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         data: &'static mut [u8],
         len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        if self.op.get() != Operation::I2C {
+            return Err((hil::i2c::Error::Busy, data));
+        }
         self.i2c_tx(addr, data, len)
     }
 
@@ -767,6 +802,9 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         buffer: &'static mut [u8],
         len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
+        if self.op.get() != Operation::I2C {
+            return Err((hil::i2c::Error::Busy, buffer));
+        }
         self.i2c_rx(addr, buffer, len)
     }
 }
@@ -780,6 +818,10 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         read_len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
+
+        if self.op.get() != Operation::I2C {
+            return Err((hil::i2c::Error::Busy, data));
+        }
 
         // Setup 100kHz
         regs.clkcfg.write(
@@ -804,6 +846,10 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
+        if self.op.get() != Operation::I2C {
+            return Err((hil::i2c::Error::Busy, data));
+        }
+
         // Setup 100kHz
         regs.clkcfg.write(
             CLKCFG::TOTPER.val(0x77)
@@ -827,6 +873,10 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
+        if self.op.get() != Operation::I2C {
+            return Err((hil::i2c::Error::Busy, buffer));
+        }
+
         // Setup 100kHz
         regs.clkcfg.write(
             CLKCFG::TOTPER.val(0x77)
@@ -840,5 +890,80 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         self.smbus.set(true);
 
         self.i2c_rx(addr, buffer, len)
+    }
+}
+
+impl<'a> SpiMaster for Iom<'a> {
+    type ChipSelect = &'a crate::gpio::GpioPin<'a>;
+
+    fn init(&self) -> Result<(), ErrorCode> {
+        self.op.set(Operation::SPI);
+
+        todo!();
+    }
+
+    fn set_client(&self, client: &'static dyn SpiMasterClient) {
+        self.spi_master_client.set(client);
+    }
+
+    fn is_busy(&self) -> bool {
+        todo!();
+    }
+
+    fn read_write_bytes(
+        &self,
+        _write_buffer: &'static mut [u8],
+        _read_buffer: Option<&'static mut [u8]>,
+        _len: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        todo!();
+    }
+
+    fn write_byte(&self, _val: u8) -> Result<(), ErrorCode> {
+        todo!();
+    }
+
+    fn read_byte(&self) -> Result<u8, ErrorCode> {
+        todo!();
+    }
+
+    fn read_write_byte(&self, _val: u8) -> Result<u8, ErrorCode> {
+        todo!();
+    }
+
+    fn specify_chip_select(&self, _cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+        todo!();
+    }
+
+    fn set_rate(&self, _rate: u32) -> Result<u32, ErrorCode> {
+        todo!();
+    }
+
+    fn get_rate(&self) -> u32 {
+        todo!();
+    }
+
+    fn set_polarity(&self, _polarity: ClockPolarity) -> Result<(), ErrorCode> {
+        todo!();
+    }
+
+    fn get_polarity(&self) -> ClockPolarity {
+        todo!();
+    }
+
+    fn set_phase(&self, _phase: ClockPhase) -> Result<(), ErrorCode> {
+        todo!();
+    }
+
+    fn get_phase(&self) -> ClockPhase {
+        todo!();
+    }
+
+    fn hold_low(&self) {
+        todo!();
+    }
+
+    fn release_low(&self) {
+        todo!();
     }
 }
