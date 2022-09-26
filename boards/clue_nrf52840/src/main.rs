@@ -649,18 +649,13 @@ pub unsafe fn main() {
     );
 
     let bus = components::bus::SpiMasterBusComponent::new(
+        spi_mux,
+        &nrf52840_peripherals.gpio_port[ST7789H2_CS],
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
     )
-    .finalize(components::spi_bus_component_helper!(
-        // spi type
-        nrf52840::spi::SPIM,
-        // chip select
-        &nrf52840_peripherals.gpio_port[ST7789H2_CS],
-        // spi mux
-        spi_mux
-    ));
+    .finalize(components::spi_bus_component_static!(nrf52840::spi::SPIM));
 
     let tft = components::st77xx::ST77XXComponent::new(
         mux_alarm,

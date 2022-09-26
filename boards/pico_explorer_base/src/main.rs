@@ -413,18 +413,13 @@ pub unsafe fn main() {
         .finalize(components::spi_mux_component_helper!(Spi));
 
     let bus = components::bus::SpiMasterBusComponent::new(
+        mux_spi,
+        &peripherals.pins.get_pin(RPGpio::GPIO17),
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
     )
-    .finalize(components::spi_bus_component_helper!(
-        // spi type
-        Spi,
-        // chip select
-        &peripherals.pins.get_pin(RPGpio::GPIO17),
-        // spi mux
-        mux_spi
-    ));
+    .finalize(components::spi_bus_component_static!(Spi));
 
     let tft = components::st77xx::ST77XXComponent::new(
         mux_alarm,
