@@ -365,7 +365,7 @@ pub unsafe fn main() {
     // Create a shared UART channel for the consoles and for kernel debug.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
     let uart_mux = UartMuxComponent::new(&peripherals.usart3, 115200, dynamic_deferred_caller)
-        .finalize(components::uart_mux_component_helper!());
+        .finalize(components::uart_mux_component_static!());
 
     // # TIMER
     let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
@@ -375,11 +375,11 @@ pub unsafe fn main() {
         .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm, process_printer)
-        .finalize(components::process_console_component_helper!(
+        .finalize(components::process_console_component_static!(
             sam4l::ast::Ast
         ));
     let console = ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux)
-        .finalize(components::console_component_helper!());
+        .finalize(components::console_component_static!());
     DebugWriterComponent::new(uart_mux).finalize(());
 
     // Allow processes to communicate over BLE through the nRF51822

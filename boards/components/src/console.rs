@@ -12,9 +12,9 @@
 //! ```rust
 //! let uart_mux = UartMuxComponent::new(&sam4l::usart::USART3,
 //!                                      115200,
-//!                                      deferred_caller).finalize(components::uart_mux_component_helper!());
+//!                                      deferred_caller).finalize(components::uart_mux_component_static!());
 //! let console = ConsoleComponent::new(board_kernel, uart_mux)
-//!    .finalize(console_component_helper!());
+//!    .finalize(console_component_static!());
 //! ```
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
@@ -28,12 +28,11 @@ use kernel::create_capability;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::static_init;
 
 use capsules::console::DEFAULT_BUF_SIZE;
 
 #[macro_export]
-macro_rules! uart_mux_component_helper {
+macro_rules! uart_mux_component_static {
     () => {{
         use capsules::virtual_uart::MuxUart;
         use core::mem::MaybeUninit;
@@ -74,14 +73,14 @@ impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
 
 impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
     type StaticInput = (
-        StaticUninitializedBuffer<MuxUart<'static>>,
-        StaticUninitializedBuffer<[u8; RX_BUF_LEN]>,
+        &'static mut MaybeUninit<MuxUart<'static>>,
+        &'static mut MaybeUninit<[u8; RX_BUF_LEN]>,
     );
     type Output = &'static MuxUart<'static>;
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let rx_buf = s.1.initialize([0; RX_BUF_LEN]);
-        let uart_mux = s.0.initialize(MuxUart::new(
+        let rx_buf = s.1.write([0; RX_BUF_LEN]);
+        let uart_mux = s.0.write(MuxUart::new(
             self.uart,
             rx_buf,
             self.baud_rate,
@@ -100,7 +99,7 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 }
 
 #[macro_export]
-macro_rules! console_component_helper {
+macro_rules! console_component_static {
     () => {{
         use capsules::console::{Console, DEFAULT_BUF_SIZE};
         use capsules::virtual_uart::UartDevice;

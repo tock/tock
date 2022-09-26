@@ -408,7 +408,7 @@ pub unsafe fn main() {
         socc::UART_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(components::uart_mux_component_helper!());
+    .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
@@ -491,7 +491,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         litex_vexriscv::timer::LiteXAlarm<
             'static,
             'static,
@@ -506,7 +506,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
