@@ -1039,7 +1039,7 @@ impl<'a> SpiMaster for Iom<'a> {
 
         self.registers.dmatrigen.write(DMATRIGEN::DTHREN::SET);
 
-        return Ok(());
+        Ok(())
     }
 
     fn set_client(&self, client: &'static dyn SpiMasterClient) {
