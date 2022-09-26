@@ -348,14 +348,14 @@ impl<'a> Iom<'_> {
         }
     }
 
-    fn reset_fifo(&self) {
+    fn i2c_reset_fifo(&self) {
         let regs = self.registers;
 
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::CLEAR);
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::SET);
     }
 
-    fn write_data(&self) {
+    fn i2c_write_data(&self) {
         let regs = self.registers;
         let mut data_pushed = self.write_index.get();
         let len = self.write_len.get();
@@ -408,7 +408,7 @@ impl<'a> Iom<'_> {
         });
     }
 
-    fn read_data(&self) {
+    fn i2c_read_data(&self) {
         let regs = self.registers;
         let mut data_popped = self.read_index.get();
         let len = self.read_len.get();
@@ -485,7 +485,7 @@ impl<'a> Iom<'_> {
                         .write(FIFOTHR::FIFORTHR.val(0) + FIFOTHR::FIFOWTHR.val(1));
                 }
 
-                self.write_data();
+                self.i2c_write_data();
             } else if regs.fifothr.read(FIFOTHR::FIFORTHR) > 0 {
                 let remaining = self.read_len.get() - self.read_index.get();
 
@@ -498,7 +498,7 @@ impl<'a> Iom<'_> {
                         .write(FIFOTHR::FIFORTHR.val(1) + FIFOTHR::FIFOWTHR.val(0));
                 }
 
-                self.read_data();
+                self.i2c_read_data();
             }
 
             // The IOM doesn't work very well when using non-blocking operations
@@ -514,7 +514,7 @@ impl<'a> Iom<'_> {
             {
                 // Disable interrupts
                 regs.inten.set(0x00);
-                self.reset_fifo();
+                self.i2c_reset_fifo();
 
                 self.master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
@@ -540,7 +540,7 @@ impl<'a> Iom<'_> {
         }
     }
 
-    fn tx_rx(
+    fn i2c_tx_rx(
         &self,
         addr: u8,
         data: &'static mut [u8],
@@ -568,7 +568,7 @@ impl<'a> Iom<'_> {
                 .write(FIFOTHR::FIFORTHR.val(1) + FIFOTHR::FIFOWTHR.val(0));
         }
 
-        self.reset_fifo();
+        self.i2c_reset_fifo();
 
         if write_len > 0 {
             offsetlo = data[0] as u32;
@@ -605,7 +605,7 @@ impl<'a> Iom<'_> {
         }
     }
 
-    fn tx(
+    fn i2c_tx(
         &self,
         addr: u8,
         data: &'static mut [u8],
@@ -631,7 +631,7 @@ impl<'a> Iom<'_> {
                 .write(FIFOTHR::FIFORTHR.val(0) + FIFOTHR::FIFOWTHR.val(1));
         }
 
-        self.reset_fifo();
+        self.i2c_reset_fifo();
 
         // Save all the data and offsets we still need to send
         self.buffer.replace(data);
@@ -639,7 +639,7 @@ impl<'a> Iom<'_> {
         self.read_len.set(0);
         self.write_index.set(0);
 
-        self.write_data();
+        self.i2c_write_data();
 
         // Clear and enable interrupts
         regs.intclr.set(0xFFFF_FFFF);
@@ -651,7 +651,7 @@ impl<'a> Iom<'_> {
         Ok(())
     }
 
-    fn rx(
+    fn i2c_rx(
         &self,
         addr: u8,
         buffer: &'static mut [u8],
@@ -677,7 +677,7 @@ impl<'a> Iom<'_> {
                 .write(FIFOTHR::FIFORTHR.val(1) + FIFOTHR::FIFOWTHR.val(0));
         }
 
-        self.reset_fifo();
+        self.i2c_reset_fifo();
 
         // Clear and enable interrupts
         regs.intclr.set(0xFFFF_FFFF);
@@ -693,7 +693,7 @@ impl<'a> Iom<'_> {
         self.write_len.set(0);
         self.read_index.set(0);
 
-        self.read_data();
+        self.i2c_read_data();
 
         Ok(())
     }
@@ -749,7 +749,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         write_len: u8,
         read_len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
-        self.tx_rx(addr, data, write_len, read_len)
+        self.i2c_tx_rx(addr, data, write_len, read_len)
     }
 
     fn write(
@@ -758,7 +758,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         data: &'static mut [u8],
         len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
-        self.tx(addr, data, len)
+        self.i2c_tx(addr, data, len)
     }
 
     fn read(
@@ -767,7 +767,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         buffer: &'static mut [u8],
         len: u8,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
-        self.rx(addr, buffer, len)
+        self.i2c_rx(addr, buffer, len)
     }
 }
 
@@ -793,7 +793,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
 
         self.smbus.set(true);
 
-        self.tx_rx(addr, data, write_len, read_len)
+        self.i2c_tx_rx(addr, data, write_len, read_len)
     }
 
     fn smbus_write(
@@ -816,7 +816,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
 
         self.smbus.set(true);
 
-        self.tx(addr, data, len)
+        self.i2c_tx(addr, data, len)
     }
 
     fn smbus_read(
@@ -839,6 +839,6 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
 
         self.smbus.set(true);
 
-        self.rx(addr, buffer, len)
+        self.i2c_rx(addr, buffer, len)
     }
 }
