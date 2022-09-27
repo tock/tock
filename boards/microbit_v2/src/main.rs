@@ -545,7 +545,7 @@ pub unsafe fn main() {
         capsules::app_flash_driver::DRIVER_NUM,
         virtual_app_flash,
     )
-    .finalize(components::app_flash_component_helper!(
+    .finalize(components::app_flash_component_static!(
         capsules::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
         512
     ));
