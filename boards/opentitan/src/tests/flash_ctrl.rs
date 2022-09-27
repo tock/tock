@@ -89,7 +89,7 @@ macro_rules! static_init_test {
             FlashCtlCallBack,
             FlashCtlCallBack::new(r_in_page, w_in_page)
         )
-    };};
+    }};
 }
 
 /// Tests: Erase Page -> Write Page -> Read Page
