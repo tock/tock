@@ -237,6 +237,17 @@ pub unsafe fn main() {
         components::process_printer::ProcessPrinterTextComponent::new().finalize(());
     PROCESS_PRINTER = Some(process_printer);
 
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_helper!(
+        sifive::clint::Clint
+    ));
+    let _ = process_console.start();
+
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
 
