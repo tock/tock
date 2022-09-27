@@ -72,6 +72,7 @@
 use capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
+use capsules::perf::Perf;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
@@ -195,6 +196,7 @@ pub struct Platform {
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    perf: &'static Perf,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -218,6 +220,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules::perf::DRIVER_NUM => f(Some(self.perf)),
             _ => f(None),
         }
     }
@@ -663,6 +666,7 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
+    let perf = static_init!(capsules::perf::Perf, capsules::perf::Perf::new());
     let platform = Platform {
         button,
         ble_radio,
@@ -686,6 +690,7 @@ pub unsafe fn main() {
         spi_controller,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        perf,
     };
 
     let _ = platform.pconsole.start();

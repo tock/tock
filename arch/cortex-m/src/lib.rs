@@ -8,6 +8,8 @@
 
 use core::fmt::Write;
 
+pub mod dcb;
+pub mod dwt;
 pub mod mpu;
 pub mod nvic;
 pub mod scb;
