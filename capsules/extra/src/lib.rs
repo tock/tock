@@ -29,6 +29,7 @@ pub mod buzzer_pwm;
 pub mod can;
 pub mod ccs811;
 pub mod crc;
+pub mod cycle_count;
 pub mod dac;
 pub mod date_time;
 pub mod debug_process_restart;

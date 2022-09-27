@@ -92,5 +92,6 @@ pub enum NUM {
     SevenSegment          = 0x90004,
     KeyboardHid           = 0x90005,
     DateTime              = 0x90007,
+    CycleCount            = 0x90008,
 }
 }

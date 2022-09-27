@@ -20,6 +20,7 @@ pub mod flash;
 pub mod gpio;
 pub mod gpio_async;
 pub mod hasher;
+pub mod hw_debug;
 pub mod i2c;
 pub mod kv;
 pub mod led;
