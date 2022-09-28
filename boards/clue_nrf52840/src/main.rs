@@ -9,7 +9,6 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
-use capsules::virtual_alarm::VirtualMuxAlarm;
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -612,9 +611,14 @@ pub unsafe fn main() {
 
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
-    let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, mux_alarm).finalize(
-        components::sht3x_component_helper!(nrf52::rtc::Rtc<'static>, capsules::sht3x::BASE_ADDR),
-    );
+    let sht3x = components::sht3x::SHT3xComponent::new(
+        sensors_i2c_bus,
+        capsules::sht3x::BASE_ADDR,
+        mux_alarm,
+    )
+    .finalize(components::sht3x_component_static!(
+        nrf52::rtc::Rtc<'static>
+    ));
 
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
