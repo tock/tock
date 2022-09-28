@@ -276,7 +276,7 @@ pub unsafe fn main() {
     .finalize(components::console_component_helper!());
 
     // LED
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<imxrt1060::gpio::Pin>,
         LedHigh::new(peripherals.ports.pin(PinId::B0_03))
     ));

@@ -256,7 +256,7 @@ pub unsafe fn main() {
     .finalize(components::button_component_static!(msp432::gpio::IntPin));
 
     // Setup LEDs
-    let leds = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let leds = components::led::LedsComponent::new().finalize(components::led_component_static!(
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
         kernel::hil::led::LedHigh::new(
             &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_0 as usize]

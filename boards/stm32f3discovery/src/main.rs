@@ -437,7 +437,7 @@ pub unsafe fn main() {
 
     // Clock to Port E is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
         LedHigh::new(
             &peripherals

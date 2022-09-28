@@ -348,7 +348,7 @@ pub unsafe fn main() {
     let gpio_ports = &base_peripherals.gpio_ports;
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, stm32f446re::gpio::Pin>,
         LedHigh::new(gpio_ports.get_pin(stm32f446re::gpio::PinId::PA05).unwrap()),
     ));

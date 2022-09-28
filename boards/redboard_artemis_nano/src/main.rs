@@ -221,7 +221,7 @@ unsafe fn setup() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, apollo3::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[19]),
     ));

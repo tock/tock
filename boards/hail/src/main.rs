@@ -396,7 +396,7 @@ pub unsafe fn main() {
     .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, sam4l::gpio::GPIOPin>,
         LedLow::new(&peripherals.pa[13]), // Red
         LedLow::new(&peripherals.pa[15]), // Green

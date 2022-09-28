@@ -290,7 +290,7 @@ pub unsafe fn main() {
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_GREEN_PIN]),

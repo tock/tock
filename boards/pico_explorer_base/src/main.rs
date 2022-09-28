@@ -371,7 +371,7 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
         LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
     ));

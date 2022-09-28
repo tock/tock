@@ -438,7 +438,7 @@ pub unsafe fn main() {
 
     // LEDs
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
             led0.get_led(0).unwrap(),
             led0.get_led(1).unwrap(),

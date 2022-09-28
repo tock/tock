@@ -169,7 +169,7 @@ pub unsafe fn main() {
     .finalize(());
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, sifive::gpio::GpioPin>,
         LedLow::new(&peripherals.gpio_port[5]), // Blue
     ));

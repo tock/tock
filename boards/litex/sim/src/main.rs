@@ -472,7 +472,7 @@ pub unsafe fn main() {
     );
 
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             kernel::hil::led::LedHigh<GPIOPin>,
             LedHigh::new(&led_gpios[0]),
             LedHigh::new(&led_gpios[1]),

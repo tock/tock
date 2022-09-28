@@ -337,7 +337,7 @@ pub unsafe fn main() {
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         LedLow::new(peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)),
     ));
