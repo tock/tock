@@ -508,7 +508,7 @@ unsafe fn setup() -> (
     TICKV = Some(tickv);
 
     let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_helper!(
+        components::kv_store_mux_component_static!(
             capsules::tickv::TicKVStore<
                 capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
                 capsules::sip_hash::SipHasher24<'static>,
@@ -517,31 +517,23 @@ unsafe fn setup() -> (
         ),
     );
 
-    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
-    let header_buf = static_init!([u8; 9], [0; 9]);
-
-    let kv_store =
-        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
-            .finalize(components::kv_store_component_helper!(
-                capsules::tickv::TicKVStore<
-                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-                    capsules::sip_hash::SipHasher24<'static>,
-                >,
-                capsules::tickv::TicKVKeyType,
-            ));
+    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
+        components::kv_store_component_static!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
     tickv.set_client(kv_store);
-
-    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
-    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
 
     let kv_driver = components::kv_system::KVDriverComponent::new(
         kv_store,
         board_kernel,
         capsules::kv_driver::DRIVER_NUM,
-        kv_driver_data_buf,
-        kv_driver_dest_buf,
     )
-    .finalize(components::kv_driver_component_helper!(
+    .finalize(components::kv_driver_component_static!(
         capsules::tickv::TicKVStore<
             capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
             capsules::sip_hash::SipHasher24<'static>,
