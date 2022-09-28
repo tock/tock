@@ -1,4 +1,4 @@
-//! ARM Data Watchpoit and Trace Unit
+//! ARM Data Watchpoint and Trace Unit
 //!
 //! <https://developer.arm.com/documentation/100166/0001/Data-Watchpoint-and-Trace-Unit/DWT-Programmers--model?lang=en>
 

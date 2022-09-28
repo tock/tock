@@ -1,6 +1,6 @@
-//! ARM Data Watchpoit and Trace Unit
+//! ARM Debug Control Block
 //!
-//! <https://developer.arm.com/documentation/100166/0001/Debug/Debug-configuration/Debug-register-summary?lang=en>
+//! <https://developer.arm.com/documentation/ddi0403/latest>
 
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
