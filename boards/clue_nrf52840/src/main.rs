@@ -358,7 +358,9 @@ pub unsafe fn main() {
             ) // Right
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup

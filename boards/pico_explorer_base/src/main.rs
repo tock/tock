@@ -470,7 +470,7 @@ pub unsafe fn main() {
             ), // Y
         ),
     )
-    .finalize(components::button_component_buf!(RPGpioPin));
+    .finalize(components::button_component_static!(RPGpioPin));
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,

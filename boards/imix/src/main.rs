@@ -482,7 +482,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
 
     let crc = CrcComponent::new(board_kernel, capsules::crc::DRIVER_NUM, &peripherals.crccu)
         .finalize(components::crc_component_static!(sam4l::crccu::Crccu));

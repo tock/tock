@@ -279,7 +279,9 @@ pub unsafe fn main() {
             ), // Touch Logo
         ),
     )
-    .finalize(components::button_component_buf!(nrf52833::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52833::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup

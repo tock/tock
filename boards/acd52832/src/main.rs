@@ -274,7 +274,9 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52832::gpio::GPIOPin
+    ));
 
     //
     // RTC for Timers

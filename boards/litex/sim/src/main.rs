@@ -533,7 +533,7 @@ pub unsafe fn main() {
             ),
         ),
     )
-    .finalize(components::button_component_buf!(GPIOPin));
+    .finalize(components::button_component_static!(GPIOPin));
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 

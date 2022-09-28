@@ -239,7 +239,9 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,

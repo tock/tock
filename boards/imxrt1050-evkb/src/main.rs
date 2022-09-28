@@ -355,7 +355,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(imxrt1050::gpio::Pin));
+    .finalize(components::button_component_static!(imxrt1050::gpio::Pin));
 
     // ALARM
     let gpt1 = &peripherals.gpt1;

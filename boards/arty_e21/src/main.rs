@@ -217,7 +217,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(
+    .finalize(components::button_component_static!(
         arty_e21_chip::gpio::GpioPin
     ));
 

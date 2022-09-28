@@ -505,7 +505,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(
+    .finalize(components::button_component_static!(
         stm32f303xc::gpio::Pin<'static>
     ));
 

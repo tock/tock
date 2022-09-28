@@ -366,7 +366,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f446re::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f446re::gpio::Pin));
 
     // ALARM
     let tim2 = &base_peripherals.tim2;

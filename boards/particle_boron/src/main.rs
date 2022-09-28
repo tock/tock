@@ -305,7 +305,9 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // LEDs

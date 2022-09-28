@@ -380,7 +380,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f429zi::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f429zi::gpio::Pin));
 
     // ALARM
 

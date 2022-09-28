@@ -253,7 +253,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(msp432::gpio::IntPin));
+    .finalize(components::button_component_static!(msp432::gpio::IntPin));
 
     // Setup LEDs
     let leds = components::led::LedsComponent::new().finalize(components::led_component_helper!(
