@@ -2,6 +2,7 @@
 //!
 //! <https://developer.arm.com/documentation/100166/0001/Data-Watchpoint-and-Trace-Unit/DWT-Programmers--model?lang=en>
 
+use super::dcb;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -476,8 +477,8 @@ register_bitfields![u32,
 const DWT: StaticRef<DwtRegisters> = unsafe { StaticRef::new(0xE0001000 as *const DwtRegisters) };
 
 /// Enable the cycle counter
-/// [`DCB::enable_debug_and_trace()`] needs to be enabled for this to work
 pub fn enable_cycle_counter() {
+    dcb::enable_debug_and_trace();
     DWT.ctrl.modify(Control::CYCNTENA::SET);
 }
 

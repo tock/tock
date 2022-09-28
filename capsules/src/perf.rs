@@ -19,7 +19,6 @@ pub struct Perf;
 
 impl Perf {
     pub fn new() -> Self {
-        dcb::enable_debug_and_trace();
         dwt::enable_cycle_counter();
         Perf {}
     }
