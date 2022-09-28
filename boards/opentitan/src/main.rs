@@ -499,7 +499,7 @@ unsafe fn setup() -> (
         flash_ctrl_read_buf,                         // Buffer used internally in TicKV
         page_buffer,                                 // Buffer used with the flash controller
     )
-    .finalize(components::tickv_component_helper!(
+    .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
         capsules::sip_hash::SipHasher24
     ));
