@@ -557,7 +557,7 @@ pub unsafe fn main() {
         mux_alarm,
         mux_spi,
     )
-    .finalize(components::mx25r6435f_component_helper!(
+    .finalize(components::mx25r6435f_component_static!(
         nrf52840::spi::SPIM,
         nrf52840::gpio::GPIOPin,
         nrf52840::rtc::Rtc
