@@ -71,12 +71,12 @@ impl<'a, F: Flash> TickFSFlastCtrl<'a, F> {
     }
 }
 
-impl<'a, F: Flash> tickv::flash_controller::FlashController<64> for TickFSFlastCtrl<'a, F> {
+impl<'a, F: Flash> tickv::flash_controller::FlashController<2048> for TickFSFlastCtrl<'a, F> {
     fn read_region(
         &self,
         region_number: usize,
         _offset: usize,
-        _buf: &mut [u8; 64],
+        _buf: &mut [u8; 2048],
     ) -> Result<(), tickv::error_codes::ErrorCode> {
         if self
             .flash
@@ -96,12 +96,12 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<64> for TickFSFlastC
         let data_buf = self.flash_read_buffer.take().unwrap();
 
         for (i, d) in buf.iter().enumerate() {
-            data_buf.as_mut()[i + (address % 64)] = *d;
+            data_buf.as_mut()[i + (address % 2048)] = *d;
         }
 
         if self
             .flash
-            .write_page(self.region_offset + (address / 64), data_buf)
+            .write_page(self.region_offset + (address / 2048), data_buf)
             .is_err()
         {
             return Err(tickv::error_codes::ErrorCode::WriteFail);
@@ -120,7 +120,7 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<64> for TickFSFlastC
 pub type TicKVKeyType = [u8; 8];
 
 pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>> {
-    tickv: AsyncTicKV<'a, TickFSFlastCtrl<'a, F>, 64>,
+    tickv: AsyncTicKV<'a, TickFSFlastCtrl<'a, F>, 2048>,
     hasher: &'a H,
     operation: Cell<Operation>,
     next_operation: Cell<Operation>,
@@ -138,12 +138,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
     pub fn new(
         flash: &'a F,
         hasher: &'a H,
-        tickfs_read_buf: &'static mut [u8; 64],
+        tickfs_read_buf: &'static mut [u8; 2048],
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
         flash_size: usize,
     ) -> TicKVStore<'a, F, H> {
-        let tickv = AsyncTicKV::<TickFSFlastCtrl<F>, 64>::new(
+        let tickv = AsyncTicKV::<TickFSFlastCtrl<F>, 2048>::new(
             TickFSFlastCtrl::new(flash, flash_read_buffer, region_offset),
             tickfs_read_buf,
             flash_size,
