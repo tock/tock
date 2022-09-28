@@ -654,27 +654,24 @@ pub unsafe fn main() {
         spi_mux
     ));
 
-    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
-        components::st77xx_component_helper!(
-            // screen
-            &capsules::st77xx::ST7789H2,
-            // bus type
-            capsules::bus::SpiMasterBus<
-                'static,
-                VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
-            >,
-            // bus
-            &bus,
-            // timer type
-            nrf52840::rtc::Rtc,
-            // pin type
-            nrf52::gpio::GPIOPin<'static>,
-            // dc
-            Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
-            // reset
-            Some(&nrf52840_peripherals.gpio_port[ST7789H2_RESET])
-        ),
-    );
+    let tft = components::st77xx::ST77XXComponent::new(
+        mux_alarm,
+        bus,
+        Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
+        Some(&nrf52840_peripherals.gpio_port[ST7789H2_RESET]),
+        &capsules::st77xx::ST7789H2,
+    )
+    .finalize(components::st77xx_component_static!(
+        // bus type
+        capsules::bus::SpiMasterBus<
+            'static,
+            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+        >,
+        // timer type
+        nrf52840::rtc::Rtc,
+        // pin type
+        nrf52::gpio::GPIOPin<'static>
+    ));
 
     let _ = tft.init();
 

@@ -422,24 +422,24 @@ pub unsafe fn main() {
         mux_spi
     ));
 
-    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
-        components::st77xx_component_helper!(
-            // screen
-            &capsules::st77xx::ST7789H2,
-            // bus type
-            capsules::bus::SpiMasterBus<'static, VirtualSpiMasterDevice<'static, Spi>>,
-            // bus
-            &bus,
-            // timer type
-            RPTimer,
-            // pin type
-            RPGpioPin,
-            // dc pin (optional)
-            Some(peripherals.pins.get_pin(RPGpio::GPIO16)),
-            // reset pin
-            None
-        ),
-    );
+    let tft = components::st77xx::ST77XXComponent::new(
+        mux_alarm,
+        bus,
+        Some(peripherals.pins.get_pin(RPGpio::GPIO16)),
+        None,
+        &capsules::st77xx::ST7789H2,
+    )
+    .finalize(components::st77xx_component_static!(
+        // bus type
+        capsules::bus::SpiMasterBus<
+            'static,
+            capsules::virtual_spi::VirtualSpiMasterDevice<'static, Spi>,
+        >,
+        // timer type
+        RPTimer,
+        // pin type
+        RPGpioPin,
+    ));
 
     let _ = tft.init();
 
