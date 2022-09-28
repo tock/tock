@@ -480,7 +480,7 @@ pub unsafe fn main() {
         dynamic_deferred_caller,
         Some(&baud_rate_reset_bootloader_enter),
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
+    .finalize(components::cdc_acm_component_static!(
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));

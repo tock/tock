@@ -387,7 +387,7 @@ pub unsafe fn main() {
         dynamic_deferred_caller,
         None,
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
+    .finalize(components::cdc_acm_component_static!(
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
