@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
+cortexm = { path="../../../arch/cortex-m" }
 capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52840 = { path = "../../../chips/nrf52840" }

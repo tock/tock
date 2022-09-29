@@ -11,20 +11,23 @@ pub const DRIVER_NUM: usize = driver::NUM::Perf as usize;
 
 use cortexm::{dcb, dwt};
 use kernel::{
+    hil,
     syscall::{CommandReturn, SyscallDriver},
     ErrorCode, ProcessId,
 };
 
-pub struct Perf;
+pub struct Perf<'a, P: hil::debug::PerformanceCounters> {
+    counters: &'a P,
+}
 
-impl Perf {
-    pub fn new() -> Self {
-        dwt::enable_cycle_counter();
-        Perf {}
+impl<'a, P: hil::debug::PerformanceCounters> Perf<'a, P> {
+    pub fn new(counters: &'a P) -> Self {
+        P::enable_cycle_counter();
+        Perf { counters }
     }
 }
 
-impl SyscallDriver for Perf {
+impl<'a, P: hil::debug::PerformanceCounters> SyscallDriver for Perf<'a, P> {
     /// Control the Perf system.
     ///
     /// ### `command_num`
@@ -33,10 +36,10 @@ impl SyscallDriver for Perf {
     /// - `1`: Get current cycle count.
     fn command(&self, command_num: usize, _data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandReturn::from(dwt::is_cycle_counter_present()),
+            0 /* check if present */ => CommandReturn::success(),
 
             1  =>
-                CommandReturn::success_u32( dwt::cycle_count() ),
+                CommandReturn::success_u32(P::cycle_count()),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

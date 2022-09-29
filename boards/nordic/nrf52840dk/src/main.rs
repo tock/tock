@@ -75,6 +75,7 @@ use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::perf::Perf;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
+use cortexm::dwt;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
@@ -196,7 +197,7 @@ pub struct Platform {
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    perf: &'static Perf,
+    perf: &'static Perf<'static>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -666,7 +667,7 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    let perf = static_init!(capsules::perf::Perf, capsules::perf::Perf::new());
+    let perf = static_init!(capsules::perf::Perf<dwt::Dwt>, capsules::perf::Perf::new());
     let platform = Platform {
         button,
         ble_radio,

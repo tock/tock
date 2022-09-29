@@ -3,6 +3,7 @@
 //! <https://developer.arm.com/documentation/100166/0001/Data-Watchpoint-and-Trace-Unit/DWT-Programmers--model?lang=en>
 
 use super::dcb;
+use kernel::hil;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -476,28 +477,49 @@ register_bitfields![u32,
 
 const DWT: StaticRef<DwtRegisters> = unsafe { StaticRef::new(0xE0001000 as *const DwtRegisters) };
 
-/// Enable the cycle counter
-pub fn enable_cycle_counter() {
-    dcb::enable_debug_and_trace();
-    DWT.ctrl.modify(Control::CYCNTENA::SET);
+struct Dwt {
+    registers: StaticRef<DwtRegisters>,
 }
-
-/// Disable the cycle counter
-pub unsafe fn disable_cycle_counter() {
-    DWT.ctrl.modify(Control::CYCNTENA::CLEAR);
-}
-
-/// Returns the current cycle count
-pub fn cycle_count() -> u32 {
-    DWT.cyccnt.read(CycleCount::CYCCNT)
-}
-
 /// Returns wether a cycle counter is present on the chip.
-/// Returns an Result<> type because CommandReturn::From supports it
-pub fn is_cycle_counter_present() -> Result<(), ErrorCode> {
+pub fn is_cycle_counter_present() -> bool {
     if DWT.ctrl.read(Control::NOCYCCNT) == 0 {
-        Ok(())
+        true
     } else {
-        Err(ErrorCode::NOSUPPORT)
+        false
+    }
+}
+
+impl Dwt {
+    pub const fn new() -> Self {
+        Self { registers: DWT }
+    }
+}
+
+impl hil::debug::PerformanceCounters for Dwt {
+    fn enable_cycle_counter() -> Result<(), ErrorCode> {
+        if is_cycle_counter_present() {
+            // The cycle counter has to be enabled in the DCB block
+            dcb::enable_debug_and_trace();
+            DWT.ctrl.modify(Control::CYCNTENA::SET);
+            Ok(())
+        } else {
+            Err(ErrorCode::NOSUPPORT)
+        }
+    }
+
+    fn disable_cycle_counter() -> Result<(), ErrorCode> {
+        if is_cycle_counter_present() {
+            // Only the cycle counter uses the DCB currently,
+            // so just disable it too.
+            dcb::disable_debug_and_trace();
+            DWT.ctrl.modify(Control::CYCNTENA::CLEAR);
+            Ok(())
+        } else {
+            Err(ErrorCode::NOSUPPORT)
+        }
+    }
+
+    fn cycle_count() -> u32 {
+        DWT.cyccnt.read(CycleCount::CYCCNT)
     }
 }

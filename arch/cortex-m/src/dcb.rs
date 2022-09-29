@@ -52,7 +52,7 @@ pub fn enable_debug_and_trace() {
 }
 
 /// Disable the Debug and Trace unit `DWT`
-pub unsafe fn disable_debug_and_trace() {
+pub fn disable_debug_and_trace() {
     DCB.demcr
         .modify(DebugExceptionAndMonitorControl::TRCENA::CLEAR);
 }
