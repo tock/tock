@@ -412,10 +412,12 @@ pub unsafe fn main() {
             .finalize(components::i2c_mux_component_helper!());
 
     let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
+        mux_i2c,
+        capsules::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
         board_kernel,
         capsules::lsm6dsoxtr::DRIVER_NUM,
     )
-    .finalize(components::lsm6ds_i2c_component_helper!(mux_i2c));
+    .finalize(components::lsm6ds_i2c_component_static!());
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
