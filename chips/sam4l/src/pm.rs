@@ -1001,11 +1001,15 @@ fn select_main_clock(clock: MainClock) {
 ///
 /// It takes one of two forms:
 ///
+/// ```rust,ignore
 ///     mask_clock!(CLOCK_MASK_OFFSET_MASK_OFFSET: pm_register | value)
+/// ```
 ///
 /// which performs a logical-or on the existing register value, or
 ///
+/// ```rust,ignore
 ///     mask_clock!(CLOCK_MASK_OFFSET_MASK_OFFSET: pm_register & value)
+/// ```
 ///
 /// which performs a logical-and.
 ///

@@ -35,14 +35,14 @@ The Arduino Nano RP2040 Connect can be programmed using its bootloader, which re
 ### Enter BOOTSEL mode
 
 To flash the Nano RP2040, it needs to be put into BOOTSEL mode. This will mount
-a flash drive that allows one to copy a UF2 file. While the offical 
-documentation states that bouble pressing the on-board button enter this mode,
+a flash drive that allows one to copy a UF2 file. While the official
+documentation states that double pressing the on-board button enter this mode,
 this seems to work only while running Arduino's original software.
 
 If double tapping the button does not enter BOOTSEL mode (the flash drive is not mounted),
 the device can be [forced into BOOTSEL mode using a jumper wire](https://docs.arduino.cc/tutorials/nano-rp2040-connect/rp2040-01-technical-reference#forcing-bootloader).
 
-1. Disconenct the board from USB
+1. Disconnect the board from USB
 2. Connect the GND pin with the REC pin
 3. Connect the board to USB
 4. Wait for the flash drive to mount

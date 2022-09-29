@@ -62,7 +62,7 @@ pub struct PMP<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// Each bit that is set in this mask indicates that the region is locked
     /// and cannot be used by Tock.
     locked_region_mask: Cell<u64>,
-    /// This is the total number of avaliable regions.
+    /// This is the total number of available regions.
     /// This will be between 0 and MAX_AVAILABLE_REGIONS_OVER_TWO * 2 depending
     /// on the hardware and previous boot stages.
     num_regions: usize,
@@ -200,6 +200,10 @@ impl PMPRegion {
             let region_end = region_start + region_size;
             (region_start, region_end)
         };
+
+        if region_start == 0 && region_end == 0 {
+            return false;
+        }
 
         // PMP addresses are not inclusive on the high end, that is
         //     pmpaddr[i-i] <= y < pmpaddr[i]
@@ -552,7 +556,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
 /// This is still a useful implementation as it can be used to limit the
 /// kernels access, for example removing execute permission from regions
 /// we don't need to execute from and removing write permissions from
-/// executable reions.
+/// executable regions.
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
@@ -629,8 +633,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                             // Set access to end address
-                            csr::CSR
-                                .pmpconfig_set(x / 2, cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2));
+                            let new_cfg =
+                                cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
                             // Lock the CSR
                             csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l1::SET);
                         }
@@ -647,10 +652,9 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
                             // Set access to end address
-                            csr::CSR.pmpconfig_set(
-                                x / 2,
-                                cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
-                            );
+                            let new_cfg =
+                                cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
+                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
                             // Lock the CSR
                             csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
                         }

@@ -3,6 +3,7 @@
 pub mod adc;
 pub mod chip;
 pub mod clocks;
+pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
@@ -15,8 +16,7 @@ pub mod watchdog;
 pub mod xosc;
 
 use cortexm0p::{
-    self, generic_isr, hard_fault_handler, initialize_ram_jump_to_main, svc_handler,
-    systick_handler, unhandled_interrupt,
+    self, initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant,
 };
 
 extern "C" {
@@ -34,20 +34,20 @@ extern "C" {
 pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     _estack,
     initialize_ram_jump_to_main,
-    unhandled_interrupt, // NMI
-    hard_fault_handler,  // Hard Fault
-    unhandled_interrupt, // MemManage
-    unhandled_interrupt, // BusFault
-    unhandled_interrupt, // UsageFault
+    unhandled_interrupt,           // NMI
+    CortexM0P::HARD_FAULT_HANDLER, // Hard Fault
+    unhandled_interrupt,           // MemManage
+    unhandled_interrupt,           // BusFault
+    unhandled_interrupt,           // UsageFault
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
     unhandled_interrupt,
-    svc_handler,         // SVC
-    unhandled_interrupt, // DebugMon
+    CortexM0P::SVC_HANDLER, // SVC
+    unhandled_interrupt,    // DebugMon
     unhandled_interrupt,
-    unhandled_interrupt, // PendSV
-    systick_handler,     // SysTick
+    unhandled_interrupt,        // PendSV
+    CortexM0P::SYSTICK_HANDLER, // SysTick
 ];
 
 // RP2040 has total of 26 interrupts, but the SDK declares 32 as 26 - 32 might be manually handled
@@ -55,38 +55,38 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
 // used Ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 32] = [
-    generic_isr,         // TIMER0 (0)
-    generic_isr,         // TIMER1 (1)
-    generic_isr,         // TIMER2 (2)
-    generic_isr,         // TIMER3 (3)
-    generic_isr,         // PWM WRAP (4)
-    generic_isr,         // USB (5)
-    generic_isr,         // XIP (6)
-    generic_isr,         // PIO0 INT0  (7)
-    generic_isr,         // PIO0 INT1 (8)
-    generic_isr,         // PIO1 INT0 (9)
-    generic_isr,         // PIO1 INT1 (10)
-    generic_isr,         // DMA0 (11)
-    generic_isr,         // DMA1 (12)
-    generic_isr,         // IO BANK 0 (13)
-    generic_isr,         // IO QSPI (14)
-    generic_isr,         // SIO PROC 0 (15)
-    generic_isr,         // SIO PROC 1 (16)
-    generic_isr,         // CLOCKS (17)
-    generic_isr,         // SPI 0 (18)
-    generic_isr,         // SPI 1 (19)
-    generic_isr,         // UART 0 (20)
-    generic_isr,         // UART 1 (21)
-    generic_isr,         // ADC FIFO (22)
-    generic_isr,         // I2C 0 (23)
-    generic_isr,         // I2C 1 (24)
-    generic_isr,         // RTC (25)
-    unhandled_interrupt, // (26)
-    unhandled_interrupt, // (27)
-    unhandled_interrupt, // (28)
-    unhandled_interrupt, // (29)
-    unhandled_interrupt, // (30)
-    unhandled_interrupt, // (31)
+    CortexM0P::GENERIC_ISR, // TIMER0 (0)
+    CortexM0P::GENERIC_ISR, // TIMER1 (1)
+    CortexM0P::GENERIC_ISR, // TIMER2 (2)
+    CortexM0P::GENERIC_ISR, // TIMER3 (3)
+    CortexM0P::GENERIC_ISR, // PWM WRAP (4)
+    CortexM0P::GENERIC_ISR, // USB (5)
+    CortexM0P::GENERIC_ISR, // XIP (6)
+    CortexM0P::GENERIC_ISR, // PIO0 INT0  (7)
+    CortexM0P::GENERIC_ISR, // PIO0 INT1 (8)
+    CortexM0P::GENERIC_ISR, // PIO1 INT0 (9)
+    CortexM0P::GENERIC_ISR, // PIO1 INT1 (10)
+    CortexM0P::GENERIC_ISR, // DMA0 (11)
+    CortexM0P::GENERIC_ISR, // DMA1 (12)
+    CortexM0P::GENERIC_ISR, // IO BANK 0 (13)
+    CortexM0P::GENERIC_ISR, // IO QSPI (14)
+    CortexM0P::GENERIC_ISR, // SIO PROC 0 (15)
+    CortexM0P::GENERIC_ISR, // SIO PROC 1 (16)
+    CortexM0P::GENERIC_ISR, // CLOCKS (17)
+    CortexM0P::GENERIC_ISR, // SPI 0 (18)
+    CortexM0P::GENERIC_ISR, // SPI 1 (19)
+    CortexM0P::GENERIC_ISR, // UART 0 (20)
+    CortexM0P::GENERIC_ISR, // UART 1 (21)
+    CortexM0P::GENERIC_ISR, // ADC FIFO (22)
+    CortexM0P::GENERIC_ISR, // I2C 0 (23)
+    CortexM0P::GENERIC_ISR, // I2C 1 (24)
+    CortexM0P::GENERIC_ISR, // RTC (25)
+    unhandled_interrupt,    // (26)
+    unhandled_interrupt,    // (27)
+    unhandled_interrupt,    // (28)
+    unhandled_interrupt,    // (29)
+    unhandled_interrupt,    // (30)
+    unhandled_interrupt,    // (31)
 ];
 
 extern "C" {

@@ -49,13 +49,13 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
+pub static mut STACK_MEMORY: [u8; 0x1700] = [0; 0x1700];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F3Discovery {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
     led: &'static capsules::led::LedDriver<
         'static,

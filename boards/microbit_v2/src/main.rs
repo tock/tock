@@ -87,25 +87,33 @@ pub struct MicroBit {
     >,
     console: &'static capsules::console::Console<'static>,
     gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led_matrix::LedMatrixDriver<
+    led: &'static capsules::led::LedDriver<
         'static,
-        nrf52::gpio::GPIOPin<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        capsules::led_matrix::LedMatrixLed<
+            'static,
+            nrf52::gpio::GPIOPin<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        >,
+        25,
     >,
     button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     rng: &'static capsules::rng::RngDriver<'static>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules::lsm303agr::Lsm303agrI2C<'static>,
     temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules::adc::AdcVirtualized<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
+    buzzer_driver: &'static capsules::buzzer_driver::Buzzer<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+        capsules::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+        >,
     >,
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
@@ -124,14 +132,14 @@ impl SyscallDriverLookup for MicroBit {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::led_matrix::DRIVER_NUM => f(Some(self.led)),
+            capsules::led::DRIVER_NUM => f(Some(self.led)),
             capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::lsm303agr::DRIVER_NUM => f(Some(self.lsm303agr)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer_driver)),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             capsules::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -305,6 +313,7 @@ pub unsafe fn main() {
     // PWM & BUZZER
     //--------------------------------------------------------------------------
 
+    use kernel::hil::buzzer::Buzzer;
     use kernel::hil::time::Alarm;
 
     let mux_pwm = static_init!(
@@ -312,7 +321,7 @@ pub unsafe fn main() {
         capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
-        capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+        capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>, //<
         capsules::virtual_pwm::PwmPinUser::new(
             mux_pwm,
             nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
@@ -326,14 +335,30 @@ pub unsafe fn main() {
     );
     virtual_alarm_buzzer.setup();
 
-    let buzzer = static_init!(
-        capsules::buzzer_driver::Buzzer<
+    let pwm_buzzer = static_init!(
+        capsules::buzzer_pwm::PwmBuzzer<
             'static,
             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+            capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
         >,
-        capsules::buzzer_driver::Buzzer::new(
+        capsules::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
+            capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
+        )
+    );
+
+    let buzzer_driver = static_init!(
+        capsules::buzzer_driver::Buzzer<
+            'static,
+            capsules::buzzer_pwm::PwmBuzzer<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+                capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+            >,
+        >,
+        capsules::buzzer_driver::Buzzer::new(
+            pwm_buzzer,
             capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
             board_kernel.create_grant(
                 capsules::buzzer_driver::DRIVER_NUM,
@@ -341,7 +366,10 @@ pub unsafe fn main() {
             )
         )
     );
-    virtual_alarm_buzzer.set_alarm_client(buzzer);
+
+    pwm_buzzer.set_client(buzzer_driver);
+
+    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -538,7 +566,7 @@ pub unsafe fn main() {
     // LED Matrix
     //--------------------------------------------------------------------------
 
-    let led = components::led_matrix_component_helper!(
+    let led_matrix = components::led_matrix_component_helper!(
         nrf52833::gpio::GPIOPin,
         nrf52::rtc::Rtc<'static>,
         mux_alarm,
@@ -561,6 +589,48 @@ pub unsafe fn main() {
         nrf52833::gpio::GPIOPin,
         nrf52::rtc::Rtc<'static>
     ));
+
+    let led = static_init!(
+        capsules::led::LedDriver<
+            'static,
+            capsules::led_matrix::LedMatrixLed<
+                'static,
+                nrf52::gpio::GPIOPin<'static>,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+            >,
+            25,
+        >,
+        capsules::led::LedDriver::new(components::led_matrix_leds!(
+            nrf52::gpio::GPIOPin<'static>,
+            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+            led_matrix,
+            (0, 0),
+            (1, 0),
+            (2, 0),
+            (3, 0),
+            (4, 0),
+            (0, 1),
+            (1, 1),
+            (2, 1),
+            (3, 1),
+            (4, 1),
+            (0, 2),
+            (1, 2),
+            (2, 2),
+            (3, 2),
+            (4, 2),
+            (0, 3),
+            (1, 3),
+            (2, 3),
+            (3, 3),
+            (4, 3),
+            (0, 4),
+            (1, 4),
+            (2, 4),
+            (3, 4),
+            (4, 4)
+        )),
+    );
 
     //--------------------------------------------------------------------------
     // Process Console
@@ -605,7 +675,7 @@ pub unsafe fn main() {
         temperature,
         lsm303agr,
         ninedof,
-        buzzer,
+        buzzer_driver,
         sound_pressure,
         adc: adc_syscall,
         alarm,

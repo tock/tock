@@ -37,18 +37,70 @@ use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 
-/// Leasable Buffer which can be used to pass a section of a larger buffer but still
-/// get the entire buffer back in a callback
-pub struct LeasableBuffer<'a, T> {
+/// Leasable buffer which can be used to pass a section of a larger mutable
+/// buffer but still get the entire buffer back in a callback
+#[derive(Debug, PartialEq)]
+pub struct LeasableMutableBuffer<'a, T> {
     internal: &'a mut [T],
     active_range: Range<usize>,
 }
 
-impl<'a, T> LeasableBuffer<'a, T> {
+/// Leasable Buffer which can be used to pass a section of a larger buffer but still
+/// get the entire buffer back in a callback
+#[derive(Debug, PartialEq)]
+pub struct LeasableBuffer<'a, T> {
+    internal: &'a [T],
+    active_range: Range<usize>,
+}
+
+pub enum LeasableBufferDynamic<'a, T> {
+    Immutable(LeasableBuffer<'a, T>),
+    Mutable(LeasableMutableBuffer<'a, T>),
+}
+
+impl<'a, T> LeasableBufferDynamic<'a, T> {
+    pub fn reset(&mut self) {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref mut buf) => buf.reset(),
+            LeasableBufferDynamic::Mutable(ref mut buf) => buf.reset(),
+        }
+    }
+
+    /// Returns the length of the currently accessible portion of the LeasableBuffer
+    pub fn len(&self) -> usize {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref buf) => buf.len(),
+            LeasableBufferDynamic::Mutable(ref buf) => buf.len(),
+        }
+    }
+
+    pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref mut buf) => buf.slice(range),
+            LeasableBufferDynamic::Mutable(ref mut buf) => buf.slice(range),
+        }
+    }
+}
+
+impl<'a, T, I> Index<I> for LeasableBufferDynamic<'a, T>
+where
+    I: SliceIndex<[T]>,
+{
+    type Output = <I as SliceIndex<[T]>>::Output;
+
+    fn index(&self, idx: I) -> &Self::Output {
+        match *self {
+            LeasableBufferDynamic::Immutable(ref buf) => &buf[idx],
+            LeasableBufferDynamic::Mutable(ref buf) => &buf[idx],
+        }
+    }
+}
+
+impl<'a, T> LeasableMutableBuffer<'a, T> {
     /// Create a leasable buffer from a passed reference to a raw buffer
     pub fn new(buffer: &'a mut [T]) -> Self {
         let len = buffer.len();
-        LeasableBuffer {
+        LeasableMutableBuffer {
             internal: buffer,
             active_range: 0..len,
         }
@@ -109,7 +161,7 @@ impl<'a, T> LeasableBuffer<'a, T> {
     }
 }
 
-impl<'a, T, I> Index<I> for LeasableBuffer<'a, T>
+impl<'a, T, I> Index<I> for LeasableMutableBuffer<'a, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -120,11 +172,87 @@ where
     }
 }
 
-impl<'a, T, I> IndexMut<I> for LeasableBuffer<'a, T>
+impl<'a, T, I> IndexMut<I> for LeasableMutableBuffer<'a, T>
 where
     I: SliceIndex<[T]>,
 {
     fn index_mut(&mut self, idx: I) -> &mut Self::Output {
         &mut self.internal[self.active_range.clone()][idx]
+    }
+}
+
+impl<'a, T> LeasableBuffer<'a, T> {
+    /// Create a leasable buffer from a passed reference to a raw buffer
+    pub fn new(buffer: &'a [T]) -> Self {
+        let len = buffer.len();
+        LeasableBuffer {
+            internal: buffer,
+            active_range: 0..len,
+        }
+    }
+
+    /// Retrieve the raw buffer used to create the LeasableBuffer. Consumes
+    /// the LeasableBuffer.
+    pub fn take(self) -> &'a [T] {
+        self.internal
+    }
+
+    /// Resets the LeasableBuffer to its full size, making the entire buffer
+    /// accessible again. Typically this would be called once a sliced
+    /// LeasableBuffer is returned through a callback
+    pub fn reset(&mut self) {
+        self.active_range = 0..self.internal.len();
+    }
+
+    fn active_slice(&self) -> &[T] {
+        &self.internal[self.active_range.clone()]
+    }
+
+    /// Returns the length of the currently accessible portion of the LeasableBuffer
+    pub fn len(&self) -> usize {
+        self.active_slice().len()
+    }
+
+    /// Returns a pointer to the currently accessible portion of the LeasableBuffer
+    pub fn as_ptr(&self) -> *const T {
+        self.active_slice().as_ptr()
+    }
+
+    /// Reduces the range of the LeasableBuffer that is accessible. This should be called
+    /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
+    /// a lower layer. For example: if the application layer has a 1500 byte packet
+    /// buffer, but wishes to send a 250 byte packet, the upper layer should slice the
+    /// LeasableBuffer down to its first 250 bytes before passing it down.
+    pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
+        let start = match range.start_bound() {
+            Bound::Included(s) => *s,
+            Bound::Excluded(s) => *s + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(e) => *e + 1,
+            Bound::Excluded(e) => *e,
+            Bound::Unbounded => self.internal.len(),
+        };
+
+        let new_start = self.active_range.start + start;
+        let new_end = new_start + (end - start);
+
+        self.active_range = Range {
+            start: new_start,
+            end: new_end,
+        };
+    }
+}
+
+impl<'a, T, I> Index<I> for LeasableBuffer<'a, T>
+where
+    I: SliceIndex<[T]>,
+{
+    type Output = <I as SliceIndex<[T]>>::Output;
+
+    fn index(&self, idx: I) -> &Self::Output {
+        &self.internal[self.active_range.clone()][idx]
     }
 }

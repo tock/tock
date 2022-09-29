@@ -13,8 +13,8 @@ pub trait TemperatureClient {
     /// Called when a temperature reading has completed.
     ///
     /// - `value`: the most recently read temperature in hundredths of degrees
-    /// centigrate.
-    fn callback(&self, value: usize);
+    /// centigrade (centiCelsius), or Err on failure.
+    fn callback(&self, value: Result<i32, ErrorCode>);
 }
 
 /// A basic interface for a humidity sensor
@@ -29,6 +29,69 @@ pub trait HumidityClient {
     ///
     /// - `value`: the most recently read humidity in hundredths of percent.
     fn callback(&self, value: usize);
+}
+
+/// A basic interface for a Air Quality sensor
+pub trait AirQualityDriver<'a> {
+    /// Set the client to be notified when the capsule has data ready.
+    fn set_client(&self, client: &'a dyn AirQualityClient);
+
+    /// Specify the temperature and humidity used in calculating the air
+    /// quality.
+    ///
+    /// The temperature is specified in degrees Celsius and the humidity
+    /// is specified as a percentage.
+    ///
+    /// This is an optional call and doesn't have to be used, but on most
+    /// hardware can be used to improve the measurement accuracy.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn specify_environment(
+        &self,
+        temp: Option<i32>,
+        humidity: Option<u32>,
+    ) -> Result<(), ErrorCode>;
+
+    /// Read the CO2 or equivalent CO2 (eCO2) from the sensor.
+    /// This will trigger the `AirQualityClient` `co2_data_available()`
+    /// callback when the data is ready.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_co2(&self) -> Result<(), ErrorCode>;
+
+    /// Read the Total Organic Compound (TVOC) from the sensor.
+    /// This will trigger the `AirQualityClient` `tvoc_data_available()`
+    /// callback when the data is ready.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_tvoc(&self) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving Air Quality readings
+pub trait AirQualityClient {
+    /// Called when the environment specify command has completed.
+    fn environment_specified(&self, result: Result<(), ErrorCode>);
+
+    /// Called when a CO2 or equivalent CO2 (eCO2) reading has completed.
+    ///
+    /// - `value`: will contain the latest CO2 reading in ppm. An example value
+    ///            might be `400`.
+    fn co2_data_available(&self, value: Result<u32, ErrorCode>);
+
+    /// Called when a Total Organic Compound (TVOC) reading has completed.
+    ///
+    /// - `value`: will contain the latest TVOC reading in ppb. An example value
+    ///            might be `0`.
+    fn tvoc_data_available(&self, value: Result<u32, ErrorCode>);
 }
 
 /// A basic interface for a proximity sensor

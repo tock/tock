@@ -17,20 +17,23 @@ def main():
     prev_RAM = -1
     cur_flash = -1
     cur_RAM = -1
-    with open(args.prev_bench, "r") as f:
-        for line in f:
-            if "Kernel occupies" in line:
-                if "flash" in line:
-                    prev_flash = int(line.split()[2])
-                elif "RAM" in line:
-                    prev_RAM = int(line.split()[2])
-            elif "Applications allocated" in line:
-                if "RAM" in line and prev_RAM > 0:
+    try:
+        with open(args.prev_bench, "r") as f:
+            for line in f:
+                if "Kernel occupies" in line:
+                    if "flash" in line:
+                        prev_flash = int(line.split()[2])
+                    elif "RAM" in line:
+                        prev_RAM = int(line.split()[2])
+                elif "Applications allocated" in line:
+                    if "RAM" in line and prev_RAM > 0:
+                        prev_RAM -= int(line.split()[2])
+                elif "Total of" in line and "wasted" in line and "RAM" in line:
+                    # Don't count wasted RAM as contributing to the count
                     prev_RAM -= int(line.split()[2])
-            elif "Total of" in line and "wasted" in line and "RAM" in line:
-                # Don't count wasted RAM as contributing to the count
-                prev_RAM -= int(line.split()[2])
-                break
+                    break
+    except FileNotFoundError:
+        sys.exit("No prior benchmark available for board: {}".format(board))
 
     if prev_flash == -1 or prev_RAM == -1:
         sys.exit("Failed to parse prev_bench for board: {}".format(board))

@@ -116,8 +116,8 @@ impl fmt::Debug for ProcessLoadError {
                 Some((major, minor)) => write!(
                     f,
                     "Process is incompatible with the kernel. Running: {}.{}, Requested: {}.{}",
-                    crate::MAJOR,
-                    crate::MINOR,
+                    crate::KERNEL_MAJOR_VERSION,
+                    crate::KERNEL_MINOR_VERSION,
                     major,
                     minor
                 ),

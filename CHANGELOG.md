@@ -1,3 +1,104 @@
+New in 2.1
+==========
+
+Tock 2.1 has seen numerous changes from Tock 2.0. In particular, the new system
+call interface introduced with Tock 2.0 has been refined to provide more
+guarantees to processes with respect to sharing and unsharing buffers and
+upcalls. Other changes include the introduction of a _userspace-readable allow_
+system call, support for new HILs and boards, and various other bug-fixes and
+improvements to code size and documentation.
+
+ *  Breaking Changes
+
+    - The implemented encoding of the system call return variant "Success with
+      u32 and u64" has been changed to match the specification of
+      [TRD 104](https://github.com/tock/tock/blob/master/doc/reference/trd104-syscalls.md).
+      Accordingly, the name of the `SyscallReturnVariant` enum variant has been
+      changed from `SuccessU64U32` to `SuccessU32U64`
+      (https://github.com/tock/tock/pull/3175).
+
+    - `VirtualMuxAlarm`s now require the `setup()` function to be called in
+      board set up code after they are created
+      (https://github.com/tock/tock/pull/2866).
+
+ * Noteworthy Changes
+
+    - Subscribe and allow operations are no longer handled by capsules
+      themselves, but through the kernel's `Grant` logic itself
+      (https://github.com/tock/tock/pull/2906). This change has multiple
+      implications for users of Tock:
+
+      - The `Grant` type accepts the number of read-only and read-write allow
+        buffers, as well as the number of subscribe upcalls. It will reserve a
+        fixed amount of space per `Grant` to store the respective allow and
+        subscribe state. Thus, to make efficient use of `Grant` space, allow
+        buffer and subscribe upcall numbers should be assigned in a non-sparse
+        fashion.
+
+      - Legal allow and subscribe calls can no longer be refused by a capsule.
+        This implies that it is always possible for an application to cause the
+        kernel to relinquish a previously shared buffer through an `allow`
+        operation. Similarly, `subscribe` can now be used to infallibly ensure
+        that a given upcall will not be scheduled by the kernel any longer,
+        although already enqueued calls to a given upcall function can still be
+        delivered even after a `subscribe` operation. The precise semantics
+        around these system calls are described in
+        [TRD 104](https://github.com/tock/tock/blob/ffa5ce02bb6e2d9f187c7bebccf33905d9c993ec/doc/reference/trd104-syscalls.md).
+
+    - Introduction of a new userspace-readable allow system call, where apps
+      are explicitly allowed to read buffers shared with the kernel (defined in
+      a [draft TRD](https://github.com/tock/tock/blob/b2053517b4029a6b16360e34937a05138fdc07c1/doc/reference/trd-userspace-readable-allow-syscalls.md)).
+
+    - Introduction of a read-only state mechanism to convey information to
+      processes without explicit system calls
+      (https://github.com/tock/tock/pull/2381).
+
+    - Improvements to kernel code size (e.g.,
+      https://github.com/tock/tock/pull/2836,
+      https://github.com/tock/tock/pull/2849,
+      https://github.com/tock/tock/pull/2759,
+      https://github.com/tock/tock/pull/2823).
+
+ * New HILs
+
+    - `hasher`
+    - `public_key_crypto`
+
+ * New Platforms
+
+    - OpenTitan EarlGrey CW310
+    - Redboard Red-V B
+    - STM32F429I Discovery development board
+    - QEMU RISC-V 32-bit "virt" Platform
+
+ * Deprecated Platforms
+
+    - OpenTitan EarlGrey NexysVideo
+
+ * Known Issues
+
+    - This release was tagged despite several known bugs in non-tier-1 boards,
+      so as to avoid delaying the release. These include:
+
+      - Raspberry Pi Pico: process faults when running IPC examples:
+        https://github.com/tock/tock/issues/3183
+
+      - The cortex-m exception handler does not correctly handle all possible
+        exception entry cases. This is not known to currently manifest on any
+        examples, but could with unlucky timing:
+        https://github.com/tock/tock/issues/3109
+
+      - STM32F303 Discovery: `adc` app runs, but eventually hangs in the app
+        (seems to be caught in the exit loop, but not sure why it gets there)
+
+      - STM32F303 Discovery: kernel panics lead to only a partial printout of
+        the panic message before the board enters a reboot loop
+
+      - weact_f401ccu6: `gpio` example fails to generate interrupts on the
+        input pin. This board is likely to be deprecated soon anyway, as it is
+        no longer available for sale.
+
+
 New in 2.0
 ==========
 

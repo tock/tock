@@ -55,6 +55,7 @@ pub enum NUM {
     NINEDOF               = 0x60004,
     Proximity             = 0x60005,
     SoundPressure         = 0x60006,
+    AirQuality            = 0x60007,
 
     // Sensor ICs
     Tsl2561               = 0x70000,
@@ -77,5 +78,6 @@ pub enum NUM {
     Screen                = 0x90001,
     Touch                 = 0x90002,
     TextScreen            = 0x90003,
+    SevenSegment          = 0x90004,
 }
 }

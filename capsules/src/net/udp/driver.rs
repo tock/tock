@@ -28,7 +28,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 use crate::driver;
@@ -38,7 +38,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 mod ro_allow {
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for read-write allow buffers
@@ -47,7 +47,7 @@ mod rw_allow {
     pub const CFG: usize = 1;
     pub const RX_CFG: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -115,7 +115,7 @@ pub struct UDPDriver<'a> {
     /// UDP bound port table (manages kernel bindings)
     port_table: &'static UdpPortManager,
 
-    kernel_buffer: MapCell<LeasableBuffer<'static, u8>>,
+    kernel_buffer: MapCell<LeasableMutableBuffer<'static, u8>>,
 
     driver_send_cap: &'static dyn UdpDriverCapability,
 
@@ -134,7 +134,7 @@ impl<'a> UDPDriver<'a> {
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,
-        kernel_buffer: LeasableBuffer<'static, u8>,
+        kernel_buffer: LeasableMutableBuffer<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
         net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
@@ -215,6 +215,7 @@ impl<'a> UDPDriver<'a> {
                             Err(ErrorCode::NOMEM),
                             |mut kernel_buffer| {
                                 if payload.len() > kernel_buffer.len() {
+                                    self.kernel_buffer.replace(kernel_buffer);
                                     return Err(ErrorCode::SIZE);
                                 }
                                 payload.copy_to_slice(&mut kernel_buffer[0..payload.len()]);
@@ -353,7 +354,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
     ///        the packet was passed to the radio. However, if Success_U32
     ///        is returned with value 1, this means the the packet was successfully passed
     ///        the radio without any errors, which tells the userland application that it does
-    ///        not need to wait for a callback to check if any errors occured while the packet
+    ///        not need to wait for a callback to check if any errors occurred while the packet
     ///        was being passed down to the radio. Any successful return value indicates that
     ///        the app should wait for a send_done() callback before attempting to queue another
     ///        packet.
@@ -561,7 +562,11 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: LeasableBuffer<'static, u8>) {
+    fn send_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        mut dgram: LeasableMutableBuffer<'static, u8>,
+    ) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

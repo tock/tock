@@ -1,7 +1,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4;
+use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
@@ -134,6 +134,9 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f4xxDefaultPeripherals<'a> 
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         match task {
             DeferredCallTask::Fsmc => self.fsmc.handle_interrupt(),
+            DeferredCallTask::Usart1 => self.usart1.handle_deferred_task(),
+            DeferredCallTask::Usart2 => self.usart2.handle_deferred_task(),
+            DeferredCallTask::Usart3 => self.usart3.handle_deferred_task(),
         }
         true
     }
@@ -202,6 +205,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        cortexm4::print_cortexm4_state(write);
+        CortexM4::print_cortexm_state(write);
     }
 }

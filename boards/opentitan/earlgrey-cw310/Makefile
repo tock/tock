@@ -23,21 +23,16 @@ endif
 install: flash
 
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(call check_defined, OPENTITAN_BOOT_ROM)
-	$(QEMU) -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -nographic -serial mon:stdio
-
+	$(QEMU) -M opentitan -kernel $^ -nographic -serial mon:stdio
 
 qemu-gdb: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(call check_defined, OPENTITAN_BOOT_ROM)
-	$(QEMU) -s -S -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -nographic -serial mon:stdio
+	$(QEMU) -s -S -M opentitan -kernel $^ -nographic -serial mon:stdio
 
 qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(call check_defined, OPENTITAN_BOOT_ROM)
-	$(QEMU) -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio
+	$(QEMU) -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio
 
 qemu-app-gdb : $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(call check_defined, OPENTITAN_BOOT_ROM)
-	$(QEMU) -s -S -M opentitan -kernel $^ -bios $(OPENTITAN_BOOT_ROM) -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio
+	$(QEMU) -s -S -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio
 
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(OPENTITAN_TREE)/util/fpga/cw310_loader.py --firmware $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
@@ -54,9 +49,9 @@ verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 		-within $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin \
 		-binary -range-pad 8 --output binary.64.vmem --vmem 64
 	$(OPENTITAN_TREE)/build/lowrisc_dv_chip_verilator_sim_0.1/sim-verilator/Vchip_sim_tb \
-		--meminit=rom,$(OPENTITAN_TREE)/build-out/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
+		--meminit=rom,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild-ST-97f470ee3b14/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.scr.39.vmem \
 		--meminit=flash,./binary.64.vmem \
-		--meminit=otp,$(OPENTITAN_TREE)/build-out/sw/device/otp_img/otp_img_sim_verilator.vmem
+		--meminit=otp,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild/bin/sw/device/tests/otp_ctrl_smoketest_sim_verilator.runfiles/lowrisc_opentitan/hw/ip/otp_ctrl/data/rma_image_verilator.vmem
 
 test:
 ifneq ($(OPENTITAN_TREE),)

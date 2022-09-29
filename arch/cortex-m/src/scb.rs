@@ -110,7 +110,7 @@ register_bitfields![u32,
         /// WO.
         PENDSTCLR       OFFSET(25)  NUMBITS(1),
 
-        /// Whether an excpetion will be serviced when existing debug state.
+        /// Whether an exception will be serviced when existing debug state.
         /// RO.
         ISRPREEMPT      OFFSET(23)  NUMBITS(1),
 

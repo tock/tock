@@ -327,7 +327,6 @@ impl I2cOperation {
 
 impl<'a, A: Alarm<'a>> i2c::I2CClient for Bmp280<'a, A> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
-        const INVALID_TEMPERATURE: i32 = i32::MIN;
         let mut temp_readout = None;
         let mut i2c_op = I2cOperation::Disable;
 
@@ -396,7 +395,7 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for Bmp280<'a, A> {
                     let lsb = readout[1] as u32;
                     let xlsb = readout[2] as u32;
                     let raw_temp = (msb << 12) + (lsb << 4) + (xlsb >> 4);
-                    temp_readout = Some(calibration.temp_from_raw(raw_temp));
+                    temp_readout = Some(Ok(calibration.temp_from_raw(raw_temp)));
                     State::Idle(calibration)
                 }
                 other => {
@@ -404,11 +403,11 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for Bmp280<'a, A> {
                     other.to_bug()
                 }
             },
-            Err(_i2c_err) => match self.state.get() {
+            Err(i2c_err) => match self.state.get() {
                 State::Configuring(calibration)
                 | State::Waiting(calibration)
                 | State::Reading(calibration) => {
-                    temp_readout = Some(INVALID_TEMPERATURE);
+                    temp_readout = Some(Err(i2c_err.into()));
                     State::Idle(calibration)
                 }
                 State::InitId
@@ -461,7 +460,7 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for Bmp280<'a, A> {
         // in case the callback wants to use the same driver again.
         self.state.set(new_state);
         if let Some(temp) = temp_readout {
-            self.temperature_client.map(|cb| cb.callback(temp as usize));
+            self.temperature_client.map(|cb| cb.callback(temp));
         }
     }
 }

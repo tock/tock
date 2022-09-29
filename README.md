@@ -3,41 +3,33 @@
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 
-Tock is an embedded operating system designed for running multiple concurrent, mutually
-distrustful applications on Cortex-M and RISC-V based embedded platforms.
-Tock's design
-centers around protection, both from potentially malicious applications and
-from device drivers. Tock uses two mechanisms to protect different components
-of the operating system. First, the kernel and device drivers are written in
-Rust, a systems programming language that provides compile-time memory safety,
-type safety and strict aliasing. Tock uses Rust to protect the kernel (e.g. the
-scheduler and hardware abstraction layer) from platform specific device drivers
-as well as isolate device drivers from each other. Second, Tock uses memory
-protection units to isolate applications from each other and the kernel.
+Tock is an embedded operating system designed for running multiple concurrent,
+mutually distrustful applications on Cortex-M and RISC-V based embedded
+platforms. Tock's design centers around protection, both from potentially
+malicious applications and from device drivers. Tock uses two mechanisms to
+protect different components of the operating system. First, the kernel and
+device drivers are written in Rust, a systems programming language that provides
+compile-time memory safety and type safety. Tock uses Rust to protect the kernel
+(e.g. the scheduler and hardware abstraction layer) from platform specific
+device drivers as well as isolate device drivers from each other. Second, Tock
+uses memory protection units to isolate applications from each other and the
+kernel.
 
 [tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
-Tock 2.0!
+Tock 2.x!
 ---------
 
-Tock is now on its second major release! Here are some 2.0 highlights, and see
-the [release notes](https://github.com/tock/tock/releases/tag/release-2.0) for
-more detail, or the [changelog](CHANGELOG.md#new-in-20) for the complete set of
-changes.
+Tock is now on its second major release! Tock 2.x includes significant changes
+from Tock 1.x, including:
 
 - Revamped system call interface.
 - Support for 11 new hardware platforms.
 - Updated kernel types.
 - Many new and improved HILs.
 
-As 2.0 includes many breaking changes, to use the new kernel you will need to
-ensure you have updated versions of userspace apps and the various Tock tools.
-We recommend if you are using git that you do a `git pull`, and if you are using
-tagged releases be sure to update to the 2.0 release.
-
-Initially, only [libtock-c](https://github.com/tock/libtock-c) is compatible with
-Tock 2.0. Work on supporting Tock 2.0 for libtock-rs is [under
-development](https://github.com/tock/libtock-rs/issues/322).
+For a summary of the latest new features and improvements, check out the
+[changelog](CHANGELOG.md).
 
 
 Learn More
@@ -48,22 +40,23 @@ How would you like to get started?
 ### Learn How Tock Works
 
 Tock is documented in the [doc](doc) folder. Read through the guides there to
-learn about the overview and design of Tock, its implementation, and much
-more.
+learn about the overview and design of Tock, its implementation, and much more.
 
 
 ### Use Tock
 
-Follow our [getting started guide](doc/Getting_Started.md) to set up your
-system to compile Tock.
+Follow our [getting started guide](doc/Getting_Started.md) to set up your system
+to compile Tock.
 
-Head to the [hardware page](https://www.tockos.org/hardware/)
-to learn about the hardware platforms Tock supports. Also check out the
-[Tock Book](https://book.tockos.org) for a step-by-step introduction to getting
-Tock up and running.
+Head to the [hardware page](https://www.tockos.org/hardware/) to learn about the
+hardware platforms Tock supports. Also check out the [Tock
+Book](https://book.tockos.org) for a step-by-step introduction to getting Tock
+up and running.
 
 A book on how to use Tock with the [micro:bit v2](boards/microbit_v2) and
-[Raspberry Pi Pico](boards/raspberry_pi_pico) boards is [Getting Started with Secure Embedded Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8).
+[Raspberry Pi Pico](boards/raspberry_pi_pico) boards is [Getting Started with
+Secure Embedded
+Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8).
 
 Find example applications that run on top of the Tock kernel written in both
 [Rust](https://github.com/tock/libtock-rs) and
@@ -78,10 +71,10 @@ version of the Rust compiler, then look through the `/kernel`, `/capsules`,
 docs](https://docs.tockos.org).
 
 We encourage contributions back to Tock and are happy to accept pull requests
-for anything from small documentation fixes to whole new platforms.
-For details, check out our [Contributing Guide](.github/CONTRIBUTING.md).
-To get started, please do not hesitate to submit a PR. We'll happily guide you
-through any needed changes.
+for anything from small documentation fixes to whole new platforms. For details,
+check out our [Contributing Guide](.github/CONTRIBUTING.md). To get started,
+please do not hesitate to submit a PR. We'll happily guide you through any
+needed changes.
 
 
 ### Keep Up To Date
@@ -90,10 +83,9 @@ Check out the [blog](https://www.tockos.org/blog/) where the **Talking Tock**
 post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 
-You can also browse our
-[email group](https://groups.google.com/forum/#!forum/tock-dev)
-and our [Slack][slack] to see
-discussions on Tock development.
+You can also browse our [email
+group](https://groups.google.com/forum/#!forum/tock-dev) and our [Slack][slack]
+to see discussions on Tock development.
 
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 
@@ -105,9 +97,9 @@ The Tock project adheres to the Rust [Code of Conduct][coc].
 
 All contributors, community members, and visitors are expected to familiarize
 themselves with the Code of Conduct and to follow these standards in all
-Tock-affiliated environments, which includes but is not limited to
-repositories, chats, and meetup events. For moderation issues, please contact
-members of the @tock/core-wg.
+Tock-affiliated environments, which includes but is not limited to repositories,
+chats, and meetup events. For moderation issues, please contact members of the
+@tock/core-wg.
 
 [coc]: https://www.rust-lang.org/conduct.html
 

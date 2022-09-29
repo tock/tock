@@ -65,7 +65,8 @@ If the flashing is sucessful, the LED on the back should turn on.
 
 ### Building the bootloader
 
-This step is optional, as a prebuilt bootloader is provided as a [tock-bootloader.clue_nrf52.v1.1.0.bin](bootloader/tock-bootloader.clue_nrf52.v1.1.0.bin).
+This step is optional, as a prebuilt bootloader is provided as a
+[tock-bootloader.clue_nrf52.v1.1.2.bin](https://github.com/tock/tock-bootloader/releases/download/clue_nrf52840-1.1.2/tock-bootloader.clue_nrf52840.1.1.2.bin).
 
 To build the bootloader yourself, please follow the instructions in the Tock Bootloader's [documentation](https://github.com/tock/tock-bootloader/tree/master/boards) for CLUE nRF52840.
 

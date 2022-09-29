@@ -630,7 +630,7 @@ const fn create_twims_clocks(
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
 impl I2CHw {
-    const fn new(
+    fn new(
         base_addr: StaticRef<TWIMRegisters>,
         slave_base_addr: Option<StaticRef<TWISRegisters>>,
         clocks: (TWIMClock, TWISClock),
@@ -661,7 +661,7 @@ impl I2CHw {
         }
     }
 
-    pub const fn new_i2c0(pm: &'static pm::PowerManager) -> Self {
+    pub fn new_i2c0(pm: &'static pm::PowerManager) -> Self {
         I2CHw::new(
             I2C_BASE_ADDRS[0],
             Some(I2C_SLAVE_BASE_ADDRS[0]),
@@ -675,7 +675,7 @@ impl I2CHw {
         )
     }
 
-    pub const fn new_i2c1(pm: &'static pm::PowerManager) -> Self {
+    pub fn new_i2c1(pm: &'static pm::PowerManager) -> Self {
         I2CHw::new(
             I2C_BASE_ADDRS[1],
             Some(I2C_SLAVE_BASE_ADDRS[1]),
@@ -689,7 +689,7 @@ impl I2CHw {
         )
     }
 
-    pub const fn new_i2c2(pm: &'static pm::PowerManager) -> Self {
+    pub fn new_i2c2(pm: &'static pm::PowerManager) -> Self {
         I2CHw::new(
             I2C_BASE_ADDRS[2],
             None,
@@ -700,7 +700,7 @@ impl I2CHw {
         )
     }
 
-    pub const fn new_i2c3(pm: &'static pm::PowerManager) -> Self {
+    pub fn new_i2c3(pm: &'static pm::PowerManager) -> Self {
         I2CHw::new(
             I2C_BASE_ADDRS[3],
             None,

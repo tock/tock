@@ -477,22 +477,17 @@ impl i2c::I2CClient for Lsm6dsoxtrI2C<'_> {
             }
 
             State::ReadTemperature => {
-                let mut temperature: usize = 0;
-
-                if status == Ok(()) {
-                    self.temperature_client.map(|client| {
-                        temperature = ((((buffer[0] as u16 + ((buffer[1] as u16) << 8)) as i16)
-                            as isize
-                            / (TEMP_SENSITIVITY_FACTOR as isize)
-                            + 25)
-                            * 100) as usize;
-                        client.callback(temperature);
-                    });
-                } else {
-                    self.temperature_client.map(|client| {
-                        client.callback(0);
-                    });
+                let temperature = match status {
+                    Ok(()) => Ok(((((buffer[0] as u16 + ((buffer[1] as u16) << 8)) as i16)
+                        as isize
+                        / (TEMP_SENSITIVITY_FACTOR as isize)
+                        + 25)
+                        * 100) as i32),
+                    Err(i2c_error) => Err(i2c_error.into()),
                 };
+                self.temperature_client.map(|client| {
+                    client.callback(temperature);
+                });
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);

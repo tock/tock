@@ -48,9 +48,20 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     );
     first_led_pin.make_output();
     let first_led = &mut led::LedLow::new(first_led_pin);
-
     let writer = &mut WRITER;
 
+    #[cfg(feature = "sim_verilator")]
+    debug::panic(
+        &mut [first_led],
+        writer,
+        pi,
+        &|| {},
+        &PROCESSES,
+        &CHIP,
+        &PROCESS_PRINTER,
+    );
+
+    #[cfg(not(feature = "sim_verilator"))]
     debug::panic(
         &mut [first_led],
         writer,
@@ -59,7 +70,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         &PROCESSES,
         &CHIP,
         &PROCESS_PRINTER,
-    )
+    );
 }
 
 #[cfg(test)]
@@ -68,6 +79,9 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
+    #[cfg(feature = "sim_verilator")]
+    debug::panic_print(writer, pi, &|| {}, &PROCESSES, &CHIP, &PROCESS_PRINTER);
+    #[cfg(not(feature = "sim_verilator"))]
     debug::panic_print(
         writer,
         pi,

@@ -31,7 +31,9 @@ These implement a driver to setup and read various physical sensors.
 - **[ADC Microphone](src/adc_microphone.rs)**: Single ADC pin microphone.
 - **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[APDS9960](src/apds9960.rs)**: Proximity sensor.
+- **[BME280](src/bme280.rs)**: Humidity and air pressure sensor.
 - **[BMP280](src/bmp280.rs)**: Temperature (and air pressure) sensor.
+- **[CCS811](src/ccs811.rs)**: VOC gas sensor.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[HTS221](src/hts221.rs)**: Temperature and humidity sensor.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
@@ -59,12 +61,14 @@ These drivers provide support for various ICs.
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
 - **[FT6x06](src/ft6x06.rs)**: FT6x06 touch panel.
 - **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
+- **[LPM013M126](src/lpm013m126.rs)**: LPM013M126 LCD screen.
 - **[LTC294X](src/ltc294x.rs)**: LTC294X series of coulomb counters.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.
 - **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
+- **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
 
@@ -87,6 +91,10 @@ Protocol stacks and other libraries.
 - **[USB](src/usb)**: USB 2.0.
 - **[Segger RTT](src/segger_rtt.rs)**: Segger RTT support. Provides `hil::uart`
   interface.
+- **[Symmetric Cryptography](src/symmetric_encryption)**: Symmetric
+  encryption.
+- **[Public Key Cryptography](src/public_key_crypto)**: Asymmetric
+  encryption.
 
 
 ### MCU Peripherals for Userspace
@@ -112,6 +120,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 
 These provide common and better abstractions for userspace.
 
+- **[Air Quality](src/air_quality.rs)**: Query air quality sensors.
 - **[Ambient Light](src/ambient_light.rs)**: Query light sensors.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
@@ -120,9 +129,11 @@ These provide common and better abstractions for userspace.
 - **[Console](src/console.rs)**: UART console support.
 - **[CTAP](src/ctap.rs)**: Client to Authenticator Protocol (CTAP) support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
+- **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
+- **[Read Only State](src/read_only_state.rs)**: Read-only state sharing.
 - **[Screen](src/screen.rs)**: Displays and screens.
 - **[SHA](src/sha.rs)**: SHA hashes.
 - **[Sound Pressure](src/sound_pressure.rs)**: Query sound pressure levels.
@@ -175,6 +186,9 @@ Other capsules that implement reusable logic.
   devices.
 - **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
 - **[TicKV](src/tickv.rs)**: Key-value storage.
+- **[Key-Value Store](src/kv_store.rs)**: Key-value virtualized interface.
+- **[SHA256](src/sha256.rs)**: SHA256 software hash.
+- **[SipHash](src/sip_hash.rs)**: SipHash software hash.
 
 
 ### Debugging Capsules

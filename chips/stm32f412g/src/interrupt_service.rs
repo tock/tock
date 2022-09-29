@@ -1,6 +1,7 @@
-use crate::stm32f412g_nvic;
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 use stm32f4xx::deferred_calls::DeferredCallTask;
+
+use crate::{stm32f412g_nvic, trng_registers};
 
 pub struct Stm32f412gDefaultPeripherals<'a> {
     pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
@@ -17,7 +18,7 @@ impl<'a> Stm32f412gDefaultPeripherals<'a> {
     ) -> Self {
         Self {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
-            trng: stm32f4xx::trng::Trng::new(rcc),
+            trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
         }
     }
     // Necessary for setting up circular dependencies

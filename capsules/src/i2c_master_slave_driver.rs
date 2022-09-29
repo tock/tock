@@ -35,7 +35,7 @@ mod ro_allow {
     pub const MASTER_TX: usize = 0;
     pub const SLAVE_TX: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 /// Ids for read-write allow buffers
@@ -43,7 +43,7 @@ mod rw_allow {
     pub const MASTER_RX: usize = 1;
     pub const SLAVE_RX: usize = 3;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 4;
+    pub const COUNT: u8 = 4;
 }
 
 #[derive(Default)]

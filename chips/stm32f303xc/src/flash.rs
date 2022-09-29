@@ -291,7 +291,7 @@ pub struct Flash {
 }
 
 impl Flash {
-    pub const fn new() -> Flash {
+    pub fn new() -> Flash {
         Flash {
             registers: FLASH_BASE,
             client: OptionalCell::empty(),

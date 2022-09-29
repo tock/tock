@@ -7,7 +7,8 @@ PLATFORM=raspberry_pi_pico
 include ../Makefile.common
 
 OPENOCD=openocd
-OPENOCD_OPTIONS=-f openocd.cfg
+OPENOCD_INTERFACE=swd
+OPENOCD_OPTIONS=-f openocd-$(OPENOCD_INTERFACE).cfg
 
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.elf

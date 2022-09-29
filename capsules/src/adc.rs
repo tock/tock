@@ -14,7 +14,7 @@
 //! This capsule shares the ADC with the rest of the kernel through this
 //! virtualizer, so allows other kernel services and capsules to use the
 //! ADC. It also supports multiple processes requesting ADC samples
-//! concurently. However, it only supports processes requesting single
+//! concurrently. However, it only supports processes requesting single
 //! ADC samples: they cannot sample continuously or at high speed.
 //!
 //!
@@ -1248,7 +1248,7 @@ impl SyscallDriver for AdcVirtualized<'_> {
                 } else {
                     match ErrorCode::try_from(res) {
                         Ok(error) => CommandReturn::failure(error),
-                        _ => panic!("ADC Syscall: invalid errior from enqueue_command"),
+                        _ => panic!("ADC Syscall: invalid error from enqueue_command"),
                     }
                 }
             }

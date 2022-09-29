@@ -21,6 +21,7 @@
 
 use capsules::console;
 use capsules::virtual_uart::{MuxUart, UartDevice};
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -28,7 +29,6 @@ use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::static_init;
-use kernel::utilities::static_init::StaticUninitializedBuffer;
 
 use capsules::console::DEFAULT_BUF_SIZE;
 
@@ -115,24 +115,24 @@ impl ConsoleComponent {
 
 impl Component for ConsoleComponent {
     type StaticInput = (
-        StaticUninitializedBuffer<[u8; DEFAULT_BUF_SIZE]>,
-        StaticUninitializedBuffer<[u8; DEFAULT_BUF_SIZE]>,
-        StaticUninitializedBuffer<UartDevice<'static>>,
-        StaticUninitializedBuffer<console::Console<'static>>,
+        &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
+        &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
+        &'static mut MaybeUninit<UartDevice<'static>>,
+        &'static mut MaybeUninit<console::Console<'static>>,
     );
     type Output = &'static console::Console<'static>;
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let write_buffer = s.0.initialize([0; DEFAULT_BUF_SIZE]);
+        let write_buffer = s.0.write([0; DEFAULT_BUF_SIZE]);
 
-        let read_buffer = s.1.initialize([0; DEFAULT_BUF_SIZE]);
+        let read_buffer = s.1.write([0; DEFAULT_BUF_SIZE]);
 
-        let console_uart = s.2.initialize(UartDevice::new(self.uart_mux, true));
+        let console_uart = s.2.write(UartDevice::new(self.uart_mux, true));
         console_uart.setup();
 
-        let console = s.3.initialize(console::Console::new(
+        let console = s.3.write(console::Console::new(
             console_uart,
             write_buffer,
             read_buffer,

@@ -14,7 +14,7 @@ use core::cell::Cell;
 use core::{cmp, fmt};
 use kernel::platform::mpu;
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{self, register_bitfields};
 use kernel::ProcessId;
 
@@ -60,7 +60,7 @@ pub struct PMP<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> {
     /// Each bit that is set in this mask indicates that the region is locked
     /// and cannot be used by Tock.
     locked_region_mask: Cell<u64>,
-    /// This is the total number of avaliable regions.
+    /// This is the total number of available regions.
     /// This will be between 0 and MAX_AVAILABLE_REGIONS_OVER_TWO * 2 depending
     /// on the hardware and previous boot stages.
     num_regions: usize,
@@ -74,39 +74,70 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER
         let mut num_regions = 0;
         let mut locked_region_mask = 0;
 
-        for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
-            // Read the current value
-            let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
-
-            // Flip R, W, X bits
-            let pmpcfg_new = pmpcfg_og ^ (3 << ((i % 4) * 8));
-            csr::CSR.pmpconfig_set(i / 4, pmpcfg_new);
-
-            // Check if the bits are set
-            let pmpcfg_check = csr::CSR.pmpconfig_get(i / 4);
-
-            // Check if the changes stuck
-            if pmpcfg_check == pmpcfg_og {
-                // If we get here then our changes didn't stick, let's figure
-                // out why
-
-                // Check if the locked bit is set
-                if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
-                    // The bit is locked. Mark this regions as not usable
-                    locked_region_mask |= 1 << i;
-                } else {
-                    // The locked bit isn't set
-                    // This region must not be connected, which means we have run out
-                    // of usable regions, break the loop
-                    break;
-                }
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            // The MMWP bit is set, we need to be very careful about modifying
+            // PMP configs as that might break us
+            if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::rlb) {
+                // Rule Locking Bypass (RLB) is set, we can do whatever we want
+                // so let's just say all regions are modifiable and avoid the
+                // auto-detect to avoid locking ourself out.
+                num_regions = MAX_AVAILABLE_REGIONS_OVER_TWO * 2;
             } else {
-                // Found a working region
-                num_regions += 1;
-            }
+                // We can't probe the registers by writing to them, so let's
+                // just assume all `MAX_AVAILABLE_REGIONS_OVER_TWO * 2` are
+                // accessible if they aren't locked
 
-            // Reset back to how we found it
-            csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
+                for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+                    // Read the current value
+                    let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
+
+                    // Check if the locked bit is set
+                    if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
+                        // The bit is locked. Mark this regions as not usable
+                        locked_region_mask |= 1 << i;
+                    } else {
+                        // Found a working region
+                        num_regions += 1;
+                    }
+                }
+            }
+        } else {
+            for i in 0..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+                // Read the current value
+                let pmpcfg_og = csr::CSR.pmpconfig_get(i / 4);
+
+                // Flip R, W, X bits and set config to off
+                let cfg_offset = (i % 4) * 8;
+                let flipped_bits = pmpcfg_og ^ (5 << cfg_offset);
+                let pmpcfg_new = flipped_bits & !(3 << (cfg_offset + 3));
+                csr::CSR.pmpconfig_set(i / 4, pmpcfg_new);
+
+                // Check if the bits are set
+                let pmpcfg_check = csr::CSR.pmpconfig_get(i / 4);
+
+                // Check if the changes stuck
+                if pmpcfg_check == pmpcfg_og {
+                    // If we get here then our changes didn't stick, let's figure
+                    // out why
+
+                    // Check if the locked bit is set
+                    if pmpcfg_og & ((1 << 7) << ((i % 4) * 8)) > 0 {
+                        // The bit is locked. Mark this regions as not usable
+                        locked_region_mask |= 1 << i;
+                    } else {
+                        // The locked bit isn't set
+                        // This region must not be connected, which means we have run out
+                        // of usable regions, break the loop
+                        break;
+                    }
+                } else {
+                    // Found a working region
+                    num_regions += 1;
+                }
+
+                // Reset back to how we found it
+                csr::CSR.pmpconfig_set(i / 4, pmpcfg_og);
+            }
         }
 
         Self {
@@ -322,6 +353,10 @@ impl PMPRegion {
             (region_start, region_end)
         };
 
+        if region_start == 0 && region_end == 0 {
+            return false;
+        }
+
         // PMP addresses are not inclusive on the high end, that is
         //     pmpaddr[i-i] <= y < pmpaddr[i]
         if region_start < (other_end - 4) && other_start < (region_end - 4) {
@@ -376,6 +411,65 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> fmt::Display
 }
 
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO> {
+    /// Generate the default `PMPConfig` to be used when generating kernel regions.
+    /// This should be called to generate a config before calling
+    /// `allocate_kernel_region()` and `enable_kernel_mpu()`.
+    /// This generally should only be called once, in `main()`.
+    pub fn kernel_default() -> Self {
+        let mut regions = [None; MAX_AVAILABLE_REGIONS_OVER_TWO];
+
+        // This is a little challenging, so let's describe what's going on.
+        // A previous boot stage has enabled Machine Mode Whitelist Policy
+        // (mseccfg.MMWP), which we can't disable. That means that Tock will
+        // be denied a memory access if it doesn't match a PMP region
+        // This eventually won't matter, as Tock configures it's own regions,
+        // but it makes it difficult to setup.
+        //
+        // The fact that we can run at all means that the previous stage has
+        // set some rules that allows us to execute. When we configure our
+        // rules we might overwrite them and lock ourselves out.
+        //
+        // To allow us to setup the ePMP regions without locking ourselves out
+        // we create two special regions.
+        //
+        // We create an allow all region as the first and last region.
+        // This way no matter what the previous stage did, we should have a
+        // working fallback while we modify the rules.
+        // If the previous stage has an allow all in the first or last region,
+        // we won't get locked out. If the previous stage created a range of
+        // regions we also won't get locked out.
+        //
+        // We make sure to remove these special regions later in
+        // `enable_kernel_mpu()`
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            *(regions.last_mut().unwrap()) = Some(PMPRegion {
+                // Set the size to zero so we don't get overlap errors latter
+                location: (0x00000000 as *const u8, 0x00000000),
+                cfg: pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::SET
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR,
+            });
+
+            *(regions.first_mut().unwrap()) = Some(PMPRegion {
+                // Set the size to zero so we don't get overlap errors latter
+                location: (0x00000000 as *const u8, 0x00000000),
+                cfg: pmpcfg::l::CLEAR
+                    + pmpcfg::r::SET
+                    + pmpcfg::w::SET
+                    + pmpcfg::x::SET
+                    + pmpcfg::a::TOR,
+            });
+        }
+
+        PMPConfig {
+            regions,
+            is_dirty: Cell::new(true),
+            app_memory_region: OptionalCell::empty(),
+        }
+    }
+
     /// Get the first unused region
     fn unused_region_number(&self, locked_region_mask: u64) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
@@ -717,6 +811,75 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
     }
 }
 
+impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER_TWO> {
+    fn write_kernel_regions(&self, config: &mut PMPConfig<MAX_AVAILABLE_REGIONS_OVER_TWO>) {
+        for (i, region) in config.regions.iter().enumerate() {
+            match region {
+                Some(r) => {
+                    let cfg_val = r.cfg.value as usize;
+                    let start = r.location.0 as usize;
+                    let size = r.location.1;
+
+                    match i % 2 {
+                        0 => {
+                            csr::CSR.pmpaddr_set((i * 2) + 1, (start + size) >> 2);
+                            // Disable access up to the start address
+                            csr::CSR.pmpconfig_modify(
+                                i / 2,
+                                csr::pmpconfig::pmpcfg::r0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a0::CLEAR,
+                            );
+                            csr::CSR.pmpaddr_set(i * 2, start >> 2);
+
+                            // Set access to end address
+                            let new_cfg =
+                                cfg_val << 8 | (csr::CSR.pmpconfig_get(i / 2) & 0xFFFF_00FF);
+                            csr::CSR.pmpconfig_set(i / 2, new_cfg);
+                        }
+                        1 => {
+                            csr::CSR.pmpaddr_set((i * 2) + 1, (start + size) >> 2);
+                            // Disable access up to the start address
+                            csr::CSR.pmpconfig_modify(
+                                i / 2,
+                                csr::pmpconfig::pmpcfg::r2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
+                                    + csr::pmpconfig::pmpcfg::a2::CLEAR,
+                            );
+                            csr::CSR.pmpaddr_set(i * 2, start >> 2);
+
+                            // Set access to end address
+                            let new_cfg =
+                                cfg_val << 24 | (csr::CSR.pmpconfig_get(i / 2) & 0x00FF_FFFF);
+                            csr::CSR.pmpconfig_set(i / 2, new_cfg);
+                        }
+                        _ => break,
+                    }
+                }
+                None => match i % 2 {
+                    0 => {
+                        csr::CSR.pmpaddr_set(i * 2, 0);
+                        csr::CSR.pmpaddr_set((i * 2) + 1, 0);
+
+                        let new_cfg = 0 << 8 | (csr::CSR.pmpconfig_get(i / 2) & 0xFFFF_00FF);
+                        csr::CSR.pmpconfig_set(i / 2, new_cfg);
+                    }
+                    1 => {
+                        csr::CSR.pmpaddr_set(i * 2, 0);
+                        csr::CSR.pmpaddr_set((i * 2) + 1, 0);
+
+                        let new_cfg = 0 << 24 | (csr::CSR.pmpconfig_get(i / 2) & 0x00FF_FFFF);
+                        csr::CSR.pmpconfig_set(i / 2, new_cfg);
+                    }
+                    _ => break,
+                },
+            };
+        }
+    }
+}
+
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelMPU
     for PMP<MAX_AVAILABLE_REGIONS_OVER_TWO>
 {
@@ -775,54 +938,46 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
     }
 
     fn enable_kernel_mpu(&self, config: &mut Self::KernelMpuConfig) {
-        for (i, region) in config.regions.iter().rev().enumerate() {
-            let x = MAX_AVAILABLE_REGIONS_OVER_TWO - i - 1;
-            match region {
-                Some(r) => {
-                    let cfg_val = r.cfg.value as usize;
-                    let start = r.location.0 as usize;
-                    let size = r.location.1;
-
-                    match x % 2 {
-                        0 => {
-                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
-                            // Disable access up to the start address
-                            csr::CSR.pmpconfig_modify(
-                                x / 2,
-                                csr::pmpconfig::pmpcfg::r0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::a0::CLEAR,
-                            );
-                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
-
-                            // Set access to end address
-                            csr::CSR
-                                .pmpconfig_set(x / 2, cfg_val << 8 | csr::CSR.pmpconfig_get(x / 2));
-                        }
-                        1 => {
-                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
-                            // Disable access up to the start address
-                            csr::CSR.pmpconfig_modify(
-                                x / 2,
-                                csr::pmpconfig::pmpcfg::r2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::a2::CLEAR,
-                            );
-                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
-
-                            // Set access to end address
-                            csr::CSR.pmpconfig_set(
-                                x / 2,
-                                cfg_val << 24 | csr::CSR.pmpconfig_get(x / 2),
-                            );
-                        }
-                        _ => break,
-                    }
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            // MMWP is set, so let's edit the size of the last and first
+            // regions to allow all
+            if let Some(last) = config.regions.last_mut() {
+                if let Some(last_region) = last {
+                    last_region.location = (0x0000_0000 as *const u8, 0xFFFF_FFFF);
                 }
-                None => {}
-            };
+            }
+
+            if let Some(first) = config.regions.first_mut() {
+                if let Some(first_region) = first {
+                    first_region.location = (0x0000_0000 as *const u8, 0xFFFF_FFFF);
+                }
+            }
+        }
+
+        self.write_kernel_regions(config);
+
+        if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
+            // Now that we have written an initial copy, we can remove our
+            // allow all regions. We want to do this one at a time though.
+
+            // Remove the last region and rotate the entries
+            // This maintains the first allow all region, so that we
+            // don't get locked out while writing the data.
+            if let Some(last) = config.regions.last_mut() {
+                *last = None;
+            }
+            config.regions.rotate_right(1);
+            self.write_kernel_regions(config);
+
+            // Now we can remove the first region (which is now the second)
+            if let Some(first) = config.regions.get_mut(1) {
+                *first = None;
+            }
+            self.write_kernel_regions(config);
+
+            // At this point we have configured the ePMP, we can disable debug
+            // access (if it was enabled)
+            csr::CSR.mseccfg.modify(csr::mseccfg::mseccfg::rlb::CLEAR);
         }
 
         // Set the Machine Mode Lockdown (mseccfg.MML) bit.

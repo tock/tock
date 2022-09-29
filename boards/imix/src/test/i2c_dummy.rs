@@ -189,7 +189,7 @@ impl hil::i2c::I2CHwMasterClient for LiClient {
 
         match self.state.get() {
             LiClientState::Enabling => {
-                debug!("Reading Lumminance Registers ({:?})", status);
+                debug!("Reading luminance Registers ({:?})", status);
                 buffer[0] = 0x02 as u8;
                 buffer[0] = 0;
                 dev.write_read(0x44, buffer, 1, 2).unwrap();

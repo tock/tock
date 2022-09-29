@@ -27,7 +27,7 @@ const MAX_KEYS: usize = 4;
 mod ro_allow {
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for read-write allow buffers
@@ -35,7 +35,7 @@ mod rw_allow {
     pub const READ: usize = 0;
     pub const CFG: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 2;
+    pub const COUNT: u8 = 2;
 }
 
 use crate::driver;
@@ -592,7 +592,7 @@ impl SyscallDriver for RadioDriver<'_> {
     ///                       up to 9 bytes: the key ID.
     /// - `23`: Get the key at an index.
     ///        app_cfg (out): 16 bytes: the key.
-    /// - `24`: Add a new key with the given descripton.
+    /// - `24`: Add a new key with the given description.
     ///        app_cfg (in): 1 byte: the security level +
     ///                      1 byte: the key ID mode +
     ///                      9 bytes: the key ID (might not use all bytes) +

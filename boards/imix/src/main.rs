@@ -131,7 +131,7 @@ struct Imix {
         'static,
         VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     ninedof: &'static capsules::ninedof::NineDof<'static>,
     udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
     crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
@@ -415,7 +415,7 @@ pub unsafe fn main() {
     )
     .finalize(());
     let humidity =
-        HumidityComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM, si7021).finalize(());
+        HumidityComponent::new(board_kernel, capsules::humidity::DRIVER_NUM, si7021).finalize(());
     let ninedof = NineDofComponent::new(
         board_kernel,
         capsules::ninedof::DRIVER_NUM,
@@ -701,6 +701,8 @@ pub unsafe fn main() {
         MuxTimer::new(virtual_alarm_timer)
     );*/
     //virtual_alarm_timer.set_alarm_client(mux_timer);
+
+    //test::sha256_test::run_sha256(dynamic_deferred_caller);
 
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
     .finalize(components::multi_alarm_test_component_buf!(sam4l::ast::Ast))

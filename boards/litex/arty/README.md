@@ -11,9 +11,9 @@ differ significantly depending on the LiteX release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  c43132f81f1113](https://github.com/enjoy-digital/litex/tree/c43132f81f1113)
+  c4e635ea5c91ca](https://github.com/enjoy-digital/litex/tree/c4e635ea5c91ca)
 - using the companion [target
-  file](https://github.com/litex-hub/litex-boards/blob/f18b10d1edb4e1/litex_boards/targets/digilent_arty.py)
+  file](https://github.com/litex-hub/litex-boards/blob/bf458e388efea4/litex_boards/targets/digilent_arty.py)
   from `litex-boards`
 - built around a VexRiscv-CPU with PMP, hardware multiplication and
   compressed instruction support (named `TockSecureIMC`)
@@ -35,13 +35,13 @@ hardware multiplication and compressed instruction support (such that
 it is compatible with the `rv32imc` arch).
 
 Prebuilt and tested bitstreams (including the generated VexRiscv CPU
-Verilog files) can be obtained from the [Tock on LiteX companion
-repository
+Verilog files and a patched LiteX version to support them) can be
+obtained from the [Tock on LiteX companion repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2021100501](https://github.com/lschuermann/tock-litex/releases/tag/2021100501). The
-bitstream for this board is located in `digilent_arty_a7-35t.zip` or
-`digilent_arty_a7-100t.zip` under `gateware/digilent_arty.bit`.
+2022081701](https://github.com/lschuermann/tock-litex/releases/tag/2022081701).
+The bitstream for this board is located in `digilent_arty_a7-35t.zip`
+or `digilent_arty_a7-100t.zip` under `gateware/digilent_arty.bit`.
 
 Many bitstream customizations can be represented in the Tock board by
 simply changing the variables in
@@ -120,10 +120,10 @@ To boot via serial run the LiteX-included `litex_term.py` (sometimes
 available as `lxterm`):
 ```
 $ ./litex/litex/tools/litex_term.py \
-    --speed 10000000 \
-	--serial-boot \
-	--kernel $TOCK_BINARY \
-	$SERIAL_PORT
+    --speed 1000000 \
+    --serial-boot \
+    --kernel $TOCK_BINARY \
+    $SERIAL_PORT
 ```
 , where `TOCK_BINARY` points to the board's binary (kernel, optionally
 including optionally applications), and `SERIAL_PORT` is the UART
@@ -181,6 +181,39 @@ $ cp $PATH_TO_TOCK/target/riscv32i-unknown-none-elf/release/litex_arty.bin \
 Make sure that the tftp server is running and the firewall is
 configured correctly.
 
+### Running Applications
+
+The LiteX Arty board does not currently expose or use any persistent storage,
+other than to hold the FPGA bistream containing the LiteX BIOS. For this reason,
+Tockloader is not able to interact with this board directly. However, Tockloader
+includes a flash-file support mode which supports operating on a binary file
+representing the device's flash. This can be used to combine the kernel and
+applications in a single binary, which can then be loaded onto the board using
+the above methods. An example of this is illustrated below:
+
+```
+$ tockloader flash \
+    --board litex_arty \
+    --flash-file ./litex_arty_flash.bin \
+    -a 0x0 \
+    ./tock/target/riscv32imc-unknown-none-elf/release/litex_arty.bin
+[INFO   ] Operating on flash file "./litex_arty_flash.bin".
+[INFO   ] Limiting flash size to 0x8000000 bytes.
+[STATUS ] Flashing binary to board...
+[INFO   ] Finished in 0.000 seconds
+$ tockloader install \
+    --board litex_arty \
+    --arch rv32imc \
+    --flash-file ./litex_arty_flash.bin \
+    ./libtock-c/examples/c_hello/build/c_hello.tab
+[INFO   ] Using settings from KNOWN_BOARDS["litex_arty"]
+[INFO   ] Operating on flash file "./litex_arty_flash.bin".
+[INFO   ] Limiting flash size to 0x10000000 bytes.
+[STATUS ] Installing app on the board...
+[INFO   ] Found sort order:
+[INFO   ]   App "c_hello" at address 0x41000060
+[INFO   ] Finished in 0.002 seconds
+```
 
 Debugging
 ---------

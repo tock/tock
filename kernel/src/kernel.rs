@@ -435,7 +435,7 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that argument
     /// is set to true, the kernel will never attempt to put the chip to sleep,
     /// and this function can be called again immediately.
-    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: usize>(
+    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,
@@ -504,7 +504,7 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the `Scheduler`
     /// implementation in use.
-    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: usize>(
+    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,
@@ -548,7 +548,7 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    fn do_process<KR: KernelResources<C>, C: Chip, const NUM_PROCS: usize>(
+    fn do_process<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,

@@ -1,97 +1,83 @@
-//! Provides userspace access to LEDs on an LED matrix.
+//! Service capsule for access to LEDs on a LED matrix.
 //!
 //! Usage
 //! -----
 //!
 //! ```rust
-//! let buffer = static_init!([u8; 5], [0; 5]);
+//! let led_matrix = components::led_matrix_component_helper!(
+//!     nrf52833::gpio::GPIOPin,
+//!     nrf52::rtc::Rtc<'static>,
+//!     mux_alarm,
+//!     @fps => 60,
+//!     @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[0]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[1]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[2]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[3]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[4]],
+//!     @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
+//!         &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
 //!
-//! let cols = static_init!(
-//!     [&nrf52833::gpio::GPIOPin; 5],
-//!     [
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-//!     ]
-//! );
-//!
-//! let rows = static_init!(
-//!     [&nrf52833::gpio::GPIOPin; 5],
-//!     [
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-//!         &base_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-//!     ]
-//! );
+//! )
+//! .finalize(components::led_matrix_component_buf!(
+//!     nrf52833::gpio::GPIOPin,
+//!     nrf52::rtc::Rtc<'static>
+//! ));
 //!
 //! let led = static_init!(
-//!     capsules::led_matrix::LedMatrixDriver<
+//!     capsules::led::LedDriver<
 //!         'static,
+//!         capsules::led_matrix::LedMatrixLed<
+//!             'static,
+//!             nrf52::gpio::GPIOPin<'static>,
+//!             capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!         >,
+//!         25,
+//!     >,
+//!     capsules::led::LedDriver::new(components::led_matrix_leds!(
 //!         nrf52::gpio::GPIOPin<'static>,
 //!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-//!     >,
-//!     capsules::led_matrix::LedMatrixDriver::new(cols, rows, buffer, led_alarm, kernel::hil::gpio::ActivationMode::ActiveLow, kernel::hil::gpio::ActivationMode::ActiveHigh, 60)
+//!         led_matrix,
+//!         (0, 0),
+//!         (1, 0),
+//!         (2, 0),
+//!         (3, 0),
+//!         (4, 0),
+//!         (0, 1),
+//!         (1, 1),
+//!         (2, 1),
+//!         (3, 1),
+//!         (4, 1),
+//!         (0, 2),
+//!         (1, 2),
+//!         (2, 2),
+//!         (3, 2),
+//!         (4, 2),
+//!         (0, 3),
+//!         (1, 3),
+//!         (2, 3),
+//!         (3, 3),
+//!         (4, 3),
+//!         (0, 4),
+//!         (1, 4),
+//!         (2, 4),
+//!         (3, 4),
+//!         (4, 4)
+//!     )),
 //! );
-//!
-//! led_alarm.set_alarm_client(led);
-//!
-//! led.init();
-//! ```
-//!
-//! let single_led = static_init!(
-//!     capsules::led_matrix::LedMatrixLed<
-//!         'static,
-//!         nrf52::gpio::GPIOPin<'static>,
-//!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-//!     >,
-//!     led,
-//!     1,
-//!     2
-//! );
-//!
-//!
-//! Syscall Interface
-//! -----------------
-//!
-//! - Stability: 2 - Stable
-//!
-//! ### Command
-//!
-//! All LED operations are synchronous, so this capsule only uses the `command`
-//! syscall.
-//!
-//! #### `command_num`
-//!
-//! - `0`: Return the number of LEDs on this platform.
-//!   - `data`: Unused.
-//!   - Return: Number of LEDs.
-//! - `1`: Turn the LED on.
-//!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
-//! - `2`: Turn the LED off.
-//!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
-//! - `3`: Toggle the on/off state of the LED.
-//!   - `data`: The index of the LED. Starts at 0.
-//!   - Return: `Ok(())` if the LED index was valid, `INVAL` otherwise.
 
 use core::cell::Cell;
 
-use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::TakeCell;
-use kernel::{ErrorCode, ProcessId};
+use kernel::ErrorCode;
 
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::led::Led;
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
-
-/// Syscall driver number.
-use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.
@@ -264,42 +250,6 @@ impl<'a, L: Pin, A: Alarm<'a>> AlarmClient for LedMatrixDriver<'a, L, A> {
     }
 }
 
-impl<'a, L: Pin, A: Alarm<'a>> SyscallDriver for LedMatrixDriver<'a, L, A> {
-    /// Control the LEDs.
-    ///
-    /// ### `command_num`
-    ///
-    /// - `0`: Returns the number of LEDs on the board. This will always be 0 or
-    ///        greater, and therefore also allows for checking for this driver.
-    /// - `1`: Turn the LED at index specified by `data` on. Returns `INVAL` if
-    ///        the LED index is not valid.
-    /// - `2`: Turn the LED at index specified by `data` off. Returns `INVAL`
-    ///        if the LED index is not valid.
-    /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
-    ///        `INVAL` if the LED index is not valid.
-    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
-        match command_num {
-            // get number of LEDs
-            0 => CommandReturn::success_u32((self.cols.len() * self.rows.len()) as u32),
-
-            // on
-            1 => CommandReturn::from(self.on_index(data)),
-
-            // off
-            2 => CommandReturn::from(self.off_index(data)),
-
-            // toggle
-            3 => CommandReturn::from(self.toggle_index(data)),
-
-            // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-        }
-    }
-
-    fn allocate_grant(&self, _processid: ProcessId) -> Result<(), kernel::process::Error> {
-        Ok(())
-    }
-}
 // one Led from the matrix
 pub struct LedMatrixLed<'a, L: Pin, A: Alarm<'a>> {
     matrix: &'a LedMatrixDriver<'a, L, A>,

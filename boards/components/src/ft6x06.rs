@@ -34,12 +34,12 @@ macro_rules! ft6x06_i2c_component_helper {
 }
 
 pub struct Ft6x06Component {
-    interupt_pin: &'static dyn gpio::InterruptPin<'static>,
+    interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
 }
 
 impl Ft6x06Component {
     pub fn new(pin: &'static dyn gpio::InterruptPin) -> Ft6x06Component {
-        Ft6x06Component { interupt_pin: pin }
+        Ft6x06Component { interrupt_pin: pin }
     }
 }
 
@@ -58,13 +58,13 @@ impl Component for Ft6x06Component {
             Ft6x06<'static>,
             Ft6x06::new(
                 static_buffer.0,
-                self.interupt_pin,
+                self.interrupt_pin,
                 static_buffer.2,
                 static_buffer.3,
             )
         );
         static_buffer.0.set_client(ft6x06);
-        self.interupt_pin.set_client(ft6x06);
+        self.interrupt_pin.set_client(ft6x06);
 
         ft6x06
     }

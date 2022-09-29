@@ -192,7 +192,7 @@ list:
 
 ## Meta-Targets
 
-# Run all possible CI. If this passses locally, all cloud CI *must* pass as well.
+# Run all possible CI. If this passes locally, all cloud CI *must* pass as well.
 .PHONY: ci-all
 ci-all:\
 	ci-runner-github\
@@ -339,12 +339,12 @@ ci-runner-netlify:\
 .PHONY: ci-job-format
 ci-job-format:
 	$(call banner,CI-Job: Format Check)
-	@CI=true TOCK_FORMAT_MODE=diff $(MAKE) format
+	@NOWARNINGS=true TOCK_FORMAT_MODE=diff $(MAKE) format
 
 .PHONY: ci-job-clippy
 ci-job-clippy:
 	$(call banner,CI-Job: Clippy)
-	@CI=true ./tools/run_clippy.sh
+	@NOWARNINGS=true ./tools/run_clippy.sh
 
 define ci_setup_markdown_toc
 	$(call banner,CI-Setup: Install markdown-toc)
@@ -361,7 +361,7 @@ ci-setup-markdown-toc:
 
 define ci_job_markdown_toc
 	$(call banner,CI-Job: Markdown Table of Contents Validation)
-	@CI=true PATH="node_modules/.bin:${PATH}" tools/toc.sh
+	@NOWARNINGS=true PATH="node_modules/.bin:${PATH}" tools/toc.sh
 endef
 
 .PHONY: ci-job-markdown-toc
@@ -374,12 +374,12 @@ ci-job-markdown-toc: ci-setup-markdown-toc
 .PHONY: ci-job-syntax
 ci-job-syntax:
 	$(call banner,CI-Job: Syntax)
-	@CI=true $(MAKE) allcheck
+	@NOWARNINGS=true $(MAKE) allcheck
 
 .PHONY: ci-job-compilation
 ci-job-compilation:
 	$(call banner,CI-Job: Compilation)
-	@CI=true $(MAKE) allboards
+	@NOWARNINGS=true $(MAKE) allboards
 
 .PHONY: ci-job-debug-support-targets
 ci-job-debug-support-targets:
@@ -389,9 +389,9 @@ ci-job-debug-support-targets:
 	# work, but don't build them for every board.
 	#
 	# The choice of building for the nrf52dk was chosen by random die roll.
-	@CI=true $(MAKE) -C boards/nordic/nrf52dk lst
-	@CI=true $(MAKE) -C boards/nordic/nrf52dk debug
-	@CI=true $(MAKE) -C boards/nordic/nrf52dk debug-lst
+	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk lst
+	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk debug
+	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk debug-lst
 
 .PHONY: ci-job-collect-artifacts
 ci-job-collect-artifacts: ci-job-compilation
@@ -413,10 +413,10 @@ ci-job-collect-artifacts: ci-job-compilation
 .PHONY: ci-job-libraries
 ci-job-libraries:
 	$(call banner,CI-Job: Libraries)
-	@cd libraries/enum_primitive && CI=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/riscv-csr && CI=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-cells && CI=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-register-interface && CI=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/enum_primitive && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/riscv-csr && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-cells && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/tock-register-interface && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
 
 .PHONY: ci-job-archs
 ci-job-archs:
@@ -424,20 +424,20 @@ ci-job-archs:
 	@for arch in `./tools/list_archs.sh`;\
 		do echo "$$(tput bold)Test $$arch";\
 		cd arch/$$arch;\
-		CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
+		NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
 		cd ../..;\
 		done
 
 .PHONY: ci-job-kernel
 ci-job-kernel:
 	$(call banner,CI-Job: Kernel)
-	@cd kernel && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd kernel && NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
 
 .PHONY: ci-job-capsules
 ci-job-capsules:
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
-	@cd capsules && CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib --examples
+	@cd capsules && NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test --lib --examples
 
 .PHONY: ci-job-chips
 ci-job-chips:
@@ -445,7 +445,7 @@ ci-job-chips:
 	@for chip in `./tools/list_chips.sh`;\
 		do echo "$$(tput bold)Test $$chip";\
 		cd chips/$$chip;\
-		CI=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
+		NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
 		cd ../..;\
 		done
 
@@ -480,7 +480,7 @@ define ci_job_tools
 	@for tool in `./tools/list_tools.sh`;\
 		do echo "$$(tput bold)Build & Test $$tool";\
 		cd tools/$$tool;\
-		CI=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1;\
+		NOWARNINGS=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1;\
 		cd - > /dev/null;\
 		done
 endef
@@ -501,11 +501,11 @@ ci-job-miri: ci-setup-miri
 	# Note: This is highly experimental and limited at the moment.
 	#
 	@# Hangs forever during `Building` for this one :shrug:
-	@#cd libraries/tock-register-interface && CI=true cargo miri test
-	@cd kernel && CI=true cargo miri test
-	@for a in $$(tools/list_archs.sh); do cd arch/$$a && CI=true cargo miri test && cd ../..; done
-	@cd capsules && CI=true cargo miri test
-	@for c in $$(tools/list_chips.sh); do cd chips/$$c && CI=true cargo miri test && cd ../..; done
+	@#cd libraries/tock-register-interface && NOWARNINGS=true cargo miri test
+	@cd kernel && NOWARNINGS=true cargo miri test
+	@for a in $$(tools/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
+	@cd capsules && NOWARNINGS=true cargo miri test
+	@for c in $$(tools/list_chips.sh); do cd chips/$$c && NOWARNINGS=true cargo miri test && cd ../..; done
 
 
 .PHONY: ci-job-cargo-test-build
@@ -515,7 +515,7 @@ ci-job-cargo-test-build:
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=9d662a6b22a0838a85c5432385f35db2488a33a5
+QEMU_COMMIT_HASH=dbc4f48b5ab3e6d85f78aa4df6bd6ad561c3d152
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
@@ -526,22 +526,6 @@ define ci_setup_qemu_riscv
 	@$(MAKE) -C "tools/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
 endef
 
-define ci_setup_qemu_opentitan
-	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
-	# Download OpenTitan image. The latest image URL is available at
-	# https://storage.googleapis.com/artifacts.opentitan.org/latest.txt
-	# We download a fixed version so that new OpenTitan images do not
-	# unexpectedly change OpenTitan's behavior in our CI.
-	@printf "Downloading OpenTitan boot ROM\n"
-	@pwd=$$(pwd) && \
-		temp=$$(mktemp -d) && \
-		cd $$temp && \
-		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-earlgrey_silver_release_v5-157-ga28c280bb.tar.xz' \
-			--output opentitan-dist.tar.xz; \
-		tar -xf opentitan-dist.tar.xz; \
-		mv opentitan-earlgrey_silver_release_*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
-endef
-
 .PHONY: ci-setup-qemu
 ci-setup-qemu:
 	$(call ci_setup_helper,\
@@ -550,12 +534,7 @@ ci-setup-qemu:
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
-	$(call ci_setup_helper,\
-		[[ $$(cksum tools/qemu-runner/opentitan-boot-rom.elf | cut -d" " -f1) == "328682170" ]] && echo yes,\
-		Download opentitan archive and unpack a ROM image,\
-		ci_setup_qemu_opentitan,\
-		CI_JOB_QEMU_OPENTITAN)
-	$(if $(CI_JOB_QEMU_RISCV),$(if $(CI_JOB_QEMU_OPENTITAN),$(eval CI_JOB_QEMU := true)))
+	$(if $(CI_JOB_QEMU_RISCV),$(eval CI_JOB_QEMU := true))
 
 
 
@@ -563,7 +542,7 @@ define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
-		CI=true cargo run
+		NOWARNINGS=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
 		make test
@@ -583,7 +562,7 @@ board-release-test:
 .PHONY: ci-job-rustdoc
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)
-	@CI=true tools/build-all-docs.sh
+	@NOWARNINGS=true tools/build-all-docs.sh
 
 ## End CI rules
 ##

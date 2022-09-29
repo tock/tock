@@ -1,4 +1,4 @@
-//! Named interrupts for the E310X chip.
+//! Named interrupts for the E310-G002 chip.
 
 #![allow(dead_code)]
 
@@ -7,8 +7,8 @@ pub const RTC: u32 = 2;
 pub const UART0: u32 = 3;
 pub const UART1: u32 = 4;
 pub const QSPI0: u32 = 5;
-pub const QSPI1: u32 = 6;
-pub const QSPI2: u32 = 7;
+pub const SPI1: u32 = 6;
+pub const SPI2: u32 = 7;
 pub const GPIO0: u32 = 8;
 pub const GPIO1: u32 = 9;
 pub const GPIO2: u32 = 10;
@@ -53,3 +53,4 @@ pub const PWM2CMP0: u32 = 48;
 pub const PWM2CMP1: u32 = 49;
 pub const PWM2CMP2: u32 = 50;
 pub const PWM2CMP3: u32 = 51;
+pub const I2C: u32 = 52;

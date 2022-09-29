@@ -50,7 +50,7 @@ fn earlgrey_cw310_flash(
     p.exp_string("Processing frame #13, expecting #13")?;
     p.exp_string("Processing frame #67, expecting #67")?;
 
-    p.exp_string("Boot ROM initialisation has completed, jump into flash")?;
+    p.exp_string("Test ROM complete, jumping to flash!")?;
 
     Ok(p)
 }

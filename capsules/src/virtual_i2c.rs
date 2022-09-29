@@ -219,7 +219,7 @@ pub struct I2CDevice<'a> {
 }
 
 impl<'a> I2CDevice<'a> {
-    pub const fn new(mux: &'a MuxI2C<'a>, addr: u8) -> I2CDevice<'a> {
+    pub fn new(mux: &'a MuxI2C<'a>, addr: u8) -> I2CDevice<'a> {
         I2CDevice {
             mux: mux,
             addr: addr,

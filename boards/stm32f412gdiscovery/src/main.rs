@@ -46,7 +46,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// capsules for this platform.
 struct STM32F412GDiscovery {
     console: &'static capsules::console::Console<'static>,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules::led::LedDriver<
         'static,
         LedLow<'static, stm32f412g::gpio::Pin<'static>>,
@@ -360,6 +360,7 @@ unsafe fn setup_peripherals(
     // FSMC
     fsmc.enable();
 
+    // RNG
     trng.enable_clock();
 }
 

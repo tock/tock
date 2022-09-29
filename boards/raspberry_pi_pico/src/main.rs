@@ -70,7 +70,7 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     console: &'static capsules::console::Console<'static>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
@@ -170,7 +170,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     // Disable the Resus clock
     peripherals.clocks.disable_resus();
 
-    // Setup the external Osciallator
+    // Setup the external Oscillator
     peripherals.xosc.init();
 
     // disable ref and sys clock aux sources

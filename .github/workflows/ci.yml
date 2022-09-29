@@ -13,6 +13,9 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml
+permissions:
+  contents: read
+
 jobs:
   ci-format:
     strategy:

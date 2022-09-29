@@ -1,0 +1,11 @@
+[package]
+name = "e310_g002"
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2021"
+
+[dependencies]
+sifive = { path = "../sifive" }
+rv32i = { path = "../../arch/rv32i" }
+kernel = { path = "../../kernel" }
+e310x = { path = "../e310x" }

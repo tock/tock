@@ -57,7 +57,7 @@ struct MspExp432P401R {
         'static,
         capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
-    ipc: kernel::ipc::IPC<NUM_PROCS>,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
     scheduler: &'static RoundRobinSched<'static>,

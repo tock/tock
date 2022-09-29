@@ -63,10 +63,10 @@ However, in a few cases, it is useful to start with a mutable reference in order
 to enforce _who_ can make certain calls. For example, setting up buffers in the
 SPI driver is, for practical reasons, deferred until after construction but we
 would like to enforce that it can only be called by the platform initialization
-function (before `main` starts). This is enforced because all references after
-the platform is setup are immutable, and the `config_buffers` method takes an
-`&mut self` (_Note: it looks like this is not strictly necessary, so maybe not a
-big deal if we can't do this_).
+function (before the kernel loop starts). This is enforced because all
+references after the platform is setup are immutable, and the `config_buffers`
+method takes an `&mut self` (_Note: it looks like this is not strictly
+necessary, so maybe not a big deal if we can't do this_).
 
 ### Soundness
 
@@ -77,8 +77,8 @@ is a red flag, so it bears explanation why I think this is OK.
 Just as with any `&mut`, as soon as it is reborrowed it can no longer be used.
 What we do in Tock, specifically, is use it mutably in some cases immediately
 after calling `static_init!`, then reborrow it immutably to pass into capsules.
-If a particular capsule happened to treat accept an `&mut`, the compiler would
-try to move the reference and it would either fail that call (if it's already
+If a particular capsule happened to accept a `&mut`, the compiler would try to
+move the reference and it would either fail that call (if it's already
 reborrowed immutably elsewhere) or disallow further reborrows. Note that this is
 fine if it is indeed not used as a shared reference (although I don't think we
 have examples of that use).
@@ -88,8 +88,11 @@ executed twice. This creates two major issues. First, it could technically
 result in multiple mutable references. Second, it would run the constructor
 twice, which may create other soundness or functional issues with existing
 references to the same memory. I believe this is not different that code that
-takes a mutable reference to a static variable. Again, importantly both cases
-must be wrapped with `unsafe`.
+takes a mutable reference to a static variable. To prohibit this, `static_init!`
+internally uses an `Option`-like structure to mark when the static buffer has
+been initialized, and causes a `panic!` if the same buffer is re-initialized
+(i.e. the same `static_init!` was called twice). With this check, we can mark
+`static_init!` as safe.
 
 ### Alternatives
 

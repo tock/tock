@@ -34,14 +34,14 @@ mod ro_allow {
     pub const DATA: usize = 1;
     pub const COMPARE: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
     pub const DEST: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 3;
+    pub const COUNT: u8 = 3;
 }
 
 use core::cell::Cell;
@@ -52,6 +52,7 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
@@ -85,7 +86,7 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > HmacDriver<'a, H, L>
 {
@@ -167,12 +168,12 @@ impl<
                                 });
 
                                 // Add the data from the static buffer to the HMAC
-                                let mut lease_buf = LeasableBuffer::new(
+                                let mut lease_buf = LeasableMutableBuffer::new(
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
-                                if let Err(e) = self.hmac.add_data(lease_buf) {
-                                    self.data_buffer.replace(e.1);
+                                if let Err(e) = self.hmac.add_mut_data(lease_buf) {
+                                    self.data_buffer.replace(e.1.take());
                                     return Err(e.0);
                                 }
                                 Ok(())
@@ -245,11 +246,19 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientData<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientData<L> for HmacDriver<'a, H, L>
 {
-    fn add_data_done(&'a self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
+    // we always pass mut data; this callback should never be invoked.
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
+
+    fn add_mut_data_done(
+        &self,
+        _result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) {
         self.appid.map(move |id| {
             self.apps
                 .enter(*id, move |app, kernel_data| {
@@ -257,7 +266,7 @@ impl<
                     let mut exit = false;
                     let mut static_buffer_len = 0;
 
-                    self.data_buffer.replace(data);
+                    self.data_buffer.replace(data.take());
 
                     self.data_buffer.map(|buf| {
                         let ret = kernel_data
@@ -306,14 +315,14 @@ impl<
                             self.data_copied.set(copied_data + static_buffer_len);
 
                             let mut lease_buf =
-                                LeasableBuffer::new(self.data_buffer.take().unwrap());
+                                LeasableMutableBuffer::new(self.data_buffer.take().unwrap());
 
                             // Add the data from the static buffer to the HMAC
                             if data_len < (copied_data + static_buffer_len) {
                                 lease_buf.slice(..(data_len - copied_data))
                             }
 
-                            if self.hmac.add_data(lease_buf).is_err() {
+                            if self.hmac.add_mut_data(lease_buf).is_err() {
                                 // Error, clear the appid and data
                                 self.hmac.clear_data();
                                 self.appid.clear();
@@ -379,11 +388,11 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientHash<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientHash<L> for HmacDriver<'a, H, L>
 {
-    fn hash_done(&'a self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |_, kernel_data| {
@@ -431,11 +440,11 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
-    > digest::ClientVerify<'a, L> for HmacDriver<'a, H, L>
+    > digest::ClientVerify<L> for HmacDriver<'a, H, L>
 {
-    fn verification_done(&'a self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         self.appid.map(|id| {
             self.apps
                 .enter(*id, |_app, kernel_data| {
@@ -481,7 +490,7 @@ impl<
 ///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HMACSha256 + digest::HMACSha384 + digest::HMACSha512,
+        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
         const L: usize,
     > SyscallDriver for HmacDriver<'a, H, L>
 {
@@ -499,13 +508,13 @@ impl<
     /// above allow calls.
     ///
     /// We expect userspace not to change the value while running. If userspace
-    /// changes the value we have no guarentee of what is passed to the
+    /// changes the value we have no guarantee of what is passed to the
     /// hardware. This isn't a security issue, it will just prove the requesting
     /// app with invalid data.
     ///
-    /// The driver will take care of clearing data from the underlying impelemenation
+    /// The driver will take care of clearing data from the underlying implementation
     /// by calling the `clear_data()` function when the `hash_complete()` callback
-    /// is called or if an error is encounted.
+    /// is called or if an error is encountered.
     ///
     /// ### `command_num`
     ///
@@ -695,7 +704,7 @@ impl<
                     }
 
                     // verify_finish
-                    // Use key and data to compute hash and comapre it against
+                    // Use key and data to compute hash and compare it against
                     // the digest, useful after a update command
                     5 => {
                         if app_match {

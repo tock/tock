@@ -1,5 +1,6 @@
 pub mod aes;
 pub mod aes_ccm;
+pub mod aes_gcm;
 pub mod alarm;
 pub mod alarm_edge_cases;
 pub mod crc;
@@ -8,6 +9,7 @@ pub mod kv_system;
 pub mod random_alarm;
 pub mod random_timer;
 pub mod rng;
+pub mod sha256;
 pub mod udp;
 pub mod virtual_rng;
 pub mod virtual_uart;

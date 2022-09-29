@@ -1,12 +1,9 @@
-//! Tock TicKV capsule.
+//! Tock Key-Value store capsule.
 //!
-//! This capsule implements the TicKV library in Tock. This is done
-//! using the TicKV library (libraries/tickv).
+//! This capsule provides a virtualized Key-Value store interface based on an
+//! underlying `hil::kv_system` storage layer.
 //!
-//! This capsule interfaces with flash and exposes the Tock `hil::kv_system`
-//! interface to others. This capsule is also required to enforce permission
-//! checks.
-//!
+//! ```
 //! +-----------------------+
 //! |                       |
 //! |  Capsule using K-V    |
@@ -30,6 +27,7 @@
 //! +-----------------------+
 //!
 //!    hil::flash
+//! ```
 
 use core::cell::Cell;
 use kernel::collections::list::{List, ListLink, ListNode};

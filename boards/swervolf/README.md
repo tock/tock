@@ -15,9 +15,9 @@ Running
 -------
 
 FuseSoC can be used to run SweRVolf on either an FPGA board or in a simulation
-enviroment.
+environment.
 
-Tock has been tested on the simulation enviroment.
+Tock has been tested on the simulation environment.
 
 Running in simulation with EH1 core
 -----------------------------------

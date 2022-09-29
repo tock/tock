@@ -21,14 +21,14 @@ pub const DRIVER_NUM: usize = driver::NUM::SpiPeripheral as usize;
 mod ro_allow {
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
     pub const READ: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: usize = 1;
+    pub const COUNT: u8 = 1;
 }
 
 /// Suggested length for the SPI read and write buffer

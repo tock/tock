@@ -38,11 +38,10 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
-#[cfg(test)]
-mod tests;
-
 pub mod io;
 mod otbn;
+#[cfg(test)]
+mod tests;
 pub mod usb;
 
 const NUM_PROCS: usize = 4;
@@ -81,6 +80,10 @@ static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes
 static mut SIPHASH: Option<&capsules::sip_hash::SipHasher24<'static>> = None;
 // Test access to RSA
 static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
+
+// Test access to a software SHA256
+#[cfg(test)]
+static mut SHA256SOFT: Option<&capsules::sha256::Sha256Software<'static>> = None;
 
 static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -229,7 +232,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
+        static_init!([DynamicDeferredCallClientState; 6], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -491,8 +494,8 @@ unsafe fn setup() -> (
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
         &mux_flash,                                  // Flash controller
-        0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x20000,                                     // Region size
+        0x2007F800 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
+        0x7F800,                                     // Region size
         flash_ctrl_read_buf,                         // Buffer used internally in TicKV
         page_buffer,                                 // Buffer used with the flash controller
     )
@@ -638,6 +641,19 @@ unsafe fn setup() -> (
 
     AES = Some(ccm_client1);
 
+    #[cfg(test)]
+    {
+        use capsules::sha256::Sha256Software;
+
+        let sha_soft = static_init!(
+            Sha256Software<'static>,
+            Sha256Software::new(dynamic_deferred_caller)
+        );
+        sha_soft.initialize_callback_handle(dynamic_deferred_caller.register(sha_soft).unwrap());
+
+        SHA256SOFT = Some(sha_soft);
+    }
+
     hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
     hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
 
@@ -669,6 +685,8 @@ unsafe fn setup() -> (
         static _szero: u8;
         /// The end of the kernel BSS (Included only for kernel PMP)
         static _ezero: u8;
+        /// The start of the OpenTitan manifest
+        static _manifest: u8;
     }
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
@@ -677,10 +695,10 @@ unsafe fn setup() -> (
     let earlgrey = static_init!(
         EarlGrey,
         EarlGrey {
-            gpio: gpio,
-            led: led,
-            console: console,
-            alarm: alarm,
+            gpio,
+            led,
+            console,
+            alarm,
             hmac,
             sha,
             rng,
@@ -695,35 +713,26 @@ unsafe fn setup() -> (
         }
     );
 
-    let mut mpu_config = rv32i::epmp::PMPConfig::default();
-    // The kernel stack
-    chip.pmp.allocate_kernel_region(
-        &_sstack as *const u8,
-        &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
-    // The kernel text
-    chip.pmp.allocate_kernel_region(
-        &_stext as *const u8,
-        &_etext as *const u8 as usize - &_stext as *const u8 as usize,
-        mpu::Permissions::ReadExecuteOnly,
-        &mut mpu_config,
-    );
-    // The kernel relocate data
-    chip.pmp.allocate_kernel_region(
-        &_srelocate as *const u8,
-        &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
-    // The kernel BSS
-    chip.pmp.allocate_kernel_region(
-        &_szero as *const u8,
-        &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
+    let mut mpu_config = rv32i::epmp::PMPConfig::kernel_default();
+
+    // The kernel stack, BSS and relocation data
+    chip.pmp
+        .allocate_kernel_region(
+            &_sstack as *const u8,
+            &_ezero as *const u8 as usize - &_sstack as *const u8 as usize,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+    // The kernel text, Manifest and vectors
+    chip.pmp
+        .allocate_kernel_region(
+            &_manifest as *const u8,
+            &_etext as *const u8 as usize - &_manifest as *const u8 as usize,
+            mpu::Permissions::ReadExecuteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
     // The app locations
     chip.pmp.allocate_kernel_region(
         &_sapps as *const u8,
@@ -738,6 +747,15 @@ unsafe fn setup() -> (
         mpu::Permissions::ReadWriteOnly,
         &mut mpu_config,
     );
+    // Access to the MMIO devices
+    chip.pmp
+        .allocate_kernel_region(
+            0x4000_0000 as *const u8,
+            0x900_0000,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
 
     chip.pmp.enable_kernel_mpu(&mut mpu_config);
 
@@ -780,12 +798,7 @@ pub unsafe fn main() {
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-        board_kernel.kernel_loop(
-            earlgrey,
-            chip,
-            None::<&kernel::ipc::IPC<NUM_PROCS>>,
-            &main_loop_cap,
-        );
+        board_kernel.kernel_loop(earlgrey, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
     }
 }
 

@@ -539,7 +539,7 @@ pub struct Radio<'a> {
 }
 
 impl<'a> Radio<'a> {
-    pub const fn new() -> Radio<'a> {
+    pub fn new() -> Radio<'a> {
         Radio {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),

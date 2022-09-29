@@ -248,7 +248,7 @@ pub struct Spi<'a> {
 }
 
 impl<'a> Spi<'a> {
-    pub const fn new_spi0() -> Self {
+    pub fn new_spi0() -> Self {
         Self {
             registers: SPI0_BASE,
             clocks: OptionalCell::empty(),
@@ -268,7 +268,7 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub const fn new_spi1() -> Self {
+    pub fn new_spi1() -> Self {
         Self {
             registers: SPI1_BASE,
             clocks: OptionalCell::empty(),
@@ -507,7 +507,8 @@ impl<'a> SpiMaster for Spi<'a> {
     }
 
     fn is_busy(&self) -> bool {
-        self.registers.sspsr.is_set(SSPSR::BSY)
+        // self.registers.sspsr.is_set(SSPSR::BSY)
+        self.transfers.get() != SPI_IDLE
     }
 
     fn read_write_bytes(

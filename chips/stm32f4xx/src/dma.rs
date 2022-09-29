@@ -784,7 +784,7 @@ pub struct Stream<'a, DMA: StreamServer<'a>> {
 }
 
 impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
-    const fn new(streamid: StreamId, dma: &'a DMA) -> Self {
+    fn new(streamid: StreamId, dma: &'a DMA) -> Self {
         Self {
             streamid: streamid,
             buffer: TakeCell::empty(),

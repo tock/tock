@@ -10,6 +10,9 @@ use core::convert::TryFrom;
 #[derive(Copy, Clone)]
 pub enum DeferredCallTask {
     Flash = 0,
+    Usart1 = 1,
+    Usart2 = 2,
+    Usart3 = 3,
 }
 
 impl TryFrom<usize> for DeferredCallTask {
@@ -18,6 +21,9 @@ impl TryFrom<usize> for DeferredCallTask {
     fn try_from(value: usize) -> Result<DeferredCallTask, ()> {
         match value {
             0 => Ok(DeferredCallTask::Flash),
+            1 => Ok(DeferredCallTask::Usart1),
+            2 => Ok(DeferredCallTask::Usart2),
+            3 => Ok(DeferredCallTask::Usart3),
             _ => Err(()),
         }
     }
