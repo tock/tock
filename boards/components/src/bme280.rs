@@ -36,13 +36,6 @@ macro_rules! bme280_component_static {
     };};
 }
 
-#[macro_export]
-macro_rules! temperature_component_static {
-    () => {{
-        kernel::static_buf!(capsules::temperature::TemperatureSensor<'static>)
-    };};
-}
-
 pub struct Bme280Component {
     i2c_mux: &'static MuxI2C<'static>,
     i2c_address: u8,

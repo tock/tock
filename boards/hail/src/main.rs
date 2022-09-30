@@ -338,19 +338,19 @@ pub unsafe fn main() {
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
-        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
+        .finalize(components::si7021_component_static!(sam4l::ast::Ast));
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
         si7021,
     )
     .finalize(components::temperature_component_static!());
-    let humidity = components::si7021::HumidityComponent::new(
+    let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules::humidity::DRIVER_NUM,
         si7021,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
 
     // Configure the ISL29035, device address 0x44
     let ambient_light = components::isl29035::AmbientLightComponent::new(
