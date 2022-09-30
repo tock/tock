@@ -86,6 +86,10 @@ struct RedboardArtemisNano {
     gpio: &'static capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules::console::Console<'static>,
     i2c_master: &'static capsules::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
+    spi_controller: &'static capsules::spi_controller::Spi<
+        'static,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, apollo3::iom::Iom<'static>>,
+    >,
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
         'static,
         apollo3::ble::Ble<'static>,
@@ -110,6 +114,7 @@ impl SyscallDriverLookup for RedboardArtemisNano {
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
@@ -173,7 +178,7 @@ unsafe fn setup() -> (
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -184,6 +189,7 @@ unsafe fn setup() -> (
 
     // Power up components
     pwr_ctrl.enable_uart0();
+    pwr_ctrl.enable_iom0();
     pwr_ctrl.enable_iom2();
 
     // Enable PinCfg
@@ -194,6 +200,12 @@ unsafe fn setup() -> (
     let _ = &peripherals
         .gpio_port
         .enable_i2c(&&peripherals.gpio_port[25], &&peripherals.gpio_port[27]);
+    // Enable Main SPI
+    let _ = &peripherals.gpio_port.enable_spi(
+        &&peripherals.gpio_port[5],
+        &&peripherals.gpio_port[7],
+        &&peripherals.gpio_port[6],
+    );
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -304,6 +316,24 @@ unsafe fn setup() -> (
     .finalize(());
     CCS811 = Some(ccs811);
 
+    // Init the SPI controller
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom0, dynamic_deferred_caller)
+        .finalize(components::spi_mux_component_helper!(
+            apollo3::iom::Iom<'static>
+        ));
+
+    // The IOM0 expects an auto chip select on pin D11 or D15, neither of
+    // which are broken out on the board. So the CS control must be manual
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        &peripherals.gpio_port[35], // A14
+        capsules::spi_controller::DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_helper!(
+        apollo3::iom::Iom<'static>
+    ));
+
     // Setup BLE
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
@@ -350,6 +380,7 @@ unsafe fn setup() -> (
             gpio,
             led,
             i2c_master,
+            spi_controller,
             ble_radio,
             temperature,
             humidity,

@@ -192,6 +192,81 @@ impl Port<'_> {
             }
         }
     }
+
+    pub fn enable_spi(&self, sck: &GpioPin, mosi: &GpioPin, miso: &GpioPin) {
+        let regs = GPIO_BASE;
+
+        match sck.pin as usize {
+            5 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD1PULL::CLEAR
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::SET
+                        + PADREG::PAD1FNCSEL.val(0x1)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO1INCFG.val(0x00)
+                        + CFG::GPIO1OUTCFG.val(0x000)
+                        + CFG::GPIO1INTD.val(0x00),
+                );
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("sck not supported");
+            }
+        }
+
+        match mosi.pin as usize {
+            7 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD3PULL::CLEAR
+                        + PADREG::PAD3INPEN::CLEAR
+                        + PADREG::PAD3STRNG::SET
+                        + PADREG::PAD3FNCSEL.val(0x1)
+                        + PADREG::PAD3RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO4INCFG.val(0x00)
+                        + CFG::GPIO4OUTCFG.val(0x000)
+                        + CFG::GPIO4INTD.val(0x00),
+                );
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD0_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("mosi not supported");
+            }
+        }
+
+        match miso.pin as usize {
+            6 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x1),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO3INCFG.val(0x00)
+                        + CFG::GPIO3OUTCFG.val(0x000)
+                        + CFG::GPIO3INTD.val(0x00),
+                );
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("miso not supported");
+            }
+        }
+    }
 }
 
 enum_from_primitive! {
