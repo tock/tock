@@ -215,11 +215,6 @@ pub struct Uart<'a> {
     rx_len: Cell<usize>,
 }
 
-#[derive(Copy, Clone)]
-pub struct UartParams {
-    pub baud_rate: u32,
-}
-
 impl<'a> Uart<'a> {
     pub fn new(base: StaticRef<UartRegisters>) -> Uart<'a> {
         Uart {
@@ -390,13 +385,65 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl hil::uart::Configure for Uart<'_> {
-    fn configure(&self, _params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        // Disable all interrupts for now
-        self.disable_rx_interrupt();
-        self.disable_tx_interrupt();
+impl hil::uart::Configuration for Uart<'_> {
+    fn get_baud_rate(&self) -> u32 {
+        // Baud rate is only the default.
+        0
+    }
 
-        Ok(())
+    fn get_width(&self) -> hil::uart::Width {
+        hil::uart::Width::Eight
+    }
+
+    fn get_parity(&self) -> hil::uart::Parity {
+        hil::uart::Parity::None
+    }
+
+    fn get_stop_bits(&self) -> hil::uart::StopBits {
+        hil::uart::StopBits::One
+    }
+
+    fn get_flow_control(&self) -> bool {
+        // Hardware flow control not supported
+        false
+    }
+}
+
+impl hil::uart::Configure for Uart<'_> {
+    fn set_baud_rate(&self, _rate: u32) -> Result<u32, ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+
+    fn set_width(&self, width: hil::uart::Width) -> Result<(), ErrorCode> {
+        if width != hil::uart::Width::Eight {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn set_parity(&self, parity: hil::uart::Parity) -> Result<(), ErrorCode> {
+        if parity != hil::uart::Parity::None {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn set_stop_bits(&self, _stop_bits: hil::uart::StopBits) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+
+    fn set_flow_control(&self, on: bool) -> Result<(), ErrorCode> {
+        if on {
+            Err(ErrorCode::NOSUPPORT)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn configure(&self, _params: hil::uart::Parameters) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }
 
@@ -427,12 +474,20 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
         }
     }
 
-    fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_character(&self, _character: u32) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 
-    fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn transmit_abort(&self) -> hil::uart::AbortResult {
+        // TODO: aborting a transmission is not currently supported.
+        if self.tx_buffer.is_some() {
+            // A transmission is currently ongoing, report it has not been
+            // cancelled.
+            hil::uart::AbortResult::Callback(false)
+        } else {
+            // There is nothing to abort.
+            hil::uart::AbortResult::NoCallback
+        }
     }
 }
 
@@ -462,11 +517,13 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
         Ok(())
     }
 
-    fn receive_word(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn receive_character(&self) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 
-    fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+    fn receive_abort(&self) -> hil::uart::AbortResult {
+        // Given receive is not supported, this will never have an ongoing
+        // operation to cancel.
+        hil::uart::AbortResult::NoCallback
     }
 }
