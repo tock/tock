@@ -26,7 +26,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
-use crate::syscall::SycallNotification;
+use crate::syscall::SyscallNotification;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
@@ -977,7 +977,7 @@ impl Kernel {
                                     if let Some(d) = driver {
                                         d.syscall_notification(
                                             process.processid(),
-                                            SycallNotification::Subscribe(subdriver_number),
+                                            SyscallNotification::Subscribe(subdriver_number),
                                         )
                                     }
                                 },
@@ -1117,7 +1117,7 @@ impl Kernel {
                                     if let Some(d) = driver {
                                         d.syscall_notification(
                                             process.processid(),
-                                            SycallNotification::AllowReadWrite(subdriver_number),
+                                            SyscallNotification::AllowReadWrite(subdriver_number),
                                         )
                                     }
                                 },
@@ -1302,7 +1302,7 @@ impl Kernel {
                                     if let Some(d) = driver {
                                         d.syscall_notification(
                                             process.processid(),
-                                            SycallNotification::AllowReadOnly(subdriver_number),
+                                            SyscallNotification::AllowReadOnly(subdriver_number),
                                         )
                                     }
                                 },

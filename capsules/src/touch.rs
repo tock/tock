@@ -19,7 +19,7 @@ use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchClient, TouchEvent, TouchStatus};
 use kernel::processbuffer::WriteableProcessBuffer;
-use kernel::syscall::{CommandReturn, SycallNotification, SyscallDriver};
+use kernel::syscall::{CommandReturn, SyscallDriver, SyscallNotification};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -407,8 +407,8 @@ impl<'a> SyscallDriver for Touch<'a> {
         self.apps.enter(processid, |_, _| {})
     }
 
-    fn syscall_notification(&self, process_id: ProcessId, which: SycallNotification) {
-        if let SycallNotification::AllowReadWrite(rw_allow::EVENTS) = which {
+    fn syscall_notification(&self, process_id: ProcessId, which: SyscallNotification) {
+        if let SyscallNotification::AllowReadWrite(rw_allow::EVENTS) = which {
             self.apps
                 .enter(process_id, |app, _| {
                     app.ack = true;
