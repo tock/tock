@@ -26,6 +26,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::syscall::SycallNotification;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
@@ -926,7 +927,7 @@ impl Kernel {
                         // liveness and grant allocation, we assume the grant is
                         // initially allocated. If it turns out it isn't we ask
                         // the capsule to allocate the grant.
-                        match crate::grant::subscribe(process, upcall) {
+                        let res = match crate::grant::subscribe(process, upcall) {
                             Ok(upcall) => upcall.into_subscribe_success(),
                             Err((upcall, err @ ErrorCode::NOMEM)) => {
                                 // If we get a memory error, we always try to
@@ -968,7 +969,21 @@ impl Kernel {
                                 }
                             }
                             Err((upcall, err)) => upcall.into_subscribe_failure(err),
+                        };
+                        if let SyscallReturn::SubscribeSuccess(_, _) = res {
+                            resources.syscall_driver_lookup().with_driver(
+                                driver_number,
+                                |driver| {
+                                    if let Some(d) = driver {
+                                        d.syscall_notification(
+                                            process.processid(),
+                                            SycallNotification::Subscribe(subdriver_number),
+                                        )
+                                    }
+                                },
+                            );
                         }
+                        res
                     }
                 };
 
@@ -1037,7 +1052,7 @@ impl Kernel {
                     Ok(rw_pbuf) => {
                         // Creating the [`ReadWriteProcessBuffer`] worked, try
                         // to set in grant.
-                        match crate::grant::allow_rw(
+                        let res = match crate::grant::allow_rw(
                             process,
                             driver_number,
                             subdriver_number,
@@ -1094,7 +1109,21 @@ impl Kernel {
                                 let (ptr, len) = rw_pbuf.consume();
                                 SyscallReturn::AllowReadWriteFailure(err, ptr, len)
                             }
+                        };
+                        if let SyscallReturn::AllowReadWriteSuccess(_, _) = res {
+                            resources.syscall_driver_lookup().with_driver(
+                                driver_number,
+                                |driver| {
+                                    if let Some(d) = driver {
+                                        d.syscall_notification(
+                                            process.processid(),
+                                            SycallNotification::AllowReadWrite(subdriver_number),
+                                        )
+                                    }
+                                },
+                            );
                         }
+                        res
                     }
                     Err(allow_error) => {
                         // There was an error creating the
@@ -1208,7 +1237,7 @@ impl Kernel {
                     Ok(ro_pbuf) => {
                         // Creating the [`ReadOnlyProcessBuffer`] worked, try to
                         // set in grant.
-                        match crate::grant::allow_ro(
+                        let res = match crate::grant::allow_ro(
                             process,
                             driver_number,
                             subdriver_number,
@@ -1265,7 +1294,21 @@ impl Kernel {
                                 let (ptr, len) = ro_pbuf.consume();
                                 SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
                             }
+                        };
+                        if let SyscallReturn::AllowReadOnlySuccess(_, _) = res {
+                            resources.syscall_driver_lookup().with_driver(
+                                driver_number,
+                                |driver| {
+                                    if let Some(d) = driver {
+                                        d.syscall_notification(
+                                            process.processid(),
+                                            SycallNotification::AllowReadOnly(subdriver_number),
+                                        )
+                                    }
+                                },
+                            );
                         }
+                        res
                     }
                     Err(allow_error) => {
                         // There was an error creating the

@@ -312,4 +312,38 @@ pub trait SyscallDriver {
     // Capsules that do not need upcalls but do use process buffers must also
     // implement this function.
     fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
+
+    // Inform the SyscallDriver that a `subscribe`, `allow_readonly` or `allow_readwrite`
+    // system call has been issued.
+    //
+    // As of Tock 2.1, drivers are not in charge of handling these system calls,
+    // but the kernel permoms them in the driver's name. This makes drivers
+    // unaware of what happens with an application's upcalls and buffers.
+    // While most drivers do not need this information, some drivers
+    // might want to know when a an application swaps a buffer.
+    //
+    // Applications are not allowed to access buffers while they are shared with a
+    // driver. In most cases, when an application swaps out a buffer (either unallows
+    // it, either provides a replacement for it) it means that the application is
+    // consuming the provided data. An example of such bahaviour is the `touch`
+    // driver. The driver receives touch events and places them into a readwrite
+    // allowed buffer and notifies the application using an upcall. When the application
+    // needs to consume the buffer, it has to swap it out with an empty one. This
+    // notification function provides the means to inform the driver that the application
+    // has swapped the buffer and that the driver has a new buffer in which it
+    // can place a new set of events.
+    //
+    // Without this type of notification, the application had to issue a
+    // suplimentary `command` system call to inform the driver about the consumption
+    // of the buffer.
+    fn syscall_notification(&self, process_id: ProcessId, which: SycallNotification) {}
+}
+
+/// The system call request type used to inform a driver upon
+/// a system call that is performed by the kernel in the
+/// driver's name
+pub enum SycallNotification {
+    Subscribe(usize),
+    AllowReadOnly(usize),
+    AllowReadWrite(usize),
 }

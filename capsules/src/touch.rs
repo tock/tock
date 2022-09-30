@@ -19,7 +19,7 @@ use kernel::hil;
 use kernel::hil::screen::ScreenRotation;
 use kernel::hil::touch::{GestureEvent, TouchClient, TouchEvent, TouchStatus};
 use kernel::processbuffer::WriteableProcessBuffer;
-use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::syscall::{CommandReturn, SycallNotification, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -35,9 +35,9 @@ mod rw_allow {
     // | id (u8) | type (u8) | x (u16)      | y (u16)      | size (u8) | pressure (u8) |         ...
     // +---------+-----------+--------------+--------------+-----------+---------------+-------- ...
     // | Touch 0                                                                       | Touch 1 ...
-    pub const EVENTS: usize = 2;
+    pub const EVENTS: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: u8 = 3;
+    pub const COUNT: u8 = 1;
 }
 
 fn touch_status_to_number(status: &TouchStatus) -> usize {
@@ -363,16 +363,6 @@ impl<'a> SyscallDriver for Touch<'a> {
                 CommandReturn::success()
             }
 
-            // multi touch ack
-            10 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.ack = true;
-                    })
-                    .unwrap_or(());
-                CommandReturn::success()
-            }
-
             // multi touch enable
             11 => {
                 self.apps
@@ -415,5 +405,15 @@ impl<'a> SyscallDriver for Touch<'a> {
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
+    }
+
+    fn syscall_notification(&self, process_id: ProcessId, which: SycallNotification) {
+        if let SycallNotification::AllowReadWrite(rw_allow::EVENTS) = which {
+            self.apps
+                .enter(process_id, |app, _| {
+                    app.ack = true;
+                })
+                .unwrap_or(());
+        }
     }
 }
