@@ -258,7 +258,7 @@ unsafe fn setup() -> (
         earlgrey::uart::UART0_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     // LEDs
     // Start with half on and half off
@@ -353,7 +353,7 @@ unsafe fn setup() -> (
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
