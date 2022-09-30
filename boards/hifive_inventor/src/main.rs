@@ -222,7 +222,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         sifive::clint::Clint
     ));
     let _ = process_console.start();
