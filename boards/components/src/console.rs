@@ -35,7 +35,6 @@ use capsules::console::DEFAULT_BUF_SIZE;
 macro_rules! uart_mux_component_static {
     () => {{
         use capsules::virtual_uart::MuxUart;
-        use core::mem::MaybeUninit;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
         let RX_BUF = static_buf!([u8; capsules::virtual_uart::RX_BUF_LEN]);
