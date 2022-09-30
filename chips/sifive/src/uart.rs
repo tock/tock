@@ -76,7 +76,7 @@ enum UARTStateRX {
     AbortRequested,
 }
 
-pub struct Uart<'a, T: 'static> {
+pub struct Uart<'a, T> {
     registers: StaticRef<UartRegisters>,
     clock_frequency: u32,
     stop_bits: Cell<hil::uart::StopBits>,
@@ -94,7 +94,7 @@ pub struct Uart<'a, T: 'static> {
     rx_position: Cell<usize>,
     rx_status: Cell<UARTStateRX>,
 
-    deferred_call: &'static DeferredCall<T>,
+    deferred_call: &'a DeferredCall<T>,
 }
 
 #[derive(Copy, Clone)]
@@ -106,7 +106,7 @@ impl<'a, T> Uart<'a, T> {
     pub fn new(
         base: StaticRef<UartRegisters>,
         clock_frequency: u32,
-        deferred_call: &'static DeferredCall<T>,
+        deferred_call: &'a DeferredCall<T>,
     ) -> Uart<'a, T> {
         Uart {
             registers: base,
