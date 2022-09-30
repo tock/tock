@@ -187,10 +187,6 @@ pub unsafe fn main() {
         &peripherals.e310x.gpio_port[17],
         &peripherals.e310x.gpio_port[16],
     );
-    peripherals.e310x.uart1.initialize_gpio_pins(
-        &peripherals.e310x.gpio_port[18],
-        &peripherals.e310x.gpio_port[23],
-    );
 
     let hardware_timer = static_init!(
         sifive::clint::Clint,
