@@ -571,28 +571,33 @@ pub unsafe fn main() {
     // LED Matrix
     //--------------------------------------------------------------------------
 
-    let led_matrix = components::led_matrix_component_helper!(
-        nrf52833::gpio::GPIOPin,
-        nrf52::rtc::Rtc<'static>,
+    let led_matrix = components::led_matrix::LedMatrixComponent::new(
         mux_alarm,
-        @fps => 60,
-        @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
+        components::led_line_component_static!(
+            nrf52833::gpio::GPIOPin,
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[0]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[1]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[2]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[3]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[4]],
-        @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
+        ),
+        components::led_line_component_static!(
+            nrf52833::gpio::GPIOPin,
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]],
+        ),
+        kernel::hil::gpio::ActivationMode::ActiveLow,
+        kernel::hil::gpio::ActivationMode::ActiveHigh,
+        60,
     )
-    .finalize(components::led_matrix_component_buf!(
+    .finalize(components::led_matrix_component_static!(
         nrf52833::gpio::GPIOPin,
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        5,
+        5
     ));
 
     let led = static_init!(
