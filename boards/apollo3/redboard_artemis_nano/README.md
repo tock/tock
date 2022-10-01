@@ -17,7 +17,7 @@ website](https://www.sparkfun.com/products/15443).
 
 ## Flashing the kernel
 
-The kernel can be programmed using the Ambiq python scrips. `cd` into `boards/sparkfun_redboard_artemis_nano`
+The kernel can be programmed using the Ambiq python scrips. `cd` into `boards/apollo3/sparkfun_redboard_artemis_nano`
 directory and run:
 
 ```shell

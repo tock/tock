@@ -3,7 +3,7 @@
 TARGET=thumbv7em-none-eabi
 PLATFORM=redboard_artemis_nano
 
-include ../Makefile.common
+include ../../Makefile.common
 
 ifndef PORT
   PORT="/dev/ttyUSB0"
@@ -29,5 +29,5 @@ flash-app:
 test:
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
+	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release

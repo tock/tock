@@ -75,7 +75,7 @@ but the approximate definitions:
 | [Pico Explorer Base](pico_explorer_base/README.md)                | ARM Cortex-M0+   | RP2040         | openocd    | openocd                     | No            |
 | [Nano RP2040 Connect](nano_rp2040_connect/README.md)              | ARM Cortex-M0+   | RP2040         | custom     | custom                      | No            |
 | [Raspberry Pi Pico](raspberry_pi_pico/README.md)                  | ARM Cortex-M0+   | RP2040         | openocd    | openocd                     | No            |
-| [SparkFun RedBoard Artemis Nano](redboard_artemis_nano/README.md) | ARM Cortex-M4    | Apollo3        | custom     | custom                      | No            |
+| [SparkFun RedBoard Artemis Nano](apollo3/redboard_artemis_nano/README.md) | ARM Cortex-M4    | Apollo3        | custom     | custom                      | No            |
 
 ### Tier 3
 
