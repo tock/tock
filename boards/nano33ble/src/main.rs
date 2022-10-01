@@ -613,7 +613,7 @@ pub unsafe fn main() {
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
         ble_radio,
