@@ -527,9 +527,9 @@ unsafe fn setup() -> (
     ));
 
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
-        .finalize(otbn_mux_component_helper!(1024));
+        .finalize(otbn_mux_component_static!());
 
-    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
+    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_static!());
 
     let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
 
