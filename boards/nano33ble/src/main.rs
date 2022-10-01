@@ -469,15 +469,16 @@ pub unsafe fn main() {
     // SENSORS
     //--------------------------------------------------------------------------
 
-    let sensors_i2c_bus = static_init!(
-        capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None, dynamic_deferred_caller)
-    );
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(
+        &base_peripherals.twi0,
+        None,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::i2c_mux_component_static!());
     base_peripherals.twi0.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
-    base_peripherals.twi0.set_master_client(sensors_i2c_bus);
 
     let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
     let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
