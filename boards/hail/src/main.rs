@@ -9,14 +9,10 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_i2c::MuxI2C;
-use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -57,7 +53,7 @@ struct Hail {
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -65,7 +61,7 @@ struct Hail {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     spi: &'static capsules::spi_controller::Spi<
         'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
