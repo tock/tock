@@ -271,7 +271,8 @@ unsafe fn setup() -> (
         static _eappmem: u8;
     }
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
+        .finalize(components::priority_component_static!());
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());

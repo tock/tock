@@ -6,12 +6,20 @@
 //! -----
 //! ```rust
 //! let scheduler =
-//!     components::priority::PriorityComponent::new(board_kernel).finalize(());
+//!     components::priority::PriorityComponent::new(board_kernel)
+//!         .finalize(components::priority_component_static!());
 //! ```
 
+use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::scheduler::priority::PrioritySched;
-use kernel::static_init;
+
+#[macro_export]
+macro_rules! priority_component_static {
+    () => {{
+        kernel::static_buf!(kernel::scheduler::priority::PrioritySched)
+    };};
+}
 
 pub struct PriorityComponent {
     board_kernel: &'static kernel::Kernel,
@@ -24,11 +32,10 @@ impl PriorityComponent {
 }
 
 impl Component for PriorityComponent {
-    type StaticInput = ();
+    type StaticInput = &'static mut MaybeUninit<PrioritySched>;
     type Output = &'static mut PrioritySched;
 
-    unsafe fn finalize(self, _static_buffer: Self::StaticInput) -> Self::Output {
-        let scheduler = static_init!(PrioritySched, PrioritySched::new(self.board_kernel));
-        scheduler
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        static_buffer.write(PrioritySched::new(self.board_kernel))
     }
 }
