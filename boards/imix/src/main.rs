@@ -54,7 +54,6 @@ use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
 use components::si7021::SI7021Component;
 use components::spi::{SpiComponent, SpiSyscallComponent};
-use imix_components::adc::AdcComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -471,8 +470,26 @@ pub unsafe fn main() {
     )
     .finalize(components::rf233_component_static!(sam4l::spi::SpiHw));
 
-    let adc =
-        AdcComponent::new(board_kernel, capsules::adc::DRIVER_NUM, &peripherals.adc).finalize(());
+    // Setup ADC
+    let adc_channels = static_init!(
+        [sam4l::adc::AdcChannel; 6],
+        [
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD1), // AD0
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD2), // AD1
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD3), // AD2
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD4), // AD3
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD5), // AD4
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD6), // AD5
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
+
     let gpio = GpioComponent::new(
         board_kernel,
         capsules::gpio::DRIVER_NUM,

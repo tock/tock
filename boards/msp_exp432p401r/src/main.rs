@@ -13,7 +13,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::dynamic_deferred_call::DynamicDeferredCallClientState;
-use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -369,54 +368,46 @@ pub unsafe fn main() {
     .finalize(components::alarm_component_static!(msp432::timer::TimerA));
 
     // Setup ADC
-
     setup_adc_pins(&peripherals.gpio);
 
     let adc_channels = static_init!(
-        [&'static msp432::adc::Channel; 24],
+        [msp432::adc::Channel; 24],
         [
-            &msp432::adc::Channel::Channel0,  // A0
-            &msp432::adc::Channel::Channel1,  // A1
-            &msp432::adc::Channel::Channel2,  // A2
-            &msp432::adc::Channel::Channel3,  // A3
-            &msp432::adc::Channel::Channel4,  // A4
-            &msp432::adc::Channel::Channel5,  // A5
-            &msp432::adc::Channel::Channel6,  // A6
-            &msp432::adc::Channel::Channel7,  // A7
-            &msp432::adc::Channel::Channel8,  // A8
-            &msp432::adc::Channel::Channel9,  // A9
-            &msp432::adc::Channel::Channel10, // A10
-            &msp432::adc::Channel::Channel11, // A11
-            &msp432::adc::Channel::Channel12, // A12
-            &msp432::adc::Channel::Channel13, // A13
-            &msp432::adc::Channel::Channel14, // A14
-            &msp432::adc::Channel::Channel15, // A15
-            &msp432::adc::Channel::Channel16, // A16
-            &msp432::adc::Channel::Channel17, // A17
-            &msp432::adc::Channel::Channel18, // A18
-            &msp432::adc::Channel::Channel19, // A19
-            &msp432::adc::Channel::Channel20, // A20
-            &msp432::adc::Channel::Channel21, // A21
-            &msp432::adc::Channel::Channel22, // A22
-            &msp432::adc::Channel::Channel23, // A23
+            msp432::adc::Channel::Channel0,  // A0
+            msp432::adc::Channel::Channel1,  // A1
+            msp432::adc::Channel::Channel2,  // A2
+            msp432::adc::Channel::Channel3,  // A3
+            msp432::adc::Channel::Channel4,  // A4
+            msp432::adc::Channel::Channel5,  // A5
+            msp432::adc::Channel::Channel6,  // A6
+            msp432::adc::Channel::Channel7,  // A7
+            msp432::adc::Channel::Channel8,  // A8
+            msp432::adc::Channel::Channel9,  // A9
+            msp432::adc::Channel::Channel10, // A10
+            msp432::adc::Channel::Channel11, // A11
+            msp432::adc::Channel::Channel12, // A12
+            msp432::adc::Channel::Channel13, // A13
+            msp432::adc::Channel::Channel14, // A14
+            msp432::adc::Channel::Channel15, // A15
+            msp432::adc::Channel::Channel16, // A16
+            msp432::adc::Channel::Channel17, // A17
+            msp432::adc::Channel::Channel18, // A18
+            msp432::adc::Channel::Channel19, // A19
+            msp432::adc::Channel::Channel20, // A20
+            msp432::adc::Channel::Channel21, // A21
+            msp432::adc::Channel::Channel22, // A22
+            msp432::adc::Channel::Channel23, // A23
         ]
     );
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_adc = board_kernel.create_grant(capsules::adc::DRIVER_NUM, &grant_cap);
-    let adc = static_init!(
-        capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
-        capsules::adc::AdcDedicated::new(
-            &peripherals.adc,
-            grant_adc,
-            adc_channels,
-            &mut capsules::adc::ADC_BUFFER1,
-            &mut capsules::adc::ADC_BUFFER2,
-            &mut capsules::adc::ADC_BUFFER3
-        )
-    );
-    hil::adc::Adc::set_client(&peripherals.adc, adc);
-    hil::adc::AdcHighSpeed::set_highspeed_client(&peripherals.adc, adc);
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(
+        msp432::adc::Adc
+    ));
 
     // Set the reference voltage for the ADC to 2.5V
     peripherals
