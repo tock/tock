@@ -331,11 +331,9 @@ pub unsafe fn main() {
     )
     .finalize(components::nrf51822_component_static!());
 
-    let sensors_i2c = static_init!(
-        MuxI2C<'static>,
-        MuxI2C::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-    );
-    peripherals.i2c1.set_master_client(sensors_i2c);
+    let sensors_i2c =
+        components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
+            .finalize(components::i2c_mux_component_static!());
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
@@ -486,10 +484,8 @@ pub unsafe fn main() {
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     // DAC
-    let dac = static_init!(
-        capsules::dac::Dac<'static>,
-        capsules::dac::Dac::new(&peripherals.dac)
-    );
+    let dac = components::dac::DacComponent::new(&peripherals.dac)
+        .finalize(components::dac_component_static!());
 
     // // DEBUG Restart All Apps
     // //

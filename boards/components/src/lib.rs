@@ -16,6 +16,7 @@ pub mod cdc;
 pub mod console;
 pub mod crc;
 pub mod ctap;
+pub mod dac;
 pub mod debug_queue;
 pub mod debug_writer;
 pub mod digest;
