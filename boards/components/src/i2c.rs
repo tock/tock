@@ -9,8 +9,10 @@
 //! Usage
 //! -----
 //! ```rust
-//! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1).finalize(components::i2c_mux_component_helper!());
-//! let client_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x19).finalize(components::i2c_component_helper!());
+//! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1, None, dynamic_deferred_caller)
+//!     .finalize(components::i2c_mux_component_static!());
+//! let client_i2c = components::i2c::I2CComponent::new(mux_i2c, 0x19)
+//!     .finalize(components::i2c_component_static!());
 //! ```
 
 // Author: Alexandru Radovici <msg4alex@gmail.com>
@@ -20,38 +22,26 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::i2c;
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! i2c_mux_component_helper {
+macro_rules! i2c_mux_component_static {
     () => {{
-        use capsules::virtual_i2c::MuxI2C;
-        use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<MuxI2C<'static>> = MaybeUninit::uninit();
-        &mut BUF
+        kernel::static_buf!(capsules::virtual_i2c::MuxI2C<'static>)
     };};
 }
 
 #[macro_export]
-macro_rules! i2c_component_helper {
+macro_rules! i2c_component_static {
     () => {{
-        use capsules::virtual_i2c::I2CDevice;
-        use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<I2CDevice<'static>> = MaybeUninit::uninit();
-        &mut BUF
-    }};
+        kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>)
+    };};
 }
 
 pub struct I2CMuxComponent {
     i2c: &'static dyn i2c::I2CMaster,
     smbus: Option<&'static dyn i2c::SMBusMaster>,
     deferred_caller: &'static DynamicDeferredCall,
-}
-
-pub struct I2CComponent {
-    i2c_mux: &'static MuxI2C<'static>,
-    address: u8,
 }
 
 impl I2CMuxComponent {
@@ -73,11 +63,7 @@ impl Component for I2CMuxComponent {
     type Output = &'static MuxI2C<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mux_i2c = static_init_half!(
-            static_buffer,
-            MuxI2C<'static>,
-            MuxI2C::new(self.i2c, self.smbus, self.deferred_caller)
-        );
+        let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus, self.deferred_caller));
 
         mux_i2c.initialize_callback_handle(
             self.deferred_caller.register(mux_i2c).unwrap(), // Unwrap fail = no deferred call slot available for I2C mux
@@ -87,6 +73,11 @@ impl Component for I2CMuxComponent {
 
         mux_i2c
     }
+}
+
+pub struct I2CComponent {
+    i2c_mux: &'static MuxI2C<'static>,
+    address: u8,
 }
 
 impl I2CComponent {
@@ -103,11 +94,7 @@ impl Component for I2CComponent {
     type Output = &'static I2CDevice<'static>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let i2c_device = static_init_half!(
-            static_buffer,
-            I2CDevice<'static>,
-            I2CDevice::new(self.i2c_mux, self.address)
-        );
+        let i2c_device = static_buffer.write(I2CDevice::new(self.i2c_mux, self.address));
 
         i2c_device
     }

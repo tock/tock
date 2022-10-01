@@ -292,7 +292,7 @@ unsafe fn setup() -> (
 
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.iom2, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     let bme280 =
         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());

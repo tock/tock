@@ -615,7 +615,7 @@ pub unsafe fn main() {
         None,
         dynamic_deferred_caller,
     )
-    .finalize(components::i2c_mux_component_helper!());
+    .finalize(components::i2c_mux_component_static!());
 
     let ft6x06 = components::ft6x06::Ft6x06Component::new(
         mux_i2c,
