@@ -3,42 +3,42 @@
 //! Usage
 //! -----
 //! ```rust
-//!    let digest_data_buffer = static_init!([u8; 64], [0; 64]);
-//!    let digest_dest_buffer = static_init!([u8; 32], [0; 32]);
-//!
-//!    let mux_digest = components::digest::DigestMuxComponent::new(&earlgrey::digest::Digest).finalize(
-//!        components::digest_mux_component_helper!(lowrisc::digest::Digest, [u8; 32]),
-//!    );
+//!    let mux_digest = components::digest::DigestMuxComponent::new(&earlgrey::digest::Digest)
+//!        .finalize(
+//!            components::digest_mux_component_static!(lowrisc::digest::Digest, [u8; 32]),
+//!        );
 //!
 //!    let digest = components::digest::DigestComponent::new(
 //!        board_kernel,
 //!        &mux_digest,
-//!        digest_data_buffer,
-//!        digest_dest_buffer,
 //!    )
-//!    .finalize(components::digest_component_helper!(
+//!    .finalize(components::digest_component_static!(
 //!        lowrisc::digest::Digest,
 //!        [u8; 32]
 //!    ));
 //! ```
 
-use capsules;
 use capsules::virtual_digest::MuxDigest;
 use capsules::virtual_digest::VirtualMuxDigest;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::digest;
-use kernel::static_init_half;
 
-// Setup static space for the objects.
 #[macro_export]
-macro_rules! digest_mux_component_helper {
+macro_rules! digest_mux_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        use capsules::virtual_digest::MuxDigest;
-        use capsules::virtual_digest::VirtualMuxDigest;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<MuxDigest<'static, $A, $L>> = MaybeUninit::uninit();
-        &mut BUF1
+        kernel::static_buf!(capsules::virtual_digest::MuxDigest<'static, $A, $L>)
+    };};
+}
+
+#[macro_export]
+macro_rules! digest_component_static {
+    ($A:ty, $L:expr $(,)?) => {{
+        let virtual_mux =
+            kernel::static_buf!(capsules::virtual_digest::VirtualMuxDigest<'static, $A, $L>);
+        let key_buffer = kernel::static_buf!([u8; $L]);
+
+        (virtual_mux, key_buffer)
     };};
 }
 
@@ -68,39 +68,17 @@ impl<
     type Output = &'static MuxDigest<'static, A, L>;
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let mux_digest =
-            static_init_half!(s, MuxDigest<'static, A, L>, MuxDigest::new(self.digest));
-
-        mux_digest
+        s.write(MuxDigest::new(self.digest))
     }
-}
-
-// Setup static space for the objects.
-#[macro_export]
-macro_rules! digest_component_helper {
-    ($A:ty, $L:expr $(,)?) => {{
-        use capsules::virtual_digest::MuxDigest;
-        use capsules::virtual_digest::VirtualMuxDigest;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<VirtualMuxDigest<'static, $A, $L>> = MaybeUninit::uninit();
-        &mut BUF1
-    };};
 }
 
 pub struct DigestComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     mux_digest: &'static MuxDigest<'static, A, L>,
-    key_buffer: &'static mut [u8],
 }
 
 impl<A: 'static + digest::Digest<'static, L>, const L: usize> DigestComponent<A, L> {
-    pub fn new(
-        mux_digest: &'static MuxDigest<'static, A, L>,
-        key_buffer: &'static mut [u8],
-    ) -> DigestComponent<A, L> {
-        DigestComponent {
-            mux_digest,
-            key_buffer,
-        }
+    pub fn new(mux_digest: &'static MuxDigest<'static, A, L>) -> DigestComponent<A, L> {
+        DigestComponent { mux_digest }
     }
 }
 
@@ -113,16 +91,16 @@ impl<
         const L: usize,
     > Component for DigestComponent<A, L>
 {
-    type StaticInput = &'static mut MaybeUninit<VirtualMuxDigest<'static, A, L>>;
-
+    type StaticInput = (
+        &'static mut MaybeUninit<VirtualMuxDigest<'static, A, L>>,
+        &'static mut MaybeUninit<[u8; L]>,
+    );
     type Output = &'static VirtualMuxDigest<'static, A, L>;
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let virtual_digest_user = static_init_half!(
-            s,
-            VirtualMuxDigest<'static, A, L>,
-            VirtualMuxDigest::new(self.mux_digest, self.key_buffer)
-        );
+        let key_buffer = s.1.write([0; L]);
+        let virtual_digest_user =
+            s.0.write(VirtualMuxDigest::new(self.mux_digest, key_buffer));
 
         virtual_digest_user
     }

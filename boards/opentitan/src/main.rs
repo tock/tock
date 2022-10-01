@@ -365,13 +365,11 @@ unsafe fn setup() -> (
     .finalize(components::low_level_debug_component_static!());
 
     let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
-        components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
+        components::digest_mux_component_static!(lowrisc::hmac::Hmac, 32),
     );
 
-    let digest_key_buffer = static_init!([u8; 32], [0; 32]);
-
-    let digest = components::digest::DigestComponent::new(&mux_digest, digest_key_buffer).finalize(
-        components::digest_component_helper!(lowrisc::hmac::Hmac, 32,),
+    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
+        components::digest_component_static!(lowrisc::hmac::Hmac, 32,),
     );
 
     peripherals.hmac.set_client(digest);
