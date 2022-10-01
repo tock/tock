@@ -20,6 +20,7 @@ pub mod debug_queue;
 pub mod debug_writer;
 pub mod digest;
 pub mod flash;
+pub mod fm25cl;
 pub mod ft6x06;
 pub mod fxos8700;
 pub mod gpio;
