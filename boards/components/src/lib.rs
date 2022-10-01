@@ -5,6 +5,7 @@ pub mod adc_microphone;
 pub mod air_quality;
 pub mod alarm;
 pub mod analog_comparator;
+pub mod apds9960;
 pub mod app_flash_driver;
 pub mod bme280;
 pub mod bmp280;
