@@ -269,7 +269,7 @@ pub unsafe fn main() {
     }
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
