@@ -41,6 +41,7 @@ pub mod lps25hb;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
 pub mod lsm6dsox;
+pub mod ltc294x;
 pub mod mlx90614;
 pub mod mx25r6435f;
 pub mod ninedof;

@@ -29,12 +29,13 @@
 //! ```rust
 //! # use kernel::static_init;
 //!
+//! let buffer = static_init!([u8; capsules::ltc294x::BUF_LEN], [0; capsules::ltc294x::BUF_LEN]);
 //! let ltc294x_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x64));
 //! let ltc294x = static_init!(
 //!     capsules::ltc294x::LTC294X<'static>,
-//!     capsules::ltc294x::LTC294X::new(ltc294x_i2c, None, &mut capsules::ltc294x::BUFFER));
+//!     capsules::ltc294x::LTC294X::new(ltc294x_i2c, None, buffer));
 //! ltc294x_i2c.set_client(ltc294x);
 //!
 //! // Optionally create the object that provides an interface for the coulomb
@@ -58,7 +59,7 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ltc294x as usize;
 
-pub static mut BUFFER: [u8; 20] = [0; 20];
+pub const BUF_LEN: usize = 20;
 
 #[allow(dead_code)]
 enum Registers {
