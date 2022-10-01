@@ -418,7 +418,7 @@ unsafe fn setup() -> (
     //SPI
     let mux_spi =
         components::spi::SpiMuxComponent::new(&peripherals.spi_host0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_helper!(
+            .finalize(components::spi_mux_component_static!(
                 lowrisc::spi_host::SpiHost
             ));
 
@@ -428,7 +428,7 @@ unsafe fn setup() -> (
         0,
         capsules::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_helper!(
+    .finalize(components::spi_syscall_component_static!(
         lowrisc::spi_host::SpiHost
     ));
 

@@ -640,7 +640,7 @@ pub unsafe fn main() {
 
     let spi_mux =
         components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),

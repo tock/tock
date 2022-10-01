@@ -452,7 +452,7 @@ pub unsafe fn main() {
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
-        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
+        .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
 
     let spi_syscalls = SpiSyscallComponent::new(
         board_kernel,
@@ -460,9 +460,9 @@ pub unsafe fn main() {
         2,
         capsules::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
+    .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
     let rf233_spi = SpiComponent::new(mux_spi, 3)
-        .finalize(components::spi_component_helper!(sam4l::spi::SpiHw));
+        .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
     let rf233 = RF233Component::new(
         rf233_spi,
         &peripherals.pa[09], // reset
