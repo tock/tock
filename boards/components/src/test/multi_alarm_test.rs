@@ -4,28 +4,21 @@ use capsules::test::random_alarm::TestRandomAlarm;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time::{self, Alarm};
-use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! multi_alarm_test_component_buf {
     ($A:ty $(,)?) => {{
         use capsules::test::random_alarm::TestRandomAlarm;
         use capsules::virtual_alarm::VirtualMuxAlarm;
-        use core::mem::MaybeUninit;
-        static mut BUF00: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut BUF01: MaybeUninit<TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>> =
-            MaybeUninit::uninit();
-        static mut BUF10: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut BUF11: MaybeUninit<TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>> =
-            MaybeUninit::uninit();
-        static mut BUF20: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut BUF21: MaybeUninit<TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>> =
-            MaybeUninit::uninit();
-        (
-            (&mut BUF00, &mut BUF01),
-            (&mut BUF10, &mut BUF11),
-            (&mut BUF20, &mut BUF21),
-        )
+
+        let buf00 = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+        let buf01 = kernel::static_buf!(TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>);
+        let buf10 = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+        let buf11 = kernel::static_buf!(TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>);
+        let buf20 = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+        let buf21 = kernel::static_buf!(TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>);
+
+        ((buf00, buf01)(buf10, buf11)(buf20, buf21))
     };};
 }
 
@@ -59,46 +52,28 @@ impl<A: 'static + time::Alarm<'static>> Component for MultiAlarmTestComponent<A>
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let (buf0, buf1, buf2) = static_buffer;
 
-        let virtual_alarm0 = static_init_half!(
-            buf0.0,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.mux)
-        );
+        let virtual_alarm0 = buf0.0.write(VirtualMuxAlarm::new(self.mux));
         virtual_alarm0.setup();
 
-        let test0 = static_init_half!(
-            buf0.1,
-            TestRandomAlarm<'static, VirtualMuxAlarm<'static, A>>,
-            TestRandomAlarm::new(virtual_alarm0, 19, 'A', true)
-        );
+        let test0 = buf0
+            .1
+            .write(TestRandomAlarm::new(virtual_alarm0, 19, 'A', true));
         virtual_alarm0.set_alarm_client(test0);
 
-        let virtual_alarm1 = static_init_half!(
-            buf1.0,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.mux)
-        );
+        let virtual_alarm1 = buf1.0.write(VirtualMuxAlarm::new(self.mux));
         virtual_alarm1.setup();
 
-        let test1 = static_init_half!(
-            buf1.1,
-            TestRandomAlarm<'static, VirtualMuxAlarm<'static, A>>,
-            TestRandomAlarm::new(virtual_alarm1, 37, 'B', true)
-        );
+        let test1 = buf1
+            .1
+            .write(TestRandomAlarm::new(virtual_alarm1, 37, 'B', true));
         virtual_alarm1.set_alarm_client(test1);
 
-        let virtual_alarm2 = static_init_half!(
-            buf2.0,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.mux)
-        );
+        let virtual_alarm2 = buf2.0.write(VirtualMuxAlarm::new(self.mux));
         virtual_alarm2.setup();
 
-        let test2 = static_init_half!(
-            buf2.1,
-            TestRandomAlarm<'static, VirtualMuxAlarm<'static, A>>,
-            TestRandomAlarm::new(virtual_alarm2, 89, 'C', true)
-        );
+        let test2 = buf2
+            .1
+            .write(TestRandomAlarm::new(virtual_alarm2, 89, 'C', true));
         virtual_alarm2.set_alarm_client(test2);
 
         MultiAlarmTestRunner {
