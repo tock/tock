@@ -50,6 +50,7 @@ pub mod nrf51822;
 pub mod panic_button;
 pub mod process_console;
 pub mod process_printer;
+pub mod proximity;
 pub mod rf233;
 pub mod rng;
 pub mod sched;

@@ -488,18 +488,12 @@ pub unsafe fn main() {
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
     .finalize(components::apds9960_component_static!());
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-    let proximity = static_init!(
-        capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(
-            apds9960,
-            board_kernel.create_grant(capsules::proximity::DRIVER_NUM, &grant_cap)
-        )
-    );
-
-    kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+    let proximity = components::proximity::ProximityComponent::new(
+        apds9960,
+        board_kernel,
+        capsules::proximity::DRIVER_NUM,
+    )
+    .finalize(components::proximity_component_static!());
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
         .finalize(components::hts221_component_static!());
