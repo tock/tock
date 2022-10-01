@@ -89,10 +89,22 @@ impl PwrCtrl {
         regs.devpwren.modify(DEVPWREN::PWRIOM0::SET);
     }
 
+    pub fn enable_iom1(&self) {
+        let regs = self.registers;
+
+        regs.devpwren.modify(DEVPWREN::PWRIOM1::SET);
+    }
+
     pub fn enable_iom2(&self) {
         let regs = self.registers;
 
         regs.devpwren.modify(DEVPWREN::PWRIOM2::SET);
+    }
+
+    pub fn enable_iom3(&self) {
+        let regs = self.registers;
+
+        regs.devpwren.modify(DEVPWREN::PWRIOM3::SET);
     }
 
     pub fn enable_ble(&self) {

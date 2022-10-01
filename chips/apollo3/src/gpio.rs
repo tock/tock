@@ -168,6 +168,19 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            6 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD2PULL::SET
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::SET
+                        + PADREG::PAD2FNCSEL.val(0x00),
+                );
+                regs.cfg[0].modify(CFG::GPIO6OUTCFG.val(0x03) + CFG::GPIO6OUTCFG.val(0x00));
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD2_DS1::SET + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("sda not supported");
             }
@@ -185,6 +198,20 @@ impl Port<'_> {
                 regs.cfg[3].modify(CFG::GPIO3INTD.val(0x00) + CFG::GPIO3OUTCFG.val(0x02));
                 regs.altpadcfgg
                     .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            5 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD1PULL::SET
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::SET
+                        + PADREG::PAD1FNCSEL.val(0x00)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(CFG::GPIO5OUTCFG.val(0x03) + CFG::GPIO1OUTCFG.val(0x00));
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
             _ => {
@@ -215,6 +242,41 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            18 => {
+                regs.padkey.set(115);
+                regs.padreg[4].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::CLEAR
+                        + PADREG::PAD2STRNG::SET
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[2].modify(
+                    CFG::GPIO2INCFG.val(0x00)
+                        + CFG::GPIO2OUTCFG.val(0x000)
+                        + CFG::GPIO2INTD.val(0x00),
+                );
+                regs.altpadcfge
+                    .modify(ALTPADCFG::PAD2_DS1::SET + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            27 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD3PULL::CLEAR
+                        + PADREG::PAD3INPEN::SET
+                        + PADREG::PAD3STRNG::SET
+                        + PADREG::PAD3FNCSEL.val(0x5)
+                        + PADREG::PAD3RSEL.val(0x00),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO3INCFG.val(0x00)
+                        + CFG::GPIO3OUTCFG.val(0x000)
+                        + CFG::GPIO3INTD.val(0x00),
+                );
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD3_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("sck not supported");
             }
@@ -239,6 +301,41 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD0_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            17 => {
+                regs.padkey.set(115);
+                regs.padreg[4].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[2].modify(
+                    CFG::GPIO1INCFG.val(0x00)
+                        + CFG::GPIO1OUTCFG.val(0x000)
+                        + CFG::GPIO1INTD.val(0x00),
+                );
+                regs.altpadcfge
+                    .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            28 => {
+                regs.padkey.set(115);
+                regs.padreg[7].modify(
+                    PADREG::PAD0PULL::CLEAR
+                        + PADREG::PAD0INPEN::CLEAR
+                        + PADREG::PAD0STRING::SET
+                        + PADREG::PAD0FNCSEL.val(0x5)
+                        + PADREG::PAD0RSEL.val(0x00),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO4INCFG.val(0x00)
+                        + CFG::GPIO4OUTCFG.val(0x000)
+                        + CFG::GPIO4INTD.val(0x00),
+                );
+                regs.altpadcfgh
+                    .modify(ALTPADCFG::PAD0_DS1::SET + ALTPADCFG::PAD0_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("mosi not supported");
             }
@@ -259,6 +356,41 @@ impl Port<'_> {
                         + CFG::GPIO3INTD.val(0x00),
                 );
                 regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            25 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD1PULL::CLEAR
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::CLEAR
+                        + PADREG::PAD1FNCSEL.val(0x5)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO1INCFG.val(0x00)
+                        + CFG::GPIO1OUTCFG.val(0x000)
+                        + CFG::GPIO1INTD.val(0x00),
+                );
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            26 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO2INCFG.val(0x00)
+                        + CFG::GPIO2OUTCFG.val(0x000)
+                        + CFG::GPIO2INTD.val(0x00),
+                );
+                regs.altpadcfgg
                     .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
