@@ -374,26 +374,16 @@ unsafe fn setup() -> (
 
     peripherals.hmac.set_client(digest);
 
-    let hmac_key_buffer = static_init!([u8; 32], [0; 32]);
-    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
-    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
-
     let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::hmac_mux_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
-    let hmac = components::hmac::HmacComponent::new(
-        board_kernel,
-        capsules::hmac::DRIVER_NUM,
-        &mux_hmac,
-        hmac_key_buffer,
-        hmac_data_buffer,
-        hmac_dest_buffer,
-    )
-    .finalize(components::hmac_component_helper!(
-        capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
-        32,
-    ));
+    let hmac =
+        components::hmac::HmacComponent::new(board_kernel, capsules::hmac::DRIVER_NUM, &mux_hmac)
+            .finalize(components::hmac_component_static!(
+                capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
+                32,
+            ));
 
     digest.set_hmac_client(hmac);
 
