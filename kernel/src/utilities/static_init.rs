@@ -93,22 +93,3 @@ macro_rules! static_buf {
         &mut BUF.0
     }};
 }
-
-/// This macro is deprecated. You should migrate to using `static_buf!`
-/// followed by a call to `StaticUninitializedBuffer::initialize()`.
-///
-/// Same as `static_init!()` but without actually creating the static buffer.
-/// The static buffer must be passed in.
-#[macro_export]
-macro_rules! static_init_half {
-    ($B:expr, $T:ty, $e:expr $(,)?) => {
-        {
-            use core::mem::MaybeUninit;
-            let buf: &'static mut MaybeUninit<$T> = $B;
-            buf.as_mut_ptr().write($e);
-            // TODO: use MaybeUninit::get_mut() once that is stabilized (see
-            // https://github.com/rust-lang/rust/issues/63568).
-            &mut *buf.as_mut_ptr() as &'static mut $T
-        }
-    };
-}
