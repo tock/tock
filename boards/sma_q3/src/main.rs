@@ -251,13 +251,13 @@ pub unsafe fn main() {
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 8], Default::default());

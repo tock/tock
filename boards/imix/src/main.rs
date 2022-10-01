@@ -368,10 +368,10 @@ pub unsafe fn main() {
 
     // # TIMER
     let mux_alarm = AlarmMuxComponent::new(&peripherals.ast)
-        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
+        .finalize(components::alarm_mux_component_static!(sam4l::ast::Ast));
     peripherals.ast.configure(mux_alarm);
     let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
-        .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+        .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
     let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm, process_printer)
         .finalize(components::process_console_component_static!(

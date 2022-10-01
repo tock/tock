@@ -313,14 +313,14 @@ pub unsafe fn main() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
-        .finalize(components::alarm_mux_component_helper!(RPTimer));
+        .finalize(components::alarm_mux_component_static!(RPTimer));
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(RPTimer));
+    .finalize(components::alarm_component_static!(RPTimer));
 
     // UART
     // Create a shared UART channel for kernel debug.

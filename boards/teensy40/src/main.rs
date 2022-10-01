@@ -283,14 +283,14 @@ pub unsafe fn main() {
 
     // Alarm
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
-        components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
+        components::alarm_mux_component_static!(imxrt1060::gpt::Gpt1),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
+    .finalize(components::alarm_component_static!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities

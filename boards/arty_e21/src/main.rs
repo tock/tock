@@ -183,7 +183,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(sifive::clint::Clint));
+    .finalize(components::alarm_component_static!(sifive::clint::Clint));
 
     // TEST for timer
     //

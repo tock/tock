@@ -258,14 +258,14 @@ unsafe fn setup() -> (
     // alarm.
     let _ = peripherals.stimer.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.stimer).finalize(
-        components::alarm_mux_component_helper!(apollo3::stimer::STimer),
+        components::alarm_mux_component_static!(apollo3::stimer::STimer),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(apollo3::stimer::STimer));
+    .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
     ALARM = Some(mux_alarm);
 
     // Create a process printer for panic.

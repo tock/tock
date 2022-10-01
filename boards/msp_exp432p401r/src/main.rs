@@ -353,14 +353,14 @@ pub unsafe fn main() {
     // Setup alarm
     let timer0 = &peripherals.timer_a0;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(timer0).finalize(
-        components::alarm_mux_component_helper!(msp432::timer::TimerA),
+        components::alarm_mux_component_static!(msp432::timer::TimerA),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
+    .finalize(components::alarm_component_static!(msp432::timer::TimerA));
 
     // Setup ADC
 

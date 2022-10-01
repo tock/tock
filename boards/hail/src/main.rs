@@ -293,7 +293,7 @@ pub unsafe fn main() {
     hil::uart::Receive::set_receive_client(&peripherals.usart0, uart_mux);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.ast)
-        .finalize(components::alarm_mux_component_helper!(sam4l::ast::Ast));
+        .finalize(components::alarm_mux_component_static!(sam4l::ast::Ast));
     peripherals.ast.configure(mux_alarm);
 
     // Setup the console and the process inspection console.
@@ -363,7 +363,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
+    .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700 =

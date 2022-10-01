@@ -382,13 +382,13 @@ pub unsafe fn main() {
     let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
