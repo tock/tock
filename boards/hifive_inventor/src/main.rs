@@ -97,7 +97,7 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
         &()
     }
 
-    fn credentials_checking_policy(&self) -> &Self::CredentialsCheckingPolicy {
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
 
