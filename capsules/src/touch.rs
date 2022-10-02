@@ -35,9 +35,9 @@ mod rw_allow {
     // | id (u8) | type (u8) | x (u16)      | y (u16)      | size (u8) | pressure (u8) |         ...
     // +---------+-----------+--------------+--------------+-----------+---------------+-------- ...
     // | Touch 0                                                                       | Touch 1 ...
-    pub const EVENTS: usize = 2;
+    pub const EVENTS: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: u8 = 3;
+    pub const COUNT: u8 = 1;
 }
 
 fn touch_status_to_number(status: &TouchStatus) -> usize {
@@ -50,7 +50,6 @@ fn touch_status_to_number(status: &TouchStatus) -> usize {
 }
 
 pub struct App {
-    ack: bool,
     dropped_events: usize,
     x: u16,
     y: u16,
@@ -62,7 +61,6 @@ pub struct App {
 impl Default for App {
     fn default() -> App {
         App {
-            ack: true,
             dropped_events: 0,
             x: 0,
             y: 0,
@@ -237,12 +235,10 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
             // debug!("{} touch(es)", len);
             for app in self.apps.iter() {
                 app.enter(|app, kernel_data| {
-                    if app.ack {
-                        app.dropped_events = 0;
-
-                        let num = kernel_data
-                            .get_readwrite_processbuffer(rw_allow::EVENTS)
-                            .and_then(|events| {
+                    let num = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::EVENTS)
+                        .and_then(|events| {
+                            if !events.attributes.accessed {
                                 events.mut_enter(|buffer| {
                                     let num = if buffer.len() / 8 < len {
                                         buffer.len() / 8
@@ -287,20 +283,24 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                     }
                                     num
                                 })
+                            } else {
+                                app.dropped_events = app.dropped_events + 1;
+                                Ok(0)
+                            }
+                        })
+                        .unwrap_or(0);
+                    let dropped_events = app.dropped_events;
+                    if num > 0 {
+                        kernel_data
+                            .schedule_upcall(
+                                2,
+                                (num, dropped_events, if num < len { len - num } else { 0 }),
+                            )
+                            .and_then(|_| {
+                                app.dropped_events = 0;
+                                Ok(())
                             })
-                            .unwrap_or(0);
-                        let dropped_events = app.dropped_events;
-                        if num > 0 {
-                            app.ack = false;
-                            kernel_data
-                                .schedule_upcall(
-                                    2,
-                                    (num, dropped_events, if num < len { len - num } else { 0 }),
-                                )
-                                .ok();
-                        }
-                    } else {
-                        app.dropped_events = app.dropped_events + 1;
+                            .ok();
                     }
                 });
             }
@@ -360,16 +360,6 @@ impl<'a> SyscallDriver for Touch<'a> {
                     })
                     .unwrap_or(());
                 let _ = self.touch_enable();
-                CommandReturn::success()
-            }
-
-            // multi touch ack
-            10 => {
-                self.apps
-                    .enter(appid, |app, _| {
-                        app.ack = true;
-                    })
-                    .unwrap_or(());
                 CommandReturn::success()
             }
 

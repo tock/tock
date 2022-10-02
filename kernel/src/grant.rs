@@ -124,6 +124,7 @@
 //! the closure.               ▼
 //! ```
 
+use core::cell::Cell;
 use core::cmp;
 use core::marker::PhantomData;
 use core::mem::{align_of, size_of};
@@ -131,12 +132,33 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 use core::slice;
 
+use tock_registers::{register_bitfields, LocalRegisterCopy};
+
 use crate::kernel::Kernel;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
-use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::processbuffer::{
+    ProcessBufferAttributes, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
+};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
+
+register_bitfields!(usize,
+    /// Bitfield representing the attributes of a
+    /// ProcessBuffer. For now it stores the access
+    /// bit and the length.
+    ATTRIBUTES [
+        /// Stores wheter the buffer has been accessed
+        /// since it has been shared by the application.
+        /// An access is defined as the a call to
+        /// one of the [`GrantKernelData::get_readonly_processbuffer`] or
+        /// [`GrantKernelData::get_readwrite_process_buffer`] functions.
+        ACCESSED OFFSET(core::mem::size_of::<usize>()-1) NUMBITS(1) [],
+
+        /// Stores the length of the shared buffer
+        LEN OFFSET(0) NUMBITS(core::mem::size_of::<usize>()-1) [],
+    ]
+);
 
 /// Tracks how many upcalls a grant instance supports automatically.
 pub trait UpcallSize {
@@ -632,6 +654,13 @@ impl<'a> GrantKernelData<'a> {
         self.allow_ro.get(allow_ro_num).map_or(
             Err(crate::process::Error::AddressOutOfBounds),
             |saved_ro| {
+                // Read the current value of the accessed field
+                let mut attributes = saved_ro.attributes.get();
+                let accessed = attributes.is_set(ATTRIBUTES::ACCESSED);
+                // Mark the process buffer as being accessed
+                attributes.modify(ATTRIBUTES::ACCESSED::SET);
+                saved_ro.attributes.set(attributes);
+
                 // # Safety
                 //
                 // This is the saved process buffer data has been validated to
@@ -642,7 +671,8 @@ impl<'a> GrantKernelData<'a> {
                 unsafe {
                     Ok(ReadOnlyProcessBufferRef::new(
                         saved_ro.ptr,
-                        saved_ro.len,
+                        attributes.read(ATTRIBUTES::LEN),
+                        ProcessBufferAttributes { accessed },
                         self.process.processid(),
                     ))
                 }
@@ -667,6 +697,13 @@ impl<'a> GrantKernelData<'a> {
         self.allow_rw.get(allow_rw_num).map_or(
             Err(crate::process::Error::AddressOutOfBounds),
             |saved_rw| {
+                // Read the current value of the accessed field
+                let mut attributes = saved_rw.attributes.get();
+                let accessed = attributes.is_set(ATTRIBUTES::ACCESSED);
+                // Mark the process buffer as being accessed
+                attributes.modify(ATTRIBUTES::ACCESSED::SET);
+                saved_rw.attributes.set(attributes);
+
                 // # Safety
                 //
                 // This is the saved process buffer data has been validated to
@@ -677,7 +714,8 @@ impl<'a> GrantKernelData<'a> {
                 unsafe {
                     Ok(ReadWriteProcessBufferRef::new(
                         saved_rw.ptr,
-                        saved_rw.len,
+                        attributes.read(ATTRIBUTES::LEN),
+                        ProcessBufferAttributes::new(accessed),
                         self.process.processid(),
                     ))
                 }
@@ -702,14 +740,22 @@ struct SavedUpcall {
 #[repr(C)]
 struct SavedAllowRo {
     ptr: *const u8,
-    len: usize,
+    /// ```text,ignore
+    /// Bit  size_of::<usize>-1           0
+    ///     +-+-------------------...------+
+    ///     |A|            LEN             |
+    ///     +------------------------------+
+    /// ```
+    /// - A - accessed
+    /// - LEN - the length of the buffer
+    attributes: Cell<LocalRegisterCopy<usize, ATTRIBUTES::Register>>,
 }
 
 impl Default for SavedAllowRo {
     fn default() -> Self {
         Self {
             ptr: core::ptr::null(),
-            len: 0,
+            attributes: Cell::new(LocalRegisterCopy::new(0)),
         }
     }
 }
@@ -720,14 +766,22 @@ impl Default for SavedAllowRo {
 #[repr(C)]
 struct SavedAllowRw {
     ptr: *mut u8,
-    len: usize,
+    /// ```text,ignore
+    /// Bit  size_of::<usize>-1           0
+    ///     +-+-------------------...------+
+    ///     |A|            LEN             |
+    ///     +------------------------------+
+    /// ```
+    /// - A - accessed
+    /// - LEN - the length of the buffer
+    attributes: Cell<LocalRegisterCopy<usize, ATTRIBUTES::Register>>,
 }
 
 impl Default for SavedAllowRw {
     fn default() -> Self {
         Self {
             ptr: core::ptr::null_mut(),
-            len: 0,
+            attributes: Cell::new(LocalRegisterCopy::new(0)),
         }
     }
 }
@@ -851,20 +905,56 @@ pub(crate) fn allow_ro(
     // userspace passed us a bad allow number.
     match saved_allow_ro_slice.get_mut(allow_num) {
         Some(saved) => {
-            // # Safety
-            //
-            // The pointer has already been validated to be within application
-            // memory before storing the values in the saved slice.
-            let old_allow =
-                unsafe { ReadOnlyProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
-
-            // Replace old values with current buffer.
+            // Verify if attributes can be set.
+            // For now this means that the size is less then sizo_of::<usize>-1 bits
             let (ptr, len) = buffer.consume();
-            saved.ptr = ptr;
-            saved.len = len;
+            let mut attributes: LocalRegisterCopy<usize, ATTRIBUTES::Register> =
+                LocalRegisterCopy::new(0);
+            attributes.write(ATTRIBUTES::ACCESSED::CLEAR + ATTRIBUTES::LEN.val(len));
 
-            // Success!
-            Ok(old_allow)
+            // If the value written to the LEN register is the same as
+            // the length that the application has sent, it means that
+            // the correct length can be stored
+            if attributes.read(ATTRIBUTES::LEN) == len {
+                // # Safety
+                //
+                // The pointer has already been validated to be within application
+                // memory before storing the values in the saved slice.
+                let old_allow = unsafe {
+                    let saved_attributes = saved.attributes.get();
+                    ReadOnlyProcessBuffer::new(
+                        saved.ptr,
+                        saved_attributes.read(ATTRIBUTES::LEN),
+                        ProcessBufferAttributes::new(saved_attributes.is_set(ATTRIBUTES::ACCESSED)),
+                        process.processid(),
+                    )
+                };
+
+                // Replace old values with current buffer.
+                saved.ptr = ptr;
+                saved.attributes.set(attributes);
+
+                // Success!
+                Ok(old_allow)
+            } else {
+                // The length of the shared buffer cannot be saved into the grant,
+                // as it does not fit into the attributes LEN field
+                Err((
+                    // # Safety
+                    //
+                    // This is safe as we reconstruct the original ReadOnlyProcessBuffer that
+                    // was shared by the application and consumed before the length verification
+                    unsafe {
+                        ReadOnlyProcessBuffer::new(
+                            ptr,
+                            len,
+                            ProcessBufferAttributes::const_default(),
+                            process.processid(),
+                        )
+                    },
+                    ErrorCode::INVAL,
+                ))
+            }
         }
         None => Err((buffer, ErrorCode::INVAL)),
     }
@@ -899,20 +989,56 @@ pub(crate) fn allow_rw(
     // userspace passed us a bad allow number.
     match saved_allow_rw_slice.get_mut(allow_num) {
         Some(saved) => {
-            // # Safety
-            //
-            // The pointer has already been validated to be within application
-            // memory before storing the values in the saved slice.
-            let old_allow =
-                unsafe { ReadWriteProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
-
-            // Replace old values with current buffer.
+            // Verify if attributes can be set.
+            // For now this means that the size is less then sizo_of::<usize>-1 bits
             let (ptr, len) = buffer.consume();
-            saved.ptr = ptr;
-            saved.len = len;
+            let mut attributes: LocalRegisterCopy<usize, ATTRIBUTES::Register> =
+                LocalRegisterCopy::new(0);
+            attributes.write(ATTRIBUTES::ACCESSED::CLEAR + ATTRIBUTES::LEN.val(len));
 
-            // Success!
-            Ok(old_allow)
+            // If the value written to the LEN register is the same as
+            // the length that the application has sent, it means that
+            // the correct length can be stored
+            if attributes.read(ATTRIBUTES::LEN) == len {
+                // # Safety
+                //
+                // The pointer has already been validated to be within application
+                // memory before storing the values in the saved slice.
+                let old_allow = unsafe {
+                    let saved_attributes = saved.attributes.get();
+                    ReadWriteProcessBuffer::new(
+                        saved.ptr,
+                        saved_attributes.read(ATTRIBUTES::LEN),
+                        ProcessBufferAttributes::new(saved_attributes.is_set(ATTRIBUTES::ACCESSED)),
+                        process.processid(),
+                    )
+                };
+
+                // Replace old values with current buffer.
+                saved.ptr = ptr;
+                saved.attributes.set(attributes);
+
+                // Success!
+                Ok(old_allow)
+            } else {
+                // The length of the shared buffer cannot be saved into the grant,
+                // as it does not fit intro the attributes LEN field
+                Err((
+                    // # Safety
+                    //
+                    // This is safe as we reconstruct the original ReadWriteProcessBuffer that
+                    // was shared by the application and consumed before the length verification
+                    unsafe {
+                        ReadWriteProcessBuffer::new(
+                            ptr,
+                            len,
+                            ProcessBufferAttributes::const_default(),
+                            process.processid(),
+                        )
+                    },
+                    ErrorCode::INVAL,
+                ))
+            }
         }
         None => Err((buffer, ErrorCode::INVAL)),
     }

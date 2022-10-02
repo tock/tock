@@ -22,7 +22,9 @@ use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId, Proces
 use crate::process::{ProcessAddresses, ProcessSizes};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_utilities::ProcessLoadError;
-use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
+use crate::processbuffer::{
+    ProcessBufferAttributes, ReadOnlyProcessBuffer, ReadWriteProcessBuffer,
+};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
@@ -588,7 +590,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We specific a zero-length buffer, so the implementation of
             // `ReadWriteProcessBuffer` will handle any safety issues.
             // Therefore, we can encapsulate the unsafe.
-            Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
+            Ok(unsafe {
+                ReadWriteProcessBuffer::new(
+                    buf_start_addr,
+                    0,
+                    ProcessBufferAttributes::const_default(),
+                    self.processid(),
+                )
+            })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
 
@@ -617,7 +626,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadWriteProcessBuffer` will
             // be the only reference to this memory.
-            Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, size, self.processid()) })
+            Ok(unsafe {
+                ReadWriteProcessBuffer::new(
+                    buf_start_addr,
+                    size,
+                    ProcessBufferAttributes::const_default(),
+                    self.processid(),
+                )
+            })
         } else {
             Err(ErrorCode::INVAL)
         }
@@ -654,7 +670,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We specific a zero-length buffer, so the implementation of
             // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
             // we can encapsulate the unsafe.
-            Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
+            Ok(unsafe {
+                ReadOnlyProcessBuffer::new(
+                    buf_start_addr,
+                    0,
+                    ProcessBufferAttributes::const_default(),
+                    self.processid(),
+                )
+            })
         } else if self.in_app_owned_memory(buf_start_addr, size)
             || self.in_app_flash_memory(buf_start_addr, size)
         {
@@ -688,7 +711,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadOnlyProcessBuffer` will
             // be the only reference to this memory.
-            Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, size, self.processid()) })
+            Ok(unsafe {
+                ReadOnlyProcessBuffer::new(
+                    buf_start_addr,
+                    size,
+                    ProcessBufferAttributes::const_default(),
+                    self.processid(),
+                )
+            })
         } else {
             Err(ErrorCode::INVAL)
         }
