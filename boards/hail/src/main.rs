@@ -286,7 +286,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&peripherals.usart0, uart_mux);
@@ -302,14 +302,14 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
     ));
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());

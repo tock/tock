@@ -155,6 +155,7 @@ struct EarlGrey {
     scheduler: &'static PrioritySched,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
+    watchdog: &'static lowrisc::aon_timer::AonTimer,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -190,7 +191,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     type Scheduler = PrioritySched;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
-    type WatchDog = ();
+    type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
@@ -209,7 +210,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        &()
+        &self.watchdog
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
@@ -257,7 +258,7 @@ unsafe fn setup() -> (
         earlgrey::uart::UART0_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     // LEDs
     // Start with half on and half off
@@ -352,7 +353,7 @@ unsafe fn setup() -> (
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -691,6 +692,7 @@ unsafe fn setup() -> (
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    let watchdog = &peripherals.watchdog;
 
     let earlgrey = static_init!(
         EarlGrey,
@@ -710,6 +712,7 @@ unsafe fn setup() -> (
             syscall_filter,
             scheduler,
             scheduler_timer,
+            watchdog,
         }
     );
 

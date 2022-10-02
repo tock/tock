@@ -19,6 +19,8 @@ pub struct Config<'a> {
     pub cpu_freq: u32,
     /// The clock speed of the peripherals in Hz.
     pub peripheral_freq: u32,
+    /// The clock of the AON Timer
+    pub aon_timer_freq: u32,
     /// The baud rate for UART. This allows for a version of the chip that can
     /// support a faster baud rate to use it to help with debugging.
     pub uart_baudrate: u32,
@@ -30,6 +32,7 @@ pub const CONFIG: Config = Config {
     name: "fpga_cw310",
     cpu_freq: 10_000_000,
     peripheral_freq: 2_500_000,
+    aon_timer_freq: 250_000,
     uart_baudrate: 115200,
 };
 
@@ -39,5 +42,6 @@ pub const CONFIG: Config = Config {
     name: "sim_verilator",
     cpu_freq: 500_000,
     peripheral_freq: 125_000,
+    aon_timer_freq: 125_000,
     uart_baudrate: 7200,
 };

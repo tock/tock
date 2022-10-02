@@ -32,3 +32,4 @@ fn trivial_assertion() {
 
 mod environmental_sensors;
 mod multi_alarm;
+mod spi_controller;
