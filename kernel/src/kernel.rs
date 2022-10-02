@@ -67,7 +67,7 @@ pub struct Kernel {
     grants_finalized: Cell<bool>,
 
     init_cap: KernelProcessInitCapability,
-    
+
     checker: ProcessCheckerMachine,
 }
 
@@ -145,7 +145,7 @@ impl Kernel {
                 footer: Cell::new(0),
                 policy: OptionalCell::empty(),
                 processes: processes,
-                approve_cap: KernelProcessApprovalCapability {}
+                approve_cap: KernelProcessApprovalCapability {},
             },
         }
     }
@@ -1357,7 +1357,6 @@ impl Kernel {
     }
 }
 
-
 /// Iterates across the `processes` array, checking footers and deciding
 /// whether to make them runnable based on the checking policy in `checker`.
 /// Starts processes that pass the policy and puts processes that don't
@@ -1407,10 +1406,9 @@ impl ProcessCheckerMachine {
             let footer_index = self.footer.get();
             // Try to check the next footer.
             let check_result = self.policy.map_or(FooterCheckResult::Error, |c| {
-                self.processes[proc_index]
-                    .map_or(FooterCheckResult::NoProcess, |p| {
-                        check_footer(p, *c, footer_index)
-                    })
+                self.processes[proc_index].map_or(FooterCheckResult::NoProcess, |p| {
+                    check_footer(p, *c, footer_index)
+                })
             });
 
             if config::CONFIG.debug_process_credentials {
@@ -1448,8 +1446,12 @@ impl ProcessCheckerMachine {
                                             p.get_process_name()
                                         );
                                     }
-                                    p.mark_credentials_pass(None, ShortID::LocallyUnique, &self.approve_cap)
-                                        .or(Err(ProcessLoadError::InternalError))?;
+                                    p.mark_credentials_pass(
+                                        None,
+                                        ShortID::LocallyUnique,
+                                        &self.approve_cap,
+                                    )
+                                    .or(Err(ProcessLoadError::InternalError))?;
                                 }
                                 Ok(true)
                             },
@@ -1601,9 +1603,11 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
         match result {
             Ok(process_checker::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
-                    let short_id = self.policy.map_or(ShortID::LocallyUnique,
-                                                      |policy| policy.to_short_id(&credentials));
-                    let _r = p.mark_credentials_pass(Some(credentials), short_id, &self.approve_cap);
+                    let short_id = self.policy.map_or(ShortID::LocallyUnique, |policy| {
+                        policy.to_short_id(&credentials)
+                    });
+                    let _r =
+                        p.mark_credentials_pass(Some(credentials), short_id, &self.approve_cap);
                 });
                 self.process.set(self.process.get() + 1);
             }
