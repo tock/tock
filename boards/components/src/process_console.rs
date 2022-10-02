@@ -27,7 +27,7 @@ use kernel::process::ProcessPrinter;
 use kernel::{static_init, static_init_half};
 
 #[macro_export]
-macro_rules! process_console_component_helper {
+macro_rules! process_console_component_static {
     ($A: ty) => {{
         use capsules::process_console::ProcessConsole;
         use capsules::virtual_alarm::VirtualMuxAlarm;
