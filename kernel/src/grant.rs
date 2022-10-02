@@ -741,7 +741,7 @@ struct SavedUpcall {
 struct SavedAllowRo {
     ptr: *const u8,
     /// ```text,ignore
-    /// Bit  size_of::<usize>-1           0
+    /// Bit  (size_of::<usize>()*8)-1     0
     ///     +-+-------------------...------+
     ///     |A|            LEN             |
     ///     +------------------------------+
@@ -767,7 +767,7 @@ impl Default for SavedAllowRo {
 struct SavedAllowRw {
     ptr: *mut u8,
     /// ```text,ignore
-    /// Bit  size_of::<usize>-1           0
+    /// Bit  (size_of::<usize>()*8)-1     0
     ///     +-+-------------------...------+
     ///     |A|            LEN             |
     ///     +------------------------------+
