@@ -655,9 +655,12 @@ Checker provides to decide whether two processes have the same
 Application Identifier.  An implementer of `ApplicationIdentification`
 implements the `different_identifier` method, which performs a
 pairwise comparison of two processes. There is also a
-`has_unique_identifier` method, which compares a process against all
-of the processes in a process array. The trait has a default
-implementation of this method, but implementations may override it.
+`has_unique_identifiers` method, which compares a process against all
+of the processes in a process array, checking that both its
+Application Identifer and its Short ID are unique. The trait has a
+default implementation of `has_unique_identifiers`: implementations
+SHOULD NOT override it, as it implements a key security property of
+the kernel.
 
 ```rust
 trait AppIdentification {
@@ -667,12 +670,13 @@ trait AppIdentification {
 	                        processA: &dyn Process,
                             processB: &dyn Process) -> bool;
 
-    // Return whether `process` has a unique application identifier (whether
-    // it does not collide with the application identifier of any `Process`
-    // in `processes`.
-    fn has_unique_identifier(&self,
-                             process: &dyn Process,
-                             processes: &[Option<&dyn Process>]) -> bool {
+    /// Return whether there is a currently running process that has
+    /// the same application identifier as `process` OR the same short
+    /// ID as `process`. This means that if `process` is currently
+    /// running, `has_unique_identifiers` returns false.
+    fn has_unique_identifiers(&self,
+                              process: &dyn Process,
+                              processes: &[Option<&dyn Process>]) -> bool {
         let len = processes.len();
         if process.get_state() != State::Unstarted &&
                    process.get_state() != State::Terminated {
@@ -688,7 +692,8 @@ trait AppIdentification {
             let diff = checked_process
                 .map_or(true, |other| {
                     !other.is_running() ||
-                        self.different_identifier(process, other)
+                       (self.different_identifier(process, other) &&
+                        self.short_app_id() != process.short_app_id())
                 });
             if !diff {
                 return false;

@@ -74,18 +74,19 @@ pub trait AppUniqueness {
     fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool;
 
     /// Return whether there is a currently running process that has
-    /// the same application identifier as `process`. This means that
-    /// if `process` is currently running, `has_unique_identifier`
-    /// returns false.
-    fn has_unique_identifier(
+    /// the same application identifier as `process` OR the same short
+    /// ID as `process`. This means that if `process` is currently
+    /// running, `has_unique_identifier` returns false.
+    fn has_unique_identifiers(
         &self,
         process: &dyn Process,
         processes: &[Option<&dyn Process>],
     ) -> bool {
         let len = processes.len();
-        // If the process is running or not runnable it does not have a unique identifier;
-        // these two states describe a process that is potentially runnable, dependent on
-        // checking for identifier uniqueness at runtime.
+        // If the process is running or not runnable it does not have
+        // a unique identifier; these two states describe a process
+        // that is potentially runnable, dependent on checking for
+        // identifier uniqueness at runtime.
         if process.get_state() != State::CredentialsApproved
             && process.get_state() != State::Terminated
         {
@@ -99,7 +100,9 @@ pub trait AppUniqueness {
         for i in 0..len {
             let checked_process = processes[i];
             let diff = checked_process.map_or(true, |other| {
-                !other.is_running() || self.different_identifier(process, other)
+                !other.is_running()
+                    || (self.different_identifier(process, other)
+                        && other.short_app_id() != process.short_app_id())
             });
             if !diff {
                 return false;

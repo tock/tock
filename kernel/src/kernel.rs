@@ -731,7 +731,7 @@ impl Kernel {
 
                     if resources
                         .credentials_checking_policy()
-                        .has_unique_identifier(process, self.processes)
+                        .has_unique_identifiers(process, self.processes)
                     {
                         // Has a unique Application Identifier, push the first stack frame
                         // and make it runnable.

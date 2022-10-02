@@ -1,4 +1,4 @@
-# Tock Binary Format
+1# Tock Binary Format
 
 <!-- npm i -g markdown-toc; markdown-toc -i Compilation.md -->
 
@@ -48,10 +48,10 @@ Start of app -> +-------------------+---
               | |                   |
               V |                   |
                 +-------------------+
-				| Optional footers  |
-				| (only if Program  |
-				|  header present)  |
-				+-------------------+
+                | Optional footers  |
+                | (only if Program  |
+                |  header present)  |
+                +-------------------+
                 | Optional padding  |
                 +-------------------+
 ```
@@ -226,14 +226,11 @@ struct TbfHeaderV2KernelVersion {
 // Types of credentials footers
 pub enum TbfFooterV2CredentialsType {
     Reserved = 0,
-    CleartextID = 1,
-    Rsa3072Key = 2,
-    Rsa4096Key = 3,
-    Rsa3072KeyWithID = 4,
-    Rsa4096KeyWithID = 5,
-    SHA256 = 6,
-    SHA384 = 7,
-    SHA512 = 8,
+    Rsa3072Key = 1,
+    Rsa4096Key = 2,
+    SHA256 = 3,
+    SHA384 = 4,
+    SHA512 = 5,
 }
 
 // Credentials footer. The length field of the TLV determines
