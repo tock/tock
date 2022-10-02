@@ -12,8 +12,6 @@ MEMORY
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x20000
 }
 
-MPU_MIN_ALIGN = 8K;
-
 
 SECTIONS {
   .boot_hdr  : ALIGN(4)

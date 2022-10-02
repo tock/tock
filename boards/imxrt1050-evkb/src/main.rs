@@ -318,7 +318,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
     io::WRITER.set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
@@ -334,7 +334,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         lpuart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(lpuart_mux).finalize(());
 
@@ -497,7 +497,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         imxrt1050::gpt::Gpt1
     ));
     let _ = process_console.start();

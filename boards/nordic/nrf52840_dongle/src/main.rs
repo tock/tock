@@ -316,7 +316,7 @@ pub unsafe fn main() {
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux =
         components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
-            .finalize(());
+            .finalize(components::uart_mux_component_static!());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -324,7 +324,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc<'static>
     ));
 
@@ -334,7 +334,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 

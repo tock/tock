@@ -33,8 +33,8 @@ register_structs! {
         (0x2C => _reserved0),
         (0x4000 => imem: [ReadWrite<u32>; 1024]),
         (0x5000 => _reserved1),
-        (0x8000 => dmem: [ReadWrite<u32>; 1024]),
-        (0x9000 => @END),
+        (0x8000 => dmem: [ReadWrite<u32>; 512]),
+        (0x8800 => @END),
     }
 }
 

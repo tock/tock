@@ -82,8 +82,8 @@ register_bitfields![u32,
             Key192 = 2,
             Key256 = 4,
         ],
-        MANUAL_OPERATION OFFSET(11) NUMBITS(1) [],
-        FORCE_ZERO_MASKS OFFSET(12) NUMBITS(1) [],
+        MANUAL_OPERATION OFFSET(15) NUMBITS(1) [],
+        FORCE_ZERO_MASKS OFFSET(16) NUMBITS(1) [],
     ],
     TRIGGER [
         START OFFSET(0) NUMBITS(1) [],
@@ -145,7 +145,7 @@ impl<'a> Aes<'a> {
         self.deferred_handle.set(deferred_call_handle);
     }
 
-    fn idle(&self) -> bool {
+    pub fn idle(&self) -> bool {
         self.registers.status.is_set(STATUS::IDLE)
     }
 

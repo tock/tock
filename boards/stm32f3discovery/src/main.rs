@@ -333,6 +333,8 @@ unsafe fn set_pin_primary_functions(
 unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
     // USART1 IRQn is 37
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART1).enable();
+    // USART2 IRQn is 38
+    cortexm4::nvic::Nvic::new(stm32f303xc::nvic::USART2).enable();
 
     // TIM2 IRQn is 28
     tim2.enable_clock();
@@ -392,7 +394,7 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+        static_init!([DynamicDeferredCallClientState; 4], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -409,12 +411,14 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     peripherals.usart1.enable_clock();
+    peripherals.usart2.enable_clock();
+
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.usart1,
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
@@ -433,7 +437,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -771,7 +775,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         stm32f303xc::tim2::Tim2
     ));
     let _ = process_console.start();

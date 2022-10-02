@@ -36,12 +36,12 @@ use capsules::lpm013m126::Lpm013m126;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use core::marker::PhantomData;
+use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::gpio;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
 use kernel::hil::time::Alarm;
-use kernel::utilities::static_init::StaticUninitializedBuffer;
 
 /// CS is active high
 pub struct Inverted<'a, P: gpio::Pin>(pub &'a P);
@@ -169,10 +169,10 @@ where
     S: 'static + SpiMaster,
 {
     type StaticInput = (
-        StaticUninitializedBuffer<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut [u8],
         &'static VirtualSpiMasterDevice<'static, S>,
-        StaticUninitializedBuffer<
+        &'static mut MaybeUninit<
             Lpm013m126<'static, VirtualMuxAlarm<'static, A>, P, VirtualSpiMasterDevice<'static, S>>,
         >,
     );
@@ -185,10 +185,10 @@ where
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let (alarm, buffer, spi_device, lpm013m126) = s;
-        let lpm013m126_alarm = alarm.initialize(VirtualMuxAlarm::new(self.alarm_mux));
+        let lpm013m126_alarm = alarm.write(VirtualMuxAlarm::new(self.alarm_mux));
         lpm013m126_alarm.setup();
 
-        let lpm013m126 = lpm013m126.initialize(
+        let lpm013m126 = lpm013m126.write(
             Lpm013m126::new(
                 spi_device,
                 self.extcomin,

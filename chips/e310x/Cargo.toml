@@ -8,4 +8,3 @@ edition = "2021"
 sifive = { path = "../sifive" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
-

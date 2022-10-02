@@ -10,11 +10,13 @@ _It is a work in progress. Comments and pull requests are appreciated!_
 <!-- toc -->
 
 - [Overview](#overview)
+- [Is Tock a Good Fit for my Hardware?](#is-tock-a-good-fit-for-my-hardware)
 - [Crate Details](#crate-details)
   * [`arch` Crate](#arch-crate)
   * [`chip` Crate](#chip-crate)
     + [Tips and Tools](#tips-and-tools)
   * [`board` Crate](#board-crate)
+    + [Component Creation](#component-creation)
     + [Board Support](#board-support)
       - [`panic!`s (aka `io.rs`)](#panics-aka-iors)
       - [Board Cargo.toml, build.rs](#board-cargotoml-buildrs)
@@ -41,6 +43,30 @@ platform uses a microcontroller already supported by Tock then you can use the
 existing chip crate. The arch crate implements the low-level code for a specific
 hardware architecture (e.g. what happens when the chip first boots and how
 system calls are implemented).
+
+
+Is Tock a Good Fit for my Hardware?
+-----------------------------------
+
+Before porting Tock to a new platform or microcontroller, you should determine
+if Tock is a good fit. While we do not have an exact rubric, there are some
+requirements that we generally look for:
+
+- Must have requirements:
+
+  - Memory protection support. This is generally the MPU on Cortex-M platforms
+    or the PMP on RISC-V platforms.
+  - At least 32-bit support. Tock is not designed for 16-bit platforms.
+  - Enough RAM and flash to support userspace applications. "Enough" is
+    underspecified, but generally boards should have at least 64 kB of RAM and
+    128 kB of flash.
+
+- Generally expected requirements:
+
+  - The platform should be 32-bit. Tock may support 64-bit in the future.
+  - The platform should be single core. A multicore CPU is OK, but the
+    expectation is that only one core will be used with Tock.
+
 
 Crate Details
 -------------
@@ -138,9 +164,152 @@ instantiation. The best bet is to start from an existing board's `main.rs` file
 and adapt it. Initially, you will likely want to delete most of the capsules and
 add them slowly as you get things working.
 
-> Warning: Components are singletons, that is they may not be instantiated
+> Warning: Many components are singletons, that is they may not be instantiated
 > multiple times. Components should only be instantiated in the reset handler to
 > avoid any multiple instantiations.
+
+#### Component Creation
+
+Creating a component for a capsule has two main benefits: 1) all subtleties and
+any complexities with setting up the capsule can be contained in the component,
+reducing the chance for error when using the capsule, and 2) the details of
+instantiating a capsule are abstracted from the high-level setup of a board.
+Therefore, Tock encourages boards to use components for their main startup
+process.
+
+Basic components generally have a structure like the following simplified
+example for a `Console` component:
+
+```rust
+use core::mem::MaybeUninit;
+use kernel::static_buf;
+
+/// Helper macro that calls `static_buf!()`. This helps allow components to be
+/// instantiated multiple times.
+#[macro_export]
+macro_rules! console_component_static {
+    () => {{
+        let console = static_buf!(capsules::console::Console<'static>);
+        console
+    }};
+}
+
+/// Main struct that represents the component. This should contain all
+/// configuration and resources needed to instantiate this capsule.
+pub struct ConsoleComponent {
+    uart: &'static capsules::virtual_uart::UartDevice<'static>,
+}
+
+impl ConsoleComponent {
+    /// The constructor for the component where the resources and configuration
+    /// are provided.
+    pub fn new(
+        uart: &'static capsules::virtual_uart::UartDevice,
+    ) -> ConsoleComponent {
+        ConsoleComponent {
+            uart,
+        }
+    }
+}
+
+impl Component for ConsoleComponent {
+    /// The statically defined (using `static_buf!()`) structures where the
+    /// instantiated capsules will actually be stored.
+    type StaticInput = &'static mut MaybeUninit<capsules::console::Console<'static>>;
+    /// What will be returned to the user of the component.
+    type Output = &'static capsules::console::Console<'static>;
+
+    /// Initializes and configures the capsule.
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        /// Call `.write()` on the static buffer to set its contents with the
+        /// constructor from the capsule.
+        let console = s.write(console::Console::new(self.uart));
+
+        /// Set any needed clients or other configuration steps.
+        hil::uart::Transmit::set_transmit_client(self.uart, console);
+        hil::uart::Receive::set_receive_client(self.uart, console);
+
+        /// Return the static reference to the newly created capsule object.
+        console
+    }
+}
+```
+
+Using a basic component like this console example looks like:
+
+```rust
+// in main.rs:
+
+let console = ConsoleComponent::new(uart_device)
+    .finalize(components::console_component_static!());
+```
+
+When creating components, keep the following steps in mind:
+
+- All static buffers needed for the component **MUST** be created using
+  `static_buf!()` inside of a macro, and nowhere else. This is necessary to help
+  allow components to be used multiple times (for example if a board has two
+  temperature sensors). Because the same `static_buf!()` call cannot be executed
+  multiple times, `static_buf!()` cannot be placed in a function, and must be
+  called directly from main.rs. To preserve the ergonomics of components, we
+  wrap the call to `static_buf!()` in a macro, and call the macro from main.rs
+  instead of `static_buf!()` directly.
+
+  The naming convention of the macro that wraps `static_buf!()` should be
+  `[capsule name]_component_static!()` to indicate this is where the static
+  buffers are created. The macro should _only_ create static buffers.
+
+- All configuration and resources not related to static buffers should be passed
+  to the `new()` constructor of the component object.
+
+Finally, some capsules and resources are templated over chip-specific resources.
+This slightly complicates defining the static buffers for certain capsules. To
+ensure that components can be re-used across different boards and
+microcontrollers, components use the same macro strategy for other static
+buffers.
+
+```rust
+use core::mem::MaybeUninit;
+use kernel::static_buf;
+
+#[macro_export]
+macro_rules! alarm_mux_component_static {
+    ($A: ty) => {{
+        let alarm = static_buf!(capsules::virtual_alarm::MuxAlarm<'static, $A>);
+        alarm
+    }};
+}
+
+pub struct AlarmMuxComponent<A: 'static + time::Alarm<'static>> {
+    alarm: &'static A,
+}
+
+impl<A: 'static + time::Alarm<'static>> AlarmMuxComponent<A> {
+    pub fn new(alarm: &'static A) -> AlarmMuxComponent<A> {
+        AlarmMuxComponent { alarm }
+    }
+}
+
+impl<A: 'static + time::Alarm<'static>> Component for AlarmMuxComponent<A> {
+    type StaticInput = &'static mut MaybeUninit<capsules::virtual_alarm::MuxAlarm<'static, A>>;
+    type Output = &'static MuxAlarm<'static, A>;
+
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let mux_alarm = s.write(MuxAlarm::new(self.alarm));
+        self.alarm.set_alarm_client(mux_alarm);
+        mux_alarm
+    }
+}
+```
+
+Here, the `alarm_mux_component_static!()` macro needs the type of the underlying
+alarm hardware. The usage looks like:
+
+```rust
+let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.ast)
+    .finalize(components::alarm_mux_component_static!(sam4l::ast::Ast));
+```
+
 
 #### Board Support
 

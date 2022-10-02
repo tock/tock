@@ -46,11 +46,11 @@ impl<'a> SensorTestCallback {
 }
 
 impl<'a> TemperatureClient for SensorTestCallback {
-    fn callback(&self, value: usize) {
+    fn callback(&self, result: Result<i32, ErrorCode>) {
         self.temperature_done.set(true);
-        self.calibration_temp.set(Some(value as i32));
+        self.calibration_temp.set(Some(result.unwrap()));
 
-        debug!("Temperature: {}", value);
+        debug!("Temperature: {}", result.unwrap());
     }
 }
 

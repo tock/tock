@@ -7,6 +7,7 @@
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -163,14 +164,14 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     let console = components::console::ConsoleComponent::new(
         board_kernel,
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.

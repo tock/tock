@@ -6,10 +6,10 @@ use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i;
+use rv32i::csr;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::PMP;
 
-use crate::interrupts;
 use crate::plic::PLIC;
 use kernel::platform::chip::InterruptService;
 use sifive::plic::Plic;
@@ -24,6 +24,7 @@ pub struct E310x<'a, I: InterruptService<()> + 'a> {
 
 pub struct E310xDefaultPeripherals<'a> {
     pub uart0: sifive::uart::Uart<'a>,
+    pub uart1: sifive::uart::Uart<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub prci: sifive::prci::Prci,
     pub pwm0: sifive::pwm::Pwm,
@@ -37,6 +38,7 @@ impl<'a> E310xDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 16_000_000),
+            uart1: sifive::uart::Uart::new(crate::uart::UART1_BASE, 16_000_000),
             gpio_port: crate::gpio::Port::new(),
             prci: sifive::prci::Prci::new(crate::prci::PRCI_BASE),
             pwm0: sifive::pwm::Pwm::new(crate::pwm::PWM0_BASE),
@@ -49,17 +51,8 @@ impl<'a> E310xDefaultPeripherals<'a> {
 }
 
 impl<'a> InterruptService<()> for E310xDefaultPeripherals<'a> {
-    unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
-        match interrupt {
-            interrupts::UART0 => self.uart0.handle_interrupt(),
-            int_pin @ interrupts::GPIO0..=interrupts::GPIO31 => {
-                let pin = &self.gpio_port[(int_pin - interrupts::GPIO0) as usize];
-                pin.handle_interrupt();
-            }
-
-            _ => return false,
-        }
-        true
+    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+        false
     }
 
     unsafe fn service_deferred_call(&self, _: ()) -> bool {
@@ -79,9 +72,24 @@ impl<'a, I: InterruptService<()> + 'a> E310x<'a, I> {
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        self.plic.disable_all();
-        self.plic.clear_all_pending();
+        /* E31 core manual
+         * https://sifive.cdn.prismic.io/sifive/c29f9c69-5254-4f9a-9e18-24ea73f34e81_e31_core_complex_manual_21G2.pdf
+         * PLIC Chapter 9.4 p.114: A pending bit in the PLIC core can be cleared
+         * by setting the associated enable bit then performing a claim.
+         */
+
+        // first disable interrupts globally
+        let old_mie = csr::CSR
+            .mstatus
+            .read_and_clear_field(csr::mstatus::mstatus::mie);
+
         self.plic.enable_all();
+        self.plic.clear_all_pending();
+
+        // restore the old external interrupt enable bit
+        csr::CSR
+            .mstatus
+            .modify(csr::mstatus::mstatus::mie.val(old_mie));
     }
 
     unsafe fn handle_plic_interrupts(&self) {

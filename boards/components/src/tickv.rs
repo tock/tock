@@ -67,7 +67,7 @@ pub struct TicKVComponent<
     hasher: &'static H,
     region_offset: usize,
     flash_size: usize,
-    tickfs_read_buf: &'static mut [u8; 64],
+    tickfs_read_buf: &'static mut [u8; 2048],
     flash_read_buffer: &'static mut F::Page,
 }
 
@@ -81,7 +81,7 @@ impl<
         mux_flash: &'static MuxFlash<'static, F>,
         region_offset: usize,
         flash_size: usize,
-        tickfs_read_buf: &'static mut [u8; 64],
+        tickfs_read_buf: &'static mut [u8; 2048],
         flash_read_buffer: &'static mut F::Page,
     ) -> Self {
         Self {
