@@ -239,14 +239,11 @@ pub struct TbfHeaderV2KernelVersion {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TbfFooterV2CredentialsType {
     Reserved = 0,
-    CleartextID = 1,
-    Rsa3072Key = 2,
-    Rsa4096Key = 3,
-    Rsa3072KeyWithID = 4,
-    Rsa4096KeyWithID = 5,
-    SHA256 = 6,
-    SHA384 = 7,
-    SHA512 = 8,
+    Rsa3072Key = 1,
+    Rsa4096Key = 2,
+    SHA256 = 3,
+    SHA384 = 4,
+    SHA512 = 5,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -609,25 +606,19 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
         );
         let ftype = match format {
             0 => TbfFooterV2CredentialsType::Reserved,
-            1 => TbfFooterV2CredentialsType::CleartextID,
-            2 => TbfFooterV2CredentialsType::Rsa3072Key,
-            3 => TbfFooterV2CredentialsType::Rsa4096Key,
-            4 => TbfFooterV2CredentialsType::Rsa3072KeyWithID,
-            5 => TbfFooterV2CredentialsType::Rsa4096KeyWithID,
-            6 => TbfFooterV2CredentialsType::SHA256,
-            7 => TbfFooterV2CredentialsType::SHA384,
-            8 => TbfFooterV2CredentialsType::SHA512,
+            1 => TbfFooterV2CredentialsType::Rsa3072Key,
+            2 => TbfFooterV2CredentialsType::Rsa4096Key,
+            3 => TbfFooterV2CredentialsType::SHA256,
+            4 => TbfFooterV2CredentialsType::SHA384,
+            5 => TbfFooterV2CredentialsType::SHA512,
             _ => {
                 return Err(TbfParseError::InternalError);
             }
         };
         let length = match ftype {
             TbfFooterV2CredentialsType::Reserved => 0,
-            TbfFooterV2CredentialsType::CleartextID => 8,
             TbfFooterV2CredentialsType::Rsa3072Key => 768,
             TbfFooterV2CredentialsType::Rsa4096Key => 1024,
-            TbfFooterV2CredentialsType::Rsa3072KeyWithID => 768,
-            TbfFooterV2CredentialsType::Rsa4096KeyWithID => 1024,
             TbfFooterV2CredentialsType::SHA256 => 32,
             TbfFooterV2CredentialsType::SHA384 => 48,
             TbfFooterV2CredentialsType::SHA512 => 64,

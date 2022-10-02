@@ -143,9 +143,6 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'static [u8])> {
         self.credentials.set(credentials);
         match credentials.format() {
-            TbfFooterV2CredentialsType::Reserved | TbfFooterV2CredentialsType::CleartextID => {
-                Err((ErrorCode::ALREADY, credentials, binary))
-            }
             TbfFooterV2CredentialsType::SHA256 => {
                 self.hash.map(|h| {
                     for i in 0..32 {
