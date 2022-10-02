@@ -153,10 +153,10 @@ register_bitfields!(usize,
         /// An access is defined as the a call to
         /// one of the [`GrantKernelData::get_readonly_processbuffer`] or
         /// [`GrantKernelData::get_readwrite_process_buffer`] functions.
-        ACCESSED OFFSET(core::mem::size_of::<usize>()-1) NUMBITS(1) [],
+        ACCESSED OFFSET((core::mem::size_of::<usize>()*8)-1) NUMBITS(1) [],
 
         /// Stores the length of the shared buffer
-        LEN OFFSET(0) NUMBITS(core::mem::size_of::<usize>()-1) [],
+        LEN OFFSET(0) NUMBITS((core::mem::size_of::<usize>()*8)-1) [],
     ]
 );
 
