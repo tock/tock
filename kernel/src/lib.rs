@@ -106,7 +106,7 @@ pub mod introspection;
 pub mod ipc;
 pub mod platform;
 pub mod process;
-pub mod process_checking;
+pub mod process_checker;
 pub mod processbuffer;
 pub mod scheduler;
 pub mod storage_permissions;

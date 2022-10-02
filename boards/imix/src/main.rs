@@ -28,7 +28,7 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process_checking::AppCheckerSha256;
+use kernel::process_checker::basic::AppCheckerSha256;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;

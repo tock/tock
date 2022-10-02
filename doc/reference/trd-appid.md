@@ -66,23 +66,26 @@ must accommodate this wide range.
 
 The interfaces and standard implementations for AppIDs and AppID
 checkers are in the kernel crate, in the module
-`process_checking`. There are three main traits:
+`process_checker`. There are three main traits:
 
-  * `kernel::process_checking::AppCredentialsChecker` is responsible
+  * `kernel::process_checker::AppCredentialsChecker` is responsible
   for defining which types of application identifiers the kernel
   accepts and whether it accepts a particular application identifier
   for a specific application binary. The kernel only loads userspace
   programs that the kernel's `AppCredentialsChecker` accepts.
 
-  * `kernel::process_checking::AppUniqueness` compares the application
+  * `kernel::process_checker::AppUniqueness` compares the application
   identifiers of two processes and reports whether they differ. The
   kernel uses this trait to ensure that each running process has a
   unique application identifier.
 
-  * `kernel::process_checking::Compress` compresses application
+  * `kernel::process_checker::Compress` compresses application
   identifiers into short, 32-bit identifiers called
   `ShortID`s. `ShortID`s provide a mechanism for fast comparison,
   e.g., for an application identifier against an access control list.
+
+Example implementations can be found in
+`kernel::process_checker::basic`.
 
 
 2 Terminology

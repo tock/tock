@@ -24,7 +24,7 @@ use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::{self, ProcessId, Task};
-use crate::process_checking::AppUniqueness;
+use crate::process_checker::AppUniqueness;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};

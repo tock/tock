@@ -17,8 +17,8 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::platform::KernelResources;
 use crate::process::{Process, ShortID};
-use crate::process_checking;
-use crate::process_checking::{AppCredentialsChecker, CredentialsCheckingPolicy};
+use crate::process_checker;
+use crate::process_checker::{AppCredentialsChecker, CredentialsCheckingPolicy};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::static_init;
@@ -590,10 +590,10 @@ fn check_footer(
     FooterCheckResult::PastLastFooter
 }
 
-impl process_checking::Client<'static> for ProcessCheckerMachine {
+impl process_checker::Client<'static> for ProcessCheckerMachine {
     fn check_done(
         &self,
-        result: Result<process_checking::CheckResult, ErrorCode>,
+        result: Result<process_checker::CheckResult, ErrorCode>,
         credentials: TbfFooterV2Credentials,
         _binary: &'static [u8],
     ) {
@@ -602,7 +602,7 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
             debug!("Checking: check_done gave result {:?}", result);
         }
         match result {
-            Ok(process_checking::CheckResult::Accept) => {
+            Ok(process_checker::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
                     let short_id = self
                         .checker
@@ -611,10 +611,10 @@ impl process_checking::Client<'static> for ProcessCheckerMachine {
                 });
                 self.process.set(self.process.get() + 1);
             }
-            Ok(process_checking::CheckResult::Pass) => {
+            Ok(process_checker::CheckResult::Pass) => {
                 self.footer.set(self.footer.get() + 1);
             }
-            Ok(process_checking::CheckResult::Reject) => {
+            Ok(process_checker::CheckResult::Reject) => {
                 self.processes[self.process.get()].map(|p| {
                     let _r = p.mark_credentials_fail(&capability);
                 });
