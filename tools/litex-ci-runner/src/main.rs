@@ -315,7 +315,7 @@ fn run() -> Result<(), Error> {
     // Test: rot13_client and rot13_service
     //
     // Tests IPC and IPC service discovery.
-    libtock_c_examples_test(&["rot13_service", "rot13_client"], |p, _| {
+    libtock_c_examples_test(&["rot13_client", "rot13_service"], |p, _| {
         // Let run for a few cycles to make sure it doesn't crash
         // after the first few messages
         for _ in 0..10 {
