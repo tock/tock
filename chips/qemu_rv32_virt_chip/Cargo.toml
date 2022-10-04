@@ -1,7 +1,7 @@
 [package]
 name = "qemu_rv32_virt_chip"
-version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+version.workspace = true
+authors.workspace = true
 edition = "2018"
 
 [dependencies]

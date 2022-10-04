@@ -94,6 +94,11 @@ exclude = [
     "tools/usb/control-test",
 ]
 
+[workspace.package]
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2021"
+
 [profile.dev]
 panic = "abort"
 lto = false
