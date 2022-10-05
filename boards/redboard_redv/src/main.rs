@@ -268,7 +268,11 @@ pub unsafe fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
-    debug!("Red-V initialization complete. Entering main loop.");
+    // Need two debug!() calls to actually test with QEMU. QEMU seems to have a
+    // much larger UART TX buffer (or it transmits faster). With a single call
+    // the entire message is printed to console even if the kernel loop does not run
+    debug!("Red-V initialization complete.");
+    debug!("Entering main loop.");
 
     // These symbols are defined in the linker script.
     extern "C" {

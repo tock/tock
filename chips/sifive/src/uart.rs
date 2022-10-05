@@ -286,7 +286,6 @@ impl<'a, T> Uart<'a, T> {
         }
 
         if self.rx_status.get() == UARTStateRX::AbortRequested {
-            // self.transmit_sync(&[65, 66, 67, 68]);
             // alert client
             self.rx_client.map(|client| {
                 self.rx_buffer.take().map(|buf| {
