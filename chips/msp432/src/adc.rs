@@ -4,6 +4,7 @@ use crate::{dma, ref_module, timer};
 use core::cell::Cell;
 use core::{mem, slice};
 use kernel::hil;
+use kernel::hil::adc::Client;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
@@ -486,11 +487,6 @@ register_bitfields![u32,
     ]
 ];
 
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-
 pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     resolution: AdcResolution,
@@ -503,7 +499,7 @@ pub struct Adc<'a> {
     dma_src: u8,
     buffer1: TakeCell<'static, [u16]>,
     buffer2: TakeCell<'static, [u16]>,
-    client: OptionalCell<&'static dyn EverythingClient>,
+    client: OptionalCell<&'static dyn Client>,
 }
 
 impl Adc<'_> {
@@ -712,10 +708,6 @@ impl<'a> Adc<'a> {
         self.dma.set(dma);
     }
 
-    pub fn set_client(&self, client: &'static dyn EverythingClient) {
-        self.client.set(client);
-    }
-
     pub fn handle_interrupt(&self) {
         let chan = self.active_channel.get();
         let chan_nr = chan as usize;
@@ -896,8 +888,8 @@ impl hil::adc::Adc for Adc<'_> {
         self.ref_module.map(|ref_mod| ref_mod.ref_voltage_mv())
     }
 
-    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
-        unimplemented!();
+    fn set_client(&self, client: &'static dyn Client) {
+        self.client.set(client);
     }
 }
 

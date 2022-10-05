@@ -5,10 +5,10 @@ Kernel Analog-to-Digital Conversion HIL
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Philip Levis and Branden Ghena<br/>
+**Author:** Philip Levis, Branden Ghena, and Hudson Ayers<br/>
 **Draft-Created:** Dec 18, 2016<br/>
-**Draft-Modified:** June 12, 2017<br/>
-**Draft-Version:** 2<br/>
+**Draft-Modified:** October 5, 2022<br/>
+**Draft-Version:** 3<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -34,9 +34,9 @@ The ADC HIL is the kernel crate, in module hil::adc. It
 provides three traits:
 
   * kernel::hil::adc::Adc - provides basic interface for individual analog samples
-  * kernel::hil::adc::Client - receives individual analog samples from the ADC
+  * kernel::hil::adc::Client - receives individual analog samples from the ADC, or buffers of analog samples
+                               in response to high speed buffered sample requests.
   * kernel::hil::adc::AdcHighSpeed - provides high speed buffered analog sampling interface
-  * kernel::hil::adc::HighSpeedClient - receives buffers of analog samples from the ADC
 
 The rest of this document discusses each in turn.
 
@@ -103,7 +103,7 @@ specified channel or frequency are invalid.
 The `stop_sampling` function can be used to stop any sampling operation,
 single, continuous, or high speed. Conversions which have already begun are
 canceled. `stop_sampling` MUST be safe to call from any callback in the Client
-or HighSpeedClient traits. The function MUST return Ok(()), OFF, or INVAL.
+trait. The function MUST return Ok(()), OFF, or INVAL.
 Ok(()) indicates that all conversions are stopped and no further callbacks
 will occur, OFF means the ADC is not initialized or enabled, and INVAL means
 the ADC was not active.
@@ -127,6 +127,15 @@ implemented by capsules to receive chip driver responses. It has one function:
 pub trait Client {
     /// Called when a sample is ready.
     fn sample_ready(&self, sample: u16);
+
+    /// Called when a buffer is full as part of a high speed ADC read.
+    /// The length provided will always be less than or equal to the length of
+    /// the buffer. Expects an additional call to either provide another buffer
+    /// or stop sampling.
+    /// This callback will only ever be called in response to a high speed
+    /// ADC sample request, so clients that only need simple ADC sampling
+    /// can leave this callback empty.
+    fn samples_ready(&self, buf: &'static mut [u16], length: usize);
 }
 ```
 
@@ -136,6 +145,18 @@ the `sample_ready` callback. The sample data returned is a maximum of 16 bits
 in resolution, with the exact data resolution being chip-specific. If data is
 less than 16 bits (for example 12-bits on the SAM4L), it SHOULD be placed in
 the least significant bits of the `sample` value.
+
+The `samples_ready` function is called whenever data is available from a
+`sample_highspeed` call. The `samples_ready` function receives a buffer
+filled with up to `length` number of samples.
+Each sample MAY be up to 16 bits in size. Smaller samples
+SHOULD be aligned such that the data is in the least significant bits of each
+value. The length field MUST match the length passed in with the buffer
+(through either `sample_highspeed` or `provide_buffer`). Within the
+`samples_ready` callback, the capsule SHOULD call `provide_buffer` if it wishes
+to continue sampling. Alternatively, `stop_sampling` and `retrieve_buffers`
+SHOULD be called to stop the ongoing ADC operation. If a client does not plan
+to request any high speed samping, it should leave this callback unimplemented.
 
 
 4 AdcHighSpeed trait
@@ -229,35 +250,7 @@ the function. The return code MUST be Ok(()) if the ADC is not in operation
 an ADC operation is still in progress.
 
 
-5 HighSpeedClient trait
-========================================
-
-The HighSpeedClient trait is used to receive samples from a call to
-`sample_highspeed`. It is implemented by a capsule to receive chip driver
-responses. It has one function:
-
-```
-/// Trait for handling callbacks from high-speed ADC calls.
-pub trait HighSpeedClient {
-    /// Called when a buffer is full.
-    /// The length provided will always be less than or equal to the length of
-    /// the buffer. Expects an additional call to either provide another buffer
-    /// or stop sampling
-    fn samples_ready(&self, buf: &'static mut [u16], length: usize);
-}
-```
-
-The `samples_ready` function receives a buffer filled with up to `length`
-number of samples. Each sample MAY be up to 16 bits in size. Smaller samples
-SHOULD be aligned such that the data is in the least significant bits of each
-value. The length field MUST match the length passed in with the buffer
-(through either `sample_highspeed` or `provide_buffer`). Within the
-`samples_ready` callback, the capsule SHOULD call `provide_buffer` if it wishes
-to continue sampling. Alternatively, `stop_sampling` and `retrieve_buffers`
-SHOULD be called to stop the ongoing ADC operation. 
-
-
-6 Example Implementation: SAM4L
+5 Example Implementation: SAM4L
 ========================================
 
 The SAM4L ADC has a flexible ADC, supporting differential and single-ended
@@ -271,7 +264,7 @@ the ADC can be found in Chapter 38 (Page 995) of the
 The current implementation, found in `chips/sam4l/adc.rs`, implements 
 the `Adc` and `AdcHighSpeed` traits.
 
-6.1 ADC Channels
+5.1 ADC Channels
 ---------------------------------
 
 In order to provide a list of ADC channels to the capsule and userland, the
@@ -317,22 +310,8 @@ pub static mut CHANNEL_AD1: AdcChannel = AdcChannel::new(Channel::AD1);
 pub static mut CHANNEL_REFERENCE_GROUND: AdcChannel = AdcChannel::new(Channel::ReferenceGround);
 ```
 
-6.2 Client Type
----------------------------------
 
-It is difficult in Rust to require a argument that implements two types.
-However, it is convenient for the implementation to expect a single client that
-implements both the `adc::Client` and `adc::HighSpeedClient` interfaces. It is
-possible to do so by defining a new trait that requires each.
-
-```
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-```
-
-6.3 Clock Initialization
+5.2 Clock Initialization
 ---------------------------------
 
 The ADC clock on the SAM4L is poorly documented. It is required to both
@@ -342,7 +321,7 @@ mode). In order to handle this, the SAM4L ADC implementation first divides down
 the clock to reach a value less than or equal to 1.5 MHz (exactly 1.5 MHz in
 practice for a CPU clock running at 48 MHz).
 
-6.4 ADC Initialization
+5.3 ADC Initialization
 ---------------------------------
 
 The process of initializing the ADC is well documented in the SAM4L datasheet,
@@ -364,7 +343,7 @@ It is quite possible that other orders of initialization are valid, however
 proceed with caution.
 
 
-7 Authors' Address
+6 Authors' Address
 ========================================
 
 ```
@@ -384,7 +363,7 @@ Branden Ghena
 email - brghena@umich.edu
 ```
 
-8 Citations
+7 Citations
 ========================================
 
 <a name="trd1"/>[TRD1] <a href="trd1-trds.md">Tock Reference Document (TRD) Structure and Keywords</a>

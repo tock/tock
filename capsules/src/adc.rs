@@ -767,10 +767,8 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
             let _ = self.adc.stop_sampling();
         }
     }
-}
 
-/// Callbacks from the High Speed ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for AdcDedicated<'_, A> {
+    /// Callback from the High Speed ADC driver
     /// Internal buffer has filled from a buffered sampling operation.
     /// Copies data over to application buffer, determines if more data is
     /// needed, and performs a callback to the application if ready. If
@@ -1299,4 +1297,7 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
             });
         });
     }
+
+    // AdcVirtualized does not support high speed sampling, so this callback will not be called
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }

@@ -29,6 +29,9 @@ impl<'a, A: hil::adc::Adc> hil::adc::Client for MuxAdc<'a, A> {
         });
         self.do_next_op();
     }
+
+    // This component does not currently support high speed ADC sampling
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }
 
 impl<'a, A: hil::adc::Adc> MuxAdc<'a, A> {

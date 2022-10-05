@@ -41,10 +41,19 @@ pub trait Adc {
     fn set_client(&self, client: &'static dyn Client);
 }
 
-/// Trait for handling callbacks from simple ADC calls.
+/// Trait for handling callbacks from ADC calls.
 pub trait Client {
     /// Called when a sample is ready.
     fn sample_ready(&self, sample: u16);
+
+    /// Called when a buffer is full as part of a high speed ADC read.
+    /// The length provided will always be less than or equal to the length of
+    /// the buffer. Expects an additional call to either provide another buffer
+    /// or stop sampling.
+    /// This callback will only ever be called in response to a high speed
+    /// ADC sample request, so clients that only need simple ADC sampling
+    /// can leave this callback empty.
+    fn samples_ready(&self, buf: &'static mut [u16], length: usize);
 }
 
 // *** Interfaces for high-speed, buffered ADC sampling ***
@@ -97,15 +106,6 @@ pub trait AdcHighSpeed: Adc {
     fn retrieve_buffers(
         &self,
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode>;
-}
-
-/// Trait for handling callbacks from high-speed ADC calls.
-pub trait HighSpeedClient {
-    /// Called when a buffer is full.
-    /// The length provided will always be less than or equal to the length of
-    /// the buffer. Expects an additional call to either provide another buffer
-    /// or stop sampling
-    fn samples_ready(&self, buf: &'static mut [u16], length: usize);
 }
 
 pub trait AdcChannel {

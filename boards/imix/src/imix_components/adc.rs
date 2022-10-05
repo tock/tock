@@ -19,6 +19,7 @@ use capsules::adc;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::adc::Adc;
 use kernel::static_init;
 use sam4l::adc::Channel;
 

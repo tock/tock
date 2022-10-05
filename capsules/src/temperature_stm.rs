@@ -47,6 +47,9 @@ impl<'a> adc::Client for TemperatureSTM<'a> {
             ));
         });
     }
+
+    // This component does not currently support high speed ADC sampling
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }
 
 impl<'a> sensors::TemperatureDriver<'a> for TemperatureSTM<'a> {

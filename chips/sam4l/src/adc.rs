@@ -22,6 +22,7 @@ use crate::scif;
 use core::cell::Cell;
 use core::{cmp, mem, slice};
 use kernel::hil;
+use kernel::hil::adc::Client;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -76,11 +77,6 @@ impl AdcChannel {
     }
 }
 
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-
 /// ADC driver code for the SAM4L.
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
@@ -106,7 +102,7 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static dyn EverythingClient>,
+    client: OptionalCell<&'static dyn Client>,
     pm: &'static pm::PowerManager,
 }
 
@@ -355,13 +351,6 @@ impl Adc {
             client: OptionalCell::empty(),
             pm,
         }
-    }
-
-    /// Sets the client for this driver.
-    ///
-    /// - `client`: reference to capsule which handles responses
-    pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
-        self.client.set(client);
     }
 
     /// Sets the DMA channel for this driver.
@@ -815,8 +804,8 @@ impl hil::adc::Adc for Adc {
     /// Sets the client for this driver.
     ///
     /// - `client`: reference to capsule which handles responses
-    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
-        unimplemented!();
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(client);
     }
 }
 

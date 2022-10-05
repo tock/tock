@@ -49,6 +49,9 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogLightSensor<'_, A> {
         };
         self.client.map(|client| client.callback(measurement));
     }
+
+    // This component does not currently support high speed ADC sampling
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }
 
 impl<'a, A: hil::adc::Adc> hil::sensors::AmbientLight<'a> for AnalogLightSensor<'a, A> {
@@ -108,6 +111,9 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogTemperatureSensor<'_, A> {
         };
         self.client.map(|client| client.callback(measurement));
     }
+
+    // This component does not currently support high speed ADC sampling
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }
 
 impl<'a, A: hil::adc::Adc> hil::sensors::TemperatureDriver<'a> for AnalogTemperatureSensor<'a, A> {

@@ -104,4 +104,7 @@ impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
             }
         }
     }
+
+    // This component does not currently support high speed ADC sampling
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }

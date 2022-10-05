@@ -46,6 +46,9 @@ impl<'a> adc::Client for TemperatureRp2040<'a> {
                 * 100.0) as i32));
         });
     }
+
+    // This component does not currently support high speed ADC sampling
+    fn samples_ready(&self, _buf: &'static mut [u16], _length: usize) {}
 }
 
 impl<'a> sensors::TemperatureDriver<'a> for TemperatureRp2040<'a> {
