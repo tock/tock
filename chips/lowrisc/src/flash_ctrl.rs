@@ -258,6 +258,9 @@ register_bitfields![u32,
 pub const PAGE_SIZE: usize = 2048;
 pub const FLASH_WORD_SIZE: usize = 8;
 pub const FLASH_PAGES_PER_BANK: usize = 256;
+pub const FLASH_NUM_BANKS: usize = 2;
+pub const FLASH_MAX_PAGES: usize = FLASH_NUM_BANKS * FLASH_PAGES_PER_BANK;
+pub const FLASH_NUM_BUSWORDS_PER_BANK: usize = PAGE_SIZE / 4;
 // The programming windows size in words (32bit)
 pub const FLASH_PROG_WINDOW_SIZE: usize = 16;
 pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
@@ -491,7 +494,7 @@ impl<'a> FlashCtrl<'a> {
                 // Set the address
                 self.registers
                     .addr
-                    .write(ADDR::START.val(self.write_word_addr.get() as u32 * 4));
+                    .write(ADDR::START.val(self.write_word_addr.get().saturating_mul(4) as u32));
 
                 // Start the transaction
                 self.registers.control.modify(CONTROL::START::SET);
@@ -571,12 +574,18 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FlashCtr
 impl hil::flash::Flash for FlashCtrl<'_> {
     type Page = LowRiscPage;
 
+    /// The flash controller will truncate to the closest, lower word aligned address.
+    /// For example, if 0x13 is supplied, the controller will perform a read at address 0x10.
     fn read_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
-        let addr = page_number * PAGE_SIZE;
+        if page_number >= FLASH_MAX_PAGES {
+            return Err((ErrorCode::INVAL, buf));
+        }
+
+        let addr = page_number.saturating_mul(PAGE_SIZE);
 
         if !self.info_configured.get() {
             // The info partitions have no default access. Specifically set up a region.
@@ -606,7 +615,7 @@ impl hil::flash::Flash for FlashCtrl<'_> {
             CONTROL::OP::READ
                 + CONTROL::PARTITION_SEL::DATA
                 + CONTROL::INFO_SEL::SET
-                + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
+                + CONTROL::NUM.val((FLASH_NUM_BUSWORDS_PER_BANK - 1) as u32)
                 + CONTROL::START::CLEAR,
         );
 
@@ -619,12 +628,18 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         Ok(())
     }
 
+    /// The flash controller will truncate to the closest, lower word aligned address.
+    /// For example, if 0x13 is supplied, the controller will perform a write at address 0x10.
+    /// the controller does not have read modified write support.
     fn write_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
-        let addr = page_number * PAGE_SIZE;
+        if page_number >= FLASH_MAX_PAGES {
+            return Err((ErrorCode::INVAL, buf));
+        }
+        let addr = page_number.saturating_mul(PAGE_SIZE);
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
@@ -700,8 +715,14 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         Ok(())
     }
 
+    /// The controller will truncate to the closest lower page aligned address.
+    /// Similarly for bank erases, the controller will truncate to the closest
+    /// lower bank aligned address.
     fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
-        let addr = page_number * PAGE_SIZE;
+        if page_number >= FLASH_MAX_PAGES {
+            return Err(ErrorCode::INVAL);
+        }
+        let addr = page_number.saturating_mul(PAGE_SIZE);
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
