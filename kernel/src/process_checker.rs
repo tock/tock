@@ -70,7 +70,7 @@ pub trait AppUniqueness {
     /// the same application identifier as `process` OR the same short
     /// ID as `process`. This means that if `process` is currently
     /// running, `has_unique_identifier` returns false. Implementations
-    /// SHOULD NOT override this implementation, as it implements a key 
+    /// SHOULD NOT override this implementation, as it implements a key
     /// security property of the kernel.
     fn has_unique_identifiers(
         &self,
