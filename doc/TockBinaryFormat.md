@@ -1,4 +1,4 @@
-1# Tock Binary Format
+# Tock Binary Format
 
 <!-- npm i -g markdown-toc; markdown-toc -i Compilation.md -->
 
