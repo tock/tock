@@ -7,8 +7,8 @@ Application IDs (AppID), Credentials, and Process Loading
 **Status:** Draft <br/>
 **Author:** Philip Levis, Johnathan Van Why<br/>
 **Draft-Created:** 2021/09/01 <br/>
-**Draft-Modified:** 2022/09/19 <br/>
-**Draft-Version:** 8 <br/>
+**Draft-Modified:** 2022/10/05 <br/>
+**Draft-Version:** 9 <br/>
 **Draft-Discuss:** tock-dev@googlegroups.com<br/>
 
 Abstract
@@ -959,8 +959,8 @@ combines `AppCredentialsChecker`, `AppUniqueness`, and `Compress`
 into a single trait so it can be passed as a single reference.
 
 ```rust
-pub trait CredentialsCheckingPolicy<'a>: AppCredentialsChecker<'a> + AppIdentification + Compress {}
-impl<'a, T: AppCredentialsChecker<'a> + AppIdentification + Compress> CredentialsCheckingPolicy<'a> for T {}
+pub trait CredentialsCheckingPolicy<'a>: AppCredentialsChecker<'a> + AppUniqueness + Compress {}
+impl<'a, T: AppCredentialsChecker<'a> + AppUniqueness + Compress> CredentialsCheckingPolicy<'a> for T {}
 ```
 
 
