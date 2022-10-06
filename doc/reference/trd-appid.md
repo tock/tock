@@ -650,66 +650,74 @@ location indicated by the `binary_end_offset` field in the Program
 Header. The size of this slice is therefore equal to
 `binary_end_offset`.
 
-7 Identifier Policy: the `ApplicationIdentification` trait
+7 Identifier Policy: the `AppUniqueness` trait
 ==============================
 
-The `ApplicationIdentification` trait defines the API the Process
-Checker provides to decide whether two processes have the same
-Application Identifier.  An implementer of `ApplicationIdentification`
-implements the `different_identifier` method, which performs a
-pairwise comparison of two processes. There is also a
-`has_unique_identifiers` method, which compares a process against all
-of the processes in a process array, checking that both its
-Application Identifer and its Short ID are unique. The trait has a
-default implementation of `has_unique_identifiers`: implementations
-SHOULD NOT override it, as it implements a key security property of
-the kernel.
+The `AppUniqueness` trait defines the API the Process Checker provides
+to decide whether two processes have the same Application Identifier
+or Short ID.  An implementer of `AppUniqueness` implements the
+`different_identifier` method, which performs a pairwise comparison of
+two processes. 
+
+The `process_checker` module implements a `has_unique_identifiers`
+function, which compares a process against all of the processes in a
+process array, checking that both its Application Identifer and its
+Short ID are unique. 
 
 ```rust
-trait AppIdentification {
+trait AppUniqueness {
     // Returns true if the two processes have different application
 	// identifiers.
 	fn different_identifier(&self,
 	                        processA: &dyn Process,
                             processB: &dyn Process) -> bool;
 
-    /// Return whether there is a currently running process that has
-    /// the same application identifier as `process` OR the same short
-    /// ID as `process`. This means that if `process` is currently
-    /// running, `has_unique_identifiers` returns false.
-    fn has_unique_identifiers(&self,
-                              process: &dyn Process,
-                              processes: &[Option<&dyn Process>]) -> bool {
-        let len = processes.len();
-        if process.get_state() != State::Unstarted &&
-                   process.get_state() != State::Terminated {
+}
+
+/// Return whether there is a currently running process that has
+/// the same application identifier as `process` OR the same short
+/// ID as `process`. This means that if `process` is currently
+/// running, `has_unique_identifiers` returns false.
+pub fn has_unique_identifiers<AU: AppUniqueness>(&self,
+    process: &dyn Process,
+    processes: &[Option<&dyn Process>],
+    id_differ: &AU,
+) -> bool {
+    let len = processes.len();
+    // If the process is running or not runnable it does not have
+    // a unique identifier; these two states describe a process
+    // that is potentially runnable, dependent on checking for
+    // identifier uniqueness at runtime.
+    if process.get_state() != State::CredentialsApproved
+        && process.get_state() != State::Terminated
+    {
+        return false;
+    }
+    
+    // Note that this causes `process` to compare against itself;
+    // however, since `process` should not be running, it will
+    // not check the identifiers and say they are different. This means
+    // this method returns false if the process is running.
+    for i in 0..len {
+        let checked_process = processes[i];
+        let diff = checked_process.map_or(true, |other| {
+            !other.is_running()
+                || (id_differ.different_identifier(process, other)
+                    && other.short_app_id() != process.short_app_id())
+        });
+        if !diff {
             return false;
         }
-
-        // Note that this causes `process` to compare against itself;
-        // however, since `process` should not be running, it will
-        // not check the identifiers and say they are different. This means
-        // this method returns false if the process is running.
-        for i in 0..len {
-            let checked_process = processes[i];
-            let diff = checked_process
-                .map_or(true, |other| {
-                    !other.is_running() ||
-                       (self.different_identifier(process, other) &&
-                        self.short_app_id() != process.short_app_id())
-                });
-            if !diff {
-                return false;
-            }
-        }
-        true
+    }
+    true
 }
 ```
 
-This interface encapsulates the method by which a module assigns or
-calculates application identifers. The kernel uses this interfaces to
-determine if a process submitted to run will collide with a running
-process's application identifier.
+These interfaces encapsulate the methods by which a module assigns or
+calculates application identifers. The kernel uses
+`has_unique_identifiers` to determine if a process submitted to run
+will collide with a running process's application identifier,
+which in turn uses `AppUniqueness::different_identifier`.
 
 8 Short IDs and the `Compress` trait
 ===============================
@@ -915,7 +923,7 @@ pub trait Compress {
 ```
 
 Generally, the Process Checker that implements `AppCredentialsChecker`
-and `AppIdentification` also implements `Compress`. This allows it to
+and `AppUniqueness` also implements `Compress`. This allows it to
 share copies of public keys or other credentials that it uses to make
 decisions, reducing flash space dedicated to these constants. Doing so
 also makes it less likely that the two are inconsistent.
@@ -947,7 +955,7 @@ state.
 ===============================
 
 The `CredentialsCheckingPolicy` trait is a composite trait that
-combines `AppCredentialsChecker`, `AppIdentification`, and `Compress`
+combines `AppCredentialsChecker`, `AppUniqueness`, and `Compress`
 into a single trait so it can be passed as a single reference.
 
 ```rust

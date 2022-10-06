@@ -58,6 +58,47 @@ impl<'a> AppCredentialsChecker<'a> for () {
     }
 }
 
+
+
+/// Return whether there is a currently running process that has
+/// the same application identifier as `process` OR the same short
+/// ID as `process`. This means that if `process` is currently
+/// running, `has_unique_identifier` returns false.
+pub fn has_unique_identifiers<AU: AppUniqueness>(
+    process: &dyn Process,
+    processes: &[Option<&dyn Process>],
+    id_differ: &AU,
+) -> bool {
+    let len = processes.len();
+    // If the process is running or not runnable it does not have
+    // a unique identifier; these two states describe a process
+    // that is potentially runnable, dependent on checking for
+    // identifier uniqueness at runtime.
+    if process.get_state() != State::CredentialsApproved
+        && process.get_state() != State::Terminated
+    {
+        return false;
+    }
+    
+    // Note that this causes `process` to compare against itself;
+    // however, since `process` should not be running, it will
+    // not check the identifiers and say they are different. This means
+    // this method returns false if the process is running.
+    for i in 0..len {
+        let checked_process = processes[i];
+        let diff = checked_process.map_or(true, |other| {
+            !other.is_running()
+                || (id_differ.different_identifier(process, other)
+                    && other.short_app_id() != process.short_app_id())
+        });
+        if !diff {
+            return false;
+        }
+    }
+    true
+}
+
+
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
 pub trait AppUniqueness {
@@ -65,46 +106,6 @@ pub trait AppUniqueness {
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
     fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool;
-
-    /// Return whether there is a currently running process that has
-    /// the same application identifier as `process` OR the same short
-    /// ID as `process`. This means that if `process` is currently
-    /// running, `has_unique_identifier` returns false. Implementations
-    /// SHOULD NOT override this implementation, as it implements a key
-    /// security property of the kernel.
-    fn has_unique_identifiers(
-        &self,
-        process: &dyn Process,
-        processes: &[Option<&dyn Process>],
-    ) -> bool {
-        let len = processes.len();
-        // If the process is running or not runnable it does not have
-        // a unique identifier; these two states describe a process
-        // that is potentially runnable, dependent on checking for
-        // identifier uniqueness at runtime.
-        if process.get_state() != State::CredentialsApproved
-            && process.get_state() != State::Terminated
-        {
-            return false;
-        }
-
-        // Note that this causes `process` to compare against itself;
-        // however, since `process` should not be running, it will
-        // not check the identifiers and say they are different. This means
-        // this method returns false if the process is running.
-        for i in 0..len {
-            let checked_process = processes[i];
-            let diff = checked_process.map_or(true, |other| {
-                !other.is_running()
-                    || (self.different_identifier(process, other)
-                        && other.short_app_id() != process.short_app_id())
-            });
-            if !diff {
-                return false;
-            }
-        }
-        true
-    }
 }
 
 /// Default implementation.

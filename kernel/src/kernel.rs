@@ -25,7 +25,7 @@ use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::{self, Process, ProcessId, ShortID, Task};
-use crate::process_checker::{self, AppUniqueness, CredentialsCheckingPolicy};
+use crate::process_checker::{self, CredentialsCheckingPolicy};
 use crate::process_loading::ProcessLoadError;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
@@ -746,10 +746,11 @@ impl Kernel {
                     // This check is the work we needed to do.
                     self.decrement_work();
 
-                    if resources
-                        .credentials_checking_policy()
-                        .has_unique_identifiers(process, self.processes)
-                    {
+                    if crate::process_checker::has_unique_identifiers(
+                        process,
+                        self.processes,
+                        resources.credentials_checking_policy(),
+                    ) {
                         // Has a unique Application Identifier, push the first stack frame
                         // and make it runnable.
                         let _ = process.enqueue_init_task(&self.init_cap);
