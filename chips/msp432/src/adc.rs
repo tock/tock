@@ -486,11 +486,6 @@ register_bitfields![u32,
     ]
 ];
 
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-
 pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     resolution: AdcResolution,
@@ -503,7 +498,7 @@ pub struct Adc<'a> {
     dma_src: u8,
     buffer1: TakeCell<'static, [u16]>,
     buffer2: TakeCell<'static, [u16]>,
-    client: OptionalCell<&'static dyn EverythingClient>,
+    client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
 }
 
 impl Adc<'_> {
@@ -710,10 +705,6 @@ impl<'a> Adc<'a> {
         self.ref_module.set(ref_module);
         self.timer.set(timer);
         self.dma.set(dma);
-    }
-
-    pub fn set_client(&self, client: &'static dyn EverythingClient) {
-        self.client.set(client);
     }
 
     pub fn handle_interrupt(&self) {
@@ -996,5 +987,9 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         } else {
             Ok((self.buffer1.take(), self.buffer2.take()))
         }
+    }
+
+    fn set_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
+        self.client.set(client);
     }
 }

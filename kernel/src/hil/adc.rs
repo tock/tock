@@ -97,10 +97,12 @@ pub trait AdcHighSpeed: Adc {
     fn retrieve_buffers(
         &self,
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode>;
+
+    fn set_client(&self, client: &'static dyn HighSpeedClient);
 }
 
 /// Trait for handling callbacks from high-speed ADC calls.
-pub trait HighSpeedClient {
+pub trait HighSpeedClient: Client {
     /// Called when a buffer is full.
     /// The length provided will always be less than or equal to the length of
     /// the buffer. Expects an additional call to either provide another buffer

@@ -454,7 +454,7 @@ pub unsafe fn main() {
             &mut capsules::adc::ADC_BUFFER3
         )
     );
-    peripherals.adc.set_client(adc);
+    hil::adc::AdcHighSpeed::set_client(&peripherals.adc, adc);
 
     // Setup RNG
     let rng = components::rng::RngComponent::new(
