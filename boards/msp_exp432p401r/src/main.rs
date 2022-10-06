@@ -13,6 +13,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::dynamic_deferred_call::DynamicDeferredCallClientState;
+use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -413,8 +414,7 @@ pub unsafe fn main() {
             &mut capsules::adc::ADC_BUFFER3
         )
     );
-
-    peripherals.adc.set_client(adc);
+    hil::adc::AdcHighSpeed::set_client(&peripherals.adc, adc);
 
     // Set the reference voltage for the ADC to 2.5V
     peripherals
