@@ -58,8 +58,6 @@ impl<'a> AppCredentialsChecker<'a> for () {
     }
 }
 
-
-
 /// Return whether there is a currently running process that has
 /// the same application identifier as `process` OR the same short
 /// ID as `process`. This means that if `process` is currently
@@ -74,12 +72,11 @@ pub fn has_unique_identifiers<AU: AppUniqueness>(
     // a unique identifier; these two states describe a process
     // that is potentially runnable, dependent on checking for
     // identifier uniqueness at runtime.
-    if process.get_state() != State::CredentialsApproved
-        && process.get_state() != State::Terminated
+    if process.get_state() != State::CredentialsApproved && process.get_state() != State::Terminated
     {
         return false;
     }
-    
+
     // Note that this causes `process` to compare against itself;
     // however, since `process` should not be running, it will
     // not check the identifiers and say they are different. This means
@@ -97,7 +94,6 @@ pub fn has_unique_identifiers<AU: AppUniqueness>(
     }
     true
 }
-
 
 /// Whether two processes have the same Application Identifier; two
 /// processes with the same Application Identifier cannot run concurrently.
