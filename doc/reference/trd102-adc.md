@@ -73,6 +73,8 @@ pub trait Adc {
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
     fn stop_sampling(&self) -> Result<(), ErrorCode>;
+
+    fn set_client(&self, client: &'static dyn Client);
 }
 ```
 
@@ -192,6 +194,8 @@ pub trait AdcHighSpeed: Adc {
     fn retrieve_buffers(&self)
                         -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
+
+    fn set_client(&self, client: &'static dyn HighSpeedClient);
 }
 ```
 
@@ -238,7 +242,7 @@ responses. It has one function:
 
 ```
 /// Trait for handling callbacks from high-speed ADC calls.
-pub trait HighSpeedClient {
+pub trait HighSpeedClient: Client {
     /// Called when a buffer is full.
     /// The length provided will always be less than or equal to the length of
     /// the buffer. Expects an additional call to either provide another buffer
@@ -317,22 +321,7 @@ pub static mut CHANNEL_AD1: AdcChannel = AdcChannel::new(Channel::AD1);
 pub static mut CHANNEL_REFERENCE_GROUND: AdcChannel = AdcChannel::new(Channel::ReferenceGround);
 ```
 
-6.2 Client Type
----------------------------------
-
-It is difficult in Rust to require a argument that implements two types.
-However, it is convenient for the implementation to expect a single client that
-implements both the `adc::Client` and `adc::HighSpeedClient` interfaces. It is
-possible to do so by defining a new trait that requires each.
-
-```
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-```
-
-6.3 Clock Initialization
+6.2 Clock Initialization
 ---------------------------------
 
 The ADC clock on the SAM4L is poorly documented. It is required to both
@@ -342,7 +331,7 @@ mode). In order to handle this, the SAM4L ADC implementation first divides down
 the clock to reach a value less than or equal to 1.5 MHz (exactly 1.5 MHz in
 practice for a CPU clock running at 48 MHz).
 
-6.4 ADC Initialization
+6.3 ADC Initialization
 ---------------------------------
 
 The process of initializing the ADC is well documented in the SAM4L datasheet,
