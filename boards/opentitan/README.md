@@ -215,6 +215,14 @@ $ make flash-app APP=<...> OPENTITAN_TREE=/home/opentitan/
 You will need to have the GCC version of [RISC-V 32-bit objcopy](https://github.com/riscv-collab/riscv-gnu-toolchain/blob/master/README.md) installed as
 the LLVM one doesn't support updating sections.
 
+### Programming Apps in Verilator
+
+An app can be bundled and loaded with the kernel into Verilator with:
+
+```shell
+$ APP=<...> make BOARD_CONFIGURATION=sim_verilator verilator
+```
+
 Running in QEMU
 ---------------
 
@@ -310,7 +318,7 @@ The Tock OpenTitan boards include automated unit tests to test the kernel.
 To run the unit tests on QEMU, just run:
 
 ```shell
-make test
+$ make test
 ```
 
 in the specific board directory.
@@ -318,8 +326,16 @@ in the specific board directory.
 To run the test on hardware use these commands to build the OTBN binary and run it on hardware:
 
 ```shell
-elf2tab --verbose -n "otbn-rsa" --kernel-minor 0 --kernel-major 2 --app-heap 0 --kernel-heap 0 --stack 0 ${OPENTITAN_TREE}/build-out/sw/otbn/rsa.elf
-OPENTITAN_TREE=<...> APP=${OPENTITAN_TREE}/build-out/sw/otbn/rsa.tbf make test-hardware
+$ elf2tab --verbose -n "otbn-rsa" --kernel-minor 0 --kernel-major 2 --app-heap 0 --kernel-heap 0 --stack 0 ${OPENTITAN_TREE}/build-out/sw/otbn/rsa.elf
+
+$ OPENTITAN_TREE=<...> APP=${OPENTITAN_TREE}/build-out/sw/otbn/rsa.tbf make test-hardware
+```
+### For Verilator
+To load the OTBN binary and run it on Verilator, use:
+```shell
+$ elf2tab --verbose -n "otbn-rsa" --kernel-minor 0 --kernel-major 2 --app-heap 0 --kernel-heap 0 --stack 0 ${OPENTITAN_TREE}/build-out/sw/otbn/rsa.elf
+
+$ APP=${OPENTITAN_TREE}/bazel-out/k8-fastbuild-ST-2cc462681f62/bin/sw/otbn/crypto/rsa.tbf make BOARD_CONFIGURATION=sim_verilator test-verilator
 ```
 
 The output on a CW310 should look something like this:
@@ -381,7 +397,7 @@ trivial assertion...
 The tests can also be run on Verilator with:
 
 ```shell
-make BOARD_CONFIGURATION=sim_verilator test-verilator
+$ make BOARD_CONFIGURATION=sim_verilator test-verilator
 ```
 
 Note that the Verilator tests can take hours to complete.
