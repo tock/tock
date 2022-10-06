@@ -12,8 +12,8 @@
 //!  - 'stop n' stops the process with name n
 //!  - 'start n' starts the stopped process with name n
 //!  - 'fault n' forces the process with name n into a fault state
-//!  - 'terminate n' terminates the process with name n, moving to the Unstarted state
-//!  - 'boot n' tries to boot an Unstarted process with name n
+//!  - 'terminate n' terminates the running process with name n, moving to the Terminated state
+//!  - 'boot n' tries to boot a Terminated process with name n
 //!  - 'panic' causes the kernel to run the panic handler
 //!  - 'process n' prints the memory map of process with name n
 //!  - 'kernel' prints the kernel memory map

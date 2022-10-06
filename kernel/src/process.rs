@@ -801,8 +801,8 @@ pub enum State {
     /// The process faulted and cannot be run.
     Faulted,
 
-    /// The process exited with the `exit-terminate` system call and cannot be
-    /// run.
+    /// The process is not running: it exited with the `exit-terminate` system call
+    /// or was terminated for some other reason (e.g., by the process console).
     Terminated,
 
     /// The process's credentials have not been checked to be allowed
