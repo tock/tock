@@ -291,7 +291,7 @@ unsafe fn setup() -> (
             .finalize(components::i2c_mux_component_helper!());
 
     let bme280 =
-        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_helper!());
+        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,

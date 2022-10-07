@@ -14,8 +14,6 @@
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use components::bmp280::Bmp280Component;
-use components::bmp280_component_helper;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::I2CMaster;
@@ -364,8 +362,14 @@ pub unsafe fn main() {
     );
     base_peripherals.twi1.set_master_client(sensors_i2c_bus);
 
-    let bmp280 = Bmp280Component::new(sensors_i2c_bus, mux_alarm)
-        .finalize(bmp280_component_helper!(nrf52840::rtc::Rtc<'static>));
+    let bmp280 = components::bmp280::Bmp280Component::new(
+        sensors_i2c_bus,
+        capsules::bmp280::BASE_ADDR,
+        mux_alarm,
+    )
+    .finalize(components::bmp280_component_static!(
+        nrf52840::rtc::Rtc<'static>
+    ));
 
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
