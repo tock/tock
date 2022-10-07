@@ -359,7 +359,7 @@ pub unsafe fn main() {
     // Clock to all GPIO Ports is enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, stm32f429zi::gpio::Pin>,
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PG13).unwrap()),
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PG14).unwrap()),
@@ -380,7 +380,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f429zi::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f429zi::gpio::Pin));
 
     // ALARM
 
@@ -559,8 +559,8 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE

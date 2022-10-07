@@ -150,8 +150,8 @@ pub unsafe fn main() {
         Some(&peripherals.gpio_port[8]),
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -198,7 +198,7 @@ pub unsafe fn main() {
     // virtual_alarm_test.set_client(timertest);
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
         hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
         hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
@@ -218,7 +218,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(
+    .finalize(components::button_component_static!(
         arty_e21_chip::gpio::GpioPin
     ));
 

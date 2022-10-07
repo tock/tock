@@ -276,7 +276,7 @@ pub unsafe fn main() {
     .finalize(components::console_component_static!());
 
     // LED
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<imxrt1060::gpio::Pin>,
         LedHigh::new(peripherals.ports.pin(PinId::B0_03))
     ));
@@ -306,8 +306,8 @@ pub unsafe fn main() {
         &memory_allocation_capability,
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)

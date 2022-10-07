@@ -472,7 +472,7 @@ pub unsafe fn main() {
     );
 
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             kernel::hil::led::LedHigh<GPIOPin>,
             LedHigh::new(&led_gpios[0]),
             LedHigh::new(&led_gpios[1]),
@@ -533,7 +533,7 @@ pub unsafe fn main() {
             ),
         ),
     )
-    .finalize(components::button_component_buf!(GPIOPin));
+    .finalize(components::button_component_static!(GPIOPin));
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 
@@ -559,8 +559,8 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
 
     PANIC_REFERENCES.process_printer = Some(process_printer);
 
@@ -588,7 +588,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
 

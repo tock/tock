@@ -232,7 +232,7 @@ pub unsafe fn main() {
     //
     // LEDs
     //
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
         LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
@@ -274,7 +274,9 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52832::gpio::GPIOPin
+    ));
 
     //
     // RTC for Timers
@@ -316,9 +318,10 @@ pub unsafe fn main() {
     //
 
     // RTT communication channel
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+        .finalize(components::segger_rtt_memory_component_static!());
     let rtt = components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
-        .finalize(components::segger_rtt_component_helper!(nrf52832::rtc::Rtc));
+        .finalize(components::segger_rtt_component_static!(nrf52832::rtc::Rtc));
 
     //
     // Virtual UART

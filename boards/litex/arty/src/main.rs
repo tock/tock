@@ -439,7 +439,7 @@ pub unsafe fn main() {
 
     // LEDs
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
             led0.get_led(0).unwrap(),
             led0.get_led(1).unwrap(),
@@ -470,8 +470,8 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
 
     PANIC_REFERENCES.process_printer = Some(process_printer);
 
@@ -516,7 +516,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
         .finalize(components::coop_component_helper!(NUM_PROCS));

@@ -7,18 +7,32 @@
 //! -----
 //! ```rust
 //! let nrf_serialization = Nrf51822Component::new(&sam4l::usart::USART3,
-//!                                                &sam4l::gpio::PA[17]).finalize(());
+//!                                                &sam4l::gpio::PA[17])
+//!     .finalize(components::nrf51822_component_static!());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-use capsules::nrf51822_serialization;
+use capsules::nrf51822_serialization::Nrf51822Serialization;
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::static_init;
+
+#[macro_export]
+macro_rules! nrf51822_component_static {
+    () => {{
+        let nrf =
+            kernel::static_buf!(capsules::nrf51822_serialization::Nrf51822Serialization<'static>);
+        let write_buffer =
+            kernel::static_buf!([u8; capsules::nrf51822_serialization::WRITE_BUF_LEN]);
+        let read_buffer = kernel::static_buf!([u8; capsules::nrf51822_serialization::READ_BUF_LEN]);
+
+        (nrf, write_buffer, read_buffer)
+    };};
+}
 
 pub struct Nrf51822Component<
     U: 'static + hil::uart::UartAdvanced<'static>,
@@ -51,22 +65,28 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
 impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin> Component
     for Nrf51822Component<U, G>
 {
-    type StaticInput = ();
-    type Output = &'static nrf51822_serialization::Nrf51822Serialization<'static>;
+    type StaticInput = (
+        &'static mut MaybeUninit<Nrf51822Serialization<'static>>,
+        &'static mut MaybeUninit<[u8; capsules::nrf51822_serialization::WRITE_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules::nrf51822_serialization::READ_BUF_LEN]>,
+    );
+    type Output = &'static Nrf51822Serialization<'static>;
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let nrf_serialization = static_init!(
-            nrf51822_serialization::Nrf51822Serialization<'static>,
-            nrf51822_serialization::Nrf51822Serialization::new(
-                self.uart,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
-                self.reset_pin,
-                &mut nrf51822_serialization::WRITE_BUF,
-                &mut nrf51822_serialization::READ_BUF
-            )
-        );
+        let write_buffer =
+            s.1.write([0; capsules::nrf51822_serialization::WRITE_BUF_LEN]);
+        let read_buffer =
+            s.2.write([0; capsules::nrf51822_serialization::READ_BUF_LEN]);
+
+        let nrf_serialization = s.0.write(Nrf51822Serialization::new(
+            self.uart,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.reset_pin,
+            write_buffer,
+            read_buffer,
+        ));
         hil::uart::Transmit::set_transmit_client(self.uart, nrf_serialization);
         hil::uart::Receive::set_receive_client(self.uart, nrf_serialization);
         nrf_serialization

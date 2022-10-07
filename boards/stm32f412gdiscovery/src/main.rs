@@ -468,7 +468,7 @@ pub unsafe fn main() {
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, stm32f412g::gpio::Pin>,
         LedLow::new(
             base_peripherals
@@ -549,7 +549,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f412g::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f412g::gpio::Pin));
 
     // ALARM
 
@@ -601,8 +601,8 @@ pub unsafe fn main() {
     .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
+        .finalize(components::rng_component_static!());
 
     // FT6206
 
@@ -659,7 +659,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     let touch = components::touch::MultiTouchComponent::new(
         board_kernel,
@@ -668,7 +668,7 @@ pub unsafe fn main() {
         Some(ft6x06),
         Some(tft),
     )
-    .finalize(());
+    .finalize(components::touch_component_static!());
 
     touch.set_screen_rotation_offset(ScreenRotation::Rotated90);
 
@@ -735,8 +735,8 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE

@@ -357,8 +357,8 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // # CONSOLE
@@ -390,7 +390,7 @@ pub unsafe fn main() {
         &peripherals.usart2,
         &peripherals.pb[07],
     )
-    .finalize(());
+    .finalize(components::nrf51822_component_static!());
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(
@@ -465,7 +465,7 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, sam4l::gpio::GPIOPin>,
         LedHigh::new(&peripherals.pc[10]),
     ));
@@ -482,10 +482,10 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
 
     let crc = CrcComponent::new(board_kernel, capsules::crc::DRIVER_NUM, &peripherals.crccu)
-        .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+        .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     let ac_0 = static_init!(
         sam4l::acifc::AcChannel,
@@ -503,9 +503,9 @@ pub unsafe fn main() {
         sam4l::acifc::AcChannel,
         sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
     );
-    let analog_comparator = components::analog_comparator::AcComponent::new(
+    let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &peripherals.acifc,
-        components::acomp_component_helper!(
+        components::analog_comparator_component_helper!(
             <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
             ac_0,
             ac_1,
@@ -515,9 +515,11 @@ pub unsafe fn main() {
         board_kernel,
         capsules::analog_comparator::DRIVER_NUM,
     )
-    .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    .finalize(components::analog_comparator_component_static!(
+        sam4l::acifc::Acifc
+    ));
+    let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
+        .finalize(components::rng_component_static!());
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
@@ -577,7 +579,7 @@ pub unsafe fn main() {
         &_sstorage as *const u8 as usize, //start address of kernel region
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         sam4l::flashcalw::FLASHCALW
     ));
 

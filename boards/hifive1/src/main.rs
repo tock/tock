@@ -176,7 +176,7 @@ pub unsafe fn main() {
     .finalize(components::uart_mux_component_static!());
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, sifive::gpio::GpioPin>,
         LedLow::new(&peripherals.e310x.gpio_port[22]), // Red
         LedLow::new(&peripherals.e310x.gpio_port[19]), // Green
@@ -233,8 +233,8 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -272,7 +272,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     debug!("HiFive1 initialization complete. Entering main loop.");
 

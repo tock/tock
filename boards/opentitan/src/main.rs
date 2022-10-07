@@ -262,7 +262,7 @@ unsafe fn setup() -> (
 
     // LEDs
     // Start with half on and half off
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, earlgrey::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[8]),
         LedHigh::new(&peripherals.gpio_port[9]),
@@ -362,7 +362,7 @@ unsafe fn setup() -> (
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
         components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
@@ -449,8 +449,8 @@ unsafe fn setup() -> (
         dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // USB support is currently broken in the OpenTitan hardware
@@ -476,7 +476,7 @@ unsafe fn setup() -> (
     );
 
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+        components::flash_mux_component_static!(lowrisc::flash_ctrl::FlashCtrl),
     );
 
     // SipHash
@@ -501,7 +501,7 @@ unsafe fn setup() -> (
         flash_ctrl_read_buf, // Buffer used internally in TicKV
         page_buffer,         // Buffer used with the flash controller
     )
-    .finalize(components::tickv_component_helper!(
+    .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
         capsules::sip_hash::SipHasher24
     ));
@@ -510,7 +510,7 @@ unsafe fn setup() -> (
     TICKV = Some(tickv);
 
     let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_helper!(
+        components::kv_store_mux_component_static!(
             capsules::tickv::TicKVStore<
                 capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
                 capsules::sip_hash::SipHasher24<'static>,
@@ -519,31 +519,23 @@ unsafe fn setup() -> (
         ),
     );
 
-    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
-    let header_buf = static_init!([u8; 9], [0; 9]);
-
-    let kv_store =
-        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
-            .finalize(components::kv_store_component_helper!(
-                capsules::tickv::TicKVStore<
-                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-                    capsules::sip_hash::SipHasher24<'static>,
-                >,
-                capsules::tickv::TicKVKeyType,
-            ));
+    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
+        components::kv_store_component_static!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
     tickv.set_client(kv_store);
-
-    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
-    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
 
     let kv_driver = components::kv_system::KVDriverComponent::new(
         kv_store,
         board_kernel,
         capsules::kv_driver::DRIVER_NUM,
-        kv_driver_data_buf,
-        kv_driver_dest_buf,
     )
-    .finalize(components::kv_driver_component_helper!(
+    .finalize(components::kv_driver_component_static!(
         capsules::tickv::TicKVStore<
             capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
             capsules::sip_hash::SipHasher24<'static>,

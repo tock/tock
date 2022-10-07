@@ -10,12 +10,13 @@
 //!     mux_alarm,
 //!     mux_spi,
 //! )
-//! .finalize(components::mx25r6435f_component_helper!(
+//! .finalize(components::mx25r6435f_component_static!(
 //!     nrf52::spi::SPIM,
 //!     nrf52::gpio::GPIOPin,
 //!     nrf52::rtc::Rtc
 //! ));
 //! ```
+
 use capsules::mx25r6435f::MX25R6435F;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
@@ -24,27 +25,27 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::spi::SpiMasterDevice;
 use kernel::hil::time::Alarm;
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! mx25r6435f_component_helper {
+macro_rules! mx25r6435f_component_static {
     ($S:ty, $P:ty, $A:ty $(,)?) => {{
-        use capsules::mx25r6435f::MX25R6435F;
-        use capsules::virtual_alarm::VirtualMuxAlarm;
-        use capsules::virtual_spi::VirtualSpiMasterDevice;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<VirtualSpiMasterDevice<'static, $S>> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut BUF3: MaybeUninit<
-            MX25R6435F<
+        let spi_device =
+            kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let mx25r6435f = kernel::static_buf!(
+            capsules::mx25r6435f::MX25R6435F<
                 'static,
-                VirtualSpiMasterDevice<'static, $S>,
+                capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
                 $P,
-                VirtualMuxAlarm<'static, $A>,
-            >,
-        > = MaybeUninit::uninit();
-        (&mut BUF1, &mut BUF2, &mut BUF3)
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            >
+        );
+
+        let tx_buf = kernel::static_buf!([u8; capsules::mx25r6435f::TX_BUF_LEN]);
+        let rx_buf = kernel::static_buf!([u8; capsules::mx25r6435f::RX_BUF_LEN]);
+
+        (spi_device, alarm, mx25r6435f, tx_buf, rx_buf)
     };};
 }
 
@@ -95,6 +96,8 @@ impl<
         &'static mut MaybeUninit<
             MX25R6435F<'static, VirtualSpiMasterDevice<'static, S>, P, VirtualMuxAlarm<'static, A>>,
         >,
+        &'static mut MaybeUninit<[u8; capsules::mx25r6435f::TX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules::mx25r6435f::RX_BUF_LEN]>,
     );
     type Output = &'static MX25R6435F<
         'static,
@@ -104,36 +107,24 @@ impl<
     >;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mx25r6435f_spi = static_init_half!(
-            static_buffer.0,
-            VirtualSpiMasterDevice<'static, S>,
-            VirtualSpiMasterDevice::new(self.mux_spi, self.chip_select)
-        );
+        let mx25r6435f_spi = static_buffer
+            .0
+            .write(VirtualSpiMasterDevice::new(self.mux_spi, self.chip_select));
         // Create an alarm for this chip.
-        let mx25r6435f_virtual_alarm = static_init_half!(
-            static_buffer.1,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.mux_alarm)
-        );
+        let mx25r6435f_virtual_alarm = static_buffer.1.write(VirtualMuxAlarm::new(self.mux_alarm));
         mx25r6435f_virtual_alarm.setup();
 
-        let mx25r6435f = static_init_half!(
-            static_buffer.2,
-            capsules::mx25r6435f::MX25R6435F<
-                'static,
-                capsules::virtual_spi::VirtualSpiMasterDevice<'static, S>,
-                P,
-                VirtualMuxAlarm<'static, A>,
-            >,
-            capsules::mx25r6435f::MX25R6435F::new(
-                mx25r6435f_spi,
-                mx25r6435f_virtual_alarm,
-                &mut capsules::mx25r6435f::TXBUFFER,
-                &mut capsules::mx25r6435f::RXBUFFER,
-                self.write_protect_pin,
-                self.hold_pin,
-            )
-        );
+        let tx_buf = static_buffer.3.write([0; capsules::mx25r6435f::TX_BUF_LEN]);
+        let rx_buf = static_buffer.4.write([0; capsules::mx25r6435f::RX_BUF_LEN]);
+
+        let mx25r6435f = static_buffer.2.write(capsules::mx25r6435f::MX25R6435F::new(
+            mx25r6435f_spi,
+            mx25r6435f_virtual_alarm,
+            tx_buf,
+            rx_buf,
+            self.write_protect_pin,
+            self.hold_pin,
+        ));
         mx25r6435f_spi.setup();
         mx25r6435f_spi.set_client(mx25r6435f);
         mx25r6435f_virtual_alarm.set_alarm_client(mx25r6435f);

@@ -337,7 +337,7 @@ pub unsafe fn main() {
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         LedLow::new(peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)),
     ));
@@ -355,7 +355,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(imxrt1050::gpio::Pin));
+    .finalize(components::button_component_static!(imxrt1050::gpio::Pin));
 
     // ALARM
     let gpt1 = &peripherals.gpt1;
@@ -483,8 +483,8 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //---------------------------------------------------------------------------
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(

@@ -3,13 +3,12 @@
 //! Usage
 //! -----
 //! ```rust
-//! let led = components::led::LedsComponent::new(components::led_component_helper!(
+//! let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
 //!     kernel::hil::led::LedLow<'static, sam4l::gpio::GPIOPin>,
 //!     LedLow::new(&sam4l::gpio::PORT[LED_RED_PIN]),
 //!     LedLow::new(&sam4l::gpio::PORT[LED_GREEN_PIN]),
 //!     LedLow::new(&sam4l::gpio::PORT[LED_BLUE_PIN]),
-//! ))
-//! .finalize(led_component_buf!(kernel::hil::led::LedLow<'static, sam4l::gpio::GPIOPin>));
+//! ));
 //! ```
 
 use capsules::led::LedDriver;
@@ -17,13 +16,10 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::led::Led;
-use kernel::static_init_half;
 
 #[macro_export]
-macro_rules! led_component_helper {
+macro_rules! led_component_static {
     ($Led:ty, $($L:expr),+ $(,)?) => {{
-        use capsules::led::LedDriver;
-        use core::mem::MaybeUninit;
         use kernel::count_expressions;
         use kernel::static_init;
         const NUM_LEDS: usize = count_expressions!($($L),+);
@@ -39,8 +35,8 @@ macro_rules! led_component_helper {
             ]
         );
 
-        static mut BUF: MaybeUninit<LedDriver<'static, $Led, NUM_LEDS>> = MaybeUninit::uninit();
-        (&mut BUF, arr)
+        let led = kernel::static_buf!( capsules::led::LedDriver<'static, $Led, NUM_LEDS>);
+        (led, arr)
     };};
 }
 
@@ -64,10 +60,6 @@ impl<L: 'static + Led, const NUM_LEDS: usize> Component for LedsComponent<L, NUM
     type Output = &'static LedDriver<'static, L, NUM_LEDS>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        static_init_half!(
-            static_buffer.0,
-            LedDriver<'static, L, NUM_LEDS>,
-            LedDriver::new(static_buffer.1)
-        )
+        static_buffer.0.write(LedDriver::new(static_buffer.1))
     }
 }
