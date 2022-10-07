@@ -1377,7 +1377,10 @@ impl Kernel {
 
                         process.set_syscall_return_value(res);
                     }
-                    _ => unreachable!(),
+                    _ => {
+                        // This should never be reachable due to the
+                        // previous match statement.
+                    }
                 })
             }
         }
