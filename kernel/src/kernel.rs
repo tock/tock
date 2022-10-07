@@ -26,7 +26,8 @@ use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
-use crate::syscall::SyscallNotification;
+use crate::syscall::AllowNotification;
+use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
@@ -95,26 +96,31 @@ enum AllocResult {
     SameAllocation,
 }
 
-/// Tries to allocate the grant region for specified driver and process.
-/// Returns if a new grant was allocated or not
-fn try_allocate_grant<KR: KernelResources<C>, C: Chip>(
+#[inline(never)]
+fn with_driver<KR: KernelResources<C>, C: Chip, F, R>(
     resources: &KR,
     driver_number: usize,
-    process: &dyn process::Process,
-) -> AllocResult {
-    let before_count = process.grant_allocated_count().unwrap_or(0);
+    f: F,
+) -> R
+where
+    F: FnOnce(Option<&dyn SyscallDriver>) -> R,
+{
     resources
         .syscall_driver_lookup()
-        .with_driver(driver_number, |driver| match driver {
-            Some(d) => match d.allocate_grant(process.processid()).is_ok() {
-                true if before_count == process.grant_allocated_count().unwrap_or(0) => {
-                    AllocResult::SameAllocation
-                }
-                true => AllocResult::NewAllocation,
-                false => AllocResult::NoAllocation,
-            },
-            None => AllocResult::NoAllocation,
-        })
+        .with_driver(driver_number, f)
+}
+
+/// Tries to allocate the grant region for specified driver and process.
+/// Returns if a new grant was allocated or not
+fn try_allocate_grant(driver: &dyn SyscallDriver, process: &dyn process::Process) -> AllocResult {
+    let before_count = process.grant_allocated_count().unwrap_or(0);
+    match driver.allocate_grant(process.processid()).is_ok() {
+        true if before_count == process.grant_allocated_count().unwrap_or(0) => {
+            AllocResult::SameAllocation
+        }
+        true => AllocResult::NewAllocation,
+        false => AllocResult::NoAllocation,
+    }
 }
 
 impl Kernel {
@@ -916,74 +922,66 @@ impl Kernel {
                 let rval = match rval1 {
                     Some(err) => upcall.into_subscribe_failure(err),
                     None => {
-                        // At this point we must save the new upcall and return
-                        // the old. The upcalls are stored by the core kernel in
-                        // the grant region so we can guarantee a correct upcall
-                        // swap. However, we do need help with initially
-                        // allocating the grant if this driver has never been
-                        // used before.
-                        //
-                        // To avoid the overhead with checking for process
-                        // liveness and grant allocation, we assume the grant is
-                        // initially allocated. If it turns out it isn't we ask
-                        // the capsule to allocate the grant.
-                        let res = match crate::grant::subscribe(process, upcall) {
-                            Ok(upcall) => upcall.into_subscribe_success(),
-                            Err((upcall, err @ ErrorCode::NOMEM)) => {
-                                // If we get a memory error, we always try to
-                                // allocate the grant since this could be the
-                                // first time the grant is getting accessed.
-                                match try_allocate_grant(resources, driver_number, process) {
-                                    AllocResult::NewAllocation => {
-                                        // Now we try again. It is possible that
-                                        // the capsule did not actually allocate
-                                        // the grant, at which point this will
-                                        // fail again and we return an error to
-                                        // userspace.
-                                        match crate::grant::subscribe(process, upcall) {
-                                            // An Ok() returns the previous
-                                            // upcall, while Err() returns the
-                                            // one that was just passed.
-                                            Ok(upcall) => upcall.into_subscribe_success(),
-                                            Err((upcall, err)) => {
+                        with_driver(resources, driver_number, |driver| match driver {
+                            Some(driver) => {
+                                // At this point we must save the new upcall and return
+                                // the old. The upcalls are stored by the core kernel in
+                                // the grant region so we can guarantee a correct upcall
+                                // swap. However, we do need help with initially
+                                // allocating the grant if this driver has never been
+                                // used before.
+                                //
+                                // To avoid the overhead with checking for process
+                                // liveness and grant allocation, we assume the grant is
+                                // initially allocated. If it turns out it isn't we ask
+                                // the capsule to allocate the grant.
+                                match crate::grant::subscribe(process, upcall) {
+                                    Ok(upcall) => upcall.into_subscribe_success(),
+                                    Err((upcall, err @ ErrorCode::NOMEM)) => {
+                                        // If we get a memory error, we always try to
+                                        // allocate the grant since this could be the
+                                        // first time the grant is getting accessed.
+                                        match try_allocate_grant(driver, process) {
+                                            AllocResult::NewAllocation => {
+                                                // Now we try again. It is possible that
+                                                // the capsule did not actually allocate
+                                                // the grant, at which point this will
+                                                // fail again and we return an error to
+                                                // userspace.
+                                                match crate::grant::subscribe(process, upcall) {
+                                                    // An Ok() returns the previous
+                                                    // upcall, while Err() returns the
+                                                    // one that was just passed.
+                                                    Ok(upcall) => upcall.into_subscribe_success(),
+                                                    Err((upcall, err)) => {
+                                                        upcall.into_subscribe_failure(err)
+                                                    }
+                                                }
+                                            }
+                                            alloc_failure => {
+                                                // We didn't actually create a new
+                                                // alloc, so just error.
+                                                match (config::CONFIG.trace_syscalls, alloc_failure)
+                                                {
+                                                    (true, AllocResult::NoAllocation) => {
+                                                        debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                           process.processid(), driver_number);
+                                                    }
+                                                    (true, AllocResult::SameAllocation) => {
+                                                        debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                           process.processid(), driver_number);
+                                                    }
+                                                    _ => {}
+                                                }
                                                 upcall.into_subscribe_failure(err)
                                             }
                                         }
                                     }
-                                    alloc_failure => {
-                                        // We didn't actually create a new
-                                        // alloc, so just error.
-                                        match (config::CONFIG.trace_syscalls, alloc_failure) {
-                                            (true, AllocResult::NoAllocation) => {
-                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
-                                                                           process.processid(), driver_number);
-                                            }
-                                            (true, AllocResult::SameAllocation) => {
-                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
-                                                                           process.processid(), driver_number);
-                                            }
-                                            _ => {}
-                                        }
-                                        upcall.into_subscribe_failure(err)
-                                    }
+                                    Err((upcall, err)) => upcall.into_subscribe_failure(err),
                                 }
                             }
-                            Err((upcall, err)) => upcall.into_subscribe_failure(err),
-                        };
-                        if let SyscallReturn::SubscribeSuccess(_, _) = res {
-                            resources.syscall_driver_lookup().with_driver(
-                                driver_number,
-                                |driver| {
-                                    if let Some(d) = driver {
-                                        d.syscall_notification(
-                                            process.processid(),
-                                            SyscallNotification::Subscribe(subdriver_number),
-                                        )
-                                    }
-                                },
-                            );
-                        }
-                        res
+                            None => upcall.into_subscribe_failure(ErrorCode::NODEVICE),
+                        })
                     }
                 };
 
@@ -1017,12 +1015,10 @@ impl Kernel {
                 arg0,
                 arg1,
             } => {
-                let cres = resources
-                    .syscall_driver_lookup()
-                    .with_driver(driver_number, |driver| match driver {
-                        Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
-                        None => CommandReturn::failure(ErrorCode::NODEVICE),
-                    });
+                let cres = with_driver(resources, driver_number, |driver| match driver {
+                    Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
+                    None => CommandReturn::failure(ErrorCode::NODEVICE),
+                });
 
                 let res = SyscallReturn::from_command_return(cres);
 
@@ -1045,93 +1041,104 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                // Try to create an appropriate [`ReadWriteProcessBuffer`]. This
-                // method will ensure that the memory in question is located in
-                // the process-accessible memory space.
-                let res = match process.build_readwrite_process_buffer(allow_address, allow_size) {
-                    Ok(rw_pbuf) => {
-                        // Creating the [`ReadWriteProcessBuffer`] worked, try
-                        // to set in grant.
-                        let res = match crate::grant::allow_rw(
-                            process,
-                            driver_number,
-                            subdriver_number,
-                            rw_pbuf,
-                        ) {
+                let res = with_driver(resources, driver_number, |driver| match driver {
+                    Some(driver) => {
+                        // Try to create an appropriate [`ReadWriteProcessBuffer`]. This
+                        // method will ensure that the memory in question is located in
+                        // the process-accessible memory space.
+                        match process.build_readwrite_process_buffer(allow_address, allow_size) {
                             Ok(rw_pbuf) => {
-                                let (ptr, len) = rw_pbuf.consume();
-                                SyscallReturn::AllowReadWriteSuccess(ptr, len)
-                            }
-                            Err((rw_pbuf, err @ ErrorCode::NOMEM)) => {
-                                // If we get a memory error, we always try to
-                                // allocate the grant since this could be the
-                                // first time the grant is getting accessed.
-                                match try_allocate_grant(resources, driver_number, process) {
-                                    AllocResult::NewAllocation => {
-                                        // If we actually allocated a new grant,
-                                        // try again and honor the result.
-                                        match crate::grant::allow_rw(
-                                            process,
-                                            driver_number,
-                                            subdriver_number,
-                                            rw_pbuf,
-                                        ) {
-                                            Ok(rw_pbuf) => {
-                                                let (ptr, len) = rw_pbuf.consume();
-                                                SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                // Creating the [`ReadWriteProcessBuffer`] worked, try
+                                // to set in grant.
+                                let res = match crate::grant::allow_rw(
+                                    process,
+                                    driver_number,
+                                    subdriver_number,
+                                    rw_pbuf,
+                                ) {
+                                    Ok(rw_pbuf) => {
+                                        let (ptr, len) = rw_pbuf.consume();
+                                        SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                    }
+                                    Err((rw_pbuf, err @ ErrorCode::NOMEM)) => {
+                                        // If we get a memory error, we always try to
+                                        // allocate the grant since this could be the
+                                        // first time the grant is getting accessed.
+                                        match try_allocate_grant(driver, process) {
+                                            AllocResult::NewAllocation => {
+                                                // If we actually allocated a new grant,
+                                                // try again and honor the result.
+                                                match crate::grant::allow_rw(
+                                                    process,
+                                                    driver_number,
+                                                    subdriver_number,
+                                                    rw_pbuf,
+                                                ) {
+                                                    Ok(rw_pbuf) => {
+                                                        let (ptr, len) = rw_pbuf.consume();
+                                                        SyscallReturn::AllowReadWriteSuccess(
+                                                            ptr, len,
+                                                        )
+                                                    }
+                                                    Err((rw_pbuf, err)) => {
+                                                        let (ptr, len) = rw_pbuf.consume();
+                                                        SyscallReturn::AllowReadWriteFailure(
+                                                            err, ptr, len,
+                                                        )
+                                                    }
+                                                }
                                             }
-                                            Err((rw_pbuf, err)) => {
+                                            alloc_failure => {
+                                                // We didn't actually create a new
+                                                // alloc, so just error.
+                                                match (config::CONFIG.trace_syscalls, alloc_failure)
+                                                {
+                                                    (true, AllocResult::NoAllocation) => {
+                                                        debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                           process.processid(), driver_number);
+                                                    }
+                                                    (true, AllocResult::SameAllocation) => {
+                                                        debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                           process.processid(), driver_number);
+                                                    }
+                                                    _ => {}
+                                                }
                                                 let (ptr, len) = rw_pbuf.consume();
                                                 SyscallReturn::AllowReadWriteFailure(err, ptr, len)
                                             }
                                         }
                                     }
-                                    alloc_failure => {
-                                        // We didn't actually create a new
-                                        // alloc, so just error.
-                                        match (config::CONFIG.trace_syscalls, alloc_failure) {
-                                            (true, AllocResult::NoAllocation) => {
-                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
-                                                                           process.processid(), driver_number);
-                                            }
-                                            (true, AllocResult::SameAllocation) => {
-                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
-                                                                           process.processid(), driver_number);
-                                            }
-                                            _ => {}
-                                        }
+                                    Err((rw_pbuf, err)) => {
                                         let (ptr, len) = rw_pbuf.consume();
                                         SyscallReturn::AllowReadWriteFailure(err, ptr, len)
                                     }
+                                };
+                                if let SyscallReturn::AllowReadWriteSuccess(_, _) = res {
+                                    driver.syscall_notification(
+                                        process.processid(),
+                                        AllowNotification::ReadWrite(subdriver_number),
+                                    );
                                 }
+                                res
                             }
-                            Err((rw_pbuf, err)) => {
-                                let (ptr, len) = rw_pbuf.consume();
-                                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                            Err(allow_error) => {
+                                // There was an error creating the
+                                // [`ReadWriteProcessBuffer`]. Report back to the
+                                // process with the original parameters.
+                                SyscallReturn::AllowReadWriteFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
                             }
-                        };
-                        if let SyscallReturn::AllowReadWriteSuccess(_, _) = res {
-                            resources.syscall_driver_lookup().with_driver(
-                                driver_number,
-                                |driver| {
-                                    if let Some(d) = driver {
-                                        d.syscall_notification(
-                                            process.processid(),
-                                            SyscallNotification::AllowReadWrite(subdriver_number),
-                                        )
-                                    }
-                                },
-                            );
                         }
-                        res
                     }
-                    Err(allow_error) => {
-                        // There was an error creating the
-                        // [`ReadWriteProcessBuffer`]. Report back to the
-                        // process with the original parameters.
-                        SyscallReturn::AllowReadWriteFailure(allow_error, allow_address, allow_size)
-                    }
-                };
+                    None => SyscallReturn::AllowReadWriteFailure(
+                        ErrorCode::NODEVICE,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -1152,64 +1159,59 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                let res = resources
-                    .syscall_driver_lookup()
-                    .with_driver(driver_number, |driver| match driver {
-                        Some(d) => {
-                            // Try to create an appropriate
-                            // [`UserspaceReadableProcessBuffer`]. This method
-                            // will ensure that the memory in question is
-                            // located in the process-accessible memory space.
-                            match process.build_readwrite_process_buffer(allow_address, allow_size)
-                            {
-                                Ok(rw_pbuf) => {
-                                    // Creating the
-                                    // [`UserspaceReadableProcessBuffer`]
-                                    // worked, provide it to the capsule.
-                                    match d.allow_userspace_readable(
-                                        process.processid(),
-                                        subdriver_number,
-                                        rw_pbuf,
-                                    ) {
-                                        Ok(returned_pbuf) => {
-                                            // The capsule has accepted the
-                                            // allow operation. Pass the
-                                            // previous buffer information back
-                                            // to the process.
-                                            let (ptr, len) = returned_pbuf.consume();
-                                            SyscallReturn::UserspaceReadableAllowSuccess(ptr, len)
-                                        }
-                                        Err((rejected_pbuf, err)) => {
-                                            // The capsule has rejected the
-                                            // allow operation. Pass the new
-                                            // buffer information back to the
-                                            // process.
-                                            let (ptr, len) = rejected_pbuf.consume();
-                                            SyscallReturn::UserspaceReadableAllowFailure(
-                                                err, ptr, len,
-                                            )
-                                        }
+                let res = with_driver(resources, driver_number, |driver| match driver {
+                    Some(d) => {
+                        // Try to create an appropriate
+                        // [`UserspaceReadableProcessBuffer`]. This method
+                        // will ensure that the memory in question is
+                        // located in the process-accessible memory space.
+                        match process.build_readwrite_process_buffer(allow_address, allow_size) {
+                            Ok(rw_pbuf) => {
+                                // Creating the
+                                // [`UserspaceReadableProcessBuffer`]
+                                // worked, provide it to the capsule.
+                                match d.allow_userspace_readable(
+                                    process.processid(),
+                                    subdriver_number,
+                                    rw_pbuf,
+                                ) {
+                                    Ok(returned_pbuf) => {
+                                        // The capsule has accepted the
+                                        // allow operation. Pass the
+                                        // previous buffer information back
+                                        // to the process.
+                                        let (ptr, len) = returned_pbuf.consume();
+                                        SyscallReturn::UserspaceReadableAllowSuccess(ptr, len)
+                                    }
+                                    Err((rejected_pbuf, err)) => {
+                                        // The capsule has rejected the
+                                        // allow operation. Pass the new
+                                        // buffer information back to the
+                                        // process.
+                                        let (ptr, len) = rejected_pbuf.consume();
+                                        SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len)
                                     }
                                 }
-                                Err(allow_error) => {
-                                    // There was an error creating the
-                                    // [`UserspaceReadableProcessBuffer`].
-                                    // Report back to the process.
-                                    SyscallReturn::UserspaceReadableAllowFailure(
-                                        allow_error,
-                                        allow_address,
-                                        allow_size,
-                                    )
-                                }
+                            }
+                            Err(allow_error) => {
+                                // There was an error creating the
+                                // [`UserspaceReadableProcessBuffer`].
+                                // Report back to the process.
+                                SyscallReturn::UserspaceReadableAllowFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
                             }
                         }
+                    }
 
-                        None => SyscallReturn::UserspaceReadableAllowFailure(
-                            ErrorCode::NODEVICE,
-                            allow_address,
-                            allow_size,
-                        ),
-                    });
+                    None => SyscallReturn::UserspaceReadableAllowFailure(
+                        ErrorCode::NODEVICE,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -1230,93 +1232,104 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
-                // Try to create an appropriate [`ReadOnlyProcessBuffer`]. This
-                // method will ensure that the memory in question is located in
-                // the process-accessible memory space.
-                let res = match process.build_readonly_process_buffer(allow_address, allow_size) {
-                    Ok(ro_pbuf) => {
-                        // Creating the [`ReadOnlyProcessBuffer`] worked, try to
-                        // set in grant.
-                        let res = match crate::grant::allow_ro(
-                            process,
-                            driver_number,
-                            subdriver_number,
-                            ro_pbuf,
-                        ) {
+                let res = with_driver(resources, driver_number, |driver| match driver {
+                    Some(driver) => {
+                        // Try to create an appropriate [`ReadOnlyProcessBuffer`]. This
+                        // method will ensure that the memory in question is located in
+                        // the process-accessible memory space.
+                        match process.build_readonly_process_buffer(allow_address, allow_size) {
                             Ok(ro_pbuf) => {
-                                let (ptr, len) = ro_pbuf.consume();
-                                SyscallReturn::AllowReadOnlySuccess(ptr, len)
-                            }
-                            Err((ro_pbuf, err @ ErrorCode::NOMEM)) => {
-                                // If we get a memory error, we always try to
-                                // allocate the grant since this could be the
-                                // first time the grant is getting accessed.
-                                match try_allocate_grant(resources, driver_number, process) {
-                                    AllocResult::NewAllocation => {
-                                        // If we actually allocated a new grant,
-                                        // try again and honor the result.
-                                        match crate::grant::allow_ro(
-                                            process,
-                                            driver_number,
-                                            subdriver_number,
-                                            ro_pbuf,
-                                        ) {
-                                            Ok(ro_pbuf) => {
-                                                let (ptr, len) = ro_pbuf.consume();
-                                                SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                // Creating the [`ReadOnlyProcessBuffer`] worked, try to
+                                // set in grant.
+                                let res = match crate::grant::allow_ro(
+                                    process,
+                                    driver_number,
+                                    subdriver_number,
+                                    ro_pbuf,
+                                ) {
+                                    Ok(ro_pbuf) => {
+                                        let (ptr, len) = ro_pbuf.consume();
+                                        SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                    }
+                                    Err((ro_pbuf, err @ ErrorCode::NOMEM)) => {
+                                        // If we get a memory error, we always try to
+                                        // allocate the grant since this could be the
+                                        // first time the grant is getting accessed.
+                                        match try_allocate_grant(driver, process) {
+                                            AllocResult::NewAllocation => {
+                                                // If we actually allocated a new grant,
+                                                // try again and honor the result.
+                                                match crate::grant::allow_ro(
+                                                    process,
+                                                    driver_number,
+                                                    subdriver_number,
+                                                    ro_pbuf,
+                                                ) {
+                                                    Ok(ro_pbuf) => {
+                                                        let (ptr, len) = ro_pbuf.consume();
+                                                        SyscallReturn::AllowReadOnlySuccess(
+                                                            ptr, len,
+                                                        )
+                                                    }
+                                                    Err((ro_pbuf, err)) => {
+                                                        let (ptr, len) = ro_pbuf.consume();
+                                                        SyscallReturn::AllowReadOnlyFailure(
+                                                            err, ptr, len,
+                                                        )
+                                                    }
+                                                }
                                             }
-                                            Err((ro_pbuf, err)) => {
+                                            alloc_failure => {
+                                                // We didn't actually create a new
+                                                // alloc, so just error.
+                                                match (config::CONFIG.trace_syscalls, alloc_failure)
+                                                {
+                                                    (true, AllocResult::NoAllocation) => {
+                                                        debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                           process.processid(), driver_number);
+                                                    }
+                                                    (true, AllocResult::SameAllocation) => {
+                                                        debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                           process.processid(), driver_number);
+                                                    }
+                                                    _ => {}
+                                                }
                                                 let (ptr, len) = ro_pbuf.consume();
                                                 SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
                                             }
                                         }
                                     }
-                                    alloc_failure => {
-                                        // We didn't actually create a new
-                                        // alloc, so just error.
-                                        match (config::CONFIG.trace_syscalls, alloc_failure) {
-                                            (true, AllocResult::NoAllocation) => {
-                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
-                                                                           process.processid(), driver_number);
-                                            }
-                                            (true, AllocResult::SameAllocation) => {
-                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
-                                                                           process.processid(), driver_number);
-                                            }
-                                            _ => {}
-                                        }
+                                    Err((ro_pbuf, err)) => {
                                         let (ptr, len) = ro_pbuf.consume();
                                         SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
                                     }
+                                };
+                                if let SyscallReturn::AllowReadOnlySuccess(_, _) = res {
+                                    driver.syscall_notification(
+                                        process.processid(),
+                                        AllowNotification::ReadOnly(subdriver_number),
+                                    );
                                 }
+                                res
                             }
-                            Err((ro_pbuf, err)) => {
-                                let (ptr, len) = ro_pbuf.consume();
-                                SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                            Err(allow_error) => {
+                                // There was an error creating the
+                                // [`ReadOnlyProcessBuffer`]. Report back to the process
+                                // with the original parameters.
+                                SyscallReturn::AllowReadOnlyFailure(
+                                    allow_error,
+                                    allow_address,
+                                    allow_size,
+                                )
                             }
-                        };
-                        if let SyscallReturn::AllowReadOnlySuccess(_, _) = res {
-                            resources.syscall_driver_lookup().with_driver(
-                                driver_number,
-                                |driver| {
-                                    if let Some(d) = driver {
-                                        d.syscall_notification(
-                                            process.processid(),
-                                            SyscallNotification::AllowReadOnly(subdriver_number),
-                                        )
-                                    }
-                                },
-                            );
                         }
-                        res
                     }
-                    Err(allow_error) => {
-                        // There was an error creating the
-                        // [`ReadOnlyProcessBuffer`]. Report back to the process
-                        // with the original parameters.
-                        SyscallReturn::AllowReadOnlyFailure(allow_error, allow_address, allow_size)
-                    }
-                };
+                    None => SyscallReturn::AllowReadOnlyFailure(
+                        ErrorCode::NODEVICE,
+                        allow_address,
+                        allow_size,
+                    ),
+                });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
