@@ -76,6 +76,12 @@ impl AdcChannel {
     }
 }
 
+#[derive(Clone, Copy)]
+enum EitherClient {
+    NormalClient(&'static dyn hil::adc::Client),
+    HighSpeedClient(&'static dyn hil::adc::HighSpeedClient),
+}
+
 /// ADC driver code for the SAM4L.
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
@@ -101,7 +107,7 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
+    client: OptionalCell<EitherClient>,
     pm: &'static pm::PowerManager,
 }
 
@@ -374,8 +380,13 @@ impl Adc {
 
                     // single sample complete. Send value to client
                     let val = self.registers.lcv.read(SequencerLastConvertedValue::LCV) as u16;
-                    self.client.map(|client| {
-                        client.sample_ready(val);
+                    self.client.map(|either_client| match either_client {
+                        EitherClient::NormalClient(client) => {
+                            client.sample_ready(val);
+                        }
+                        EitherClient::HighSpeedClient(client) => {
+                            client.sample_ready(val);
+                        }
                     });
 
                     // clean up state
@@ -803,8 +814,8 @@ impl hil::adc::Adc for Adc {
     /// Sets the client for this driver.
     ///
     /// - `client`: reference to capsule which handles responses
-    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
-        unimplemented!();
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(EitherClient::NormalClient(client));
     }
 }
 
@@ -964,7 +975,7 @@ impl hil::adc::AdcHighSpeed for Adc {
     }
 
     fn set_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
-        self.client.set(client);
+        self.client.set(EitherClient::HighSpeedClient(client));
     }
 }
 
@@ -1028,19 +1039,26 @@ impl dma::DMAClient for Adc {
             });
 
             // alert client
-            self.client.map(|client| {
-                dma_buffer.map(|dma_buf| {
-                    // change buffer back into a [u16]
-                    // the buffer was originally a [u16] so this should be okay
-                    let buf_ptr =
-                        unsafe { mem::transmute::<*mut u8, *mut u16>(dma_buf.as_mut_ptr()) };
-                    let buf = unsafe { slice::from_raw_parts_mut(buf_ptr, dma_buf.len() / 2) };
+            self.client.map(|either_client| {
+                match either_client {
+                    EitherClient::HighSpeedClient(client) => {
+                        dma_buffer.map(|dma_buf| {
+                            // change buffer back into a [u16]
+                            // the buffer was originally a [u16] so this should be okay
+                            let buf_ptr = unsafe {
+                                mem::transmute::<*mut u8, *mut u16>(dma_buf.as_mut_ptr())
+                            };
+                            let buf =
+                                unsafe { slice::from_raw_parts_mut(buf_ptr, dma_buf.len() / 2) };
 
-                    // pass the buffer up to the next layer. It will then either
-                    // send down another buffer to continue sampling, or stop
-                    // sampling
-                    client.samples_ready(buf, length);
-                });
+                            // pass the buffer up to the next layer. It will then either
+                            // send down another buffer to continue sampling, or stop
+                            // sampling
+                            client.samples_ready(buf, length);
+                        });
+                    }
+                    _ => {}
+                }
             });
         }
     }

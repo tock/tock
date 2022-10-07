@@ -486,6 +486,12 @@ register_bitfields![u32,
     ]
 ];
 
+#[derive(Clone, Copy)]
+enum EitherClient {
+    NormalClient(&'static dyn hil::adc::Client),
+    HighSpeedClient(&'static dyn hil::adc::HighSpeedClient),
+}
+
 pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     resolution: AdcResolution,
@@ -498,7 +504,7 @@ pub struct Adc<'a> {
     dma_src: u8,
     buffer1: TakeCell<'static, [u16]>,
     buffer2: TakeCell<'static, [u16]>,
-    client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
+    client: OptionalCell<EitherClient>,
 }
 
 impl Adc<'_> {
@@ -724,15 +730,17 @@ impl<'a> Adc<'a> {
 
                 // Stop sampling
                 self.registers.ctl0.modify(CTL0::ENC::CLEAR);
-
-                // Throw callback
-                self.client
-                    .map(move |client| client.sample_ready(self.get_sample(chan)));
-            } else if mode == AdcMode::Repeated {
-                // Throw callback
-                self.client
-                    .map(move |client| client.sample_ready(self.get_sample(chan)));
             }
+
+            // Throw callback
+            self.client.map(|either_client| match either_client {
+                EitherClient::NormalClient(client) => {
+                    client.sample_ready(self.get_sample(chan));
+                }
+                EitherClient::HighSpeedClient(client) => {
+                    client.sample_ready(self.get_sample(chan));
+                }
+            });
         } else {
             panic!("ADC: unhandled interrupt: channel {}", chan_nr);
         }
@@ -757,7 +765,12 @@ impl dma::DmaClient for Adc<'_> {
                 buf[i] <<= shift;
             }
 
-            self.client.map(move |cl| cl.samples_ready(buf, samples));
+            self.client.map(|either_client| match either_client {
+                EitherClient::NormalClient(_client) => {}
+                EitherClient::HighSpeedClient(client) => {
+                    client.samples_ready(buf, samples);
+                }
+            });
         }
     }
 }
@@ -887,8 +900,8 @@ impl hil::adc::Adc for Adc<'_> {
         self.ref_module.map(|ref_mod| ref_mod.ref_voltage_mv())
     }
 
-    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
-        unimplemented!();
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(EitherClient::NormalClient(client));
     }
 }
 
@@ -990,6 +1003,6 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     }
 
     fn set_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
-        self.client.set(client);
+        self.client.set(EitherClient::HighSpeedClient(client));
     }
 }
