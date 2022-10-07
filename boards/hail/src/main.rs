@@ -10,7 +10,7 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -366,17 +366,9 @@ pub unsafe fn main() {
     .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // FXOS8700CQ accelerometer, device address 0x1e
-    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
-    let fxos8700 = static_init!(
-        capsules::fxos8700cq::Fxos8700cq<'static>,
-        capsules::fxos8700cq::Fxos8700cq::new(
-            fxos8700_i2c,
-            &peripherals.pa[9],
-            &mut capsules::fxos8700cq::BUF
-        )
-    );
-    fxos8700_i2c.set_client(fxos8700);
-    peripherals.pa[9].set_client(fxos8700);
+    let fxos8700 =
+        components::fxos8700::Fxos8700Component::new(sensors_i2c, 0x1e, &peripherals.pa[9])
+            .finalize(components::fxos8700_component_static!());
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)

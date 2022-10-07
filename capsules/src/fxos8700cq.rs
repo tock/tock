@@ -28,7 +28,8 @@ use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
-pub static mut BUF: [u8; 6] = [0; 6];
+/// Recommended buffer length for this driver.
+pub const BUF_LEN: usize = 6;
 
 #[allow(dead_code)]
 enum Registers {

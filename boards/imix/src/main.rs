@@ -49,7 +49,6 @@ use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
-use imix_components::fxos8700::NineDofComponent;
 use imix_components::rf233::RF233Component;
 use imix_components::usb::UsbComponent;
 
@@ -416,13 +415,13 @@ pub unsafe fn main() {
     .finalize(());
     let humidity =
         HumidityComponent::new(board_kernel, capsules::humidity::DRIVER_NUM, si7021).finalize(());
-    let ninedof = NineDofComponent::new(
-        board_kernel,
-        capsules::ninedof::DRIVER_NUM,
-        mux_i2c,
-        &peripherals.pc[13],
-    )
-    .finalize(());
+
+    let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
+        .finalize(components::fxos8700_component_static!());
+
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)

@@ -446,9 +446,10 @@ pub unsafe fn main() {
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
         mux_i2c,
+        0x1f,
         peripherals.ports.pin(PinId::AdB1_00),
     )
-    .finalize(());
+    .finalize(components::fxos8700_component_static!());
 
     // Ninedof
     let ninedof =
