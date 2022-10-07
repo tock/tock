@@ -10,6 +10,9 @@ QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
 # This offset is calculated (from the linker file) as:
 # ORIGIN(rom) + size_manifest = 0x20000000 + 0x400
 QEMU_ENTRY_POINT=0x20000400
+# Latest supported commmit of OpenTitan
+OPENTITAN_SUPPORTED_SHA := d072ac505f82152678d6e04be95c72b728a347b8
+
 
 include ../../Makefile.common
 
@@ -20,6 +23,26 @@ ifneq ($(BOARD_CONFIGURATION),)
 else
 	CARGO_FLAGS += --features=$(DEFAULT_BOARD_CONFIGURATION)
 endif
+
+.PHONY: ot-check
+OPENTITAN_ACTUAL_SHA := $(shell cd $(OPENTITAN_TREE); git show --pretty=format:"%H" --no-patch)
+# TODO: Theres mix and match of tab/space indenting in the block below,
+# should be changed to using `RECIPEPREFIX` make syntax when CI supports
+# make version > 3.81 (macos)
+ot-check:
+ifeq ($(OPENTITAN_TREE),)
+	$(error "Please ensure that OPENTITAN_TREE is set")
+endif
+ifneq ($(OPENTITAN_ACTUAL_SHA), $(OPENTITAN_SUPPORTED_SHA))
+    ifeq ($(SKIP_OT_VERSION_CHECK), yes)
+		$(warning Skipping trivial version check)
+    else
+		$(error Please ensure to build the correct version \
+		of OpenTitan, latest supported is <$(OPENTITAN_SUPPORTED_SHA)>, \
+		you are on <$(OPENTITAN_ACTUAL_SHA)>)
+    endif
+endif
+
 
 # Default target for installing the kernel.
 .PHONY: install
@@ -75,21 +98,17 @@ endif
 # Test layout should be removed so that following apps (non-test) load the correct layout.
 	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 
-test-hardware:
-ifeq ($(OPENTITAN_TREE),)
-	$(error "Please ensure that OPENTITAN_TREE is set")
-endif
+test-hardware: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
 	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 
-test-verilator:
-	$(call check_defined, OPENTITAN_TREE)
-
+test-verilator: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
 	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=${OBJCOPY} $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests --features sim_verilator
 	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
+
