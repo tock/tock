@@ -84,6 +84,7 @@ impl Component for AdcComponent {
                 &mut adc::ADC_BUFFER3
             )
         );
+        hil::adc::Adc::set_client(self.adc, adc);
         hil::adc::AdcHighSpeed::set_client(self.adc, adc);
 
         adc

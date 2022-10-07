@@ -101,7 +101,8 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
+    client: OptionalCell<&'static dyn hil::adc::Client>,
+    highspeed_client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
     pm: &'static pm::PowerManager,
 }
 
@@ -348,6 +349,7 @@ impl Adc {
 
             // higher layer to send responses to
             client: OptionalCell::empty(),
+            highspeed_client: OptionalCell::empty(),
             pm,
         }
     }
@@ -803,8 +805,8 @@ impl hil::adc::Adc for Adc {
     /// Sets the client for this driver.
     ///
     /// - `client`: reference to capsule which handles responses
-    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
-        unimplemented!();
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(client);
     }
 }
 
@@ -964,7 +966,7 @@ impl hil::adc::AdcHighSpeed for Adc {
     }
 
     fn set_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
-        self.client.set(client);
+        self.highspeed_client.set(client);
     }
 }
 
@@ -1028,7 +1030,7 @@ impl dma::DMAClient for Adc {
             });
 
             // alert client
-            self.client.map(|client| {
+            self.highspeed_client.map(|client| {
                 dma_buffer.map(|dma_buf| {
                     // change buffer back into a [u16]
                     // the buffer was originally a [u16] so this should be okay

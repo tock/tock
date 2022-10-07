@@ -450,6 +450,7 @@ pub unsafe fn main() {
             &mut capsules::adc::ADC_BUFFER3
         )
     );
+    hil::adc::Adc::set_client(&peripherals.adc, adc);
     hil::adc::AdcHighSpeed::set_client(&peripherals.adc, adc);
 
     // Setup RNG

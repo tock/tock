@@ -414,6 +414,7 @@ pub unsafe fn main() {
             &mut capsules::adc::ADC_BUFFER3
         )
     );
+    hil::adc::Adc::set_client(&peripherals.adc, adc);
     hil::adc::AdcHighSpeed::set_client(&peripherals.adc, adc);
 
     // Set the reference voltage for the ADC to 2.5V
