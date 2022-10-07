@@ -131,10 +131,12 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
 /// Additionally, this function should only ever be called once, as it is declaring and
 /// initializing static memory for system peripherals.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut E310G002DefaultPeripherals<'static> {
+unsafe fn create_peripherals(
+    clock_frequency: u32,
+) -> &'static mut E310G002DefaultPeripherals<'static> {
     static_init!(
         E310G002DefaultPeripherals,
-        E310G002DefaultPeripherals::new()
+        E310G002DefaultPeripherals::new(clock_frequency)
     )
 }
 
@@ -194,7 +196,7 @@ pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
-    let peripherals = create_peripherals();
+    let peripherals = create_peripherals(344_000_000);
 
     peripherals.e310x.watchdog.disable();
     peripherals.e310x.rtc.disable();
@@ -206,7 +208,7 @@ pub unsafe fn main() {
     peripherals
         .e310x
         .prci
-        .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
+        .set_clock_frequency(sifive::prci::ClockFrequency::Freq344Mhz);
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
