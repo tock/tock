@@ -28,40 +28,43 @@ register_structs! {
         (0x028 => prog_type_en: ReadWrite<u32, PROG_TYPE_EN::Register>),
         (0x02c => erase_suspend: ReadWrite<u32, ERASE_SUSPEND::Register>),
         (0x030 => region_cfg_regwen: [ReadWrite<u32, REGION_CFG_REGWEN::Register>; 8]),
-        (0x050 => mp_region_cfg_shadowed: [ReadWrite<u32, MP_REGION_CFG::Register>; 8]),
-        (0x070 => default_region_shadowed: ReadWrite<u32, DEFAULT_REGION::Register>),
+        (0x050 => mp_region_cfg: [ReadWrite<u32, MP_REGION_CFG::Register>; 8]),
+        (0x070 => mp_region: [ReadWrite<u32, MP_REGION::Register>; 8]),
+        (0x090 => default_region: ReadWrite<u32, DEFAULT_REGION::Register>),
 
-        (0x074 => bank0_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 10]),
-        (0x09C => bank0_info0_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 10]),
-        (0x0C4 => bank0_info1_regwen: ReadWrite<u32, BANK_INFO_REGWEN::Register>),
-        (0x0C8 => bank0_info1_page_cfg_shadowed: ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>),
-        (0x0CC => bank0_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
-        (0x0D4 => bank0_info2_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
+        (0x094 => bank0_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 10]),
+        (0x0BC => bank0_info0_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 10]),
+        (0x0E4 => bank0_info1_regwen: ReadWrite<u32, BANK_INFO_REGWEN::Register>),
+        (0x0E8 => bank0_info1_page_cfg: ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>),
+        (0x0EC => bank0_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
+        (0x0F4 => bank0_info2_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
 
-        (0x0DC => bank1_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 10]),
-        (0x104 => bank1_info0_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 10]),
-        (0x12C => bank1_info1_regwen: ReadWrite<u32, BANK_INFO_REGWEN::Register>),
-        (0x130 => bank1_info1_page_cfg_shadowed: ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>),
-        (0x134 => bank1_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
-        (0x13C => bank1_info2_page_cfg_shadowed: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
+        (0x0FC => bank1_info0_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 10]),
+        (0x124 => bank1_info0_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 10]),
+        (0x14C => bank1_info1_regwen: ReadWrite<u32, BANK_INFO_REGWEN::Register>),
+        (0x150 => bank1_info1_page_cfg: ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>),
+        (0x154 => bank1_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
+        (0x15C => bank1_info2_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
 
-        (0x144 => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
-        (0x148 => mp_bank_cfg_shadowed: ReadWrite<u32, MP_BANK_CFG::Register>),
-        (0x14C => op_status: ReadWrite<u32, OP_STATUS::Register>),
-        (0x150 => status: ReadOnly<u32, STATUS::Register>),
-        (0x154 => err_code: ReadOnly<u32>),
-        (0x158 => fault_status: ReadOnly<u32>),
-        (0x15C => err_addr: ReadOnly<u32>),
-        (0x160 => ecc_single_err_cnt: ReadOnly<u32>),
-        (0x164 => ecc_single_addr: [ReadOnly<u32>; 2]),
-        (0x16C => phy_alert_cfg: ReadOnly<u32>),
-        (0x170 => phy_status: ReadOnly<u32, PHY_STATUS::Register>),
-        (0x174 => scratch: ReadWrite<u32, SCRATCH::Register>),
-        (0x178 => fifo_lvl: ReadWrite<u32, FIFO_LVL::Register>),
-        (0x17c => fifo_rst: ReadWrite<u32, FIFO_RST::Register>),
-        (0x180 => prog_fifo: WriteOnly<u32>),
-        (0x184 => rd_fifo: ReadOnly<u32>),
-        (0x188=> @END),
+        (0x164 => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
+        (0x168 => mp_bank_cfg_shadowed: ReadWrite<u32, MP_BANK_CFG::Register>),
+        (0x16C => op_status: ReadWrite<u32, OP_STATUS::Register>),
+        (0x170 => status: ReadOnly<u32, STATUS::Register>),
+        (0x174 => err_code: ReadOnly<u32>),
+        (0x178 => std_fault_status: ReadOnly<u32>),
+        (0x17C => fault_status: ReadOnly<u32>),
+        (0x180 => err_addr: ReadOnly<u32>),
+        (0x184 => ecc_single_err_cnt: ReadOnly<u32>),
+        (0x188 => ecc_single_addr: [ReadOnly<u32>; 2]),
+        (0x190 => phy_alert_cfg: ReadOnly<u32>),
+        (0x194 => phy_status: ReadOnly<u32, PHY_STATUS::Register>),
+        (0x198 => scratch: ReadWrite<u32, SCRATCH::Register>),
+        (0x19C => fifo_lvl: ReadWrite<u32, FIFO_LVL::Register>),
+        (0x1A0 => fifo_rst: ReadWrite<u32, FIFO_RST::Register>),
+        (0x1A4 => curr_fifo_lvl: WriteOnly<u32>),
+        (0x1A8 => prog_fifo: WriteOnly<u32>),
+        (0x1AC => rd_fifo: ReadOnly<u32>),
+        (0x1B0=> @END),
     }
 }
 
@@ -120,15 +123,40 @@ register_bitfields![u32,
         REGION OFFSET(0) NUMBITS(1) []
     ],
     MP_REGION_CFG [
-        EN OFFSET(0) NUMBITS(1) [],
-        RD_EN OFFSET(1) NUMBITS(1) [],
-        PROG_EN OFFSET(2) NUMBITS(1) [],
-        ERASE_EN OFFSET(3) NUMBITS(1) [],
-        SCRAMBLE_EN OFFSET(4) NUMBITS(1) [],
-        ECC_EN OFFSET(5) NUMBITS(1) [],
-        HE_EN OFFSET(6) NUMBITS(1) [],
-        BASE OFFSET(8) NUMBITS(8) [],
-        SIZE OFFSET(20) NUMBITS(8) []
+        // These config register fields require a special value of
+        // 0x6 (0110) to set, or 0x9 (1001) to reset
+        EN OFFSET(0) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        RD_EN OFFSET(4) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        PROG_EN OFFSET(8) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        ERASE_EN OFFSET(12) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        SCRAMBLE_EN OFFSET(16) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        ECC_EN OFFSET(20) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        HE_EN OFFSET(24) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+    ],
+    MP_REGION [
+        BASE OFFSET(0) NUMBITS(9) [],
+        SIZE OFFSET(9) NUMBITS(9) []
     ],
     BANK_INFO_REGWEN [
         REGION OFFSET(0) NUMBITS(1) [
@@ -137,24 +165,63 @@ register_bitfields![u32,
         ]
     ],
     BANK_INFO_PAGE_CFG [
-        EN OFFSET(0) NUMBITS(1) [],
-        RD_EN OFFSET(1) NUMBITS(1) [],
-        PROG_EN OFFSET(2) NUMBITS(1) [],
-        ERASE_EN OFFSET(3) NUMBITS(1) [],
-        SCRAMBLE_EN OFFSET(4) NUMBITS(1) [],
-        ECC_EN OFFSET(5) NUMBITS(1) [],
-        HE_EN OFFSET(6) NUMBITS(1) [],
+        EN OFFSET(0) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        RD_EN OFFSET(4) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        PROG_EN OFFSET(8) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        ERASE_EN OFFSET(12) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        SCRAMBLE_EN OFFSET(16) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        ECC_EN OFFSET(20) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        HE_EN OFFSET(24) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
     ],
     BANK_CFG_REGWEN [
         BANK OFFSET(0) NUMBITS(1) []
     ],
     DEFAULT_REGION [
-        RD_EN OFFSET(0) NUMBITS(1) [],
-        PROG_EN OFFSET(1) NUMBITS(1) [],
-        ERASE_EN OFFSET(2) NUMBITS(1) [],
-        SCRAMBLE_EN OFFSET(3) NUMBITS(1) [],
-        ECC_EN OFFSET(4) NUMBITS(1) [],
-        HE_EN OFFSET(5) NUMBITS(1) [],
+        RD_EN OFFSET(0) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        PROG_EN OFFSET(4) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        ERASE_EN OFFSET(8) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        SCRAMBLE_EN OFFSET(12) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        ECC_EN OFFSET(16) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
+        HE_EN OFFSET(20) NUMBITS(4) [
+            Set = 0x6,
+            Clear = 0x9,
+        ],
     ],
     MP_BANK_CFG [
         ERASE_EN_0 OFFSET(0) NUMBITS(1) [],
@@ -188,7 +255,15 @@ register_bitfields![u32,
     ]
 ];
 
-pub const PAGE_SIZE: usize = 64;
+pub const PAGE_SIZE: usize = 2048;
+pub const FLASH_WORD_SIZE: usize = 8;
+pub const FLASH_PAGES_PER_BANK: usize = 256;
+pub const FLASH_NUM_BANKS: usize = 2;
+pub const FLASH_MAX_PAGES: usize = FLASH_NUM_BANKS * FLASH_PAGES_PER_BANK;
+pub const FLASH_NUM_BUSWORDS_PER_BANK: usize = PAGE_SIZE / 4;
+// The programming windows size in words (32bit)
+pub const FLASH_PROG_WINDOW_SIZE: usize = 16;
+pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
 
 pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
 
@@ -247,6 +322,7 @@ pub struct FlashCtrl<'a> {
     read_index: Cell<usize>,
     write_buf: TakeCell<'static, LowRiscPage>,
     write_index: Cell<usize>,
+    write_word_addr: Cell<usize>,
     region_num: FlashRegion,
 }
 
@@ -261,6 +337,7 @@ impl<'a> FlashCtrl<'a> {
             read_index: Cell::new(0),
             write_buf: TakeCell::empty(),
             write_index: Cell::new(0),
+            write_word_addr: Cell::new(0),
             region_num,
         }
     }
@@ -283,53 +360,71 @@ impl<'a> FlashCtrl<'a> {
         self.registers.intr_state.set(0xFFFF_FFFF);
     }
 
-    fn configure_data_partition(&self, num: FlashRegion) {
-        for _ in 0..2 {
-            self.registers.default_region_shadowed.write(
-                DEFAULT_REGION::RD_EN::SET
-                    + DEFAULT_REGION::PROG_EN::SET
-                    + DEFAULT_REGION::ERASE_EN::SET,
-            );
-        }
+    /// Calculates and returns the max num words that can be programmed without
+    /// crossing the programming resolution window boundaries, which
+    /// occur at every FLASH_PROG_WINDOW_SIZE words. Note, when setting
+    /// the CONTROL::NUM, write (ret_val - 1).
+    fn calculate_max_prog_len(&self, word_addr: u32, rem_bytes: u32) -> u32 {
+        // Calculate and return the max window limit possible for this transaction in words
+        let window_limit =
+            ((word_addr + FLASH_PROG_WINDOW_SIZE as u32) & FLASH_PROG_WINDOW_MASK) - word_addr;
+        let words_to_write = rem_bytes / 4;
 
-        for _ in 0..2 {
-            self.registers.mp_region_cfg_shadowed[num as usize].write(
-                MP_REGION_CFG::BASE.val(256)
-                    + MP_REGION_CFG::SIZE.val(0x1)
-                    + MP_REGION_CFG::RD_EN::SET
-                    + MP_REGION_CFG::PROG_EN::SET
-                    + MP_REGION_CFG::ERASE_EN::SET
-                    + MP_REGION_CFG::SCRAMBLE_EN::CLEAR
-                    + MP_REGION_CFG::ECC_EN::CLEAR
-                    + MP_REGION_CFG::EN::SET,
-            );
+        if words_to_write < window_limit {
+            words_to_write
+        } else {
+            window_limit
         }
+    }
+
+    fn configure_data_partition(&self, num: FlashRegion) {
+        self.registers.default_region.write(
+            DEFAULT_REGION::RD_EN::Set
+                + DEFAULT_REGION::PROG_EN::Set
+                + DEFAULT_REGION::ERASE_EN::Set,
+        );
+
+        self.registers.mp_region_cfg[num as usize].write(
+            MP_REGION_CFG::RD_EN::Set
+                + MP_REGION_CFG::PROG_EN::Set
+                + MP_REGION_CFG::ERASE_EN::Set
+                + MP_REGION_CFG::SCRAMBLE_EN::Clear
+                + MP_REGION_CFG::ECC_EN::Clear
+                + MP_REGION_CFG::EN::Clear,
+        );
+
+        // Size and base are stored in different registers
+        self.registers.mp_region[num as usize]
+            .write(MP_REGION::BASE.val(FLASH_PAGES_PER_BANK as u32) + MP_REGION::SIZE.val(0x1));
+
+        // Enable MP Region
+        self.registers.mp_region_cfg[num as usize].modify(MP_REGION_CFG::EN::Set);
         self.data_configured.set(true);
     }
 
     fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) {
-        for _ in 0..2 {
-            if bank == FlashBank::BANK0 {
-                self.registers.bank0_info0_page_cfg_shadowed[num as usize].write(
-                    BANK_INFO_PAGE_CFG::RD_EN::SET
-                        + BANK_INFO_PAGE_CFG::PROG_EN::SET
-                        + BANK_INFO_PAGE_CFG::ERASE_EN::SET
-                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
-                        + BANK_INFO_PAGE_CFG::ECC_EN::CLEAR
-                        + BANK_INFO_PAGE_CFG::EN::SET,
-                );
-            } else if bank == FlashBank::BANK1 {
-                self.registers.bank1_info0_page_cfg_shadowed[num as usize].write(
-                    BANK_INFO_PAGE_CFG::RD_EN::SET
-                        + BANK_INFO_PAGE_CFG::PROG_EN::SET
-                        + BANK_INFO_PAGE_CFG::ERASE_EN::SET
-                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::CLEAR
-                        + BANK_INFO_PAGE_CFG::ECC_EN::CLEAR
-                        + BANK_INFO_PAGE_CFG::EN::SET,
-                );
-            } else {
-                panic!("Unsupported bank");
-            }
+        if bank == FlashBank::BANK0 {
+            self.registers.bank0_info0_page_cfg[num as usize].write(
+                BANK_INFO_PAGE_CFG::RD_EN::Set
+                    + BANK_INFO_PAGE_CFG::PROG_EN::Set
+                    + BANK_INFO_PAGE_CFG::ERASE_EN::Set
+                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
+                    + BANK_INFO_PAGE_CFG::ECC_EN::Set
+                    + BANK_INFO_PAGE_CFG::EN::Clear,
+            );
+            self.registers.bank0_info0_page_cfg[num as usize].modify(BANK_INFO_PAGE_CFG::EN::Set);
+        } else if bank == FlashBank::BANK1 {
+            self.registers.bank1_info0_page_cfg[num as usize].write(
+                BANK_INFO_PAGE_CFG::RD_EN::Set
+                    + BANK_INFO_PAGE_CFG::PROG_EN::Set
+                    + BANK_INFO_PAGE_CFG::ERASE_EN::Set
+                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
+                    + BANK_INFO_PAGE_CFG::ECC_EN::Set
+                    + BANK_INFO_PAGE_CFG::EN::Clear,
+            );
+            self.registers.bank1_info0_page_cfg[num as usize].modify(BANK_INFO_PAGE_CFG::EN::Set);
+        } else {
+            panic!("Unsupported bank");
         }
         self.info_configured.set(true);
     }
@@ -340,6 +435,8 @@ impl<'a> FlashCtrl<'a> {
         self.disable_interrupts();
 
         if irqs.is_set(INTR::OP_ERROR) {
+            self.registers.op_status.set(0);
+
             let read_buf = self.read_buf.take();
             if let Some(buf) = read_buf {
                 // We were doing a read
@@ -378,10 +475,35 @@ impl<'a> FlashCtrl<'a> {
 
         if irqs.is_set(INTR::PROG_EMPTY) {
             self.write_buf.map(|buf| {
-                // Write the data in until we are full
-                while !self.registers.status.is_set(STATUS::PROG_FULL)
-                    && self.write_index.get() < buf.0.len()
-                {
+                let transaction_word_len = self.calculate_max_prog_len(
+                    self.write_word_addr.get() as u32,
+                    (buf.0.len() - self.write_index.get()) as u32,
+                );
+
+                let mut words_written = 0;
+
+                // Issue program command to the controller
+                self.registers.control.write(
+                    CONTROL::OP::PROG
+                        + CONTROL::PARTITION_SEL::DATA
+                        + CONTROL::INFO_SEL::CLEAR
+                        + CONTROL::NUM.val(transaction_word_len as u32 - 1)
+                        + CONTROL::START::CLEAR,
+                );
+
+                // Set the address
+                self.registers
+                    .addr
+                    .write(ADDR::START.val(self.write_word_addr.get().saturating_mul(4) as u32));
+
+                // Start the transaction
+                self.registers.control.modify(CONTROL::START::SET);
+
+                for i in 0..transaction_word_len {
+                    if self.registers.status.is_set(STATUS::PROG_FULL) {
+                        words_written = i;
+                        break;
+                    }
                     let buf_offset = self.write_index.get();
                     let data: u32 = buf[buf_offset] as u32
                         | (buf[buf_offset + 1] as u32) << 8
@@ -391,7 +513,12 @@ impl<'a> FlashCtrl<'a> {
                     self.registers.prog_fifo.set(data);
 
                     self.write_index.set(buf_offset + 4);
+                    // loop only semi-inclusive
+                    words_written = i + 1;
                 }
+
+                self.write_word_addr
+                    .set(self.write_word_addr.get() + words_written as usize);
                 self.enable_interrupts();
             });
         }
@@ -402,6 +529,7 @@ impl<'a> FlashCtrl<'a> {
                 if let Some(buf) = read_buf {
                     // We were doing a read
                     if self.read_index.get() >= buf.0.len() {
+                        self.registers.op_status.set(0);
                         // We have all of the data, call the client
                         self.flash_client.map(move |client| {
                             client.read_complete(buf, hil::flash::Error::CommandComplete);
@@ -417,6 +545,7 @@ impl<'a> FlashCtrl<'a> {
                 if let Some(buf) = write_buf {
                     // We were doing a write
                     if self.write_index.get() >= buf.0.len() {
+                        self.registers.op_status.set(0);
                         // We sent all of the data, call the client
                         self.flash_client.map(move |client| {
                             client.write_complete(buf, hil::flash::Error::CommandComplete);
@@ -445,29 +574,37 @@ impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FlashCtr
 impl hil::flash::Flash for FlashCtrl<'_> {
     type Page = LowRiscPage;
 
+    /// The flash controller will truncate to the closest, lower word aligned address.
+    /// For example, if 0x13 is supplied, the controller will perform a read at address 0x10.
     fn read_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
-        let addr = page_number * PAGE_SIZE;
+        if page_number >= FLASH_MAX_PAGES {
+            return Err((ErrorCode::INVAL, buf));
+        }
+
+        let addr = page_number.saturating_mul(PAGE_SIZE);
+
+        if !self.info_configured.get() {
+            // The info partitions have no default access. Specifically set up a region.
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+        }
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
             self.configure_data_partition(self.region_num);
         }
 
-        if !self.info_configured.get() {
-            // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
-        }
-
         // Enable interrupts and set the FIFO level
         self.enable_interrupts();
         self.registers.fifo_lvl.modify(FIFO_LVL::RD.val(0xF));
 
-        // Set the address
-        self.registers.addr.write(ADDR::START.val(addr as u32));
+        // Check control status before we commit
+        if !self.registers.ctrl_regwen.is_set(CTRL_REGWEN::EN) {
+            return Err((ErrorCode::BUSY, buf));
+        }
 
         // Save the buffer
         self.read_buf.replace(buf);
@@ -477,29 +614,63 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.registers.control.write(
             CONTROL::OP::READ
                 + CONTROL::PARTITION_SEL::DATA
-                + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
-                + CONTROL::START::SET,
+                + CONTROL::INFO_SEL::SET
+                + CONTROL::NUM.val((FLASH_NUM_BUSWORDS_PER_BANK - 1) as u32)
+                + CONTROL::START::CLEAR,
         );
+
+        // Set the address
+        self.registers.addr.write(ADDR::START.val(addr as u32));
+
+        // Start Transaction
+        self.registers.control.modify(CONTROL::START::SET);
 
         Ok(())
     }
 
+    /// The flash controller will truncate to the closest, lower word aligned address.
+    /// For example, if 0x13 is supplied, the controller will perform a write at address 0x10.
+    /// the controller does not have read modified write support.
     fn write_page(
         &self,
         page_number: usize,
         buf: &'static mut Self::Page,
     ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
-        let addr = page_number * PAGE_SIZE;
+        if page_number >= FLASH_MAX_PAGES {
+            return Err((ErrorCode::INVAL, buf));
+        }
+        let addr = page_number.saturating_mul(PAGE_SIZE);
+
+        if !self.info_configured.get() {
+            // If we aren't configured yet, configure now
+            // The info partitions have no default access. Specifically set up a region.
+            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+        }
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
             self.configure_data_partition(self.region_num);
         }
 
-        if !self.info_configured.get() {
-            // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+        // Check control status before we commit
+        if !self.registers.ctrl_regwen.is_set(CTRL_REGWEN::EN) {
+            return Err((ErrorCode::BUSY, buf));
         }
+
+        // Writes should not cross programming resolution window boundaries, which
+        // occur at every FLASH_PROG_WINDOW_SIZE words.
+        let word_address = addr / 4;
+
+        let transaction_word_len =
+            self.calculate_max_prog_len(word_address as u32, buf.0.len() as u32);
+
+        self.registers.control.write(
+            CONTROL::OP::PROG
+                + CONTROL::PARTITION_SEL::DATA
+                + CONTROL::INFO_SEL::CLEAR
+                + CONTROL::NUM.val(transaction_word_len - 1)
+                + CONTROL::START::CLEAR,
+        );
 
         // Set the address
         self.registers.addr.write(ADDR::START.val(addr as u32));
@@ -508,17 +679,16 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         self.write_index.set(0);
 
         // Start the transaction
-        self.registers.control.write(
-            CONTROL::OP::PROG
-                + CONTROL::PARTITION_SEL::DATA
-                + CONTROL::NUM.val(((PAGE_SIZE / 4) - 1) as u32)
-                + CONTROL::START::SET,
-        );
+        self.registers.control.modify(CONTROL::START::SET);
+
+        let mut words_written = 0;
 
         // Write the data until we are full or have written all the data
-        while !self.registers.status.is_set(STATUS::PROG_FULL)
-            && self.write_index.get() < (buf.0.len() - 4)
-        {
+        for i in 0..transaction_word_len {
+            if self.registers.status.is_set(STATUS::PROG_FULL) {
+                words_written = i;
+                break;
+            }
             let buf_offset = self.write_index.get();
             let data: u32 = buf[buf_offset] as u32
                 | (buf[buf_offset + 1] as u32) << 8
@@ -528,20 +698,31 @@ impl hil::flash::Flash for FlashCtrl<'_> {
             self.registers.prog_fifo.set(data);
 
             self.write_index.set(buf_offset + 4);
+            // loop only semi-inclusive
+            words_written = i + 1;
         }
+
+        self.write_word_addr
+            .set((addr / 4) + words_written as usize);
 
         // Save the buffer
         self.write_buf.replace(buf);
 
-        // Enable interrupts and set the FIFO level
+        // Enable interrupts and set the FIFO level (interrupt when fully drained)
         self.enable_interrupts();
-        self.registers.fifo_lvl.modify(FIFO_LVL::PROG.val(0xF));
+        self.registers.fifo_lvl.modify(FIFO_LVL::PROG.val(0x00));
 
         Ok(())
     }
 
+    /// The controller will truncate to the closest lower page aligned address.
+    /// Similarly for bank erases, the controller will truncate to the closest
+    /// lower bank aligned address.
     fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
-        let addr = page_number * PAGE_SIZE;
+        if page_number >= FLASH_MAX_PAGES {
+            return Err(ErrorCode::INVAL);
+        }
+        let addr = page_number.saturating_mul(PAGE_SIZE);
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now

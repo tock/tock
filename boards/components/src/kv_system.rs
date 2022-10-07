@@ -4,7 +4,7 @@
 //! -----
 //! ```rust
 //!    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-//!        components::kv_store_mux_component_helper!(
+//!        components::kv_store_mux_component_static!(
 //!            capsules::tickv::TicKVStore<
 //!                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!            >,
@@ -13,7 +13,7 @@
 //!    );
 //!
 //!    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
-//!        components::kv_store_component_helper!(
+//!        components::kv_store_component_static!(
 //!            capsules::tickv::TicKVStore<
 //!                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!            >,
@@ -21,17 +21,12 @@
 //!        ),
 //!    );
 //!
-//!    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
-//!    let kv_driver_dest_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
-//!
 //!    let kv_driver = components::kv_system::KVDriverComponent::new(
 //!        kv_store,
 //!        board_kernel,
 //!        capsules::kv_driver::DRIVER_NUM,
-//!        kv_driver_data_buf,
-//!        kv_driver_dest_buf,
 //!    )
-//!    .finalize(components::kv_driver_component_helper!(
+//!    .finalize(components::kv_driver_component_static!(
 //!        // capsules::kv_store::KVStore<
 //!        capsules::tickv::TicKVStore<
 //!            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
@@ -47,16 +42,12 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::kv_system::{KVSystem, KeyType};
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! kv_store_mux_component_helper {
+macro_rules! kv_store_mux_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        use capsules::kv_store::MuxKVStore;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<MuxKVStore<'static, $K, $T>> = MaybeUninit::uninit();
-        &mut BUF1
+        kernel::static_buf!(capsules::kv_store::MuxKVStore<'static, $K, $T>)
     };};
 }
 
@@ -82,64 +73,60 @@ impl<K: 'static + KVSystem<'static> + KVSystem<'static, K = T>, T: 'static + Key
     type Output = &'static MuxKVStore<'static, K, T>;
 
     unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        static_init_half!(s, MuxKVStore<'static, K, T>, MuxKVStore::new(self.kv))
+        s.write(MuxKVStore::new(self.kv))
     }
 }
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! kv_store_component_helper {
+macro_rules! kv_store_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        use capsules::kv_store::KVStore;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<KVStore<'static, $K, $T>> = MaybeUninit::uninit();
-        &mut BUF1
+        let kv_store = kernel::static_buf!(capsules::kv_store::KVStore<'static, $K, $T>);
+        let key = kernel::static_buf!($T);
+        let buffer = kernel::static_buf!([u8; 9]);
+
+        (kv_store, key, buffer)
     };};
 }
 
 pub struct KVStoreComponent<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> {
     kv_store: &'static MuxKVStore<'static, K, T>,
-    key_buf: &'static mut T,
-    header_buf: &'static mut [u8; 9],
 }
 
 impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> KVStoreComponent<K, T> {
-    pub fn new(
-        kv_store: &'static MuxKVStore<'static, K, T>,
-        key_buf: &'static mut T,
-        header_buf: &'static mut [u8; 9],
-    ) -> Self {
-        Self {
-            kv_store,
-            key_buf,
-            header_buf,
-        }
+    pub fn new(kv_store: &'static MuxKVStore<'static, K, T>) -> Self {
+        Self { kv_store }
     }
 }
 
-impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
+impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType + Default> Component
     for KVStoreComponent<K, T>
 {
-    type StaticInput = &'static mut MaybeUninit<KVStore<'static, K, T>>;
+    type StaticInput = (
+        &'static mut MaybeUninit<KVStore<'static, K, T>>,
+        &'static mut MaybeUninit<T>,
+        &'static mut MaybeUninit<[u8; 9]>,
+    );
     type Output = &'static KVStore<'static, K, T>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        static_init_half!(
-            static_buffer,
-            KVStore<'static, K, T>,
-            KVStore::new(self.kv_store, self.key_buf, self.header_buf)
-        )
+        let key_buf = static_buffer.1.write(T::default());
+        let buffer = static_buffer.2.write([0; 9]);
+        static_buffer
+            .0
+            .write(KVStore::new(self.kv_store, key_buf, buffer))
     }
 }
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! kv_driver_component_helper {
+macro_rules! kv_driver_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        use capsules::kv_driver::KVSystemDriver;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<KVSystemDriver<'static, $K, $T>> = MaybeUninit::uninit();
-        &mut BUF1
+        let kv = kernel::static_buf!(capsules::kv_driver::KVSystemDriver<'static, $K, $T>);
+        let data_buffer = kernel::static_buf!([u8; 32]);
+        let dest_buffer = kernel::static_buf!([u8; 48]);
+
+        (kv, data_buffer, dest_buffer)
     };};
 }
 
@@ -147,8 +134,6 @@ pub struct KVDriverComponent<K: 'static + KVSystem<'static, K = T>, T: 'static +
     kv: &'static KVStore<'static, K, T>,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    data_buffer: &'static mut [u8],
-    dest_buffer: &'static mut [u8],
 }
 
 impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> KVDriverComponent<K, T> {
@@ -156,15 +141,11 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> KVDriverCompon
         kv: &'static KVStore<'static, K, T>,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8],
     ) -> Self {
         Self {
             kv,
             board_kernel,
             driver_num,
-            data_buffer,
-            dest_buffer,
         }
     }
 }
@@ -172,22 +153,25 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> KVDriverCompon
 impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
     for KVDriverComponent<K, T>
 {
-    type StaticInput = &'static mut MaybeUninit<KVSystemDriver<'static, K, T>>;
+    type StaticInput = (
+        &'static mut MaybeUninit<KVSystemDriver<'static, K, T>>,
+        &'static mut MaybeUninit<[u8; 32]>,
+        &'static mut MaybeUninit<[u8; 48]>,
+    );
     type Output = &'static KVSystemDriver<'static, K, T>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let driver = static_init_half!(
-            static_buffer,
-            KVSystemDriver<'static, K, T>,
-            KVSystemDriver::new(
-                self.kv,
-                self.data_buffer,
-                self.dest_buffer,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
+        let data_buffer = static_buffer.1.write([0; 32]);
+        let dest_buffer = static_buffer.2.write([0; 48]);
+
+        let driver = static_buffer.0.write(KVSystemDriver::new(
+            self.kv,
+            data_buffer,
+            dest_buffer,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
         self.kv.set_client(driver);
         driver
     }

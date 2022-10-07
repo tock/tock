@@ -385,7 +385,7 @@ pub unsafe fn main() {
     // verilated simulation.
     let uart_mux =
         components::console::UartMuxComponent::new(uart0, 115200, dynamic_deferred_caller)
-            .finalize(());
+            .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
@@ -472,7 +472,7 @@ pub unsafe fn main() {
     );
 
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             kernel::hil::led::LedHigh<GPIOPin>,
             LedHigh::new(&led_gpios[0]),
             LedHigh::new(&led_gpios[1]),
@@ -533,7 +533,7 @@ pub unsafe fn main() {
             ),
         ),
     )
-    .finalize(components::button_component_buf!(GPIOPin));
+    .finalize(components::button_component_static!(GPIOPin));
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 
@@ -559,8 +559,8 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
 
     PANIC_REFERENCES.process_printer = Some(process_printer);
 
@@ -579,7 +579,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -588,7 +588,7 @@ pub unsafe fn main() {
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
 

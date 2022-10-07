@@ -88,7 +88,7 @@ macro_rules! static_init_test_cb {
             HmacTestCallback,
             HmacTestCallback::new(input_data, digest_data)
         )
-    };};
+    }};
 }
 
 #[test_case]

@@ -2,6 +2,13 @@
 
 ## master
 
+## v0.8.1
+
+A point release to allow multiple invocations of `register_fields!` in
+the same module. See the PR and linked Issue for details.
+
+ - #3230: don't encapsulate test_fields! tests in mod
+
 ## v0.8
 
 `tock-registers` now supports stable Rust!

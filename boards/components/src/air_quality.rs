@@ -3,15 +3,23 @@
 //! Usage
 //! -----
 //! ```rust
-//! let temp = AirQualityComponent::new(board_kernel, nrf52::temperature::TEMP).finalize(());
+//! let temp = AirQualityComponent::new(board_kernel, nrf52::temperature::TEMP)
+//!     .finalize(air_quality_component_static!());
 //! ```
 
 use capsules::air_quality::AirQualitySensor;
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::static_init;
+
+#[macro_export]
+macro_rules! air_quality_component_static {
+    () => {{
+        kernel::static_buf!(capsules::air_quality::AirQualitySensor<'static>)
+    };};
+}
 
 pub struct AirQualityComponent<T: 'static + hil::sensors::AirQualityDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
@@ -34,21 +42,18 @@ impl<T: 'static + hil::sensors::AirQualityDriver<'static>> AirQualityComponent<T
 }
 
 impl<T: 'static + hil::sensors::AirQualityDriver<'static>> Component for AirQualityComponent<T> {
-    type StaticInput = ();
+    type StaticInput = &'static mut MaybeUninit<AirQualitySensor<'static>>;
     type Output = &'static AirQualitySensor<'static>;
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let temp = static_init!(
-            AirQualitySensor<'static>,
-            AirQualitySensor::new(
-                self.temp_sensor,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
+        let air_quality = s.write(AirQualitySensor::new(
+            self.temp_sensor,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
 
-        hil::sensors::AirQualityDriver::set_client(self.temp_sensor, temp);
-        temp
+        hil::sensors::AirQualityDriver::set_client(self.temp_sensor, air_quality);
+        air_quality
     }
 }

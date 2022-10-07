@@ -82,8 +82,8 @@ register_bitfields![u32,
             Key192 = 2,
             Key256 = 4,
         ],
-        MANUAL_OPERATION OFFSET(11) NUMBITS(1) [],
-        FORCE_ZERO_MASKS OFFSET(12) NUMBITS(1) [],
+        MANUAL_OPERATION OFFSET(15) NUMBITS(1) [],
+        FORCE_ZERO_MASKS OFFSET(16) NUMBITS(1) [],
     ],
     TRIGGER [
         START OFFSET(0) NUMBITS(1) [],
@@ -145,8 +145,27 @@ impl<'a> Aes<'a> {
         self.deferred_handle.set(deferred_call_handle);
     }
 
-    fn idle(&self) -> bool {
+    pub fn idle(&self) -> bool {
         self.registers.status.is_set(STATUS::IDLE)
+    }
+
+    /// Must wait for IDLE, for trigger to set.
+    /// On reset, AES unit will first reseed the internal PRNGs
+    /// for register clearing and masking via EDN, and then
+    /// clear all key, IV and data registers with pseudo-random data.
+    /// Only after this sequence has finished, the unit becomes idle
+    ///
+    /// NOTE: This is needed for Verilator, and is suggested by documentation
+    ///       in general.
+    /// Refer: https://docs.opentitan.org/hw/ip/aes/doc/#programmers-guide
+    fn wait_on_idle_ready(&self) -> Result<(), ErrorCode> {
+        for _i in 0..10000 {
+            if self.idle() {
+                return Ok(());
+            }
+        }
+        // AES Busy
+        Err(ErrorCode::BUSY)
     }
 
     fn input_ready(&self) -> bool {
@@ -295,9 +314,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_iv(&self, iv: &[u8]) -> Result<(), ErrorCode> {
-        if !self.idle() {
-            return Err(ErrorCode::BUSY);
-        }
+        self.wait_on_idle_ready()?;
 
         if iv.len() != AES128_BLOCK_SIZE {
             return Err(ErrorCode::INVAL);
@@ -323,9 +340,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
     }
 
     fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
-        if !self.idle() {
-            return Err(ErrorCode::BUSY);
-        }
+        self.wait_on_idle_ready()?;
 
         if key.len() != AES128_KEY_SIZE {
             return Err(ErrorCode::INVAL);
@@ -433,10 +448,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
 impl kernel::hil::symmetric_encryption::AES128Ctr for Aes<'_> {
     fn set_mode_aes128ctr(&self, encrypting: bool) -> Result<(), ErrorCode> {
-        if !self.idle() {
-            return Err(ErrorCode::BUSY);
-        }
-
+        self.wait_on_idle_ready()?;
         self.mode.set(Mode::AES128CTR);
 
         let mut ctrl = if encrypting {
@@ -459,10 +471,7 @@ impl kernel::hil::symmetric_encryption::AES128Ctr for Aes<'_> {
 
 impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
     fn set_mode_aes128ecb(&self, encrypting: bool) -> Result<(), ErrorCode> {
-        if !self.idle() {
-            return Err(ErrorCode::BUSY);
-        }
-
+        self.wait_on_idle_ready()?;
         self.mode.set(Mode::AES128ECB);
 
         let mut ctrl = if encrypting {
@@ -485,10 +494,7 @@ impl kernel::hil::symmetric_encryption::AES128ECB for Aes<'_> {
 
 impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
     fn set_mode_aes128cbc(&self, encrypting: bool) -> Result<(), ErrorCode> {
-        if !self.idle() {
-            return Err(ErrorCode::BUSY);
-        }
-
+        self.wait_on_idle_ready()?;
         self.mode.set(Mode::AES128CBC);
 
         let mut ctrl = if encrypting {

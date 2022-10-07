@@ -232,7 +232,7 @@ pub unsafe fn main() {
     //
     // LEDs
     //
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
         LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
@@ -274,7 +274,9 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52832::gpio::GPIOPin
+    ));
 
     //
     // RTC for Timers
@@ -316,9 +318,10 @@ pub unsafe fn main() {
     //
 
     // RTT communication channel
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+        .finalize(components::segger_rtt_memory_component_static!());
     let rtt = components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
-        .finalize(components::segger_rtt_component_helper!(nrf52832::rtc::Rtc));
+        .finalize(components::segger_rtt_component_static!(nrf52832::rtc::Rtc));
 
     //
     // Virtual UART
@@ -326,7 +329,7 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(rtt, 115200, dynamic_deferred_caller)
-        .finalize(());
+        .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -334,7 +337,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 

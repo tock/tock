@@ -36,3 +36,6 @@ kernel:
 # add documentation label only if all changes are in doc/
 documentation:
   - all: ['doc/**/*']
+
+component:
+  - boards/components/**/*

@@ -16,6 +16,9 @@ peripherals:
 
 ## Programming
 
+When using `tockloader` use settings for board `hifive1b` since they are the
+same (same debugger, same kernel and program memory).
+
 ### Using J-Link
 
 Running `make flash-jlink` should load the kernel onto the board. It requires

@@ -155,6 +155,7 @@ struct EarlGrey {
     scheduler: &'static PrioritySched,
     scheduler_timer:
         &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
+    watchdog: &'static lowrisc::aon_timer::AonTimer,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -190,7 +191,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     type Scheduler = PrioritySched;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
-    type WatchDog = ();
+    type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
@@ -209,7 +210,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         &self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        &()
+        &self.watchdog
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
@@ -257,11 +258,11 @@ unsafe fn setup() -> (
         earlgrey::uart::UART0_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     // LEDs
     // Start with half on and half off
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, earlgrey::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[8]),
         LedHigh::new(&peripherals.gpio_port[9]),
@@ -352,7 +353,7 @@ unsafe fn setup() -> (
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -361,7 +362,7 @@ unsafe fn setup() -> (
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
         components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
@@ -448,8 +449,8 @@ unsafe fn setup() -> (
         dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // USB support is currently broken in the OpenTitan hardware
@@ -475,7 +476,7 @@ unsafe fn setup() -> (
     );
 
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+        components::flash_mux_component_static!(lowrisc::flash_ctrl::FlashCtrl),
     );
 
     // SipHash
@@ -493,13 +494,14 @@ unsafe fn setup() -> (
     // TicKV
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
-        &mux_flash,                                  // Flash controller
-        0x20060000 / lowrisc::flash_ctrl::PAGE_SIZE, // Region offset (size / page_size)
-        0x20000,                                     // Region size
-        flash_ctrl_read_buf,                         // Buffer used internally in TicKV
-        page_buffer,                                 // Buffer used with the flash controller
+        &mux_flash,                                    // Flash controller
+        lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK - 1, // Region offset (End of Bank0/Use Bank1)
+        // Region Size
+        lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK * lowrisc::flash_ctrl::PAGE_SIZE,
+        flash_ctrl_read_buf, // Buffer used internally in TicKV
+        page_buffer,         // Buffer used with the flash controller
     )
-    .finalize(components::tickv_component_helper!(
+    .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
         capsules::sip_hash::SipHasher24
     ));
@@ -508,7 +510,7 @@ unsafe fn setup() -> (
     TICKV = Some(tickv);
 
     let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_helper!(
+        components::kv_store_mux_component_static!(
             capsules::tickv::TicKVStore<
                 capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
                 capsules::sip_hash::SipHasher24<'static>,
@@ -517,31 +519,23 @@ unsafe fn setup() -> (
         ),
     );
 
-    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
-    let header_buf = static_init!([u8; 9], [0; 9]);
-
-    let kv_store =
-        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
-            .finalize(components::kv_store_component_helper!(
-                capsules::tickv::TicKVStore<
-                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-                    capsules::sip_hash::SipHasher24<'static>,
-                >,
-                capsules::tickv::TicKVKeyType,
-            ));
+    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
+        components::kv_store_component_static!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
     tickv.set_client(kv_store);
-
-    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
-    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
 
     let kv_driver = components::kv_system::KVDriverComponent::new(
         kv_store,
         board_kernel,
         capsules::kv_driver::DRIVER_NUM,
-        kv_driver_data_buf,
-        kv_driver_dest_buf,
     )
-    .finalize(components::kv_driver_component_helper!(
+    .finalize(components::kv_driver_component_static!(
         capsules::tickv::TicKVStore<
             capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
             capsules::sip_hash::SipHasher24<'static>,
@@ -685,10 +679,13 @@ unsafe fn setup() -> (
         static _szero: u8;
         /// The end of the kernel BSS (Included only for kernel PMP)
         static _ezero: u8;
+        /// The start of the OpenTitan manifest
+        static _manifest: u8;
     }
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    let watchdog = &peripherals.watchdog;
 
     let earlgrey = static_init!(
         EarlGrey,
@@ -708,38 +705,30 @@ unsafe fn setup() -> (
             syscall_filter,
             scheduler,
             scheduler_timer,
+            watchdog,
         }
     );
 
     let mut mpu_config = rv32i::epmp::PMPConfig::kernel_default();
-    // The kernel stack
-    chip.pmp.allocate_kernel_region(
-        &_sstack as *const u8,
-        &_estack as *const u8 as usize - &_sstack as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
-    // The kernel text
-    chip.pmp.allocate_kernel_region(
-        &_stext as *const u8,
-        &_etext as *const u8 as usize - &_stext as *const u8 as usize,
-        mpu::Permissions::ReadExecuteOnly,
-        &mut mpu_config,
-    );
-    // The kernel relocate data
-    chip.pmp.allocate_kernel_region(
-        &_srelocate as *const u8,
-        &_erelocate as *const u8 as usize - &_srelocate as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
-    // The kernel BSS
-    chip.pmp.allocate_kernel_region(
-        &_szero as *const u8,
-        &_ezero as *const u8 as usize - &_szero as *const u8 as usize,
-        mpu::Permissions::ReadWriteOnly,
-        &mut mpu_config,
-    );
+
+    // The kernel stack, BSS and relocation data
+    chip.pmp
+        .allocate_kernel_region(
+            &_sstack as *const u8,
+            &_ezero as *const u8 as usize - &_sstack as *const u8 as usize,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
+    // The kernel text, Manifest and vectors
+    chip.pmp
+        .allocate_kernel_region(
+            &_manifest as *const u8,
+            &_etext as *const u8 as usize - &_manifest as *const u8 as usize,
+            mpu::Permissions::ReadExecuteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
     // The app locations
     chip.pmp.allocate_kernel_region(
         &_sapps as *const u8,
@@ -754,6 +743,15 @@ unsafe fn setup() -> (
         mpu::Permissions::ReadWriteOnly,
         &mut mpu_config,
     );
+    // Access to the MMIO devices
+    chip.pmp
+        .allocate_kernel_region(
+            0x4000_0000 as *const u8,
+            0x900_0000,
+            mpu::Permissions::ReadWriteOnly,
+            &mut mpu_config,
+        )
+        .unwrap();
 
     chip.pmp.enable_kernel_mpu(&mut mpu_config);
 

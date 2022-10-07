@@ -321,7 +321,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
@@ -340,7 +340,7 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -348,7 +348,7 @@ pub unsafe fn main() {
     let gpio_ports = &base_peripherals.gpio_ports;
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, stm32f446re::gpio::Pin>,
         LedHigh::new(gpio_ports.get_pin(stm32f446re::gpio::PinId::PA05).unwrap()),
     ));
@@ -366,7 +366,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f446re::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f446re::gpio::Pin));
 
     // ALARM
     let tim2 = &base_peripherals.tim2;
@@ -439,8 +439,8 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // GPIO
@@ -486,7 +486,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         stm32f446re::tim2::Tim2
     ));
     let _ = process_console.start();

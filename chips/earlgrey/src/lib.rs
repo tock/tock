@@ -9,6 +9,7 @@ pub mod chip_config;
 mod interrupts;
 
 pub mod aes;
+pub mod aon_timer;
 pub mod chip;
 pub mod csrng;
 pub mod flash_ctrl;

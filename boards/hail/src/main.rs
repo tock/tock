@@ -273,8 +273,8 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Initialize USART0 for Uart
@@ -286,7 +286,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&peripherals.usart0, uart_mux);
@@ -302,14 +302,14 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
     ));
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
@@ -324,7 +324,7 @@ pub unsafe fn main() {
         &peripherals.usart3,
         &peripherals.pa[17],
     )
-    .finalize(());
+    .finalize(components::nrf51822_component_static!());
 
     let sensors_i2c = static_init!(
         MuxI2C<'static>,
@@ -396,7 +396,7 @@ pub unsafe fn main() {
     .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, sam4l::gpio::GPIOPin>,
         LedLow::new(&peripherals.pa[13]), // Red
         LedLow::new(&peripherals.pa[15]), // Green
@@ -416,7 +416,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -462,7 +462,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
@@ -484,7 +484,7 @@ pub unsafe fn main() {
         capsules::crc::DRIVER_NUM,
         &peripherals.crccu,
     )
-    .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+    .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     // DAC
     let dac = static_init!(

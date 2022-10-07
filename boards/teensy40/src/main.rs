@@ -263,7 +263,7 @@ pub unsafe fn main() {
         115_200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
@@ -273,10 +273,10 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
 
     // LED
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<imxrt1060::gpio::Pin>,
         LedHigh::new(peripherals.ports.pin(PinId::B0_03))
     ));
@@ -306,8 +306,8 @@ pub unsafe fn main() {
         &memory_allocation_capability,
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
