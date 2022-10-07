@@ -375,7 +375,7 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
         LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
     ));
@@ -474,7 +474,7 @@ pub unsafe fn main() {
             ), // Y
         ),
     )
-    .finalize(components::button_component_buf!(RPGpioPin));
+    .finalize(components::button_component_static!(RPGpioPin));
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
@@ -482,7 +482,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
         .finalize(components::adc_component_helper!(Adc));
@@ -500,8 +500,8 @@ pub unsafe fn main() {
                 adc_channel_1,
                 adc_channel_2,
             ));
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE

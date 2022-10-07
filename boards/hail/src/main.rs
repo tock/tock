@@ -10,7 +10,7 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -277,8 +277,8 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Initialize USART0 for Uart
@@ -328,7 +328,7 @@ pub unsafe fn main() {
         &peripherals.usart3,
         &peripherals.pa[17],
     )
-    .finalize(());
+    .finalize(components::nrf51822_component_static!());
 
     let sensors_i2c = static_init!(
         MuxI2C<'static>,
@@ -370,17 +370,9 @@ pub unsafe fn main() {
     .finalize(components::alarm_component_helper!(sam4l::ast::Ast));
 
     // FXOS8700CQ accelerometer, device address 0x1e
-    let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(sensors_i2c, 0x1e));
-    let fxos8700 = static_init!(
-        capsules::fxos8700cq::Fxos8700cq<'static>,
-        capsules::fxos8700cq::Fxos8700cq::new(
-            fxos8700_i2c,
-            &peripherals.pa[9],
-            &mut capsules::fxos8700cq::BUF
-        )
-    );
-    fxos8700_i2c.set_client(fxos8700);
-    peripherals.pa[9].set_client(fxos8700);
+    let fxos8700 =
+        components::fxos8700::Fxos8700Component::new(sensors_i2c, 0x1e, &peripherals.pa[9])
+            .finalize(components::fxos8700_component_static!());
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
@@ -400,7 +392,7 @@ pub unsafe fn main() {
     .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, sam4l::gpio::GPIOPin>,
         LedLow::new(&peripherals.pa[13]), // Red
         LedLow::new(&peripherals.pa[15]), // Green
@@ -420,7 +412,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -466,7 +458,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
@@ -488,7 +480,7 @@ pub unsafe fn main() {
         capsules::crc::DRIVER_NUM,
         &peripherals.crccu,
     )
-    .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+    .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     // DAC
     let dac = static_init!(

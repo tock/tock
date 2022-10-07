@@ -336,7 +336,7 @@ pub unsafe fn main() {
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, nrf52840::gpio::GPIOPin>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_WHITE_PIN])
@@ -362,7 +362,9 @@ pub unsafe fn main() {
             ) // Right
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
@@ -482,7 +484,7 @@ pub unsafe fn main() {
         dynamic_deferred_caller,
         Some(&baud_rate_reset_bootloader_enter),
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
+    .finalize(components::cdc_acm_component_static!(
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
@@ -511,7 +513,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     //--------------------------------------------------------------------------
     // ADC
@@ -626,7 +628,7 @@ pub unsafe fn main() {
         capsules::humidity::DRIVER_NUM,
         sht3x,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
 
     //--------------------------------------------------------------------------
     // TFT
@@ -686,7 +688,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -727,8 +729,8 @@ pub unsafe fn main() {
         nrf52840::aes::AesECB<'static>
     ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(

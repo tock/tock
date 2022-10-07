@@ -294,7 +294,7 @@ pub unsafe fn main() {
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_GREEN_PIN]),
@@ -360,15 +360,15 @@ pub unsafe fn main() {
         dynamic_deferred_caller,
         Some(&baud_rate_reset_bootloader_enter),
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
+    .finalize(components::cdc_acm_component_static!(
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Process Printer for displaying process information.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -404,7 +404,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     //--------------------------------------------------------------------------
     // ADC
@@ -513,7 +513,7 @@ pub unsafe fn main() {
     kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
-        .finalize(components::hts221_component_helper!());
+        .finalize(components::hts221_component_static!());
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
@@ -525,7 +525,7 @@ pub unsafe fn main() {
         capsules::humidity::DRIVER_NUM,
         hts221,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -548,7 +548,6 @@ pub unsafe fn main() {
         dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
     use capsules::net::ieee802154::MacAddress;
-    use capsules::virtual_alarm::VirtualMuxAlarm;
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
@@ -594,7 +593,7 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -605,7 +604,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

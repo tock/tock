@@ -288,8 +288,8 @@ pub unsafe fn main() {
 
     let uart_channel = if USB_DEBUGGING {
         // Initialize early so any panic beyond this point can use the RTT memory object.
-        let mut rtt_memory_refs =
-            components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+        let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
+            .finalize(components::segger_rtt_memory_component_static!());
 
         // XXX: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
         // aliases reference is only used inside a panic handler, which should be OK, but maybe we
@@ -353,9 +353,11 @@ pub unsafe fn main() {
             ) //16
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
@@ -417,8 +419,8 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -506,7 +508,7 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -517,7 +519,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
@@ -531,7 +533,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     // SPI
     let mux_spi =
@@ -561,7 +563,7 @@ pub unsafe fn main() {
         mux_alarm,
         mux_spi,
     )
-    .finalize(components::mx25r6435f_component_helper!(
+    .finalize(components::mx25r6435f_component_static!(
         nrf52840::spi::SPIM,
         nrf52840::gpio::GPIOPin,
         nrf52840::rtc::Rtc
@@ -576,7 +578,7 @@ pub unsafe fn main() {
         0,         // Start address of kernel region
         0x60000,   // Length of kernel region
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         capsules::mx25r6435f::MX25R6435F<
             'static,
             capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
@@ -612,16 +614,16 @@ pub unsafe fn main() {
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
-    let analog_comparator = components::analog_comparator::AcComponent::new(
+    let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &base_peripherals.acomp,
-        components::acomp_component_helper!(
+        components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
             &nrf52840::acomp::CHANNEL_AC0
         ),
         board_kernel,
         capsules::analog_comparator::DRIVER_NUM,
     )
-    .finalize(components::acomp_component_buf!(
+    .finalize(components::analog_comparator_component_static!(
         nrf52840::acomp::Comparator
     ));
 

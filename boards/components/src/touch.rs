@@ -9,12 +9,12 @@
 //! // Just Touch
 //! let touch =
 //!     components::touch::TouchComponent::new(board_kernel, ts, None, Some(screen))
-//!         .finalize(());
+//!         .finalize(components::touch_component_static!());
 //!
 //! // With Gesture
 //! let touch =
 //!     components::touch::TouchComponent::new(board_kernel, ts, Some(ts), Some(screen))
-//!         .finalize(());
+//!         .finalize(components::touch_component_static!());
 //! ```
 //!
 //! Multi Touch
@@ -23,17 +23,25 @@
 //! // Just Multi Touch
 //! let touch =
 //!     components::touch::MultiTouchComponent::new(board_kernel, ts, None, Some(screen))
-//!         .finalize(());
+//!         .finalize(components::touch_component_static!());
 //!
 //! // With Gesture
 //! let touch =
 //!     components::touch::MultiTouchComponent::new(board_kernel, ts, Some(ts), Some(screen))
-//!         .finalize(());
+//!         .finalize(components::touch_component_static!());
 //! ```
+use capsules::touch::Touch;
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::static_init;
+
+#[macro_export]
+macro_rules! touch_component_static {
+    () => {{
+        kernel::static_buf!(capsules::touch::Touch<'static>)
+    };};
+}
 
 pub struct TouchComponent {
     board_kernel: &'static kernel::Kernel,
@@ -62,17 +70,19 @@ impl TouchComponent {
 }
 
 impl Component for TouchComponent {
-    type StaticInput = ();
+    type StaticInput = &'static mut MaybeUninit<Touch<'static>>;
     type Output = &'static capsules::touch::Touch<'static>;
 
-    unsafe fn finalize(self, _static_input: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let touch = static_init!(
-            capsules::touch::Touch,
-            capsules::touch::Touch::new(Some(self.touch), None, self.screen, grant_touch)
-        );
+        let touch = static_input.write(capsules::touch::Touch::new(
+            Some(self.touch),
+            None,
+            self.screen,
+            grant_touch,
+        ));
 
         kernel::hil::touch::Touch::set_client(self.touch, touch);
         if let Some(gesture) = self.gesture {
@@ -110,17 +120,19 @@ impl MultiTouchComponent {
 }
 
 impl Component for MultiTouchComponent {
-    type StaticInput = ();
+    type StaticInput = &'static mut MaybeUninit<Touch<'static>>;
     type Output = &'static capsules::touch::Touch<'static>;
 
-    unsafe fn finalize(self, _static_input: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let touch = static_init!(
-            capsules::touch::Touch,
-            capsules::touch::Touch::new(None, Some(self.multi_touch), self.screen, grant_touch)
-        );
+        let touch = static_input.write(capsules::touch::Touch::new(
+            None,
+            Some(self.multi_touch),
+            self.screen,
+            grant_touch,
+        ));
 
         kernel::hil::touch::MultiTouch::set_client(self.multi_touch, touch);
         if let Some(gesture) = self.gesture {

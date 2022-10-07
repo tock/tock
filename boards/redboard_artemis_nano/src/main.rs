@@ -237,7 +237,7 @@ unsafe fn setup() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, apollo3::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[19]),
     ));
@@ -273,8 +273,8 @@ unsafe fn setup() -> (
     ALARM = Some(mux_alarm);
 
     // Create a process printer for panic.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Init the I2C device attached via Qwiic
@@ -295,7 +295,7 @@ unsafe fn setup() -> (
             .finalize(components::i2c_mux_component_helper!());
 
     let bme280 =
-        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_helper!());
+        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
@@ -307,17 +307,17 @@ unsafe fn setup() -> (
         capsules::humidity::DRIVER_NUM,
         bme280,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
     BME280 = Some(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B, dynamic_deferred_caller)
-        .finalize(components::ccs811_component_helper!());
+        .finalize(components::ccs811_component_static!());
     let air_quality = components::air_quality::AirQualityComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
         ccs811,
     )
-    .finalize(());
+    .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
 
     // Init the SPI controller

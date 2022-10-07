@@ -257,10 +257,10 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(msp432::gpio::IntPin));
+    .finalize(components::button_component_static!(msp432::gpio::IntPin));
 
     // Setup LEDs
-    let leds = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let leds = components::led::LedsComponent::new().finalize(components::led_component_static!(
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
         kernel::hil::led::LedHigh::new(
             &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_0 as usize]
@@ -426,8 +426,8 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let msp_exp432p4014 = MspExp432P401R {

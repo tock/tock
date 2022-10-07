@@ -252,8 +252,8 @@ unsafe fn setup() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
 
     // Create process printer for panic.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     debug!("ESP32-C3 initialisation complete.");
@@ -273,8 +273,8 @@ unsafe fn setup() -> (
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE

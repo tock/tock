@@ -54,7 +54,6 @@ use components::rng::RngComponent;
 use components::si7021::{HumidityComponent, SI7021Component};
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
-use imix_components::fxos8700::NineDofComponent;
 use imix_components::rf233::RF233Component;
 use imix_components::usb::UsbComponent;
 
@@ -380,8 +379,8 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // # CONSOLE
@@ -413,7 +412,7 @@ pub unsafe fn main() {
         &peripherals.usart2,
         &peripherals.pb[07],
     )
-    .finalize(());
+    .finalize(components::nrf51822_component_static!());
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(
@@ -439,13 +438,13 @@ pub unsafe fn main() {
     .finalize(());
     let humidity =
         HumidityComponent::new(board_kernel, capsules::humidity::DRIVER_NUM, si7021).finalize(());
-    let ninedof = NineDofComponent::new(
-        board_kernel,
-        capsules::ninedof::DRIVER_NUM,
-        mux_i2c,
-        &peripherals.pc[13],
-    )
-    .finalize(());
+
+    let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
+        .finalize(components::fxos8700_component_static!());
+
+    let ninedof =
+        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
+            .finalize(components::ninedof_component_helper!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
@@ -488,7 +487,7 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, sam4l::gpio::GPIOPin>,
         LedHigh::new(&peripherals.pc[10]),
     ));
@@ -505,10 +504,10 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::button_component_static!(sam4l::gpio::GPIOPin));
 
     let crc = CrcComponent::new(board_kernel, capsules::crc::DRIVER_NUM, &peripherals.crccu)
-        .finalize(components::crc_component_helper!(sam4l::crccu::Crccu));
+        .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     let ac_0 = static_init!(
         sam4l::acifc::AcChannel,
@@ -526,9 +525,9 @@ pub unsafe fn main() {
         sam4l::acifc::AcChannel,
         sam4l::acifc::AcChannel::new(sam4l::acifc::Channel::AC0)
     );
-    let analog_comparator = components::analog_comparator::AcComponent::new(
+    let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
         &peripherals.acifc,
-        components::acomp_component_helper!(
+        components::analog_comparator_component_helper!(
             <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
             ac_0,
             ac_1,
@@ -538,9 +537,11 @@ pub unsafe fn main() {
         board_kernel,
         capsules::analog_comparator::DRIVER_NUM,
     )
-    .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    .finalize(components::analog_comparator_component_static!(
+        sam4l::acifc::Acifc
+    ));
+    let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
+        .finalize(components::rng_component_static!());
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
@@ -600,7 +601,7 @@ pub unsafe fn main() {
         &_sstorage as *const u8 as usize, //start address of kernel region
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         sam4l::flashcalw::FLASHCALW
     ));
 
@@ -629,7 +630,7 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_helper!(sam4l::ast::Ast));
+    .finalize(components::udp_mux_component_static!(sam4l::ast::Ast));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -640,7 +641,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
+    .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));

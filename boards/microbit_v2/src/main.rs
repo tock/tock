@@ -283,7 +283,9 @@ pub unsafe fn main() {
             ), // Touch Logo
         ),
     )
-    .finalize(components::button_component_buf!(nrf52833::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52833::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
@@ -413,7 +415,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -528,20 +530,20 @@ pub unsafe fn main() {
         capsules::sound_pressure::DRIVER_NUM,
         adc_microphone,
     )
-    .finalize(());
+    .finalize(components::sound_pressure_component_static!());
 
     //--------------------------------------------------------------------------
     // STORAGE
     //--------------------------------------------------------------------------
 
     let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
-        components::flash_mux_component_helper!(nrf52833::nvmc::Nvmc),
+        components::flash_mux_component_static!(nrf52833::nvmc::Nvmc),
     );
 
     // App Flash
 
     let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
-        components::flash_user_component_helper!(nrf52833::nvmc::Nvmc),
+        components::flash_user_component_static!(nrf52833::nvmc::Nvmc),
     );
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(
@@ -549,7 +551,7 @@ pub unsafe fn main() {
         capsules::app_flash_driver::DRIVER_NUM,
         virtual_app_flash,
     )
-    .finalize(components::app_flash_component_helper!(
+    .finalize(components::app_flash_component_static!(
         capsules::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
         512
     ));
@@ -639,8 +641,8 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let _process_console = components::process_console::ProcessConsoleComponent::new(

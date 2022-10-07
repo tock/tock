@@ -3,15 +3,23 @@
 //! Usage
 //! -----
 //! ```rust
-//! let sound_pressure = SoundPressureComponent::new(board_kernel, adc_microphone).finalize(());
+//! let sound_pressure = SoundPressureComponent::new(board_kernel, adc_microphone)
+//!     .finalize(sound_pressure_component_static!());
 //! ```
 
 use capsules::sound_pressure::SoundPressureSensor;
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::static_init;
+
+#[macro_export]
+macro_rules! sound_pressure_component_static {
+    () => {{
+        kernel::static_buf!(capsules::sound_pressure::SoundPressureSensor<'static>)
+    };};
+}
 
 pub struct SoundPressureComponent<S: 'static + hil::sensors::SoundPressure<'static>> {
     board_kernel: &'static kernel::Kernel,
@@ -34,19 +42,16 @@ impl<S: 'static + hil::sensors::SoundPressure<'static>> SoundPressureComponent<S
 }
 
 impl<S: 'static + hil::sensors::SoundPressure<'static>> Component for SoundPressureComponent<S> {
-    type StaticInput = ();
+    type StaticInput = &'static mut MaybeUninit<SoundPressureSensor<'static>>;
     type Output = &'static SoundPressureSensor<'static>;
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let sound_pressure = static_init!(
-            capsules::sound_pressure::SoundPressureSensor<'static>,
-            capsules::sound_pressure::SoundPressureSensor::new(
-                self.sound_sensor,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
+        let sound_pressure = s.write(SoundPressureSensor::new(
+            self.sound_sensor,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
 
         hil::sensors::SoundPressure::set_client(self.sound_sensor, sound_pressure);
         sound_pressure

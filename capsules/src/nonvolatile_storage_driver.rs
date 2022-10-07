@@ -82,7 +82,7 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub static mut BUFFER: [u8; 512] = [0; 512];
+pub const BUF_LEN: usize = 512;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NonvolatileCommand {
