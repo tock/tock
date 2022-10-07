@@ -165,7 +165,7 @@ impl<'a> Uart<'a> {
 
     fn disable_rx_interrupt(&self) {
         let regs = self.registers;
-        regs.ie.write(interrupt::rxwm::CLEAR);
+        regs.ie.modify(interrupt::rxwm::CLEAR);
     }
 
     fn disable_tx_interrupt(&self) {
