@@ -607,7 +607,7 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_helper!(sam4l::ast::Ast));
+    .finalize(components::udp_mux_component_static!(sam4l::ast::Ast));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -618,7 +618,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(sam4l::ast::Ast));
+    .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));

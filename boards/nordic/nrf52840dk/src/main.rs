@@ -504,7 +504,7 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -515,7 +515,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,

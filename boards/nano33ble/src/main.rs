@@ -544,7 +544,6 @@ pub unsafe fn main() {
         dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
     );
     use capsules::net::ieee802154::MacAddress;
-    use capsules::virtual_alarm::VirtualMuxAlarm;
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
@@ -590,7 +589,7 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -601,7 +600,7 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
     )
-    .finalize(components::udp_driver_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
