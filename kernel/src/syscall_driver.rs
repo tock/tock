@@ -336,7 +336,7 @@ pub trait SyscallDriver {
     // Without this type of notification, the application had to issue a
     // supplementary `command` system call to inform the driver about the consumption
     // of the buffer.
-    fn syscall_notification(&self, process_id: ProcessId, which: AllowNotification) {}
+    fn allow_notification(&self, process_id: ProcessId, which: AllowNotification) {}
 }
 
 /// The system call request type used to inform a driver upon

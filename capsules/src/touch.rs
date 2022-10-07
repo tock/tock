@@ -407,7 +407,7 @@ impl<'a> SyscallDriver for Touch<'a> {
         self.apps.enter(processid, |_, _| {})
     }
 
-    fn syscall_notification(&self, process_id: ProcessId, which: AllowNotification) {
+    fn allow_notification(&self, process_id: ProcessId, which: AllowNotification) {
         if let AllowNotification::ReadWrite(rw_allow::EVENTS) = which {
             self.apps
                 .enter(process_id, |app, _| {
