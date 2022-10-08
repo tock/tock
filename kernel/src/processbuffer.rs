@@ -28,6 +28,30 @@ use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
+/// Stores attributes about the ProcessBuffer.
+///
+/// This structure is marked with `#[non_exhaustive]` as additional
+/// attributes may be added in the future.
+#[non_exhaustive]
+pub struct ProcessBufferAttributes {
+    /// states whether the buffer has been accessed
+    /// since the application has shared it. An access
+    /// is defined as a call to one of the
+    /// [`crate::grant::GrantKernelData::get_readonly_processbuffer`]
+    /// or [`crate::grant::GrantKernelData::get_readwrite_processbuffer`] functions.
+    pub accessed: bool,
+}
+
+impl ProcessBufferAttributes {
+    pub(crate) fn new(accessed: bool) -> ProcessBufferAttributes {
+        ProcessBufferAttributes { accessed }
+    }
+
+    pub(crate) const fn const_default() -> ProcessBufferAttributes {
+        ProcessBufferAttributes { accessed: false }
+    }
+}
+
 /// Convert a process buffer's internal representation to a
 /// ReadableProcessSlice.
 ///
@@ -232,6 +256,12 @@ pub trait WriteableProcessBuffer: ReadableProcessBuffer {
 pub struct ReadOnlyProcessBuffer {
     ptr: *const u8,
     len: usize,
+    /// Stores the attributes of the buffer.
+    ///
+    /// It is marked as public to be accessible from a capusle.
+    /// This should be safe as capsules get an immuntable reference
+    /// to this structure and cannot modify any fields.
+    pub attributes: ProcessBufferAttributes,
     process_id: Option<ProcessId>,
 }
 
@@ -243,10 +273,16 @@ impl ReadOnlyProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: *const u8,
+        len: usize,
+        attributes: ProcessBufferAttributes,
+        process_id: ProcessId,
+    ) -> Self {
         ReadOnlyProcessBuffer {
             ptr,
             len,
+            attributes,
             process_id: Some(process_id),
         }
     }
@@ -285,10 +321,11 @@ impl ReadOnlyProcessBuffer {
     pub unsafe fn new_external(
         ptr: *const u8,
         len: usize,
+        attributes: ProcessBufferAttributes,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
-        Self::new(ptr, len, process_id)
+        Self::new(ptr, len, attributes, process_id)
     }
 
     /// Consumes the ReadOnlyProcessBuffer, returning its constituent
@@ -356,6 +393,7 @@ impl Default for ReadOnlyProcessBuffer {
         ReadOnlyProcessBuffer {
             ptr: 0x0 as *mut u8,
             len: 0,
+            attributes: ProcessBufferAttributes::const_default(),
             process_id: None,
         }
     }
@@ -378,9 +416,14 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: *const u8,
+        len: usize,
+        attributes: ProcessBufferAttributes,
+        process_id: ProcessId,
+    ) -> Self {
         Self {
-            buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
+            buf: ReadOnlyProcessBuffer::new(ptr, len, attributes, process_id),
             _phantom: PhantomData,
         }
     }
@@ -412,6 +455,12 @@ impl Deref for ReadOnlyProcessBufferRef<'_> {
 pub struct ReadWriteProcessBuffer {
     ptr: *mut u8,
     len: usize,
+    /// Stores the attributes of the buffer.
+    ///
+    /// It is marked as public to be accessible from a capusle.
+    /// This should be safe as capsules get an immuntable reference
+    /// to this structure and cannot modify any fields.
+    pub attributes: ProcessBufferAttributes,
     process_id: Option<ProcessId>,
 }
 
@@ -423,10 +472,16 @@ impl ReadWriteProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: *mut u8,
+        len: usize,
+        attributes: ProcessBufferAttributes,
+        process_id: ProcessId,
+    ) -> Self {
         ReadWriteProcessBuffer {
             ptr,
             len,
+            attributes,
             process_id: Some(process_id),
         }
     }
@@ -465,10 +520,11 @@ impl ReadWriteProcessBuffer {
     pub unsafe fn new_external(
         ptr: *mut u8,
         len: usize,
+        attributes: ProcessBufferAttributes,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
     ) -> Self {
-        Self::new(ptr, len, process_id)
+        Self::new(ptr, len, attributes, process_id)
     }
 
     /// Consumes the ReadWriteProcessBuffer, returning its constituent
@@ -500,6 +556,7 @@ impl ReadWriteProcessBuffer {
         Self {
             ptr: 0x0 as *mut u8,
             len: 0,
+            attributes: ProcessBufferAttributes::const_default(),
             process_id: None,
         }
     }
@@ -609,9 +666,14 @@ impl ReadWriteProcessBufferRef<'_> {
     /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: *mut u8,
+        len: usize,
+        attributes: ProcessBufferAttributes,
+        process_id: ProcessId,
+    ) -> Self {
         Self {
-            buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
+            buf: ReadWriteProcessBuffer::new(ptr, len, attributes, process_id),
             _phantom: PhantomData,
         }
     }
