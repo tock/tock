@@ -94,7 +94,8 @@ Example implementations can be found in
 This document uses several terms in precise ways. Because these terms
 overlap somewhat with general terminology in the Tock kernel, this
 section defines them for clarity. The Tock kernel often uses the term
-"application" to refer to what this document calls a "process binary."
+"application" to refer to what this document calls an "Application
+Binary."
 
 **Userspace Binary**: a code image compiled to run in a Tock process,
 consisting of text, data, read-only data, and other segments.
@@ -121,20 +122,22 @@ persistent across boots or restarts of a userspace binary. The Tock
 kernel assigns Application Identifiers to processes using a
 Identifier Policy.
 
-**Application Credentials**: data that binds an Application Identifier
-to an loaded process. Application Credentials are usually stored in
-[Tock Binary Format][TBF] footers. A TBF object can have multiple
+**Application Credentials**: metadata that establish integrity of a
+Userspace Binary and potentially bind an Application Identifier to an
+loaded process. Application Credentials are usually stored in [Tock
+Binary Format][TBF] footers. A TBF object can have multiple
 Application Credentials.
 
-**Process Checker**: a component of the Tock kernel which is
-responsible for validating Application Credentials and assigning
-Application Identifiers based on them.
+**Process Checker**: the component of the Tock kernel which is
+responsible for validating Application Credentials and determining
+which Application Credential (if any) the kernel should apply to a
+process.
 
 **Identifier Policy**: the algorithm that the Process Checker uses to
 assign Application Identifiers to processes.  An Identifier Policy
 defines an Application Identifier space. An Identifier Policy can
-derive Application Identifiers from Application Credentials, other
-process state, or local data.
+derive Application Identifiers from Application Credentials or other
+process state.
 
 **Credentials Checking Policy**: the algorithm that the Process
 Checker uses to decide how Tock responds to particular Application
@@ -188,9 +191,9 @@ representation of the Application's identity. Application Credentials
 are data that, combined with an Identifier Policy, can
 cryptographically bind an Application Identifier to a process.
 
-Suppose there are two versions (v1.1 and v1.2) of the same
-Application. They have different Userspace Binaries. Each version has
-an Application Credentials consisting of a signature over the TBF
+For example, suppose there are two versions (v1.1 and v1.2) of the
+same Application. They have different Userspace Binaries. Each version
+has an Application Credentials consisting of a signature over the TBF
 headers and Userspace Binary, signed by a known public key. The
 Identifier Policy is that the public key defines the Application
 Identifier: all versions of this Application have Application
@@ -239,10 +242,10 @@ Application Identifier.
 One important implication of this mapping is that Global Application
 Identifiers MUST persist across process restarts or reloads.
 
-Of course, poor management of Global Application Identifiers can lead
-to unintended collisions. For example, an Identifier Policy might
-define the Global Application Identifier of processes to be the public
-key of a key pair to sign an Application Credential. If a developer
+Poor management of Global Application Identifiers can lead to
+unintended collisions. For example, an Identifier Policy might define
+the Global Application Identifier of processes to be the public key of
+a key pair to sign an Application Credential. If a developer
 accidentally uses the wrong key to sign a Userspace Binary, the Tock
 kernel will think that Userspace Binary is a different Application.
 Similarly, if the Identifier Policy uses a string name in a TBF Object
@@ -252,7 +255,7 @@ two different programs the same name could lead them to sharing data.
 3.1.2 The "Locally Unique" Identifier
 -------------------------------
 
-Some Tock use cases do not required a real notion of Application
+Some Tock use cases do not require a real notion of Application
 identity.  In many research or prototype systems, for example, every
 Userspace Binary has complete access to the system and there is no
 need for persistent storage or identity. Running processes need an
@@ -261,7 +264,7 @@ Tock kernel and Application build system to manage Global Application
 Identifiers.
 
 In such use cases, the Identifier Policy can assign a special
-Application Identifier called the "Locally Unique" Identifier.  This
+Application Identifier called the "Locally Unique Identifier".  This
 identifier does not have a concrete value: it is simply a value that
 is by definition different from all other Application
 Identifiers. Because it does not have a concrete value, one cannot
@@ -285,10 +288,11 @@ Application Identifiers to be the ASCII name stored in a TBF header.
 
 In cases when a TBF Object does not have any Application Credentials,
 the Identifier Policy MAY assign it a Global Application Identifier.
+This identifier must follow all of the requirements in Section 3.1.1.
 
 The Tock kernel assigns each Tock process a unique process identifier,
 which can be re-used over time (like POSIX process identifiers). These
-process identifiers are completely separate from Application
+process identifiers are separate from and unrelated to Application
 Identifiers.  An Application Identifier identifies an Application,
 while a process identifier identifies a particular execution of a
 binary. For example, if a Userspace Binary exits and runs a second
@@ -963,12 +967,16 @@ pub trait CredentialsCheckingPolicy<'a>: AppCredentialsChecker<'a> + AppUniquene
 impl<'a, T: AppCredentialsChecker<'a> + AppUniqueness + Compress> CredentialsCheckingPolicy<'a> for T {}
 ```
 
-
 10 Capsules
 ===============================
 
+Include a sample capsule that uses ShortIDs.
+
 11 Implementation Considerations
 ===============================
+
+Notes about requirements for application identifier generation/calculation (must be synchronous).
+
 
 12 Authors' Addresses
 ===============================
