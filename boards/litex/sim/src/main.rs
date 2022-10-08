@@ -180,6 +180,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -202,6 +203,9 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {

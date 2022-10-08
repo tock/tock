@@ -126,6 +126,7 @@ pub fn parse_tbf_header(
                 // Places to save fields that we parse out of the header
                 // options.
                 let mut main_pointer: Option<types::TbfHeaderV2Main> = None;
+                let mut program_pointer: Option<types::TbfHeaderV2Program> = None;
                 let mut wfr_pointer: [Option<types::TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
                 let mut app_name_str = "";
@@ -138,7 +139,7 @@ pub fn parse_tbf_header(
                 while remaining.len() > 0 {
                     // Get the T and L portions of the next header (if it is
                     // there).
-                    let tlv_header: types::TbfHeaderTlv = remaining
+                    let tlv_header: types::TbfTlv = remaining
                         .get(0..4)
                         .ok_or(types::TbfParseError::NotEnoughFlash)?
                         .try_into()?;
@@ -149,25 +150,40 @@ pub fn parse_tbf_header(
                     match tlv_header.tipe {
                         types::TbfHeaderTypes::TbfHeaderMain => {
                             let entry_len = mem::size_of::<types::TbfHeaderV2Main>();
-
-                            // Check that the size of the TLV entry matches the
-                            // size of the Main TLV. If so we can store it.
-                            // Otherwise, we fail to parse this TBF header and
-                            // throw an error.
-                            if tlv_header.length as usize == entry_len {
-                                main_pointer = Some(
-                                    remaining
-                                        .get(0..entry_len)
-                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
-                                        .try_into()?,
-                                );
-                            } else {
-                                return Err(types::TbfParseError::BadTlvEntry(
-                                    tlv_header.tipe as usize,
-                                ));
+                            // If there is already a header do nothing: if this is a second Main
+                            // keep the first one, if it's a Program we ignore the Main
+                            if main_pointer.is_none() {
+                                if tlv_header.length as usize == entry_len {
+                                    main_pointer = Some(
+                                        remaining
+                                            .get(0..entry_len)
+                                            .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                            .try_into()?,
+                                    );
+                                } else {
+                                    return Err(types::TbfParseError::BadTlvEntry(
+                                        tlv_header.tipe as usize,
+                                    ));
+                                }
                             }
                         }
-
+                        types::TbfHeaderTypes::TbfHeaderProgram => {
+                            let entry_len = mem::size_of::<types::TbfHeaderV2Program>();
+                            if program_pointer.is_none() {
+                                if tlv_header.length as usize == entry_len {
+                                    program_pointer = Some(
+                                        remaining
+                                            .get(0..entry_len)
+                                            .ok_or(types::TbfParseError::NotEnoughFlash)?
+                                            .try_into()?,
+                                    );
+                                } else {
+                                    return Err(types::TbfParseError::BadTlvEntry(
+                                        tlv_header.tipe as usize,
+                                    ));
+                                }
+                            }
+                        }
                         types::TbfHeaderTypes::TbfHeaderWriteableFlashRegions => {
                             // Length must be a multiple of the size of a region definition.
                             if tlv_header.length as usize
@@ -273,6 +289,7 @@ pub fn parse_tbf_header(
                 let tbf_header = types::TbfHeaderV2 {
                     base: tbf_header_base,
                     main: main_pointer,
+                    program: program_pointer,
                     package_name: Some(app_name_str),
                     writeable_regions: Some(wfr_pointer),
                     fixed_addresses: fixed_address_pointer,
@@ -285,5 +302,27 @@ pub fn parse_tbf_header(
             }
         }
         _ => Err(types::TbfParseError::UnsupportedVersion(version)),
+    }
+}
+
+pub fn parse_tbf_footer(
+    footers: &'static [u8],
+) -> Result<(types::TbfFooterV2Credentials, u32), types::TbfParseError> {
+    let mut remaining = footers;
+    let tlv_header: types::TbfTlv = remaining.try_into()?;
+    remaining = remaining
+        .get(4..)
+        .ok_or(types::TbfParseError::NotEnoughFlash)?;
+    match tlv_header.tipe {
+        types::TbfHeaderTypes::TbfFooterCredentials => {
+            let credential: types::TbfFooterV2Credentials = remaining
+                .get(0..tlv_header.length as usize)
+                .ok_or(types::TbfParseError::NotEnoughFlash)?
+                .try_into()?;
+            // Check length here
+            let length = tlv_header.length;
+            Ok((credential, length as u32))
+        }
+        _ => Err(types::TbfParseError::BadTlvEntry(tlv_header.tipe as usize)),
     }
 }

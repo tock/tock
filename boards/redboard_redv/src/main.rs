@@ -87,6 +87,7 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
@@ -100,6 +101,9 @@ impl KernelResources<e310x::chip::E310x<'static, E310xDefaultPeripherals<'static
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {

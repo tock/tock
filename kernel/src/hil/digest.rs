@@ -239,13 +239,13 @@ pub trait Digest<'a, const L: usize>:
     fn set_client(&'a self, client: &'a dyn Client<L>);
 }
 
-/// Computes a digest (cryptographic hash) over data
+/// Computes a digest (cryptographic hash) over data.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {}
 impl<'a, T: DigestData<'a, L> + DigestHash<'a, L>, const L: usize> DigestDataHash<'a, L> for T {}
 
-/// Performs a verification on data
+/// Verify a digest over data.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {}

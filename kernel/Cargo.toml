@@ -29,3 +29,4 @@ tock-tbf = { path = "../libraries/tock-tbf" }
 trace_syscalls = []
 debug_load_processes = []
 no_debug_panics = []
+debug_process_credentials = []

@@ -87,6 +87,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = ();
     type WatchDog = ();
@@ -99,6 +100,9 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -240,7 +244,6 @@ pub unsafe fn main() {
     chip.enable_all_interrupts();
 
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
-
     let artye21 = ArtyE21 {
         console: console,
         gpio: gpio,

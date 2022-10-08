@@ -111,6 +111,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
@@ -123,6 +124,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {

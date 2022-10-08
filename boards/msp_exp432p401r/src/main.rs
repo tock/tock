@@ -70,6 +70,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = msp432::wdt::Wdt;
@@ -82,6 +83,9 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {

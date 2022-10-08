@@ -21,19 +21,24 @@ use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process_checker::basic::AppCheckerSha256;
 use kernel::scheduler::round_robin::RoundRobinSched;
+
 //use kernel::hil::time::Alarm;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
+
+use capsules::sha256::Sha256Software;
 
 use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
@@ -89,7 +94,7 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: kernel::process::StopFaultPolicy = kernel::process::StopFaultPolicy {};
 
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
@@ -142,6 +147,7 @@ struct Imix {
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    credentials_checking_policy: &'static AppCheckerSha256,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -156,6 +162,7 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
+static mut SHA256_CHECKER_BUF: [u8; 32] = [0; 32];
 
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -191,6 +198,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = AppCheckerSha256;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -204,6 +212,9 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
+        self.credentials_checking_policy
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -346,15 +357,27 @@ pub unsafe fn main() {
         },
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
+        static_init!([DynamicDeferredCallClientState; 6], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
+
+    let sha = static_init!(
+        Sha256Software<'static>,
+        Sha256Software::new(dynamic_deferred_caller)
+    );
+    sha.initialize_callback_handle(dynamic_deferred_caller.register(sha).unwrap());
+
+    let checker = static_init!(
+        AppCheckerSha256,
+        AppCheckerSha256::new(sha, &mut SHA256_CHECKER_BUF)
+    );
+    sha.set_client(checker);
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -646,6 +669,7 @@ pub unsafe fn main() {
         nonvolatile_storage,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
+        credentials_checking_policy: checker,
     };
 
     // Need to initialize the UART for the nRF51 serialization.
@@ -723,8 +747,9 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    kernel::process::load_and_check_processes(
         board_kernel,
+        &imix,
         chip,
         core::slice::from_raw_parts(
             &_sapps as *const u8,
