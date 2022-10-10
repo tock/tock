@@ -1,4 +1,4 @@
-//! Board file for the iFive E21 Bitstream running on the Arty FPGA
+//! Board file for the SiFive E21 Bitstream running on the Arty FPGA
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
