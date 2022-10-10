@@ -1032,6 +1032,22 @@ impl Rcc {
     fn disable_otgfs_clock(&self) {
         self.registers.ahb2enr.modify(AHB2ENR::OTGFSEN::CLEAR);
     }
+
+    // CAN1 clock
+
+     fn is_enabled_can1_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::CAN1EN)
+    }
+
+    fn enable_can1_clock(&self) {
+        self.registers.apb1rstr.modify(APB1RSTR::CAN1RST::SET);
+        self.registers.apb1rstr.modify(APB1RSTR::CAN1RST::CLEAR);
+        self.registers.apb1enr.modify(APB1ENR::CAN1EN::SET);
+    }
+
+    fn disable_can1_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::CAN1EN::CLEAR);
+    }
 }
 
 /// Clock sources for CPU
@@ -1088,6 +1104,7 @@ pub enum PCLK1 {
     USART3,
     SPI3,
     I2C1,
+    CAN1,
 }
 
 /// Peripherals clocked by PCLK2
@@ -1135,6 +1152,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
                 PCLK1::I2C1 => self.rcc.is_enabled_i2c1_clock(),
                 PCLK1::SPI3 => self.rcc.is_enabled_spi3_clock(),
+                PCLK1::CAN1 => self.rcc.is_enabled_can1_clock(),
             },
             PeripheralClockType::APB2(ref v) => match v {
                 PCLK2::USART1 => self.rcc.is_enabled_usart1_clock(),
@@ -1204,6 +1222,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
                 PCLK1::SPI3 => {
                     self.rcc.enable_spi3_clock();
+                }
+                PCLK1::CAN1 => {
+                    self.rcc.enable_can1_clock();
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {
@@ -1280,6 +1301,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
                 PCLK1::SPI3 => {
                     self.rcc.disable_spi3_clock();
+                }
+                PCLK1::CAN1 => {
+                    self.rcc.disable_can1_clock();
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {
