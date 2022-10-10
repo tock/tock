@@ -8,7 +8,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -17,7 +16,6 @@ use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
