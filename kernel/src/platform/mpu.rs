@@ -277,9 +277,9 @@ pub trait MPU {
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
-    /// - `app_id`: ProcessId of the process that the MPU is configured for
+    /// - `processid`: ProcessId of the process that the MPU is configured for
     #[allow(unused_variables)]
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {}
+    fn configure_mpu(&self, config: &Self::MpuConfig, processid: &ProcessId) {}
 }
 
 /// Implement default MPU trait for unit.

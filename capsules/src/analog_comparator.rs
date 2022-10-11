@@ -129,7 +129,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
         command_num: usize,
         channel: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
             // Handle this first as it should be returned unconditionally.
@@ -139,11 +139,11 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &appid)
+                .enter(*current_process, |_, _| current_process == &processid)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
-            self.current_process.set(appid);
+            self.current_process.set(processid);
         } else {
             return CommandReturn::failure(ErrorCode::NOMEM);
         }
@@ -174,8 +174,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
 {
     /// Upcall to userland, signaling the application
     fn fired(&self, channel: usize) {
-        self.current_process.map(|appid| {
-            let _ = self.grants.enter(*appid, |_app, upcalls| {
+        self.current_process.map(|processid| {
+            let _ = self.grants.enter(*processid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (channel, 0, 0)).ok();
             });
         });

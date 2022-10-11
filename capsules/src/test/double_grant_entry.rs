@@ -83,7 +83,13 @@ impl TestGrantDoubleEntry {
 }
 
 impl SyscallDriver for TestGrantDoubleEntry {
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
 
@@ -97,7 +103,7 @@ impl SyscallDriver for TestGrantDoubleEntry {
                 // Enter the grant for the app.
                 let err = self
                     .grant
-                    .enter(appid, |appgrant, _| {
+                    .enter(processid, |appgrant, _| {
                         // We can now change the state of the app's grant
                         // region.
                         appgrant.pending = true;
@@ -131,12 +137,12 @@ impl SyscallDriver for TestGrantDoubleEntry {
                 let mut found_pending = false;
 
                 // Make sure the grant is allocated.
-                let _ = self.grant.enter(appid, |appgrant, _| {
+                let _ = self.grant.enter(processid, |appgrant, _| {
                     appgrant.pending = false;
                 });
 
                 for app in self.grant.iter() {
-                    let _ = self.grant.enter(appid, |appgrant, _| {
+                    let _ = self.grant.enter(processid, |appgrant, _| {
                         // Mark the field.
                         appgrant.pending = true;
 
@@ -165,10 +171,10 @@ impl SyscallDriver for TestGrantDoubleEntry {
                 // entered the same grant twice.
                 let mut found_pending = false;
 
-                let _ = self.grant.enter(appid, |appgrant, _| {
+                let _ = self.grant.enter(processid, |appgrant, _| {
                     appgrant.pending = true;
 
-                    let _ = self.grant.enter(appid, |appgrant2, _| {
+                    let _ = self.grant.enter(processid, |appgrant2, _| {
                         if appgrant2.pending {
                             found_pending = true;
                         }

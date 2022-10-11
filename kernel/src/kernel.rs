@@ -199,14 +199,14 @@ impl Kernel {
     /// Helper function that moves all non-generic portions of process_map_or
     /// into a non-generic function to reduce code bloat from monomorphization.
     pub(crate) fn get_process(&self, processid: ProcessId) -> Option<&dyn process::Process> {
-        // We use the index in the `appid` so we can do a direct lookup.
+        // We use the index in the `processid` so we can do a direct lookup.
         // However, we are not guaranteed that the app still exists at that
         // index in the processes array. To avoid additional overhead, we do the
         // lookup and check here, rather than calling `.index()`.
         match self.processes.get(processid.index) {
             Some(Some(process)) => {
                 // Check that the process stored here matches the identifier
-                // in the `appid`.
+                // in the `processid`.
                 if process.processid() == processid {
                     Some(*process)
                 } else {
@@ -227,11 +227,11 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    pub(crate) fn process_map_or<F, R>(&self, default: R, appid: ProcessId, closure: F) -> R
+    pub(crate) fn process_map_or<F, R>(&self, default: R, processid: ProcessId, closure: F) -> R
     where
         F: FnOnce(&dyn process::Process) -> R,
     {
-        match self.get_process(appid) {
+        match self.get_process(processid) {
             Some(process) => closure(process),
             None => default,
         }
@@ -254,14 +254,14 @@ impl Kernel {
     pub fn process_map_or_external<F, R>(
         &self,
         default: R,
-        appid: ProcessId,
+        processid: ProcessId,
         closure: F,
         _capability: &dyn capabilities::ProcessManagementCapability,
     ) -> R
     where
         F: FnOnce(&dyn process::Process) -> R,
     {
-        match self.get_process(appid) {
+        match self.get_process(processid) {
             Some(process) => closure(process),
             None => default,
         }
@@ -348,9 +348,9 @@ impl Kernel {
     ///
     /// This is needed for `ProcessId` itself to implement the `.index()` command to
     /// verify that the referenced app is still at the correct index.
-    pub(crate) fn processid_is_valid(&self, appid: &ProcessId) -> bool {
-        self.processes.get(appid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.processid().id() == appid.id())
+    pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
+        self.processes.get(processid.index).map_or(false, |p| {
+            p.map_or(false, |process| process.processid().id() == processid.id())
         })
     }
 
@@ -483,8 +483,8 @@ impl Kernel {
                 false => {
                     // No kernel work ready, so ask scheduler for a process.
                     match scheduler.next(self) {
-                        SchedulingDecision::RunProcess((appid, timeslice_us)) => {
-                            self.process_map_or((), appid, |process| {
+                        SchedulingDecision::RunProcess((processid, timeslice_us)) => {
+                            self.process_map_or((), processid, |process| {
                                 let (reason, time_executed) =
                                     self.do_process(resources, chip, process, ipc, timeslice_us);
                                 scheduler.result(reason, time_executed);
