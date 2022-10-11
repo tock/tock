@@ -34,5 +34,5 @@ elif [[ "${OPENTITAN_TREE}" != "" ]]; then
 
 	${OPENTITAN_TREE}/util/fpga/cw310_loader.py --firmware binary
 else
-	../../../tools/qemu/build/qemu-system-riscv32 -M opentitan -nographic -serial stdio -monitor none -semihosting -kernel "${1}"
+	../../../tools/qemu/build/qemu-system-riscv32 -M opentitan -nographic -serial stdio -monitor none -semihosting -kernel "${1}" -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 fi
