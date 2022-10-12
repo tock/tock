@@ -414,7 +414,7 @@ pub unsafe fn main() {
     gpio_scl.set_function(GpioFunction::I2C);
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
         mux_i2c,

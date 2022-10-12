@@ -539,7 +539,7 @@ pub unsafe fn main() {
     // SPI
     let mux_spi =
         components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
     // Create the SPI system call capsule.
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
@@ -547,7 +547,7 @@ pub unsafe fn main() {
         &gpio_port[SPI_CS],
         capsules::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_helper!(
+    .finalize(components::spi_syscall_component_static!(
         nrf52840::spi::SPIM
     ));
 

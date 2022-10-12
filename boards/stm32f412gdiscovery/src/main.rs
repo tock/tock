@@ -616,7 +616,7 @@ pub unsafe fn main() {
         None,
         dynamic_deferred_caller,
     )
-    .finalize(components::i2c_mux_component_helper!());
+    .finalize(components::i2c_mux_component_static!());
 
     let ft6x06 = components::ft6x06::Ft6x06Component::new(
         mux_i2c,
@@ -628,13 +628,8 @@ pub unsafe fn main() {
     )
     .finalize(components::ft6x06_component_static!());
 
-    let bus = components::bus::Bus8080BusComponent::new().finalize(
-        components::bus8080_bus_component_helper!(
-            // bus type
-            stm32f412g::fsmc::Fsmc,
-            // bus
-            &base_peripherals.fsmc
-        ),
+    let bus = components::bus::Bus8080BusComponent::new(&base_peripherals.fsmc).finalize(
+        components::bus8080_bus_component_static!(stm32f412g::fsmc::Fsmc,),
     );
 
     let tft = components::st77xx::ST77XXComponent::new(

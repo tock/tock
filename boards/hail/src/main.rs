@@ -383,7 +383,7 @@ pub unsafe fn main() {
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
-        .finalize(components::spi_mux_component_helper!(sam4l::spi::SpiHw));
+        .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
     // Create the SPI system call capsule.
     let spi_syscalls = components::spi::SpiSyscallComponent::new(
         board_kernel,
@@ -391,7 +391,7 @@ pub unsafe fn main() {
         0,
         capsules::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_helper!(sam4l::spi::SpiHw));
+    .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
 
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(

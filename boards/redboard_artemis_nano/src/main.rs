@@ -293,7 +293,7 @@ unsafe fn setup() -> (
 
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.iom2, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     let bme280 =
         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
@@ -323,7 +323,7 @@ unsafe fn setup() -> (
 
     // Init the SPI controller
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom0, dynamic_deferred_caller)
-        .finalize(components::spi_mux_component_helper!(
+        .finalize(components::spi_mux_component_static!(
             apollo3::iom::Iom<'static>
         ));
 
@@ -335,7 +335,7 @@ unsafe fn setup() -> (
         &peripherals.gpio_port[35], // A14
         capsules::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_helper!(
+    .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
     ));
 

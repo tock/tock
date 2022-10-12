@@ -432,7 +432,7 @@ pub unsafe fn main() {
         None,
         dynamic_deferred_caller,
     )
-    .finalize(components::i2c_mux_component_helper!());
+    .finalize(components::i2c_mux_component_static!());
 
     // LSM303AGR
 

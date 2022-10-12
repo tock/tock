@@ -446,7 +446,7 @@ pub unsafe fn main() {
     use imxrt1050::gpio::PinId;
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(

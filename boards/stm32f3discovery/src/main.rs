@@ -638,7 +638,7 @@ pub unsafe fn main() {
 
     // L3GD20 sensor
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
-        .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
+        .finalize(components::spi_mux_component_static!(stm32f303xc::spi::Spi));
 
     let l3gd20 = components::l3gd20::L3gd20Component::new(
         spi_mux,
@@ -668,7 +668,7 @@ pub unsafe fn main() {
 
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
         mux_i2c,
