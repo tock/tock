@@ -40,7 +40,7 @@ const DEBUG_BUFFER_SPLIT: usize = 64;
 #[macro_export]
 macro_rules! debug_writer_component_static {
     () => {{
-        use components::debug_writer::DEBUG_BUFFER_KBYTE;
+        use $crate::debug_writer::DEBUG_BUFFER_KBYTE;
 
         let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
@@ -55,7 +55,7 @@ macro_rules! debug_writer_component_static {
 #[macro_export]
 macro_rules! debug_writer_no_mux_component_static {
     () => {{
-        use component::debug_writer::DEBUG_BUFFER_KBYTE;
+        use $crate::debug_writer::DEBUG_BUFFER_KBYTE;
 
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * DEBUG_BUFFER_KBYTE]);
