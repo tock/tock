@@ -521,7 +521,7 @@ pub unsafe fn main() {
 
     let tim2 = &peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f303xc::tim2::Tim2),
+        components::alarm_mux_component_static!(stm32f303xc::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -529,7 +529,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
+    .finalize(components::alarm_component_static!(stm32f303xc::tim2::Tim2));
 
     let gpio_ports = &peripherals.gpio_ports;
     // GPIO
@@ -639,16 +639,16 @@ pub unsafe fn main() {
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
         .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
 
-    let l3gd20 =
-        components::l3gd20::L3gd20SpiComponent::new(board_kernel, capsules::l3gd20::DRIVER_NUM)
-            .finalize(components::l3gd20_spi_component_helper!(
-                // spi type
-                stm32f303xc::spi::Spi,
-                // chip select
-                &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
-                // spi mux
-                spi_mux
-            ));
+    let l3gd20 = components::l3gd20::L3gd20Component::new(
+        spi_mux,
+        &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
+        board_kernel,
+        capsules::l3gd20::DRIVER_NUM,
+    )
+    .finalize(components::l3gd20_component_static!(
+        // spi type
+        stm32f303xc::spi::Spi
+    ));
 
     l3gd20.power_on();
 
@@ -670,10 +670,13 @@ pub unsafe fn main() {
             .finalize(components::i2c_mux_component_helper!());
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
+        mux_i2c,
+        None,
+        None,
         board_kernel,
         capsules::lsm303dlhc::DRIVER_NUM,
     )
-    .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+    .finalize(components::lsm303dlhc_component_static!());
 
     if let Err(error) = lsm303dlhc.configure(
         lsm303xx::Lsm303AccelDataRate::DataRate25Hz,

@@ -364,7 +364,7 @@ pub unsafe fn main() {
     // ALARM
     let gpt1 = &peripherals.gpt1;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1).finalize(
-        components::alarm_mux_component_helper!(imxrt1050::gpt::Gpt1),
+        components::alarm_mux_component_static!(imxrt1050::gpt::Gpt1),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -372,7 +372,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(imxrt1050::gpt::Gpt1));
+    .finalize(components::alarm_component_static!(imxrt1050::gpt::Gpt1));
 
     // GPIO
     // For now we expose only two pins

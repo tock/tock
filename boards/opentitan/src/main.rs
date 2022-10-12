@@ -369,55 +369,38 @@ unsafe fn setup() -> (
     .finalize(components::low_level_debug_component_static!());
 
     let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
-        components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
+        components::digest_mux_component_static!(lowrisc::hmac::Hmac, 32),
     );
 
-    let digest_key_buffer = static_init!([u8; 32], [0; 32]);
-
-    let digest = components::digest::DigestComponent::new(&mux_digest, digest_key_buffer).finalize(
-        components::digest_component_helper!(lowrisc::hmac::Hmac, 32,),
+    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
+        components::digest_component_static!(lowrisc::hmac::Hmac, 32,),
     );
 
     peripherals.hmac.set_client(digest);
 
-    let hmac_key_buffer = static_init!([u8; 32], [0; 32]);
-    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
-    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
-
     let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::hmac_mux_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
-    let hmac = components::hmac::HmacComponent::new(
-        board_kernel,
-        capsules::hmac::DRIVER_NUM,
-        &mux_hmac,
-        hmac_key_buffer,
-        hmac_data_buffer,
-        hmac_dest_buffer,
-    )
-    .finalize(components::hmac_component_helper!(
-        capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
-        32,
-    ));
+    let hmac =
+        components::hmac::HmacComponent::new(board_kernel, capsules::hmac::DRIVER_NUM, &mux_hmac)
+            .finalize(components::hmac_component_static!(
+                capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
+                32,
+            ));
 
     digest.set_hmac_client(hmac);
 
-    let sha_data_buffer = static_init!([u8; 64], [0; 64]);
-    let sha_dest_buffer = static_init!([u8; 32], [0; 32]);
-
     let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::sha_mux_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
     let sha = components::sha::ShaComponent::new(
         board_kernel,
         capsules::sha::DRIVER_NUM,
         &mux_sha,
-        sha_data_buffer,
-        sha_dest_buffer,
     )
-    .finalize(components::sha_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
+    .finalize(components::sha_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
 
     digest.set_sha_client(sha);
 
@@ -548,9 +531,9 @@ unsafe fn setup() -> (
     ));
 
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
-        .finalize(otbn_mux_component_helper!(1024));
+        .finalize(otbn_mux_component_static!());
 
-    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
+    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_static!());
 
     let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
 

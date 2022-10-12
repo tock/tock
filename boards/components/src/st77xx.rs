@@ -5,7 +5,7 @@
 //! ```rust
 //!
 //! let bus = components::bus::SpiMasterBusComponent::new().finalize(
-//!     components::spi_bus_component_helper!(
+//!     components::spi_bus_component_static!(
 //!         // spi type
 //!         nrf52840::spi::SPIM,
 //!         // chip select
@@ -15,65 +15,53 @@
 //!     ),
 //! );
 //!
-//! let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
-//!     components::st77xx_component_helper!(
-//!         // screen
-//!         &capsules::st77xx::ST7735,
+//! let tft = components::st77xx::ST77XXComponent::new(mux_alarm,
+//!                                                    bus,
+//!                                                    Some(&nrf52840::gpio::PORT[GPIO_D3]),
+//!                                                    Some(&nrf52840::gpio::PORT[GPIO_D2]),
+//!                                                    &capsules::st77xx::ST7735).finalize(
+//!     components::st77xx_component_static!(
 //!         // bus type
 //!         capsules::bus::SpiMasterBus<
 //!             'static,
 //!             VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
 //!         >,
-//!         // bus
-//!         &bus,
 //!         // timer type
 //!         nrf52840::rtc::Rtc,
 //!         // pin type
 //!         nrf52::gpio::GPIOPin<'static>,
-//!         // dc
-//!         Some(&nrf52840::gpio::PORT[GPIO_D3]),
-//!         // reset
-//!         Some(&nrf52840::gpio::PORT[GPIO_D2])
 //!     ),
 //! );
 //! ```
+
 use capsules::bus;
 use capsules::st77xx::{ST77XXScreen, ST77XX};
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
 use kernel::hil::time::{self, Alarm};
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! st77xx_component_helper {
-    ($screen:expr, $B: ty, $bus:expr, $A:ty, $P:ty, $dc:expr, $reset:expr $(,)?) => {{
-        use capsules::bus::Bus;
-        use capsules::st77xx::{SendCommand, BUFFER_SIZE, SEQUENCE_BUFFER_SIZE, ST77XX};
-        use capsules::virtual_alarm::VirtualMuxAlarm;
-        use capsules::virtual_spi::VirtualSpiMasterDevice;
-        use core::mem::MaybeUninit;
-        use kernel::hil::spi::{self, SpiMasterDevice};
-        let st77xx_bus: &$B = $bus;
-        static mut BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
-        static mut SEQUENCE_BUFFER: [SendCommand; SEQUENCE_BUFFER_SIZE] =
-            [SendCommand::Nop; SEQUENCE_BUFFER_SIZE];
-        static mut st77xx_alarm: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut st77xx: MaybeUninit<ST77XX<'static, VirtualMuxAlarm<'static, $A>, $B, $P>> =
-            MaybeUninit::uninit();
-        (
-            st77xx_bus,
-            &mut st77xx_alarm,
-            $dc,
-            $reset,
-            &mut st77xx,
-            $screen,
-            &mut BUFFER,
-            &mut SEQUENCE_BUFFER,
-        )
+macro_rules! st77xx_component_static {
+    ($B: ty, $A:ty, $P:ty $(,)?) => {{
+        let buffer = kernel::static_buf!([u8; capsules::st77xx::BUFFER_SIZE]);
+        let sequence_buffer = kernel::static_buf!(
+            [capsules::st77xx::SendCommand; capsules::st77xx::SEQUENCE_BUFFER_SIZE]
+        );
+        let st77xx_alarm =
+            kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let st77xx = kernel::static_buf!(
+            capsules::st77xx::ST77XX<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                $B,
+                $P,
+            >
+        );
+
+        (st77xx_alarm, st77xx, buffer, sequence_buffer)
     };};
 }
 
@@ -83,18 +71,28 @@ pub struct ST77XXComponent<
     P: 'static + gpio::Pin,
 > {
     alarm_mux: &'static MuxAlarm<'static, A>,
-    _bus: PhantomData<B>,
-    _pin: PhantomData<P>,
+    bus: &'static B,
+    dc: Option<&'static P>,
+    reset: Option<&'static P>,
+    screen: &'static ST77XXScreen,
 }
 
 impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'static + gpio::Pin>
     ST77XXComponent<A, B, P>
 {
-    pub fn new(alarm_mux: &'static MuxAlarm<'static, A>) -> ST77XXComponent<A, B, P> {
+    pub fn new(
+        alarm_mux: &'static MuxAlarm<'static, A>,
+        bus: &'static B,
+        dc: Option<&'static P>,
+        reset: Option<&'static P>,
+        screen: &'static ST77XXScreen,
+    ) -> ST77XXComponent<A, B, P> {
         ST77XXComponent {
-            alarm_mux: alarm_mux,
-            _bus: PhantomData,
-            _pin: PhantomData,
+            alarm_mux,
+            bus,
+            dc,
+            reset,
+            screen,
         }
     }
 }
@@ -103,39 +101,34 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
     Component for ST77XXComponent<A, B, P>
 {
     type StaticInput = (
-        &'static B,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        Option<&'static P>,
-        Option<&'static P>,
         &'static mut MaybeUninit<ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>>,
-        &'static ST77XXScreen,
-        &'static mut [u8],
-        &'static mut [capsules::st77xx::SendCommand],
+        &'static mut MaybeUninit<[u8; capsules::st77xx::BUFFER_SIZE]>,
+        &'static mut MaybeUninit<
+            [capsules::st77xx::SendCommand; capsules::st77xx::SEQUENCE_BUFFER_SIZE],
+        >,
     );
     type Output = &'static ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let st77xx_alarm = static_init_half!(
-            static_buffer.1,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.alarm_mux)
-        );
+        let st77xx_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         st77xx_alarm.setup();
 
-        let st77xx = static_init_half!(
-            static_buffer.4,
-            ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>,
-            ST77XX::new(
-                static_buffer.0,
-                st77xx_alarm,
-                static_buffer.2,
-                static_buffer.3,
-                static_buffer.6,
-                static_buffer.7,
-                static_buffer.5
-            )
-        );
-        static_buffer.0.set_client(st77xx);
+        let buffer = static_buffer.2.write([0; capsules::st77xx::BUFFER_SIZE]);
+        let sequence_buffer = static_buffer
+            .3
+            .write([capsules::st77xx::SendCommand::Nop; capsules::st77xx::SEQUENCE_BUFFER_SIZE]);
+
+        let st77xx = static_buffer.1.write(ST77XX::new(
+            self.bus,
+            st77xx_alarm,
+            self.dc,
+            self.reset,
+            buffer,
+            sequence_buffer,
+            self.screen,
+        ));
+        self.bus.set_client(st77xx);
         st77xx_alarm.set_alarm_client(st77xx);
 
         st77xx

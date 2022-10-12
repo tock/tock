@@ -79,7 +79,7 @@ static LCD_2LINE: u8 = 0x08;
 static LCD_1LINE: u8 = 0x00;
 static LCD_5X8DOTS: u8 = 0x00;
 
-pub static mut ROW_OFFSETS: [u8; 4] = [0; 4];
+pub const BUF_LEN: usize = 4;
 
 /// The states the program can be in.
 #[derive(Copy, Clone, PartialEq)]

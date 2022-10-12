@@ -375,7 +375,7 @@ pub unsafe fn main() {
     // ALARM
     let tim2 = &base_peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f446re::tim2::Tim2),
+        components::alarm_mux_component_static!(stm32f446re::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -383,7 +383,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32f446re::tim2::Tim2));
+    .finalize(components::alarm_component_static!(stm32f446re::tim2::Tim2));
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)

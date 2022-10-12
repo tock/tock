@@ -288,13 +288,13 @@ pub unsafe fn main() {
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
     let channel = nrf52_components::UartChannelComponent::new(
         uart_channel,

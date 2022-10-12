@@ -307,13 +307,13 @@ pub unsafe fn main() {
     let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
@@ -436,10 +436,13 @@ pub unsafe fn main() {
     // LSM303AGR
 
     let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new(
+        sensors_i2c_bus,
+        None,
+        None,
         board_kernel,
         capsules::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
+    .finalize(components::lsm303agr_component_static!());
 
     if let Err(error) = lsm303agr.configure(
         capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
@@ -572,28 +575,33 @@ pub unsafe fn main() {
     // LED Matrix
     //--------------------------------------------------------------------------
 
-    let led_matrix = components::led_matrix_component_helper!(
-        nrf52833::gpio::GPIOPin,
-        nrf52::rtc::Rtc<'static>,
+    let led_matrix = components::led_matrix::LedMatrixComponent::new(
         mux_alarm,
-        @fps => 60,
-        @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
+        components::led_line_component_static!(
+            nrf52833::gpio::GPIOPin,
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[0]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[1]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[2]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[3]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[4]],
-        @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
+        ),
+        components::led_line_component_static!(
+            nrf52833::gpio::GPIOPin,
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]],
+        ),
+        kernel::hil::gpio::ActivationMode::ActiveLow,
+        kernel::hil::gpio::ActivationMode::ActiveHigh,
+        60,
     )
-    .finalize(components::led_matrix_component_buf!(
+    .finalize(components::led_matrix_component_static!(
         nrf52833::gpio::GPIOPin,
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        5,
+        5
     ));
 
     let led = static_init!(
