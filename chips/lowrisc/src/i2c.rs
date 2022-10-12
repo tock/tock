@@ -309,7 +309,8 @@ impl<'a> I2c<'_> {
         let len = self.write_len.get();
 
         self.buffer.map(|buf| {
-            for i in data_pushed..(len - 1) {
+            let start_index = data_pushed;
+            for i in start_index..(len - 1) {
                 if regs.status.read(STATUS::FMTFULL) != 0 {
                     // The FMT buffer is full
                     data_pushed = i;

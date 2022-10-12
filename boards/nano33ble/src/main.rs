@@ -8,7 +8,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_aes_ccm::MuxAES128CCM;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -17,7 +16,6 @@ use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
@@ -539,15 +537,15 @@ pub unsafe fn main() {
     )
     .finalize(());
 
-    let aes_mux = static_init!(
-        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
-    );
-    base_peripherals.ecb.set_client(aes_mux);
-    aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-    );
     use capsules::net::ieee802154::MacAddress;
+
+    let aes_mux = components::ieee802154::MuxAes128ccmComponent::new(
+        &base_peripherals.ecb,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::mux_aes128ccm_component_static!(
+        nrf52840::aes::AesECB
+    ));
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
@@ -561,7 +559,7 @@ pub unsafe fn main() {
         serial_num_bottom_16,
         dynamic_deferred_caller,
     )
-    .finalize(components::ieee802154_component_helper!(
+    .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));

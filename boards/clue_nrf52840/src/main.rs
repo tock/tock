@@ -721,7 +721,7 @@ pub unsafe fn main() {
         serial_num_bottom_16,
         dynamic_deferred_caller,
     )
-    .finalize(components::ieee802154_component_helper!(
+    .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
