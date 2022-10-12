@@ -37,7 +37,8 @@ use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
-pub static mut BUF: [u8; 3] = [0; 3];
+/// Recommended buffer length.
+pub const BUF_LEN: usize = 3;
 
 #[derive(Copy, Clone, PartialEq)]
 enum State {
