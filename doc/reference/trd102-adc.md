@@ -195,7 +195,7 @@ pub trait AdcHighSpeed: Adc {
                         -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
 
-    fn set_client(&self, client: &'static dyn HighSpeedClient);
+    fn set_highspeed_client(&self, client: &'static dyn HighSpeedClient);
 }
 ```
 

@@ -451,7 +451,7 @@ pub unsafe fn main() {
         )
     );
     hil::adc::Adc::set_client(&peripherals.adc, adc);
-    hil::adc::AdcHighSpeed::set_client(&peripherals.adc, adc);
+    hil::adc::AdcHighSpeed::set_highspeed_client(&peripherals.adc, adc);
 
     // Setup RNG
     let rng = components::rng::RngComponent::new(

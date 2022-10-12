@@ -965,7 +965,7 @@ impl hil::adc::AdcHighSpeed for Adc {
         }
     }
 
-    fn set_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
+    fn set_highspeed_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
         self.highspeed_client.set(client);
     }
 }

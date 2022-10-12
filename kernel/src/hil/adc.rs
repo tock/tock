@@ -98,7 +98,7 @@ pub trait AdcHighSpeed: Adc {
         &self,
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode>;
 
-    fn set_client(&self, client: &'static dyn HighSpeedClient);
+    fn set_highspeed_client(&self, client: &'static dyn HighSpeedClient);
 }
 
 /// Trait for handling callbacks from high-speed ADC calls.

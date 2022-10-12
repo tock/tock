@@ -85,7 +85,7 @@ impl Component for AdcComponent {
             )
         );
         hil::adc::Adc::set_client(self.adc, adc);
-        hil::adc::AdcHighSpeed::set_client(self.adc, adc);
+        hil::adc::AdcHighSpeed::set_highspeed_client(self.adc, adc);
 
         adc
     }

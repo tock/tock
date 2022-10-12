@@ -476,5 +476,5 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         Err(ErrorCode::NOSUPPORT)
     }
 
-    fn set_client(&self, _client: &'static dyn hil::adc::HighSpeedClient) {}
+    fn set_highspeed_client(&self, _client: &'static dyn hil::adc::HighSpeedClient) {}
 }
