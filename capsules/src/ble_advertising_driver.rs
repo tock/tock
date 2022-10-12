@@ -233,13 +233,13 @@ impl App {
     // Byte 2-5          random
     // Byte 6            0xf0
     // FIXME: For now use ProcessId as "randomness"
-    fn generate_random_address(&mut self, appid: kernel::ProcessId) -> Result<(), ErrorCode> {
+    fn generate_random_address(&mut self, processid: kernel::ProcessId) -> Result<(), ErrorCode> {
         self.address = [
             0xf0,
-            (appid.id() & 0xff) as u8,
-            ((appid.id() << 8) & 0xff) as u8,
-            ((appid.id() << 16) & 0xff) as u8,
-            ((appid.id() << 24) & 0xff) as u8,
+            (processid.id() & 0xff) as u8,
+            ((processid.id() << 8) & 0xff) as u8,
+            ((processid.id() << 16) & 0xff) as u8,
+            ((processid.id() << 24) & 0xff) as u8,
             0xf0,
         ];
         Ok(())
@@ -247,7 +247,7 @@ impl App {
 
     fn send_advertisement<'a, B, A>(
         &mut self,
-        appid: kernel::ProcessId,
+        processid: kernel::ProcessId,
         kernel_data: &GrantKernelData,
         ble: &BLE<'a, B, A>,
         channel: RadioChannel,
@@ -257,7 +257,7 @@ impl App {
         A: kernel::hil::time::Alarm<'a>,
     {
         // Ensure we have an address set before advertisement
-        self.generate_random_address(appid)?;
+        self.generate_random_address(processid)?;
         kernel_data
             .get_readonly_processbuffer(ro_allow::ADV_DATA)
             .and_then(|adv_data| {
@@ -421,7 +421,7 @@ where
     fn alarm(&self) {
         let now = self.alarm.now();
 
-        self.app.each(|appid, app, kernel_data| {
+        self.app.each(|processid, app, kernel_data| {
             if let Expiration::Enabled(reference, dt) = app.alarm_data.expiration {
                 let exp = A::Ticks::from(reference.wrapping_add(dt));
                 let t0 = A::Ticks::from(reference);
@@ -432,7 +432,7 @@ where
                         // operation at the appropriate time. Instead, reschedule the
                         // operation for later. This is _kind_ of simulating actual
                         // on-air interference. 3 seems like a small number of ticks.
-                        debug!("BLE: operation delayed for app {:?}", appid);
+                        debug!("BLE: operation delayed for app {:?}", processid);
                         app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());
                         return;
                     }
@@ -444,10 +444,10 @@ where
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37));
-                            self.sending_app.set(appid);
+                            self.sending_app.set(processid);
                             let _ = self.radio.set_tx_power(app.tx_power);
                             let _ = app.send_advertisement(
-                                appid,
+                                processid,
                                 kernel_data,
                                 &self,
                                 RadioChannel::AdvertisingChannel37,
@@ -457,12 +457,15 @@ where
                             self.busy.set(true);
                             app.process_status =
                                 Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37));
-                            self.receiving_app.set(appid);
+                            self.receiving_app.set(processid);
                             let _ = self.radio.set_tx_power(app.tx_power);
                             self.radio
                                 .receive_advertisement(RadioChannel::AdvertisingChannel37);
                         }
-                        _ => debug!("app: {:?} \t invalid state {:?}", appid, app.process_status),
+                        _ => debug!(
+                            "app: {:?} \t invalid state {:?}",
+                            processid, app.process_status
+                        ),
                     }
                 }
             }
@@ -478,8 +481,8 @@ where
     A: kernel::hil::time::Alarm<'a>,
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
-        self.receiving_app.map(|appid| {
-            let _ = self.app.enter(*appid, |app, kernel_data| {
+        self.receiving_app.map(|processid| {
+            let _ = self.app.enter(*processid, |app, kernel_data| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
                 // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
@@ -517,7 +520,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
-                        self.receiving_app.set(*appid);
+                        self.receiving_app.set(*processid);
                         let _ = self.radio.set_tx_power(app.tx_power);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel38);
@@ -525,7 +528,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
-                        self.receiving_app.set(*appid);
+                        self.receiving_app.set(*processid);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
@@ -553,16 +556,16 @@ where
     // re-transmissions for invalid CRCs
     fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: Result<(), ErrorCode>) {
         self.kernel_tx.replace(buf);
-        self.sending_app.map(|appid| {
-            let _ = self.app.enter(*appid, |app, kernel_data| {
+        self.sending_app.map(|processid| {
+            let _ = self.app.enter(*processid, |app, kernel_data| {
                 match app.process_status {
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
-                        self.sending_app.set(*appid);
+                        self.sending_app.set(*processid);
                         let _ = self.radio.set_tx_power(app.tx_power);
                         let _ = app.send_advertisement(
-                            *appid,
+                            *processid,
                             kernel_data,
                             &self,
                             RadioChannel::AdvertisingChannel38,
@@ -572,9 +575,9 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
-                        self.sending_app.set(*appid);
+                        self.sending_app.set(*processid);
                         let _ = app.send_advertisement(
-                            *appid,
+                            *processid,
                             kernel_data,
                             &self,
                             RadioChannel::AdvertisingChannel39,
@@ -606,13 +609,13 @@ where
         command_num: usize,
         data: usize,
         interval: usize,
-        appid: kernel::ProcessId,
+        processid: kernel::ProcessId,
     ) -> CommandReturn {
         match command_num {
             // Start periodic advertisements
             0 => {
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         if let Some(BLEState::Idle) = app.process_status {
                             let pdu_type = data as AdvPduType;
                             match pdu_type {
@@ -646,7 +649,7 @@ where
             // Stop periodic advertisements or passive scanning
             1 => self
                 .app
-                .enter(appid, |app, _| match app.process_status {
+                .enter(processid, |app, _| match app.process_status {
                     Some(BLEState::AdvertisingIdle) | Some(BLEState::ScanningIdle) => {
                         app.process_status = Some(BLEState::Idle);
                         CommandReturn::success()
@@ -664,7 +667,7 @@ where
             // data - Transmitting power in dBm
             2 => {
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         if app.process_status != Some(BLEState::ScanningIdle)
                             && app.process_status != Some(BLEState::AdvertisingIdle)
                         {
@@ -689,7 +692,7 @@ where
             // Passive scanning mode
             5 => {
                 self.app
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         if let Some(BLEState::Idle) = app.process_status {
                             app.process_status = Some(BLEState::ScanningIdle);
                             app.set_next_alarm::<A::Frequency>(self.alarm.now().into_u32());

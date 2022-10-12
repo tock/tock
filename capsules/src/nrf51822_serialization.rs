@@ -157,14 +157,14 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
         command_type: usize,
         arg1: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_type {
             0 /* check if present */ => CommandReturn::success(),
 
             // Send a buffer to the nRF51822 over UART.
             1 => {
-                self.apps.enter(appid, |_, kernel_data| {
+                self.apps.enter(processid, |_, kernel_data| {
                     kernel_data.get_readonly_processbuffer(ro_allow::TX).and_then(|tx|
                     tx.enter(|slice| {
                         let write_len = slice.len();
@@ -173,7 +173,7 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                                 buffer[i] = c.get();
                             }
                             // Set this as the active app for the transmit callback
-                            self.active_app.set(appid);
+                            self.active_app.set(processid);
                             let _ = self.uart.transmit_buffer(buffer, write_len);
                             CommandReturn::success()
                         })
@@ -205,15 +205,15 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                                 } else {
                                     // Set this as the active app for the
                                     // receive callback.
-                                    self.active_app.set(appid);
+                                    self.active_app.set(processid);
                                     let _ = self.uart.receive_automatic(buffer, len, 250);
                                     CommandReturn::success_u32(len as u32)
                                 }
                             })
                     },
-                    |appid| {
+                    |processid| {
                         // The app is set, check if it still exists.
-                        if let Err(kernel::process::Error::NoSuchApp) = self.apps.enter(*appid, |_, _| {}) {
+                        if let Err(kernel::process::Error::NoSuchApp) = self.apps.enter(*processid, |_, _| {}) {
                             // The app we had as active no longer exists.
                             self.active_app.clear();
                             self.rx_buffer
@@ -223,13 +223,13 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
                                     // currently in use by the underlying UART.
                                     // We don't have to do anything else except
                                     // update the active app.
-                                    self.active_app.set(*appid);
+                                    self.active_app.set(*processid);
                                     CommandReturn::success_u32(len as u32)
                                 }, |buffer| {
                                     if len > buffer.len() {
                                         CommandReturn::failure(ErrorCode::SIZE)
                                     } else {
-                                        self.active_app.set(*appid);
+                                        self.active_app.set(*processid);
                                         // Use the buffer to start the receive.
                                         let _ = self.uart.receive_automatic(buffer, len, 250);
                                         CommandReturn::success_u32(len as u32)
@@ -270,8 +270,8 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
     ) {
         self.tx_buffer.replace(buffer);
 
-        self.active_app.map(|appid| {
-            let _ = self.apps.enter(*appid, |_app, kernel_data| {
+        self.active_app.map(|processid| {
+            let _ = self.apps.enter(*processid, |_app, kernel_data| {
                 // Call the callback after TX has finished
                 kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
             });
@@ -296,8 +296,8 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
         // and the active app is no longer existent, then we stop receiving.
         let mut repeat_receive = true;
 
-        self.active_app.map(|appid| {
-            if let Err(_err) = self.apps.enter(*appid, |_, kernel_data| {
+        self.active_app.map(|processid| {
+            if let Err(_err) = self.apps.enter(*processid, |_, kernel_data| {
                 let len = kernel_data
                     .get_readwrite_processbuffer(rw_allow::RX)
                     .and_then(|rx| {

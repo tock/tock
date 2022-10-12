@@ -1336,7 +1336,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                 // challenge is that calling `self.apps.iter()` is a common
                 // pattern in capsules to access the grant region of every app
                 // that is using the capsule, and sometimes it is intuitive to
-                // call that inside of a `self.apps.enter(app_id, |app| {...})`
+                // call that inside of a `self.apps.enter(processid, |app| {...})`
                 // closure. However, `.enter()` means that app's grant region is
                 // entered, and then a naive `.iter()` would re-enter the grant
                 // region and cause undefined behavior. We considered different

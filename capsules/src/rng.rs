@@ -173,7 +173,7 @@ impl<'a> SyscallDriver for RngDriver<'a> {
         command_num: usize,
         data: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 /* Check if exists */ =>
@@ -183,7 +183,7 @@ impl<'a> SyscallDriver for RngDriver<'a> {
 
             1 /* Ask for a given number of random bytes */ => self
                 .apps
-                .enter(appid, |app, _| {
+                .enter(processid, |app, _| {
                     app.remaining = data;
                     app.idx = 0;
 
