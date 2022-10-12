@@ -9,41 +9,51 @@
 //! Usage
 //! -----
 //! ```rust
-//! let buf = static_init!([u8; 1024], [0; 1024]);
-//! DebugQueueComponent::new(buf).finalize(());
+//! DebugQueueComponent::new().finalize(components::debug_queue_component_static!());
 //! ```
 
 // Author: Guillaume Endignoux <guillaumee@google.com>
 // Last modified: 05 Mar 2020
 
+use core::mem::MaybeUninit;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
-use kernel::static_init;
 
-pub struct DebugQueueComponent {
-    buffer: &'static mut [u8],
+#[macro_export]
+macro_rules! debug_queue_component_static {
+    () => {{
+        let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
+        let queue = kernel::static_buf!(kernel::debug::DebugQueue);
+        let wrapper = kernel::static_buf!(kernel::debug::DebugQueueWrapper);
+        let buffer = kernel::static_buf!([u8; 1024]);
+
+        (ring, queue, wrapper, buffer)
+    };};
 }
 
+pub struct DebugQueueComponent {}
+
 impl DebugQueueComponent {
-    pub fn new(buffer: &'static mut [u8]) -> Self {
-        Self { buffer }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
 impl Component for DebugQueueComponent {
-    type StaticInput = ();
+    type StaticInput = (
+        &'static mut MaybeUninit<RingBuffer<'static, u8>>,
+        &'static mut MaybeUninit<kernel::debug::DebugQueue>,
+        &'static mut MaybeUninit<kernel::debug::DebugQueueWrapper>,
+        &'static mut MaybeUninit<[u8; 1024]>,
+    );
     type Output = ();
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        let ring_buffer = static_init!(RingBuffer<'static, u8>, RingBuffer::new(self.buffer));
-        let debug_queue = static_init!(
-            kernel::debug::DebugQueue,
-            kernel::debug::DebugQueue::new(ring_buffer)
-        );
-        let debug_queue_wrapper = static_init!(
-            kernel::debug::DebugQueueWrapper,
-            kernel::debug::DebugQueueWrapper::new(debug_queue)
-        );
+    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let buffer = s.3.write([0; 1024]);
+        let ring_buffer = s.0.write(RingBuffer::new(buffer));
+        let debug_queue = s.1.write(kernel::debug::DebugQueue::new(ring_buffer));
+        let debug_queue_wrapper =
+            s.2.write(kernel::debug::DebugQueueWrapper::new(debug_queue));
         kernel::debug::set_debug_queue(debug_queue_wrapper);
     }
 }

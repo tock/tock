@@ -403,7 +403,7 @@ pub unsafe fn main() {
         ));
     let console = ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux)
         .finalize(components::console_component_static!());
-    DebugWriterComponent::new(uart_mux).finalize(());
+    DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
 
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);

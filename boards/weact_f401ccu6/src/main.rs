@@ -304,7 +304,8 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // LEDs
     // Clock to Port A, B, C are enabled in `set_pin_primary_functions()`
