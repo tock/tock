@@ -4,6 +4,7 @@
 
 //! Interface for CAN peripherals.
 use crate::ErrorCode;
+use core::cmp;
 
 pub const STANDARD_CAN_PACKET_SIZE: usize = 8;
 pub const FD_CAN_PACKET_SIZE: usize = 64;
@@ -98,7 +99,6 @@ pub enum ScaleBits {
     Bits32,
 }
 
-
 /// The filter can be configured to filter the messages by matching
 /// an identifier or by bitwise matching multiple identifiers.
 #[derive(Debug, Copy, Clone)]
@@ -146,6 +146,10 @@ pub struct BitTiming {
     /// point (between 1 and 8 time quanta)
     pub segment2: u8,
 
+    /// A value used for compensating the delay on the bus
+    /// lines
+    pub propagation: u8,
+
     /// A value that represents the maximum time by which
     /// the bit sampling period may lenghten or shorten
     /// each cycle to perform the resynchronization. It is
@@ -178,25 +182,168 @@ pub enum OperationMode {
     Normal,
 }
 
+/// The `StandardBitTiming` trait is used to calculate the optimum timing parameters
+/// for a given bitrate and the clock's frequency.
+pub trait StandardBitTiming {
+    fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode>;
+}
+
+/// The default implementation for the `bit_timing_for_bitrate` method. This algorithm 
+/// is inspired by the Zephyr CAN driver available at 
+/// https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can 
+impl<T: Configure> StandardBitTiming for T {
+    fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
+        if bitrate > 8_000_000 {
+            return Err(ErrorCode::INVAL);
+        }
+
+        let mut res_timing: BitTiming = Self::MIN_BIT_TIMINGS;
+        let sp: u32 = if bitrate > 800_000 {
+            750
+        } else if bitrate > 500_000 {
+            800
+        } else {
+            875
+        };
+        let mut sample_point_err;
+        let mut sample_point_err_min = core::u16::MAX;
+        let mut ts: u32 = (Self::MAX_BIT_TIMINGS.propagation
+            + Self::MAX_BIT_TIMINGS.segment1
+            + Self::MAX_BIT_TIMINGS.segment2
+            + Self::SYNC_SEG) as u32;
+
+        for prescaler in
+            cmp::max(clock_rate / (ts * bitrate), 1)..Self::MAX_BIT_TIMINGS.baud_rate_prescaler
+        {
+            if clock_rate % (prescaler * bitrate) != 0 {
+                continue;
+            }
+            ts = clock_rate / (prescaler * bitrate);
+
+            sample_point_err = {
+                let ts1_max = Self::MAX_BIT_TIMINGS.propagation + Self::MAX_BIT_TIMINGS.segment1;
+                let ts1_min = Self::MIN_BIT_TIMINGS.propagation + Self::MIN_BIT_TIMINGS.segment1;
+                let mut ts1;
+                let mut ts2;
+                let mut res: i32 = 0;
+
+                ts2 = ts - (ts * sp) / 1000;
+                ts2 = if ts2 < Self::MIN_BIT_TIMINGS.segment2 as u32 {
+                    Self::MIN_BIT_TIMINGS.segment2 as u32
+                } else if ts2 > Self::MAX_BIT_TIMINGS.segment2 as u32 {
+                    Self::MAX_BIT_TIMINGS.segment2 as u32
+                } else {
+                    ts2
+                };
+                ts1 = ts - Self::SYNC_SEG as u32 - ts2;
+
+                if ts1 > ts1_max as u32 {
+                    ts1 = ts1_max as u32;
+                    ts2 = ts - Self::SYNC_SEG as u32 - ts1;
+                    if ts2 > Self::MAX_BIT_TIMINGS.segment2 as u32 {
+                        res = -1;
+                    }
+                } else if ts1 < ts1_min as u32 {
+                    ts1 = ts1_min as u32;
+                    ts2 = ts - ts1;
+                    if ts2 < Self::MIN_BIT_TIMINGS.segment2 as u32 {
+                        res = -1;
+                    }
+                }
+
+                if res != -1 {
+                    res_timing.propagation = if ts1 / 2 < Self::MIN_BIT_TIMINGS.propagation as u32 {
+                        Self::MIN_BIT_TIMINGS.propagation
+                    } else if ts1 / 2 > Self::MAX_BIT_TIMINGS.propagation as u32 {
+                        Self::MAX_BIT_TIMINGS.propagation
+                    } else {
+                        (ts1 / 2) as u8
+                    };
+
+                    res_timing.segment1 = ts1 as u8 - res_timing.propagation;
+                    res_timing.segment2 = ts2 as u8;
+
+                    res = ((Self::SYNC_SEG as u32 + ts1) * 1000 / ts) as i32;
+                    if res > sp as i32 {
+                        res - sp as i32
+                    } else {
+                        sp as i32 - res
+                    }
+                } else {
+                    res
+                }
+            };
+
+            if sample_point_err < 0 {
+                continue;
+            }
+
+            if sample_point_err < sample_point_err_min as i32 {
+                sample_point_err_min = sample_point_err as u16;
+                res_timing.baud_rate_prescaler = prescaler;
+                if sample_point_err == 0 {
+                    break;
+                }
+            }
+        }
+
+        if sample_point_err_min != 0 {
+            return Err(ErrorCode::INVAL);
+        }
+
+        Ok(BitTiming {
+            segment1: res_timing.segment1 - 1,
+            segment2: res_timing.segment2 - 1,
+            propagation: res_timing.propagation,
+            sync_jump_width: if res_timing.sync_jump_width == 0 {
+                0
+            } else {
+                res_timing.sync_jump_width - 1
+            },
+            baud_rate_prescaler: res_timing.baud_rate_prescaler - 1,
+        })
+    }
+}
+
 /// The `Configure` trait is used to configure the CAN peripheral and to prepare it for
 /// transmission and reception of data. The peripheral cannot transmit or receive frames if
 /// it is not previously configured and enabled.
 ///
 /// In order to configure the peripheral, the following steps are required:
 ///
-/// - Call `set_bit_timing` to configure the timing settings
+/// - Call `set_bitrate` or `set_bit_timing` to configure the timing settings
 /// - Call `set_operation_mode` to configure the testing mode
 /// - (Optional) Call `set_automatic_retransmission` and/or
 ///   `set_wake_up` to configure the behaviour of the peripheral
 /// - To apply the settings and be able to use the peripheral, call `enable`
 ///   (from the `Controller` trait)
 pub trait Configure {
+    /// Constants that define the minimum and maximum values that the timing
+    /// parameters can take. They are used when calculating the optimum timing
+    /// parameters for a given bitrate.
     const MIN_BIT_TIMINGS: BitTiming;
     const MAX_BIT_TIMINGS: BitTiming;
 
-    fn set_bitrate(bitrate: usize) {
-        // set regs?
-    }
+    /// This constant represents the synchronization segment and it is always
+    /// 1 quantum long. It is used for the synchronization of the clocks.
+    const SYNC_SEG: u8 = 1;
+
+    /// Configures the CAN peripheral at the given bitrate. This function is
+    /// supposed to be caled before the `enable` function. This function is
+    /// synchronous as the driver should only calculate the timing parameters
+    /// based on the bitrate and the frequenct of the board and store them.
+    /// This function does not configure the hardware.
+    ///
+    /// # Arguments:
+    ///
+    /// * `bitrate` - A value that represents the bitrate for the CAN communication.
+    ///
+    /// # Return values:
+    ///
+    /// * `Ok()` - The timing parameters were calculated and stored.
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///                      cannot be completed
+    fn set_bitrate(&self, bitrate: u32) -> Result<(), ErrorCode>;
 
     /// Configures the CAN peripheral with the given arguments. This function is
     /// supposed to be called before the `enable` function. This function is
@@ -493,9 +640,10 @@ pub trait Transmit<const PACKET_SIZE: usize> {
 /// requests only.
 ///
 /// The CAN peripheral must be configured first, in order to be able to send data.
-pub trait Receive {
+pub trait Receive<const PACKET_SIZE: usize> {
+    const PACKET_SIZE: usize = PACKET_SIZE;
     /// Set the client to be used for callbacks of the `Receive` implementation.
-    fn set_client(&self, client: Option<&'static dyn ReceiveClient>);
+    fn set_client(&self, client: Option<&'static dyn ReceiveClient<PACKET_SIZE>>);
 
     /// Start receiving messaged on the CAN bus.
     ///
@@ -518,8 +666,8 @@ pub trait Receive {
     ///                                         argument to the function
     fn start_receive_process(
         &self,
-        buffer: &'static mut [u8],
-    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+        buffer: &'static mut [u8; PACKET_SIZE],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; PACKET_SIZE])>;
 
     /// Asks the driver to stop receiving messages. This function should
     /// be called only after a call to the `start_receive_process` function.
@@ -585,7 +733,7 @@ pub trait TransmitClient<const PACKET_SIZE: usize> {
 }
 
 /// Client interface for capsules that implement the `Receive` trait.
-pub trait ReceiveClient {
+pub trait ReceiveClient<const PACKET_SIZE: usize> {
     /// The driver calls this function when a new message has been received on the given
     /// FIFO.
     ///
@@ -601,7 +749,13 @@ pub trait ReceiveClient {
     /// * `status` - The status for the request
     ///     * `Ok()` - There was no error during the reception process
     ///     * `Err(Error)` - The error that occurred during the reception process
-    fn message_received(&self, id: Id, buffer: &mut [u8], len: usize, status: Result<(), Error>);
+    fn message_received(
+        &self,
+        id: Id,
+        buffer: &mut [u8; PACKET_SIZE],
+        len: usize,
+        status: Result<(), Error>,
+    );
 
     /// The driver calls this function when the reception of messages has been stopeed.
     ///
@@ -609,17 +763,27 @@ pub trait ReceiveClient {
     ///
     /// * `buffer` - The buffer that was given as an argument to the
     ///               `start_receive_process` function  
-    fn stopped(&self, buffer: &'static mut [u8]);
+    fn stopped(&self, buffer: &'static mut [u8; PACKET_SIZE]);
 }
 
 /// Convenience type for capsules that configure, send
 /// and receive data using the CAN peripheral
-pub trait Can: Transmit<STANDARD_CAN_PACKET_SIZE> + Configure + Controller + Receive {}
+pub trait Can:
+    Transmit<STANDARD_CAN_PACKET_SIZE> + Configure + Controller + Receive<STANDARD_CAN_PACKET_SIZE>
+{
+}
 
-pub trait CanFd: Transmit<FD_CAN_PACKET_SIZE> + ConfigureFd + Receive {}
+pub trait CanFd: Transmit<FD_CAN_PACKET_SIZE> + Configure + ConfigureFd + Receive<FD_CAN_PACKET_SIZE> {}
 
 /// Provide blanket implementation for Can trait group
-impl<T: Transmit<STANDARD_CAN_PACKET_SIZE> + Configure + Controller + Receive> Can for T {}
+impl<
+        T: Transmit<STANDARD_CAN_PACKET_SIZE>
+            + Configure
+            + Controller
+            + Receive<STANDARD_CAN_PACKET_SIZE>,
+    > Can for T
+{
+}
 
 /// Provide blanket implementation for CanFd trait group
-impl<T: Transmit<FD_CAN_PACKET_SIZE> + ConfigureFd + Receive> CanFd for T {}
+impl<T: Transmit<FD_CAN_PACKET_SIZE> + Configure + ConfigureFd + Receive<FD_CAN_PACKET_SIZE>> CanFd for T {}

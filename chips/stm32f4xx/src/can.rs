@@ -1,14 +1,14 @@
-#[warn(unused_attributes)]
+use crate::rcc;
 use core::cell::Cell;
-use kernel::debug;
+use kernel::hil::can::{self, StandardBitTiming};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
-use kernel::hil::can;
-use crate::rcc;
 
+pub const BRP_MIN_STM32: u32 = 0;
+pub const BRP_MAX_STM32: u32 = 1023;
 #[repr(C)]
 struct TransmitMailBox {
     can_tir: ReadWrite<u32, CAN_TIxR::Register>,
@@ -17,8 +17,8 @@ struct TransmitMailBox {
     can_tdhr: ReadWrite<u32, CAN_TDHxR::Register>,
 }
 struct ReceiveMailBox {
-    _can_rir: ReadWrite<u32, CAN_RIxR::Register>,
-    _can_rdtr: ReadWrite<u32, CAN_RDTxR::Register>,
+    can_rir: ReadWrite<u32, CAN_RIxR::Register>,
+    can_rdtr: ReadWrite<u32, CAN_RDTxR::Register>,
     can_rdlr: ReadWrite<u32, CAN_RDLxR::Register>,
     can_rdhr: ReadWrite<u32, CAN_RDHxR::Register>,
 }
@@ -443,16 +443,23 @@ pub struct Can<'a> {
     error_interrupt_counter: Cell<u32>,
     fifo0_interrupt_counter: Cell<u32>,
     fifo1_interrupt_counter: Cell<u32>,
-    check: Cell<u32>,
     failed_messages: Cell<u32>,
+
+    // communication parameters
     automatic_retransmission: Cell<bool>,
     automatic_wake_up: Cell<bool>,
     operating_mode: OptionalCell<can::OperationMode>,
     bit_timing: OptionalCell<can::BitTiming>,
+
+    // clients
     controller_client: OptionalCell<&'static dyn can::ControllerClient>,
-    receive_client: OptionalCell<&'static dyn can::ReceiveClient>,
-    transmit_client: OptionalCell<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
-    rx_buffer: TakeCell<'static, [u8]>,
+    receive_client:
+        OptionalCell<&'static dyn can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
+    transmit_client:
+        OptionalCell<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
+
+    // buffers for transmission and reception
+    rx_buffer: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
     tx_buffer: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
 }
 
@@ -468,7 +475,6 @@ impl<'a> Can<'a> {
             error_interrupt_counter: Cell::new(0),
             fifo0_interrupt_counter: Cell::new(0),
             fifo1_interrupt_counter: Cell::new(0),
-            check: Cell::new(10),
             failed_messages: Cell::new(0),
             automatic_retransmission: Cell::new(false),
             automatic_wake_up: Cell::new(false),
@@ -492,8 +498,9 @@ impl<'a> Can<'a> {
         Err(kernel::ErrorCode::FAIL)
     }
 
+    /// Enable the peripheral with the stored communication parameters:
+    /// bit timing settings and communication mode
     pub fn enable(&self) -> Result<(), kernel::ErrorCode> {
-        // debug!("[enable]");
         // leave Sleep Mode
         self.registers.can_mcr.modify(CAN_MCR::SLEEP::CLEAR);
 
@@ -515,7 +522,7 @@ impl<'a> Can<'a> {
             return Err(slak_err);
         }
 
-        // set communication mode -- hardcoded for now
+        // set communication mode
         self.registers.can_mcr.modify(CAN_MCR::TTCM::CLEAR);
         self.registers.can_mcr.modify(CAN_MCR::ABOM::CLEAR);
         self.registers.can_mcr.modify(CAN_MCR::RFLM::CLEAR);
@@ -531,18 +538,16 @@ impl<'a> Can<'a> {
             false => self.registers.can_mcr.modify(CAN_MCR::NART::SET),
         }
 
-        // enter loopback mode - for debug
-        // if let Some(operating_mode_settings) = self.operating_mode.extract() {
-        //     match operating_mode_settings {
-        //         can::OperationMode::Loopback => self.registers.can_btr.modify(CAN_BTR::LBKM::SET),
-        //         can::OperationMode::Monitoring => self.registers.can_btr.modify(CAN_BTR::SILM::SET),
-        //         can::OperationMode::Freeze => todo!(),
-        //         can::OperationMode::Normal => todo!(),
-        //     }
-        // }
-        
+        if let Some(operating_mode_settings) = self.operating_mode.extract() {
+            match operating_mode_settings {
+                can::OperationMode::Loopback => self.registers.can_btr.modify(CAN_BTR::LBKM::SET),
+                can::OperationMode::Monitoring => self.registers.can_btr.modify(CAN_BTR::SILM::SET),
+                can::OperationMode::Freeze => return Err(kernel::ErrorCode::INVAL),
+                _ => {}
+            }
+        }
 
-        // set bit timing mode - hardcoded for now
+        // set bit timing mode
         if let Some(bit_timing_settings) = self.bit_timing.extract() {
             self.registers
                 .can_btr
@@ -564,6 +569,7 @@ impl<'a> Can<'a> {
         Ok(())
     }
 
+    /// Configure a filter to receive messages
     pub fn config_filter(&self, filter_info: can::FilterParameters, enable: bool) {
         // get position of the filter number
         let filter_number = 0x00000001 << filter_info.number;
@@ -635,33 +641,18 @@ impl<'a> Can<'a> {
     }
 
     pub fn enter_normal_mode(&self) -> Result<(), kernel::ErrorCode> {
-        // debug!("[enter_normal_mode]");
         // request to enter normal mode by clearing INRQ bit
         self.registers.can_mcr.modify(CAN_MCR::INRQ::CLEAR);
-        // // wait for INAK bit to be cleared
-        // panic!("a mers pana aici\n");
-        if let Err(inak_err) = Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK)) {
+
+        // wait for INAK bit to be cleared
+        if let Err(inak_err) =
+            Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK))
+        {
             return Err(inak_err);
-        }
-
-        debug!("INAK {}", self.registers.can_msr.is_set(CAN_MSR::INAK));
-
-        if self.registers.can_msr.is_set(CAN_MSR::INAK) {
-            self.check.replace(100);
         }
 
         self.can_state.set(CanState::Normal);
         Ok(())
-
-        // debug!("[enter normal mode] can_btr este {:x}", self.registers.can_btr.get());
-
-        // for i in 0..5 {
-        //     // debug! ("[enter normal mode] este a {} tura - urmeaza sa trimitem mesaj", i);
-        //     let data: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
-        //     self.send_8byte_message(true, 0x334455, 8, 0, data);
-        // }
-
-        // debug!("[enter normal mode] avem {} mesage netrimise\n", self.failed_messages.get());
     }
 
     pub fn enter_sleep_mode(&self) {
@@ -670,7 +661,7 @@ impl<'a> Can<'a> {
         self.can_state.set(CanState::Sleep);
     }
 
-
+    /// This function sends an 8-byte message
     pub fn send_8byte_message(
         &self,
         id: can::Id,
@@ -680,11 +671,9 @@ impl<'a> Can<'a> {
         self.enable_irq(CanInterruptMode::ErrorAndStatusChangeInterrupt);
         if self.can_state.get() == CanState::Normal {
             if let Some(tx_mailbox) = self.find_empty_mailbox() {
-                // debug!("[send_8byte_message] mailbox {} and {:?}", tx_mailbox, data);
                 // set extended or standard id in registers
                 match id {
                     can::Id::Standard(id) => {
-                        // debug!("[start transmission] normal id\n");
                         self.registers.can_tx_mailbox[tx_mailbox]
                             .can_tir
                             .modify(CAN_TIxR::IDE::CLEAR);
@@ -696,7 +685,6 @@ impl<'a> Can<'a> {
                             .modify(CAN_TIxR::EXID.val(0));
                     }
                     can::Id::Extended(id) => {
-                        // debug!("[start transmission] extended id\n");
                         self.registers.can_tx_mailbox[tx_mailbox]
                             .can_tir
                             .modify(CAN_TIxR::IDE::SET);
@@ -717,7 +705,6 @@ impl<'a> Can<'a> {
                     .can_tdtr
                     .modify(CAN_TDTxR::DLC.val(dlc as u32));
                 // write first 4 bytes of the data
-                // debug!("[start transmission] write first 4 bytes of data\n");
                 match self.tx_buffer.map(|tx| {
                     self.registers.can_tx_mailbox[tx_mailbox]
                         .can_tdlr
@@ -732,7 +719,6 @@ impl<'a> Can<'a> {
                         .can_tdlr
                         .modify(CAN_TDLxR::DATA3.val(tx[3].into()));
                     // write the last 4 bytes of the data
-                    // debug!("[start transmission] write last 4 bytes of data\n");
                     self.registers.can_tx_mailbox[tx_mailbox]
                         .can_tdhr
                         .modify(CAN_TDHxR::DATA4.val(tx[4].into()));
@@ -745,19 +731,18 @@ impl<'a> Can<'a> {
                     self.registers.can_tx_mailbox[tx_mailbox]
                         .can_tdhr
                         .modify(CAN_TDHxR::DATA7.val(tx[7].into()));
-                    
+
                     self.registers.can_tx_mailbox[tx_mailbox]
                         .can_tir
                         .modify(CAN_TIxR::TXRQ::SET);
-                    
                 }) {
                     Some(_) => Ok(()),
                     None => Err(kernel::ErrorCode::FAIL),
-                }                
+                }
             } else {
+                // no mailbox empty
                 self.failed_messages.replace(self.failed_messages.get() + 1);
                 Err(kernel::ErrorCode::BUSY)
-                // no mailbox empty
             }
         } else {
             Err(kernel::ErrorCode::OFF)
@@ -765,9 +750,6 @@ impl<'a> Can<'a> {
     }
 
     pub fn find_empty_mailbox(&self) -> Option<usize> {
-        // let res = self.mailbox_counter.get();
-        // self.mailbox_counter.replace((res + 1) % 3);
-        // Some(res as usize)
         if self.registers.can_tsr.read(CAN_TSR::TME0) == 1 {
             Some(0)
         } else if self.registers.can_tsr.read(CAN_TSR::TME1) == 1 {
@@ -791,13 +773,9 @@ impl<'a> Can<'a> {
         self.clock.disable();
     }
 
-    pub fn send_transmit_callback(&self) {
-       
-    }
+    /// Handle the transmit interrupt. Check the status register for each
+    /// transmit mailbox to find out the mailbox that the message was sent from. 
     pub fn handle_transmit_interrupt(&self) {
-        // debug!("[handle tx interrupt] transmit_interrupt_handler");
-        // check the TX fifo where the interrupt was triggered
-        // let mut send_callback = false;
         let mailbox0_status: u32 = self.registers.can_tsr.read(CAN_TSR::RQCP0);
         if mailbox0_status == 1 {
             // check status
@@ -823,209 +801,124 @@ impl<'a> Can<'a> {
                 self.registers.can_tsr.modify(CAN_TSR::RQCP2::SET);
             }
         }
-        
-        self.transmit_client.map(|transmit_client| {
-            match self.tx_buffer.take() {
-                Some(buf) => {
-                    transmit_client.transmit_complete(Ok(()), buf)
-                }
-                None => {},
-            }
-        });    
+
+        self.transmit_client
+            .map(|transmit_client| match self.tx_buffer.take() {
+                Some(buf) => transmit_client.transmit_complete(Ok(()), buf),
+                None => {}
+            });
     }
 
-    pub fn convert_u32_to_arr(&self, input1: u32, input2: u32) -> [u8; 8] {
-        let b1: u8 = ((input1 >> 24) & 0xff) as u8;
-        let b2: u8 = ((input1 >> 16) & 0xff) as u8;
-        let b3: u8 = ((input1 >> 8) & 0xff) as u8;
-        let b4: u8 = (input1 & 0xff) as u8;
-        let b5: u8 = ((input2 >> 24) & 0xff) as u8;
-        let b6: u8 = ((input2 >> 16) & 0xff) as u8;
-        let b7: u8 = ((input2 >> 8) & 0xff) as u8;
-        let b8: u8 = (input2 & 0xff) as u8;
-        // todo test the right order here
-        [b4, b3, b2, b1, b8, b7, b6, b5]
+    pub fn process_received_message(
+        &self,
+        rx_mailbox: usize,
+    ) -> (can::Id, usize, [u8; can::STANDARD_CAN_PACKET_SIZE]) {
+        let message_id = if self.registers.can_rx_mailbox[rx_mailbox]
+            .can_rir
+            .read(CAN_RIxR::IDE)
+            == 0
+        {
+            can::Id::Standard(
+                self.registers.can_rx_mailbox[rx_mailbox]
+                    .can_rir
+                    .read(CAN_RIxR::STID) as u16,
+            )
+        } else {
+            can::Id::Extended(
+                (self.registers.can_rx_mailbox[rx_mailbox]
+                    .can_rir
+                    .read(CAN_RIxR::STID)
+                    << 18)
+                    | (self.registers.can_rx_mailbox[rx_mailbox]
+                        .can_rir
+                        .read(CAN_RIxR::EXID)),
+            )
+        };
+        let message_length = self.registers.can_rx_mailbox[rx_mailbox]
+            .can_rdtr
+            .read(CAN_RDTxR::DLC) as usize;
+        let recv: u64 = ((self.registers.can_rx_mailbox[0].can_rdhr.get() as u64) << 32)
+            | (self.registers.can_rx_mailbox[0].can_rdlr.get() as u64);
+        let rx_buf = recv.to_le_bytes();
+
+        self.rx_buffer.map(|rx| {
+            for i in 0..8 {
+                rx[i] = rx_buf[i];
+            }
+        });
+
+        (message_id, message_length, rx_buf)
     }
 
     pub fn handle_fifo0_interrupt(&self) {
-        // debug!("[handle rx0 interrupt] fifo0_interrupt_handler");
-        let new_message_reception_status: u32 = self.registers.can_rf0r.read(CAN_RF0R::FMP0);
-        let full_condition_status: u32 = self.registers.can_rf0r.read(CAN_RF0R::FULL0);
-        let overrun_condition_status: u32 = self.registers.can_rf0r.read(CAN_RF0R::FOVR0);
-
-        if full_condition_status == 1 {
-            // debug!("[handle rx0 interrupt] received full fifo interrupt");
+        if self.registers.can_rf0r.read(CAN_RF0R::FULL0) == 1 {
             self.registers.can_rf0r.modify(CAN_RF0R::FULL0::SET);
         }
 
-        if overrun_condition_status == 1 {
-            // debug!("[handle rx0 interrupt] received overrun fifo interrupt");
+        if self.registers.can_rf0r.read(CAN_RF0R::FOVR0) == 1 {
             self.registers.can_rf0r.modify(CAN_RF0R::FOVR0::SET);
         }
 
-        if new_message_reception_status != 0 {
-            let message_id = if self.registers.can_rx_mailbox[0]
-                ._can_rir
-                .read(CAN_RIxR::IDE)
-                == 0
-            {
-                can::Id::Standard(
-                    self.registers.can_rx_mailbox[0]
-                        ._can_rir
-                        .read(CAN_RIxR::STID) as u16,
-                )
-            } else {
-                can::Id::Extended(
-                    (self.registers.can_rx_mailbox[0]
-                        ._can_rir
-                        .read(CAN_RIxR::STID)
-                        << 18)
-                        | (self.registers.can_rx_mailbox[0]
-                            ._can_rir
-                            .read(CAN_RIxR::EXID)),
-                )
-            };
-            let message_length = self.registers.can_rx_mailbox[0]
-                ._can_rdtr
-                .read(CAN_RDTxR::DLC) as usize;
-            let mut rx_buf = self.convert_u32_to_arr(
-                self.registers.can_rx_mailbox[0].can_rdlr.get(),
-                self.registers.can_rx_mailbox[0].can_rdhr.get(),
-            );
-            self.rx_buffer.map(|rx| {
-                // todo change
-                for i in 0..8 {
-                    rx[i] = rx_buf[i];
-                }
-            });
+        if self.registers.can_rf0r.read(CAN_RF0R::FMP0) != 0 {
+            let (message_id, message_length, mut rx_buf) = self.process_received_message(0);
+
             self.receive_client.map(|receive_client| {
-                receive_client.message_received(message_id, rx_buf.as_mut(), message_length, Ok(()))
+                receive_client.message_received(message_id, &mut rx_buf, message_length, Ok(()))
             });
             self.fifo0_interrupt_counter
                 .replace(self.fifo0_interrupt_counter.get() + 1);
-            if self.fifo0_interrupt_counter.get() % 1000 == 0 {
-                debug!(
-                    "[handle rx0 interrupt] we received {} messages on fifo0",
-                    self.fifo0_interrupt_counter.get()
-                );
-            }
+            
             // mark the interrupt as handled
             self.registers.can_rf0r.modify(CAN_RF0R::RFOM0::SET);
         }
-
-        // if self.check.get() != 0 {
-        //     if self.check.get() == 100 {
-        //         debug!("[handle rx0 interrupt] check este 100, initial era true inak");
-        //     }
-        //     let data: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
-        //     debug!("[handle rx0 interrupt] urmeaza sa trimitem mesaj");
-        //     self.send_8byte_message(true, 0x334455, 8, 0, data);
-        //     self.check.replace(0);
-        // }
     }
 
     pub fn handle_fifo1_interrupt(&self) {
-        // debug!("[handle rx1 interrupt] fifo1_interrupt_handler");
-        let new_message_reception_status: u32 = self.registers.can_rf1r.read(CAN_RF1R::FMP1);
-        let full_condition_status: u32 = self.registers.can_rf1r.read(CAN_RF1R::FULL1);
-        let overrun_condition_status: u32 = self.registers.can_rf1r.read(CAN_RF1R::FOVR1);
-
-        if full_condition_status == 1 {
-            // debug!("[handle rx1 interrupt] received full fifo interrupt");
+        if self.registers.can_rf1r.read(CAN_RF1R::FULL1) == 1 {
             self.registers.can_rf1r.modify(CAN_RF1R::FULL1::SET);
         }
 
-        if overrun_condition_status == 1 {
-            // debug!("[handle rx1 interrupt] received overrun fifo interrupt");
+        if self.registers.can_rf1r.read(CAN_RF1R::FOVR1) == 1 {
             self.registers.can_rf1r.modify(CAN_RF1R::FOVR1::SET);
         }
 
-        if new_message_reception_status != 0 {
+        if self.registers.can_rf1r.read(CAN_RF1R::FMP1) != 0 {
             self.fifo1_interrupt_counter
                 .replace(self.fifo1_interrupt_counter.get() + 1);
-            let message_id = if self.registers.can_rx_mailbox[1]
-                ._can_rir
-                .read(CAN_RIxR::IDE)
-                == 0
-            {
-                can::Id::Standard(
-                    self.registers.can_rx_mailbox[1]
-                        ._can_rir
-                        .read(CAN_RIxR::STID) as u16,
-                )
-            } else {
-                can::Id::Extended(
-                    (self.registers.can_rx_mailbox[1]
-                        ._can_rir
-                        .read(CAN_RIxR::STID)
-                        << 18)
-                        | (self.registers.can_rx_mailbox[1]
-                            ._can_rir
-                            .read(CAN_RIxR::EXID)),
-                )
-            };
-            let message_length = self.registers.can_rx_mailbox[1]
-                ._can_rdtr
-                .read(CAN_RDTxR::DLC) as usize;
-            let mut rx_buf = self.convert_u32_to_arr(
-                self.registers.can_rx_mailbox[1].can_rdlr.get(),
-                self.registers.can_rx_mailbox[1].can_rdhr.get(),
-            );
-            self.rx_buffer.map(|rx| {
-                // todo change
-                for i in 0..8 {
-                    rx[i] = rx_buf[i];
-                }
-            });
+            let (message_id, message_length, mut rx_buf) = self.process_received_message(1);
             self.receive_client.map(|receive_client| {
-                receive_client.message_received(message_id, rx_buf.as_mut(), message_length, Ok(()))
+                receive_client.message_received(message_id, &mut rx_buf, message_length, Ok(()))
             });
+
             // mark the interrupt as handled
             self.registers.can_rf1r.modify(CAN_RF1R::RFOM1::SET);
         }
     }
 
     pub fn handle_error_status_interrupt(&self) {
-        debug!("[handle error/status change interrupt]");
-        if self.registers.can_esr.read(CAN_ESR::EWGF) == 1 {
-            debug!("[handle error/status change interrupt] error warning flag");
-        }
-        if self.registers.can_esr.read(CAN_ESR::EPVF) == 1 {
-            debug!("[handle error/status change interrupt] error passive flag");
-        }
-        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {
-            debug!("[handle error/status change interrupt] bus off error");
-        }
-        if self.registers.can_esr.read(CAN_ESR::LEC) != 0 {
-            debug!(
-                "[handle error/status change interrupt] last error code: {}",
-                self.registers.can_esr.read(CAN_ESR::LEC)
-            );
-        }
+        // status changed
         if self.registers.can_msr.read(CAN_MSR::WKUI) == 1 {
-            debug!(
-                "[handle error/status change interrupt] wakeup interrupt error, inak este {}",
-                self.registers.can_msr.is_set(CAN_MSR::INAK)
-            );
+            // mark the interrupt as handled
             self.registers.can_msr.modify(CAN_MSR::WKUI::SET);
         }
-        if self.registers.can_msr.read(CAN_MSR::SLAK) == 1 {
-            debug!("[handle error/status change interrupt] sleep ack error");
+        if self.registers.can_msr.read(CAN_MSR::SLAKI) == 1 {
+            // mark the interrupt as handled
+            self.registers.can_msr.modify(CAN_MSR::SLAKI::SET);
+           
         }
+
+        // errors
+        // Warning flag
+        if self.registers.can_esr.read(CAN_ESR::EWGF) == 1 {}
+        // Passive flag
+        if self.registers.can_esr.read(CAN_ESR::EPVF) == 1 {}
+        // Bus-off flag
+        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {}
+        // Last Error Code
+        if self.registers.can_esr.read(CAN_ESR::LEC) != 0 {}
+       
         self.error_interrupt_counter
             .replace(self.error_interrupt_counter.get() + 1);
-        if self.error_interrupt_counter.get() > 10 {
-            self.disable_irq(CanInterruptMode::ErrorAndStatusChangeInterrupt);
-            // debug!("error_and_status_change interrupt\n");
-            // debug!(
-            //     "avem arbitration lost for mailbox0: {}",
-            //     self.registers.can_tsr.read(CAN_TSR::ALST0)
-            // );
-            // debug!(
-            //     "avem transmission err for mailbox0: {}",
-            //     self.registers.can_tsr.read(CAN_TSR::TERR0)
-            // );
-        }
     }
 
     pub fn enable_irq(&self, interrupt: CanInterruptMode) {
@@ -1114,6 +1007,29 @@ impl ClockInterface for CanClock<'_> {
 }
 
 impl<'a> can::Configure for Can<'_> {
+    const MIN_BIT_TIMINGS: can::BitTiming = can::BitTiming {
+        segment1: BitSegment1::CanBtrTs1_1tq as u8,
+        segment2: BitSegment2::CanBtrTs2_1tq as u8,
+        propagation: 0,
+        sync_jump_width: SynchronizationJumpWidth::CanBtrSjw1tq as u32,
+        baud_rate_prescaler: BRP_MIN_STM32,
+    };
+
+    const MAX_BIT_TIMINGS: can::BitTiming = can::BitTiming {
+        segment1: BitSegment1::CanBtrTs1_16tq as u8,
+        segment2: BitSegment2::CanBtrTs2_8tq as u8,
+        propagation: 0,
+        sync_jump_width: SynchronizationJumpWidth::CanBtrSjw4tq as u32,
+        baud_rate_prescaler: BRP_MAX_STM32,
+    };
+
+    const SYNC_SEG: u8 = 1;
+
+    fn set_bitrate(&self, bitrate: u32) -> Result<(), kernel::ErrorCode> {
+        let bit_timing = Self::bit_timing_for_bitrate(16_000_000, bitrate)?;
+        self.set_bit_timing(bit_timing)
+    }
+
     fn set_bit_timing(&self, bit_timing: can::BitTiming) -> Result<(), kernel::ErrorCode> {
         match self.can_state.get() {
             CanState::Sleep => {
@@ -1240,7 +1156,10 @@ impl<'a> can::Controller for Can<'_> {
 }
 
 impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
-    fn set_client(&self, client: Option<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>) {
+    fn set_client(
+        &self,
+        client: Option<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
+    ) {
         if let Some(client) = client {
             self.transmit_client.set(client);
         } else {
@@ -1253,8 +1172,13 @@ impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
         id: can::Id,
         buffer: &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
         len: usize,
-    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE])> {
-        debug!("INAK send {}", self.registers.can_msr.is_set(CAN_MSR::INAK));
+    ) -> Result<
+        (),
+        (
+            kernel::ErrorCode,
+            &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
+        ),
+    > {
         match self.can_state.get() {
             CanState::Normal => {
                 self.tx_buffer.replace(buffer);
@@ -1269,8 +1193,11 @@ impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     }
 }
 
-impl<'a> can::Receive for Can<'_> {
-    fn set_client(&self, client: Option<&'static dyn can::ReceiveClient>) {
+impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+    fn set_client(
+        &self,
+        client: Option<&'static dyn can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
+    ) {
         if let Some(client) = client {
             self.receive_client.set(client);
         } else {
@@ -1280,9 +1207,14 @@ impl<'a> can::Receive for Can<'_> {
 
     fn start_receive_process(
         &self,
-        buffer: &'static mut [u8],
-    ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
-        debug!("INAK receive {}", self.registers.can_msr.is_set(CAN_MSR::INAK));
+        buffer: &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
+    ) -> Result<
+        (),
+        (
+            kernel::ErrorCode,
+            &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
+        ),
+    > {
         match self.can_state.get() {
             CanState::Normal => {
                 self.config_filter(
@@ -1352,17 +1284,3 @@ impl<'a> can::Receive for Can<'_> {
         }
     }
 }
-
-// impl can::Filter for Can<'_> {
-//     fn enable_filter(&self, _filter: can::FilterParameters) -> Result<(), kernel::ErrorCode> {
-//         Ok(())
-//     }
-
-//     fn disable_filter(&self, _number: u32) -> Result<(), kernel::ErrorCode> {
-//         Ok(())
-//     }
-
-//     fn filter_count(&self) -> usize {
-//         14
-//     }
-// }

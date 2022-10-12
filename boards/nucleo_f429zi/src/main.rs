@@ -255,7 +255,11 @@ unsafe fn set_pin_primary_functions(
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::trng::Trng, can1: &'static stm32f429zi::can::Can) {
+unsafe fn setup_peripherals(
+    tim2: &stm32f429zi::tim2::Tim2,
+    trng: &stm32f429zi::trng::Trng,
+    can1: &'static stm32f429zi::can::Can,
+) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
 
@@ -582,13 +586,17 @@ pub unsafe fn main() {
     let grant_can = board_kernel.create_grant(capsules::can::DRIVER_NUM, &grant_cap);
     let can_capsule = static_init!(
         capsules::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
-        capsules::can::CanCapsule::new(&peripherals.can1, grant_can, &mut capsules::can::CAN_TX_BUF, &mut capsules::can::CAN_RX_BUF),
+        capsules::can::CanCapsule::new(
+            &peripherals.can1,
+            grant_can,
+            &mut capsules::can::CAN_TX_BUF,
+            &mut capsules::can::CAN_RX_BUF
+        ),
     );
 
     kernel::hil::can::Controller::set_client(&peripherals.can1, Some(can_capsule));
     kernel::hil::can::Transmit::set_client(&peripherals.can1, Some(can_capsule));
     kernel::hil::can::Receive::set_client(&peripherals.can1, Some(can_capsule));
-
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
