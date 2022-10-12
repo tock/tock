@@ -1,16 +1,13 @@
 //! Components for the SI7021 Temperature/Humidity Sensor.
 //!
-//! This provides two Components, SI7021Component, which provides
-//! access to the SI7021 over I2C, and HumidityComponent,
-//! which provides a humidity system call driver. SI7021Component is
-//! a parameter to HumidityComponent.
+//! This provides the SI7021Component which provides access to the SI7021 over
+//! I2C.
 //!
 //! Usage
 //! -----
 //! ```rust
 //! let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40).finalize(
-//!     components::si7021_component_helper!(sam4l::ast::Ast));
-//! let humidity = HumidityComponent::new(board_kernel, si7021).finalize(());
+//!     components::si7021_component_static!(sam4l::ast::Ast));
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
@@ -18,27 +15,27 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::humidity::HumiditySensor;
 use capsules::si7021::SI7021;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use kernel::capabilities;
 use kernel::component::Component;
-use kernel::create_capability;
-use kernel::hil;
 use kernel::hil::time::{self, Alarm};
-use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! si7021_component_helper {
+macro_rules! si7021_component_static {
     ($A:ty $(,)?) => {{
-        use capsules::si7021::SI7021;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, $A>>> =
-            MaybeUninit::uninit();
-        (&mut BUF1, &mut BUF2)
+        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
+        let si7021 = kernel::static_buf!(
+            capsules::si7021::SI7021<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            >
+        );
+        let buffer = kernel::static_buf!([u8; 14]);
+
+        (alarm, i2c_device, si7021, buffer)
     };};
 }
 
@@ -62,72 +59,31 @@ impl<A: 'static + time::Alarm<'static>> SI7021Component<A> {
     }
 }
 
-static mut I2C_BUF: [u8; 14] = [0; 14];
-
 impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<I2CDevice<'static>>,
         &'static mut MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<[u8; 14]>,
     );
     type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, A>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let si7021_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, self.i2c_address));
-        let si7021_alarm = static_init_half!(
-            static_buffer.0,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.alarm_mux)
-        );
+        let si7021_i2c = static_buffer
+            .1
+            .write(I2CDevice::new(self.i2c_mux, self.i2c_address));
+
+        let si7021_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         si7021_alarm.setup();
 
-        let si7021 = static_init_half!(
-            static_buffer.1,
-            SI7021<'static, VirtualMuxAlarm<'static, A>>,
-            SI7021::new(si7021_i2c, si7021_alarm, &mut I2C_BUF)
-        );
+        let buffer = static_buffer.3.write([0; 14]);
+
+        let si7021 = static_buffer
+            .2
+            .write(SI7021::new(si7021_i2c, si7021_alarm, buffer));
 
         si7021_i2c.set_client(si7021);
         si7021_alarm.set_alarm_client(si7021);
         si7021
-    }
-}
-
-pub struct HumidityComponent<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
-    si7021: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
-}
-
-impl<A: 'static + time::Alarm<'static>> HumidityComponent<A> {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
-        si: &'static SI7021<'static, VirtualMuxAlarm<'static, A>>,
-    ) -> HumidityComponent<A> {
-        HumidityComponent {
-            board_kernel,
-            driver_num,
-            si7021: si,
-        }
-    }
-}
-
-impl<A: 'static + time::Alarm<'static>> Component for HumidityComponent<A> {
-    type StaticInput = ();
-    type Output = &'static HumiditySensor<'static>;
-
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-        let hum = static_init!(
-            HumiditySensor<'static>,
-            HumiditySensor::new(
-                self.si7021,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
-
-        hil::sensors::HumidityDriver::set_client(self.si7021, hum);
-        hum
     }
 }

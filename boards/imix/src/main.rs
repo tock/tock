@@ -52,7 +52,7 @@ use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
-use components::si7021::{HumidityComponent, SI7021Component};
+use components::si7021::SI7021Component;
 use components::spi::{SpiComponent, SpiSyscallComponent};
 use imix_components::adc::AdcComponent;
 use imix_components::rf233::RF233Component;
@@ -429,22 +429,26 @@ pub unsafe fn main() {
             .finalize(components::ambient_light_component_static!());
 
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
-        .finalize(components::si7021_component_helper!(sam4l::ast::Ast));
+        .finalize(components::si7021_component_static!(sam4l::ast::Ast));
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
         si7021,
     )
-    .finalize(());
-    let humidity =
-        HumidityComponent::new(board_kernel, capsules::humidity::DRIVER_NUM, si7021).finalize(());
+    .finalize(components::temperature_component_static!());
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules::humidity::DRIVER_NUM,
+        si7021,
+    )
+    .finalize(components::humidity_component_static!());
 
     let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
         .finalize(components::fxos8700_component_static!());
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(fxos8700));
+            .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)

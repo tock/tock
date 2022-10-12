@@ -458,7 +458,7 @@ pub unsafe fn main() {
     // Ninedof
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(fxos8700));
+            .finalize(components::ninedof_component_static!(fxos8700));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::rr_component_helper!(NUM_PROCS));

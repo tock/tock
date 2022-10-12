@@ -44,9 +44,6 @@ use kernel::hil::time::{self, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
-// Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 14] = [0; 14];
-
 #[allow(dead_code)]
 enum Registers {
     MeasRelativeHumidityHoldMode = 0xe5,
