@@ -424,7 +424,7 @@ pub unsafe fn main() {
     peripherals.adc_ref.enable_temp_sensor(true);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());

@@ -243,7 +243,9 @@ pub unsafe fn main() {
 
     chip.enable_all_interrupts();
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
+        .finalize(components::priority_component_static!());
+
     let artye21 = ArtyE21 {
         console: console,
         gpio: gpio,

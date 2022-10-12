@@ -523,7 +523,7 @@ pub unsafe fn main() {
     .finalize(components::low_level_debug_component_static!());
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let litex_arty = LiteXArty {
         console,

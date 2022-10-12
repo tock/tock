@@ -648,7 +648,7 @@ pub unsafe fn main() {
     .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let imix = Imix {
         pconsole,

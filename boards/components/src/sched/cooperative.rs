@@ -6,7 +6,7 @@
 //! -----
 //! ```rust
 //! let scheduler = components::cooperative::CooperativeComponent::new(&PROCESSES)
-//!     .finalize(components::coop_component_helper!(NUM_PROCS));
+//!     .finalize(components::cooperative_component_static!(NUM_PROCS));
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
@@ -15,43 +15,47 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::process::Process;
 use kernel::scheduler::cooperative::{CoopProcessNode, CooperativeSched};
-use kernel::{static_init, static_init_half};
 
 #[macro_export]
-macro_rules! coop_component_helper {
+macro_rules! cooperative_component_static {
     ($N:expr $(,)?) => {{
-        use core::mem::MaybeUninit;
-        use kernel::scheduler::cooperative::CoopProcessNode;
-        use kernel::static_buf;
-        const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
-        static mut BUF: [MaybeUninit<CoopProcessNode<'static>>; $N] = [UNINIT; $N];
-        &mut BUF
+        let coop_sched =
+            kernel::static_buf!(kernel::scheduler::cooperative::CooperativeSched<'static>);
+        let coop_nodes = kernel::static_buf!(
+            [core::mem::MaybeUninit<kernel::scheduler::cooperative::CoopProcessNode<'static>>; $N]
+        );
+
+        (coop_sched, coop_nodes)
     };};
 }
 
-pub struct CooperativeComponent {
+pub struct CooperativeComponent<const NUM_PROCS: usize> {
     processes: &'static [Option<&'static dyn Process>],
 }
 
-impl CooperativeComponent {
-    pub fn new(processes: &'static [Option<&'static dyn Process>]) -> CooperativeComponent {
+impl<const NUM_PROCS: usize> CooperativeComponent<NUM_PROCS> {
+    pub fn new(
+        processes: &'static [Option<&'static dyn Process>],
+    ) -> CooperativeComponent<NUM_PROCS> {
         CooperativeComponent { processes }
     }
 }
 
-impl Component for CooperativeComponent {
-    type StaticInput = &'static mut [MaybeUninit<CoopProcessNode<'static>>];
+impl<const NUM_PROCS: usize> Component for CooperativeComponent<NUM_PROCS> {
+    type StaticInput = (
+        &'static mut MaybeUninit<CooperativeSched<'static>>,
+        &'static mut MaybeUninit<[MaybeUninit<CoopProcessNode<'static>>; NUM_PROCS]>,
+    );
     type Output = &'static mut CooperativeSched<'static>;
 
-    unsafe fn finalize(self, proc_nodes: Self::StaticInput) -> Self::Output {
-        let scheduler = static_init!(CooperativeSched<'static>, CooperativeSched::new());
+    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let scheduler = static_buffer.0.write(CooperativeSched::new());
 
-        for (i, node) in proc_nodes.iter_mut().enumerate() {
-            let init_node = static_init_half!(
-                node,
-                CoopProcessNode<'static>,
-                CoopProcessNode::new(&self.processes[i])
-            );
+        const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
+        let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
+
+        for (i, node) in nodes.iter_mut().enumerate() {
+            let init_node = node.write(CoopProcessNode::new(&self.processes[i]));
             scheduler.processes.push_head(init_node);
         }
         scheduler
