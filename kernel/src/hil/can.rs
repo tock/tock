@@ -324,7 +324,8 @@ pub trait Configure {
     const MIN_BIT_TIMINGS: BitTiming;
     const MAX_BIT_TIMINGS: BitTiming;
 
-    /// This constant represents the synchronization segment and it is always
+    /// This constant represents the synchronization segment.
+    /// Most CAN devices seems to have define this in hardware to 1 quantum long.
     /// 1 quantum long. It is used for the synchronization of the clocks.
     const SYNC_SEG: u8 = 1;
 
