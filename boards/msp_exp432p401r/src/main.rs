@@ -320,7 +320,7 @@ pub unsafe fn main() {
             34 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_6 as usize]
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         msp432::gpio::IntPin<'static>
     ));
 

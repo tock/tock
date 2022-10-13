@@ -200,7 +200,7 @@ pub unsafe fn main() {
             0 => &nrf52840_peripherals.gpio_port[Pin::P0_29],
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
 
     let button = components::button::ButtonComponent::new(
         board_kernel,

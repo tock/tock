@@ -482,7 +482,7 @@ pub unsafe fn main() {
             // 21 => gpio_ports.get_pin(PinId::PC00).unwrap(), //A5
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f446re::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f446re::gpio::Pin));
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(

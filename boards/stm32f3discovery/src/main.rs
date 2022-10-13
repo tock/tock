@@ -632,7 +632,7 @@ pub unsafe fn main() {
             86 => &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PC09).unwrap()
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         stm32f303xc::gpio::Pin<'static>
     ));
 

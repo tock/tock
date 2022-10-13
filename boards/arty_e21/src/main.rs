@@ -237,7 +237,7 @@ pub unsafe fn main() {
             2 => &peripherals.gpio_port[6]
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         arty_e21_chip::gpio::GpioPin
     ));
 

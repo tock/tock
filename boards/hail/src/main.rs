@@ -474,7 +474,7 @@ pub unsafe fn main() {
             3 => &peripherals.pb[12]  // D7
         ),
     )
-    .finalize(components::gpio_component_buf!(sam4l::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(sam4l::gpio::GPIOPin));
 
     // CRC
     let crc = components::crc::CrcComponent::new(

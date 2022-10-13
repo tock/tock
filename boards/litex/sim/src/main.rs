@@ -457,7 +457,7 @@ pub unsafe fn main() {
             31 => gpio0.get_gpio_pin(31).unwrap(),
         ),
     )
-    .finalize(components::gpio_component_buf!(GPIOPin));
+    .finalize(components::gpio_component_static!(GPIOPin));
 
     // ---------- LED DRIVER ----------
 

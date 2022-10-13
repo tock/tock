@@ -293,7 +293,7 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio_port[15]
         ),
     )
-    .finalize(components::gpio_component_buf!(earlgrey::gpio::GpioPin));
+    .finalize(components::gpio_component_static!(earlgrey::gpio::GpioPin));
 
     let hardware_alarm = static_init!(earlgrey::timer::RvTimer, earlgrey::timer::RvTimer::new());
     hardware_alarm.setup();

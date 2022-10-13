@@ -504,7 +504,7 @@ pub unsafe fn main() {
             // 80 gpio_ports.pins::PIN[5][4].as_ref().unwrap()  //A8
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f429zi::gpio::Pin));
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)

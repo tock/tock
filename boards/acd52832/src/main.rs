@@ -231,7 +231,7 @@ pub unsafe fn main() {
             6 => &nrf52832_peripherals.gpio_port[Pin::P0_31]
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52832::gpio::GPIOPin));
 
     //
     // LEDs

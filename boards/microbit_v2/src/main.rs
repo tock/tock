@@ -256,7 +256,7 @@ pub unsafe fn main() {
             16 => &nrf52833_peripherals.gpio_port[GPIO_P16],
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52833::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52833::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // Buttons
