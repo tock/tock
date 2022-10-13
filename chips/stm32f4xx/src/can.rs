@@ -1,5 +1,6 @@
 use crate::rcc;
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil::can::{self, StandardBitTiming};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -9,6 +10,7 @@ use kernel::utilities::StaticRef;
 
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
+
 #[repr(C)]
 struct TransmitMailBox {
     can_tir: ReadWrite<u32, CAN_TIxR::Register>,
@@ -374,6 +376,7 @@ enum CanState {
     Initialization,
     Normal,
     Sleep,
+    RunningError(can::Error),
 }
 
 #[allow(dead_code)]
@@ -432,6 +435,7 @@ impl From<CanState> for can::State {
         match state {
             CanState::Initialization | CanState::Sleep => can::State::Disabled,
             CanState::Normal => can::State::Running,
+            CanState::RunningError(err) => can::State::Error(err),
         }
     }
 }
@@ -488,14 +492,21 @@ impl<'a> Can<'a> {
         }
     }
 
-    fn wait_for(times: usize, f: impl Fn() -> bool) -> Result<(), kernel::ErrorCode> {
+    /// This function is used for busy waiting and checks if the closure
+    /// received as an argument returns a true value for `times` times.
+    ///
+    /// Usage: check is the INAK bit in the CAN_MSR is set for 200_000 times.
+    /// ```rust
+    ///    Can::wait_for(200_000, || self.registers.can_msr.is_set(CAN_MSR::INAK))
+    /// ```
+    fn wait_for(times: usize, f: impl Fn() -> bool) -> bool {
         for _ in 0..times {
             if f() {
-                return Ok(());
+                return true;
             }
         }
 
-        Err(kernel::ErrorCode::FAIL)
+        false
     }
 
     /// Enable the peripheral with the stored communication parameters:
@@ -508,18 +519,15 @@ impl<'a> Can<'a> {
         self.registers.can_mcr.modify(CAN_MCR::INRQ::SET);
 
         // we wait for hardware ACK (INAK bit to be set)
-        if let Err(inak_err) = Can::wait_for(20000, || self.registers.can_msr.is_set(CAN_MSR::INAK))
-        {
-            return Err(inak_err);
+        if !Can::wait_for(20000, || self.registers.can_msr.is_set(CAN_MSR::INAK)) {
+            return Err(kernel::ErrorCode::FAIL);
         }
 
         self.can_state.set(CanState::Initialization);
 
         // we wait for hardware ACK (SLAK bit to be set)
-        if let Err(slak_err) =
-            Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::SLAK))
-        {
-            return Err(slak_err);
+        if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::SLAK)) {
+            return Err(kernel::ErrorCode::FAIL);
         }
 
         // set communication mode
@@ -572,7 +580,7 @@ impl<'a> Can<'a> {
     /// Configure a filter to receive messages
     pub fn config_filter(&self, filter_info: can::FilterParameters, enable: bool) {
         // get position of the filter number
-        let filter_number = 0x00000001 << filter_info.number;
+        let filter_number = 1 << filter_info.number;
 
         // start filter configuration
         self.registers.can_fmr.modify(CAN_FMR::FINIT::SET);
@@ -645,10 +653,8 @@ impl<'a> Can<'a> {
         self.registers.can_mcr.modify(CAN_MCR::INRQ::CLEAR);
 
         // wait for INAK bit to be cleared
-        if let Err(inak_err) =
-            Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK))
-        {
-            return Err(inak_err);
+        if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK)) {
+            return Err(kernel::ErrorCode::FAIL);
         }
 
         self.can_state.set(CanState::Normal);
@@ -774,37 +780,62 @@ impl<'a> Can<'a> {
     }
 
     /// Handle the transmit interrupt. Check the status register for each
-    /// transmit mailbox to find out the mailbox that the message was sent from. 
+    /// transmit mailbox to find out the mailbox that the message was sent from.
     pub fn handle_transmit_interrupt(&self) {
-        let mailbox0_status: u32 = self.registers.can_tsr.read(CAN_TSR::RQCP0);
-        if mailbox0_status == 1 {
-            // check status
-            let transmit_status: u32 = self.registers.can_tsr.read(CAN_TSR::TXOK0);
-            if transmit_status == 1 {
+        let mut state = Ok(());
+        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {
+            state = Err(can::Error::BusOff)
+        } else {
+            if self.registers.can_tsr.read(CAN_TSR::RQCP0) == 1 {
+                // check status
+                state = if self.registers.can_tsr.read(CAN_TSR::TXOK0) == 1 {
+                    Ok(())
+                } else if self.registers.can_tsr.read(CAN_TSR::TERR0) == 1 {
+                    Err(can::Error::Transmission)
+                } else if self.registers.can_tsr.read(CAN_TSR::ALST0) == 1 {
+                    Err(can::Error::ArbitrationLost)
+                } else {
+                    Ok(())
+                };
                 // mark the interrupt as handled
                 self.registers.can_tsr.modify(CAN_TSR::RQCP0::SET);
             }
-        }
-        let mailbox1_status: u32 = self.registers.can_tsr.read(CAN_TSR::RQCP1);
-        if mailbox1_status == 1 {
-            let transmit_status: u32 = self.registers.can_tsr.read(CAN_TSR::TXOK1);
-            if transmit_status == 1 {
+            if self.registers.can_tsr.read(CAN_TSR::RQCP1) == 1 {
+                state = if self.registers.can_tsr.read(CAN_TSR::TXOK1) == 1 {
+                    Ok(())
+                } else if self.registers.can_tsr.read(CAN_TSR::TERR1) == 1 {
+                    Err(can::Error::Transmission)
+                } else if self.registers.can_tsr.read(CAN_TSR::ALST1) == 1 {
+                    Err(can::Error::ArbitrationLost)
+                } else {
+                    Ok(())
+                };
                 // mark the interrupt as handled
                 self.registers.can_tsr.modify(CAN_TSR::RQCP1::SET);
             }
-        }
-        let mailbox2_status: u32 = self.registers.can_tsr.read(CAN_TSR::RQCP2);
-        if mailbox2_status == 1 {
-            let transmit_status: u32 = self.registers.can_tsr.read(CAN_TSR::TXOK2);
-            if transmit_status == 1 {
+            if self.registers.can_tsr.read(CAN_TSR::RQCP2) == 1 {
+                state = if self.registers.can_tsr.read(CAN_TSR::TXOK2) == 1 {
+                    Ok(())
+                } else if self.registers.can_tsr.read(CAN_TSR::TERR2) == 1 {
+                    Err(can::Error::Transmission)
+                } else if self.registers.can_tsr.read(CAN_TSR::ALST2) == 1 {
+                    Err(can::Error::ArbitrationLost)
+                } else {
+                    Ok(())
+                };
                 // mark the interrupt as handled
                 self.registers.can_tsr.modify(CAN_TSR::RQCP2::SET);
             }
         }
 
+        match state {
+            Err(err) => self.can_state.set(CanState::RunningError(err)),
+            _ => {}
+        }
+
         self.transmit_client
             .map(|transmit_client| match self.tx_buffer.take() {
-                Some(buf) => transmit_client.transmit_complete(Ok(()), buf),
+                Some(buf) => transmit_client.transmit_complete(state, buf),
                 None => {}
             });
     }
@@ -837,10 +868,11 @@ impl<'a> Can<'a> {
         let message_length = self.registers.can_rx_mailbox[rx_mailbox]
             .can_rdtr
             .read(CAN_RDTxR::DLC) as usize;
+        // debug!("am primit {} caractere", message_length);
         let recv: u64 = ((self.registers.can_rx_mailbox[0].can_rdhr.get() as u64) << 32)
             | (self.registers.can_rx_mailbox[0].can_rdlr.get() as u64);
         let rx_buf = recv.to_le_bytes();
-
+        // debug!("si le-am citit pe toate {:?}", rx_buf);
         self.rx_buffer.map(|rx| {
             for i in 0..8 {
                 rx[i] = rx_buf[i];
@@ -867,7 +899,7 @@ impl<'a> Can<'a> {
             });
             self.fifo0_interrupt_counter
                 .replace(self.fifo0_interrupt_counter.get() + 1);
-            
+
             // mark the interrupt as handled
             self.registers.can_rf0r.modify(CAN_RF0R::RFOM0::SET);
         }
@@ -904,21 +936,55 @@ impl<'a> Can<'a> {
         if self.registers.can_msr.read(CAN_MSR::SLAKI) == 1 {
             // mark the interrupt as handled
             self.registers.can_msr.modify(CAN_MSR::SLAKI::SET);
-           
         }
 
         // errors
         // Warning flag
-        if self.registers.can_esr.read(CAN_ESR::EWGF) == 1 {}
+        if self.registers.can_esr.read(CAN_ESR::EWGF) == 1 {
+            self.can_state
+                .set(CanState::RunningError(can::Error::Warning));
+        }
         // Passive flag
-        if self.registers.can_esr.read(CAN_ESR::EPVF) == 1 {}
+        if self.registers.can_esr.read(CAN_ESR::EPVF) == 1 {
+            self.can_state
+                .set(CanState::RunningError(can::Error::Passive));
+        }
         // Bus-off flag
-        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {}
+        if self.registers.can_esr.read(CAN_ESR::BOFF) == 1 {
+            self.can_state
+                .set(CanState::RunningError(can::Error::BusOff));
+        }
         // Last Error Code
-        if self.registers.can_esr.read(CAN_ESR::LEC) != 0 {}
-       
+        match self.registers.can_esr.read(CAN_ESR::LEC) {
+            0x001 => self
+                .can_state
+                .set(CanState::RunningError(can::Error::Stuff)),
+            0x010 => self.can_state.set(CanState::RunningError(can::Error::Form)),
+            0x011 => self.can_state.set(CanState::RunningError(can::Error::Ack)),
+            0x100 => self
+                .can_state
+                .set(CanState::RunningError(can::Error::BitRecessive)),
+            0x101 => self
+                .can_state
+                .set(CanState::RunningError(can::Error::BitDominant)),
+            0x110 => self.can_state.set(CanState::RunningError(can::Error::Crc)),
+            0x111 => self
+                .can_state
+                .set(CanState::RunningError(can::Error::SetBySoftware)),
+            _ => {}
+        }
+
         self.error_interrupt_counter
             .replace(self.error_interrupt_counter.get() + 1);
+
+        match self.can_state.get() {
+            CanState::RunningError(err) => {
+                self.controller_client.map(|controller_client| {
+                    controller_client.state_changed(kernel::hil::can::State::Error(err));
+                });
+            }
+            _ => {}
+        }
     }
 
     pub fn enable_irq(&self, interrupt: CanInterruptMode) {
@@ -1036,7 +1102,9 @@ impl<'a> can::Configure for Can<'_> {
                 self.bit_timing.set(bit_timing);
                 Ok(())
             }
-            CanState::Normal | CanState::Initialization => Err(kernel::ErrorCode::BUSY),
+            CanState::Normal | CanState::Initialization | CanState::RunningError(_) => {
+                Err(kernel::ErrorCode::BUSY)
+            }
         }
     }
 
@@ -1046,7 +1114,9 @@ impl<'a> can::Configure for Can<'_> {
                 self.operating_mode.set(mode);
                 Ok(())
             }
-            CanState::Normal | CanState::Initialization => Err(kernel::ErrorCode::BUSY),
+            CanState::Normal | CanState::Initialization | CanState::RunningError(_) => {
+                Err(kernel::ErrorCode::BUSY)
+            }
         }
     }
 
@@ -1072,7 +1142,9 @@ impl<'a> can::Configure for Can<'_> {
                 self.automatic_retransmission.replace(automatic);
                 Ok(())
             }
-            CanState::Normal | CanState::Initialization => Err(kernel::ErrorCode::BUSY),
+            CanState::Normal | CanState::Initialization | CanState::RunningError(_) => {
+                Err(kernel::ErrorCode::BUSY)
+            }
         }
     }
 
@@ -1082,7 +1154,9 @@ impl<'a> can::Configure for Can<'_> {
                 self.automatic_wake_up.replace(wake_up);
                 Ok(())
             }
-            CanState::Normal | CanState::Initialization => Err(kernel::ErrorCode::BUSY),
+            CanState::Normal | CanState::Initialization | CanState::RunningError(_) => {
+                Err(kernel::ErrorCode::BUSY)
+            }
         }
     }
 
@@ -1102,7 +1176,7 @@ impl<'a> can::Configure for Can<'_> {
 impl<'a> can::Controller for Can<'_> {
     fn set_client(&self, client: Option<&'static dyn can::ControllerClient>) {
         if let Some(client) = client {
-            self.controller_client.set(client);
+            self.controller_client.replace(client);
         } else {
             self.controller_client.clear();
         }
@@ -1132,13 +1206,15 @@ impl<'a> can::Controller for Can<'_> {
                     }
                 }
             }
-            CanState::Normal | CanState::Initialization => Err(kernel::ErrorCode::BUSY),
+            CanState::Normal | CanState::Initialization | CanState::RunningError(_) => {
+                Err(kernel::ErrorCode::BUSY)
+            }
         }
     }
 
     fn disable(&self) -> Result<(), kernel::ErrorCode> {
         match self.can_state.get() {
-            CanState::Normal => {
+            CanState::Normal | CanState::RunningError(_) => {
                 self.enter_sleep_mode();
                 self.controller_client.map(|controller_client| {
                     controller_client.state_changed(self.can_state.get().into());
@@ -1180,9 +1256,11 @@ impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
         ),
     > {
         match self.can_state.get() {
-            CanState::Normal => {
+            CanState::Normal | CanState::RunningError(_) => {
+                debug!("trimitem mesaj {:?} si lungimea {}", buffer, len);
                 self.tx_buffer.replace(buffer);
                 self.enable_irq(CanInterruptMode::TransmitInterrupt);
+                self.can_state.set(CanState::Normal);
                 match self.send_8byte_message(id, len, 0) {
                     Ok(_) => Ok(()),
                     Err(err) => Err((err, self.tx_buffer.take().unwrap())),
@@ -1216,7 +1294,8 @@ impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
         ),
     > {
         match self.can_state.get() {
-            CanState::Normal => {
+            CanState::Normal | CanState::RunningError(_) => {
+                self.can_state.set(CanState::Normal);
                 self.config_filter(
                     can::FilterParameters {
                         number: 0,
@@ -1247,7 +1326,8 @@ impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
 
     fn stop_receive(&self) -> Result<(), kernel::ErrorCode> {
         match self.can_state.get() {
-            CanState::Normal => {
+            CanState::Normal | CanState::RunningError(_) => {
+                self.can_state.set(CanState::Normal);
                 self.config_filter(
                     can::FilterParameters {
                         number: 0,

@@ -188,9 +188,9 @@ pub trait StandardBitTiming {
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode>;
 }
 
-/// The default implementation for the `bit_timing_for_bitrate` method. This algorithm 
-/// is inspired by the Zephyr CAN driver available at 
-/// https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can 
+/// The default implementation for the `bit_timing_for_bitrate` method. This algorithm
+/// is inspired by the Zephyr CAN driver available at
+/// https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can
 impl<T: Configure> StandardBitTiming for T {
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
         if bitrate > 8_000_000 {
@@ -773,7 +773,10 @@ pub trait Can:
 {
 }
 
-pub trait CanFd: Transmit<FD_CAN_PACKET_SIZE> + Configure + ConfigureFd + Receive<FD_CAN_PACKET_SIZE> {}
+pub trait CanFd:
+    Transmit<FD_CAN_PACKET_SIZE> + Configure + ConfigureFd + Receive<FD_CAN_PACKET_SIZE>
+{
+}
 
 /// Provide blanket implementation for Can trait group
 impl<
@@ -786,4 +789,7 @@ impl<
 }
 
 /// Provide blanket implementation for CanFd trait group
-impl<T: Transmit<FD_CAN_PACKET_SIZE> + Configure + ConfigureFd + Receive<FD_CAN_PACKET_SIZE>> CanFd for T {}
+impl<T: Transmit<FD_CAN_PACKET_SIZE> + Configure + ConfigureFd + Receive<FD_CAN_PACKET_SIZE>> CanFd
+    for T
+{
+}

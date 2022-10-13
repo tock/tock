@@ -1,7 +1,7 @@
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 use stm32f4xx::deferred_calls::DeferredCallTask;
 
-use crate::{stm32f429zi_nvic, trng_registers, can_registers};
+use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
 pub struct Stm32f429ziDefaultPeripherals<'a> {
     pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,

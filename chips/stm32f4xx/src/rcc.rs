@@ -1035,7 +1035,7 @@ impl Rcc {
 
     // CAN1 clock
 
-     fn is_enabled_can1_clock(&self) -> bool {
+    fn is_enabled_can1_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::CAN1EN)
     }
 

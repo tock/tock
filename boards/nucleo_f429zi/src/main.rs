@@ -583,20 +583,14 @@ pub unsafe fn main() {
     .finalize(components::rng_component_static!());
 
     // CAN
-    let grant_can = board_kernel.create_grant(capsules::can::DRIVER_NUM, &grant_cap);
-    let can_capsule = static_init!(
-        capsules::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
-        capsules::can::CanCapsule::new(
-            &peripherals.can1,
-            grant_can,
-            &mut capsules::can::CAN_TX_BUF,
-            &mut capsules::can::CAN_RX_BUF
-        ),
-    );
-
-    kernel::hil::can::Controller::set_client(&peripherals.can1, Some(can_capsule));
-    kernel::hil::can::Transmit::set_client(&peripherals.can1, Some(can_capsule));
-    kernel::hil::can::Receive::set_client(&peripherals.can1, Some(can_capsule));
+    let can = components::can::CanComponent::new(
+        board_kernel,
+        capsules::can::DRIVER_NUM,
+        &peripherals.can1,
+    )
+    .finalize(components::can_component_helper!(
+        stm32f429zi::can::Can<'static>
+    ));
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -630,7 +624,7 @@ pub unsafe fn main() {
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
-        can: can_capsule,
+        can: can,
     };
 
     // // Optional kernel tests
