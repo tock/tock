@@ -19,6 +19,7 @@ use capsules::adc;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil;
 use kernel::static_init;
 use sam4l::adc::Channel;
 
@@ -83,7 +84,8 @@ impl Component for AdcComponent {
                 &mut adc::ADC_BUFFER3
             )
         );
-        self.adc.set_client(adc);
+        hil::adc::Adc::set_client(self.adc, adc);
+        hil::adc::AdcHighSpeed::set_highspeed_client(self.adc, adc);
 
         adc
     }

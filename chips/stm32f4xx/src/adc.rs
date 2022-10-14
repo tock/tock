@@ -8,9 +8,6 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-
 #[repr(C)]
 struct AdcRegisters {
     sr: ReadWrite<u32, SR::Register>,
@@ -478,4 +475,6 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
+
+    fn set_highspeed_client(&self, _client: &'static dyn hil::adc::HighSpeedClient) {}
 }

@@ -76,11 +76,6 @@ impl AdcChannel {
     }
 }
 
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
-
 /// ADC driver code for the SAM4L.
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
@@ -106,7 +101,8 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static dyn EverythingClient>,
+    client: OptionalCell<&'static dyn hil::adc::Client>,
+    highspeed_client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
     pm: &'static pm::PowerManager,
 }
 
@@ -353,15 +349,9 @@ impl Adc {
 
             // higher layer to send responses to
             client: OptionalCell::empty(),
+            highspeed_client: OptionalCell::empty(),
             pm,
         }
-    }
-
-    /// Sets the client for this driver.
-    ///
-    /// - `client`: reference to capsule which handles responses
-    pub fn set_client<C: EverythingClient>(&self, client: &'static C) {
-        self.client.set(client);
     }
 
     /// Sets the DMA channel for this driver.
@@ -815,8 +805,8 @@ impl hil::adc::Adc for Adc {
     /// Sets the client for this driver.
     ///
     /// - `client`: reference to capsule which handles responses
-    fn set_client(&self, _client: &'static dyn hil::adc::Client) {
-        unimplemented!();
+    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+        self.client.set(client);
     }
 }
 
@@ -974,6 +964,10 @@ impl hil::adc::AdcHighSpeed for Adc {
             Ok((self.next_dma_buffer.take(), self.stopped_buffer.take()))
         }
     }
+
+    fn set_highspeed_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
+        self.highspeed_client.set(client);
+    }
 }
 
 /// Implements a client of a DMA.
@@ -1036,7 +1030,7 @@ impl dma::DMAClient for Adc {
             });
 
             // alert client
-            self.client.map(|client| {
+            self.highspeed_client.map(|client| {
                 dma_buffer.map(|dma_buf| {
                     // change buffer back into a [u16]
                     // the buffer was originally a [u16] so this should be okay
