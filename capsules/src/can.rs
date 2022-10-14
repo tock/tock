@@ -62,6 +62,13 @@ pub const BYTE3_MASK: usize = 0xff0000;
 pub const BYTE2_MASK: usize = 0xff00;
 pub const BYTE1_MASK: usize = 0xff;
 
+mod error_upcalls {
+    pub const ERROR_DIFFERENT_STATE: usize = 100;
+    pub const ERROR_CHANGE_NOT_EXPECTED: usize = 101;
+    pub const ERROR_TX: usize = 102;
+    pub const ERROR_RX: usize = 103;
+}
+
 mod up_calls {
     pub const UPCALL_ENABLE: usize = 0;
     pub const UPCALL_DISABLE: usize = 1;
@@ -90,12 +97,6 @@ pub struct CanCapsule<'a, Can: can::Can> {
     can_tx: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
     can_rx: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
 
-    // Variable used in the enable and disable process, where 2
-    // callbacks must be called. It it used It is used to reflect
-    // whether or not the new state of the peripheral is the same
-    // as the capsule expects.
-    error_occured: OptionalCell<bool>,
-
     // Process
     processes: Grant<
         App,
@@ -104,7 +105,19 @@ pub struct CanCapsule<'a, Can: can::Can> {
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
     processid: OptionalCell<ProcessId>,
-    wait_for_state_callback: OptionalCell<(can::State, u8)>,
+
+    // Variable used in the enable and disable process, where 2
+    // callbacks must be called. It it used It is used to reflect
+    // whether or not the new state of the peripheral is the same
+    // as the capsule expects.
+    error_occured: OptionalCell<bool>,
+    // Variable used to synchronise the 2 callbacks needed for the
+    // `enable` and `disable` processes
+    // The variable represents a tuple: the state that the capsule
+    // expects the peripheral to be in and a boolean value that
+    // is true when the `state_changed` callback was called correctly
+    // before the `enabled` or `disabled` callback
+    wait_for_state_callback: OptionalCell<(can::State, bool)>,
 }
 
 pub struct App {
@@ -218,28 +231,14 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             // peripheral.
             0 => CommandReturn::success(),
 
-            // Set the timing parameters
-            1 => {
-                match self.can.set_bit_timing(can::BitTiming {
-                    segment1: ((arg1 & BYTE4_MASK) >> 24) as u8,
-                    segment2: ((arg1 & BYTE3_MASK) >> 16) as u8,
-                    propagation: arg2 as u8,
-                    sync_jump_width: ((arg1 & BYTE2_MASK) >> 8) as u32,
-                    baud_rate_prescaler: (arg1 & BYTE1_MASK) as u32,
-                }) {
-                    Ok(_) => CommandReturn::success(),
-                    Err(err) => CommandReturn::failure(err),
-                }
-            }
-
             // Set the bitrate
-            2 => match self.can.set_bitrate(arg1 as u32) {
+            1 => match self.can.set_bitrate(arg1 as u32) {
                 Ok(_) => CommandReturn::success(),
                 Err(err) => CommandReturn::failure(err),
             },
 
             // Set the operation mode (Loopback, Monitoring, etc)
-            3 => {
+            2 => {
                 match self.can.set_operation_mode(match arg1 {
                     0 => can::OperationMode::Loopback,
                     1 => can::OperationMode::Monitoring,
@@ -252,12 +251,12 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             }
 
             // Enable the peripheral
-            4 => {
+            3 => {
                 if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     self.processid.set(processid);
-                    self.wait_for_state_callback.set((can::State::Running, 0));
+                    self.wait_for_state_callback.set((can::State::Running, false));
                     match self.can.enable() {
                         Ok(_) => CommandReturn::success(),
                         Err(err) => CommandReturn::failure(err),
@@ -266,12 +265,12 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             }
 
             // Disable the peripheral
-            5 => {
+            4 => {
                 if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     self.processid.set(processid);
-                    self.wait_for_state_callback.set((can::State::Disabled, 0));
+                    self.wait_for_state_callback.set((can::State::Disabled, false));
                     match self.can.disable() {
                         Ok(_) => CommandReturn::success(),
                         Err(err) => CommandReturn::failure(err),
@@ -280,7 +279,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             }
 
             // Send a message with a 16-bit identifier
-            6 => {
+            5 => {
                 if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
@@ -298,7 +297,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             }
 
             // Send a message with a 32-bit identifier
-            7 => {
+            6 => {
                 if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
@@ -317,7 +316,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             }
 
             // Start receiving messages
-            8 => {
+            7 => {
                 if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
@@ -331,7 +330,9 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                                         |buffer_ref| {
                                             buffer_ref
                                                 .enter(|buffer| {
-                                                    if buffer.len() >= 16 + size_of::<u32>() {
+                                                    // make sure that the receiving buffer can have at least 
+                                                    // 2 messages of 8 bytes each and 4 another bytes for the counter 
+                                                    if buffer.len() >= 2 * can::STANDARD_CAN_PACKET_SIZE + size_of::<u32>() {
                                                         Ok(())
                                                     } else {
                                                         Err(ErrorCode::SIZE)
@@ -356,7 +357,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             }
 
             // Stop receiving messages
-            9 => {
+            8 => {
                 if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
@@ -365,6 +366,20 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                         Ok(_) => CommandReturn::success(),
                         Err(err) => CommandReturn::failure(err),
                     }
+                }
+            }
+            
+            // Set the timing parameters
+            9 => {
+                match self.can.set_bit_timing(can::BitTiming {
+                    segment1: ((arg1 & BYTE4_MASK) >> 24) as u8,
+                    segment2: ((arg1 & BYTE3_MASK) >> 16) as u8,
+                    propagation: arg2 as u8,
+                    sync_jump_width: ((arg1 & BYTE2_MASK) >> 8) as u32,
+                    baud_rate_prescaler: (arg1 & BYTE1_MASK) as u32,
+                }) {
+                    Ok(_) => CommandReturn::success(),
+                    Err(err) => CommandReturn::failure(err),
                 }
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
@@ -385,23 +400,32 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
     fn state_changed(&self, state: can::State) {
         match self
             .wait_for_state_callback
-            .map(|capsule_state| -> (can::State, u8) {
-                capsule_state.1 = capsule_state.1 + 1;
+            .map(|capsule_state| -> (can::State, bool) {
+                // check to see if the new state is the state the capsule expects
                 if state != capsule_state.0 {
                     self.error_occured.set(true);
+                } else {
+                    // mark the first "step" of the callback sequence as done
+                    capsule_state.1 = true;
                 }
                 *capsule_state
             }) {
-            Some(state) => self.wait_for_state_callback.set(state),
-            None => {
+            Some(capsule_state) => {
+                // send an error upcall if the state is different
                 if self.error_occured.is_some() {
-                    match state {
-                        can::State::Running | can::State::Error(_) => {
-                            self.schedule_callback(2, (ErrorCode::FAIL as usize, 0, 0))
-                        }
-                        can::State::Disabled => unreachable!(),
-                    }
+                    self.schedule_callback(match capsule_state.0 {
+                        can::State::Disabled => up_calls::UPCALL_DISABLE,
+                        can::State::Running => up_calls::UPCALL_ENABLE,
+                        can::State::Error(_) => up_calls::UPCALL_TRANSMISSION_ERROR,
+                    }, (ErrorCode::FAIL as usize, error_upcalls::ERROR_DIFFERENT_STATE, 0));
+                } else {
+                    // wait for the second callback
+                    self.wait_for_state_callback.set(capsule_state);
                 }
+            },
+            None => {
+                // the capsule should not receive this callback, send upcall
+                self.schedule_callback(up_calls::UPCALL_TRANSMISSION_ERROR, (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0));
             }
         }
     }
@@ -413,31 +437,42 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
     // error callback.
     fn enabled(&self, status: Result<can::State, ErrorCode>) {
         match status {
+            // the status is a State, not an Error
             Ok(peripheral_state) => {
                 match self.wait_for_state_callback.take() {
-                    Some(mut driver_state) => match driver_state.0 {
+                    // check what callback the capsule was expecting
+                    Some(driver_state) => match driver_state.0 {
                         can::State::Running => {
-                            driver_state.1 = driver_state.1 + 1;
-                            if driver_state.1 == 2 && peripheral_state == driver_state.0 {
+                            // the first callback was already called and the new
+                            // state is Enabled (Running)
+                            if driver_state.1 && peripheral_state == driver_state.0 {
                                 self.schedule_callback(up_calls::UPCALL_ENABLE, (0, 0, 0));
                             } else {
+                                // send an error upcall if any condition is false
                                 self.schedule_callback(
                                     up_calls::UPCALL_ENABLE,
                                     (ErrorCode::FAIL as usize, 0, 0),
                                 );
                             }
                         }
+                        // the capsule was expecting the Enabled (Running) state
+                        // send error upcall
                         can::State::Disabled => {
                             self.schedule_callback(
                                 up_calls::UPCALL_ENABLE,
                                 (ErrorCode::OFF as usize, 0, 0),
                             );
                         }
+                        // send the error to the user
                         can::State::Error(err) => {
                             self.schedule_callback(up_calls::UPCALL_ENABLE, (err as usize, 0, 0));
                         }
                     },
-                    None => todo!(),
+                    None => {
+                        // the callback was called while the capsule was not expecting it
+                        // send an error upcall to the user
+                        self.schedule_callback(up_calls::UPCALL_ENABLE, (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0));
+                    },
                 };
             }
             Err(err) => {
@@ -453,12 +488,14 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
     // error callback.
     fn disabled(&self, status: Result<(), ErrorCode>) {
         match status {
+            // the status is Ok, not an Error
             Ok(()) => {
                 match self.wait_for_state_callback.take() {
-                    Some(mut driver_state) => match driver_state.0 {
+                    // check what callback was the capsule expecting
+                    Some(driver_state) => match driver_state.0 {
                         can::State::Disabled => {
-                            driver_state.1 = driver_state.1 + 1;
-                            if driver_state.1 == 2 {
+                            // the first callback was already called
+                            if driver_state.1 {
                                 self.schedule_callback(up_calls::UPCALL_DISABLE, (0, 0, 0));
                             } else {
                                 self.schedule_callback(
@@ -467,19 +504,25 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
                                 );
                             }
                         }
+                        // the capsule was expecting the Disabled state
                         can::State::Running => {
                             self.schedule_callback(
                                 up_calls::UPCALL_DISABLE,
                                 (ErrorCode::OFF as usize, 0, 0),
                             );
                         }
+                        // send the error to the user
                         can::State::Error(err) => {
                             self.schedule_callback(up_calls::UPCALL_DISABLE, (err as usize, 0, 0));
                         }
                     },
-                    None => todo!(),
+                    // the capsule was not expecting this callback
+                    None => {
+                        self.schedule_callback(up_calls::UPCALL_DISABLE, (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0));
+                    },
                 };
             }
+            // send the error the capsule received to the user
             Err(err) => {
                 self.schedule_callback(up_calls::UPCALL_DISABLE, (err as usize, 0, 0));
             }
@@ -501,7 +544,7 @@ impl<'a, Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>
         match status {
             Ok(()) => self.schedule_callback(up_calls::UPCALL_MESSAGE_SENT, (0, 0, 0)),
             Err(err) => {
-                self.schedule_callback(up_calls::UPCALL_MESSAGE_SENT, (err as usize, 0, 0));
+                self.schedule_callback(up_calls::UPCALL_TRANSMISSION_ERROR, (error_upcalls::ERROR_TX, err as usize, 0));
             }
         }
     }
@@ -563,7 +606,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                         .unwrap_or_else(|err| err.into())
                 }) {
                     Err(err) => self
-                        .schedule_callback(up_calls::UPCALL_MESSAGE_RECEIVED, (err as usize, 0, 0)),
+                        .schedule_callback(up_calls::UPCALL_TRANSMISSION_ERROR, (error_upcalls::ERROR_RX, err as usize, 0)),
                     Ok(_) => {
                         if new_buffer {
                             self.schedule_callback(
@@ -585,7 +628,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                 let kernel_err: ErrorCode = err.into();
                 self.schedule_callback(
                     up_calls::UPCALL_TRANSMISSION_ERROR,
-                    (kernel_err.into(), 0, 0),
+                    (error_upcalls::ERROR_RX, kernel_err.into(), 0),
                 )
             }
         };

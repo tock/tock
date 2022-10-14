@@ -1,6 +1,5 @@
 use crate::rcc;
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::can::{self, StandardBitTiming};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -11,14 +10,14 @@ use kernel::utilities::StaticRef;
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
 
-#[repr(C)]
-struct TransmitMailBox {
+pub struct TransmitMailBox {
     can_tir: ReadWrite<u32, CAN_TIxR::Register>,
     can_tdtr: ReadWrite<u32, CAN_TDTxR::Register>,
     can_tdlr: ReadWrite<u32, CAN_TDLxR::Register>,
     can_tdhr: ReadWrite<u32, CAN_TDHxR::Register>,
 }
-struct ReceiveMailBox {
+
+pub struct ReceiveMailBox {
     can_rir: ReadWrite<u32, CAN_RIxR::Register>,
     can_rdtr: ReadWrite<u32, CAN_RDTxR::Register>,
     can_rdlr: ReadWrite<u32, CAN_RDLxR::Register>,
@@ -518,17 +517,23 @@ impl<'a> Can<'a> {
         // request to enter the initialization mode
         self.registers.can_mcr.modify(CAN_MCR::INRQ::SET);
 
-        // we wait for hardware ACK (INAK bit to be set)
+        // After requesting to enter the initialization mode, the driver
+        // must wait for ACK from the peripheral - the INAK bit to be set 
+        // (as explained in RM0090 Reference Manual, Chapter 32.4.1).
+        // This is done by checking the INAK bit 20_000 times or until it is set.
         if !Can::wait_for(20000, || self.registers.can_msr.is_set(CAN_MSR::INAK)) {
             return Err(kernel::ErrorCode::FAIL);
         }
 
         self.can_state.set(CanState::Initialization);
 
-        // we wait for hardware ACK (SLAK bit to be set)
+        // After requesting to enter the initialization mode, the driver
+        // must wait for ACK from the peripheral - the SLAK bit to be cleared 
+        // (as explained in RM0090 Reference Manual, Chapter 32.4, Figure 336).
+        // This is done by checking the SLAK bit 20_000 times or until it is cleared.
         if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::SLAK)) {
             return Err(kernel::ErrorCode::FAIL);
-        }
+        }        
 
         // set communication mode
         self.registers.can_mcr.modify(CAN_MCR::TTCM::CLEAR);
@@ -1257,7 +1262,6 @@ impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     > {
         match self.can_state.get() {
             CanState::Normal | CanState::RunningError(_) => {
-                debug!("trimitem mesaj {:?} si lungimea {}", buffer, len);
                 self.tx_buffer.replace(buffer);
                 self.enable_irq(CanInterruptMode::TransmitInterrupt);
                 self.can_state.set(CanState::Normal);
