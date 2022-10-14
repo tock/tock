@@ -491,7 +491,7 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(nrf52840::adc::Adc));
+        .finalize(components::adc_mux_component_static!(nrf52840::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -501,37 +501,37 @@ pub unsafe fn main() {
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A1
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A2
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A3
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A4
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A5
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
             ));
 
     //--------------------------------------------------------------------------

@@ -80,7 +80,7 @@ pub struct AdcVirtualized<'a> {
 pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     // ADC driver
     adc: &'a A,
-    channels: &'a [&'a <A as hil::adc::Adc>::Channel],
+    channels: &'a [<A as hil::adc::Adc>::Channel],
 
     // ADC state
     active: Cell<bool>,
@@ -149,9 +149,7 @@ impl Default for AppSys {
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
 /// swap. In testing, it seems to keep up fine.
-pub static mut ADC_BUFFER1: [u16; 128] = [0; 128];
-pub static mut ADC_BUFFER2: [u16; 128] = [0; 128];
-pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
+pub const BUF_LEN: usize = 128;
 
 impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// Create a new `Adc` application interface.
@@ -163,7 +161,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     pub fn new(
         adc: &'a A,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
-        channels: &'a [&'a <A as hil::adc::Adc>::Channel],
+        channels: &'a [<A as hil::adc::Adc>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
         adc_buf3: &'static mut [u16; 128],
@@ -257,7 +255,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // save state for callback
         self.active.set(true);
@@ -291,7 +289,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // save state for callback
         self.active.set(true);
@@ -328,7 +326,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // cannot sample a buffer without a buffer to sample into
         let mut app_buf_length = 0;
@@ -387,7 +385,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
                                 self.adc
-                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -450,7 +448,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // cannot continuously sample without two buffers
         let mut app_buf_length = 0;
@@ -529,7 +527,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 // begin sampling
                                 app.using_app_buf0.set(true);
                                 self.adc
-                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again

@@ -476,7 +476,7 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(nrf52833::adc::Adc));
+        .finalize(components::adc_mux_component_static!(nrf52833::adc::Adc));
 
     // Comment out the following to use P0, P1 and P2 as GPIO
     let adc_syscall =
@@ -487,45 +487,42 @@ pub unsafe fn main() {
                     &adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
                 )
-                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
                 // ADC Ring 1 (P1)
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
                 // ADC Ring 2 (P2)
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_component_helper!(nrf52833::adc::Adc))
+                .finalize(components::adc_component_static!(nrf52833::adc::Adc))
             ));
 
     // Microphone
 
-    let adc_microphone = components::adc_microphone::AdcMicrophoneComponent::new().finalize(
-        components::adc_microphone_component_helper!(
-            // adc
-            nrf52833::adc::Adc,
-            // adc channel
-            nrf52833::adc::AdcChannelSetup::setup(
-                nrf52833::adc::AdcChannel::AnalogInput3,
-                nrf52833::adc::AdcChannelGain::Gain4,
-                nrf52833::adc::AdcChannelResistor::Bypass,
-                nrf52833::adc::AdcChannelResistor::Pulldown,
-                nrf52833::adc::AdcChannelSamplingTime::us3
-            ),
-            // adc mux
-            adc_mux,
-            // buffer size
-            50,
-            // gpio
-            nrf52833::gpio::GPIOPin,
-            // optional gpio pin
-            Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN])
+    let adc_microphone = components::adc_microphone::AdcMicrophoneComponent::new(
+        adc_mux,
+        nrf52833::adc::AdcChannelSetup::setup(
+            nrf52833::adc::AdcChannel::AnalogInput3,
+            nrf52833::adc::AdcChannelGain::Gain4,
+            nrf52833::adc::AdcChannelResistor::Bypass,
+            nrf52833::adc::AdcChannelResistor::Pulldown,
+            nrf52833::adc::AdcChannelSamplingTime::us3,
         ),
-    );
+        Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN]),
+    )
+    .finalize(components::adc_microphone_component_static!(
+        // adc
+        nrf52833::adc::Adc,
+        // buffer size
+        50,
+        // gpio
+        nrf52833::gpio::GPIOPin
+    ));
 
     let _ = &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 

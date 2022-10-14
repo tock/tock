@@ -23,7 +23,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
-use sam4l::adc::Channel;
 use sam4l::chip::Sam4lDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -420,40 +419,21 @@ pub unsafe fn main() {
     let adc_channels = static_init!(
         [sam4l::adc::AdcChannel; 6],
         [
-            sam4l::adc::AdcChannel::new(Channel::AD0), // A0
-            sam4l::adc::AdcChannel::new(Channel::AD1), // A1
-            sam4l::adc::AdcChannel::new(Channel::AD3), // A2
-            sam4l::adc::AdcChannel::new(Channel::AD4), // A3
-            sam4l::adc::AdcChannel::new(Channel::AD5), // A4
-            sam4l::adc::AdcChannel::new(Channel::AD6), // A5
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD0), // A0
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD1), // A1
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD3), // A2
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD4), // A3
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD5), // A4
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD6), // A5
         ]
     );
-    // Capsule expects references inside array bc it was built assuming model in which
-    // global structs are used, so this is a bit of a hack to pass it what it wants.
-    let ref_channels = static_init!(
-        [&sam4l::adc::AdcChannel; 6],
-        [
-            &adc_channels[0],
-            &adc_channels[1],
-            &adc_channels[2],
-            &adc_channels[3],
-            &adc_channels[4],
-            &adc_channels[5],
-        ]
-    );
-    let adc = static_init!(
-        capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-        capsules::adc::AdcDedicated::new(
-            &peripherals.adc,
-            board_kernel.create_grant(capsules::adc::DRIVER_NUM, &memory_allocation_capability),
-            ref_channels,
-            &mut capsules::adc::ADC_BUFFER1,
-            &mut capsules::adc::ADC_BUFFER2,
-            &mut capsules::adc::ADC_BUFFER3
-        )
-    );
-    hil::adc::Adc::set_client(&peripherals.adc, adc);
-    hil::adc::AdcHighSpeed::set_highspeed_client(&peripherals.adc, adc);
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
 
     // Setup RNG
     let rng = components::rng::RngComponent::new(
