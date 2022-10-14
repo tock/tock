@@ -14,7 +14,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::buzzer::Buzzer;
-use kernel::hil::gpio::Interrupt;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::symmetric_encryption::AES128;
@@ -584,33 +583,18 @@ pub unsafe fn main() {
     );
     base_peripherals.twi1.set_master_client(sensors_i2c_bus);
 
-    let apds9960_i2c = static_init!(
-        capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
-    );
-
-    let apds9960 = static_init!(
-        capsules::apds9960::APDS9960<'static>,
-        capsules::apds9960::APDS9960::new(
-            apds9960_i2c,
-            &nrf52840_peripherals.gpio_port[APDS9960_PIN],
-            &mut capsules::apds9960::BUFFER
-        )
-    );
-    apds9960_i2c.set_client(apds9960);
-    nrf52840_peripherals.gpio_port[APDS9960_PIN].set_client(apds9960);
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-    let proximity = static_init!(
-        capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(
-            apds9960,
-            board_kernel.create_grant(capsules::proximity::DRIVER_NUM, &grant_cap)
-        )
-    );
-
-    kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+    let apds9960 = components::apds9960::Apds9960Component::new(
+        sensors_i2c_bus,
+        0x39,
+        &nrf52840_peripherals.gpio_port[APDS9960_PIN],
+    )
+    .finalize(components::apds9960_component_static!());
+    let proximity = components::proximity::ProximityComponent::new(
+        apds9960,
+        board_kernel,
+        capsules::proximity::DRIVER_NUM,
+    )
+    .finalize(components::proximity_component_static!());
 
     let sht3x = components::sht3x::SHT3xComponent::new(
         sensors_i2c_bus,

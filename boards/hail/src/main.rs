@@ -9,14 +9,10 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_i2c::MuxI2C;
-use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -56,7 +52,7 @@ struct Hail {
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -64,7 +60,7 @@ struct Hail {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     spi: &'static capsules::spi_controller::Spi<
         'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
@@ -330,11 +326,9 @@ pub unsafe fn main() {
     )
     .finalize(components::nrf51822_component_static!());
 
-    let sensors_i2c = static_init!(
-        MuxI2C<'static>,
-        MuxI2C::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-    );
-    peripherals.i2c1.set_master_client(sensors_i2c);
+    let sensors_i2c =
+        components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
+            .finalize(components::i2c_mux_component_static!());
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
@@ -466,10 +460,8 @@ pub unsafe fn main() {
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     // DAC
-    let dac = static_init!(
-        capsules::dac::Dac<'static>,
-        capsules::dac::Dac::new(&peripherals.dac)
-    );
+    let dac = components::dac::DacComponent::new(&peripherals.dac)
+        .finalize(components::dac_component_static!());
 
     // // DEBUG Restart All Apps
     // //

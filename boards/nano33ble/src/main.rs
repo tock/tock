@@ -12,7 +12,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
-use kernel::hil::gpio::Interrupt;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
@@ -483,33 +482,18 @@ pub unsafe fn main() {
     let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
     let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
-    let apds9960_i2c = static_init!(
-        capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
-    );
-
-    let apds9960 = static_init!(
-        capsules::apds9960::APDS9960<'static>,
-        capsules::apds9960::APDS9960::new(
-            apds9960_i2c,
-            &nrf52840_peripherals.gpio_port[APDS9960_PIN],
-            &mut capsules::apds9960::BUFFER
-        )
-    );
-    apds9960_i2c.set_client(apds9960);
-    nrf52840_peripherals.gpio_port[APDS9960_PIN].set_client(apds9960);
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-    let proximity = static_init!(
-        capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(
-            apds9960,
-            board_kernel.create_grant(capsules::proximity::DRIVER_NUM, &grant_cap)
-        )
-    );
-
-    kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
+    let apds9960 = components::apds9960::Apds9960Component::new(
+        sensors_i2c_bus,
+        0x39,
+        &nrf52840_peripherals.gpio_port[APDS9960_PIN],
+    )
+    .finalize(components::apds9960_component_static!());
+    let proximity = components::proximity::ProximityComponent::new(
+        apds9960,
+        board_kernel,
+        capsules::proximity::DRIVER_NUM,
+    )
+    .finalize(components::proximity_component_static!());
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
         .finalize(components::hts221_component_static!());

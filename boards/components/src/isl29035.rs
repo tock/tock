@@ -41,7 +41,10 @@ macro_rules! isl29035_component_static {
         let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
         let i2c_buffer = kernel::static_buf!([u8; capsules::isl29035::BUF_LEN]);
         let isl29035 = kernel::static_buf!(
-            capsules::isl29035::Isl29035<'static, VirtualMuxAlarm<'static, $A>>
+            capsules::isl29035::Isl29035<
+                'static,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            >
         );
 
         (alarm, i2c_device, i2c_buffer, isl29035)
