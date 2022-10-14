@@ -17,6 +17,7 @@ use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
 use capsules::virtual_spi::VirtualSpiMasterDevice;
+
 //use capsules::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -733,8 +734,9 @@ pub unsafe fn main() {
 
     //test::sha256_test::run_sha256(dynamic_deferred_caller);
 
-    /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
-    .finalize(components::multi_alarm_test_component_buf!(sam4l::ast::Ast))
+    /*let buf = components::multi_alarm_test_component_buf!(sam4l::ast::Ast<'static>);
+    components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
+    .finalize(buf)
     .run();*/
 
     debug!("Initialization complete. Entering main loop");
