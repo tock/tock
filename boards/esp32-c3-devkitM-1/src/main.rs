@@ -190,7 +190,8 @@ unsafe fn setup() -> (
             4 => &peripherals.gpio[4],
             5 => &peripherals.gpio[5],
             6 => &peripherals.gpio[6],
-            7 => &peripherals.gpio[15]
+            7 => &peripherals.gpio[7],
+            8 => &peripherals.gpio[15]
         ),
     )
     .finalize(components::gpio_component_static!(esp32::gpio::GpioPin));
