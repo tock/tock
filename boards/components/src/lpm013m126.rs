@@ -176,7 +176,7 @@ where
         VirtualSpiMasterDevice<'static, S>,
     >;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let lpm013m126_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         lpm013m126_alarm.setup();
 

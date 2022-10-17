@@ -35,7 +35,7 @@ impl Component for PriorityComponent {
     type StaticInput = &'static mut MaybeUninit<PrioritySched>;
     type Output = &'static mut PrioritySched;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         static_buffer.write(PrioritySched::new(self.board_kernel))
     }
 }

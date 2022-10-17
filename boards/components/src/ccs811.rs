@@ -65,7 +65,7 @@ impl Component for Ccs811Component {
     );
     type Output = &'static Ccs811<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let ccs811_i2c = static_buffer
             .0
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));

@@ -65,7 +65,7 @@ impl<U: UsbController<'static> + 'static> Component for UsbComponent<U> {
         capsules::usb::usbc_client::Client<'static, U>,
     >;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         // Configure the USB controller

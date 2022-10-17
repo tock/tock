@@ -51,7 +51,7 @@ impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
     type StaticInput = &'static mut MaybeUninit<MuxFlash<'static, F>>;
     type Output = &'static MuxFlash<'static, F>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let mux_flash = s.write(MuxFlash::new(self.flash));
         HasClient::set_client(self.flash, mux_flash);
 
@@ -75,7 +75,7 @@ impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
     type StaticInput = &'static mut MaybeUninit<FlashUser<'static, F>>;
     type Output = &'static FlashUser<'static, F>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(FlashUser::new(self.mux_flash))
     }
 }

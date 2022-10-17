@@ -58,7 +58,7 @@ impl<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> Component
     );
     type Output = &'static mut MLFQSched<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         scheduler_alarm.setup();
 

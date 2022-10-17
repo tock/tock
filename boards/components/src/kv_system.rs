@@ -72,7 +72,7 @@ impl<K: 'static + KVSystem<'static> + KVSystem<'static, K = T>, T: 'static + Key
     type StaticInput = &'static mut MaybeUninit<MuxKVStore<'static, K, T>>;
     type Output = &'static MuxKVStore<'static, K, T>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(MuxKVStore::new(self.kv))
     }
 }
@@ -109,7 +109,7 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType + Default> Comp
     );
     type Output = &'static KVStore<'static, K, T>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let key_buf = static_buffer.1.write(T::default());
         let buffer = static_buffer.2.write([0; 9]);
         static_buffer
@@ -160,7 +160,7 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
     );
     type Output = &'static KVSystemDriver<'static, K, T>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let data_buffer = static_buffer.1.write([0; 32]);

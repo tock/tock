@@ -68,7 +68,7 @@ impl Component for LowLevelDebugComponent {
     );
     type Output = &'static LowLevelDebug<'static, UartDevice<'static>>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let lldb_uart = s.0.write(UartDevice::new(self.uart_mux, true));

@@ -74,7 +74,7 @@ impl Component for Lsm303dlhcI2CComponent {
     );
     type Output = &'static Lsm303dlhcI2C<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap =
             kernel::create_capability!(kernel::capabilities::MemoryAllocationCapability);
 

@@ -195,7 +195,7 @@ impl<
     );
     type Output = &'static LedMatrixDriver<'static, L, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let led_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         led_alarm.setup();
 

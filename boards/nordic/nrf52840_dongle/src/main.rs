@@ -301,7 +301,9 @@ pub unsafe fn main() {
         mux_alarm,
         &base_peripherals.uarte0,
     )
-    .finalize(());
+    .finalize(nrf52_components::uart_channel_component_static!(
+        nrf52840::rtc::Rtc
+    ));
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 3], Default::default());

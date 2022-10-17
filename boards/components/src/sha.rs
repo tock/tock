@@ -52,7 +52,7 @@ impl<
     type StaticInput = &'static mut MaybeUninit<MuxSha<'static, A, L>>;
     type Output = &'static MuxSha<'static, A, L>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(MuxSha::new(self.sha))
     }
 }
@@ -115,7 +115,7 @@ impl<
 
     type Output = &'static ShaDriver<'static, VirtualMuxSha<'static, A, L>, L>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let virtual_sha_user = s.0.write(VirtualMuxSha::new(self.mux_sha));

@@ -3,8 +3,10 @@
 //! and UartChannelComponent, as well as two helper structs for
 //! intializing Uart on Nordic boards.
 
-use capsules::virtual_alarm::MuxAlarm;
+use capsules::segger_rtt::SeggerRtt;
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use components;
+use core::mem::MaybeUninit;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
@@ -35,7 +37,7 @@ impl<'a> NrfStartupComponent<'a> {
 impl<'a> Component for NrfStartupComponent<'a> {
     type StaticInput = ();
     type Output = ();
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // Make non-volatile memory writable and activate the reset button
         let uicr = nrf52::uicr::Uicr::new();
 
@@ -96,7 +98,9 @@ impl<'a> Component for NrfStartupComponent<'a> {
 
         // Any modification of UICR needs a soft reset for the changes to be taken into account.
         if needs_soft_reset {
-            cortexm4::scb::reset();
+            unsafe {
+                cortexm4::scb::reset();
+            }
         }
     }
 }
@@ -114,7 +118,7 @@ impl<'a> NrfClockComponent<'a> {
 impl<'a> Component for NrfClockComponent<'a> {
     type StaticInput = ();
     type Output = ();
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, _s: Self::StaticInput) -> Self::Output {
         // Start all of the clocks. Low power operation will require a better
         // approach than this.
         self.clock.low_stop();
@@ -127,6 +131,13 @@ impl<'a> Component for NrfClockComponent<'a> {
         while !self.clock.low_started() {}
         while !self.clock.high_started() {}
     }
+}
+
+#[macro_export]
+macro_rules! uart_channel_component_static {
+    ($A:ty $(,)?) => {{
+        components::segger_rtt_component_static!($A)
+    };};
 }
 
 /// Pins for the UART
@@ -172,24 +183,31 @@ impl UartChannelComponent {
 }
 
 impl Component for UartChannelComponent {
-    type StaticInput = ();
+    type StaticInput = (
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+        &'static mut MaybeUninit<
+            SeggerRtt<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+        >,
+    );
     type Output = &'static dyn kernel::hil::uart::Uart<'static>;
 
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         match self.uart_channel {
             UartChannel::Pins(uart_pins) => {
-                self.uarte0.initialize(
-                    nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
-                    nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-                    uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                    uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                );
+                unsafe {
+                    self.uarte0.initialize(
+                        nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
+                        nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
+                        uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                        uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+                    )
+                };
                 self.uarte0
             }
             UartChannel::Rtt(rtt_memory) => {
                 let rtt =
                     components::segger_rtt::SeggerRttComponent::new(self.mux_alarm, rtt_memory)
-                        .finalize(components::segger_rtt_component_static!(nrf52::rtc::Rtc));
+                        .finalize(s);
                 rtt
             }
         }

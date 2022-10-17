@@ -139,7 +139,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for GpioComponent<IP> 
     type StaticInput = &'static mut MaybeUninit<GPIO<'static, IP>>;
     type Output = &'static GPIO<'static, IP>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let gpio = static_buffer.write(GPIO::new(
             self.gpio_pins,

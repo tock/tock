@@ -73,7 +73,7 @@ impl Component for TouchComponent {
     type StaticInput = &'static mut MaybeUninit<Touch<'static>>;
     type Output = &'static capsules::touch::Touch<'static>;
 
-    unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
@@ -123,7 +123,7 @@ impl Component for MultiTouchComponent {
     type StaticInput = &'static mut MaybeUninit<Touch<'static>>;
     type Output = &'static capsules::touch::Touch<'static>;
 
-    unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

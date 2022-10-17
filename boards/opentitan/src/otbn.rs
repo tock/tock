@@ -46,7 +46,7 @@ impl Component for AccelMuxComponent {
     type StaticInput = &'static mut MaybeUninit<MuxAccel<'static>>;
     type Output = &'static MuxAccel<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(MuxAccel::new(self.otbn))
     }
 }
@@ -66,7 +66,7 @@ impl Component for OtbnComponent {
 
     type Output = &'static VirtualMuxAccel<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let virtual_otbn_user = s.write(VirtualMuxAccel::new(self.mux_otbn));
 
         virtual_otbn_user

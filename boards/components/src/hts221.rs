@@ -48,7 +48,7 @@ impl Component for Hts221Component {
     );
     type Output = &'static Hts221<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let hts221_i2c = static_buffer
             .0
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));

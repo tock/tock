@@ -48,7 +48,7 @@ impl<A: 'static + adc::Adc> Component for TemperatureRp2040Component<A> {
     );
     type Output = &'static TemperatureRp2040<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let adc_device =
             crate::adc::AdcComponent::new(self.adc_mux, self.adc_channel).finalize(s.0);
 

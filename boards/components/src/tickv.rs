@@ -107,7 +107,7 @@ impl<
     );
     type Output = &'static TicKVStore<'static, FlashUser<'static, F>, H>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let _grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let virtual_flash = static_buffer.0.write(FlashUser::new(self.mux_flash));

@@ -216,7 +216,7 @@ impl<A: Alarm<'static> + 'static> Component for UDPMuxComponent<A> {
         &'static UdpPortManager,
     );
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let ipsender_virtual_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         ipsender_virtual_alarm.setup();
 

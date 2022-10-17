@@ -70,7 +70,7 @@ impl<S: SpiMaster + 'static> Component for RF233Component<S> {
     type StaticInput = &'static mut MaybeUninit<RF233<'static, VirtualSpiMasterDevice<'static, S>>>;
     type Output = &'static RF233<'static, VirtualSpiMasterDevice<'static, S>>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rf233 = s.write(RF233::new(
             self.spi,
             self.reset,

@@ -33,7 +33,7 @@ impl Component for DacComponent {
     type StaticInput = &'static mut MaybeUninit<Dac<'static>>;
     type Output = &'static Dac<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(Dac::new(self.dac))
     }
 }

@@ -113,7 +113,7 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
     );
     type Output = &'static capsules::net::udp::UDPDriver<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         // TODO: change initialization below
         let create_cap = create_capability!(NetworkCapabilityCreationCapability);

@@ -29,7 +29,7 @@ impl Component for ProcessPrinterTextComponent {
     type StaticInput = &'static mut MaybeUninit<kernel::process::ProcessPrinterText>;
     type Output = &'static kernel::process::ProcessPrinterText;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         static_buffer.write(kernel::process::ProcessPrinterText::new())
     }
 }

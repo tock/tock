@@ -45,7 +45,7 @@ impl<T: 'static + hil::sensors::AirQualityDriver<'static>> Component for AirQual
     type StaticInput = &'static mut MaybeUninit<AirQualitySensor<'static>>;
     type Output = &'static AirQualitySensor<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let air_quality = s.write(AirQualitySensor::new(

@@ -53,7 +53,7 @@ impl Component for NineDofComponent {
     );
     type Output = &'static capsules::ninedof::NineDof<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_ninedof = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

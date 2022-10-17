@@ -65,7 +65,7 @@ impl Component for Ltc294xComponent {
     );
     type Output = &'static LTC294X<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let ltc294x_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
 
         let buffer = s.2.write([0; capsules::ltc294x::BUF_LEN]);
@@ -105,7 +105,7 @@ impl Component for Ltc294xDriverComponent {
     type StaticInput = &'static mut MaybeUninit<LTC294XDriver<'static>>;
     type Output = &'static LTC294XDriver<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

@@ -45,7 +45,7 @@ impl<S: 'static + hil::sensors::SoundPressure<'static>> Component for SoundPress
     type StaticInput = &'static mut MaybeUninit<SoundPressureSensor<'static>>;
     type Output = &'static SoundPressureSensor<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let sound_pressure = s.write(SoundPressureSensor::new(
