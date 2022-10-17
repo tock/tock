@@ -1,4 +1,4 @@
-//! Component for Can syscall interface.
+//! Component for CAN syscall interface.
 //!
 //! This provides one Component, `CanComponent`, which implements a
 //! userspace syscall interface to the Can peripheral.
@@ -14,6 +14,8 @@
 //!     stm32f429zi::can::Can<'static>
 //! ));
 //! ```
+//!
+//! Author: Teona Severin <teona.severin@oxidos.io>
 
 use capsules::can::CanCapsule;
 use core::mem::MaybeUninit;

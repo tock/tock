@@ -58,6 +58,13 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
         }
     }
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        self.stm32f4.service_deferred_call(task)
+        match task {
+            // handle the Can deferred call task
+            DeferredCallTask::Can => {
+                self.can1.handle_deferred_task();
+                true
+            }
+            _ => self.stm32f4.service_deferred_call(task),
+        }
     }
 }

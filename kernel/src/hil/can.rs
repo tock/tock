@@ -1,8 +1,37 @@
-/*
- * (C) Copyright 2022 OxidOS Automotive SRL
- */
-
 //! Interface for CAN peripherals.
+//!
+//! Defines multiple traits for different purposes.
+//!
+//! The `Configure` trait is used to configure the communication
+//! mode and bit timing parameters of the CAN peripheral. The
+//! `ConfigureFd` trait is an advanced feature that can be implemented
+//! for peripherals that support flexible data messages. These
+//! 2 traits represent synchronous actions and do not need a client
+//! in order to confirm to the capsule that the action is finished.
+//!
+//! The `Controller` trait is used to enable and disable the device.
+//! In order to be able to enable the device, the bit timing parameters
+//! and the communication mode must be previously set, and in order
+//! to disable the device, it must be enabled. This trait defines
+//! asynchronous behaviours and because of that, the `ControllerClient`
+//! trait is used to confirm to the capsule that the action is finished.
+//!
+//! The `Filter` trait is used to configure filter banks for receiving
+//! messages. The action is synchronous.
+//!
+//! The `Transmit` trait is used to asynchronously send a message on
+//! the CAN bus. The device must be previously enabled. The
+//! `TransmitClient` trait is used to notify the capsule when the
+//! transmission is done or when there was en error captured during
+//! the transmission.
+//!
+//! The `Receive` trait is used to asynchronously receive messages on
+//! the CAN bus. The `ReceiveClient` trait is used to notify the capsule
+//! when a message was received, when the receiving process was aborted
+//! and anytime an error occurs.
+//!
+//! Author: Teona Severin <teona.severin@oxidos.io>
+
 use crate::ErrorCode;
 use core::cmp;
 
@@ -703,7 +732,7 @@ pub trait ControllerClient {
     ///     * `Ok()` - The peripheral has been successfully enabled; the
     ///                actual state is transmitted via `state_changed` callback
     ///     * `Err(ErrorCode)` - The error that occurred during the enable process
-    fn enabled(&self, status: Result<State, ErrorCode>);
+    fn enabled(&self, status: Result<(), ErrorCode>);
 
     /// The driver calls this function when the peripheral has been successfully
     /// disabled. The driver must call this function and `state_changed` also,

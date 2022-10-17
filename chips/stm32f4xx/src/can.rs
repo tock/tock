@@ -1,5 +1,12 @@
+//! Low-level CAN driver for STM32F4XX chips
+//!
+//!
+//! Author: Teona Severin <teona.severin@oxidos.io>
+
+use crate::deferred_calls::DeferredCallTask;
 use crate::rcc;
 use core::cell::Cell;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil::can::{self, StandardBitTiming};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -376,12 +383,24 @@ register_bitfields![u32,
     ]
 ];
 
+static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
+    unsafe { DeferredCall::new(DeferredCallTask::Can) };
+
 #[derive(Copy, Clone, PartialEq)]
 enum CanState {
     Initialization,
     Normal,
     Sleep,
     RunningError(can::Error),
+}
+
+// The 4 possbile actions that the deferred call task can do.
+#[derive(Copy, Clone, PartialEq)]
+enum AsyncAction {
+    Enable,
+    AbortReceive,
+    Disabled,
+    EnableError(kernel::ErrorCode),
 }
 
 #[repr(u32)]
@@ -445,6 +464,9 @@ pub struct Can<'a> {
     // buffers for transmission and reception
     rx_buffer: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
     tx_buffer: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
+
+    // deferred call task action
+    deferred_action: OptionalCell<AsyncAction>,
 }
 
 impl<'a> Can<'a> {
@@ -469,6 +491,7 @@ impl<'a> Can<'a> {
             transmit_client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
+            deferred_action: OptionalCell::empty(),
         }
     }
 
@@ -476,7 +499,7 @@ impl<'a> Can<'a> {
     /// received as an argument returns a true value for `times` times.
     ///
     /// Usage: check is the INAK bit in the CAN_MSR is set for 200_000 times.
-    /// ```rust
+    /// ```ignore
     ///    Can::wait_for(200_000, || self.registers.can_msr.is_set(CAN_MSR::INAK))
     /// ```
     fn wait_for(times: usize, f: impl Fn() -> bool) -> bool {
@@ -652,6 +675,7 @@ impl<'a> Can<'a> {
 
     pub fn enter_sleep_mode(&self) {
         // request to enter sleep mode by setting SLEEP bit
+        self.disable_irqs();
         self.registers.can_mcr.modify(CAN_MCR::SLEEP::SET);
         self.can_state.set(CanState::Sleep);
     }
@@ -976,6 +1000,45 @@ impl<'a> Can<'a> {
         }
     }
 
+    pub fn handle_deferred_task(&self) {
+        match self.deferred_action.take() {
+            Some(action) => match action {
+                AsyncAction::Enable => {
+                    if let Err(enable_err) = self.enter_normal_mode() {
+                        self.controller_client.map(|controller_client| {
+                            controller_client.state_changed(self.can_state.get().into());
+                            controller_client.enabled(Err(enable_err));
+                        });
+                    }
+                    self.controller_client.map(|controller_client| {
+                        controller_client.state_changed(can::State::Running);
+                        controller_client.enabled(Ok(()));
+                    });
+                }
+                AsyncAction::AbortReceive => {
+                    if let Some(rx) = self.rx_buffer.take() {
+                        self.receive_client
+                            .map(|receive_client| receive_client.stopped(rx));
+                    }
+                }
+                AsyncAction::Disabled => {
+                    self.controller_client.map(|controller_client| {
+                        controller_client.state_changed(self.can_state.get().into());
+                        controller_client.disabled(Ok(()));
+                    });
+                }
+                AsyncAction::EnableError(err) => {
+                    self.controller_client.map(|controller_client| {
+                        controller_client.state_changed(self.can_state.get().into());
+                        controller_client.enabled(Err(err));
+                    });
+                }
+            },
+            // todo no action set
+            None => todo!(),
+        }
+    }
+
     pub fn enable_irq(&self, interrupt: CanInterruptMode) {
         match interrupt {
             CanInterruptMode::TransmitInterrupt => {
@@ -1177,27 +1240,27 @@ impl<'a> can::Controller for Can<'_> {
                 if self.bit_timing.is_none() || self.operating_mode.is_none() {
                     Err(kernel::ErrorCode::INVAL)
                 } else {
-                    if let Err(err) = self.enable() {
-                        self.controller_client.map(|controller_client| {
-                            controller_client.state_changed(self.can_state.get().into());
-                            controller_client.enabled(Err(err));
-                        });
-                        Err(err)
+                    let r = self.enable();
+                    // there is another deferred action that must be completed
+                    if self.deferred_action.is_some() {
+                        Err(kernel::ErrorCode::BUSY)
                     } else {
-                        if let Err(enable_err) = self.enter_normal_mode() {
-                            return Err(enable_err);
-                        };
-                        self.controller_client.map(|controller_client| {
-                            controller_client.state_changed(can::State::Running);
-                            controller_client.enabled(Ok(can::State::Running));
-                        });
-                        Ok(())
+                        // set an Enable or an EnableError deferred action
+                        match r {
+                            Ok(_) => {
+                                self.deferred_action.set(AsyncAction::Enable);
+                            }
+                            Err(err) => {
+                                self.deferred_action.set(AsyncAction::EnableError(err));
+                            }
+                        }
+                        DEFERRED_CALL.set();
+                        r
                     }
                 }
             }
-            CanState::Normal | CanState::Initialization | CanState::RunningError(_) => {
-                Err(kernel::ErrorCode::BUSY)
-            }
+            CanState::Normal | CanState::Initialization => Err(kernel::ErrorCode::ALREADY),
+            CanState::RunningError(_) => Err(kernel::ErrorCode::FAIL),
         }
     }
 
@@ -1205,10 +1268,14 @@ impl<'a> can::Controller for Can<'_> {
         match self.can_state.get() {
             CanState::Normal | CanState::RunningError(_) => {
                 self.enter_sleep_mode();
-                self.controller_client.map(|controller_client| {
-                    controller_client.state_changed(self.can_state.get().into());
-                    controller_client.disabled(Ok(()));
-                });
+                if self.deferred_action.is_some() {
+                    // there is another deferred action that must be completed
+                    return Err(kernel::ErrorCode::BUSY);
+                } else {
+                    // set a Disable deferred action
+                    self.deferred_action.set(AsyncAction::Disabled);
+                    DEFERRED_CALL.set();
+                }
                 Ok(())
             }
             CanState::Sleep | CanState::Initialization => Err(kernel::ErrorCode::OFF),
@@ -1337,16 +1404,18 @@ impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
                 self.enable_filter_config();
                 self.disable_irq(CanInterruptMode::Fifo0Interrupt);
                 self.disable_irq(CanInterruptMode::Fifo1Interrupt);
-                match self.rx_buffer.take() {
-                    Some(rx) => {
-                        self.receive_client
-                            .map(|receive_client| receive_client.stopped(rx));
-                    }
-                    None => {
-                        return Err(kernel::ErrorCode::FAIL);
-                    }
+                // there is another deferred action that must be completed
+                if self.deferred_action.is_some() {
+                    Err(kernel::ErrorCode::BUSY)
+                // the chip does not own the buffer from the capsule
+                } else if self.rx_buffer.is_none() {
+                    Err(kernel::ErrorCode::SIZE)
+                } else {
+                    // set a AbortReceive deferred action
+                    self.deferred_action.set(AsyncAction::AbortReceive);
+                    DEFERRED_CALL.set();
+                    Ok(())
                 }
-                Ok(())
             }
             CanState::Sleep | CanState::Initialization => Err(kernel::ErrorCode::OFF),
         }
