@@ -10,19 +10,9 @@ use kernel::utilities::StaticRef;
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
 
-pub struct TransmitMailBox {
-    can_tir: ReadWrite<u32, CAN_TIxR::Register>,
-    can_tdtr: ReadWrite<u32, CAN_TDTxR::Register>,
-    can_tdlr: ReadWrite<u32, CAN_TDLxR::Register>,
-    can_tdhr: ReadWrite<u32, CAN_TDHxR::Register>,
-}
-
-pub struct ReceiveMailBox {
-    can_rir: ReadWrite<u32, CAN_RIxR::Register>,
-    can_rdtr: ReadWrite<u32, CAN_RDTxR::Register>,
-    can_rdlr: ReadWrite<u32, CAN_RDLxR::Register>,
-    can_rdhr: ReadWrite<u32, CAN_RDHxR::Register>,
-}
+pub const TX_MAILBOX_COUNT: usize = 3;
+pub const RX_MAILBOX_COUNT: usize = 2;
+pub const FILTER_COUNT: usize = 56;
 
 register_structs! {
     pub Registers {
@@ -48,9 +38,9 @@ register_structs! {
         /// CAN MAILBOX REGISTERS
         ///
         /// CAN TX mailbox identifier registers
-        (0x180 => can_tx_mailbox: [TransmitMailBox; 3]),
+        (0x180 => can_tx_mailbox: [TransmitMailBox; TX_MAILBOX_COUNT]),
         /// CAN RX mailbox identifier registers
-        (0x1b0 => can_rx_mailbox: [ReceiveMailBox; 2]),
+        (0x1b0 => can_rx_mailbox: [ReceiveMailBox; RX_MAILBOX_COUNT]),
         (0x1d0 => _reserved1),
         ///
         ///
@@ -72,8 +62,24 @@ register_structs! {
         (0x21c => can_fa1r: ReadWrite<u32, CAN_FA1R::Register>),
         (0x220 => _reserved5),
         /// Filter bank 0-27 for register 1-2
-        (0x240 => can_firx: [ReadWrite<u32, CAN_FiRx::Register>; 56]),
+        (0x240 => can_firx: [ReadWrite<u32, CAN_FiRx::Register>; FILTER_COUNT]),
         (0x320 => @END),
+    },
+
+    TransmitMailBox {
+        (0x00 => can_tir: ReadWrite<u32, CAN_TIxR::Register>),
+        (0x04 => can_tdtr: ReadWrite<u32, CAN_TDTxR::Register>),
+        (0x08 => can_tdlr: ReadWrite<u32, CAN_TDLxR::Register>),
+        (0x0c => can_tdhr: ReadWrite<u32, CAN_TDHxR::Register>),
+        (0x010 => @END),
+    },
+
+    ReceiveMailBox {
+        (0x00 => can_rir: ReadWrite<u32, CAN_RIxR::Register>),
+        (0x04 => can_rdtr: ReadWrite<u32, CAN_RDTxR::Register>),
+        (0x08 => can_rdlr: ReadWrite<u32, CAN_RDLxR::Register>),
+        (0x0c => can_rdhr: ReadWrite<u32, CAN_RDHxR::Register>),
+        (0x010 => @END),
     }
 }
 
@@ -378,47 +384,22 @@ enum CanState {
     RunningError(can::Error),
 }
 
-#[allow(dead_code)]
 #[repr(u32)]
 enum BitSegment1 {
-    CanBtrTs1_1tq = 0b0000,
-    CanBtrTs1_2tq = 0b0001,
-    CanBtrTs1_3tq = 0b0010,
-    CanBtrTs1_4tq = 0b0011,
-    CanBtrTs1_5tq = 0b0100,
-    CanBtrTs1_6tq = 0b0101,
-    CanBtrTs1_7tq = 0b0110,
-    CanBtrTs1_8tq = 0b0111,
-    CanBtrTs1_9tq = 0b1000,
-    CanBtrTs1_10tq = 0b1001,
-    CanBtrTs1_11tq = 0b1010,
-    CanBtrTs1_12tq = 0b1011,
-    CanBtrTs1_13tq = 0b1100,
-    CanBtrTs1_14tq = 0b1101,
-    CanBtrTs1_15tq = 0b1110,
-    CanBtrTs1_16tq = 0b1111,
+    CanBtrTs1Min = 0b0000,
+    CanBtrTs1Max = 0b1111,
 }
 
-#[allow(dead_code)]
 #[repr(u32)]
 enum BitSegment2 {
-    CanBtrTs2_1tq = 0b0000,
-    CanBtrTs2_2tq = 0b0001,
-    CanBtrTs2_3tq = 0b0010,
-    CanBtrTs2_4tq = 0b0011,
-    CanBtrTs2_5tq = 0b0100,
-    CanBtrTs2_6tq = 0b0101,
-    CanBtrTs2_7tq = 0b0110,
-    CanBtrTs2_8tq = 0b0111,
+    CanBtrTs2Min = 0b0000,
+    CanBtrTs2Max = 0b0111,
 }
 
-#[allow(dead_code)]
 #[repr(u32)]
 enum SynchronizationJumpWidth {
-    CanBtrSjw1tq = 0b00,
-    CanBtrSjw2tq = 0b01,
-    CanBtrSjw3tq = 0b10,
-    CanBtrSjw4tq = 0b11,
+    CanBtrSjwMin = 0b00,
+    CanBtrSjwMax = 0b11,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -518,7 +499,7 @@ impl<'a> Can<'a> {
         self.registers.can_mcr.modify(CAN_MCR::INRQ::SET);
 
         // After requesting to enter the initialization mode, the driver
-        // must wait for ACK from the peripheral - the INAK bit to be set 
+        // must wait for ACK from the peripheral - the INAK bit to be set
         // (as explained in RM0090 Reference Manual, Chapter 32.4.1).
         // This is done by checking the INAK bit 20_000 times or until it is set.
         if !Can::wait_for(20000, || self.registers.can_msr.is_set(CAN_MSR::INAK)) {
@@ -528,12 +509,12 @@ impl<'a> Can<'a> {
         self.can_state.set(CanState::Initialization);
 
         // After requesting to enter the initialization mode, the driver
-        // must wait for ACK from the peripheral - the SLAK bit to be cleared 
+        // must wait for ACK from the peripheral - the SLAK bit to be cleared
         // (as explained in RM0090 Reference Manual, Chapter 32.4, Figure 336).
         // This is done by checking the SLAK bit 20_000 times or until it is cleared.
         if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::SLAK)) {
             return Err(kernel::ErrorCode::FAIL);
-        }        
+        }
 
         // set communication mode
         self.registers.can_mcr.modify(CAN_MCR::TTCM::CLEAR);
@@ -657,7 +638,10 @@ impl<'a> Can<'a> {
         // request to enter normal mode by clearing INRQ bit
         self.registers.can_mcr.modify(CAN_MCR::INRQ::CLEAR);
 
-        // wait for INAK bit to be cleared
+        // After requesting to enter the normal mode, the driver
+        // must wait for ACK from the peripheral - the INAK bit to be cleared
+        // (as explained in RM0090 Reference Manual, Chapter 32.4.2).
+        // This is done by checking the INAK bit 20_000 times or until it is cleared.
         if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK)) {
             return Err(kernel::ErrorCode::FAIL);
         }
@@ -1079,18 +1063,18 @@ impl ClockInterface for CanClock<'_> {
 
 impl<'a> can::Configure for Can<'_> {
     const MIN_BIT_TIMINGS: can::BitTiming = can::BitTiming {
-        segment1: BitSegment1::CanBtrTs1_1tq as u8,
-        segment2: BitSegment2::CanBtrTs2_1tq as u8,
+        segment1: BitSegment1::CanBtrTs1Min as u8,
+        segment2: BitSegment2::CanBtrTs2Min as u8,
         propagation: 0,
-        sync_jump_width: SynchronizationJumpWidth::CanBtrSjw1tq as u32,
+        sync_jump_width: SynchronizationJumpWidth::CanBtrSjwMin as u32,
         baud_rate_prescaler: BRP_MIN_STM32,
     };
 
     const MAX_BIT_TIMINGS: can::BitTiming = can::BitTiming {
-        segment1: BitSegment1::CanBtrTs1_16tq as u8,
-        segment2: BitSegment2::CanBtrTs2_8tq as u8,
+        segment1: BitSegment1::CanBtrTs1Max as u8,
+        segment2: BitSegment2::CanBtrTs2Max as u8,
         propagation: 0,
-        sync_jump_width: SynchronizationJumpWidth::CanBtrSjw4tq as u32,
+        sync_jump_width: SynchronizationJumpWidth::CanBtrSjwMax as u32,
         baud_rate_prescaler: BRP_MAX_STM32,
     };
 

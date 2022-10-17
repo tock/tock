@@ -26,24 +26,21 @@
 //!
 //! You need a driver that implements the Can trait.
 //! ```rust
-//! # use kernel::static_init;
+//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_can = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+//! let can = static_buffer.0.write(capsules::can::CanCapsule::new(
+//!    self.can,
+//!    grant_can,
+//!    static_buffer.1,
+//!    static_buffer.2,
+//! ));
 //!
-//! let grant_can = board_kernel.create_grant(capsules::can::DRIVER_NUM, &grant_cap);
-//! let can_capsule = static_init!(
-//!     capsules::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
-//!    capsules::can::CanCapsule::new(
-//!         &peripherals.can1,
-//!         grant_can,
-//!         &mut capsules::can::CAN_TX_BUF,
-//!         &mut capsules::can::CAN_RX_BUF
-//!     ),
-//! );
-//!
-//! can::Controller::set_client(&peripherals.can1, Some(can_capsule));
-//! can::Transmit::set_client(&peripherals.can1, Some(can_capsule));
-//! can::Receive::set_client(&peripherals.can1, Some(can_capsule));
+//! kernel::hil::can::Controller::set_client(self.can, Some(can));
+//! kernel::hil::can::Transmit::set_client(self.can, Some(can));
+//! kernel::hil::can::Receive::set_client(self.can, Some(can));
 //! ```
 //!
+//! Author: Teona Severin <teona.severin@oxidos.io>
 
 use core::mem::size_of;
 
@@ -256,7 +253,8 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     self.processid.set(processid);
-                    self.wait_for_state_callback.set((can::State::Running, false));
+                    self.wait_for_state_callback
+                        .set((can::State::Running, false));
                     match self.can.enable() {
                         Ok(_) => CommandReturn::success(),
                         Err(err) => CommandReturn::failure(err),
@@ -270,7 +268,8 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     self.processid.set(processid);
-                    self.wait_for_state_callback.set((can::State::Disabled, false));
+                    self.wait_for_state_callback
+                        .set((can::State::Disabled, false));
                     match self.can.disable() {
                         Ok(_) => CommandReturn::success(),
                         Err(err) => CommandReturn::failure(err),
@@ -330,9 +329,12 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                                         |buffer_ref| {
                                             buffer_ref
                                                 .enter(|buffer| {
-                                                    // make sure that the receiving buffer can have at least 
-                                                    // 2 messages of 8 bytes each and 4 another bytes for the counter 
-                                                    if buffer.len() >= 2 * can::STANDARD_CAN_PACKET_SIZE + size_of::<u32>() {
+                                                    // make sure that the receiving buffer can have at least
+                                                    // 2 messages of 8 bytes each and 4 another bytes for the counter
+                                                    if buffer.len()
+                                                        >= 2 * can::STANDARD_CAN_PACKET_SIZE
+                                                            + size_of::<u32>()
+                                                    {
                                                         Ok(())
                                                     } else {
                                                         Err(ErrorCode::SIZE)
@@ -368,7 +370,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                     }
                 }
             }
-            
+
             // Set the timing parameters
             9 => {
                 match self.can.set_bit_timing(can::BitTiming {
@@ -413,19 +415,29 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
             Some(capsule_state) => {
                 // send an error upcall if the state is different
                 if self.error_occured.is_some() {
-                    self.schedule_callback(match capsule_state.0 {
-                        can::State::Disabled => up_calls::UPCALL_DISABLE,
-                        can::State::Running => up_calls::UPCALL_ENABLE,
-                        can::State::Error(_) => up_calls::UPCALL_TRANSMISSION_ERROR,
-                    }, (ErrorCode::FAIL as usize, error_upcalls::ERROR_DIFFERENT_STATE, 0));
+                    self.schedule_callback(
+                        match capsule_state.0 {
+                            can::State::Disabled => up_calls::UPCALL_DISABLE,
+                            can::State::Running => up_calls::UPCALL_ENABLE,
+                            can::State::Error(_) => up_calls::UPCALL_TRANSMISSION_ERROR,
+                        },
+                        (
+                            ErrorCode::FAIL as usize,
+                            error_upcalls::ERROR_DIFFERENT_STATE,
+                            0,
+                        ),
+                    );
                 } else {
                     // wait for the second callback
                     self.wait_for_state_callback.set(capsule_state);
                 }
-            },
+            }
             None => {
                 // the capsule should not receive this callback, send upcall
-                self.schedule_callback(up_calls::UPCALL_TRANSMISSION_ERROR, (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0));
+                self.schedule_callback(
+                    up_calls::UPCALL_TRANSMISSION_ERROR,
+                    (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0),
+                );
             }
         }
     }
@@ -471,8 +483,11 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
                     None => {
                         // the callback was called while the capsule was not expecting it
                         // send an error upcall to the user
-                        self.schedule_callback(up_calls::UPCALL_ENABLE, (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0));
-                    },
+                        self.schedule_callback(
+                            up_calls::UPCALL_ENABLE,
+                            (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0),
+                        );
+                    }
                 };
             }
             Err(err) => {
@@ -518,8 +533,11 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
                     },
                     // the capsule was not expecting this callback
                     None => {
-                        self.schedule_callback(up_calls::UPCALL_DISABLE, (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0));
-                    },
+                        self.schedule_callback(
+                            up_calls::UPCALL_DISABLE,
+                            (error_upcalls::ERROR_CHANGE_NOT_EXPECTED, 0, 0),
+                        );
+                    }
                 };
             }
             // send the error the capsule received to the user
@@ -544,7 +562,10 @@ impl<'a, Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>
         match status {
             Ok(()) => self.schedule_callback(up_calls::UPCALL_MESSAGE_SENT, (0, 0, 0)),
             Err(err) => {
-                self.schedule_callback(up_calls::UPCALL_TRANSMISSION_ERROR, (error_upcalls::ERROR_TX, err as usize, 0));
+                self.schedule_callback(
+                    up_calls::UPCALL_TRANSMISSION_ERROR,
+                    (error_upcalls::ERROR_TX, err as usize, 0),
+                );
             }
         }
     }
@@ -577,12 +598,23 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                         buffer_ref
                                             .mut_enter(|user_buffer| {
                                                 shared_len = user_buffer.len();
-                                                // copy buffer in the grant buffer
-                                                if user_buffer[0].get() == 0 {
+                                                // For now, the first 4 bytes (the size of u32) represent the number
+                                                // of messages that the user has not read yet, represented as Little Endian.
+                                                // When the userspace reads the buffer, the counter will be set
+                                                // to 0 so that the capsule knows. This will be changed after
+                                                // https://github.com/tock/tock/pull/3252 and
+                                                // https://github.com/tock/tock/pull/3258 are merged.
+                                                let mut tmp_buf: [u8; size_of::<u32>()] =
+                                                    [0; size_of::<u32>()];
+                                                user_buffer[0..size_of::<u32>()]
+                                                    .copy_to_slice(&mut tmp_buf);
+                                                let contor = u32::from_le_bytes(tmp_buf);
+                                                if contor == 0 {
                                                     new_buffer = true;
                                                     app_data.receive_index = size_of::<u32>();
                                                 }
-                                                user_buffer[0].set(user_buffer[0].get() + 1);
+                                                user_buffer[0..size_of::<u32>()]
+                                                    .copy_from_slice(&(contor + 1).to_le_bytes());
                                                 if app_data.receive_index + len > user_buffer.len()
                                                 {
                                                     app_data.lost_messages =
@@ -605,8 +637,10 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                         })
                         .unwrap_or_else(|err| err.into())
                 }) {
-                    Err(err) => self
-                        .schedule_callback(up_calls::UPCALL_TRANSMISSION_ERROR, (error_upcalls::ERROR_RX, err as usize, 0)),
+                    Err(err) => self.schedule_callback(
+                        up_calls::UPCALL_TRANSMISSION_ERROR,
+                        (error_upcalls::ERROR_RX, err as usize, 0),
+                    ),
                     Ok(_) => {
                         if new_buffer {
                             self.schedule_callback(
@@ -635,30 +669,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
     }
 
     fn stopped(&self, buffer: &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE]) {
-        match self.processid.map_or(Err(ErrorCode::NOMEM), |processid| {
-            self.processes
-                .enter(*processid, |_, kernel_data| {
-                    kernel_data
-                        .get_readwrite_processbuffer(0 as usize)
-                        .map_or_else(
-                            |err| err.into(),
-                            |buffer_ref| {
-                                buffer_ref
-                                    .mut_enter(|user_buffer| {
-                                        // copy buffer in the grant buffer
-                                        let len = user_buffer.len();
-                                        user_buffer[0..len].copy_from_slice_or_err(&buffer[0..len])
-                                    })
-                                    .unwrap_or_else(|err| err.into())
-                            },
-                        )
-                })
-                .unwrap_or_else(|err| err.into())
-        }) {
-            Err(err) => {
-                self.schedule_callback(up_calls::UPCALL_RECEIVED_STOPPED, (err as usize, 0, 0))
-            }
-            Ok(_) => self.schedule_callback(up_calls::UPCALL_RECEIVED_STOPPED, (0, 0, 0)),
-        }
+        self.can_rx.replace(buffer);
+        self.schedule_callback(up_calls::UPCALL_RECEIVED_STOPPED, (0, 0, 0));
     }
 }

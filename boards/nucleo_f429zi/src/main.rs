@@ -588,7 +588,7 @@ pub unsafe fn main() {
         capsules::can::DRIVER_NUM,
         &peripherals.can1,
     )
-    .finalize(components::can_component_helper!(
+    .finalize(components::can_component_static!(
         stm32f429zi::can::Can<'static>
     ));
 

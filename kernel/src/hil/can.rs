@@ -467,7 +467,7 @@ pub trait Configure {
 ///   `set_wake_up` to configure the behaviour of the peripheral
 /// - To apply the settings and be able to use the peripheral, call `enable`
 ///   (from the `Controller` trait)
-pub trait ConfigureFd {
+pub trait ConfigureFd: Configure {
     /// Configures the CAN FD peripheral with the given arguments. This function is
     /// supposed to be called before the `enable` function. This function is
     /// synchronous as the driver should only store the arguments, and should not
