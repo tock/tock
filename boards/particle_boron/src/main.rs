@@ -431,13 +431,16 @@ pub unsafe fn main() {
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio = nrf52_components::BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::ble_radio::Radio
+    ));
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
