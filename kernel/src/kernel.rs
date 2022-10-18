@@ -89,6 +89,7 @@ pub enum StoppedExecutingReason {
 
 /// Represents the different outcomes when trying to allocate a grant region
 enum AllocResult {
+    NoDevice,
     NoAllocation,
     NewAllocation,
     SameAllocation,
@@ -112,7 +113,7 @@ fn try_allocate_grant<KR: KernelResources<C>, C: Chip>(
                 true => AllocResult::NewAllocation,
                 false => AllocResult::NoAllocation,
             },
-            None => AllocResult::NoAllocation,
+            None => AllocResult::NoDevice,
         })
 }
 
@@ -949,7 +950,8 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure => {
+                                    alloc_failure @ AllocResult::NoAllocation
+                                    | alloc_failure @ AllocResult::SameAllocation => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
@@ -964,6 +966,9 @@ impl Kernel {
                                             _ => {}
                                         }
                                         upcall.into_subscribe_failure(err)
+                                    }
+                                    AllocResult::NoDevice => {
+                                        upcall.into_subscribe_failure(ErrorCode::NODEVICE)
                                     }
                                 }
                             }
@@ -1071,7 +1076,8 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure => {
+                                    alloc_failure @ AllocResult::NoAllocation
+                                    | alloc_failure @ AllocResult::SameAllocation => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
@@ -1087,6 +1093,14 @@ impl Kernel {
                                         }
                                         let (ptr, len) = rw_pbuf.consume();
                                         SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                                    }
+                                    AllocResult::NoDevice => {
+                                        let (ptr, len) = rw_pbuf.consume();
+                                        SyscallReturn::AllowReadWriteFailure(
+                                            ErrorCode::NODEVICE,
+                                            ptr,
+                                            len,
+                                        )
                                     }
                                 }
                             }
@@ -1242,7 +1256,8 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure => {
+                                    alloc_failure @ AllocResult::NoAllocation
+                                    | alloc_failure @ AllocResult::SameAllocation => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
@@ -1258,6 +1273,14 @@ impl Kernel {
                                         }
                                         let (ptr, len) = ro_pbuf.consume();
                                         SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                                    }
+                                    AllocResult::NoDevice => {
+                                        let (ptr, len) = ro_pbuf.consume();
+                                        SyscallReturn::AllowReadOnlyFailure(
+                                            ErrorCode::NODEVICE,
+                                            ptr,
+                                            len,
+                                        )
                                     }
                                 }
                             }
