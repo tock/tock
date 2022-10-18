@@ -172,6 +172,10 @@ The best bet is to start from an existing board's `main.rs` file and adapt it.
 Initially, you will likely want to delete most of the capsules and add them
 slowly as you get things working.
 
+> Warning: `[capsule name]_component_static!()` macros are singletons, and must
+> not be called in a loop or within a function. These macros should instead be
+> instantiated directly in `main()`.
+
 #### Component Creation
 
 Creating a component for a capsule has two main benefits: 1) all subtleties and
