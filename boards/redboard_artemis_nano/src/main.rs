@@ -27,7 +27,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
-pub mod ble;
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -348,13 +347,16 @@ unsafe fn setup() -> (
     let _ = &peripherals.ble.power_up();
     let _ = &peripherals.ble.ble_initialise();
 
-    let ble_radio = ble::BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &peripherals.ble,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        apollo3::stimer::STimer,
+        apollo3::ble::Ble,
+    ));
 
     mcu_ctrl.print_chip_revision();
 
