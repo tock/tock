@@ -950,8 +950,8 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure @ AllocResult::NoAllocation
-                                    | alloc_failure @ AllocResult::SameAllocation => {
+                                    alloc_failure @ (AllocResult::NoAllocation
+                                    | AllocResult::SameAllocation) => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
