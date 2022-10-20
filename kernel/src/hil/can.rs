@@ -173,7 +173,7 @@ pub struct FilterParameters {
     pub fifo_number: usize,
 }
 
-/// This structure defines the paramteres for the timing mode
+/// This structure defines the parameters for the timing mode
 #[derive(Debug, Copy, Clone)]
 pub struct BitTiming {
     /// A value that defines the location of the sample

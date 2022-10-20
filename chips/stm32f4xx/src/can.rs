@@ -889,11 +889,9 @@ impl<'a> Can<'a> {
         let message_length = self.registers.can_rx_mailbox[rx_mailbox]
             .can_rdtr
             .read(CAN_RDTxR::DLC) as usize;
-        // debug!("am primit {} caractere", message_length);
         let recv: u64 = ((self.registers.can_rx_mailbox[0].can_rdhr.get() as u64) << 32)
             | (self.registers.can_rx_mailbox[0].can_rdlr.get() as u64);
         let rx_buf = recv.to_le_bytes();
-        // debug!("si le-am citit pe toate {:?}", rx_buf);
         self.rx_buffer.map(|rx| {
             for i in 0..8 {
                 rx[i] = rx_buf[i];
@@ -949,7 +947,7 @@ impl<'a> Can<'a> {
     }
 
     pub fn handle_error_status_interrupt(&self) {
-        // status changed
+        // Check if there is a status change interrupt
         if self.registers.can_msr.read(CAN_MSR::WKUI) == 1 {
             // mark the interrupt as handled
             self.registers.can_msr.modify(CAN_MSR::WKUI::SET);
@@ -959,7 +957,7 @@ impl<'a> Can<'a> {
             self.registers.can_msr.modify(CAN_MSR::SLAKI::SET);
         }
 
-        // errors
+        // Check if there is an error interrupt
         // Warning flag
         if self.registers.can_esr.read(CAN_ESR::EWGF) == 1 {
             self.can_state
