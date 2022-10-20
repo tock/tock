@@ -26,6 +26,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::process::ProcessId;
 use crate::process::{self, Task};
 use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
@@ -89,7 +90,6 @@ pub enum StoppedExecutingReason {
 
 /// Represents the different outcomes when trying to allocate a grant region
 enum AllocResult {
-    NoDevice,
     NoAllocation,
     NewAllocation,
     SameAllocation,
@@ -97,24 +97,15 @@ enum AllocResult {
 
 /// Tries to allocate the grant region for specified driver and process.
 /// Returns if a new grant was allocated or not
-fn try_allocate_grant<KR: KernelResources<C>, C: Chip>(
-    resources: &KR,
-    driver_number: usize,
-    process: &dyn process::Process,
-) -> AllocResult {
+fn try_allocate_grant(driver: &dyn SyscallDriver, process: &dyn process::Process) -> AllocResult {
     let before_count = process.grant_allocated_count().unwrap_or(0);
-    resources
-        .syscall_driver_lookup()
-        .with_driver(driver_number, |driver| match driver {
-            Some(d) => match d.allocate_grant(process.processid()).is_ok() {
-                true if before_count == process.grant_allocated_count().unwrap_or(0) => {
-                    AllocResult::SameAllocation
-                }
-                true => AllocResult::NewAllocation,
-                false => AllocResult::NoAllocation,
-            },
-            None => AllocResult::NoDevice,
-        })
+    match driver.allocate_grant(process.processid()).is_ok() {
+        true if before_count == process.grant_allocated_count().unwrap_or(0) => {
+            AllocResult::SameAllocation
+        }
+        true => AllocResult::NewAllocation,
+        false => AllocResult::NoAllocation,
+    }
 }
 
 impl Kernel {
@@ -880,6 +871,10 @@ impl Kernel {
                 upcall_ptr,
                 appdata,
             } => {
+                let res = resources
+        .syscall_driver_lookup()
+        .with_driver(driver_number, |driver| match driver {
+            Some(driver) => {
                 // A upcall is identified as a tuple of the driver number and
                 // the subdriver number.
                 let upcall_id = UpcallId {
@@ -933,7 +928,7 @@ impl Kernel {
                                 // If we get a memory error, we always try to
                                 // allocate the grant since this could be the
                                 // first time the grant is getting accessed.
-                                match try_allocate_grant(resources, driver_number, process) {
+                                match try_allocate_grant(driver, process) {
                                     AllocResult::NewAllocation => {
                                         // Now we try again. It is possible that
                                         // the capsule did not actually allocate
@@ -950,8 +945,7 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure @ (AllocResult::NoAllocation
-                                    | AllocResult::SameAllocation) => {
+                                    alloc_failure => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
@@ -967,16 +961,12 @@ impl Kernel {
                                         }
                                         upcall.into_subscribe_failure(err)
                                     }
-                                    AllocResult::NoDevice => {
-                                        upcall.into_subscribe_failure(ErrorCode::NODEVICE)
-                                    }
                                 }
                             }
                             Err((upcall, err)) => upcall.into_subscribe_failure(err),
                         }
                     }
                 };
-
                 // Per TRD104, we only clear upcalls if the subscribe will
                 // return success. At this point we know the result and clear if
                 // necessary.
@@ -987,6 +977,12 @@ impl Kernel {
                     process.remove_pending_upcalls(upcall_id);
                 }
 
+                rval
+            }
+            None => {
+                SyscallReturn::SubscribeFailure(ErrorCode::NODEVICE, upcall_ptr, appdata)
+            }
+        });
                 if config::CONFIG.trace_syscalls {
                     debug!(
                         "[{:?}] subscribe({:#x}, {}, @{:#x}, {:#x}) = {:?}",
@@ -995,11 +991,10 @@ impl Kernel {
                         subdriver_number,
                         upcall_ptr as usize,
                         appdata,
-                        rval
+                        res
                     );
                 }
-
-                process.set_syscall_return_value(rval);
+                process.set_syscall_return_value(res);
             }
             Syscall::Command {
                 driver_number,
@@ -1035,10 +1030,14 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
+                let res = resources
+        .syscall_driver_lookup()
+        .with_driver(driver_number, |driver| match driver {
+            Some(driver) => {
                 // Try to create an appropriate [`ReadWriteProcessBuffer`]. This
                 // method will ensure that the memory in question is located in
                 // the process-accessible memory space.
-                let res = match process.build_readwrite_process_buffer(allow_address, allow_size) {
+                match process.build_readwrite_process_buffer(allow_address, allow_size) {
                     Ok(rw_pbuf) => {
                         // Creating the [`ReadWriteProcessBuffer`] worked, try
                         // to set in grant.
@@ -1056,7 +1055,7 @@ impl Kernel {
                                 // If we get a memory error, we always try to
                                 // allocate the grant since this could be the
                                 // first time the grant is getting accessed.
-                                match try_allocate_grant(resources, driver_number, process) {
+                                match try_allocate_grant(driver, process) {
                                     AllocResult::NewAllocation => {
                                         // If we actually allocated a new grant,
                                         // try again and honor the result.
@@ -1076,8 +1075,7 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure @ (AllocResult::NoAllocation
-                                    | AllocResult::SameAllocation) => {
+                                    alloc_failure => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
@@ -1094,14 +1092,6 @@ impl Kernel {
                                         let (ptr, len) = rw_pbuf.consume();
                                         SyscallReturn::AllowReadWriteFailure(err, ptr, len)
                                     }
-                                    AllocResult::NoDevice => {
-                                        let (ptr, len) = rw_pbuf.consume();
-                                        SyscallReturn::AllowReadWriteFailure(
-                                            ErrorCode::NODEVICE,
-                                            ptr,
-                                            len,
-                                        )
-                                    }
                                 }
                             }
                             Err((rw_pbuf, err)) => {
@@ -1116,7 +1106,10 @@ impl Kernel {
                         // process with the original parameters.
                         SyscallReturn::AllowReadWriteFailure(allow_error, allow_address, allow_size)
                     }
-                };
+                }
+            }
+            None => SyscallReturn::AllowReadWriteFailure(ErrorCode::NODEVICE, allow_address, allow_size)
+        });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
@@ -1215,10 +1208,14 @@ impl Kernel {
                 allow_address,
                 allow_size,
             } => {
+                let res = resources
+        .syscall_driver_lookup()
+        .with_driver(driver_number, |driver| match driver {
+            Some(driver) => {
                 // Try to create an appropriate [`ReadOnlyProcessBuffer`]. This
                 // method will ensure that the memory in question is located in
                 // the process-accessible memory space.
-                let res = match process.build_readonly_process_buffer(allow_address, allow_size) {
+                match process.build_readonly_process_buffer(allow_address, allow_size) {
                     Ok(ro_pbuf) => {
                         // Creating the [`ReadOnlyProcessBuffer`] worked, try to
                         // set in grant.
@@ -1236,7 +1233,7 @@ impl Kernel {
                                 // If we get a memory error, we always try to
                                 // allocate the grant since this could be the
                                 // first time the grant is getting accessed.
-                                match try_allocate_grant(resources, driver_number, process) {
+                                match try_allocate_grant(driver, process) {
                                     AllocResult::NewAllocation => {
                                         // If we actually allocated a new grant,
                                         // try again and honor the result.
@@ -1256,8 +1253,7 @@ impl Kernel {
                                             }
                                         }
                                     }
-                                    alloc_failure @ (AllocResult::NoAllocation
-                                    | AllocResult::SameAllocation) => {
+                                    alloc_failure => {
                                         // We didn't actually create a new
                                         // alloc, so just error.
                                         match (config::CONFIG.trace_syscalls, alloc_failure) {
@@ -1274,14 +1270,6 @@ impl Kernel {
                                         let (ptr, len) = ro_pbuf.consume();
                                         SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
                                     }
-                                    AllocResult::NoDevice => {
-                                        let (ptr, len) = ro_pbuf.consume();
-                                        SyscallReturn::AllowReadOnlyFailure(
-                                            ErrorCode::NODEVICE,
-                                            ptr,
-                                            len,
-                                        )
-                                    }
                                 }
                             }
                             Err((ro_pbuf, err)) => {
@@ -1296,7 +1284,12 @@ impl Kernel {
                         // with the original parameters.
                         SyscallReturn::AllowReadOnlyFailure(allow_error, allow_address, allow_size)
                     }
-                };
+                }
+            }
+            None => {
+                SyscallReturn::AllowReadOnlyFailure(ErrorCode::NODEVICE, allow_address, allow_size)
+            }
+        });
 
                 if config::CONFIG.trace_syscalls {
                     debug!(
