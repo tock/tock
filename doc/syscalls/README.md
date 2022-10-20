@@ -70,6 +70,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 |   | 0x20003       | I2C Master       | Raw I2C Master interface                   |
 |   | 0x20004       | I2C Slave        | Raw I2C Slave interface                    |
 |   | 0x20005       | USB              | Universal Serial Bus interface             |
+|   | 0x20007       | [CAN](20007_can.md)| Controller Area Network interface        |
 
 _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
