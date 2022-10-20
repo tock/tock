@@ -228,7 +228,7 @@ pub trait StandardBitTiming {
 
 /// The default implementation for the `bit_timing_for_bitrate` method. This algorithm
 /// is inspired by the Zephyr CAN driver available at
-/// https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can
+/// `<https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can>`
 impl<T: Configure> StandardBitTiming for T {
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
         if bitrate > 8_000_000 {
