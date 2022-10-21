@@ -38,13 +38,12 @@ macro_rules! can_component_static {
         use capsules::can::CanCapsule;
         use core::mem::MaybeUninit;
         use kernel::hil::can;
+        use kernel::static_buf;
 
-        static mut CAN_TX_BUF: [u8; can::STANDARD_CAN_PACKET_SIZE] =
-            [0; can::STANDARD_CAN_PACKET_SIZE];
-        static mut CAN_RX_BUF: [u8; can::STANDARD_CAN_PACKET_SIZE] =
-            [0; can::STANDARD_CAN_PACKET_SIZE];
-        let can = kernel::static_buf!(capsules::can::CanCapsule<'static, $C>);
-        (can, &mut CAN_TX_BUF, &mut CAN_RX_BUF)
+        let CAN_TX_BUF = static_buf!([u8; can::STANDARD_CAN_PACKET_SIZE]);
+        let CAN_RX_BUF = static_buf!([u8; can::STANDARD_CAN_PACKET_SIZE]);
+        let can = static_buf!(capsules::can::CanCapsule<'static, $C>);
+        (can, CAN_TX_BUF, CAN_RX_BUF)
     };};
 }
 
@@ -71,8 +70,8 @@ impl<A: 'static + can::Can> CanComponent<A> {
 impl<A: 'static + can::Can> Component for CanComponent<A> {
     type StaticInput = (
         &'static mut MaybeUninit<CanCapsule<'static, A>>,
-        &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
-        &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE],
+        &'static mut MaybeUninit<[u8; can::STANDARD_CAN_PACKET_SIZE]>,
+        &'static mut MaybeUninit<[u8; can::STANDARD_CAN_PACKET_SIZE]>,
     );
     type Output = &'static CanCapsule<'static, A>;
 
@@ -83,8 +82,8 @@ impl<A: 'static + can::Can> Component for CanComponent<A> {
         let can = static_buffer.0.write(capsules::can::CanCapsule::new(
             self.can,
             grant_can,
-            static_buffer.1,
-            static_buffer.2,
+            static_buffer.1.write([0; can::STANDARD_CAN_PACKET_SIZE]),
+            static_buffer.2.write([0; can::STANDARD_CAN_PACKET_SIZE]),
         ));
         can::Controller::set_client(self.can, Some(can));
         can::Transmit::set_client(self.can, Some(can));
