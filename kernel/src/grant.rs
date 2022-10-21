@@ -818,7 +818,7 @@ pub(crate) fn subscribe(
             // Success!
             Ok(old_upcall)
         }
-        None => Err((upcall, ErrorCode::INVAL)),
+        None => Err((upcall, ErrorCode::NOSUPPORT)),
     }
 }
 
@@ -866,7 +866,7 @@ pub(crate) fn allow_ro(
             // Success!
             Ok(old_allow)
         }
-        None => Err((buffer, ErrorCode::INVAL)),
+        None => Err((buffer, ErrorCode::NOSUPPORT)),
     }
 }
 
@@ -914,7 +914,7 @@ pub(crate) fn allow_rw(
             // Success!
             Ok(old_allow)
         }
-        None => Err((buffer, ErrorCode::INVAL)),
+        None => Err((buffer, ErrorCode::NOSUPPORT)),
     }
 }
 
