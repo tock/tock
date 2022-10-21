@@ -739,31 +739,34 @@ impl Kernel {
                     }
                 }
                 process::State::CredentialsApproved => {
-                    // The process has valid credentials (can run in principle);
-                    // now the kernel needs to check if its Application Identifier
-                    // is unique among running processes.
-
-                    // This check is the work we needed to do.
                     self.decrement_work();
-
-                    if crate::process_checker::has_unique_identifiers(
+                    // The process's credentials are approved and it's
+                    // potentially runnable, but actually running
+                    // depends on what other processes there are.
+                    // Transition into the Running state if only if
+                    // process has the highest version number for its
+                    // Application ID/Short ID.
+                    if crate::process_checker::is_runnable(
                         process,
                         self.processes,
-                        resources.credentials_checking_policy(),
+                        resources.credentials_checking_policy()
                     ) {
-                        // Has a unique Application Identifier, push the first stack frame
-                        // and make it runnable.
-                        let _ = process.enqueue_init_task(&self.init_cap);
+                        if config::CONFIG.debug_process_credentials {
+                            debug!("Making process {} runnable", process.get_process_name());
+                        }
+                        process.enqueue_init_task(&self.init_cap);
                     } else {
-                        // Its Application Identifier collides with a running process; enter
-                        // the Terminated state (could be made runnable later).
-                        process.terminate(None);
+                        // Do nothing, not runnable
+                        if config::CONFIG.debug_process_credentials {
+                            debug!("Process {} is not runnable", process.get_process_name());
+                        }
                     }
                 }
+                
                 process::State::Faulted
                 | process::State::Terminated
                 | process::State::CredentialsUnchecked
-                | process::State::CredentialsFailed => {
+                | process::State::CredentialsFailed  => {
                     // We should never be scheduling an unrunnable process.
                     // This is a potential security flaw: panic.
                     panic!("Attempted to schedule an unrunnable process");
@@ -1628,6 +1631,12 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
                 self.footer.set(self.footer.get() + 1);
             }
         }
-        let _cont = self.next();
+        let cont = self.next();
+        match cont {
+            Ok(true) => {/* processing next footer, do nothing */},
+            Ok(false) => {
+            },
+            Err(_e) => {}
+        }
     }
 }

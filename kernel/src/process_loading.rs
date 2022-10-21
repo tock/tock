@@ -284,7 +284,7 @@ fn load_processes_from_flash<C: Chip>(
             app_memory.as_ptr() as usize + app_memory.len() - 1
         );
     }
-
+           
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
     // Try to discover up to `procs.len()` processes in flash.
@@ -310,6 +310,10 @@ fn load_processes_from_flash<C: Chip>(
                     }
                     procs[index] = proc;
                     index = index + 1;
+                } else {
+                    if config::CONFIG.debug_load_processes {
+                        debug!("No process loaded.");
+                    }
                 }
             }
             Err((_new_flash, _new_mem, err)) => {

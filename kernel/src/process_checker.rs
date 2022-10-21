@@ -4,6 +4,8 @@
 
 pub mod basic;
 
+use crate::config;
+use crate::debug;
 use crate::process::{Process, ShortID, State};
 use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
@@ -58,40 +60,57 @@ impl<'a> AppCredentialsChecker<'a> for () {
     }
 }
 
-/// Return whether there is a currently running process that has
-/// the same application identifier as `process` OR the same short
-/// ID as `process`. This means that if `process` is currently
-/// running, `has_unique_identifier` returns false.
-pub fn has_unique_identifiers<AU: AppUniqueness>(
+/// Return whether `process` can run given the 
+pub fn is_runnable<AU: AppUniqueness>(
     process: &dyn Process,
     processes: &[Option<&dyn Process>],
     id_differ: &AU,
 ) -> bool {
     let len = processes.len();
-    // If the process is running or not runnable it does not have
-    // a unique identifier; these two states describe a process
-    // that is potentially runnable, dependent on checking for
-    // identifier uniqueness at runtime.
+    // A process is only runnable if it has approved credentials and
+    // is not currently running.
     if process.get_state() != State::CredentialsApproved && process.get_state() != State::Terminated
     {
         return false;
     }
 
     // Note that this causes `process` to compare against itself;
-    // however, since `process` should not be running, it will
-    // not check the identifiers and say they are different. This means
-    // this method returns false if the process is running.
+    // however, since `process` is not running and its version number
+    // is the same, it will not block itself from running.
     for i in 0..len {
         let checked_process = processes[i];
-        let diff = checked_process.map_or(true, |other| {
-            !other.is_running()
-                || (id_differ.different_identifier(process, other)
-                    && other.short_app_id() != process.short_app_id())
+        
+        let blocks = checked_process.map_or(false, |other| {
+            let state = other.get_state();
+            let creds_approve = state != State::CredentialsUnchecked &&
+                                state != State::CredentialsFailed;
+            let different = id_differ.different_identifier(process, other) &&
+                            other.short_app_id() != process.short_app_id();
+            let newer = other.binary_version() > process.binary_version();
+            let equal = other.binary_version() == process.binary_version();
+            let running = other.is_running();
+
+            // Other will block process from running if
+            // 1) Other has approved credentials, and
+            // 2) Other has the same ShortID or Application Identifier, and
+            // 3) Other has a higher version number *or* the same version number and is running
+            if config::CONFIG.debug_process_credentials {
+                debug!("[{}]: creds_approve: {}, different: {}, newer: {}, equal: {}, running: {}",
+                       other.get_process_name(), creds_approve, different, newer, equal, running);
+            }
+            creds_approve && !different && (newer || (equal && running)) 
         });
-        if !diff {
+        if blocks {
+            if config::CONFIG.debug_process_credentials {
+                debug!("Process[{}] blocks {}", i, process.get_process_name());
+            }
             return false;
         }
     }
+    if config::CONFIG.debug_process_credentials {
+        debug!("No process blocks {}: it is runnable", process.get_process_name());
+    }
+    // No process blocks this one from running -- it's runnable
     true
 }
 

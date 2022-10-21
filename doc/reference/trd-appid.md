@@ -7,8 +7,8 @@ Application IDs (AppID), Credentials, and Process Loading
 **Status:** Draft <br/>
 **Author:** Philip Levis, Johnathan Van Why<br/>
 **Draft-Created:** 2021/09/01 <br/>
-**Draft-Modified:** 2022/10/05 <br/>
-**Draft-Version:** 9 <br/>
+**Draft-Modified:** 2022/10/14 <br/>
+**Draft-Version:** 10 <br/>
 **Draft-Discuss:** tock-dev@googlegroups.com<br/>
 
 Abstract
@@ -58,7 +58,7 @@ The Tock kernel ensures that each running process has a unique
 application identifier; if two userspace binaries have the same AppID,
 the kernel will only permit one of them to run at any time.
 
-Most of the complications in AppIDs stem from the fact that they are a
+Most of the complications in AppIDs stehttps://github.com/tock/tock/pull/3277m from the fact that they are a
 general mechanism used for many different use cases. Therefore, the
 exact structure and semantics of application credentials can vary
 widely. Tock's TBF footer formats, kernel interfaces and mechanisms
@@ -379,7 +379,8 @@ deterministic behavior in the presence of colliding Application
 Identifiers.  This algorithm is designed to protect against downgrade
 attacks and misconfiguration. Processes have five possible states in
 the loading stage: Unloaded, CredentialsUnchecked, CredentialsFailed,
-CredentialsPassed and Running. Processes start in the Unloaded state.
+CredentialsApproved and Yielded/Running. Processes start in the Unloaded
+state.
 
 First, when it boots, the Tock kernel scans the TBF Objects stored in
 its application flash region. It checks that they are valid and can
@@ -391,33 +392,25 @@ state.
 Once the application flash has been scanned or the last process slot
 has been filled, the kernel checks the credentials of the processes.
 Using the provided Credentials Checking Policy, it decides whether
-each process can be run. Processes whose TBF Objects are allowed to
-run are moved into the `CredentialsPassed` state. Processes whose TBF
-Objects are not allowed to run are moved into the `CredentialsFailed`
-state.
+each process can be run. It moves processes whose TBF Objects are not
+allowed to run into the `CredentialsFailed` state. It moves processes
+whose TBF Objects are allowed to run into the `CredentialsApproved`
+state. When a process is placed into the `CredentialsApproved` state,
+this triggers the main kernel loop to examine the process.
 
-The kernel traverses the process one final time, checking whether the
-Application Identifier assigned to a process collides with a running
-process. If the Application Identifier collides, the kernel keeps the
-process into the `CredentialsPassed` state. If the Application
-Identifier does not collide, the kernel places the process into the
-`Running` state, at which point that Application Identifier is in use by
-a Running process.
-
-This final traversal occurs in a specific order. The kernel MUST check
-processes in order of decreasing version numbers (the highest version
-number is checked first).  If more than one process has the same
-version number, they MUST be checked from lowest to highest
-address. For example, if two TBF Objects both have version number 0,
-one at address 0x20000 and one at address 0x21000, the one with
-address 0x20000 will be checked first and the one with address 0x21000
-will be checked second. The Version field of a Program Header of a
-process's TBF Object specifies the version number of the process. The
-kernel MUST give a version number of 0 to processes whose TBF Object
-does not have a TBF Program Header.
+The `CredentialsApproved` state indicates that the process is runnable
+in terms of its credentials. However, at any given time it might not
+be allowed to run because its Application Identifier or Short ID
+conflicts with another processs. When the kernel boots, it starts all
+`CredentialsApproved` processes that have a unique Application
+Identifier and a unique Short Identifier. If a pair of processes have
+overlapping Application Identifiers or Short Identifiers, it only starts
+the one that has the higher binary version number. If a pair of
+processes have overlapping Application Identifiers or Short Identifiers
+*and* the same binary version number, the kernel starts one of them.
 
 The Unloaded, CredentialsUnchecked, CredentialsFailed,
-CredentialsPassed and Running states describe the conceptual state
+CredentialsApproved and Running states describe the conceptual state
 machine of a process at loading; the values or names of state
 variables in the kernel implemementation might be different. The exact
 Tock process state machine and names of its states is outside the
@@ -615,13 +608,11 @@ pub trait AppCredentialsChecker<'a> {
 }
 ```
 
-When the kernel successfully parses and loads a Userspace Binary into
-a `Process` structure, it places it into the Unchecked state,
-indicating that it has been loaded but that it may not be allowed or
-safe to run. If the kernel is provided an `AppCredentialsChecker`, it
-uses it to check whether each of the loaded proceses is safe to run.
-If no `AppCredentialsChecker` is provided, the kernel skips this check
-and transitions the process into the Unstarted state.
+If the kernel has been instructed to check credentials of Userspace
+Binaries, after it successfully parses and loads a Userspace Binary
+into a `Process` structure, it places the process into the Unchecked
+state. The Unchecked state indicates that it has been loaded but that
+it may not be allowed or safe to run. 
 
 To check the integrity of a process, the kernel scans the footers in
 order, starting at the beginning of that process's footer region. At
@@ -629,10 +620,10 @@ each `TbfFooterV2Credentials` footer it encounters, the kernel calls
 `check_credentials` on the provided `AppCredentialsChecker`. If
 `check_credentials` returns `Accept`, the kernel stops processing
 credentials and calls `mark_credentials_pass` on the process, which
-transitions it to the Unstarted state. If the `AppCredentialsChecker`
-returns `Reject`, the kernel stops processing credentials and calls
-`mark_credentials_fail` on the process, which transitions it to the
-Failed state.
+transitions it to the `CredentialsApproved` state. If the
+`AppCredentialsChecker` returns `Reject`, the kernel stops processing
+credentials and calls `mark_credentials_fail` on the process, which
+transitions it to the `CredentialsFailed` state.
 
 If the `AppCredentialsChecker` returns `Pass`, the kernel tries the
 next `TbfFooterV2Credentials`, if there is one. If the kernel reaches
@@ -641,11 +632,11 @@ Footers) without encountering a `Reject` or `Accept` result, it calls
 `require_credentials` to ask the `AppCredentialsChecker` what the
 default behavior is.  If `require_credentials` returns `true`, the
 kernel calls `mark_credentials_fail` on the process, transitioning it
-into the Failed state. If `require_credentials` returns `false`, the
-kernel calls `mark_credentials_pass` on the process, transitioning it
-to the Unstarted state. If a process binary has no
-`TbfFooterV2Credentials` footers then there will be no `Accept` or
-`Reject` results and `require_credentials` defines whether the
+into the `CredentialsFailed` state. If `require_credentials` returns
+`false`, the kernel calls `mark_credentials_pass` on the process,
+transitioning it to the `CredentialsApproved` state. If a process binary
+has no `TbfFooterV2Credentials` footers then there will be no `Accept`
+or `Reject` results and `require_credentials` defines whether the
 Userspace Binary is runnable.
 
 The `binary` argument to `check_credentials` is a reference to slice
