@@ -749,7 +749,7 @@ impl Kernel {
                     if crate::process_checker::is_runnable(
                         process,
                         self.processes,
-                        resources.credentials_checking_policy()
+                        resources.credentials_checking_policy(),
                     ) {
                         if config::CONFIG.debug_process_credentials {
                             debug!("Making process {} runnable", process.get_process_name());
@@ -762,11 +762,11 @@ impl Kernel {
                         }
                     }
                 }
-                
+
                 process::State::Faulted
                 | process::State::Terminated
                 | process::State::CredentialsUnchecked
-                | process::State::CredentialsFailed  => {
+                | process::State::CredentialsFailed => {
                     // We should never be scheduling an unrunnable process.
                     // This is a potential security flaw: panic.
                     panic!("Attempted to schedule an unrunnable process");
@@ -1633,9 +1633,8 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
         }
         let cont = self.next();
         match cont {
-            Ok(true) => {/* processing next footer, do nothing */},
-            Ok(false) => {
-            },
+            Ok(true) => { /* processing next footer, do nothing */ }
+            Ok(false) => {}
             Err(_e) => {}
         }
     }

@@ -245,7 +245,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn binary_version(&self) -> u32 {
         self.header.get_binary_version()
     }
-    
+
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -309,7 +309,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.credentials.insert(c);
         c
     }
-    
+
     // Enqueue the initialization function of a process onto its task list;
     // this is used to start a process. Should only be called when a process
     // is in the `State::Unstarted` state. If this returns `Err` the process
@@ -340,7 +340,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             argument3: self.app_break.get() as usize,
         }))
     }
-    
+
     fn ready(&self) -> bool {
         self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
             || self.state.get() == State::Running

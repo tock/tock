@@ -940,9 +940,7 @@ impl TbfHeader {
     /// Object, or 0 if there is no binary or no version number.
     pub fn get_binary_version(&self) -> u32 {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => hd
-                .program
-                .map_or(0, |p| p.version),
+            TbfHeader::TbfHeaderV2(hd) => hd.program.map_or(0, |p| p.version),
             _ => 0,
         }
     }

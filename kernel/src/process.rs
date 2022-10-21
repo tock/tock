@@ -228,7 +228,7 @@ pub trait Process {
     /// as specified in a TBF Program Header; if the Userspace Binary
     /// only has a TBF Main Header, returns 0.
     fn binary_version(&self) -> u32;
-    
+
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
     /// should run, for example a upcall or an IPC call.
