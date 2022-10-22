@@ -1,4 +1,5 @@
-//! Tock kernel for the Nordic Semiconductor nRF52 development kit (DK), a.k.a. the PCA10040. </br>
+//! Tock kernel for the Nordic Semiconductor nRF52 development kit (DK), a.k.a. the PCA10040.
+//!
 //! It is based on nRF52838 SoC (Cortex M4 core with a BLE transceiver) with many exported
 //! I/O and peripherals.
 //!
