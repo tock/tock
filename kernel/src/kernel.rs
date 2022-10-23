@@ -1350,9 +1350,12 @@ impl Kernel {
 
                         process.set_syscall_return_value(res);
                     }
-                    _ => {
-                        // This should never be reachable due to the
-                        // previous match statement.
+                    Syscall::Yield { .. }
+                    | Syscall::Exit { .. }
+                    | Syscall::Memop { .. } => {
+                        // These variants must not be reachable due to
+                        // the outer match statement:
+                        debug_assert!(false, "Kernel system call handling invariant violated!");
                     },
                 })
             }
