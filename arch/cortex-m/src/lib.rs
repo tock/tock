@@ -157,13 +157,41 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
 #[naked]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     use core::arch::asm;
+
+    // This exception handler is executed when switching from userspace to the
+    // kernel AND when switching from the kernel to userspace. Userspace invokes
+    // a syscall by calling the `svc` instruction, as is typical, and that will
+    // cause this handler to execute. To switch from the kernel to userspace we
+    // _also_ use this handler, as we need an exception that we can return from
+    // to instruct the CPU to do the proper context switch.
+    //
+    // By using this handler in both "directions" we need some mechanism to
+    // distinguish which "direction" we are going in. We do that with the
+    // `KERNEL_TO_USERSPACE` global `u32` variable. If the variable is 0, then
+    // we are not switching from kernel to userspace. If the variable is 1 (or
+    // any other nonzero value), then we are switching from the kernel to
+    // userspace.
+    //
+    // Originally, we used the link register to determine which direction we
+    // were intending to go in this handler. That is, if `LR==0xfffffff9`, then
+    // we were doing a context switch to userspace, otherwise this is a syscall
+    // from userspace switching to the kernel. However, that ended up being
+    // unreliable, and we switched to using our own flag instead.
     asm!(
         "
-    // First check to see which direction we are going in. If the link register
-    // is something other than 0xfffffff9, then we are coming from an app which
-    // has called a syscall.
-    cmp lr, #0xfffffff9
-    bne 100f // to_kernel
+    // First we have to check which direction we are going in. If
+    // `KERNEL_TO_USERSPACE` is zero, then we are NOT switching to userspace,
+    // and instead need to go to the kernel. Otherwise, we are switching to
+    // userspace.
+    ldr r0, =KERNEL_TO_USERSPACE      // r0 = &KERNEL_TO_USERSPACE
+    ldr r1, [r0]                      // r1 = *KERNEL_TO_USERSPACE
+    cmp r1, #0                        // check if KERNEL_TO_USERSPACE==0
+    beq 100f                          // (KERNEL_TO_USERSPACE==0)==true, jump to to_kernel
+
+    // Reset the `KERNEL_TO_USERSPACE` variable, now that we are switching to
+    // userspace. `&KERNEL_TO_USERSPACE` is already in r0.
+    mov r1, #0                        // r1 = 0
+    str r1, [r0]                      // *KERNEL_TO_USERSPACE = 0
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Set thread mode to unprivileged to run the application.
@@ -403,6 +431,15 @@ pub unsafe fn switch_to_user_arm_v7m(
 
     // Load bottom of stack into Process Stack Pointer.
     msr psp, r0  // PSP = r0
+
+    // Set the `KERNEL_TO_USERSPACE` flag to 1 so that the SVC handler knows
+    // that we are doing a context switch from kernel to userspace.
+    //
+    // Note, we are already using registers r0, r1, r2, and r3, so we use r4 and
+    // r5 for this task.
+    ldr r4, =KERNEL_TO_USERSPACE      // r4 = &KERNEL_TO_USERSPACE
+    mov r5, #1                        // r5 = 1
+    str r5, [r4]                      // *KERNEL_TO_USERSPACE = 1
 
     // Load non-hardware-stacked registers from the process stored state. Ensure
     // that the address register (right now r1) is stored in a callee saved

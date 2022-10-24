@@ -10,6 +10,15 @@ use kernel::errorcode::ErrorCode;
 
 use crate::CortexMVariant;
 
+/// This is used for determining if we are context switching from userspace to
+/// the kernel or from the kernel to userspace When set to 1 or anything other
+/// than 0 then we are switching from the kernel to userspace. Otherwise, we are
+/// switching from userspace to the kernel. Marked `pub` because it is used in
+/// the cortex-m* specific handler.
+#[no_mangle]
+#[used]
+pub static mut KERNEL_TO_USERSPACE: usize = 0;
+
 /// This is used in the syscall handler. When set to 1 this means the
 /// svc_handler was called. Marked `pub` because it is used in the cortex-m*
 /// specific handler.
