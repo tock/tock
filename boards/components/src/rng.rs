@@ -58,7 +58,7 @@ impl Component for RngComponent {
     );
     type Output = &'static rng::RngDriver<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let entropy_to_random = static_buffer

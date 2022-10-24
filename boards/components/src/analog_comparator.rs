@@ -82,7 +82,7 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Co
     type StaticInput = &'static mut MaybeUninit<AnalogComparator<'static, AC>>;
     type Output = &'static AnalogComparator<'static, AC>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_ac = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

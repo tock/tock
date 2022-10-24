@@ -81,7 +81,7 @@ impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize> Compon
     );
     type Output = &'static AdcMicrophone<'static, P>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let adc_device =
             crate::adc::AdcComponent::new(self.adc_mux, self.adc_channel).finalize(s.0);
 

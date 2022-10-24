@@ -106,23 +106,27 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
     type Output =
         &'static process_console::ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
         let console_uart = static_buffer.1.write(UartDevice::new(self.uart_mux, true));
         console_uart.setup();
 
         // Get addresses of where the kernel is placed to enable additional
         // debugging in process console.
-        let kernel_addresses = process_console::KernelAddresses {
-            stack_start: &_sstack as *const u8,
-            stack_end: &_estack as *const u8,
-            text_start: &_stext as *const u8,
-            text_end: &_etext as *const u8,
-            read_only_data_start: &_srodata as *const u8,
-            relocations_start: &_srelocate as *const u8,
-            relocations_end: &_erelocate as *const u8,
-            bss_start: &_szero as *const u8,
-            bss_end: &_ezero as *const u8,
+        // SAFETY: These statics are defined by the linker script, and we are merely creating
+        // pointers to them.
+        let kernel_addresses = unsafe {
+            process_console::KernelAddresses {
+                stack_start: &_sstack as *const u8,
+                stack_end: &_estack as *const u8,
+                text_start: &_stext as *const u8,
+                text_end: &_etext as *const u8,
+                read_only_data_start: &_srodata as *const u8,
+                relocations_start: &_srelocate as *const u8,
+                relocations_end: &_erelocate as *const u8,
+                bss_start: &_szero as *const u8,
+                bss_end: &_ezero as *const u8,
+            }
         };
 
         let console_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));

@@ -78,7 +78,7 @@ impl<B: 'static + bus8080::Bus8080<'static>> Component for Bus8080BusComponent<B
     type StaticInput = &'static mut MaybeUninit<Bus8080Bus<'static, B>>;
     type Output = &'static Bus8080Bus<'static, B>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let bus = static_buffer.write(Bus8080Bus::new(self.bus));
         self.bus.set_client(bus);
 
@@ -120,7 +120,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
     );
     type Output = &'static SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let spi_device = static_buffer
             .0
             .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
@@ -163,7 +163,7 @@ impl Component for I2CMasterBusComponent {
     );
     type Output = &'static I2CMasterBus<'static, I2CDevice<'static>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let i2c_device = static_buffer
             .1
             .write(I2CDevice::new(self.i2c_mux, self.address));

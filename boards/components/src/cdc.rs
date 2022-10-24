@@ -96,7 +96,7 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
     );
     type Output = &'static capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let cdc_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         cdc_alarm.setup();
 

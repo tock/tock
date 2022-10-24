@@ -111,7 +111,7 @@ impl Component for MockUDPComponent {
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let udp_send =
             s.0.write(UDPSendStruct::new(self.udp_send_mux, self.udp_vis));
 

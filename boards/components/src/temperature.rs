@@ -45,7 +45,7 @@ impl<T: 'static + hil::sensors::TemperatureDriver<'static>> Component for Temper
     type StaticInput = &'static mut MaybeUninit<TemperatureSensor<'static>>;
     type Output = &'static TemperatureSensor<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let temp = s.write(TemperatureSensor::new(

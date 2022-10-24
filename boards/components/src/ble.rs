@@ -76,7 +76,7 @@ impl<
     type Output =
         &'static capsules::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ble_radio_virtual_alarm = s.0.write(capsules::virtual_alarm::VirtualMuxAlarm::new(

@@ -64,7 +64,7 @@ impl<A: 'static + Alarm<'static>> Component for SHT3xComponent<A> {
     );
     type Output = &'static SHT3x<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let sht3x_i2c = static_buffer
             .1
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));

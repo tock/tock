@@ -91,7 +91,7 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
         &'static capsules::ctap::CtapDriver<'static, capsules::usb::ctap::CtapHid<'static, U>>,
     );
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let ctap = s.0.write(capsules::usb::ctap::CtapHid::new(
             self.usb,
             self.vendor_id,

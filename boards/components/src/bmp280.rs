@@ -72,7 +72,7 @@ impl<A: 'static + Alarm<'static>> Component for Bmp280Component<A> {
     );
     type Output = &'static Bmp280<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let bmp280_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
         let bmp280_alarm = s.1.write(VirtualMuxAlarm::new(self.alarm_mux));
         bmp280_alarm.setup();

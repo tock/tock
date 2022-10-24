@@ -81,7 +81,7 @@ impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
     );
     type Output = &'static Isl29035<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let isl29035_i2c = static_buffer.1.write(I2CDevice::new(self.i2c_mux, 0x44));
         let isl29035_i2c_buffer = static_buffer.2.write([0; capsules::isl29035::BUF_LEN]);
         let isl29035_virtual_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
@@ -122,7 +122,7 @@ impl<L: 'static + hil::sensors::AmbientLight<'static>> Component for AmbientLigh
     type StaticInput = &'static mut MaybeUninit<AmbientLight<'static>>;
     type Output = &'static AmbientLight<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ambient_light = static_buffer.write(AmbientLight::new(

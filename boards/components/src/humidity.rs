@@ -45,7 +45,7 @@ impl<T: 'static + hil::sensors::HumidityDriver<'static>> Component for HumidityC
     type StaticInput = &'static mut MaybeUninit<HumiditySensor<'static>>;
     type Output = &'static HumiditySensor<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let humidity = s.write(HumiditySensor::new(

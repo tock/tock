@@ -67,7 +67,7 @@ impl<A: 'static + adc::Adc> Component for AdcMuxComponent<A> {
     type StaticInput = &'static mut MaybeUninit<MuxAdc<'static, A>>;
     type Output = &'static MuxAdc<'static, A>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let adc_mux = static_buffer.write(MuxAdc::new(self.adc));
 
         self.adc.set_client(adc_mux);
@@ -94,7 +94,7 @@ impl<A: 'static + adc::Adc> Component for AdcComponent<A> {
     type StaticInput = &'static mut MaybeUninit<AdcDevice<'static, A>>;
     type Output = &'static AdcDevice<'static, A>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let adc_device = static_buffer.write(AdcDevice::new(self.adc_mux, self.channel));
 
         adc_device.add_to_mux();
@@ -124,7 +124,7 @@ impl Component for AdcVirtualComponent {
     );
     type Output = &'static capsules::adc::AdcVirtualized<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
@@ -177,7 +177,7 @@ impl<A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static> Compon
     );
     type Output = &'static AdcDedicated<'static, A>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let buffer1 = s.1.write([0; capsules::adc::BUF_LEN]);

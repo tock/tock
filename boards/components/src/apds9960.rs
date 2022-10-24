@@ -45,7 +45,7 @@ impl Component for Apds9960Component {
     );
     type Output = &'static APDS9960<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let apds9960_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
 
         let buffer = s.2.write([0; capsules::apds9960::BUF_LEN]);

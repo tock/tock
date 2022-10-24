@@ -74,7 +74,7 @@ impl Component for Lsm6dsoxtrI2CComponent {
     );
     type Output = &'static Lsm6dsoxtrI2C<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

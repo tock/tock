@@ -76,7 +76,7 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
     );
     type Output = &'static MuxUart<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rx_buf = s.1.write([0; RX_BUF_LEN]);
         let uart_mux = s.0.write(MuxUart::new(
             self.uart,
@@ -140,7 +140,7 @@ impl Component for ConsoleComponent {
     );
     type Output = &'static console::Console<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let write_buffer = s.0.write([0; DEFAULT_BUF_SIZE]);

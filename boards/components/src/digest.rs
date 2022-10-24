@@ -67,7 +67,7 @@ impl<
     type StaticInput = &'static mut MaybeUninit<MuxDigest<'static, A, L>>;
     type Output = &'static MuxDigest<'static, A, L>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(MuxDigest::new(self.digest))
     }
 }
@@ -97,7 +97,7 @@ impl<
     );
     type Output = &'static VirtualMuxDigest<'static, A, L>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let key_buffer = s.1.write([0; L]);
         let virtual_digest_user =
             s.0.write(VirtualMuxDigest::new(self.mux_digest, key_buffer));

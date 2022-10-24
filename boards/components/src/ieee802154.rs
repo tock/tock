@@ -72,7 +72,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
     type StaticInput = &'static mut MaybeUninit<MuxAES128CCM<'static, A>>;
     type Output = &'static MuxAES128CCM<'static, A>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let aes_mux = static_buffer.write(MuxAES128CCM::new(self.aes, self.deferred_caller));
         self.aes.set_client(aes_mux);
         aes_mux.initialize_callback_handle(
@@ -186,7 +186,7 @@ impl<
         &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
     );
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let crypt_buf = static_buffer.8.write([0; CRYPT_SIZE]);

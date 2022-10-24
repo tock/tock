@@ -49,7 +49,7 @@ impl<A: 'static + time::Alarm<'static>> Component for MultiAlarmTestComponent<A>
     );
     type Output = MultiAlarmTestRunner<A>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let (buf0, buf1, buf2) = static_buffer;
 
         let virtual_alarm0 = buf0.0.write(VirtualMuxAlarm::new(self.mux));

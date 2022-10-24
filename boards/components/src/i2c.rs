@@ -62,7 +62,7 @@ impl Component for I2CMuxComponent {
     type StaticInput = &'static mut MaybeUninit<MuxI2C<'static>>;
     type Output = &'static MuxI2C<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus, self.deferred_caller));
 
         mux_i2c.initialize_callback_handle(
@@ -93,7 +93,7 @@ impl Component for I2CComponent {
     type StaticInput = &'static mut MaybeUninit<I2CDevice<'static>>;
     type Output = &'static I2CDevice<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let i2c_device = static_buffer.write(I2CDevice::new(self.i2c_mux, self.address));
 
         i2c_device

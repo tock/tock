@@ -48,7 +48,7 @@ impl<const NUM_PROCS: usize> Component for CooperativeComponent<NUM_PROCS> {
     );
     type Output = &'static mut CooperativeSched<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler = static_buffer.0.write(CooperativeSched::new());
 
         const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();

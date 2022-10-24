@@ -50,7 +50,7 @@ impl<const NUM_PROCS: usize> Component for RoundRobinComponent<NUM_PROCS> {
     );
     type Output = &'static mut RoundRobinSched<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler = static_buffer.0.write(RoundRobinSched::new());
 
         const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();

@@ -45,7 +45,7 @@ impl<P: hil::sensors::ProximityDriver<'static>> Component for ProximityComponent
     type StaticInput = &'static mut MaybeUninit<ProximitySensor<'static>>;
     type Output = &'static ProximitySensor<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

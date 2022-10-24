@@ -48,12 +48,14 @@ impl Component for DebugQueueComponent {
     );
     type Output = ();
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buffer = s.3.write([0; 1024]);
         let ring_buffer = s.0.write(RingBuffer::new(buffer));
         let debug_queue = s.1.write(kernel::debug::DebugQueue::new(ring_buffer));
         let debug_queue_wrapper =
             s.2.write(kernel::debug::DebugQueueWrapper::new(debug_queue));
-        kernel::debug::set_debug_queue(debug_queue_wrapper);
+        unsafe {
+            kernel::debug::set_debug_queue(debug_queue_wrapper);
+        }
     }
 }

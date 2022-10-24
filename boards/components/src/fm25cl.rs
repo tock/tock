@@ -60,7 +60,7 @@ impl<S: 'static + spi::SpiMaster> Component for Fm25clComponent<S> {
     );
     type Output = &'static FM25CL<'static, VirtualSpiMasterDevice<'static, S>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let spi_device = static_buffer
             .0
             .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));

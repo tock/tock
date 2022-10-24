@@ -42,7 +42,6 @@ pub mod io;
 mod otbn;
 #[cfg(test)]
 mod tests;
-pub mod usb;
 
 const NUM_PROCS: usize = 4;
 
@@ -443,7 +442,12 @@ unsafe fn setup() -> (
 
     // USB support is currently broken in the OpenTitan hardware
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
-    // let usb = usb::UsbComponent::new(board_kernel).finalize(());
+    // let usb = components::usb::UsbComponent::new(
+    //     board_kernel,
+    //     capsules::usb::usb_user::DRIVER_NUM,
+    //     &peripherals.usb,
+    // )
+    // .finalize(components::usb_component_static!(earlgrey::usbdev::Usb));
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs

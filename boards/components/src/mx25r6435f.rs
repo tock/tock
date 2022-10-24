@@ -106,7 +106,7 @@ impl<
         VirtualMuxAlarm<'static, A>,
     >;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mx25r6435f_spi = static_buffer
             .0
             .write(VirtualSpiMasterDevice::new(self.mux_spi, self.chip_select));

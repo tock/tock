@@ -89,7 +89,7 @@ impl Component for DebugWriterComponent {
     );
     type Output = ();
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buf = s.2.write([0; 1024 * DEBUG_BUFFER_KBYTE]);
 
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
@@ -106,7 +106,9 @@ impl Component for DebugWriterComponent {
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
         let debug_wrapper = s.4.write(kernel::debug::DebugWriterWrapper::new(debugger));
-        kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+        unsafe {
+            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+        }
     }
 }
 
@@ -131,7 +133,7 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> Component
     );
     type Output = ();
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buf = s.1.write([0; 1024 * DEBUG_BUFFER_KBYTE]);
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
@@ -145,7 +147,9 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static> Component
         hil::uart::Transmit::set_transmit_client(self.uart, debugger);
 
         let debug_wrapper = s.3.write(kernel::debug::DebugWriterWrapper::new(debugger));
-        kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+        unsafe {
+            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+        }
 
         let _ = self.uart.configure(uart::Parameters {
             baud_rate: 115200,
