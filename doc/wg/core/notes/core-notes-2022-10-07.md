@@ -360,7 +360,7 @@ This conversation happened in chat alongside the above conversation:
    component PRs. I reviewed a bunch, tagged them last night. We'll probably
    merge them now, unless someone has a reason not to, we should probably get
    those in.
- * Phil: I `bors r=`-ed the basic one.
+ * Phil: I `bors r+`-ed the basic one.
 
 ## Re-entrant interrupts
  * Jett: Does Tock OS ever have plans for or against having re-entrant
