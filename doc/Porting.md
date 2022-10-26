@@ -153,20 +153,28 @@ and only require boards to pass in the specific options that are unique to the
 particular platform. For example:
 
 ```rust
-let ambient_light = AmbientLightComponent::new(board_kernel, mux_i2c, mux_alarm)
-    .finalize(components::isl29035_component_helper!(sam4l::ast::Ast));
+let isl29035 = components::isl29035::Isl29035Component::new(sensors_i2c, mux_alarm)
+    .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
+
+let ambient_light = components::isl29035::AmbientLightComponent::new(
+    board_kernel,
+    capsules::ambient_light::DRIVER_NUM,
+    isl29035,
+)
+.finalize(components::ambient_light_component_static!());
 ```
 
-instantiates the component for an ambient light sensor. Board initiation should
-be largely done using components, but not all components have been created yet,
-so board files are generally a mix of components and verbose driver
-instantiation. The best bet is to start from an existing board's `main.rs` file
-and adapt it. Initially, you will likely want to delete most of the capsules and
-add them slowly as you get things working.
+instantiates the components for a specific light sensor (the ISL29035) and for
+an ambient light sensor interface for userspace. Board initiation should be
+largely done using components, but not all components have been created yet, so
+board files are generally a mix of components and verbose driver instantiation.
+The best bet is to start from an existing board's `main.rs` file and adapt it.
+Initially, you will likely want to delete most of the capsules and add them
+slowly as you get things working.
 
-> Warning: Many components are singletons, that is they may not be instantiated
-> multiple times. Components should only be instantiated in the reset handler to
-> avoid any multiple instantiations.
+> Warning: `[capsule name]_component_static!()` macros are singletons, and must
+> not be called in a loop or within a function. These macros should instead be
+> instantiated directly in `main()`.
 
 #### Component Creation
 
@@ -182,14 +190,13 @@ example for a `Console` component:
 
 ```rust
 use core::mem::MaybeUninit;
-use kernel::static_buf;
 
 /// Helper macro that calls `static_buf!()`. This helps allow components to be
 /// instantiated multiple times.
 #[macro_export]
 macro_rules! console_component_static {
     () => {{
-        let console = static_buf!(capsules::console::Console<'static>);
+        let console = kernel::static_buf!(capsules::console::Console<'static>);
         console
     }};
 }
@@ -270,12 +277,11 @@ buffers.
 
 ```rust
 use core::mem::MaybeUninit;
-use kernel::static_buf;
 
 #[macro_export]
 macro_rules! alarm_mux_component_static {
     ($A: ty) => {{
-        let alarm = static_buf!(capsules::virtual_alarm::MuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(capsules::virtual_alarm::MuxAlarm<'static, $A>);
         alarm
     }};
 }
