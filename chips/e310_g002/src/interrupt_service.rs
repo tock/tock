@@ -1,5 +1,6 @@
 use crate::chip::E310xDefaultPeripherals;
 use crate::interrupts;
+use e310x::deferred_call_tasks::DeferredCallTask;
 
 #[repr(transparent)]
 pub struct E310G002DefaultPeripherals<'a> {
@@ -13,7 +14,9 @@ impl<'a> E310G002DefaultPeripherals<'a> {
         }
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<()> for E310G002DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
+    for E310G002DefaultPeripherals<'a>
+{
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.e310x.uart0.handle_interrupt(),
@@ -29,7 +32,7 @@ impl<'a> kernel::platform::chip::InterruptService<()> for E310G002DefaultPeriphe
         true
     }
 
-    unsafe fn service_deferred_call(&self, task: ()) -> bool {
+    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         self.e310x.service_deferred_call(task)
     }
 }
