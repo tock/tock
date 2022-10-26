@@ -18,11 +18,13 @@ for more details.
 
 Programming
 -----------
+The latest supported version (commit SHA) of OpenTitan is specified in the [OPENTITAN_SUPPORTED_SHA](https://github.com/tock/tock/blob/master/boards/opentitan/earlgrey-cw310/Makefile) make variable found:
+>  boards/opentitan/earlgrey-cw310/Makefile
 
-Tock on OpenTitan requires
-lowRISC/opentitan@d072ac505f82152678d6e04be95c72b728a347b8. In
-general it is recommended that users start with the specified commit as newer
-versions have not been tested.
+In *general* it is recommended that users start with the commit specified by `OPENTITAN_SUPPORTED_SHA` as newer
+versions **have not been** tested.
+
+> Note: when building, you can pass in `SKIP_OT_VERSION_CHECK=yes` to skip the trivial OpenTitan version check, this maybe useful when developing or testing across multiple versions of OpenTitan.
 
 Unfortunately the OpenTitan documentation is out of sync with the Tock setup.
 For instructions that match the OpenTitan version Tock supports you will need
