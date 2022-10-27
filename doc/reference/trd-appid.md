@@ -411,9 +411,11 @@ described in Section 5.1). At boot, the kernel starts a process if:
   - The process has a unique Application Identifier and Short ID,
   - The process has a higher Application Binary version number than
     all processes it shares its Application Identifier or Short ID with,
-  - The process comes earlier (lower address) than all processes with
-    the same version number and which share an Application Identifier or
-	Short ID.
+
+If two processes which share a Short ID or Application ID have the
+same version number, the kernel starts one of them. The one which
+starts is determined by the scheduling policy of the kernel (whichever
+one is run first).
 
 The Unloaded, CredentialsUnchecked, CredentialsFailed,
 CredentialsApproved and Running states describe the conceptual state
