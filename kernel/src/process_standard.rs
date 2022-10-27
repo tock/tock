@@ -466,7 +466,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn terminate(&self, completion_code: Option<u32>) {
-        if !self.is_running() && self.get_state() != State::Faulted {
+        if !self.is_running() && self.get_state() != State::Faulted &&
+            self.get_state() != State::CredentialsApproved {
             return;
         }
 

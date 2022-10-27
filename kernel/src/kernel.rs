@@ -754,8 +754,17 @@ impl Kernel {
                         if config::CONFIG.debug_process_credentials {
                             debug!("Making process {} runnable", process.get_process_name());
                         }
-                        process.enqueue_init_task(&self.init_cap);
+                        match process.enqueue_init_task(&self.init_cap) {
+                            Ok(_) => {/* All is good, do nothing. */}
+                            Err(e) => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("Could not push initial stack frame onto process {}: {:?}", process.get_process_name(), e);
+                                }
+                            }
+                        };
                     } else {
+                        // Move the process to the terminated state.
+                        process.terminate(None);
                         // Do nothing, not runnable
                         if config::CONFIG.debug_process_credentials {
                             debug!("Process {} is not runnable", process.get_process_name());
@@ -1547,7 +1556,7 @@ fn check_footer(
                 if config::CONFIG.debug_process_credentials {
                     debug!(
                         "ProcessLoad: @{:x} found a len {} footer: {:?}",
-                        footers_position, len, footer
+                        footers_position, len, footer.format()
                     );
                 }
                 footers_position = footers_position + len as usize + 4;

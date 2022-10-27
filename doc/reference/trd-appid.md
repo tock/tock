@@ -58,7 +58,7 @@ The Tock kernel ensures that each running process has a unique
 application identifier; if two userspace binaries have the same AppID,
 the kernel will only permit one of them to run at any time.
 
-Most of the complications in AppIDs stehttps://github.com/tock/tock/pull/3277m from the fact that they are a
+Most of the complications in AppIDs stem from the fact that they are a
 general mechanism used for many different use cases. Therefore, the
 exact structure and semantics of application credentials can vary
 widely. Tock's TBF footer formats, kernel interfaces and mechanisms
@@ -383,31 +383,37 @@ CredentialsApproved and Yielded/Running. Processes start in the Unloaded
 state.
 
 First, when it boots, the Tock kernel scans the TBF Objects stored in
-its application flash region. It checks that they are valid and can
-run on the system. It loads them in order from lowest to highest
-address. Each successfully loaded TBF Object is loaded into one of the
-process slots, that process is moved into the `CredentialsUnchecked`
-state.
+its application flash region. It checks that the TBF Objects are valid
+and can run on the system (e.g., do not require a newer kernel
+version).  It loads them in order from lowest to highest address. Each
+successfully loaded TBF Object is loaded into one of the process
+slots, that process is moved into the `CredentialsUnchecked` state.
 
 Once the application flash has been scanned or the last process slot
 has been filled, the kernel checks the credentials of the processes.
-Using the provided Credentials Checking Policy, it decides whether
-each process can be run. It moves processes whose TBF Objects are not
-allowed to run into the `CredentialsFailed` state. It moves processes
-whose TBF Objects are allowed to run into the `CredentialsApproved`
-state. When a process is placed into the `CredentialsApproved` state,
-this triggers the main kernel loop to examine the process.
+Using the provided Credentials Checking Policy (described in Section
+6), it decides whether each process has permission to run. It moves
+processes whose TBF Objects are not allowed to run into the
+`CredentialsFailed` state. It moves processes whose TBF Objects are
+allowed to run into the `CredentialsApproved` state. Moving a process
+into the `CredentialsApproved` state triggers the main kernel loop to
+examine the process.
 
 The `CredentialsApproved` state indicates that the process is runnable
 in terms of its credentials. However, at any given time it might not
 be allowed to run because its Application Identifier or Short ID
-conflicts with another processs. When the kernel boots, it starts all
-`CredentialsApproved` processes that have a unique Application
-Identifier and a unique Short Identifier. If a pair of processes have
-overlapping Application Identifiers or Short Identifiers, it only starts
-the one that has the higher binary version number. If a pair of
-processes have overlapping Application Identifiers or Short Identifiers
-*and* the same binary version number, the kernel starts one of them.
+conflicts with another processs. When the main kernel loop examines a
+process in the `CredentialsApproved` state, it determines whether to
+run the process based on its Application Identifier, Short ID, and the
+Application Binary version number (stored in the Program Header,
+described in Section 5.1). At boot, the kernel starts a process if:
+
+  - The process has a unique Application Identifier and Short ID,
+  - The process has a higher Application Binary version number than
+    all processes it shares its Application Identifier or Short ID with,
+  - The process comes earlier (lower address) than all processes with
+    the same version number and which share an Application Identifier or
+	Short ID.
 
 The Unloaded, CredentialsUnchecked, CredentialsFailed,
 CredentialsApproved and Running states describe the conceptual state
@@ -415,6 +421,31 @@ machine of a process at loading; the values or names of state
 variables in the kernel implemementation might be different. The exact
 Tock process state machine and names of its states is outside the
 scope of this document.
+
+One a Tock system is running, management interfaces may change the set
+of running processes from those which the boot sequence
+selected. E.g., the process console might terminate a process so that
+it can run a different process with the same Short ID and a lower
+Userspace Binary version number (rollback). The kernel maintains that
+a running process has a unique Application Identifier and a unique
+Short ID among running processes.
+
+Note that the algorithm above can lead to transitive blocking, such
+that a process at boot is blocked from running even if the process
+that blocks it does not run. For example, suppose there are three
+processes: A, B and C.
+
+  - A has a version number of 1, an Application ID of X and a Short ID of 6
+  - B has a version number of 2, an Application ID of Y and a Short ID of 6
+  - C has a version number of 3, an APplication ID of Y and a Short ID of 7
+
+Following the above logic, A cannot run because it shares a Short ID
+with A and has a lower version number. At the same time, B cannot run
+because it has a lower version number than C and the same Application
+ID. C can run.  While A cannot run at the same time as B, it can run
+at the same time as C. At boot, however, A will not be started. Once
+the kernel has booted, however, A could be started by a management
+interface.
 
 
 5 Credentials and Version in Tock Binary Format Objects
