@@ -60,7 +60,15 @@ impl<'a> AppCredentialsChecker<'a> for () {
     }
 }
 
-/// Return whether `process` can run given the
+/// Return whether `process` can run given the identifiers, version
+/// numbers, and execution state of other processes. A process is
+/// runnable if:
+///
+///   - Its Application Identifier and Short ID are different from
+///   all other processes, or
+///   - Other processes that share an Application Identifier or Short
+///   ID with it have a lower version number and are not running, or
+///   - Other processes that shared 
 pub fn is_runnable<AU: AppUniqueness>(
     process: &dyn Process,
     processes: &[Option<&dyn Process>],
@@ -88,7 +96,6 @@ pub fn is_runnable<AU: AppUniqueness>(
             let different = id_differ.different_identifier(process, other)
                 && other.short_app_id() != process.short_app_id();
             let newer = other.binary_version() > process.binary_version();
-            let equal = other.binary_version() == process.binary_version();
             let running = other.is_running();
             let runnable = state != State::CredentialsUnchecked
                 && state != State::CredentialsFailed
@@ -99,16 +106,16 @@ pub fn is_runnable<AU: AppUniqueness>(
             // 3) Other has a higher version number *or* the same version number and is running
             if config::CONFIG.debug_process_credentials {
                 debug!(
-                    "[{}]: creds_approve: {}, different: {}, newer: {}, equal: {}, running: {}",
+                    "[{}]: creds_approve: {}, different: {}, newer: {}, runnable: {}, running: {}",
                     other.get_process_name(),
                     creds_approve,
                     different,
                     newer,
-                    equal,
+                    runnable,
                     running
                 );
             }
-            creds_approve && !different && ((newer && runnable) || (equal && running))
+            creds_approve && !different && ((newer && runnable) || running)
         });
         if blocks {
             if config::CONFIG.debug_process_credentials {

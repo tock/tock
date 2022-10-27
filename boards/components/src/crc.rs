@@ -59,7 +59,7 @@ impl<C: 'static + Crc<'static>> Component for CrcComponent<C> {
     );
     type Output = &'static CrcDriver<'static, C>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let crc_buf = static_buffer
             .1

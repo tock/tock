@@ -110,7 +110,7 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
     );
     type Output = &'static ST77XX<'static, VirtualMuxAlarm<'static, A>, B, P>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let st77xx_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         st77xx_alarm.setup();
 

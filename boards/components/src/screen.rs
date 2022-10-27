@@ -72,7 +72,7 @@ impl<const SCREEN_BUF_LEN: usize> Component for ScreenComponent<SCREEN_BUF_LEN> 
     );
     type Output = &'static Screen<'static>;
 
-    unsafe fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_screen = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 

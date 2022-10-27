@@ -431,13 +431,16 @@ pub unsafe fn main() {
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio = nrf52_components::BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::ble_radio::Radio
+    ));
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -491,7 +494,7 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(nrf52840::adc::Adc));
+        .finalize(components::adc_mux_component_static!(nrf52840::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -501,37 +504,37 @@ pub unsafe fn main() {
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A1
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A2
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A3
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A4
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A5
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
             ));
 
     //--------------------------------------------------------------------------

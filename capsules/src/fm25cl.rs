@@ -46,11 +46,7 @@ use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
-pub static mut TXBUFFER: [u8; 512] = [0; 512];
-pub static mut RXBUFFER: [u8; 512] = [0; 512];
-
-pub static mut KERNEL_TXBUFFER: [u8; 512] = [0; 512];
-pub static mut KERNEL_RXBUFFER: [u8; 512] = [0; 512];
+pub const BUF_LEN: usize = 512;
 
 const SPI_SPEED: u32 = 4000000;
 

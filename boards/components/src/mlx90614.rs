@@ -64,7 +64,7 @@ impl Component for Mlx90614SMBusComponent {
     );
     type Output = &'static Mlx90614SMBus<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mlx90614_smbus = static_buffer
             .0
             .write(SMBusDevice::new(self.i2c_mux, self.i2c_address));

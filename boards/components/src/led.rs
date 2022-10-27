@@ -59,7 +59,7 @@ impl<L: 'static + Led, const NUM_LEDS: usize> Component for LedsComponent<L, NUM
     );
     type Output = &'static LedDriver<'static, L, NUM_LEDS>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         static_buffer.0.write(LedDriver::new(static_buffer.1))
     }
 }

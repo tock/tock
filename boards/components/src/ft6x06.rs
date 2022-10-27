@@ -60,7 +60,7 @@ impl Component for Ft6x06Component {
     );
     type Output = &'static Ft6x06<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let ft6x06_i2c = static_buffer
             .0
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));

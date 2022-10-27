@@ -6,6 +6,7 @@
 
 pub mod chip;
 pub mod clint;
+pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod plic;
 pub mod prci;

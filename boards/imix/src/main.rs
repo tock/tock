@@ -54,9 +54,6 @@ use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
 use components::si7021::SI7021Component;
 use components::spi::{SpiComponent, SpiSyscallComponent};
-use imix_components::adc::AdcComponent;
-use imix_components::rf233::RF233Component;
-use imix_components::usb::UsbComponent;
 
 /// Support routines for debugging I/O.
 ///
@@ -463,7 +460,7 @@ pub unsafe fn main() {
     .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
     let rf233_spi = SpiComponent::new(mux_spi, 3)
         .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
-    let rf233 = RF233Component::new(
+    let rf233 = components::rf233::RF233Component::new(
         rf233_spi,
         &peripherals.pa[09], // reset
         &peripherals.pa[10], // sleep
@@ -471,10 +468,28 @@ pub unsafe fn main() {
         &peripherals.pa[08],
         RADIO_CHANNEL,
     )
-    .finalize(());
+    .finalize(components::rf233_component_static!(sam4l::spi::SpiHw));
 
-    let adc =
-        AdcComponent::new(board_kernel, capsules::adc::DRIVER_NUM, &peripherals.adc).finalize(());
+    // Setup ADC
+    let adc_channels = static_init!(
+        [sam4l::adc::AdcChannel; 6],
+        [
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD1), // AD0
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD2), // AD1
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD3), // AD2
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD4), // AD3
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD5), // AD4
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD6), // AD5
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
+
     let gpio = GpioComponent::new(
         board_kernel,
         capsules::gpio::DRIVER_NUM,
@@ -581,12 +596,12 @@ pub unsafe fn main() {
         sam4l::aes::Aes<'static>
     ));
 
-    let usb_driver = UsbComponent::new(
+    let usb_driver = components::usb::UsbComponent::new(
         board_kernel,
         capsules::usb::usb_user::DRIVER_NUM,
         &peripherals.usbc,
     )
-    .finalize(());
+    .finalize(components::usb_component_static!(sam4l::usbc::Usbc));
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs

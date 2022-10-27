@@ -112,7 +112,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP
     type StaticInput = &'static mut MaybeUninit<Button<'static, IP>>;
     type Output = &'static Button<'static, IP>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let button = static_buffer.write(capsules::button::Button::new(
             self.button_pins,

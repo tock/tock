@@ -77,7 +77,7 @@ impl Component for Lsm303agrI2CComponent {
     );
     type Output = &'static Lsm303agrI2C<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let buffer = static_buffer.2.write([0; 8]);

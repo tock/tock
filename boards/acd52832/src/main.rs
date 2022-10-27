@@ -27,8 +27,6 @@ use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
 
-use nrf52_components::ble::BLEComponent;
-
 const LED1_PIN: Pin = Pin::P0_26;
 const LED2_PIN: Pin = Pin::P0_22;
 const LED3_PIN: Pin = Pin::P0_23;
@@ -419,13 +417,16 @@ pub unsafe fn main() {
     // BLE
     //
 
-    let ble_radio = BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52832::rtc::Rtc,
+        nrf52832::ble_radio::Radio
+    ));
 
     //
     // Temperature

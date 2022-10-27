@@ -9,21 +9,16 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
-use capsules::virtual_i2c::MuxI2C;
-use capsules::virtual_spi::VirtualSpiMasterDevice;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
-use sam4l::adc::Channel;
 use sam4l::chip::Sam4lDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -57,7 +52,7 @@ struct Hail {
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >,
     ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -65,7 +60,7 @@ struct Hail {
     humidity: &'static capsules::humidity::HumiditySensor<'static>,
     spi: &'static capsules::spi_controller::Spi<
         'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        capsules::virtual_spi::VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
@@ -331,11 +326,9 @@ pub unsafe fn main() {
     )
     .finalize(components::nrf51822_component_static!());
 
-    let sensors_i2c = static_init!(
-        MuxI2C<'static>,
-        MuxI2C::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-    );
-    peripherals.i2c1.set_master_client(sensors_i2c);
+    let sensors_i2c =
+        components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
+            .finalize(components::i2c_mux_component_static!());
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
@@ -420,40 +413,21 @@ pub unsafe fn main() {
     let adc_channels = static_init!(
         [sam4l::adc::AdcChannel; 6],
         [
-            sam4l::adc::AdcChannel::new(Channel::AD0), // A0
-            sam4l::adc::AdcChannel::new(Channel::AD1), // A1
-            sam4l::adc::AdcChannel::new(Channel::AD3), // A2
-            sam4l::adc::AdcChannel::new(Channel::AD4), // A3
-            sam4l::adc::AdcChannel::new(Channel::AD5), // A4
-            sam4l::adc::AdcChannel::new(Channel::AD6), // A5
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD0), // A0
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD1), // A1
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD3), // A2
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD4), // A3
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD5), // A4
+            sam4l::adc::AdcChannel::new(sam4l::adc::Channel::AD6), // A5
         ]
     );
-    // Capsule expects references inside array bc it was built assuming model in which
-    // global structs are used, so this is a bit of a hack to pass it what it wants.
-    let ref_channels = static_init!(
-        [&sam4l::adc::AdcChannel; 6],
-        [
-            &adc_channels[0],
-            &adc_channels[1],
-            &adc_channels[2],
-            &adc_channels[3],
-            &adc_channels[4],
-            &adc_channels[5],
-        ]
-    );
-    let adc = static_init!(
-        capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-        capsules::adc::AdcDedicated::new(
-            &peripherals.adc,
-            board_kernel.create_grant(capsules::adc::DRIVER_NUM, &memory_allocation_capability),
-            ref_channels,
-            &mut capsules::adc::ADC_BUFFER1,
-            &mut capsules::adc::ADC_BUFFER2,
-            &mut capsules::adc::ADC_BUFFER3
-        )
-    );
-    hil::adc::Adc::set_client(&peripherals.adc, adc);
-    hil::adc::AdcHighSpeed::set_highspeed_client(&peripherals.adc, adc);
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
 
     // Setup RNG
     let rng = components::rng::RngComponent::new(
@@ -486,10 +460,8 @@ pub unsafe fn main() {
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
 
     // DAC
-    let dac = static_init!(
-        capsules::dac::Dac<'static>,
-        capsules::dac::Dac::new(&peripherals.dac)
-    );
+    let dac = components::dac::DacComponent::new(&peripherals.dac)
+        .finalize(components::dac_component_static!());
 
     // // DEBUG Restart All Apps
     // //

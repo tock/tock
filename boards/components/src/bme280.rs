@@ -58,7 +58,7 @@ impl Component for Bme280Component {
     );
     type Output = &'static Bme280<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let bme280_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
         let i2c_buffer = s.1.write([0; 26]);
 

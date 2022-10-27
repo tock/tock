@@ -76,7 +76,7 @@ impl<
     );
     type Output = &'static AppFlash<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let buffer = static_buffer.0.write([0; BUF_LEN]);

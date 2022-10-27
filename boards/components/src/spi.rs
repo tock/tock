@@ -136,7 +136,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
     type StaticInput = &'static mut MaybeUninit<MuxSpiMaster<'static, S>>;
     type Output = &'static MuxSpiMaster<'static, S>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_spi = static_buffer.write(MuxSpiMaster::new(self.spi, self.deferred_caller));
 
         mux_spi.initialize_callback_handle(
@@ -178,7 +178,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
     );
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let syscall_spi_device = static_buffer
@@ -223,7 +223,7 @@ impl<S: 'static + spi::SpiSlave> Component for SpiSyscallPComponent<S> {
     );
     type Output = &'static SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let syscallp_spi_device = static_buffer
@@ -258,7 +258,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let spi_device =
             static_buffer.write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
         spi_device.setup();
@@ -292,7 +292,7 @@ impl<S: 'static + spi::SpiSlave + kernel::hil::spi::SpiSlaveDevice> Component
     type StaticInput = &'static mut MaybeUninit<SpiPeripheral<'static, S>>;
     type Output = &'static SpiPeripheral<'static, S>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let spi_device = static_buffer.write(SpiPeripheral::new(

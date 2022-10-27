@@ -99,7 +99,7 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
     );
     type Output = &'static HD44780<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let lcd_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         lcd_alarm.setup();
 

@@ -246,10 +246,6 @@ pub unsafe fn main() {
         &peripherals.e310x.gpio_port[17],
         &peripherals.e310x.gpio_port[16],
     );
-    peripherals.e310x.uart1.initialize_gpio_pins(
-        &peripherals.e310x.gpio_port[18],
-        &peripherals.e310x.gpio_port[23],
-    );
 
     let hardware_timer = static_init!(
         sifive::clint::Clint,
@@ -335,7 +331,11 @@ pub unsafe fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
-    debug!("HiFive1 initialization complete. Entering main loop.");
+    // Need two debug!() calls to actually test with QEMU. QEMU seems to have a
+    // much larger UART TX buffer (or it transmits faster). With a single call
+    // the entire message is printed to console even if the kernel loop does not run
+    debug!("HiFive1 initialization complete.");
+    debug!("Entering main loop.");
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
         .finalize(components::cooperative_component_static!(NUM_PROCS));

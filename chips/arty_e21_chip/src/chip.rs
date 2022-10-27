@@ -6,14 +6,16 @@ use kernel::utilities::registers::interfaces::Readable;
 use rv32i;
 
 use crate::clint;
+use crate::deferred_call_tasks::DeferredCallTask;
 use crate::interrupts;
+use crate::uart::DEFERRED_CALLS;
 use rv32i::pmp::PMP;
 
 extern "C" {
     fn _start_trap();
 }
 
-pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
+pub struct ArtyExx<'a, I: InterruptService<DeferredCallTask> + 'a> {
     pmp: PMP<2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
@@ -24,7 +26,7 @@ pub struct ArtyExx<'a, I: InterruptService<()> + 'a> {
 pub struct ArtyExxDefaultPeripherals<'a> {
     pub machinetimer: sifive::clint::Clint<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
-    pub uart0: sifive::uart::Uart<'a>,
+    pub uart0: sifive::uart::Uart<'a, DeferredCallTask>,
 }
 
 impl<'a> ArtyExxDefaultPeripherals<'a> {
@@ -32,12 +34,12 @@ impl<'a> ArtyExxDefaultPeripherals<'a> {
         Self {
             machinetimer: sifive::clint::Clint::new(&clint::CLINT_BASE),
             gpio_port: crate::gpio::Port::new(),
-            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000),
+            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000, &DEFERRED_CALLS[0]),
         }
     }
 }
 
-impl<'a> InterruptService<()> for ArtyExxDefaultPeripherals<'a> {
+impl<'a> InterruptService<DeferredCallTask> for ArtyExxDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::MTIP => self.machinetimer.handle_interrupt(),
@@ -66,12 +68,15 @@ impl<'a> InterruptService<()> for ArtyExxDefaultPeripherals<'a> {
         true
     }
 
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
+    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
+        match task {
+            DeferredCallTask::Uart0 => self.uart0.handle_deferred_call(),
+        }
+        true
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask> + 'a> ArtyExx<'a, I> {
     pub unsafe fn new(
         machinetimer: &'a sifive::clint::Clint<'a>,
         interrupt_service: &'a I,
@@ -143,7 +148,9 @@ impl<'a, I: InterruptService<()> + 'a> ArtyExx<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
+impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip
+    for ArtyExx<'a, I>
+{
     type MPU = PMP<2>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 

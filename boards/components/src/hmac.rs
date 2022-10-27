@@ -76,7 +76,7 @@ impl<
     type StaticInput = &'static mut MaybeUninit<MuxHmac<'static, A, L>>;
     type Output = &'static MuxHmac<'static, A, L>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(MuxHmac::new(self.hmac))
     }
 }
@@ -119,7 +119,7 @@ impl<
     );
     type Output = &'static HmacDriver<'static, VirtualMuxHmac<'static, A, L>, L>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let key_buffer = s.2.write([0; 32]);

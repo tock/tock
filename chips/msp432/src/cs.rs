@@ -325,7 +325,7 @@ impl<'a> PeripheralManagement<NoClockControl> for ClockSystem {
     }
 
     fn get_clock(&self) -> &NoClockControl {
-        unsafe { &kernel::platform::chip::NO_CLOCK_CONTROL }
+        &kernel::platform::chip::NO_CLOCK_CONTROL
     }
 
     fn before_peripheral_access(&self, _c: &NoClockControl, r: &Self::RegisterType) {

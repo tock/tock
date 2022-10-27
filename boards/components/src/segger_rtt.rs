@@ -79,7 +79,7 @@ impl Component for SeggerRttMemoryComponent {
     );
     type Output = SeggerRttMemoryRefs<'static>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let name = b"Terminal\0";
         let up_buffer_name = name;
         let down_buffer_name = name;
@@ -128,7 +128,7 @@ impl<A: 'static + time::Alarm<'static>> Component for SeggerRttComponent<A> {
     );
     type Output = &'static capsules::segger_rtt::SeggerRtt<'static, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let virtual_alarm_rtt = static_buffer.0.write(VirtualMuxAlarm::new(self.mux_alarm));
         virtual_alarm_rtt.setup();
 

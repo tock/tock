@@ -12,6 +12,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use kernel::deferred_call::DeferredCall;
+
 #[repr(C)]
 pub struct UartRegisters {
     /// Transmit Data Register
@@ -64,17 +66,17 @@ register_bitfields![u32,
 enum UARTStateTX {
     Idle,
     Transmitting,
-    _AbortRequested,
+    AbortRequested,
 }
 
 #[derive(Copy, Clone, PartialEq)]
 enum UARTStateRX {
     Idle,
     Receiving,
-    _AbortRequested,
+    AbortRequested,
 }
 
-pub struct Uart<'a> {
+pub struct Uart<'a, T> {
     registers: StaticRef<UartRegisters>,
     clock_frequency: u32,
     stop_bits: Cell<hil::uart::StopBits>,
@@ -91,6 +93,8 @@ pub struct Uart<'a> {
     rx_len: Cell<usize>,
     rx_position: Cell<usize>,
     rx_status: Cell<UARTStateRX>,
+
+    deferred_call: &'a DeferredCall<T>,
 }
 
 #[derive(Copy, Clone)]
@@ -98,8 +102,12 @@ pub struct UartParams {
     pub baud_rate: u32,
 }
 
-impl<'a> Uart<'a> {
-    pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
+impl<'a, T> Uart<'a, T> {
+    pub fn new(
+        base: StaticRef<UartRegisters>,
+        clock_frequency: u32,
+        deferred_call: &'a DeferredCall<T>,
+    ) -> Uart<'a, T> {
         Uart {
             registers: base,
             clock_frequency: clock_frequency,
@@ -117,6 +125,8 @@ impl<'a> Uart<'a> {
             rx_len: Cell::new(0),
             rx_position: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
+
+            deferred_call,
         }
     }
 
@@ -264,6 +274,33 @@ impl<'a> Uart<'a> {
         }
     }
 
+    pub fn handle_deferred_call(&self) {
+        if self.tx_status.get() == UARTStateTX::AbortRequested {
+            // alert client
+            self.tx_client.map(|client| {
+                self.tx_buffer.take().map(|buf| {
+                    client.transmitted_buffer(buf, self.tx_position.get(), Err(ErrorCode::CANCEL));
+                });
+            });
+            self.tx_status.set(UARTStateTX::Idle);
+        }
+
+        if self.rx_status.get() == UARTStateRX::AbortRequested {
+            // alert client
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|buf| {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        Err(ErrorCode::CANCEL),
+                        hil::uart::Error::Aborted,
+                    );
+                });
+            });
+            self.rx_status.set(UARTStateRX::Idle);
+        }
+    }
+
     pub fn transmit_sync(&self, bytes: &[u8]) {
         let regs = self.registers;
 
@@ -278,7 +315,7 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl hil::uart::Configure for Uart<'_> {
+impl<T> hil::uart::Configure for Uart<'_, T> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // This chip does not support these features.
         if params.parity != hil::uart::Parity::None {
@@ -298,7 +335,7 @@ impl hil::uart::Configure for Uart<'_> {
     }
 }
 
-impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
+impl<'a, T: Into<usize> + TryFrom<usize> + Copy> hil::uart::Transmit<'a> for Uart<'a, T> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -334,7 +371,17 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        if self.tx_status.get() != UARTStateTX::Idle {
+            self.registers.txctrl.write(txctrl::txen::CLEAR);
+            self.disable_tx_interrupt();
+            self.tx_status.set(UARTStateTX::AbortRequested);
+
+            self.deferred_call.set();
+
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
     }
 
     fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
@@ -342,7 +389,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     }
 }
 
-impl<'a> hil::uart::Receive<'a> for Uart<'a> {
+impl<'a, T: Into<usize> + TryFrom<usize> + Copy> hil::uart::Receive<'a> for Uart<'a, T> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -376,7 +423,17 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        if self.rx_status.get() != UARTStateRX::Idle {
+            self.registers.rxctrl.write(rxctrl::enable::CLEAR);
+            self.disable_rx_interrupt();
+            self.rx_status.set(UARTStateRX::AbortRequested);
+
+            self.deferred_call.set();
+
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {

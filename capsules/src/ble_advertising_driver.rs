@@ -133,11 +133,8 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-/// Advertisement Buffer
-pub static mut BUF: [u8; PACKET_LENGTH] = [0; PACKET_LENGTH];
-
 const PACKET_ADDR_LEN: usize = 6;
-const PACKET_LENGTH: usize = 39;
+pub const PACKET_LENGTH: usize = 39;
 const ADV_HEADER_TXADD_OFFSET: usize = 6;
 
 #[derive(PartialEq, Debug)]

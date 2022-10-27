@@ -54,7 +54,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for PanicButtonCompone
     type StaticInput = &'static mut MaybeUninit<PanicButton<'static, IP>>;
     type Output = ();
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let panic_button =
             static_buffer.write(PanicButton::new(self.pin, self.mode, self.floating_state));
         self.pin.set_client(panic_button);

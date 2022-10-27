@@ -1,6 +1,5 @@
 //! Types for Tock-compatible processes.
 
-use core::cell::Cell;
 use core::fmt;
 use core::fmt::Write;
 use core::ptr::NonNull;
@@ -825,38 +824,6 @@ pub enum State {
     /// The Process failed verification: it was terminated before it was
     /// verified.
     CredentialsFailed,
-}
-
-/// A wrapper around `Cell<State>` is used by `Process` to prevent bugs arising
-/// from the state duplication in the kernel work tracking and process state
-/// tracking.
-pub(crate) struct ProcessStateCell<'a> {
-    state: Cell<State>,
-    kernel: &'a Kernel,
-}
-
-impl<'a> ProcessStateCell<'a> {
-    pub(crate) fn new(kernel: &'a Kernel) -> Self {
-        Self {
-            state: Cell::new(State::CredentialsUnchecked),
-            kernel,
-        }
-    }
-
-    pub(crate) fn get(&self) -> State {
-        self.state.get()
-    }
-
-    pub(crate) fn update(&self, new_state: State) {
-        let old_state = self.state.get();
-
-        if old_state == State::Running && new_state != State::Running {
-            self.kernel.decrement_work();
-        } else if new_state == State::Running && old_state != State::Running {
-            self.kernel.increment_work()
-        }
-        self.state.set(new_state);
-    }
 }
 
 /// The action the kernel should take when a process encounters a fault.

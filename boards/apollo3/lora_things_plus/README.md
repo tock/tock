@@ -1,23 +1,22 @@
-SparkFun RedBoard Artemis Nano
-==============================
+SparkFun LoRa Thing Plus - expLoRaBLE
+=====================================
 
 ## Board features
 
- - 17 GPIO - all interrupt capable
- - 8 ADC channels with 14-bit precision
- - 17 PWM channels
- - 2 UARTs
- - 4 I2C buses
- - 2 SPI buses
- - PDM Digital Microphone
- - Qwiic Connector
+ - 21 Multifunctional GPIO
+ - Thing Plus (or Feather) Form-Factor:
+ - USB-C Connector
+ - 2-pin JST Connector for a LiPo Battery (not included)
+ - 4-pin JST Qwiic Connector
+ - LoRa
+ - BLE
 
 For more details [visit the SparkFun
-website](https://www.sparkfun.com/products/15443).
+website](https://www.sparkfun.com/products/17506).
 
 ## Flashing the kernel
 
-The kernel can be programmed using the Ambiq python scrips. `cd` into `boards/sparkfun_redboard_artemis_nano`
+The kernel can be programmed using the Ambiq python scrips. `cd` into `boards/apollo3/lora_things_plus/`
 directory and run:
 
 ```shell
@@ -40,8 +39,8 @@ The SVL can always be re-flashed if you want to.
 
 ## Debugging the board
 
-The RedBoard Artemis Nano exposes JTAG via the small headers in the middle of
-the board. See the [SparkFun hookup guide](https://learn.sparkfun.com/tutorials/hookup-guide-for-the-sparkfun-redboard-artemis-nano/all) for a picture of this.
+The SparkFun LoRa Thing Plus exposes JTAG via the small headers in the middle of
+the board. See the [SparkFun hookup guide](https://learn.sparkfun.com/tutorials/sparkfun-explorable-hookup-guide) for a picture of this.
 
 SparkFun sell accessories you can use to connecting to this. It appears
 something like the J-Link BASE will work, but that hasn't been tested by Tock.
@@ -50,9 +49,8 @@ Instead, Tock has tested debugging with the [Black Magic Probe](https://black-ma
 The Black Magic Probe (BMP) is an easy to use, mostly plug and play, JTAG/SWD debugger
 for embedded microcontrollers.
 
-In order to debug with the BMP, first connect the 2x5 SWD cable to the RedBoard
-and the BMP. The ribbon on the RedBoard should face towards the USB
-connection and on the BMP away from the USB connection.
+In order to debug with the BMP, first connect the 2x5 SWD cable to the board
+and the BMP.
 
 Then power on both boards.
 
@@ -64,4 +62,4 @@ monitor swdp_scan
 attach 1
 ```
 
-You can then use GDB to debug the RedBoard
+You can then use GDB to debug the board
