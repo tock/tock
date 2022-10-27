@@ -755,10 +755,14 @@ impl Kernel {
                             debug!("Making process {} runnable", process.get_process_name());
                         }
                         match process.enqueue_init_task(&self.init_cap) {
-                            Ok(_) => {/* All is good, do nothing. */}
+                            Ok(_) => { /* All is good, do nothing. */ }
                             Err(e) => {
                                 if config::CONFIG.debug_load_processes {
-                                    debug!("Could not push initial stack frame onto process {}: {:?}", process.get_process_name(), e);
+                                    debug!(
+                                        "Could not push initial stack frame onto process {}: {:?}",
+                                        process.get_process_name(),
+                                        e
+                                    );
                                 }
                             }
                         };
@@ -1556,7 +1560,9 @@ fn check_footer(
                 if config::CONFIG.debug_process_credentials {
                     debug!(
                         "ProcessLoad: @{:x} found a len {} footer: {:?}",
-                        footers_position, len, footer.format()
+                        footers_position,
+                        len,
+                        footer.format()
                     );
                 }
                 footers_position = footers_position + len as usize + 4;

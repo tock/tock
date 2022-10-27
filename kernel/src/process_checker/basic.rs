@@ -307,18 +307,15 @@ impl<'a> DynamicDeferredCallClient for AppCheckerRsaSimulated<'a> {
         self.client.map(|c| {
             let binary = self.binary.take().unwrap();
             let cred = self.credentials.take().unwrap();
-            let result = if cred.format() == TbfFooterV2CredentialsType::Rsa3072Key ||
-                cred.format() == TbfFooterV2CredentialsType::Rsa4096Key {
-                    Ok(CheckResult::Accept)
-                } else {
-                    Ok(CheckResult::Pass)
-                };
-            
-            c.check_done(
-                result,
-                cred,
-                binary
-            )
+            let result = if cred.format() == TbfFooterV2CredentialsType::Rsa3072Key
+                || cred.format() == TbfFooterV2CredentialsType::Rsa4096Key
+            {
+                Ok(CheckResult::Accept)
+            } else {
+                Ok(CheckResult::Pass)
+            };
+
+            c.check_done(result, cred, binary)
         });
     }
 }
@@ -352,7 +349,6 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
 }
 
 impl AppUniqueness for AppCheckerRsaSimulated<'_> {
-
     fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
         let cred_a = process_a.get_credentials();
         let cred_b = process_b.get_credentials();

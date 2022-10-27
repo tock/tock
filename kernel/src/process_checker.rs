@@ -60,7 +60,7 @@ impl<'a> AppCredentialsChecker<'a> for () {
     }
 }
 
-/// Return whether `process` can run given the 
+/// Return whether `process` can run given the
 pub fn is_runnable<AU: AppUniqueness>(
     process: &dyn Process,
     processes: &[Option<&dyn Process>],
@@ -80,38 +80,52 @@ pub fn is_runnable<AU: AppUniqueness>(
     for i in 0..len {
         let other_process = processes[i];
         let other_name = other_process.map_or("None", |c| c.get_process_name());
-        
+
         let blocks = other_process.map_or(false, |other| {
             let state = other.get_state();
-            let creds_approve = state != State::CredentialsUnchecked &&
-                                state != State::CredentialsFailed;
-            let different = id_differ.different_identifier(process, other) &&
-                            other.short_app_id() != process.short_app_id();
+            let creds_approve =
+                state != State::CredentialsUnchecked && state != State::CredentialsFailed;
+            let different = id_differ.different_identifier(process, other)
+                && other.short_app_id() != process.short_app_id();
             let newer = other.binary_version() > process.binary_version();
             let equal = other.binary_version() == process.binary_version();
             let running = other.is_running();
-            let runnable = state != State::CredentialsUnchecked &&
-                           state != State::CredentialsFailed &&
-                           state != State::Terminated;
+            let runnable = state != State::CredentialsUnchecked
+                && state != State::CredentialsFailed
+                && state != State::Terminated;
             // Other will block process from running if
             // 1) Other has approved credentials, and
             // 2) Other has the same ShortID or Application Identifier, and
             // 3) Other has a higher version number *or* the same version number and is running
             if config::CONFIG.debug_process_credentials {
-                debug!("[{}]: creds_approve: {}, different: {}, newer: {}, equal: {}, running: {}",
-                       other.get_process_name(), creds_approve, different, newer, equal, running);
+                debug!(
+                    "[{}]: creds_approve: {}, different: {}, newer: {}, equal: {}, running: {}",
+                    other.get_process_name(),
+                    creds_approve,
+                    different,
+                    newer,
+                    equal,
+                    running
+                );
             }
-            creds_approve && !different && ((newer && runnable) || (equal && running)) 
+            creds_approve && !different && ((newer && runnable) || (equal && running))
         });
         if blocks {
             if config::CONFIG.debug_process_credentials {
-                debug!("Process {} blocks {}", other_name, process.get_process_name());
+                debug!(
+                    "Process {} blocks {}",
+                    other_name,
+                    process.get_process_name()
+                );
             }
             return false;
         }
     }
     if config::CONFIG.debug_process_credentials {
-        debug!("No process blocks {}: it is runnable", process.get_process_name());
+        debug!(
+            "No process blocks {}: it is runnable",
+            process.get_process_name()
+        );
     }
     // No process blocks this one from running -- it's runnable
     true
