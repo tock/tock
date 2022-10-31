@@ -102,7 +102,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -140,6 +140,10 @@ struct LiteXSim {
             >,
         >,
     >,
+    ethernet_app_tap: &'static capsules::ethernet_app_tap::TapDriver<
+        'static,
+        litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
+    >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
@@ -168,6 +172,7 @@ impl SyscallDriverLookup for LiteXSim {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules::ethernet_app_tap::DRIVER_NUM => f(Some(self.ethernet_app_tap)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -393,8 +398,11 @@ pub unsafe fn main() {
 
     // ---------- ETHERNET ----------
 
-    // Packet receive buffer
-    let ethmac0_rxbuf0 = static_init!([u8; 1522], [0; 1522]);
+    // TX packet metadata
+    let ethmac0_txinfo = static_init!(
+        [(usize, u16); socc::ETHMAC_TX_SLOTS],
+        [(0, 0); socc::ETHMAC_TX_SLOTS]
+    );
 
     // ETHMAC peripheral
     let ethmac0 = static_init!(
@@ -409,12 +417,44 @@ pub unsafe fn main() {
             socc::ETHMAC_SLOT_SIZE,
             socc::ETHMAC_RX_SLOTS,
             socc::ETHMAC_TX_SLOTS,
-            ethmac0_rxbuf0,
+            ethmac0_txinfo,
         )
     );
 
     // Initialize the ETHMAC controller
     ethmac0.initialize();
+
+    // Setup the userspace Ethernet TAP driver:
+    let ethmac0_tap_txbuf = static_init!(
+        [u8; capsules::ethernet_app_tap::MAX_MTU],
+        [0; capsules::ethernet_app_tap::MAX_MTU]
+    );
+    let ethmac0_tap_rxbufs = static_init!(
+        [(
+            [u8; capsules::ethernet_app_tap::MAX_MTU],
+            u16,
+            Option<u64>,
+            bool
+        ); 16],
+        [([0; capsules::ethernet_app_tap::MAX_MTU], 0, None, false); 16]
+    );
+
+    let ethmac0_tap = static_init!(
+        capsules::ethernet_app_tap::TapDriver<
+            'static,
+            litex_vexriscv::liteeth::LiteEth<socc::SoCRegisterFmt>,
+        >,
+        capsules::ethernet_app_tap::TapDriver::new(
+            ethmac0,
+            board_kernel.create_grant(
+                capsules::ethernet_app_tap::DRIVER_NUM,
+                &memory_allocation_cap
+            ),
+            ethmac0_tap_txbuf,
+            ethmac0_tap_rxbufs,
+        ),
+    );
+    kernel::hil::ethernet::EthernetAdapter::set_client(ethmac0, ethmac0_tap);
 
     // --------- GPIO CONTROLLER ----------
     type GPIOPin = litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>;
@@ -619,6 +659,7 @@ pub unsafe fn main() {
         console: console,
         alarm: alarm,
         lldb: lldb,
+        ethernet_app_tap: ethmac0_tap,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
