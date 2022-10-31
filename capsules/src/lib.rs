@@ -29,6 +29,7 @@ pub mod ctap;
 pub mod dac;
 pub mod debug_process_restart;
 pub mod driver;
+pub mod ethernet_app_tap;
 pub mod fm25cl;
 pub mod ft6x06;
 pub mod fxos8700cq;

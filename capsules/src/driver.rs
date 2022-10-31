@@ -29,10 +29,11 @@ pub enum NUM {
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
 
-    // Radio
+    // Radio & Networking
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
+    EthernetTAP           = 0x30003,
 
     // Cryptography
     Rng                   = 0x40001,
