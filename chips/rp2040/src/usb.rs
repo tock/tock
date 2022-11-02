@@ -5,7 +5,6 @@
 
 use crate::gpio::RPGpioPin;
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
@@ -1909,7 +1908,7 @@ impl<'a> UsbCtrl<'a> {
         match endpoint {
             0 => {}
             1..=N_ENDPOINTS => {
-                let (transfer_type, in_state, out_state) =
+                let (transfer_type, _in_state, out_state) =
                     self.descriptors[endpoint].state.get().bulk_state();
                 self.descriptors[endpoint].state.set(EndpointState::Bulk(
                     transfer_type,
@@ -2246,32 +2245,6 @@ impl<'a> UsbCtrl<'a> {
                     .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
             }
             _ => unreachable!("unexisting endpoint"),
-        }
-    }
-
-    fn send_empty_out(&self, endpoint: usize) {
-        if self.next_pid_in[endpoint].get() == 1 {
-            self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
-                EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64)
-                    + EP_BUFFER_CONTROL::BUFFER0_FULL::CLEAR
-                    + EP_BUFFER_CONTROL::DATA_PID0::SET,
-            );
-            self.next_pid_out[endpoint].set(0);
-            self.nop_wait();
-            self.dpsram.ep_buf_ctrl[endpoint]
-                .ep_out_buf_ctrl
-                .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
-        } else {
-            self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
-                EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64)
-                    + EP_BUFFER_CONTROL::BUFFER0_FULL::CLEAR
-                    + EP_BUFFER_CONTROL::DATA_PID0::CLEAR,
-            );
-            self.next_pid_out[endpoint].set(1);
-            self.nop_wait();
-            self.dpsram.ep_buf_ctrl[endpoint]
-                .ep_out_buf_ctrl
-                .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
         }
     }
 
