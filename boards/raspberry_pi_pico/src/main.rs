@@ -261,9 +261,6 @@ pub unsafe fn main() {
     let peripherals = get_peripherals();
     peripherals.resolve_dependencies();
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
-
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
     peripherals.resets.reset_all_except(&[
         Peripheral::IOQSpi,
@@ -320,7 +317,7 @@ pub unsafe fn main() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -366,20 +363,18 @@ pub unsafe fn main() {
     // UART
     // Create a shared UART channel for kernel debug.
 
-    let uart_mux = components::console::UartMuxComponent::new(
-        cdc,
-        115200, 
-        dynamic_deferred_caller
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+        .finalize(components::uart_mux_component_static!());
+
+    let uart_mux2 = components::console::UartMuxComponent::new(
+        &peripherals.uart0,
+        115200,
+        dynamic_deferred_caller,
     )
     .finalize(components::uart_mux_component_static!());
 
-    // let uart_mux2 = components::console::UartMuxComponent::new(
-    //     &peripherals.uart0,
-    //     115200,
-    //     dynamic_deferred_caller,
-    // )
-    // .finalize(components::uart_mux_component_static!());
-
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -389,7 +384,7 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
+    components::debug_writer::DebugWriterComponent::new(uart_mux2)
         .finalize(components::debug_writer_component_static!());
 
     cdc.enable();
@@ -496,7 +491,7 @@ pub unsafe fn main() {
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
-        uart_mux,
+        uart_mux2,
         mux_alarm,
         process_printer,
     )
@@ -553,12 +548,12 @@ pub unsafe fn main() {
         sysinfo::Platform::Fpga => "FPGA",
     };
 
-    // debug!(
-    //     "RP2040 Revision {} {}",
-    //     peripherals.sysinfo.get_revision(),
-    //     platform_type
-    // );
-    // debug!("Initialization complete. Enter main loop");
+    debug!(
+        "RP2040 Revision {} {}",
+        peripherals.sysinfo.get_revision(),
+        platform_type
+    );
+    debug!("Initialization complete. Enter main loop");
 
     // These symbols are defined in the linker script.
     extern "C" {
