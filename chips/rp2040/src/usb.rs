@@ -10,7 +10,7 @@ use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, Field, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 
 macro_rules! internal_err {
@@ -1228,7 +1228,6 @@ pub struct UsbCtrl<'a> {
     next_pid_out: [VolatileCell<u8>; 16],
     errata_pin: OptionalCell<&'a RPGpioPin<'a>>,
     counter: VolatileCell<u32>,
-    configured: VolatileCell<bool>,
 }
 
 impl<'a> UsbCtrl<'a> {
@@ -1296,7 +1295,6 @@ impl<'a> UsbCtrl<'a> {
             ],
             errata_pin: OptionalCell::empty(),
             counter: VolatileCell::new(0),
-            configured: VolatileCell::new(false),
         }
     }
 
