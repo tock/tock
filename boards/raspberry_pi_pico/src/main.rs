@@ -366,12 +366,13 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
         .finalize(components::uart_mux_component_static!());
 
-    let uart_mux2 = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    // Uncomment this to use UART as an output
+    // let uart_mux2 = components::console::UartMuxComponent::new(
+    //     &peripherals.uart0,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(components::uart_mux_component_static!());
 
     // Set the UART used for panic
     io::WRITER.set_uart(&peripherals.uart0);
@@ -384,7 +385,7 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux2)
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
     cdc.enable();
@@ -491,7 +492,7 @@ pub unsafe fn main() {
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
-        uart_mux2,
+        uart_mux,
         mux_alarm,
         process_printer,
     )
