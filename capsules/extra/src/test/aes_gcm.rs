@@ -25,7 +25,7 @@ pub struct Test<'a, A: AES128GCM<'a>> {
         &'static [u8],
         &'static [u8],
         &'static [u8],
-    ); 3],
+    ); 2],
 }
 
 impl<'a, A: AES128GCM<'a>> Test<'a, A> {
@@ -36,7 +36,6 @@ impl<'a, A: AES128GCM<'a>> Test<'a, A> {
             current_test: Cell::new(0),
             encrypting: Cell::new(true),
             tests: [
-                (&KEY_128_ZERO, &IV_128_ZERO, &[], &[], &[], &TAG_128_ZERO),
                 (
                     &KEY_128_TWELVE,
                     &IV_128_TWELVE,
@@ -190,18 +189,6 @@ impl<'a, A: AES128GCM<'a>> GCMClient for Test<'a, A> {
         }
     }
 }
-
-static KEY_128_ZERO: [u8; AES128_KEY_SIZE] = [
-    0x11, 0x75, 0x4c, 0xd7, 0x2a, 0xec, 0x30, 0x9b, 0xf5, 0x2f, 0x76, 0x87, 0x21, 0x2e, 0x89, 0x57,
-];
-
-static IV_128_ZERO: [u8; 12] = [
-    0x3c, 0x81, 0x9d, 0x9a, 0x9b, 0xed, 0x08, 0x76, 0x15, 0x03, 0x0b, 0x65,
-];
-
-static TAG_128_ZERO: [u8; AES128_KEY_SIZE] = [
-    0x25, 0x03, 0x27, 0xc6, 0x74, 0xaa, 0xf4, 0x77, 0xae, 0xf2, 0x67, 0x57, 0x48, 0xcf, 0x69, 0x71,
-];
 
 static KEY_128_TWELVE: [u8; AES128_KEY_SIZE] = [
     0x26, 0x73, 0x0f, 0x1a, 0xd2, 0x4b, 0x76, 0xd6, 0x6f, 0x7a, 0xb8, 0x45, 0x9d, 0xdc, 0xd1, 0x17,
