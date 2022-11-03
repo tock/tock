@@ -1,5 +1,10 @@
 # Test configuration file to modify test environment and settings
 # There will be a file like this in EACH board folder.
+# This configuration file provides the tests to be executed for the board
+
+# This file is to be read by the runner script in 'tock/tools/tock-test-harness/runner.py' - load_config()
+# Where the tests in the list (app) are utilized for the testing portion of the runner and are loaded in said script.
+
 
 title = "Test Configuration Sample"
 
