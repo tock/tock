@@ -51,7 +51,7 @@ mod flash_bootloader;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// Function for the CDC/USB stack used to ask the MCU to reset into 
+// Function for the CDC/USB stack used to ask the MCU to reset into
 // tockbootloader.
 fn baud_rate_reset_bootloader_enter() {
     // unsafe {
