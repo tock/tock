@@ -8,11 +8,10 @@ MEMORY
 
   /* boot from Flash */
   rom (rx)  : ORIGIN = 0x10000000, LENGTH = 256K
-  prog (rx) : ORIGIN = 0x10040000, LENGTH = 128K
+  prog (rx) : ORIGIN = 0x10040000, LENGTH = 256K
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 264K
 }
 
-MPU_MIN_ALIGN = 8K;
 PAGE_SIZE = 4K;
 
 ENTRY(jump_to_bootloader)

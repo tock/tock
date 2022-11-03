@@ -86,9 +86,13 @@ register_structs! {
         (0x03C => addr_endp15: ReadWrite<u32, ADDR_ENDP15::Register>),
         /// Main control register
         (0x040 => main_ctrl: ReadWrite<u32, MAIN_CTRL::Register>),
-        /// Set the SOF (Start of Frame) frame number in the host controller. The SOF packet
+        /// Set the SOF (Start of Frame) frame number in the host controller.
+        /// The SOF packet is sent every 1ms and the host will increment the
+        /// frame number by 1 each time.
         (0x044 => sof_wr: ReadWrite<u32, SOF_WR::Register>),
-        /// Read the last SOF (Start of Frame) frame number seen. In device mode the last SO
+        /// Read the last SOF (Start of Frame) frame number seen. In device
+        /// mode the last SOF received from the host. In host mode the last
+        /// SOF sent by the host.
         (0x048 => sof_rd: ReadWrite<u32, SOF_RD::Register>),
         /// SIE control register
         (0x04C => sie_ctrl: ReadWrite<u32, SIE_CTRL::Register>),
@@ -96,25 +100,48 @@ register_structs! {
         (0x050 => sie_status: ReadWrite<u32, SIE_STATUS::Register>),
         /// interrupt endpoint control register
         (0x054 => int_ep_ctrl: ReadWrite<u32, INT_EP_CTRL::Register>),
-        /// Buffer status register. A bit set here indicates that a buffer has completed on
+        /// Buffer status register. A bit set here indicates that a buffer has
+        /// completed on the endpoint (if the buffer interrupt is enabled). It
+        /// is possible for 2 buffers to be completed, so clearing the buffer
+        /// status bit may instantly re set it on the next clock cycle.
         (0x058 => buff_status: ReadWrite<u32, BUFF_STATUS::Register>),
-        /// Which of the double buffers should be handled. Only valid if using an interrupt
+        /// Which of the double buffers should be handled. Only valid if
+        /// using an interrupt per buffer (i.e. not per 2 buffers). Not valid for
+        /// host interrupt endpoint polling because they are only single
+        /// buffered.
         (0x05C => buff_cpu_should_handle: ReadWrite<u32, BUFF_CPU_SHOULD_HANDLE::Register>),
-        /// Device only: Can be set to ignore the buffer control register for this endpoint
+        /// Device only: Can be set to ignore the buffer control register for
+        /// this endpoint in case you would like to revoke a buffer. A NAK
+        /// will be sent for every access to the endpoint until this bit is
+        /// cleared. A corresponding bit in EP_ABORT_DONE is set when it is safe
+        /// to modify the buffer control register.
         (0x060 => ep_abort: ReadWrite<u32, EP_ABORT::Register>),
-        /// Device only: Used in conjunction with `EP_ABORT`. Set once an endpoint is idle s
+        /// Device only: Used in conjunction with EP_ABORT. Set once an
+        /// endpoint is idle so the programmer knows it is safe to modify the
+        /// buffer control register.
         (0x064 => ep_abort_done: ReadWrite<u32, EP_ABORT_DONE::Register>),
-        /// Device: this bit must be set in conjunction with the `STALL` bit in the buffer c
+        /// Device: this bit must be set in conjunction with the STALL bit in the
+        /// buffer control register to send a STALL on EP0. The device
+        /// controller clears these bits when a SETUP packet is received
+        /// because the USB spec requires that a STALL condition is cleared
+        /// when a SETUP packet is received.
         (0x068 => ep_stall_arm: ReadWrite<u32, EP_STALL_ARM::Register>),
-        /// Used by the host controller. Sets the wait time in microseconds before trying ag
+        /// Used by the host controller. Sets the wait time in microseconds
+        /// before trying again if the device replies with a NAK.
         (0x06C => nak_poll: ReadWrite<u32, NAK_POLL::Register>),
-        /// Device: bits are set when the `IRQ_ON_NAK` or `IRQ_ON_STALL` bits are set. For E
+        /// Device: bits are set when the IRQ_ON_NAK or IRQ_ON_STALL bits are
+        /// set. For EP0 this comes from SIE_CTRL. For all other endpoints it
+        /// comes from the endpoint control register.
         (0x070 => ep_status_stall_nak: ReadWrite<u32, EP_STATUS_STALL_NAK::Register>),
         /// Where to connect the USB controller. Should be to_phy by default.
         (0x074 => usb_muxing: ReadWrite<u32, USB_MUXING::Register>),
-        /// Overrides for the power signals in the event that the VBUS signals are not hooke
+        /// Overrides for the power signals in the event that the VBUS
+        /// signals are not hooked up to GPIO. Set the value of the override
+        /// and then the override enable to switch over to the override value.
         (0x078 => usb_pwr: ReadWrite<u32, USB_PWR::Register>),
-        /// This register allows for direct control of the USB phy. Use in conjunction with
+        /// This register allows for direct control of the USB phy. Use in
+        /// conjunction with usbphy_direct_override register to enable each
+        /// override bit.
         (0x07C => usbphy_direct: ReadWrite<u32, USBPHY_DIRECT::Register>),
         /// Override enable for each control in usbphy_direct
         (0x080 => usbphy_direct_override: ReadWrite<u32, USBPHY_DIRECT_OVERRIDE::Register>),
@@ -359,10 +386,12 @@ SIE_CTRL [
     START_TRANS OFFSET(0) NUMBITS(1) []
 ],
 SIE_STATUS [
-    /// Data Sequence Error.\n\n
-    /// The device can raise a sequence error in the following conditions:\n\n
-    /// * A SETUP packet is received followed by a DATA1 packet (data phase should always be DATA0) * An OUT packet is received from the host but doesn't match the data pid in the buffer control register read from DPSRAM\n\n
-    /// The host can raise a data sequence error in the following conditions:\n\n
+    /// Data Sequence Error.
+    /// The device can raise a sequence error in the following conditions:
+    /// * A SETUP packet is received followed by a DATA1 packet (data phase
+    /// should always be DATA0) * An OUT packet is received from the host but
+    /// doesn't match the data pid in the buffer control register read from DPSRAM
+    /// The host can raise a data sequence error in the following conditions:
     /// * An IN packet from the device has the wrong data PID
     DATA_SEQ_ERROR OFFSET(31) NUMBITS(1) [],
     /// ACK received. Raised by both host and device.
@@ -371,7 +400,9 @@ SIE_STATUS [
     STALL_REC OFFSET(29) NUMBITS(1) [],
     /// Host: NAK received
     NAK_REC OFFSET(28) NUMBITS(1) [],
-    /// RX timeout is raised by both the host and device if an ACK is not received in th
+    /// RX timeout is raised by both the host and device if an ACK
+    /// is not received in the maximum time specified by the USB
+    /// spec.
     RX_TIMEOUT OFFSET(27) NUMBITS(1) [],
     /// RX overflow is raised by the Serial RX engine if the incoming data is too fast.
     RX_OVERFLOW OFFSET(26) NUMBITS(1) [],
@@ -381,11 +412,16 @@ SIE_STATUS [
     CRC_ERROR OFFSET(24) NUMBITS(1) [],
     /// Device: bus reset received
     BUS_RESET OFFSET(19) NUMBITS(1) [],
-    /// Transaction complete.\n\n
-    /// Raised by device if:\n\n
-    /// * An IN or OUT packet is sent with the `LAST_BUFF` bit set in th
-    /// Raised by host if:\n\n
-    /// * A setup packet is sent when no data in or data out transaction
+    /// Transaction complete.
+    /// Raised by device if:
+    /// * An IN or OUT packet is sent with the LAST_BUFF bit set in
+    /// the buffer control register
+    /// Raised by host if:
+    /// * A setup packet is sent when no data in or data out
+    /// transaction follows * An IN packet is received and the
+    /// LAST_BUFF bit is set in the buffer control register * An IN
+    /// packet is received with zero length * An OUT packet is
+    /// sent and the LAST_BUFF bit is set
     TRANS_COMPLETE OFFSET(18) NUMBITS(1) [],
     /// Device: Setup packet received
     SETUP_REC OFFSET(17) NUMBITS(1) [],
@@ -397,7 +433,9 @@ SIE_STATUS [
     VBUS_OVER_CURR OFFSET(10) NUMBITS(1) [],
     /// Host: device speed. Disconnected = 00, LS = 01, FS = 10
     SPEED OFFSET(8) NUMBITS(2) [],
-    /// Bus in suspended state. Valid for device and host. Host and device will go into
+    /// Bus in suspended state. Valid for device and host. Host
+    /// and device will go into suspend if neither Keep Alive / SOF
+    /// frames are enabled.
     SUSPENDED OFFSET(4) NUMBITS(1) [],
     /// USB bus line state
     LINE_STATE OFFSET(2) NUMBITS(2) [],
@@ -789,27 +827,33 @@ USBPHY_DIRECT [
     RX_DP OFFSET(17) NUMBITS(1) [],
     /// Differential RX
     RX_DD OFFSET(16) NUMBITS(1) [],
-    /// TX_DIFFMODE=0: Single ended mode\n
+    /// TX_DIFFMODE=0: Single ended mode
     /// TX_DIFFMODE=1: Differential drive mode (TX_DM, TX_DM_OE ignored)
     TX_DIFFMODE OFFSET(15) NUMBITS(1) [],
-    /// TX_FSSLEW=0: Low speed slew rate\n
+    /// TX_FSSLEW=0: Low speed slew rate
     /// TX_FSSLEW=1: Full speed slew rate
     TX_FSSLEW OFFSET(14) NUMBITS(1) [],
     /// TX power down override (if override enable is set). 1 = powered down.
     TX_PD OFFSET(13) NUMBITS(1) [],
     /// RX power down override (if override enable is set). 1 = powered down.
     RX_PD OFFSET(12) NUMBITS(1) [],
-    /// Output data. TX_DIFFMODE=1, Ignored\n
-    /// TX_DIFFMODE=0, Drives DPM only. TX_DM_OE=1 to enable drive. DPM=
+    /// Output data. TX_DIFFMODE=1, Ignored
+    /// TX_DIFFMODE=0, Drives DPM only. TX_DM_OE=1 to
+    /// enable drive. DPM=TX_DM
     TX_DM OFFSET(11) NUMBITS(1) [],
-    /// Output data. If TX_DIFFMODE=1, Drives DPP/DPM diff pair. TX_DP_OE=1 to enable dr
-    /// If TX_DIFFMODE=0, Drives DPP only. TX_DP_OE=1 to enable drive. D
+    /// Output data. If TX_DIFFMODE=1, Drives DPP/DPM diff
+    /// pair. TX_DP_OE=1 to enable drive. DPP=TX_DP,
+    /// DPM=~TX_DP
+    /// If TX_DIFFMODE=0, Drives DPP only. TX_DP_OE=1 to
+    /// enable drive. DPP=TX_DP
     TX_DP OFFSET(10) NUMBITS(1) [],
-    /// Output enable. If TX_DIFFMODE=1, Ignored.\n
-    /// If TX_DIFFMODE=0, OE for DPM only. 0 - DPM in Hi-Z state; 1 - DP
+    /// Output enable. If TX_DIFFMODE=1, Ignored.
+    /// If TX_DIFFMODE=0, OE for DPM only. 0 - DPM in Hi-Z
+    /// state; 1 - DPM driving
     TX_DM_OE OFFSET(9) NUMBITS(1) [],
-    /// Output enable. If TX_DIFFMODE=1, OE for DPP/DPM diff pair. 0 - DPP/DPM in Hi-Z s
-    /// If TX_DIFFMODE=0, OE for DPP only. 0 - DPP in Hi-Z state; 1 - DP
+    /// Output enable. If TX_DIFFMODE=1, Ignored.
+    /// If TX_DIFFMODE=0, OE for DPM only. 0 - DPM in Hi-Z
+    /// state; 1 - DPM driving
     TX_DP_OE OFFSET(8) NUMBITS(1) [],
     /// DM pull down enable
     DM_PULLDN_EN OFFSET(6) NUMBITS(1) [],
@@ -855,29 +899,37 @@ USBPHY_DIRECT_OVERRIDE [
     DP_PULLUP_HISEL_OVERRIDE_EN OFFSET(0) NUMBITS(1) []
 ],
 USBPHY_TRIM [
-    /// Value to drive to USB PHY\n
-    /// DM pulldown resistor trim control\n
-    /// Experimental data suggests that the reset value will work, but t
+    /// Value to drive to USB PHY
+    /// DM pulldown resistor trim control
+    // Experimental data suggests that the reset value will work,
+    // but this register allows adjustment if required
     DM_PULLDN_TRIM OFFSET(8) NUMBITS(5) [],
-    /// Value to drive to USB PHY\n
-    /// DP pulldown resistor trim control\n
-    /// Experimental data suggests that the reset value will work, but t
+    /// Value to drive to USB PHY
+    /// DP pulldown resistor trim control
+    /// Experimental data suggests that the reset value will work,
+    /// but this register allows adjustment if required
     DP_PULLDN_TRIM OFFSET(0) NUMBITS(5) []
 ],
 INTR [
-    /// Raised when any bit in EP_STATUS_STALL_NAK is set. Clear by clearing all bits in
+    /// Raised when any bit in EP_STATUS_STALL_NAK is set.
+    /// Clear by clearing all bits in EP_STATUS_STALL_NAK.
     EP_STALL_NAK OFFSET(19) NUMBITS(1) [],
-    /// Raised when any bit in ABORT_DONE is set. Clear by clearing all bits in ABORT_DO
+    /// Raised when any bit in ABORT_DONE is set. Clear by
+    /// clearing all bits in ABORT_DONE.
     ABORT_DONE OFFSET(18) NUMBITS(1) [],
-    /// Set every time the device receives a SOF (Start of Frame) packet. Cleared by rea
+    /// Set every time the device receives a SOF (Start of Frame)
+    /// packet. Cleared by reading SOF_RD
     DEV_SOF OFFSET(17) NUMBITS(1) [],
     /// Device. Source: SIE_STATUS.SETUP_REC
     SETUP_REQ OFFSET(16) NUMBITS(1) [],
-    /// Set when the device receives a resume from the host. Cleared by writing to SIE_S
+    /// Set when the device receives a resume from the host.
+    /// Cleared by writing to SIE_STATUS.RESUME
     DEV_RESUME_FROM_HOST OFFSET(15) NUMBITS(1) [],
-    /// Set when the device suspend state changes. Cleared by writing to SIE_STATUS.SUSP
+    /// Set when the device suspend state changes. Cleared by
+    /// writing to SIE_STATUS.SUSPENDED
     DEV_SUSPEND OFFSET(14) NUMBITS(1) [],
-    /// Set when the device connection state changes. Cleared by writing to SIE_STATUS.C
+    /// Set when the device connection state changes. Cleared by
+    /// writing to SIE_STATUS.CONNECTED
     DEV_CONN_DIS OFFSET(13) NUMBITS(1) [],
     /// Source: SIE_STATUS.BUS_RESET
     BUS_RESET OFFSET(12) NUMBITS(1) [],
@@ -895,31 +947,43 @@ INTR [
     ERROR_RX_TIMEOUT OFFSET(6) NUMBITS(1) [],
     /// Source: SIE_STATUS.DATA_SEQ_ERROR
     ERROR_DATA_SEQ OFFSET(5) NUMBITS(1) [],
-    /// Raised when any bit in BUFF_STATUS is set. Clear by clearing all bits in BUFF_ST
+    /// Raised when any bit in BUFF_STATUS is set. Clear by
+    /// clearing all bits in BUFF_STATUS.
     BUFF_STATUS OFFSET(4) NUMBITS(1) [],
-    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set. Clear by writing to this bit
+    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set.
+    /// Clear by writing to this bit.
     TRANS_COMPLETE OFFSET(3) NUMBITS(1) [],
-    /// Host: raised every time the host sends a SOF (Start of Frame). Cleared by readin
+    /// Host: raised every time the host sends a SOF (Start of
+    /// Frame). Cleared by reading SOF_RD
     HOST_SOF OFFSET(2) NUMBITS(1) [],
-    /// Host: raised when a device wakes up the host. Cleared by writing to SIE_STATUS.R
+    /// Host: raised when a device wakes up the host. Cleared by
+    /// writing to SIE_STATUS.RESUME
     HOST_RESUME OFFSET(1) NUMBITS(1) [],
-    /// Host: raised when a device is connected or disconnected (i.e. when SIE_STATUS.SP
+    /// Host: raised when a device is connected or disconnected
+    /// (i.e. when SIE_STATUS.SPEED changes). Cleared by
+    /// writing to SIE_STATUS.SPEED
     HOST_CONN_DIS OFFSET(0) NUMBITS(1) []
 ],
 INTE [
-    /// Raised when any bit in EP_STATUS_STALL_NAK is set. Clear by clearing all bits in
+    /// Raised when any bit in EP_STATUS_STALL_NAK is set.
+    /// Clear by clearing all bits in EP_STATUS_STALL_NAK.
     EP_STALL_NAK OFFSET(19) NUMBITS(1) [],
-    /// Raised when any bit in ABORT_DONE is set. Clear by clearing all bits in ABORT_DO
+    /// Raised when any bit in ABORT_DONE is set. Clear by
+    /// clearing all bits in ABORT_DONE.
     ABORT_DONE OFFSET(18) NUMBITS(1) [],
-    /// Set every time the device receives a SOF (Start of Frame) packet. Cleared by rea
+    /// Set every time the device receives a SOF (Start of Frame)
+    /// packet. Cleared by reading SOF_RD
     DEV_SOF OFFSET(17) NUMBITS(1) [],
     /// Device. Source: SIE_STATUS.SETUP_REC
     SETUP_REQ OFFSET(16) NUMBITS(1) [],
-    /// Set when the device receives a resume from the host. Cleared by writing to SIE_S
+    /// Set when the device receives a resume from the host.
+    /// Cleared by writing to SIE_STATUS.RESUME
     DEV_RESUME_FROM_HOST OFFSET(15) NUMBITS(1) [],
-    /// Set when the device suspend state changes. Cleared by writing to SIE_STATUS.SUSP
+    /// Set when the device suspend state changes. Cleared by
+    /// writing to SIE_STATUS.SUSPENDED
     DEV_SUSPEND OFFSET(14) NUMBITS(1) [],
-    /// Set when the device connection state changes. Cleared by writing to SIE_STATUS.C
+    /// Set when the device connection state changes. Cleared by
+    /// writing to SIE_STATUS.CONNECTED
     DEV_CONN_DIS OFFSET(13) NUMBITS(1) [],
     /// Source: SIE_STATUS.BUS_RESET
     BUS_RESET OFFSET(12) NUMBITS(1) [],
@@ -937,31 +1001,43 @@ INTE [
     ERROR_RX_TIMEOUT OFFSET(6) NUMBITS(1) [],
     /// Source: SIE_STATUS.DATA_SEQ_ERROR
     ERROR_DATA_SEQ OFFSET(5) NUMBITS(1) [],
-    /// Raised when any bit in BUFF_STATUS is set. Clear by clearing all bits in BUFF_ST
+    /// Raised when any bit in BUFF_STATUS is set. Clear by
+    /// clearing all bits in BUFF_STATUS.
     BUFF_STATUS OFFSET(4) NUMBITS(1) [],
-    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set. Clear by writing to this bit
+    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set.
+    /// Clear by writing to this bit.
     TRANS_COMPLETE OFFSET(3) NUMBITS(1) [],
-    /// Host: raised every time the host sends a SOF (Start of Frame). Cleared by readin
+    /// Host: raised every time the host sends a SOF (Start of
+    /// Frame). Cleared by reading SOF_RD
     HOST_SOF OFFSET(2) NUMBITS(1) [],
-    /// Host: raised when a device wakes up the host. Cleared by writing to SIE_STATUS.R
+    /// Host: raised when a device wakes up the host. Cleared by
+    /// writing to SIE_STATUS.RESUME
     HOST_RESUME OFFSET(1) NUMBITS(1) [],
-    /// Host: raised when a device is connected or disconnected (i.e. when SIE_STATUS.SP
+    /// Host: raised when a device is connected or disconnected
+    /// (i.e. when SIE_STATUS.SPEED changes). Cleared by
+    /// writing to SIE_STATUS.SPEED
     HOST_CONN_DIS OFFSET(0) NUMBITS(1) []
 ],
 INTF [
-    /// Raised when any bit in EP_STATUS_STALL_NAK is set. Clear by clearing all bits in
+    /// Raised when any bit in EP_STATUS_STALL_NAK is set.
+    /// Clear by clearing all bits in EP_STATUS_STALL_NAK.
     EP_STALL_NAK OFFSET(19) NUMBITS(1) [],
-    /// Raised when any bit in ABORT_DONE is set. Clear by clearing all bits in ABORT_DO
+    /// Raised when any bit in ABORT_DONE is set. Clear by
+    /// clearing all bits in ABORT_DONE.
     ABORT_DONE OFFSET(18) NUMBITS(1) [],
-    /// Set every time the device receives a SOF (Start of Frame) packet. Cleared by rea
+    /// Set every time the device receives a SOF (Start of Frame)
+    /// packet. Cleared by reading SOF_RD
     DEV_SOF OFFSET(17) NUMBITS(1) [],
     /// Device. Source: SIE_STATUS.SETUP_REC
     SETUP_REQ OFFSET(16) NUMBITS(1) [],
-    /// Set when the device receives a resume from the host. Cleared by writing to SIE_S
+    /// Set when the device receives a resume from the host.
+    /// Cleared by writing to SIE_STATUS.RESUME
     DEV_RESUME_FROM_HOST OFFSET(15) NUMBITS(1) [],
-    /// Set when the device suspend state changes. Cleared by writing to SIE_STATUS.SUSP
+    /// Set when the device suspend state changes. Cleared by
+    /// writing to SIE_STATUS.SUSPENDED
     DEV_SUSPEND OFFSET(14) NUMBITS(1) [],
-    /// Set when the device connection state changes. Cleared by writing to SIE_STATUS.C
+    /// Set when the device connection state changes. Cleared by
+    /// writing to SIE_STATUS.CONNECTED
     DEV_CONN_DIS OFFSET(13) NUMBITS(1) [],
     /// Source: SIE_STATUS.BUS_RESET
     BUS_RESET OFFSET(12) NUMBITS(1) [],
@@ -979,31 +1055,43 @@ INTF [
     ERROR_RX_TIMEOUT OFFSET(6) NUMBITS(1) [],
     /// Source: SIE_STATUS.DATA_SEQ_ERROR
     ERROR_DATA_SEQ OFFSET(5) NUMBITS(1) [],
-    /// Raised when any bit in BUFF_STATUS is set. Clear by clearing all bits in BUFF_ST
+    /// Raised when any bit in BUFF_STATUS is set. Clear by
+    /// clearing all bits in BUFF_STATUS.
     BUFF_STATUS OFFSET(4) NUMBITS(1) [],
-    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set. Clear by writing to this bit
+    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set.
+    /// Clear by writing to this bit.
     TRANS_COMPLETE OFFSET(3) NUMBITS(1) [],
-    /// Host: raised every time the host sends a SOF (Start of Frame). Cleared by readin
+    /// Host: raised every time the host sends a SOF (Start of
+    /// Frame). Cleared by reading SOF_RD
     HOST_SOF OFFSET(2) NUMBITS(1) [],
-    /// Host: raised when a device wakes up the host. Cleared by writing to SIE_STATUS.R
+    /// Host: raised when a device wakes up the host. Cleared by
+    /// writing to SIE_STATUS.RESUME
     HOST_RESUME OFFSET(1) NUMBITS(1) [],
-    /// Host: raised when a device is connected or disconnected (i.e. when SIE_STATUS.SP
+    /// Host: raised when a device is connected or disconnected
+    /// (i.e. when SIE_STATUS.SPEED changes). Cleared by
+    /// writing to SIE_STATUS.SPEED
     HOST_CONN_DIS OFFSET(0) NUMBITS(1) []
 ],
 INTS [
-    /// Raised when any bit in EP_STATUS_STALL_NAK is set. Clear by clearing all bits in
+    /// Raised when any bit in EP_STATUS_STALL_NAK is set.
+    /// Clear by clearing all bits in EP_STATUS_STALL_NAK.
     EP_STALL_NAK OFFSET(19) NUMBITS(1) [],
-    /// Raised when any bit in ABORT_DONE is set. Clear by clearing all bits in ABORT_DO
+    /// Raised when any bit in ABORT_DONE is set. Clear by
+    /// clearing all bits in ABORT_DONE.
     ABORT_DONE OFFSET(18) NUMBITS(1) [],
-    /// Set every time the device receives a SOF (Start of Frame) packet. Cleared by rea
+    /// Set every time the device receives a SOF (Start of Frame)
+    /// packet. Cleared by reading SOF_RD
     DEV_SOF OFFSET(17) NUMBITS(1) [],
     /// Device. Source: SIE_STATUS.SETUP_REC
     SETUP_REQ OFFSET(16) NUMBITS(1) [],
-    /// Set when the device receives a resume from the host. Cleared by writing to SIE_S
+    /// Set when the device receives a resume from the host.
+    /// Cleared by writing to SIE_STATUS.RESUME
     DEV_RESUME_FROM_HOST OFFSET(15) NUMBITS(1) [],
-    /// Set when the device suspend state changes. Cleared by writing to SIE_STATUS.SUSP
+    /// Set when the device suspend state changes. Cleared by
+    /// writing to SIE_STATUS.SUSPENDED
     DEV_SUSPEND OFFSET(14) NUMBITS(1) [],
-    /// Set when the device connection state changes. Cleared by writing to SIE_STATUS.C
+    /// Set when the device connection state changes. Cleared by
+    /// writing to SIE_STATUS.CONNECTED
     DEV_CONN_DIS OFFSET(13) NUMBITS(1) [],
     /// Source: SIE_STATUS.BUS_RESET
     BUS_RESET OFFSET(12) NUMBITS(1) [],
@@ -1021,15 +1109,21 @@ INTS [
     ERROR_RX_TIMEOUT OFFSET(6) NUMBITS(1) [],
     /// Source: SIE_STATUS.DATA_SEQ_ERROR
     ERROR_DATA_SEQ OFFSET(5) NUMBITS(1) [],
-    /// Raised when any bit in BUFF_STATUS is set. Clear by clearing all bits in BUFF_ST
+    /// Raised when any bit in BUFF_STATUS is set. Clear by
+    /// clearing all bits in BUFF_STATUS.
     BUFF_STATUS OFFSET(4) NUMBITS(1) [],
-    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set. Clear by writing to this bit
+    /// Raised every time SIE_STATUS.TRANS_COMPLETE is set.
+    /// Clear by writing to this bit.
     TRANS_COMPLETE OFFSET(3) NUMBITS(1) [],
-    /// Host: raised every time the host sends a SOF (Start of Frame). Cleared by readin
+    /// Host: raised every time the host sends a SOF (Start of
+    /// Frame). Cleared by reading SOF_RD
     HOST_SOF OFFSET(2) NUMBITS(1) [],
-    /// Host: raised when a device wakes up the host. Cleared by writing to SIE_STATUS.R
+    /// Host: raised when a device wakes up the host. Cleared by
+    /// writing to SIE_STATUS.RESUME
     HOST_RESUME OFFSET(1) NUMBITS(1) [],
-    /// Host: raised when a device is connected or disconnected (i.e. when SIE_STATUS.SP
+    /// Host: raised when a device is connected or disconnected
+    /// (i.e. when SIE_STATUS.SPEED changes). Cleared by
+    /// writing to SIE_STATUS.SPEED
     HOST_CONN_DIS OFFSET(0) NUMBITS(1) []
 ]
 ];
