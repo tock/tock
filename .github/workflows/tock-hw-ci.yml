@@ -1,4 +1,12 @@
 # Demo for nrf52840dk
+# For more info on this file, visit: https://github.com/tock/tock/blob/master/doc/CI_Hardware.md#creating-the-workflow-file
+# In short, this file contains the workflow for github actions 
+# to execute when a push/pull_request occurs on master
+# build - builds the device to test
+# Specifically - runs-on specifies that this workflow will only 
+# run on the runner with the nrf52dk label. the key steps: define what build will do.
+# This goes for every key in jobs - build, install, and test. 
+
 name: tock-hw-ci
 
 on:
