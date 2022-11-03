@@ -16,10 +16,12 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
+use kernel::platform::chip::Chip;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::Kernel;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
 
@@ -89,6 +91,7 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
@@ -102,6 +105,9 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -118,6 +124,66 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     }
 }
 
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+/// Additionally, this function should only ever be called once, as it is declaring and
+/// initializing static memory for system peripherals.
+#[inline(never)]
+unsafe fn create_peripherals() -> &'static mut E310G002DefaultPeripherals<'static> {
+    static_init!(
+        E310G002DefaultPeripherals,
+        E310G002DefaultPeripherals::new()
+    )
+}
+
+/// For the HiFive1, if load_process is inlined, it leads to really large stack utilization in
+/// main. By wrapping it in a non-inlined function, this reduces the stack utilization once
+/// processes are running.
+#[inline(never)]
+fn load_processes_not_inlined<C: Chip>(board_kernel: &'static Kernel, chip: &'static C) {
+    // These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    let app_flash = unsafe {
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        )
+    };
+
+    let app_memory = unsafe {
+        core::slice::from_raw_parts_mut(
+            &mut _sappmem as *mut u8,
+            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+        )
+    };
+
+    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
+    kernel::process::load_processes(
+        board_kernel,
+        chip,
+        app_flash,
+        app_memory,
+        unsafe { &mut PROCESSES },
+        &FAULT_RESPONSE,
+        &process_mgmt_cap,
+    )
+    .unwrap_or_else(|err| {
+        debug!("Error loading processes!");
+        debug!("{:?}", err);
+    });
+}
+
 /// Main function.
 ///
 /// This function is called from the arch crate after some very basic RISC-V
@@ -127,14 +193,7 @@ pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
-    let peripherals = static_init!(
-        E310G002DefaultPeripherals,
-        E310G002DefaultPeripherals::new()
-    );
-
-    // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let peripherals = create_peripherals();
 
     peripherals.e310x.watchdog.disable();
     peripherals.e310x.rtc.disable();
@@ -176,7 +235,7 @@ pub unsafe fn main() {
     .finalize(components::uart_mux_component_static!());
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, sifive::gpio::GpioPin>,
         LedLow::new(&peripherals.e310x.gpio_port[22]), // Red
         LedLow::new(&peripherals.e310x.gpio_port[19]), // Green
@@ -186,10 +245,6 @@ pub unsafe fn main() {
     peripherals.e310x.uart0.initialize_gpio_pins(
         &peripherals.e310x.gpio_port[17],
         &peripherals.e310x.gpio_port[16],
-    );
-    peripherals.e310x.uart1.initialize_gpio_pins(
-        &peripherals.e310x.gpio_port[18],
-        &peripherals.e310x.gpio_port[23],
     );
 
     let hardware_timer = static_init!(
@@ -218,6 +273,7 @@ pub unsafe fn main() {
     );
     systick_virtual_alarm.setup();
 
+    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let alarm = static_init!(
         capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
         capsules::alarm::AlarmDriver::new(
@@ -233,8 +289,8 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -265,31 +321,24 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
-    debug!("HiFive1 initialization complete. Entering main loop.");
-
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
+    // Need two debug!() calls to actually test with QEMU. QEMU seems to have a
+    // much larger UART TX buffer (or it transmits faster). With a single call
+    // the entire message is printed to console even if the kernel loop does not run
+    debug!("HiFive1 initialization complete.");
+    debug!("Entering main loop.");
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
@@ -305,25 +354,7 @@ pub unsafe fn main() {
         scheduler_timer,
     };
 
-    kernel::process::load_processes(
-        board_kernel,
-        chip,
-        core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
-        ),
-        &mut PROCESSES,
-        &FAULT_RESPONSE,
-        &process_mgmt_cap,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    load_processes_not_inlined(board_kernel, chip);
 
     board_kernel.kernel_loop(&hifive1, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
 }

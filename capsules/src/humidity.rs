@@ -92,10 +92,10 @@ impl<'a> HumiditySensor<'a> {
         &self,
         command: HumidityCommand,
         arg1: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -135,14 +135,14 @@ impl SyscallDriver for HumiditySensor<'_> {
         command_num: usize,
         arg1: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // check whether the driver exist!!
             0 => CommandReturn::success(),
 
             // single humidity measurement
-            1 => self.enqueue_command(HumidityCommand::ReadHumidity, arg1, appid),
+            1 => self.enqueue_command(HumidityCommand::ReadHumidity, arg1, processid),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

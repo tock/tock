@@ -116,10 +116,14 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     // Check so see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending
     // command completes.
-    fn enqueue_command(&self, command: BuzzerCommand, app_id: ProcessId) -> Result<(), ErrorCode> {
+    fn enqueue_command(
+        &self,
+        command: BuzzerCommand,
+        processid: ProcessId,
+    ) -> Result<(), ErrorCode> {
         if self.active_app.is_none() {
             // No app is currently using the buzzer, so we just use this app.
-            self.active_app.set(app_id);
+            self.active_app.set(processid);
             match command {
                 BuzzerCommand::Buzz {
                     frequency_hz,
@@ -129,7 +133,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
         } else {
             // There is an active app, so queue this request (if possible).
             self.apps
-                .enter(app_id, |app, _| {
+                .enter(processid, |app, _| {
                     // Some app is using the storage, we must wait.
                     if app.pending_command.is_some() {
                         // No more room in the queue, nowhere to store this
@@ -147,12 +151,12 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
 
     fn check_queue(&self) {
         for appiter in self.apps.iter() {
-            let appid = appiter.processid();
+            let processid = appiter.processid();
             let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
                 app.pending_command.take().map_or(false, |command| {
                     // Mark this driver as being in use.
-                    self.active_app.set(appid);
+                    self.active_app.set(processid);
                     // Actually make the buzz happen.
                     match command {
                         BuzzerCommand::Buzz {
@@ -173,25 +177,22 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     /// there is no current active_app using the driver, or if the app corresponds
     /// to the current active_app. Otherwise, a different app is trying to
     /// use the driver while it is already in use, therefore it is not valid.
-    pub fn is_valid_app(&self, appid: ProcessId) -> bool {
-        self.active_app.map_or(
-            true,
-            |owning_app| {
-                if owning_app == &appid {
-                    true
-                } else {
-                    false
-                }
-            },
-        )
+    pub fn is_valid_app(&self, processid: ProcessId) -> bool {
+        self.active_app.map_or(true, |owning_app| {
+            if owning_app == &processid {
+                true
+            } else {
+                false
+            }
+        })
     }
 }
 
 impl<'a, B: hil::buzzer::Buzzer<'a>> hil::buzzer::BuzzerClient for Buzzer<'a, B> {
     fn buzzer_done(&self, status: Result<(), ErrorCode>) {
         // Mark the active app as None and see if there is a callback.
-        self.active_app.take().map(|app_id| {
-            let _ = self.apps.enter(app_id, |_app, upcalls| {
+        self.active_app.take().map(|processid| {
+            let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(0, (kernel::errorcode::into_statuscode(status), 0, 0))
                     .ok();
@@ -231,7 +232,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // Check whether the driver exists.
@@ -246,33 +247,33 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> SyscallDriver for Buzzer<'a, B> {
                         frequency_hz,
                         duration_ms,
                     },
-                    appid,
+                    processid,
                 )
                 .into()
             }
 
             // Play a sound immediately.
             2 => {
-                if !self.is_valid_app(appid) {
+                if !self.is_valid_app(processid) {
                     // A different app is trying to use the buzzer, so we return RESERVE.
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else {
                     // If there is no active app or the same app is trying to use the buzzer,
                     // we set/replace the frequency and duration.
-                    self.active_app.set(appid);
+                    self.active_app.set(processid);
                     self.buzzer.buzz(data1, data2).into()
                 }
             }
 
             // Stop the current sound.
             3 => {
-                if !self.is_valid_app(appid) {
+                if !self.is_valid_app(processid) {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 } else if self.active_app.is_none() {
                     // If there is no active app, the buzzer isn't playing, so we return OFF.
                     CommandReturn::failure(ErrorCode::OFF)
                 } else {
-                    self.active_app.set(appid);
+                    self.active_app.set(processid);
                     self.buzzer.stop().into()
                 }
             }

@@ -3,15 +3,15 @@
 //! Usage
 //! -----
 //! ```rust
-//!    let mlx90614 = components::mlx90614::Mlx90614I2CComponent::new(mux_i2c, i2c_addr,
-//!    board_kernel)
-//!       .finalize(components::mlx90614_i2c_component_helper!());
+//! let mlx90614 = components::mlx90614::Mlx90614I2CComponent::new(mux_i2c, i2c_addr,
+//! board_kernel)
+//!    .finalize(components::mlx90614_component_static!());
 //!
-//!    let temp = static_init!(
-//!           capsules::temperature::TemperatureSensor<'static>,
-//!           capsules::temperature::TemperatureSensor::new(mlx90614,
-//!                                                    grant_temperature));
-//!    kernel::hil::sensors::TemperatureDriver::set_client(mlx90614, temp);
+//! let temp = static_init!(
+//!        capsules::temperature::TemperatureSensor<'static>,
+//!        capsules::temperature::TemperatureSensor::new(mlx90614,
+//!                                                 grant_temperature));
+//! kernel::hil::sensors::TemperatureDriver::set_client(mlx90614, temp);
 //! ```
 
 use capsules::mlx90614::Mlx90614SMBus;
@@ -20,16 +20,16 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! mlx90614_component_helper {
+macro_rules! mlx90614_component_static {
     () => {{
-        use capsules::mlx90614::Mlx90614SMBus;
-        use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<Mlx90614SMBus<'static>> = MaybeUninit::uninit();
-        &mut BUF
+        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::SMBusDevice);
+        let buffer = kernel::static_buf!([u8; 14]);
+        let mlx90614 = kernel::static_buf!(capsules::mlx90614::Mlx90614SMBus<'static>);
+
+        (i2c_device, buffer, mlx90614)
     };};
 }
 
@@ -56,27 +56,25 @@ impl Mlx90614SMBusComponent {
     }
 }
 
-static mut I2C_BUF: [u8; 14] = [0; 14];
-
 impl Component for Mlx90614SMBusComponent {
-    type StaticInput = &'static mut MaybeUninit<Mlx90614SMBus<'static>>;
+    type StaticInput = (
+        &'static mut MaybeUninit<SMBusDevice<'static>>,
+        &'static mut MaybeUninit<[u8; 14]>,
+        &'static mut MaybeUninit<Mlx90614SMBus<'static>>,
+    );
     type Output = &'static Mlx90614SMBus<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mlx90614_smbus = static_init!(
-            SMBusDevice,
-            SMBusDevice::new(self.i2c_mux, self.i2c_address)
-        );
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let mlx90614_smbus = static_buffer
+            .0
+            .write(SMBusDevice::new(self.i2c_mux, self.i2c_address));
+        let buffer = static_buffer.1.write([0; 14]);
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let mlx90614 = static_init_half!(
-            static_buffer,
-            Mlx90614SMBus<'static>,
-            Mlx90614SMBus::new(
-                mlx90614_smbus,
-                &mut I2C_BUF,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
+        let mlx90614 = static_buffer.2.write(Mlx90614SMBus::new(
+            mlx90614_smbus,
+            buffer,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
 
         mlx90614_smbus.set_client(mlx90614);
         mlx90614

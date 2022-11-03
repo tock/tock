@@ -3,11 +3,10 @@
 //! Usage
 //! -----
 //!
-//! The `button_component_helper!` macro takes 'static references to GPIO
-//! pins. When GPIO instances are owned values, the
-//! `button_component_helper_owned!` can be used, indicating that the passed
-//! values are owned values. This macro will perform static allocation of the
-//! passed in GPIO pins internally.
+//! The `button_component_helper!` macro takes 'static references to GPIO pins.
+//! When GPIO instances are owned values, the `button_component_helper_owned!`
+//! can be used, indicating that the passed values are owned values. This macro
+//! will perform static allocation of the passed in GPIO pins internally.
 //!
 //! ```rust
 //! let button = components::button::ButtonComponent::new(
@@ -21,13 +20,13 @@
 //!         )
 //!     ),
 //! )
-//! .finalize(button_component_buf!(sam4l::gpio::GPIOPin));
+//! .finalize(button_component_static!(sam4l::gpio::GPIOPin));
 //! ```
 //!
-//! Typically, `ActivationMode::ActiveLow` will be associated with `FloatingState::PullUp`
-//! whereas `ActivationMode::ActiveHigh` will be paired with `FloatingState::PullDown`.
-//! `FloatingState::None` will be used when the board provides external pull-up/pull-down
-//! resistors.
+//! Typically, `ActivationMode::ActiveLow` will be associated with
+//! `FloatingState::PullUp` whereas `ActivationMode::ActiveHigh` will be paired
+//! with `FloatingState::PullDown`. `FloatingState::None` will be used when the
+//! board provides external pull-up/pull-down resistors.
 
 use capsules::button::Button;
 use core::mem::MaybeUninit;
@@ -36,7 +35,6 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
-use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! button_component_helper_owned {
@@ -76,12 +74,9 @@ macro_rules! button_component_helper {
 }
 
 #[macro_export]
-macro_rules! button_component_buf {
+macro_rules! button_component_static {
     ($Pin:ty $(,)?) => {{
-        use capsules::button::Button;
-        use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<Button<'static, $Pin>> = MaybeUninit::uninit();
-        &mut BUF
+        kernel::static_buf!(capsules::button::Button<'static, $Pin>)
     };};
 }
 
@@ -117,16 +112,12 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP
     type StaticInput = &'static mut MaybeUninit<Button<'static, IP>>;
     type Output = &'static Button<'static, IP>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let button = static_init_half!(
-            static_buffer,
-            capsules::button::Button<'static, IP>,
-            capsules::button::Button::new(
-                self.button_pins,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap)
-            )
-        );
+        let button = static_buffer.write(capsules::button::Button::new(
+            self.button_pins,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
         for (pin, _, _) in self.button_pins.iter() {
             pin.set_client(button);
         }

@@ -82,7 +82,7 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub static mut BUFFER: [u8; 512] = [0; 512];
+pub const BUF_LEN: usize = 512;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NonvolatileCommand {
@@ -94,7 +94,7 @@ pub enum NonvolatileCommand {
 
 #[derive(Clone, Copy)]
 pub enum NonvolatileUser {
-    App { app_id: ProcessId },
+    App { processid: ProcessId },
     Kernel,
 }
 
@@ -198,7 +198,7 @@ impl<'a> NonvolatileStorage<'a> {
         command: NonvolatileCommand,
         offset: usize,
         length: usize,
-        app_id: Option<ProcessId>,
+        processid: Option<ProcessId>,
     ) -> Result<(), ErrorCode> {
         // Do bounds check.
         match command {
@@ -229,9 +229,9 @@ impl<'a> NonvolatileStorage<'a> {
         // or from the kernel.
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                app_id.map_or(Err(ErrorCode::FAIL), |appid| {
+                processid.map_or(Err(ErrorCode::FAIL), |processid| {
                     self.apps
-                        .enter(appid, |app, kernel_data| {
+                        .enter(processid, |app, kernel_data| {
                             // Get the length of the correct allowed buffer.
                             let allow_buf_len = match command {
                                 NonvolatileCommand::UserspaceRead => kernel_data
@@ -257,8 +257,9 @@ impl<'a> NonvolatileStorage<'a> {
                             if self.current_user.is_none() {
                                 // No app is currently using the underlying storage.
                                 // Mark this app as active, and then execute the command.
-                                self.current_user
-                                    .set(NonvolatileUser::App { app_id: appid });
+                                self.current_user.set(NonvolatileUser::App {
+                                    processid: processid,
+                                });
 
                                 // Need to copy bytes if this is a write!
                                 if command == NonvolatileCommand::UserspaceWrite {
@@ -358,7 +359,7 @@ impl<'a> NonvolatileStorage<'a> {
                 // allowed are long enough.
                 let active_len = cmp::min(length, buffer.len());
 
-                // self.current_app.set(Some(appid));
+                // self.current_app.set(Some(processid));
                 match command {
                     NonvolatileCommand::UserspaceRead => {
                         self.driver.read(buffer, physical_address, active_len)
@@ -395,12 +396,13 @@ impl<'a> NonvolatileStorage<'a> {
         } else {
             // If the kernel is not requesting anything, check all of the apps.
             for cntr in self.apps.iter() {
-                let appid = cntr.processid();
+                let processid = cntr.processid();
                 let started_command = cntr.enter(|app, _| {
                     if app.pending_command {
                         app.pending_command = false;
-                        self.current_user
-                            .set(NonvolatileUser::App { app_id: appid });
+                        self.current_user.set(NonvolatileUser::App {
+                            processid: processid,
+                        });
                         if let Ok(()) =
                             self.userspace_call_driver(app.command, app.offset, app.length)
                         {
@@ -431,8 +433,8 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         client.read_done(buffer, length);
                     });
                 }
-                NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |_, kernel_data| {
+                NonvolatileUser::App { processid } => {
+                    let _ = self.apps.enter(processid, move |_, kernel_data| {
                         // Need to copy in the contents of the buffer
                         let _ = kernel_data
                             .get_readwrite_processbuffer(rw_allow::READ)
@@ -469,8 +471,8 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
                         client.write_done(buffer, length);
                     });
                 }
-                NonvolatileUser::App { app_id } => {
-                    let _ = self.apps.enter(app_id, move |_app, kernel_data| {
+                NonvolatileUser::App { processid } => {
+                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
                         // Replace the buffer we used to do this write.
                         self.buffer.replace(buffer);
 
@@ -548,7 +550,7 @@ impl SyscallDriver for NonvolatileStorage<'_> {
         command_num: usize,
         offset: usize,
         length: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 /* This driver exists. */ => {
@@ -566,7 +568,7 @@ impl SyscallDriver for NonvolatileStorage<'_> {
                         NonvolatileCommand::UserspaceRead,
                         offset,
                         length,
-                        Some(appid),
+                        Some(processid),
                     );
 
                 match res {
@@ -581,7 +583,7 @@ impl SyscallDriver for NonvolatileStorage<'_> {
                         NonvolatileCommand::UserspaceWrite,
                         offset,
                         length,
-                        Some(appid),
+                        Some(processid),
                     );
 
                 match res {

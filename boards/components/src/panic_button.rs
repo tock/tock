@@ -1,7 +1,10 @@
 //! Component to cause a button press to trigger a kernel panic.
 //!
-//! This can be useful especially when developping or debugging console
+//! This can be useful especially when developing or debugging console
 //! capsules.
+//!
+//! Note: the process console has support for triggering a panic, which may be
+//! more convenient depending on the board.
 //!
 //! Usage
 //! -----
@@ -12,22 +15,18 @@
 //!     kernel::hil::gpio::ActivationMode::ActiveLow,
 //!     kernel::hil::gpio::FloatingState::PullUp
 //! )
-//! .finalize(panic_button_component_buf!(sam4l::gpio::GPIOPin));
+//! .finalize(components::panic_button_component_static!(sam4l::gpio::GPIOPin));
 //! ```
 
 use capsules::panic_button::PanicButton;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
-use kernel::static_init_half;
 
 #[macro_export]
-macro_rules! panic_button_component_buf {
+macro_rules! panic_button_component_static {
     ($Pin:ty $(,)?) => {{
-        use capsules::button::PanicButton;
-        use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<PanicButton<'static, $Pin>> = MaybeUninit::uninit();
-        &mut BUF
+        kernel::static_buf!(capsules::button::PanicButton<'static, $Pin>)
     };};
 }
 
@@ -55,12 +54,9 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for PanicButtonCompone
     type StaticInput = &'static mut MaybeUninit<PanicButton<'static, IP>>;
     type Output = ();
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let panic_button = static_init_half!(
-            static_buffer,
-            PanicButton<'static, IP>,
-            PanicButton::new(self.pin, self.mode, self.floating_state)
-        );
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let panic_button =
+            static_buffer.write(PanicButton::new(self.pin, self.mode, self.floating_state));
         self.pin.set_client(panic_button);
     }
 }

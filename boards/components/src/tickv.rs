@@ -16,7 +16,7 @@
 //!    );
 //!
 //!    let mux_flash = components::tickv::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-//!        components::flash_user_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+//!        components::flash_user_component_static!(lowrisc::flash_ctrl::FlashCtrl),
 //!    );
 //!
 //!    let kvstore = components::tickv::TicKVComponent::new(
@@ -26,7 +26,7 @@
 //!        flash_ctrl_read_buf,
 //!        page_buffer,
 //!    )
-//!    .finalize(components::tickv_component_helper!(
+//!    .finalize(components::tickv_component_static!(
 //!        lowrisc::flash_ctrl::FlashCtrl
 //!    ));
 //!    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
@@ -42,20 +42,21 @@ use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::flash::HasClient;
 use kernel::hil::hasher::Hasher;
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! tickv_component_helper {
+macro_rules! tickv_component_static {
     ($F:ty, $H:ty) => {{
-        use capsules::tickv::TicKVStore;
-        use capsules::virtual_flash::FlashUser;
-        use core::mem::MaybeUninit;
-        use kernel::hil;
-        static mut BUF1: MaybeUninit<FlashUser<'static, $F>> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<TicKVStore<'static, FlashUser<'static, $F>, $H>> =
-            MaybeUninit::uninit();
-        (&mut BUF1, &mut BUF2)
+        let flash = kernel::static_buf!(capsules::virtual_flash::FlashUser<'static, $F>);
+        let tickv = kernel::static_buf!(
+            capsules::tickv::TicKVStore<
+                'static,
+                capsules::virtual_flash::FlashUser<'static, $F>,
+                $H,
+            >
+        );
+
+        (flash, tickv)
     };};
 }
 
@@ -106,27 +107,19 @@ impl<
     );
     type Output = &'static TicKVStore<'static, FlashUser<'static, F>, H>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let _grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let virtual_flash = static_init_half!(
-            static_buffer.0,
-            FlashUser<'static, F>,
-            FlashUser::new(self.mux_flash)
-        );
+        let virtual_flash = static_buffer.0.write(FlashUser::new(self.mux_flash));
 
-        let driver = static_init_half!(
-            static_buffer.1,
-            TicKVStore<'static, FlashUser<'static, F>, H>,
-            TicKVStore::new(
-                virtual_flash,
-                self.hasher,
-                self.tickfs_read_buf,
-                self.flash_read_buffer,
-                self.region_offset,
-                self.flash_size,
-            )
-        );
+        let driver = static_buffer.1.write(TicKVStore::new(
+            virtual_flash,
+            self.hasher,
+            self.tickfs_read_buf,
+            self.flash_read_buffer,
+            self.region_offset,
+            self.flash_size,
+        ));
         virtual_flash.set_client(driver);
         driver.initialise();
         driver

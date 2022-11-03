@@ -6,7 +6,7 @@
 //! -----
 //! ```rust
 //! let scheduler = components::round_robin::RoundRobinComponent::new(&PROCESSES)
-//!     .finalize(components::rr_component_helper!(NUM_PROCS));
+//!     .finalize(components::round_robin_component_static!(NUM_PROCS));
 //! ```
 
 // Author: Hudson Ayers <hayers@stanford.edu>
@@ -16,43 +16,48 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::process::Process;
 use kernel::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
-use kernel::{static_init, static_init_half};
 
 #[macro_export]
-macro_rules! rr_component_helper {
+macro_rules! round_robin_component_static {
     ($N:expr $(,)?) => {{
-        use core::mem::MaybeUninit;
-        use kernel::scheduler::round_robin::RoundRobinProcessNode;
-        use kernel::static_buf;
-        const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();
-        static mut BUF: [MaybeUninit<RoundRobinProcessNode<'static>>; $N] = [UNINIT; $N];
-        &mut BUF
+        let rr_sched =
+            kernel::static_buf!(kernel::scheduler::round_robin::RoundRobinSched<'static>);
+        let rr_nodes = kernel::static_buf!(
+            [core::mem::MaybeUninit<kernel::scheduler::round_robin::RoundRobinProcessNode<'static>>;
+                $N]
+        );
+
+        (rr_sched, rr_nodes)
     };};
 }
 
-pub struct RoundRobinComponent {
+pub struct RoundRobinComponent<const NUM_PROCS: usize> {
     processes: &'static [Option<&'static dyn Process>],
 }
 
-impl RoundRobinComponent {
-    pub fn new(processes: &'static [Option<&'static dyn Process>]) -> RoundRobinComponent {
+impl<const NUM_PROCS: usize> RoundRobinComponent<NUM_PROCS> {
+    pub fn new(
+        processes: &'static [Option<&'static dyn Process>],
+    ) -> RoundRobinComponent<NUM_PROCS> {
         RoundRobinComponent { processes }
     }
 }
 
-impl Component for RoundRobinComponent {
-    type StaticInput = &'static mut [MaybeUninit<RoundRobinProcessNode<'static>>];
+impl<const NUM_PROCS: usize> Component for RoundRobinComponent<NUM_PROCS> {
+    type StaticInput = (
+        &'static mut MaybeUninit<RoundRobinSched<'static>>,
+        &'static mut MaybeUninit<[MaybeUninit<RoundRobinProcessNode<'static>>; NUM_PROCS]>,
+    );
     type Output = &'static mut RoundRobinSched<'static>;
 
-    unsafe fn finalize(self, buf: Self::StaticInput) -> Self::Output {
-        let scheduler = static_init!(RoundRobinSched<'static>, RoundRobinSched::new());
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let scheduler = static_buffer.0.write(RoundRobinSched::new());
 
-        for (i, node) in buf.iter_mut().enumerate() {
-            let init_node = static_init_half!(
-                node,
-                RoundRobinProcessNode<'static>,
-                RoundRobinProcessNode::new(&self.processes[i])
-            );
+        const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();
+        let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
+
+        for (i, node) in nodes.iter_mut().enumerate() {
+            let init_node = node.write(RoundRobinProcessNode::new(&self.processes[i]));
             scheduler.processes.push_head(init_node);
         }
         scheduler

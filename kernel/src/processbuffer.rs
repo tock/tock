@@ -960,7 +960,7 @@ impl WriteableProcessSlice {
         #[track_caller]
         fn len_mismatch_fail(dst_len: usize, src_len: usize) -> ! {
             panic!(
-                "source slice length ({}) does not match destination slice length ({})",
+                "src slice len ({}) != dest slice len ({})",
                 src_len, dst_len,
             );
         }

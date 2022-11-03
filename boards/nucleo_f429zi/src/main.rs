@@ -99,6 +99,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -111,6 +112,9 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -346,14 +350,15 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, stm32f429zi::gpio::Pin>,
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap()),
         LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap()),
@@ -373,13 +378,13 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f429zi::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f429zi::gpio::Pin));
 
     // ALARM
 
     let tim2 = &base_peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f429zi::tim2::Tim2),
+        components::alarm_mux_component_static!(stm32f429zi::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -387,7 +392,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32f429zi::tim2::Tim2));
+    .finalize(components::alarm_component_static!(stm32f429zi::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(
@@ -489,21 +494,21 @@ pub unsafe fn main() {
             80 => gpio_ports.pins[5][4].as_ref().unwrap()  //A8
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f429zi::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f429zi::gpio::Pin));
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)
-        .finalize(components::adc_mux_component_helper!(stm32f429zi::adc::Adc));
+        .finalize(components::adc_mux_component_static!(stm32f429zi::adc::Adc));
 
-    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(2.5, 0.76)
-        .finalize(components::temperaturestm_adc_component_helper!(
-            // spi type
-            stm32f429zi::adc::Adc,
-            // chip select
-            stm32f429zi::adc::Channel::Channel18,
-            // spi mux
-            adc_mux
-        ));
+    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(
+        adc_mux,
+        stm32f429zi::adc::Channel::Channel18,
+        2.5,
+        0.76,
+    )
+    .finalize(components::temperature_stm_adc_component_static!(
+        stm32f429zi::adc::Adc
+    ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
@@ -516,23 +521,23 @@ pub unsafe fn main() {
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel3)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_1 =
         components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel10)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel13)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_3 =
         components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel9)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_4 =
         components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel12)
-            .finalize(components::adc_component_helper!(stm32f429zi::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -544,8 +549,8 @@ pub unsafe fn main() {
                 adc_channel_4,
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // RNG
@@ -554,7 +559,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -569,7 +574,7 @@ pub unsafe fn main() {
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let nucleo_f429zi = NucleoF429ZI {
         console: console,

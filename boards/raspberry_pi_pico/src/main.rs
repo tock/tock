@@ -109,6 +109,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
@@ -121,6 +122,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -316,14 +320,14 @@ pub unsafe fn main() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
-        .finalize(components::alarm_mux_component_helper!(RPTimer));
+        .finalize(components::alarm_mux_component_static!(RPTimer));
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(RPTimer));
+    .finalize(components::alarm_component_static!(RPTimer));
 
     // UART
     // Create a shared UART channel for kernel debug.
@@ -342,7 +346,8 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -386,9 +391,9 @@ pub unsafe fn main() {
             // 29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
     )
-    .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
+    .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
         LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
     ));
@@ -396,14 +401,17 @@ pub unsafe fn main() {
     peripherals.adc.init();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(Adc));
+        .finalize(components::adc_mux_component_static!(Adc));
 
-    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(1.721, 0.706)
-        .finalize(components::temperaturerp2040_adc_component_helper!(
-            rp2040::adc::Adc,
-            Channel::Channel4,
-            adc_mux
-        ));
+    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(
+        adc_mux,
+        Channel::Channel4,
+        1.721,
+        0.706,
+    )
+    .finalize(components::temperature_rp2040_adc_component_static!(
+        rp2040::adc::Adc
+    ));
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
@@ -416,16 +424,16 @@ pub unsafe fn main() {
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_3 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel3)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -436,8 +444,8 @@ pub unsafe fn main() {
                 adc_channel_3,
             ));
     // PROCESS CONSOLE
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -474,7 +482,7 @@ pub unsafe fn main() {
     i2c0.set_master_client(i2c);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(

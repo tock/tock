@@ -1,7 +1,7 @@
 //! Component for non-volatile storage Drivers.
 //!
 //! This provides one component, NonvolatileStorageComponent, which provides
-//! a system call inteface to non-volatile storage.
+//! a system call interface to non-volatile storage.
 //!
 //! Usage
 //! -----
@@ -14,7 +14,7 @@
 //!     &_sstorage as *const u8 as usize,
 //!     &_estorage as *const u8 as usize,
 //! )
-//! .finalize(components::nv_storage_component_helper!(
+//! .finalize(components::nonvolatile_storage_component_static!(
 //!     sam4l::flashcalw::FLASHCALW
 //! ));
 //! ```
@@ -26,18 +26,19 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! nv_storage_component_helper {
+macro_rules! nonvolatile_storage_component_static {
     ($F:ty $(,)?) => {{
-        use capsules::nonvolatile_to_pages::NonvolatileToPages;
-        use core::mem::MaybeUninit;
-        use kernel::hil;
-        static mut BUF1: MaybeUninit<<$F as hil::flash::Flash>::Page> = MaybeUninit::uninit();
-        static mut BUF2: MaybeUninit<NonvolatileToPages<'static, $F>> = MaybeUninit::uninit();
-        (&mut BUF1, &mut BUF2)
+        let page = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
+        let ntp =
+            kernel::static_buf!(capsules::nonvolatile_to_pages::NonvolatileToPages<'static, $F>);
+        let ns =
+            kernel::static_buf!(capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>);
+        let buffer = kernel::static_buf!([u8; capsules::nonvolatile_storage_driver::BUF_LEN]);
+
+        (page, ntp, ns, buffer)
     };};
 }
 
@@ -89,37 +90,36 @@ impl<
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
+        &'static mut MaybeUninit<NonvolatileStorage<'static>>,
+        &'static mut MaybeUninit<[u8; capsules::nonvolatile_storage_driver::BUF_LEN]>,
     );
     type Output = &'static NonvolatileStorage<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let flash_pagebuffer = static_init_half!(
-            static_buffer.0,
-            <F as hil::flash::Flash>::Page,
-            <F as hil::flash::Flash>::Page::default()
-        );
+        let buffer = static_buffer
+            .3
+            .write([0; capsules::nonvolatile_storage_driver::BUF_LEN]);
 
-        let nv_to_page = static_init_half!(
-            static_buffer.1,
-            NonvolatileToPages<'static, F>,
-            NonvolatileToPages::new(self.flash, flash_pagebuffer)
-        );
+        let flash_pagebuffer = static_buffer
+            .0
+            .write(<F as hil::flash::Flash>::Page::default());
+
+        let nv_to_page = static_buffer
+            .1
+            .write(NonvolatileToPages::new(self.flash, flash_pagebuffer));
         hil::flash::HasClient::set_client(self.flash, nv_to_page);
 
-        let nonvolatile_storage = static_init!(
-            NonvolatileStorage<'static>,
-            NonvolatileStorage::new(
-                nv_to_page,
-                self.board_kernel.create_grant(self.driver_num, &grant_cap),
-                self.userspace_start, // Start address for userspace accessible region
-                self.userspace_length, // Length of userspace accessible region
-                self.kernel_start,    // Start address of kernel region
-                self.kernel_length,   // Length of kernel region
-                &mut capsules::nonvolatile_storage_driver::BUFFER
-            )
-        );
+        let nonvolatile_storage = static_buffer.2.write(NonvolatileStorage::new(
+            nv_to_page,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.userspace_start, // Start address for userspace accessible region
+            self.userspace_length, // Length of userspace accessible region
+            self.kernel_start,    // Start address of kernel region
+            self.kernel_length,   // Length of kernel region
+            buffer,
+        ));
         hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
         nonvolatile_storage
     }

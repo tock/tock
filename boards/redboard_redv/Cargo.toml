@@ -1,7 +1,7 @@
 [package]
 name = "redboard_redv"
-version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+version.workspace = true
+authors.workspace = true
 build = "build.rs"
 edition = "2018"
 
@@ -10,5 +10,5 @@ components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
 capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
-e310x = { path = "../../chips/e310x" }
+e310_g002 = { path = "../../chips/e310_g002" }
 sifive = { path = "../../chips/sifive" }

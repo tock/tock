@@ -741,11 +741,11 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {
+    fn configure_mpu(&self, config: &Self::MpuConfig, processid: &ProcessId) {
         // Is the PMP already configured for this app?
         let last_configured_for_this_app = self
             .last_configured_for
-            .map_or(false, |last_app_id| last_app_id == app_id);
+            .map_or(false, |last_processid| last_processid == processid);
 
         if !last_configured_for_this_app || config.is_dirty.get() {
             for (x, region) in config.regions.iter().enumerate() {
@@ -807,7 +807,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         }
 
         config.is_dirty.set(false);
-        self.last_configured_for.put(*app_id);
+        self.last_configured_for.put(*processid);
     }
 }
 

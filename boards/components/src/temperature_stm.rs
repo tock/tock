@@ -1,37 +1,40 @@
+//! Component for the built-in STM temperature sensor.
+
 use capsules::temperature_stm::TemperatureSTM;
 use capsules::virtual_adc::AdcDevice;
-use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::adc;
 use kernel::hil::adc::AdcChannel;
-use kernel::static_init_half;
 
 #[macro_export]
-macro_rules! temperaturestm_adc_component_helper {
-    ($A:ty, $channel:expr, $adc_mux:expr $(,)?) => {{
-        use capsules::temperature_stm::TemperatureSTM;
-        use capsules::virtual_adc::AdcDevice;
-        use core::mem::MaybeUninit;
-        use kernel::hil::adc::Adc;
-        let mut temperature_stm_adc: &'static capsules::virtual_adc::AdcDevice<'static, $A> =
-            components::adc::AdcComponent::new($adc_mux, $channel)
-                .finalize(components::adc_component_helper!($A));
-        static mut temperature_stm: MaybeUninit<TemperatureSTM<'static>> = MaybeUninit::uninit();
-        (&mut temperature_stm_adc, &mut temperature_stm)
+macro_rules! temperature_stm_adc_component_static {
+    ($A:ty $(,)?) => {{
+        let adc_device = components::adc_component_static!($A);
+        let temperature_stm =
+            kernel::static_buf!(capsules::temperature_stm::TemperatureSTM<'static>);
+
+        (adc_device, temperature_stm)
     };};
 }
 
 pub struct TemperatureSTMComponent<A: 'static + adc::Adc> {
-    _select: PhantomData<A>,
+    adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_channel: A::Channel,
     slope: f32,
     v_25: f32,
 }
 
 impl<A: 'static + adc::Adc> TemperatureSTMComponent<A> {
-    pub fn new(slope: f32, v_25: f32) -> TemperatureSTMComponent<A> {
+    pub fn new(
+        adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_channel: A::Channel,
+        slope: f32,
+        v_25: f32,
+    ) -> TemperatureSTMComponent<A> {
         TemperatureSTMComponent {
-            _select: PhantomData,
+            adc_mux,
+            adc_channel,
             slope: slope,
             v_25: v_25,
         }
@@ -40,19 +43,19 @@ impl<A: 'static + adc::Adc> TemperatureSTMComponent<A> {
 
 impl<A: 'static + adc::Adc> Component for TemperatureSTMComponent<A> {
     type StaticInput = (
-        &'static AdcDevice<'static, A>,
+        &'static mut MaybeUninit<AdcDevice<'static, A>>,
         &'static mut MaybeUninit<TemperatureSTM<'static>>,
     );
     type Output = &'static TemperatureSTM<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let temperature_stm = static_init_half!(
-            static_buffer.1,
-            TemperatureSTM<'static>,
-            TemperatureSTM::new(static_buffer.0, self.slope, self.v_25)
-        );
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let adc_device =
+            crate::adc::AdcComponent::new(self.adc_mux, self.adc_channel).finalize(s.0);
 
-        static_buffer.0.set_client(temperature_stm);
+        let temperature_stm =
+            s.1.write(TemperatureSTM::new(adc_device, self.slope, self.v_25));
+
+        adc_device.set_client(temperature_stm);
 
         temperature_stm
     }

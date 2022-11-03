@@ -4,7 +4,7 @@
 //! -----
 //! ```rust
 //!     let ccs811 =
-//!         Ccs811Component::new(mux_i2c, 0x77).finalize(components::ccs811_component_helper!());
+//!         Ccs811Component::new(mux_i2c, 0x77).finalize(components::ccs811_component_static!());
 //!     let temperature = components::temperature::TemperatureComponent::new(
 //!         board_kernel,
 //!         capsules::temperature::DRIVER_NUM,
@@ -24,16 +24,16 @@ use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
-use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! ccs811_component_helper {
+macro_rules! ccs811_component_static {
     () => {{
-        use capsules::ccs811::Ccs811;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<Ccs811<'static>> = MaybeUninit::uninit();
-        &mut BUF1
+        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice);
+        let buffer = kernel::static_buf!([u8; 6]);
+        let ccs811 = kernel::static_buf!(capsules::ccs811::Ccs811<'static>);
+
+        (i2c_device, buffer, ccs811)
     };};
 }
 
@@ -57,19 +57,22 @@ impl Ccs811Component {
     }
 }
 
-static mut I2C_BUF: [u8; 6] = [0; 6];
-
 impl Component for Ccs811Component {
-    type StaticInput = &'static mut MaybeUninit<Ccs811<'static>>;
+    type StaticInput = (
+        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<[u8; 6]>,
+        &'static mut MaybeUninit<Ccs811<'static>>,
+    );
     type Output = &'static Ccs811<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let ccs811_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, self.i2c_address));
-        let ccs811 = static_init_half!(
-            static_buffer,
-            Ccs811<'static>,
-            Ccs811::new(ccs811_i2c, &mut I2C_BUF, self.deferred_caller)
-        );
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let ccs811_i2c = static_buffer
+            .0
+            .write(I2CDevice::new(self.i2c_mux, self.i2c_address));
+        let buffer = static_buffer.1.write([0; 6]);
+        let ccs811 = static_buffer
+            .2
+            .write(Ccs811::new(ccs811_i2c, buffer, self.deferred_caller));
 
         ccs811_i2c.set_client(ccs811);
         ccs811.initialize_callback_handle(

@@ -17,7 +17,7 @@
 //!     0x2341,
 //!     0x005a,
 //!     STRINGS)
-//! .finalize(components::usb_cdc_acm_component_helper!(nrf52::usbd::Usbd));
+//! .finalize(components::cdc_acm_component_static!(nrf52::usbd::Usbd));
 //! ```
 
 use core::mem::MaybeUninit;
@@ -27,19 +27,21 @@ use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::time::Alarm;
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! usb_cdc_acm_component_helper {
+macro_rules! cdc_acm_component_static {
     ($U:ty, $A:ty $(,)?) => {{
-        use capsules::virtual_alarm::VirtualMuxAlarm;
-        use core::mem::MaybeUninit;
-        static mut BUF0: MaybeUninit<VirtualMuxAlarm<'static, $A>> = MaybeUninit::uninit();
-        static mut BUF1: MaybeUninit<
-            capsules::usb::cdc::CdcAcm<'static, $U, VirtualMuxAlarm<'static, $A>>,
-        > = MaybeUninit::uninit();
-        (&mut BUF0, &mut BUF1)
+        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let cdc = kernel::static_buf!(
+            capsules::usb::cdc::CdcAcm<
+                'static,
+                $U,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            >
+        );
+
+        (alarm, cdc)
     };};
 }
 
@@ -94,28 +96,20 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
     );
     type Output = &'static capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let cdc_alarm = static_init_half!(
-            s.0,
-            VirtualMuxAlarm<'static, A>,
-            VirtualMuxAlarm::new(self.alarm_mux)
-        );
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let cdc_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         cdc_alarm.setup();
 
-        let cdc = static_init_half!(
-            s.1,
-            capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>,
-            capsules::usb::cdc::CdcAcm::new(
-                self.usb,
-                self.max_ctrl_packet_size,
-                self.vendor_id,
-                self.product_id,
-                self.strings,
-                cdc_alarm,
-                self.deferred_caller,
-                self.host_initiated_function,
-            )
-        );
+        let cdc = s.1.write(capsules::usb::cdc::CdcAcm::new(
+            self.usb,
+            self.max_ctrl_packet_size,
+            self.vendor_id,
+            self.product_id,
+            self.strings,
+            cdc_alarm,
+            self.deferred_caller,
+            self.host_initiated_function,
+        ));
         self.usb.set_client(cdc);
         cdc.initialize_callback_handle(
             self.deferred_caller.register(cdc).unwrap(), // Unwrap fail = no deferred call slot available for USB-CDC

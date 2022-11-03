@@ -80,7 +80,7 @@ pub struct AdcVirtualized<'a> {
 pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
     // ADC driver
     adc: &'a A,
-    channels: &'a [&'a <A as hil::adc::Adc>::Channel],
+    channels: &'a [<A as hil::adc::Adc>::Channel],
 
     // ADC state
     active: Cell<bool>,
@@ -88,7 +88,7 @@ pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
 
     // App state
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
-    appid: OptionalCell<ProcessId>,
+    processid: OptionalCell<ProcessId>,
     channel: Cell<usize>,
 
     // ADC buffers
@@ -149,9 +149,7 @@ impl Default for AppSys {
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
 /// swap. In testing, it seems to keep up fine.
-pub static mut ADC_BUFFER1: [u16; 128] = [0; 128];
-pub static mut ADC_BUFFER2: [u16; 128] = [0; 128];
-pub static mut ADC_BUFFER3: [u16; 128] = [0; 128];
+pub const BUF_LEN: usize = 128;
 
 impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     /// Create a new `Adc` application interface.
@@ -163,7 +161,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     pub fn new(
         adc: &'a A,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
-        channels: &'a [&'a <A as hil::adc::Adc>::Channel],
+        channels: &'a [<A as hil::adc::Adc>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
         adc_buf3: &'static mut [u16; 128],
@@ -179,7 +177,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
             // App state
             apps: grant,
-            appid: OptionalCell::empty(),
+            processid: OptionalCell::empty(),
             channel: Cell::new(0),
 
             // ADC buffers
@@ -257,7 +255,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // save state for callback
         self.active.set(true);
@@ -291,7 +289,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // save state for callback
         self.active.set(true);
@@ -328,11 +326,11 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // cannot sample a buffer without a buffer to sample into
         let mut app_buf_length = 0;
-        let exists = self.appid.map_or(false, |id| {
+        let exists = self.processid.map_or(false, |id| {
             self.apps
                 .enter(*id, |_, kernel_data| {
                     app_buf_length = kernel_data
@@ -345,7 +343,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
                 .unwrap_or(false)
@@ -357,7 +355,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         // save state for callback
         self.active.set(true);
         self.mode.set(AdcMode::SingleBuffer);
-        let ret = self.appid.map_or(Err(ErrorCode::NOMEM), |id| {
+        let ret = self.processid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
                 .enter(*id, |app, _| {
                     app.app_buf_offset.set(0);
@@ -387,7 +385,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
                                 self.adc
-                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -405,7 +403,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
                 .unwrap_or(Err(ErrorCode::NOMEM))
@@ -414,7 +412,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             // failure, clear state
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
-            self.appid.map(|id| {
+            self.processid.map(|id| {
                 self.apps
                     .enter(*id, |app, _| {
                         app.samples_remaining.set(0);
@@ -424,7 +422,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                         if err == kernel::process::Error::NoSuchApp
                             || err == kernel::process::Error::InactiveApp
                         {
-                            self.appid.clear();
+                            self.processid.clear();
                         }
                     })
             });
@@ -450,12 +448,12 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         if channel >= self.channels.len() {
             return Err(ErrorCode::INVAL);
         }
-        let chan = self.channels[channel];
+        let chan = &self.channels[channel];
 
         // cannot continuously sample without two buffers
         let mut app_buf_length = 0;
         let mut next_app_buf_length = 0;
-        let exists = self.appid.map_or(false, |id| {
+        let exists = self.processid.map_or(false, |id| {
             self.apps
                 .enter(*id, |_, kernel_data| {
                     app_buf_length = kernel_data
@@ -472,7 +470,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
                 .unwrap_or(false)
@@ -485,7 +483,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         self.active.set(true);
         self.mode.set(AdcMode::ContinuousBuffer);
 
-        let ret = self.appid.map_or(Err(ErrorCode::NOMEM), |id| {
+        let ret = self.processid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
                 .enter(*id, |app, _| {
                     app.app_buf_offset.set(0);
@@ -529,7 +527,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 // begin sampling
                                 app.using_app_buf0.set(true);
                                 self.adc
-                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -546,7 +544,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
                 .unwrap_or(Err(ErrorCode::NOMEM))
@@ -555,7 +553,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             // failure, clear state
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
-            self.appid.map(|id| {
+            self.processid.map(|id| {
                 self.apps
                     .enter(*id, |app, _| {
                         app.samples_remaining.set(0);
@@ -565,7 +563,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                         if err == kernel::process::Error::NoSuchApp
                             || err == kernel::process::Error::InactiveApp
                         {
-                            self.appid.clear();
+                            self.processid.clear();
                         }
                     })
             });
@@ -584,7 +582,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         }
 
         // clean up state
-        self.appid.map_or(Err(ErrorCode::FAIL), |id| {
+        self.processid.map_or(Err(ErrorCode::FAIL), |id| {
             self.apps
                 .enter(*id, |app, _| {
                     self.active.set(false);
@@ -615,7 +613,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
                 .unwrap_or(Err(ErrorCode::FAIL))
@@ -652,13 +650,13 @@ impl<'a> AdcVirtualized<'a> {
         &self,
         command: Operation,
         channel: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
             self.apps
-                .enter(appid, |app, _| {
+                .enter(processid, |app, _| {
                     if self.current_app.is_none() {
-                        self.current_app.set(appid);
+                        self.current_app.set(processid);
                         let value = self.call_driver(command, channel);
                         if value != Ok(()) {
                             self.current_app.clear();
@@ -705,7 +703,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
 
             // perform callback
 
-            self.appid.map(|id| {
+            self.processid.map(|id| {
                 self.apps
                     .enter(*id, |_app, upcalls| {
                         calledback = true;
@@ -724,7 +722,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
                         if err == kernel::process::Error::NoSuchApp
                             || err == kernel::process::Error::InactiveApp
                         {
-                            self.appid.clear();
+                            self.processid.clear();
                         }
                     })
             });
@@ -732,7 +730,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
             // sample ready in continuous sampling operation, keep state
 
             // perform callback
-            self.appid.map(|id| {
+            self.processid.map(|id| {
                 self.apps
                     .enter(*id, |_app, upcalls| {
                         calledback = true;
@@ -751,7 +749,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
                         if err == kernel::process::Error::NoSuchApp
                             || err == kernel::process::Error::InactiveApp
                         {
-                            self.appid.clear();
+                            self.processid.clear();
                         }
                     })
             });
@@ -795,7 +793,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                 || self.mode.get() == AdcMode::ContinuousBuffer)
         {
             // we did expect a buffer. Determine the current application state
-            self.appid.map(|id| {
+            self.processid.map(|id| {
                 self.apps
                     .enter(*id, |app, kernel_data| {
                         // Get both buffers, this shouldn't ever fail since the grant was created
@@ -1056,7 +1054,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         if err == kernel::process::Error::NoSuchApp
                             || err == kernel::process::Error::InactiveApp
                         {
-                            self.appid.clear();
+                            self.processid.clear();
                             unexpected_state = true;
                         }
                     })
@@ -1070,7 +1068,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             // state is consistent. No callback.
             self.active.set(false);
             self.mode.set(AdcMode::NoMode);
-            self.appid.map(|id| {
+            self.processid.map(|id| {
                 self.apps
                     .enter(*id, |app, _| {
                         app.app_buf_offset.set(0);
@@ -1079,7 +1077,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         if err == kernel::process::Error::NoSuchApp
                             || err == kernel::process::Error::InactiveApp
                         {
-                            self.appid.clear();
+                            self.processid.clear();
                         }
                     })
             });
@@ -1107,18 +1105,18 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'
     ///
     /// - `command_num` - which command call this is
     /// - `data` - value sent by the application, varying uses
-    /// - `_appid` - application identifier, unused
+    /// - `_processid` - application identifier, unused
     fn command(
         &self,
         command_num: usize,
         channel: usize,
         frequency: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         // Return true if this app already owns the ADC capsule, if no app owns
         // the ADC capsule, or if the app that is marked as owning the ADC
         // capsule no longer exists.
-        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+        let match_or_empty_or_nonexistant = self.processid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the ADC.
 
             // If the ADC is still active, then we need to wait for the operation
@@ -1127,7 +1125,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &appid
+                owning_app == &processid
             } else {
                 // Check the app still exists.
                 //
@@ -1137,12 +1135,12 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_, _| owning_app == &processid)
                     .unwrap_or(true)
             }
         });
         if match_or_empty_or_nonexistant {
-            self.appid.set(appid);
+            self.processid.set(processid);
         } else {
             return CommandReturn::failure(ErrorCode::NOMEM);
         }
@@ -1228,13 +1226,13 @@ impl SyscallDriver for AdcVirtualized<'_> {
     /// - `command_num` - which command call this is
     /// - `channel` - requested channel value
     /// - `_` - value sent by the application, unused
-    /// - `appid` - application identifier
+    /// - `processid` - application identifier
     fn command(
         &self,
         command_num: usize,
         channel: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver exists and return the number of channels
@@ -1242,7 +1240,7 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
             // Single sample.
             1 => {
-                let res = self.enqueue_command(Operation::OneSample, channel, appid);
+                let res = self.enqueue_command(Operation::OneSample, channel, processid);
                 if res == Ok(()) {
                     CommandReturn::success()
                 } else {
@@ -1286,8 +1284,8 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {
     fn sample_ready(&self, sample: u16) {
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, upcalls| {
+        self.current_app.take().map(|processid| {
+            let _ = self.apps.enter(processid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
                 upcalls

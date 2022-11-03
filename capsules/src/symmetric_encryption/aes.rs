@@ -42,7 +42,7 @@ pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static>> {
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
-    appid: OptionalCell<ProcessId>,
+    processid: OptionalCell<ProcessId>,
 
     source_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
@@ -67,7 +67,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
             aes,
             active: Cell::new(false),
             apps: grant,
-            appid: OptionalCell::empty(),
+            processid: OptionalCell::empty(),
             source_buffer: TakeCell::new(source_buffer),
             data_copied: Cell::new(0),
             dest_buffer: TakeCell::new(dest_buffer),
@@ -75,9 +75,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
     }
 
     fn run(&self) -> Result<(), ErrorCode> {
-        self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
+        self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(*appid, |app, kernel_data| {
+                .enter(*processid, |app, kernel_data| {
                     self.aes.enable();
                     let ret = if let Some(op) = &app.aes_operation {
                         match op {
@@ -284,9 +284,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                         0,
                         AES128_BLOCK_SIZE,
                     ) {
-                        // Error, clear the appid and data
+                        // Error, clear the processid and data
                         self.aes.disable();
-                        self.appid.clear();
+                        self.processid.clear();
                         if let Some(source_buf) = source {
                             self.source_buffer.replace(source_buf);
                         }
@@ -310,9 +310,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                         confidential,
                         *encrypting,
                     ) {
-                        // Error, clear the appid and data
+                        // Error, clear the processid and data
                         self.aes.disable();
-                        self.appid.clear();
+                        self.processid.clear();
                         self.dest_buffer.replace(dest);
 
                         return Err(e);
@@ -330,14 +330,14 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         for appiter in self.apps.iter() {
             let started_command = appiter.enter(|app, _| {
                 // If an app is already running let it complete
-                if self.appid.is_some() {
+                if self.processid.is_some() {
                     return true;
                 }
 
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |appid| {
+                app.pending_run_app.take().map_or(false, |processid| {
                     // Mark this driver as being in use.
-                    self.appid.set(appid);
+                    self.processid.set(processid);
                     // Actually make the buzz happen.
                     self.run() == Ok(())
                 })
@@ -358,7 +358,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         }
         self.dest_buffer.replace(destination);
 
-        self.appid.map(|id| {
+        self.processid.map(|id| {
             self.apps
                 .enter(*id, |app, kernel_data| {
                     let mut data_len = 0;
@@ -399,9 +399,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             });
 
                         if let Err(e) = ret {
-                            // No data buffer, clear the appid and data
+                            // No data buffer, clear the processid and data
                             self.aes.disable();
-                            self.appid.clear();
+                            self.processid.clear();
                             kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                             exit = true;
                         }
@@ -439,9 +439,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             .unwrap_or(Err(ErrorCode::RESERVE));
 
                         if let Err(e) = ret {
-                            // No data buffer, clear the appid and data
+                            // No data buffer, clear the processid and data
                             self.aes.disable();
-                            self.appid.clear();
+                            self.processid.clear();
                             kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                             exit = true;
                         }
@@ -470,9 +470,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                                     )
                                     .is_err()
                                 {
-                                    // Error, clear the appid and data
+                                    // Error, clear the processid and data
                                     self.aes.disable();
-                                    self.appid.clear();
+                                    self.processid.clear();
                                     self.check_queue();
                                     return;
                                 }
@@ -493,7 +493,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
         });
@@ -506,7 +506,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         self.dest_buffer.replace(buf);
 
-        self.appid.map(|id| {
+        self.processid.map(|id| {
             self.apps
                 .enter(*id, |_, kernel_data| {
                     let mut exit = false;
@@ -541,9 +541,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             });
 
                         if let Err(e) = ret {
-                            // No data buffer, clear the appid and data
+                            // No data buffer, clear the processid and data
                             self.aes.disable();
-                            self.appid.clear();
+                            self.processid.clear();
                             kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
                             exit = true;
                         }
@@ -564,7 +564,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     if err == kernel::process::Error::NoSuchApp
                         || err == kernel::process::Error::InactiveApp
                     {
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 })
         });
@@ -579,9 +579,9 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
-        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+        let match_or_empty_or_nonexistant = self.processid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
             // If the HMAC is still active, then we need to wait for the operation
@@ -590,7 +590,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &appid
+                owning_app == &processid
             } else {
                 // Check the app still exists.
                 //
@@ -600,12 +600,12 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_, _| owning_app == &processid)
                     .unwrap_or(true)
             }
         });
 
-        let app_match = self.appid.map_or(false, |owning_app| {
+        let app_match = self.processid.map_or(false, |owning_app| {
             // We have recorded that an app has ownership of the HMAC.
 
             // If the HMAC is still active, then we need to wait for the operation
@@ -614,7 +614,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &appid
+                owning_app == &processid
             } else {
                 // Check the app still exists.
                 //
@@ -624,7 +624,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_, _| owning_app == &processid)
                     .unwrap_or(true)
             }
         });
@@ -632,12 +632,12 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
         // Try the commands where we want to start an operation *not* entered in
         // an app grant first.
         if match_or_empty_or_nonexistant && command_num == 2 {
-            self.appid.set(appid);
+            self.processid.set(processid);
             let ret = self.run();
 
             return if let Err(e) = ret {
                 self.aes.disable();
-                self.appid.clear();
+                self.processid.clear();
                 self.check_queue();
                 CommandReturn::failure(e)
             } else {
@@ -647,7 +647,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
 
         let ret = self
             .apps
-            .enter(appid, |app, kernel_data| {
+            .enter(processid, |app, kernel_data| {
                 match command_num {
                     // check if present
                     0 => CommandReturn::success(),
@@ -684,7 +684,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                             CommandReturn::failure(ErrorCode::NOMEM)
                         } else {
                             // We can store this, so lets do it.
-                            app.pending_run_app = Some(appid);
+                            app.pending_run_app = Some(processid);
                             CommandReturn::success()
                         }
                     }
@@ -760,7 +760,7 @@ impl<'a, A: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'sta
                     4 => {
                         if app_match {
                             self.aes.disable();
-                            self.appid.clear();
+                            self.processid.clear();
 
                             CommandReturn::success()
                         } else {

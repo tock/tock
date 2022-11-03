@@ -1,12 +1,12 @@
 [package]
 name = "particle_boron"
-version = "0.1.0"
+version.workspace = true
 authors = [
     "Tock Project Developers <tock-dev@googlegroups.com>",
     "Wilfred Mallawa <vindulawilfred@gmail.com>"
     ]
 build = "build.rs"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 components = { path = "../components" }

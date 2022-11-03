@@ -24,20 +24,15 @@ register_structs! {
     pub TimerRegisters {
         (0x000 => alert_test: WriteOnly<u32>),
         (0x004 => ctrl: ReadWrite<u32, ctrl::Register>),
-
         (0x008 => _reserved),
-
-        (0x100 => config: ReadWrite<u32, config::Register>),
-
-        (0x104 => value_low: ReadWrite<u32>),
-        (0x108 => value_high: ReadWrite<u32>),
-
-        (0x10c => compare_low: ReadWrite<u32>),
-        (0x110 => compare_high: ReadWrite<u32>),
-
-        (0x114 => intr_enable: ReadWrite<u32, intr::Register>),
-        (0x118 => intr_state: ReadWrite<u32, intr::Register>),
-        (0x11c => intr_test: WriteOnly<u32, intr::Register>),
+        (0x100 => intr_enable: ReadWrite<u32, intr::Register>),
+        (0x104 => intr_state: ReadWrite<u32, intr::Register>),
+        (0x108 => intr_test: WriteOnly<u32, intr::Register>),
+        (0x10C => config: ReadWrite<u32, config::Register>),
+        (0x110 => value_low: ReadWrite<u32>),
+        (0x114 => value_high: ReadWrite<u32>),
+        (0x118 => compare_low: ReadWrite<u32>),
+        (0x11C => compare_high: ReadWrite<u32>),
         (0x120 => @END),
     }
 }
@@ -46,13 +41,13 @@ register_bitfields![u32,
     ctrl [
         enable OFFSET(0) NUMBITS(1) []
     ],
+    intr [
+        timer0 OFFSET(0) NUMBITS(1) []
+    ],
     config [
         prescale OFFSET(0) NUMBITS(12) [],
         step OFFSET(16) NUMBITS(8) []
     ],
-    intr [
-        timer0 OFFSET(0) NUMBITS(1) []
-    ]
 ];
 
 pub struct RvTimer<'a> {

@@ -142,37 +142,37 @@ pub const PATTGENDONECH1: u32 = 126;
 
 pub const RVTIMERTIMEREXPIRED0_0: u32 = 127;
 
-pub const USBDEV_PKTRECEIVED: u32 = 128;
-pub const USBDEV_PKTSENT: u32 = 129;
-pub const USBDEV_DISCONNECTED: u32 = 130;
-pub const USBDEV_HOSTLOST: u32 = 131;
-pub const USBDEV_LINKRESET: u32 = 132;
-pub const USBDEV_LINKSUSPEND: u32 = 133;
-pub const USBDEV_LINKRESUME: u32 = 134;
-pub const USBDEV_AVEMPTY: u32 = 135;
-pub const USBDEV_RXFULL: u32 = 136;
-pub const USBDEV_AVOVERFLOW: u32 = 137;
-pub const USBDEV_LINKINERR: u32 = 138;
-pub const USBDEV_RXCRCERR: u32 = 139;
-pub const USBDEV_RXPIDERR: u32 = 140;
-pub const USBDEV_RXBITSTUFFERR: u32 = 141;
-pub const USBDEV_FRAME: u32 = 142;
-pub const USBDEV_POWERED: u32 = 143;
-pub const USBDEV_LINKOUTERR: u32 = 144;
+pub const OTPCTRL_OTPOPERATIONDONE: u32 = 128;
+pub const OTPCTRL_OTPERROR: u32 = 129;
 
-pub const OTPCTRL_OTPOPERATIONDONE: u32 = 145;
-pub const OTPCTRL_OTPERROR: u32 = 146;
+pub const ALERTHANDLER_CLASSA: u32 = 130;
+pub const ALERTHANDLER_CLASSB: u32 = 131;
+pub const ALERTHANDLER_CLASSC: u32 = 132;
+pub const ALERTHANDLER_CLASSD: u32 = 133;
 
-pub const ALERTHANDLER_CLASSA: u32 = 147;
-pub const ALERTHANDLER_CLASSB: u32 = 148;
-pub const ALERTHANDLER_CLASSC: u32 = 149;
-pub const ALERTHANDLER_CLASSD: u32 = 150;
+pub const SPIHOST0_ERROR: u32 = 134;
+pub const SPIHOST0_SPIEVENT: u32 = 135;
 
-pub const SPIHOST0_ERROR: u32 = 151;
-pub const SPIHOST0_SPIEVENT: u32 = 152;
+pub const SPIHOST1_ERROR: u32 = 136;
+pub const SPIHOST1_SPIEVENT: u32 = 137;
 
-pub const SPIHOST1_ERROR: u32 = 153;
-pub const SPIHOST1_SPIEVENT: u32 = 154;
+pub const USBDEV_PKTRECEIVED: u32 = 138;
+pub const USBDEV_PKTSENT: u32 = 139;
+pub const USBDEV_DISCONNECTED: u32 = 140;
+pub const USBDEV_HOSTLOST: u32 = 141;
+pub const USBDEV_LINKRESET: u32 = 142;
+pub const USBDEV_LINKSUSPEND: u32 = 143;
+pub const USBDEV_LINKRESUME: u32 = 144;
+pub const USBDEV_AVEMPTY: u32 = 145;
+pub const USBDEV_RXFULL: u32 = 146;
+pub const USBDEV_AVOVERFLOW: u32 = 147;
+pub const USBDEV_LINKINERR: u32 = 148;
+pub const USBDEV_RXCRCERR: u32 = 149;
+pub const USBDEV_RXPIDERR: u32 = 150;
+pub const USBDEV_RXBITSTUFFERR: u32 = 151;
+pub const USBDEV_FRAME: u32 = 152;
+pub const USBDEV_POWERED: u32 = 153;
+pub const USBDEV_LINKOUTERR: u32 = 154;
 
 pub const PWRMGRAONWAKEUP: u32 = 155;
 pub const SYSRST_CTRL_AON_SYSRST_CTRL: u32 = 156;
@@ -217,3 +217,5 @@ pub const EDN0_EDN_CMD_REQ_DONE: u32 = 184;
 pub const EDN0_EDN_FATAL_ERR: u32 = 185;
 pub const EDN1_EDN_CMD_REQ_DONE: u32 = 186;
 pub const EDN1_EDN_FATAL_ERR: u32 = 187;
+// Last valid plic interrupt ID
+pub const IRQ_ID_LAST: u32 = 187;

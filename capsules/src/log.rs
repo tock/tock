@@ -591,18 +591,19 @@ impl<'a, F: Flash + 'static> LogRead<'a> for Log<'a, F> {
     /// Read an entire log entry into a buffer, if there are any remaining. Updates the read entry
     /// ID to point at the next entry when done.
     /// Returns:
-    ///     * Ok(()) on success.
-    ///     * Err((Result<(), ErrorCode>, Option<buffer>)) on failure. The buffer will only be `None` if the
-    ///       error is due to a loss of the buffer.
-    /// Result<(), ErrorCode>s used:
-    ///     * FAIL: reached end of log, nothing to read.
-    ///     * BUSY: log busy with another operation, try again later.
-    ///     * INVAL: provided client buffer is too small.
-    ///     * CANCEL: invalid internal state, read entry ID was reset to start of log.
-    ///     * RESERVE: client or internal pagebuffer missing.
-    ///     * SIZE: buffer not large enough to contain entry being read.
-    /// Result<(), ErrorCode>s used in read_done callback:
-    ///     * Ok(()): read succeeded.
+    ///     * `Ok(())` on success.
+    ///     * `Err((Result<(), ErrorCode>, Option<buffer>))` on failure. The
+    ///       buffer will only be `None` if the error is due to a loss of the
+    ///       buffer.
+    /// `Result<(), ErrorCode>`s used:
+    ///     * `FAIL`: reached end of log, nothing to read.
+    ///     * `BUSY`: log busy with another operation, try again later.
+    ///     * `INVAL`: provided client buffer is too small.
+    ///     * `CANCEL`: invalid internal state, read entry ID was reset to start of log.
+    ///     * `RESERVE`: client or internal pagebuffer missing.
+    ///     * `SIZE`: buffer not large enough to contain entry being read.
+    /// `Result<(), ErrorCode>`s used in read_done callback:
+    ///     * `Ok(())`: read succeeded.
     fn read(
         &self,
         buffer: &'static mut [u8],
@@ -687,19 +688,19 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     /// Appends an entry onto the end of the log. Entry must fit within a page (including log
     /// metadata).
     /// Returns:
-    ///     * Ok(()) on success.
-    ///     * Err((Result<(), ErrorCode>, Option<buffer>)) on failure. The buffer will only be `None` if the
+    ///     * `Ok(())` on success.
+    ///     * `Err((Result<(), ErrorCode>, Option<buffer>))1 on failure. The buffer will only be `None` if the
     ///       error is due to a loss of the buffer.
-    /// Result<(), ErrorCode>s used:
-    ///     * FAIL: end of non-circular log reached, cannot append any more entries.
-    ///     * BUSY: log busy with another operation, try again later.
-    ///     * INVAL: provided client buffer is too small.
-    ///     * RESERVE: client or internal pagebuffer missing.
-    ///     * SIZE: entry too large to append to log.
-    /// Result<(), ErrorCode>s used in append_done callback:
-    ///     * Ok(()): append succeeded.
-    ///     * FAIL: write failed due to flash error.
-    ///     * CANCEL: write failed due to reaching the end of a non-circular log.
+    /// `Result<(), ErrorCode>`s used:
+    ///     * `FAIL`: end of non-circular log reached, cannot append any more entries.
+    ///     * `BUSY`: log busy with another operation, try again later.
+    ///     * `INVAL`: provided client buffer is too small.
+    ///     * `RESERVE`: client or internal pagebuffer missing.
+    ///     * `SIZE`: entry too large to append to log.
+    /// `Result<(), ErrorCode>`s used in append_done callback:
+    ///     * `Ok(())`: append succeeded.
+    ///     * `FAIL`: write failed due to flash error.
+    ///     * `CANCEL`: write failed due to reaching the end of a non-circular log.
     fn append(
         &self,
         buffer: &'static mut [u8],

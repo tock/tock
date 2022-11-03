@@ -75,7 +75,7 @@ pub(crate) struct Upcall {
     pub(crate) appdata: usize,
 
     /// A pointer to the first instruction of a function in the app
-    /// associated with app_id.
+    /// associated with processid.
     ///
     /// If this value is `None`, this is a null upcall, which cannot actually be
     /// scheduled. An `Upcall` can be null when it is first created, or after an

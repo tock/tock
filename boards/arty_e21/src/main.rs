@@ -87,6 +87,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = ();
     type WatchDog = ();
@@ -99,6 +100,9 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -150,8 +154,8 @@ pub unsafe fn main() {
         Some(&peripherals.gpio_port[8]),
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -183,7 +187,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(sifive::clint::Clint));
+    .finalize(components::alarm_component_static!(sifive::clint::Clint));
 
     // TEST for timer
     //
@@ -198,7 +202,7 @@ pub unsafe fn main() {
     // virtual_alarm_test.set_client(timertest);
 
     // LEDs
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         hil::led::LedHigh<'static, arty_e21_chip::gpio::GpioPin>,
         hil::led::LedHigh::new(&peripherals.gpio_port[2]), // Red
         hil::led::LedHigh::new(&peripherals.gpio_port[1]), // Green
@@ -218,7 +222,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(
+    .finalize(components::button_component_static!(
         arty_e21_chip::gpio::GpioPin
     ));
 
@@ -233,13 +237,14 @@ pub unsafe fn main() {
             2 => &peripherals.gpio_port[6]
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         arty_e21_chip::gpio::GpioPin
     ));
 
     chip.enable_all_interrupts();
 
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
+        .finalize(components::priority_component_static!());
 
     let artye21 = ArtyE21 {
         console: console,
@@ -252,7 +257,8 @@ pub unsafe fn main() {
     };
 
     // Create virtual device for kernel debug.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // arty_e21_chip::uart::UART0.initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
 

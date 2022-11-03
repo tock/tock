@@ -154,6 +154,7 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -166,6 +167,9 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -252,7 +256,7 @@ pub unsafe fn main() {
             16 => &nrf52833_peripherals.gpio_port[GPIO_P16],
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52833::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52833::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // Buttons
@@ -279,7 +283,9 @@ pub unsafe fn main() {
             ), // Touch Logo
         ),
     )
-    .finalize(components::button_component_buf!(nrf52833::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52833::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
@@ -301,13 +307,13 @@ pub unsafe fn main() {
     let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
@@ -398,7 +404,8 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS
@@ -409,7 +416,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -425,15 +432,18 @@ pub unsafe fn main() {
         None,
         dynamic_deferred_caller,
     )
-    .finalize(components::i2c_mux_component_helper!());
+    .finalize(components::i2c_mux_component_static!());
 
     // LSM303AGR
 
     let lsm303agr = components::lsm303agr::Lsm303agrI2CComponent::new(
+        sensors_i2c_bus,
+        None,
+        None,
         board_kernel,
         capsules::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_i2c_component_helper!(sensors_i2c_bus));
+    .finalize(components::lsm303agr_component_static!());
 
     if let Err(error) = lsm303agr.configure(
         capsules::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
@@ -449,7 +459,7 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(lsm303agr));
+            .finalize(components::ninedof_component_static!(lsm303agr));
 
     // Temperature
 
@@ -458,7 +468,7 @@ pub unsafe fn main() {
         capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
 
     //--------------------------------------------------------------------------
     // ADC
@@ -466,7 +476,7 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(nrf52833::adc::Adc));
+        .finalize(components::adc_mux_component_static!(nrf52833::adc::Adc));
 
     // Comment out the following to use P0, P1 and P2 as GPIO
     let adc_syscall =
@@ -477,45 +487,42 @@ pub unsafe fn main() {
                     &adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
                 )
-                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
                 // ADC Ring 1 (P1)
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
                 // ADC Ring 2 (P2)
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_component_helper!(nrf52833::adc::Adc))
+                .finalize(components::adc_component_static!(nrf52833::adc::Adc))
             ));
 
     // Microphone
 
-    let adc_microphone = components::adc_microphone::AdcMicrophoneComponent::new().finalize(
-        components::adc_microphone_component_helper!(
-            // adc
-            nrf52833::adc::Adc,
-            // adc channel
-            nrf52833::adc::AdcChannelSetup::setup(
-                nrf52833::adc::AdcChannel::AnalogInput3,
-                nrf52833::adc::AdcChannelGain::Gain4,
-                nrf52833::adc::AdcChannelResistor::Bypass,
-                nrf52833::adc::AdcChannelResistor::Pulldown,
-                nrf52833::adc::AdcChannelSamplingTime::us3
-            ),
-            // adc mux
-            adc_mux,
-            // buffer size
-            50,
-            // gpio
-            nrf52833::gpio::GPIOPin,
-            // optional gpio pin
-            Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN])
+    let adc_microphone = components::adc_microphone::AdcMicrophoneComponent::new(
+        adc_mux,
+        nrf52833::adc::AdcChannelSetup::setup(
+            nrf52833::adc::AdcChannel::AnalogInput3,
+            nrf52833::adc::AdcChannelGain::Gain4,
+            nrf52833::adc::AdcChannelResistor::Bypass,
+            nrf52833::adc::AdcChannelResistor::Pulldown,
+            nrf52833::adc::AdcChannelSamplingTime::us3,
         ),
-    );
+        Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN]),
+    )
+    .finalize(components::adc_microphone_component_static!(
+        // adc
+        nrf52833::adc::Adc,
+        // buffer size
+        50,
+        // gpio
+        nrf52833::gpio::GPIOPin
+    ));
 
     let _ = &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
@@ -524,20 +531,20 @@ pub unsafe fn main() {
         capsules::sound_pressure::DRIVER_NUM,
         adc_microphone,
     )
-    .finalize(());
+    .finalize(components::sound_pressure_component_static!());
 
     //--------------------------------------------------------------------------
     // STORAGE
     //--------------------------------------------------------------------------
 
     let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
-        components::flash_mux_component_helper!(nrf52833::nvmc::Nvmc),
+        components::flash_mux_component_static!(nrf52833::nvmc::Nvmc),
     );
 
     // App Flash
 
     let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
-        components::flash_user_component_helper!(nrf52833::nvmc::Nvmc),
+        components::flash_user_component_static!(nrf52833::nvmc::Nvmc),
     );
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(
@@ -545,7 +552,7 @@ pub unsafe fn main() {
         capsules::app_flash_driver::DRIVER_NUM,
         virtual_app_flash,
     )
-    .finalize(components::app_flash_component_helper!(
+    .finalize(components::app_flash_component_static!(
         capsules::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
         512
     ));
@@ -554,40 +561,48 @@ pub unsafe fn main() {
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio = nrf52_components::BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52833::rtc::Rtc,
+        nrf52833::ble_radio::Radio
+    ));
 
     //--------------------------------------------------------------------------
     // LED Matrix
     //--------------------------------------------------------------------------
 
-    let led_matrix = components::led_matrix_component_helper!(
-        nrf52833::gpio::GPIOPin,
-        nrf52::rtc::Rtc<'static>,
+    let led_matrix = components::led_matrix::LedMatrixComponent::new(
         mux_alarm,
-        @fps => 60,
-        @cols => kernel::hil::gpio::ActivationMode::ActiveLow,
+        components::led_line_component_static!(
+            nrf52833::gpio::GPIOPin,
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[0]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[1]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[2]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[3]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_COLS[4]],
-        @rows => kernel::hil::gpio::ActivationMode::ActiveHigh,
+        ),
+        components::led_line_component_static!(
+            nrf52833::gpio::GPIOPin,
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[0]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[1]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[2]],
             &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[3]],
-            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]]
-
+            &nrf52833_peripherals.gpio_port[LED_MATRIX_ROWS[4]],
+        ),
+        kernel::hil::gpio::ActivationMode::ActiveLow,
+        kernel::hil::gpio::ActivationMode::ActiveHigh,
+        60,
     )
-    .finalize(components::led_matrix_component_buf!(
+    .finalize(components::led_matrix_component_static!(
         nrf52833::gpio::GPIOPin,
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        5,
+        5
     ));
 
     let led = static_init!(
@@ -635,8 +650,8 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let _process_console = components::process_console::ProcessConsoleComponent::new(
@@ -663,7 +678,7 @@ pub unsafe fn main() {
     while !base_peripherals.clock.high_started() {}
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let microbit = MicroBit {
         ble_radio,

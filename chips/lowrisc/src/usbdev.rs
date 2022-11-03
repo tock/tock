@@ -1,4 +1,7 @@
 //! USB Client driver.
+// [!! Untested !!]: This driver is out of date (functionality wise) with hw and
+// likely does not work. It's is currently not used with
+// the OpenTitan board.
 
 use core::cell::Cell;
 use kernel::hil;
@@ -18,19 +21,29 @@ register_structs! {
         (0x000 => intr_state: ReadWrite<u32, INTR::Register>),
         (0x004 => intr_enable: ReadWrite<u32, INTR::Register>),
         (0x008 => intr_test: WriteOnly<u32, INTR::Register>),
-        (0x00c => usbctrl: ReadWrite<u32, USBCTRL::Register>),
-        (0x010 => usbstat: ReadOnly<u32, USBSTAT::Register>),
-        (0x014 => avbuffer: WriteOnly<u32, AVBUFFER::Register>),
-        (0x018 => rxfifo: ReadOnly<u32, RXFIFO::Register>),
-        (0x01c => rxenable_setup: ReadWrite<u32, RXENABLE_SETUP::Register>),
-        (0x020 => rxenable_out: ReadWrite<u32, RXENABLE_OUT::Register>),
-        (0x024 => in_sent: ReadWrite<u32, IN_SENT::Register>),
-        (0x028 => stall: ReadWrite<u32, STALL::Register>),
-        (0x02c => configin: [ReadWrite<u32, CONFIGIN::Register>; N_ENDPOINTS]),
-        (0x05c => iso: ReadWrite<u32, ISO::Register>),
-        (0x060 => data_toggle_clear: WriteOnly<u32, DATA_TOGGLE_CLEAR::Register>),
-        (0x064 => phy_config: ReadWrite<u32, PHY_CONFIG::Register>),
-        (0x068 => _reserved0),
+        (0x00C => alert_test: WriteOnly<u32>),
+        (0x010 => usbctrl: ReadWrite<u32, USBCTRL::Register>),
+        (0x014 => ep_out_enable: ReadWrite<u32>),
+        (0x018 => ep_in_enable: ReadWrite<u32>),
+        (0x01C => usbstat: ReadOnly<u32, USBSTAT::Register>),
+        (0x020 => avbuffer: WriteOnly<u32, AVBUFFER::Register>),
+        (0x024 => rxfifo: ReadOnly<u32, RXFIFO::Register>),
+        (0x028 => rxenable_setup: ReadWrite<u32, RXENABLE_SETUP::Register>),
+        (0x02C => rxenable_out: ReadWrite<u32, RXENABLE_OUT::Register>),
+        (0x030 => set_nak_out: ReadWrite<u32>),
+        (0x034 => in_sent: ReadWrite<u32, IN_SENT::Register>),
+        (0x038 => out_stall: ReadWrite<u32, STALL::Register>),
+        (0x03C => in_stall: ReadWrite<u32, STALL::Register>),
+        (0x040 => configin: [ReadWrite<u32, CONFIGIN::Register>; N_ENDPOINTS]),
+        (0x070 => out_iso: ReadWrite<u32, ISO::Register>),
+        (0x074 => in_iso: ReadWrite<u32, ISO::Register>),
+        (0x078 => data_toggle_clear: WriteOnly<u32, DATA_TOGGLE_CLEAR::Register>),
+        (0x07C => phy_pins_sens: ReadOnly<u32>),
+        (0x080 => phy_pins_drive: ReadOnly<u32>),
+        (0x084 => phy_config: ReadWrite<u32, PHY_CONFIG::Register>),
+        (0x088 => wake_ctrl: WriteOnly<u32>),
+        (0x08C => wake_events: ReadOnly<u32>),
+        (0x090 => _reserved0),
         (0x800 => buffer: [ReadWrite<u64, BUFFER::Register>; N_BUFFERS * 8]),
         (0x1000 => @END),
     }
@@ -57,16 +70,17 @@ register_bitfields![u32,
     ],
     USBCTRL [
         ENABLE OFFSET(0) NUMBITS(1) [],
+        RESUME_LINK_ACTIVE OFFSET(1) NUMBITS(1) [],
         DEVICE_ADDRESS OFFSET(16) NUMBITS(7) []
     ],
     USBSTAT [
         FRAME OFFSET(0) NUMBITS(10) [],
         HOST_LOST OFFSET(11) NUMBITS(1) [],
-        LINK_STATE OFFSET(12) NUMBITS(2) [],
+        LINK_STATE OFFSET(12) NUMBITS(3) [],
         SENSE OFFSET(15) NUMBITS(1) [],
-        AV_DEPTH OFFSET(16) NUMBITS(2) [],
+        AV_DEPTH OFFSET(16) NUMBITS(3) [],
         AV_FULL OFFSET(23) NUMBITS(1) [],
-        RX_DEPTH OFFSET(24) NUMBITS(2) [],
+        RX_DEPTH OFFSET(24) NUMBITS(3) [],
         RX_EMPTY OFFSET(31) NUMBITS(1) []
     ],
     AVBUFFER [
@@ -74,9 +88,9 @@ register_bitfields![u32,
     ],
     RXFIFO [
         BUFFER OFFSET(0) NUMBITS(4) [],
-        SIZE OFFSET(8) NUMBITS(6) [],
+        SIZE OFFSET(8) NUMBITS(7) [],
         SETUP OFFSET(19) NUMBITS(1) [],
-        EP OFFSET(20) NUMBITS(3) []
+        EP OFFSET(20) NUMBITS(4) []
     ],
     RXENABLE_SETUP [
         SETUP0 OFFSET(0) NUMBITS(1) [],
@@ -137,7 +151,7 @@ register_bitfields![u32,
     CONFIGIN [
         BUFFER OFFSET(0) NUMBITS(4) [],
         SIZE OFFSET(8) NUMBITS(7) [],
-        PEND OFFSET(30) NUMBITS(1) [],
+        PEND OFFSET(30) NUMBITS(1) [],      //RW1C
         RDY OFFSET(31) NUMBITS(1) []
     ],
     ISO [
@@ -172,10 +186,9 @@ register_bitfields![u32,
         RX_DIFFERENTIAL_MODE OFFSET(0) NUMBITS(1) [],
         TX_DIFFERENTIAL_MODE OFFSET(1) NUMBITS(1) [],
         EOP_SINGLE_BIT OFFSET(2) NUMBITS(1) [],
-        OVERRIDE_PWR_SENSE_EN OFFSET(3) NUMBITS(1) [],
-        OVERRIDE_PWR_SENSE_VAL OFFSET(4) NUMBITS(1) [],
         PINFLIP OFFSET(5) NUMBITS(1) [],
-        USB_REF_DISABLE OFFSET(6) NUMBITS(1) []
+        USB_REF_DISABLE OFFSET(6) NUMBITS(1) [],
+        TX_OSC_TEST_MODE OFFSET(7) NUMBITS(1) []
     ]
 ];
 
@@ -493,10 +506,10 @@ impl<'a> Usb<'a> {
         self.bufs.set(bufs);
     }
 
-    fn stall(&self, endpoint: usize) {
+    fn in_stall(&self, endpoint: usize) {
         self.registers
-            .stall
-            .set(1 << endpoint | self.registers.stall.get());
+            .in_stall
+            .set(1 << endpoint | self.registers.in_stall.get());
     }
 
     fn copy_slice_out_to_hw(&self, ep: usize, buf_id: usize, size: usize) {
@@ -654,7 +667,7 @@ impl<'a> Usb<'a> {
                                         }
                                     }
                                     _err => {
-                                        self.stall(ep);
+                                        self.in_stall(ep);
                                         self.free_buffer(buf_id);
                                         self.descriptors[ep]
                                             .state
@@ -965,7 +978,7 @@ impl<'a> Usb<'a> {
                 }
 
                 hil::usb::InResult::Error => {
-                    self.stall(ep);
+                    self.in_stall(ep);
                     match self.descriptors[ep as usize].state.get() {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
@@ -1086,7 +1099,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                 self.registers
                     .rxenable_setup
                     .set(1 << endpoint | self.registers.rxenable_setup.get());
-                self.registers.iso.set(1 << endpoint);
+                self.registers.in_iso.set(1 << endpoint);
                 self.descriptors[endpoint].state.set(EndpointState::Iso);
             }
         };
@@ -1131,7 +1144,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                 self.registers
                     .rxenable_out
                     .set(1 << endpoint | self.registers.rxenable_out.get());
-                self.registers.iso.set(1 << endpoint);
+                self.registers.out_iso.set(1 << endpoint);
                 self.descriptors[endpoint].state.set(EndpointState::Iso);
             }
         };

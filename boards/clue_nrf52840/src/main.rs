@@ -9,13 +9,11 @@
 #![deny(missing_docs)]
 
 use capsules::virtual_aes_ccm::MuxAES128CCM;
-use capsules::virtual_alarm::VirtualMuxAlarm;
 
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::buzzer::Buzzer;
-use kernel::hil::gpio::Interrupt;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::symmetric_encryption::AES128;
@@ -208,6 +206,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -220,6 +219,9 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -326,13 +328,13 @@ pub unsafe fn main() {
             16 => &nrf52840_peripherals.gpio_port[GPIO_D16]
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, nrf52840::gpio::GPIOPin>,
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_RED_PIN]),
         LedHigh::new(&nrf52840_peripherals.gpio_port[LED_WHITE_PIN])
@@ -358,7 +360,9 @@ pub unsafe fn main() {
             ) // Right
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
@@ -380,13 +384,13 @@ pub unsafe fn main() {
     let _ = rtc.start();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // PWM & BUZZER
@@ -478,7 +482,7 @@ pub unsafe fn main() {
         dynamic_deferred_caller,
         Some(&baud_rate_reset_bootloader_enter),
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
+    .finalize(components::cdc_acm_component_static!(
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
@@ -496,7 +500,8 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS
@@ -507,7 +512,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     //--------------------------------------------------------------------------
     // ADC
@@ -515,7 +520,7 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(nrf52840::adc::Adc));
+        .finalize(components::adc_mux_component_static!(nrf52840::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -525,43 +530,43 @@ pub unsafe fn main() {
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A1
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A2
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A3
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput3)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A4
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A5
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A6
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput0)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
             ));
 
     //--------------------------------------------------------------------------
@@ -578,51 +583,41 @@ pub unsafe fn main() {
     );
     base_peripherals.twi1.set_master_client(sensors_i2c_bus);
 
-    let apds9960_i2c = static_init!(
-        capsules::virtual_i2c::I2CDevice,
-        capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
-    );
+    let apds9960 = components::apds9960::Apds9960Component::new(
+        sensors_i2c_bus,
+        0x39,
+        &nrf52840_peripherals.gpio_port[APDS9960_PIN],
+    )
+    .finalize(components::apds9960_component_static!());
+    let proximity = components::proximity::ProximityComponent::new(
+        apds9960,
+        board_kernel,
+        capsules::proximity::DRIVER_NUM,
+    )
+    .finalize(components::proximity_component_static!());
 
-    let apds9960 = static_init!(
-        capsules::apds9960::APDS9960<'static>,
-        capsules::apds9960::APDS9960::new(
-            apds9960_i2c,
-            &nrf52840_peripherals.gpio_port[APDS9960_PIN],
-            &mut capsules::apds9960::BUFFER
-        )
-    );
-    apds9960_i2c.set_client(apds9960);
-    nrf52840_peripherals.gpio_port[APDS9960_PIN].set_client(apds9960);
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-
-    let proximity = static_init!(
-        capsules::proximity::ProximitySensor<'static>,
-        capsules::proximity::ProximitySensor::new(
-            apds9960,
-            board_kernel.create_grant(capsules::proximity::DRIVER_NUM, &grant_cap)
-        )
-    );
-
-    kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
-
-    let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, mux_alarm).finalize(
-        components::sht3x_component_helper!(nrf52::rtc::Rtc<'static>, capsules::sht3x::BASE_ADDR),
-    );
+    let sht3x = components::sht3x::SHT3xComponent::new(
+        sensors_i2c_bus,
+        capsules::sht3x::BASE_ADDR,
+        mux_alarm,
+    )
+    .finalize(components::sht3x_component_static!(
+        nrf52::rtc::Rtc<'static>
+    ));
 
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules::temperature::DRIVER_NUM,
         sht3x,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
 
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules::humidity::DRIVER_NUM,
         sht3x,
     )
-    .finalize(());
+    .finalize(components::humidity_component_static!());
 
     //--------------------------------------------------------------------------
     // TFT
@@ -630,7 +625,7 @@ pub unsafe fn main() {
 
     let spi_mux =
         components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_helper!(nrf52840::spi::SPIM));
+            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),
@@ -639,40 +634,32 @@ pub unsafe fn main() {
     );
 
     let bus = components::bus::SpiMasterBusComponent::new(
+        spi_mux,
+        &nrf52840_peripherals.gpio_port[ST7789H2_CS],
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
     )
-    .finalize(components::spi_bus_component_helper!(
-        // spi type
-        nrf52840::spi::SPIM,
-        // chip select
-        &nrf52840_peripherals.gpio_port[ST7789H2_CS],
-        // spi mux
-        spi_mux
-    ));
+    .finalize(components::spi_bus_component_static!(nrf52840::spi::SPIM));
 
-    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
-        components::st77xx_component_helper!(
-            // screen
-            &capsules::st77xx::ST7789H2,
-            // bus type
-            capsules::bus::SpiMasterBus<
-                'static,
-                VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
-            >,
-            // bus
-            &bus,
-            // timer type
-            nrf52840::rtc::Rtc,
-            // pin type
-            nrf52::gpio::GPIOPin<'static>,
-            // dc
-            Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
-            // reset
-            Some(&nrf52840_peripherals.gpio_port[ST7789H2_RESET])
-        ),
-    );
+    let tft = components::st77xx::ST77XXComponent::new(
+        mux_alarm,
+        bus,
+        Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
+        Some(&nrf52840_peripherals.gpio_port[ST7789H2_RESET]),
+        &capsules::st77xx::ST7789H2,
+    )
+    .finalize(components::st77xx_component_static!(
+        // bus type
+        capsules::bus::SpiMasterBus<
+            'static,
+            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+        >,
+        // timer type
+        nrf52840::rtc::Rtc,
+        // pin type
+        nrf52::gpio::GPIOPin<'static>
+    ));
 
     let _ = tft.init();
 
@@ -682,19 +669,22 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio = nrf52_components::BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::ble_radio::Radio
+    ));
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -718,13 +708,13 @@ pub unsafe fn main() {
         serial_num_bottom_16,
         dynamic_deferred_caller,
     )
-    .finalize(components::ieee802154_component_helper!(
+    .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -747,7 +737,7 @@ pub unsafe fn main() {
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
         ble_radio: ble_radio,

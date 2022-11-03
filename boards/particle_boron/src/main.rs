@@ -154,6 +154,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -166,6 +167,9 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -287,7 +291,7 @@ pub unsafe fn main() {
             19 => &nrf52840_peripherals.gpio_port[Pin::P0_26],
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
 
     //--------------------------------------------------------------------------
     // Buttons
@@ -305,13 +309,15 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52840::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
 
     //--------------------------------------------------------------------------
     // LEDs
     //--------------------------------------------------------------------------
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED_USR_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_R_PIN]),
@@ -334,13 +340,13 @@ pub unsafe fn main() {
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_helper!(nrf52840::rtc::Rtc));
+        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // Deferred Call (Dynamic) Setup
@@ -385,15 +391,15 @@ pub unsafe fn main() {
         dynamic_deferred_caller,
         None,
     )
-    .finalize(components::usb_cdc_acm_component_helper!(
+    .finalize(components::cdc_acm_component_static!(
         nrf52::usbd::Usbd,
         nrf52::rtc::Rtc
     ));
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Process Printer for displaying process information.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
@@ -418,19 +424,23 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
 
-    let ble_radio = nrf52_components::BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::ble_radio::Radio
+    ));
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
@@ -450,7 +460,7 @@ pub unsafe fn main() {
         SRC_MAC,
         dynamic_deferred_caller,
     )
-    .finalize(components::ieee802154_component_helper!(
+    .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
@@ -464,7 +474,7 @@ pub unsafe fn main() {
         capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(());
+    .finalize(components::temperature_component_static!());
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS
@@ -475,7 +485,7 @@ pub unsafe fn main() {
         capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(());
+    .finalize(components::rng_component_static!());
 
     //--------------------------------------------------------------------------
     // ADC
@@ -484,7 +494,7 @@ pub unsafe fn main() {
     base_peripherals.adc.calibrate();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(nrf52840::adc::Adc));
+        .finalize(components::adc_mux_component_static!(nrf52840::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -494,37 +504,37 @@ pub unsafe fn main() {
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A1
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A2
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A3
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A4
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // BRD_A5
                 components::adc::AdcComponent::new(
                     &adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
-                .finalize(components::adc_component_helper!(nrf52840::adc::Adc)),
+                .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
             ));
 
     //--------------------------------------------------------------------------
@@ -563,7 +573,7 @@ pub unsafe fn main() {
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
         button,

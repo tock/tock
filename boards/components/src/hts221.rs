@@ -4,26 +4,25 @@
 //! -----
 //! ```rust
 //! let hts221 = Hts221Component::new(mux_i2c, mux_alarm, 0x5f).finalize(
-//!     components::hts221!(sam4l::ast::Ast));
+//!     components::hts221_component_static!(sam4l::ast::Ast));
 //! let temperature = components::temperature::TemperatureComponent::new(board_kernel, hts221).finalize(());
 //! let humidity = components::humidity::HumidityComponent::new(board_kernel, hts221).finalize(());
 //! ```
 
-use core::mem::MaybeUninit;
-
 use capsules::hts221::Hts221;
 use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::{static_init, static_init_half};
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! hts221_component_helper {
+macro_rules! hts221_component_static {
     () => {{
-        use capsules::hts221::Hts221;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<Hts221<'static>> = MaybeUninit::uninit();
-        &mut BUF1
+        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice);
+        let buffer = kernel::static_buf!([u8; 17]);
+        let hts221 = kernel::static_buf!(capsules::hts221::Hts221<'static>);
+
+        (i2c_device, buffer, hts221)
     };};
 }
 
@@ -41,19 +40,20 @@ impl Hts221Component {
     }
 }
 
-static mut I2C_BUF: [u8; 17] = [0; 17];
-
 impl Component for Hts221Component {
-    type StaticInput = &'static mut MaybeUninit<Hts221<'static>>;
+    type StaticInput = (
+        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<[u8; 17]>,
+        &'static mut MaybeUninit<Hts221<'static>>,
+    );
     type Output = &'static Hts221<'static>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let hts221_i2c = static_init!(I2CDevice, I2CDevice::new(self.i2c_mux, self.i2c_address));
-        let hts221 = static_init_half!(
-            static_buffer,
-            Hts221<'static>,
-            Hts221::new(hts221_i2c, &mut I2C_BUF)
-        );
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let hts221_i2c = static_buffer
+            .0
+            .write(I2CDevice::new(self.i2c_mux, self.i2c_address));
+        let buffer = static_buffer.1.write([0; 17]);
+        let hts221 = static_buffer.2.write(Hts221::new(hts221_i2c, buffer));
 
         hts221_i2c.set_client(hts221);
         hts221

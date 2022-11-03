@@ -116,7 +116,7 @@
 //! ```
 
 use super::super::imix_components::test::mock_udp::MockUDPComponent;
-use super::super::imix_components::test::mock_udp2::MockUDPComponent2;
+use crate::mock_udp_component_static;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::network_capabilities::{
@@ -194,9 +194,9 @@ pub unsafe fn initialize_all(
         net_cap,
         udp_vis,
     )
-    .finalize(());
+    .finalize(mock_udp_component_static!());
 
-    let mock_udp2 = MockUDPComponent2::new(
+    let mock_udp2 = MockUDPComponent::new(
         udp_send_mux,
         udp_recv_mux,
         port_table,
@@ -207,7 +207,7 @@ pub unsafe fn initialize_all(
         net_cap,
         udp_vis,
     )
-    .finalize(());
+    .finalize(mock_udp_component_static!());
 
     let alarm = static_init!(
         VirtualMuxAlarm<'static, sam4l::ast::Ast>,

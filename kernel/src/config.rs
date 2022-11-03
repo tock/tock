@@ -67,6 +67,15 @@ pub(crate) struct Config {
     // is identified, using configuration constants is the most effective
     // option.
     pub(crate) debug_panics: bool,
+
+    /// Whether the kernbel should output debug information when it is checking
+    /// the cryptographic credentials of a userspace process. If enabled, the
+    /// kernel will show which footers were found and why processes were started
+    /// or not.
+    // This config option is intended to provide some visibility into process
+    // credentials checking, e.g., whether elf2tab and tockloader are generating
+    // properly formatted footers.
+    pub(crate) debug_process_credentials: bool,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are
@@ -78,4 +87,5 @@ pub(crate) const CONFIG: Config = Config {
     trace_syscalls: cfg!(feature = "trace_syscalls"),
     debug_load_processes: cfg!(feature = "debug_load_processes"),
     debug_panics: !cfg!(feature = "no_debug_panics"),
+    debug_process_credentials: cfg!(feature = "debug_process_credentials"),
 };

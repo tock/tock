@@ -42,7 +42,6 @@ pub mod io;
 mod otbn;
 #[cfg(test)]
 mod tests;
-pub mod usb;
 
 const NUM_PROCS: usize = 4;
 
@@ -188,6 +187,7 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer =
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
@@ -201,6 +201,9 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         &self.syscall_filter
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -262,7 +265,7 @@ unsafe fn setup() -> (
 
     // LEDs
     // Start with half on and half off
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, earlgrey::gpio::GpioPin>,
         LedHigh::new(&peripherals.gpio_port[8]),
         LedHigh::new(&peripherals.gpio_port[9]),
@@ -289,7 +292,7 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio_port[15]
         ),
     )
-    .finalize(components::gpio_component_buf!(earlgrey::gpio::GpioPin));
+    .finalize(components::gpio_component_static!(earlgrey::gpio::GpioPin));
 
     let hardware_alarm = static_init!(earlgrey::timer::RvTimer, earlgrey::timer::RvTimer::new());
     hardware_alarm.setup();
@@ -355,65 +358,49 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
-        components::digest_mux_component_helper!(lowrisc::hmac::Hmac, 32),
+        components::digest_mux_component_static!(lowrisc::hmac::Hmac, 32),
     );
 
-    let digest_key_buffer = static_init!([u8; 32], [0; 32]);
-
-    let digest = components::digest::DigestComponent::new(&mux_digest, digest_key_buffer).finalize(
-        components::digest_component_helper!(lowrisc::hmac::Hmac, 32,),
+    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
+        components::digest_component_static!(lowrisc::hmac::Hmac, 32,),
     );
 
     peripherals.hmac.set_client(digest);
 
-    let hmac_key_buffer = static_init!([u8; 32], [0; 32]);
-    let hmac_data_buffer = static_init!([u8; 64], [0; 64]);
-    let hmac_dest_buffer = static_init!([u8; 32], [0; 32]);
-
     let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::hmac_mux_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
-    let hmac = components::hmac::HmacComponent::new(
-        board_kernel,
-        capsules::hmac::DRIVER_NUM,
-        &mux_hmac,
-        hmac_key_buffer,
-        hmac_data_buffer,
-        hmac_dest_buffer,
-    )
-    .finalize(components::hmac_component_helper!(
-        capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
-        32,
-    ));
+    let hmac =
+        components::hmac::HmacComponent::new(board_kernel, capsules::hmac::DRIVER_NUM, &mux_hmac)
+            .finalize(components::hmac_component_static!(
+                capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
+                32,
+            ));
 
     digest.set_hmac_client(hmac);
 
-    let sha_data_buffer = static_init!([u8; 64], [0; 64]);
-    let sha_dest_buffer = static_init!([u8; 32], [0; 32]);
-
     let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::sha_mux_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
     let sha = components::sha::ShaComponent::new(
         board_kernel,
         capsules::sha::DRIVER_NUM,
         &mux_sha,
-        sha_data_buffer,
-        sha_dest_buffer,
     )
-    .finalize(components::sha_component_helper!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
+    .finalize(components::sha_component_static!(capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
 
     digest.set_sha_client(sha);
 
@@ -431,7 +418,7 @@ unsafe fn setup() -> (
     //SPI
     let mux_spi =
         components::spi::SpiMuxComponent::new(&peripherals.spi_host0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_helper!(
+            .finalize(components::spi_mux_component_static!(
                 lowrisc::spi_host::SpiHost
             ));
 
@@ -441,7 +428,7 @@ unsafe fn setup() -> (
         0,
         capsules::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_helper!(
+    .finalize(components::spi_syscall_component_static!(
         lowrisc::spi_host::SpiHost
     ));
 
@@ -449,13 +436,18 @@ unsafe fn setup() -> (
         dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // USB support is currently broken in the OpenTitan hardware
     // See https://github.com/lowRISC/opentitan/issues/2598 for more details
-    // let usb = usb::UsbComponent::new(board_kernel).finalize(());
+    // let usb = components::usb::UsbComponent::new(
+    //     board_kernel,
+    //     capsules::usb::usb_user::DRIVER_NUM,
+    //     &peripherals.usb,
+    // )
+    // .finalize(components::usb_component_static!(earlgrey::usbdev::Usb));
 
     // Kernel storage region, allocated with the storage_volume!
     // macro in common/utils.rs
@@ -476,7 +468,7 @@ unsafe fn setup() -> (
     );
 
     let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
-        components::flash_mux_component_helper!(lowrisc::flash_ctrl::FlashCtrl),
+        components::flash_mux_component_static!(lowrisc::flash_ctrl::FlashCtrl),
     );
 
     // SipHash
@@ -501,7 +493,7 @@ unsafe fn setup() -> (
         flash_ctrl_read_buf, // Buffer used internally in TicKV
         page_buffer,         // Buffer used with the flash controller
     )
-    .finalize(components::tickv_component_helper!(
+    .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
         capsules::sip_hash::SipHasher24
     ));
@@ -510,7 +502,7 @@ unsafe fn setup() -> (
     TICKV = Some(tickv);
 
     let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_helper!(
+        components::kv_store_mux_component_static!(
             capsules::tickv::TicKVStore<
                 capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
                 capsules::sip_hash::SipHasher24<'static>,
@@ -519,31 +511,23 @@ unsafe fn setup() -> (
         ),
     );
 
-    let kv_store_key_buf = static_init!(capsules::tickv::TicKVKeyType, [0; 8]);
-    let header_buf = static_init!([u8; 9], [0; 9]);
-
-    let kv_store =
-        components::kv_system::KVStoreComponent::new(mux_kv, kv_store_key_buf, header_buf)
-            .finalize(components::kv_store_component_helper!(
-                capsules::tickv::TicKVStore<
-                    capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-                    capsules::sip_hash::SipHasher24<'static>,
-                >,
-                capsules::tickv::TicKVKeyType,
-            ));
+    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
+        components::kv_store_component_static!(
+            capsules::tickv::TicKVStore<
+                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                capsules::sip_hash::SipHasher24<'static>,
+            >,
+            capsules::tickv::TicKVKeyType,
+        ),
+    );
     tickv.set_client(kv_store);
-
-    let kv_driver_data_buf = static_init!([u8; 32], [0; 32]);
-    let kv_driver_dest_buf = static_init!([u8; 48], [0; 48]);
 
     let kv_driver = components::kv_system::KVDriverComponent::new(
         kv_store,
         board_kernel,
         capsules::kv_driver::DRIVER_NUM,
-        kv_driver_data_buf,
-        kv_driver_dest_buf,
     )
-    .finalize(components::kv_driver_component_helper!(
+    .finalize(components::kv_driver_component_static!(
         capsules::tickv::TicKVStore<
             capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
             capsules::sip_hash::SipHasher24<'static>,
@@ -552,9 +536,9 @@ unsafe fn setup() -> (
     ));
 
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
-        .finalize(otbn_mux_component_helper!(1024));
+        .finalize(otbn_mux_component_static!());
 
-    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_helper!());
+    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_static!());
 
     let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
 
@@ -692,7 +676,8 @@ unsafe fn setup() -> (
     }
 
     let syscall_filter = static_init!(TbfHeaderFilterDefaultAllow, TbfHeaderFilterDefaultAllow {});
-    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel).finalize(());
+    let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
+        .finalize(components::priority_component_static!());
     let watchdog = &peripherals.watchdog;
 
     let earlgrey = static_init!(

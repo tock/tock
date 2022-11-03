@@ -11,25 +11,21 @@
 //! SPI example
 //!
 //! ```rust
-//! let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
-//!     components::st77xx_component_helper!(
-//!         // screen
-//!         &capsules::st77xx::ST7735,
+//! let tft = components::st77xx::ST77XXComponent::new(mux_alarm,
+//!                                                    bus,
+//!                                                    Some(&nrf52840::gpio::PORT[GPIO_D3]),
+//!                                                    Some(&nrf52840::gpio::PORT[GPIO_D2]),
+//!                                                    &capsules::st77xx::ST7735).finalize(
+//!     components::st77xx_component_static!(
 //!         // bus type
 //!         capsules::bus::SpiMasterBus<
 //!             'static,
 //!             VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
 //!         >,
-//!         // bus
-//!         &bus,
 //!         // timer type
 //!         nrf52840::rtc::Rtc,
 //!         // pin type
 //!         nrf52::gpio::GPIOPin<'static>,
-//!         // dc
-//!         Some(&nrf52840::gpio::PORT[GPIO_D3]),
-//!         // reset
-//!         Some(&nrf52840::gpio::PORT[GPIO_D2])
 //!     ),
 //! );
 //! ```

@@ -59,8 +59,8 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::ErrorCode;
 
-pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
-pub static mut RXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
+pub const TX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
+pub const RX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
 
 const SPI_SPEED: u32 = 8000000;
 const SECTOR_SIZE: u32 = 4096;

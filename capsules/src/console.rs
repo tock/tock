@@ -119,7 +119,7 @@ impl<'a> Console<'a> {
     /// Internal helper function for setting up a new send transaction
     fn send_new(
         &self,
-        app_id: ProcessId,
+        processid: ProcessId,
         app: &mut App,
         kernel_data: &GrantKernelData,
         len: usize,
@@ -129,7 +129,7 @@ impl<'a> Console<'a> {
             .map_or(0, |write| write.len())
             .min(len);
         app.write_remaining = app.write_len;
-        self.send(app_id, app, kernel_data);
+        self.send(processid, app, kernel_data);
         Ok(())
     }
 
@@ -138,12 +138,12 @@ impl<'a> Console<'a> {
     /// completed.
     fn send_continue(
         &self,
-        app_id: ProcessId,
+        processid: ProcessId,
         app: &mut App,
         kernel_data: &GrantKernelData,
     ) -> bool {
         if app.write_remaining > 0 {
-            self.send(app_id, app, kernel_data);
+            self.send(processid, app, kernel_data);
             true
         } else {
             false
@@ -152,9 +152,9 @@ impl<'a> Console<'a> {
 
     /// Internal helper function for sending data for an existing transaction.
     /// Cannot fail. If can't send now, it will schedule for sending later.
-    fn send(&self, app_id: ProcessId, app: &mut App, kernel_data: &GrantKernelData) {
+    fn send(&self, processid: ProcessId, app: &mut App, kernel_data: &GrantKernelData) {
         if self.tx_in_progress.is_none() {
-            self.tx_in_progress.set(app_id);
+            self.tx_in_progress.set(processid);
             self.tx_buffer.take().map(|buffer| {
                 let transaction_len = kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
@@ -199,7 +199,7 @@ impl<'a> Console<'a> {
     /// Internal helper function for starting a receive operation
     fn receive_new(
         &self,
-        app_id: ProcessId,
+        processid: ProcessId,
         app: &mut App,
         kernel_data: &GrantKernelData,
         len: usize,
@@ -222,7 +222,7 @@ impl<'a> Console<'a> {
             // Note: We have ensured above that rx_buffer is present
             app.read_len = read_len;
             self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(app_id);
+                self.rx_in_progress.set(processid);
                 let _ = self.uart.receive_buffer(buffer, app.read_len);
             });
             Ok(())
@@ -261,21 +261,27 @@ impl SyscallDriver for Console<'_> {
     ///        passed in `arg1`
     /// - `3`: Cancel any in progress receives and return (via callback)
     ///        what has been received so far.
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        cmd_num: usize,
+        arg1: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app, kernel_data| {
+            .enter(processid, |app, kernel_data| {
                 match cmd_num {
                     0 => Ok(()),
                     1 => {
                         // putstr
                         let len = arg1;
-                        self.send_new(appid, app, kernel_data, len)
+                        self.send_new(processid, app, kernel_data, len)
                     }
                     2 => {
                         // getnstr
                         let len = arg1;
-                        self.receive_new(appid, app, kernel_data, len)
+                        self.receive_new(processid, app, kernel_data, len)
                     }
                     3 => {
                         // Abort RX
@@ -308,9 +314,9 @@ impl uart::TransmitClient for Console<'_> {
         // Either print more from the AppSlice or send a callback to the
         // application.
         self.tx_buffer.replace(buffer);
-        self.tx_in_progress.take().map(|appid| {
-            self.apps.enter(appid, |app, kernel_data| {
-                match self.send_continue(appid, app, kernel_data) {
+        self.tx_in_progress.take().map(|processid| {
+            self.apps.enter(processid, |app, kernel_data| {
+                match self.send_continue(processid, app, kernel_data) {
                     true => {
                         // Still more to send. Wait to notify the process.
                     }
@@ -328,11 +334,11 @@ impl uart::TransmitClient for Console<'_> {
         // see if any other applications have pending messages.
         if self.tx_in_progress.is_none() {
             for cntr in self.apps.iter() {
-                let appid = cntr.processid();
+                let processid = cntr.processid();
                 let started_tx = cntr.enter(|app, kernel_data| {
                     if app.pending_write {
                         app.pending_write = false;
-                        self.send_continue(appid, app, kernel_data)
+                        self.send_continue(processid, app, kernel_data)
                     } else {
                         false
                     }
@@ -355,9 +361,9 @@ impl uart::ReceiveClient for Console<'_> {
     ) {
         self.rx_in_progress
             .take()
-            .map(|appid| {
+            .map(|processid| {
                 self.apps
-                    .enter(appid, |_, kernel_data| {
+                    .enter(processid, |_, kernel_data| {
                         // An iterator over the returned buffer yielding only the first `rx_len`
                         // bytes
                         let rx_buffer = buffer.iter().take(rx_len);
