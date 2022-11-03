@@ -75,7 +75,7 @@ impl<A: 'static + can::Can> Component for CanComponent<A> {
     );
     type Output = &'static CanCapsule<'static, A>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_can = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
