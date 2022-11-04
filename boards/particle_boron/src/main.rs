@@ -338,7 +338,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let rtc = &base_peripherals.rtc;
-    let _ = rtc.start();
+    _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -608,7 +608,7 @@ pub unsafe fn main() {
     cdc.attach();
 
     debug!("Particle Boron: Initialization complete. Entering main loop\r");
-    let _ = platform.pconsole.start();
+    _ = platform.pconsole.start();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP

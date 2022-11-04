@@ -95,7 +95,7 @@ impl IoWrite for Writer {
                 STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
                 let static_buf = &mut STATIC_PANIC_BUF;
                 cdc.set_transmit_client(&DUMMY);
-                let _ = cdc.transmit_buffer(static_buf, max);
+                _ = cdc.transmit_buffer(static_buf, max);
                 loop {
                     if let Some(interrupt) = cortexm4::nvic::next_pending() {
                         if interrupt == 39 {

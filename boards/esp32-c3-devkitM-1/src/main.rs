@@ -290,7 +290,7 @@ unsafe fn setup() -> (
     .finalize(components::process_console_component_static!(
         esp32_c3::timg::TimG
     ));
-    let _ = process_console.start();
+    _ = process_console.start();
 
     let esp32_c3_board = static_init!(
         Esp32C3Board,
