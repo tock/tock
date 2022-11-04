@@ -304,10 +304,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         c
     }
 
-    // Enqueue the initialization function of a process onto its task list;
-    // this is used to start a process. Should only be called when a process
-    // is in the `State::Unstarted` state. If this returns `Err` the process
-    // will not start execution.
+    // Enqueue the initialization function of a process onto its task
+    // list; this is used to start a process. Should only be called
+    // when a process is in the `State::Terminated` or
+    // `State::CredentialsApproved` state. If this returns `Err` the
+    // process will not start execution.
     fn enqueue_init_task(
         &self,
         _cap: &dyn capabilities::ProcessInitCapability,

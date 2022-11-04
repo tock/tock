@@ -802,27 +802,33 @@ pub enum State {
     /// process needs to be resumed it should be put back in the `Yield` state.
     StoppedYielded,
 
-    /// The process faulted and cannot be run.
+    /// The process ran, faulted while running, and is no longer
+    /// runnable. For a faulted process to be made runnable, it must
+    /// first be terminated (to clean up its state).
     Faulted,
 
-    /// The process is not running: it exited with the `exit-terminate` system call
-    /// or was terminated for some other reason (e.g., by the process console).
+    /// The process's credentials have been approved but it is not
+    /// running: it exited with the `exit-terminate` system call or
+    /// was terminated for some other reason (e.g., by the process
+    /// console).  Processes in the `Terminated` state can be
+    /// transitioned into `CredentialsApproved` to run again.
     Terminated,
 
     /// The process's credentials have not been checked to be allowed
     /// to run yet: it needs to be checked by an
     /// `AppCredentialsChecker` to be transitioned into the
-    /// `Unstarted` or `CredentialsFailed` state.
+    /// `CredentialsApproved` or `CredentialsFailed` state. Processes
+    /// in this state cannot be run.
     CredentialsUnchecked,
 
     /// The Userspace Binary's credentials have been approved by the Process Checking
     /// Policy but the process is not running (does not have an active stack).
-    /// Before making the process runnable, the kernel needs to check its
-    /// Application Identifier for uniqueness.
+    /// The kernel tries to run processes in this state, first checking their
+    /// Application Identifiers and Short IDs for uniqueness.
     CredentialsApproved,
 
     /// The Process failed verification: it was terminated before it was
-    /// verified.
+    /// verified. Processes in this state cannot be run.
     CredentialsFailed,
 }
 

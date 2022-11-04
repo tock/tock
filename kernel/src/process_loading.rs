@@ -328,13 +328,13 @@ fn load_processes_from_flash<C: Chip>(
     Ok(())
 }
 
-/// Use `checker` to transition `procs` from the `Unverified` into the
-/// `Unstarted` state (if they pass the checker policy) or
-/// `CredentialsFailed` state (if they do not pass the checker
-/// policy). If `verifier` is `None` then all processes are
-/// automatically verified. Processes that transition into the
-/// `Unstarted` state are started by enqueueing a stack frame to run
-/// the initialization function as indicated in the TBF header.
+/// Use `checker` to transition `procs` from the
+/// `CredentialsUnchecked` state into the `CredentialsApproved` state
+/// (if they pass the checker policy) or `CredentialsFailed` state (if
+/// they do not pass the checker policy). When the kernel encounters a
+/// process in the `CredentialsApproved` state, it starts the process
+/// by enqueueing a stack frame to run the initialization function as
+/// indicated in the TBF header.
 #[inline(always)]
 fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
     kernel_resources: &KR,
