@@ -68,7 +68,7 @@ impl<'a> AppCredentialsChecker<'a> for () {
 ///   all other processes, or
 ///   - Other processes that share an Application Identifier or Short
 ///   ID with it have a lower version number and are not running, or
-///   - Other processes that shared 
+///   - Other processes that shared
 pub fn is_runnable<AU: AppUniqueness>(
     process: &dyn Process,
     processes: &[Option<&dyn Process>],
