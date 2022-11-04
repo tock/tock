@@ -1,9 +1,10 @@
 [package]
 name = "lora_things_plus"
-version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 build = "build.rs"
-edition = "2021"
+
 
 [dependencies]
 components = { path = "../../components" }

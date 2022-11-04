@@ -1,9 +1,9 @@
 [package]
 name = "clue_nrf52840"
-version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+version.workspace = true
+authors.workspace = true
 build = "build.rs"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
