@@ -776,8 +776,45 @@ impl From<Error> for ErrorCode {
 
 /// States a process can be in.
 ///
-/// This is made public in case external implementations of `Process` want
-/// to re-use these process states in the external implementation.
+/// This is public so external implementations of `Process` want to
+/// re-use these process states.
+///
+/// When the kernel first creates a process structure, it places it
+/// in the `CredentialsUnchecked` state. If the process is able to
+/// load successfully, the kernel uses the Credentials Checking Policy
+/// to decide whether to place the process in the `CredentialsApproved`
+/// or `CredentialsFailed` state.
+///
+/// A process in the `CredentialsUnchecked` or `CredentialsFailed` state
+/// is not runnable and the kernel should never run it.
+///
+/// Once a process is placed in the `CredentialsApproved` state, the
+/// kernel interprets this that the process is ready to run. The
+/// kernel checks the Application ID, Short ID, and version number of
+/// the Userspace Binary to decide if the process can run given other
+/// processes in the system.  If it can run, the kernel pushes its
+/// initial stack frame and transitions it to the `Yielded` state. If
+/// it cannot run because of the identifiers of other processes, the
+/// kernel transitions it to the `Terminated` state.
+///
+/// To start or restart a terminated process, the kernel transitions
+/// it into the `CredentialsApproved` state. This causes it to check
+/// whether it is runnable and then transition it as above.
+///
+/// While a process is running, it transitions between the `Running`,
+/// `Yielded`, `StoppedRunning`, and `StoppedYielded` states. If an
+/// error occurs (e.g., a memory access error), the kernel faults it
+/// and either leaves it in the `Faulted` state, restarts it, or takes
+/// some other action defined by the kernel fault policy. If the
+/// process issues an `exit-terminate` system call, it enters the
+/// `Terminated` state. If it issues an `exit-restart` system call, it
+/// terminates then tries to transition to `CredentialsApproved`.
+///
+/// When a process faults, it enters the `Faulted` state. To be
+/// restarted, it must first transition to the `Terminated` state,
+/// which means that all of its state has been cleaned up.
+
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     /// Process expects to be running code. The process may not be currently
