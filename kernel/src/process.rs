@@ -814,7 +814,6 @@ impl From<Error> for ErrorCode {
 /// restarted, it must first transition to the `Terminated` state,
 /// which means that all of its state has been cleaned up.
 
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     /// Process expects to be running code. The process may not be currently
