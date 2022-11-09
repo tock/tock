@@ -1265,9 +1265,6 @@ pub enum BulkOutState {
     // There is a pending EPDATA to reply to. Store the size right after the
     // EPDATA event.
     OutData { size: u32 },
-    // There is a pending DMA transfer on this OUT endpoint. Still need to keep
-    // track of the size of the transfer.
-    OutDma { size: u32 },
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -1485,7 +1482,7 @@ impl<'a> UsbCtrl<'a> {
             }
             1..=N_ENDPOINTS => {
                 self.dpsram.ep_ctrl[endpoint].ep_out_ctrl.set(0);
-                self.dpsram.ep_ctrl[endpoint].ep_out_ctrl.modify(
+                self.dpsram.ep_ctrl[endpoint - 1].ep_out_ctrl.modify(
                     EP_CONTROL::ENDPOINT_ENABLE::SET
                         + EP_CONTROL::DOUBLE_BUFFERED::CLEAR
                         + EP_CONTROL::ENDPOINT_TYPE::BULK
@@ -1610,7 +1607,7 @@ impl<'a> UsbCtrl<'a> {
                 }
                 5 => {
                     if self.registers.buff_status.is_set(BUFF_STATUS::EP2_OUT) {
-                        self.handle_endepout(2);
+                        self.handle_epdata_out(2);
                     }
                 }
                 6 => {
@@ -1620,7 +1617,7 @@ impl<'a> UsbCtrl<'a> {
                 }
                 7 => {
                     if self.registers.buff_status.is_set(BUFF_STATUS::EP3_OUT) {
-                        self.handle_endepout(3);
+                        self.handle_epdata_out(3);
                     }
                 }
                 8 => {
@@ -1630,7 +1627,7 @@ impl<'a> UsbCtrl<'a> {
                 }
                 9 => {
                     if self.registers.buff_status.is_set(BUFF_STATUS::EP4_OUT) {
-                        self.handle_endepout(4);
+                        self.handle_epdata_out(4);
                     }
                 }
                 10 => {
@@ -1643,7 +1640,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP5_OUT::CLEAR);
-                        self.handle_endepout(5);
+                        self.handle_epdata_out(5);
                     }
                 }
                 12 => {
@@ -1659,7 +1656,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP6_OUT::CLEAR);
-                        self.handle_endepout(6);
+                        self.handle_epdata_out(6);
                     }
                 }
                 14 => {
@@ -1675,7 +1672,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP7_OUT::CLEAR);
-                        self.handle_endepout(7);
+                        self.handle_epdata_out(7);
                     }
                 }
                 16 => {
@@ -1691,7 +1688,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP8_OUT::CLEAR);
-                        self.handle_endepout(8);
+                        self.handle_epdata_out(8);
                     }
                 }
                 18 => {
@@ -1707,7 +1704,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP9_OUT::CLEAR);
-                        self.handle_endepout(9);
+                        self.handle_epdata_out(9);
                     }
                 }
                 20 => {
@@ -1723,7 +1720,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP10_OUT::CLEAR);
-                        self.handle_endepout(10);
+                        self.handle_epdata_out(10);
                     }
                 }
                 22 => {
@@ -1739,7 +1736,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP11_OUT::CLEAR);
-                        self.handle_endepout(11);
+                        self.handle_epdata_out(11);
                     }
                 }
                 24 => {
@@ -1755,7 +1752,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP12_OUT::CLEAR);
-                        self.handle_endepout(12);
+                        self.handle_epdata_out(12);
                     }
                 }
                 26 => {
@@ -1771,7 +1768,7 @@ impl<'a> UsbCtrl<'a> {
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP13_OUT::CLEAR);
-                        self.handle_endepout(13);
+                        self.handle_epdata_out(13);
                     }
                 }
                 28 => {
@@ -1784,7 +1781,7 @@ impl<'a> UsbCtrl<'a> {
                 }
                 29 => {
                     if self.registers.buff_status.is_set(BUFF_STATUS::EP14_OUT) {
-                        self.handle_endepout(14);
+                        self.handle_epdata_out(14);
                         self.registers
                             .buff_status
                             .modify(BUFF_STATUS::EP14_OUT::CLEAR);
@@ -1800,7 +1797,7 @@ impl<'a> UsbCtrl<'a> {
                 }
                 31 => {
                     if self.registers.buff_status.is_set(BUFF_STATUS::EP15_OUT) {
-                        self.handle_endepout(15);
+                        self.handle_epdata_out(15);
                     }
                     self.registers
                         .buff_status
@@ -1852,8 +1849,8 @@ impl<'a> UsbCtrl<'a> {
             BulkOutState::OutDelay => {
                 // The endpoint will be resumed later by the client application with transmit_out().
             }
-            BulkOutState::OutData { size: _ } | BulkOutState::OutDma { size: _ } => {
-                internal_err!("Unexpected state: {:?}", out_state);
+            BulkOutState::OutData { size: _ } => {
+                self.descriptors[ep].request_transmit_out.set(true);
             }
         }
         // Indicate that the endpoint now has data available.
@@ -2066,9 +2063,8 @@ impl<'a> UsbCtrl<'a> {
                 // Notify the client about the new packet.
                 let (transfer_type, in_state, out_state) =
                     self.descriptors[endpoint].state.get().bulk_state();
-                assert!(matches!(out_state, Some(BulkOutState::OutDma { .. })));
 
-                let packet_bytes = if let Some(BulkOutState::OutDma { size }) = out_state {
+                let packet_bytes = if let Some(BulkOutState::OutData { size }) = out_state {
                     size
                 } else {
                     0
@@ -2350,35 +2346,12 @@ impl<'a> UsbCtrl<'a> {
         let slice = self.descriptors[endpoint].slice_out.unwrap_or_panic();
 
         for idx in 0..size as usize {
-            slice[idx].set(self.dpsram.ep0_buffer0[idx].get());
+            slice[idx].set(self.dpsram.buffers[(64 * (endpoint - 1)) + idx].get());
         }
         let (transfer_type, in_state, out_state) =
             self.descriptors[endpoint].state.get().bulk_state();
         // Starting the receiving can only happen in the OutData state, i.e. after an EPDATA event.
         assert!(matches!(out_state, Some(BulkOutState::OutData { .. })));
-        if self.next_pid_out[endpoint].get() == 1 {
-            self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
-                EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64)
-                    + EP_BUFFER_CONTROL::BUFFER0_FULL::CLEAR
-                    + EP_BUFFER_CONTROL::DATA_PID0::SET,
-            );
-            self.next_pid_out[endpoint].set(0);
-            self.nop_wait();
-            self.dpsram.ep_buf_ctrl[endpoint]
-                .ep_out_buf_ctrl
-                .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
-        } else {
-            self.dpsram.ep_buf_ctrl[endpoint].ep_out_buf_ctrl.modify(
-                EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64)
-                    + EP_BUFFER_CONTROL::BUFFER0_FULL::CLEAR
-                    + EP_BUFFER_CONTROL::DATA_PID0::CLEAR,
-            );
-            self.next_pid_out[endpoint].set(1);
-            self.nop_wait();
-            self.dpsram.ep_buf_ctrl[endpoint]
-                .ep_out_buf_ctrl
-                .modify(EP_BUFFER_CONTROL::AVAILABLE0::SET);
-        }
         self.descriptors[endpoint].request_transmit_out.set(false);
         let size = if let Some(BulkOutState::OutData { size }) = out_state {
             size
@@ -2389,8 +2362,10 @@ impl<'a> UsbCtrl<'a> {
         self.descriptors[endpoint].state.set(EndpointState::Bulk(
             transfer_type,
             in_state,
-            Some(BulkOutState::OutDma { size }),
+            Some(BulkOutState::OutData { size }),
         ));
+
+        self.handle_endepout(endpoint);
     }
 }
 
@@ -2549,7 +2524,7 @@ impl<'a> hil::usb::UsbController<'a> for UsbCtrl<'a> {
                 // continue in transmit_out().
                 self.transmit_out(endpoint);
             }
-            BulkOutState::Init | BulkOutState::OutDma { size: _ } => {
+            BulkOutState::Init => {
                 internal_err!("Unexpected state: {:?}", out_state);
             }
         }
