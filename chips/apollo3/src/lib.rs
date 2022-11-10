@@ -74,7 +74,10 @@ pub static IRQS: [unsafe extern "C" fn(); 32] = [CortexM4::GENERIC_ISR; 32];
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 
+// The SVC call in this function means that we need to ensure it's inlined in
+// `main()` otherwise we end up with a clobbered stack.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
+#[inline(always)]
 pub unsafe fn init() {
     use core::arch::asm;
     let cache_ctrl = crate::cachectrl::CacheCtrl::new();
