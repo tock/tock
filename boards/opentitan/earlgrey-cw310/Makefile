@@ -11,7 +11,7 @@ QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
 # ORIGIN(rom) + size_manifest = 0x20000000 + 0x400
 QEMU_ENTRY_POINT=0x20000400
 # Latest supported commmit of OpenTitan
-OPENTITAN_SUPPORTED_SHA := d072ac505f82152678d6e04be95c72b728a347b8
+OPENTITAN_SUPPORTED_SHA := 86a7c5ed3949c531a322d736965a042d833a9794
 
 
 include ../../Makefile.common
