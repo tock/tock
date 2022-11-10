@@ -5,7 +5,7 @@
 //! --------
 //!
 //! This module provides a simple text-based console to inspect and control
-//! which processes are running. The console has five commands:
+//! which processes are running. The console has eleven commands:
 //!  - 'help' prints the available commands and arguments
 //!  - 'status' prints the current system status
 //!  - 'list' lists the current processes with their IDs and running state
