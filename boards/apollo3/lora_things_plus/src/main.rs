@@ -3,7 +3,8 @@
 //! - <https://www.sparkfun.com/products/17506>
 //!
 //! A Semtech SX1262 is connected as a SPI slave to IOM3
-//! See <https://www.northernmechatronics.com/_files/ugd/3c68cb_764598422c704ed1b32400b047fc7651.pdf> for details
+//! See <https://www.northernmechatronics.com/_files/ugd/3c68cb_764598422c704ed1b32400b047fc7651.pdf>
+//! and <https://www.northernmechatronics.com/nm180100> for details
 //!
 //! See <https://github.com/NorthernMechatronics/nmsdk/blob/master/bsp/nm180100evb/bsp_pins.src>
 //! and <https://cdn.sparkfun.com/assets/4/4/f/7/e/expLoRaBLE_Thing_Plus_schematic.pdf>
@@ -13,6 +14,15 @@
 //! IOM1: Not connected
 //! IOM2: Broken out SPI
 //! IOM3: Semtech SX1262
+//!     Apollo 3 Pin Number | Apollo 3 Name | SX1262 Pin Number | SX1262 Name | SX1262 Description
+//!                      H6 |       GPIO 36 |                19 |  NSS        | SPI slave select
+//!                      J6 |       GPIO 38 |                17 |  MOSI       | SPI slave input
+//!                      J5 |       GPIO 43 |                16 |  MISO       | SPI slave output
+//!                      H5 |       GPIO 42 |                18 |  SCK        | SPI clock input
+//!                      J8 |       GPIO 39 |                14 |  BUSY       | Radio busy indicator
+//!                      J9 |       GPIO 40 |                13 |  DIO1       | Multipurpose digital I/O
+//!                      H9 |       GPIO 47 |                6  |  DIO3       | Multipurpose digital I/O
+//!                      J7 |       GPIO 44 |                15 |  NRESET     | Radio reset signal, active low
 //! IOM4: Not connected
 //! IOM5: Pins used by UART0
 
@@ -226,9 +236,9 @@ unsafe fn setup() -> (
     );
     // Enable SPI for SX1262
     let _ = &peripherals.gpio_port.enable_spi(
-        &&peripherals.gpio_port[18],
-        &&peripherals.gpio_port[17],
-        &&peripherals.gpio_port[26],
+        &&peripherals.gpio_port[42],
+        &&peripherals.gpio_port[38],
+        &&peripherals.gpio_port[43],
     );
 
     // Configure kernel debug gpios as early as possible
@@ -260,7 +270,7 @@ unsafe fn setup() -> (
     ));
 
     // GPIOs
-    // These are also ADC channels, but let's expose them as GPIOs
+    // Details are at: https://github.com/NorthernMechatronics/nmsdk/blob/master/bsp/nm180100evb/bsp_pins.src
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
         capsules::gpio::DRIVER_NUM,
@@ -271,6 +281,11 @@ unsafe fn setup() -> (
             2 => &&peripherals.gpio_port[32],  // A2
             3 => &&peripherals.gpio_port[35],  // A3
             4 => &&peripherals.gpio_port[34],  // A4
+            5 => &&peripherals.gpio_port[36],  // H6 - SX1262 Slave Select
+            6 => &&peripherals.gpio_port[39],  // J8 - SX1262 Radio Busy Indicator
+            7 => &&peripherals.gpio_port[40],  // J9 - SX1262 Multipurpose digital I/O (DIO1)
+            8 => &&peripherals.gpio_port[47],  // H9 - SX1262 Multipurpose digital I/O (DIO3)
+            9 => &&peripherals.gpio_port[44],  // J7 - SX1262 Reset
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
