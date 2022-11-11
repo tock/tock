@@ -900,6 +900,9 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
         }
+        if data.len() < write_len as usize {
+            return Err((hil::i2c::Error::Overrun, data));
+        }
         self.i2c_tx_rx(addr, data, write_len, read_len)
     }
 
@@ -912,6 +915,9 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
         }
+        if data.len() < len as usize {
+            return Err((hil::i2c::Error::Overrun, data));
+        }
         self.i2c_tx(addr, data, len)
     }
 
@@ -923,6 +929,9 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, buffer));
+        }
+        if buffer.len() < len as usize {
+            return Err((hil::i2c::Error::Overrun, buffer));
         }
         self.i2c_rx(addr, buffer, len)
     }
