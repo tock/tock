@@ -711,8 +711,60 @@ impl<'a> gpio::Configure for GpioPin<'a> {
         unimplemented!();
     }
 
-    fn set_floating_state(&self, _mode: gpio::FloatingState) {
-        unimplemented!();
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
+        // Set the key
+        self.registers.padkey.set(115);
+
+        match mode {
+            gpio::FloatingState::PullUp => {
+                let cfgreg_offset = self.pin as usize / 8;
+                let cfgreg_value = match self.pin as usize % 8 {
+                    0 => CFG::GPIO0OUTCFG.val(0x1),
+                    1 => CFG::GPIO1OUTCFG.val(0x1),
+                    2 => CFG::GPIO2OUTCFG.val(0x1),
+                    3 => CFG::GPIO3OUTCFG.val(0x1),
+                    4 => CFG::GPIO4OUTCFG.val(0x1),
+                    5 => CFG::GPIO5OUTCFG.val(0x1),
+                    6 => CFG::GPIO6OUTCFG.val(0x1),
+                    7 => CFG::GPIO7OUTCFG.val(0x1),
+                    _ => unreachable!(),
+                };
+                self.registers.cfg[cfgreg_offset].modify(cfgreg_value);
+            }
+            gpio::FloatingState::PullDown => {
+                let cfgreg_offset = self.pin as usize / 8;
+                let cfgreg_value = match self.pin as usize % 8 {
+                    0 => CFG::GPIO0OUTCFG.val(0x2),
+                    1 => CFG::GPIO1OUTCFG.val(0x2),
+                    2 => CFG::GPIO2OUTCFG.val(0x2),
+                    3 => CFG::GPIO3OUTCFG.val(0x2),
+                    4 => CFG::GPIO4OUTCFG.val(0x2),
+                    5 => CFG::GPIO5OUTCFG.val(0x2),
+                    6 => CFG::GPIO6OUTCFG.val(0x2),
+                    7 => CFG::GPIO7OUTCFG.val(0x2),
+                    _ => unreachable!(),
+                };
+                self.registers.cfg[cfgreg_offset].modify(cfgreg_value);
+            }
+            gpio::FloatingState::PullNone => {
+                let cfgreg_offset = self.pin as usize / 8;
+                let cfgreg_value = match self.pin as usize % 8 {
+                    0 => CFG::GPIO0OUTCFG.val(0x3),
+                    1 => CFG::GPIO1OUTCFG.val(0x3),
+                    2 => CFG::GPIO2OUTCFG.val(0x3),
+                    3 => CFG::GPIO3OUTCFG.val(0x3),
+                    4 => CFG::GPIO4OUTCFG.val(0x3),
+                    5 => CFG::GPIO5OUTCFG.val(0x3),
+                    6 => CFG::GPIO6OUTCFG.val(0x3),
+                    7 => CFG::GPIO7OUTCFG.val(0x3),
+                    _ => unreachable!(),
+                };
+                self.registers.cfg[cfgreg_offset].modify(cfgreg_value);
+            }
+        }
+
+        // Unset key
+        self.registers.padkey.set(0x00);
     }
 
     fn floating_state(&self) -> gpio::FloatingState {
@@ -744,14 +796,14 @@ impl<'a> gpio::Configure for GpioPin<'a> {
         // Set to push/pull
         let cfgreg_offset = self.pin as usize / 8;
         let cfgreg_value = match self.pin as usize % 8 {
-            0 => CFG::GPIO0INTD::CLEAR + CFG::GPIO0OUTCFG.val(0x1),
-            1 => CFG::GPIO1INTD::CLEAR + CFG::GPIO1OUTCFG.val(0x1),
-            2 => CFG::GPIO2INTD::CLEAR + CFG::GPIO2OUTCFG.val(0x1),
-            3 => CFG::GPIO3INTD::CLEAR + CFG::GPIO3OUTCFG.val(0x1),
-            4 => CFG::GPIO4INTD::CLEAR + CFG::GPIO4OUTCFG.val(0x1),
-            5 => CFG::GPIO5INTD::CLEAR + CFG::GPIO5OUTCFG.val(0x1),
-            6 => CFG::GPIO6INTD::CLEAR + CFG::GPIO6OUTCFG.val(0x1),
-            7 => CFG::GPIO7INTD::CLEAR + CFG::GPIO7OUTCFG.val(0x1),
+            0 => CFG::GPIO0OUTCFG.val(0x1),
+            1 => CFG::GPIO1OUTCFG.val(0x1),
+            2 => CFG::GPIO2OUTCFG.val(0x1),
+            3 => CFG::GPIO3OUTCFG.val(0x1),
+            4 => CFG::GPIO4OUTCFG.val(0x1),
+            5 => CFG::GPIO5OUTCFG.val(0x1),
+            6 => CFG::GPIO6OUTCFG.val(0x1),
+            7 => CFG::GPIO7OUTCFG.val(0x1),
             _ => unreachable!(),
         };
         regs.cfg[cfgreg_offset].modify(cfgreg_value);
@@ -763,11 +815,79 @@ impl<'a> gpio::Configure for GpioPin<'a> {
     }
 
     fn disable_output(&self) -> gpio::Configuration {
-        unimplemented!();
+        let regs = self.registers;
+
+        // Set the key
+        regs.padkey.set(115);
+
+        // Configure the pin as GPIO
+        let pagreg_offset = self.pin as usize / 4;
+        let pagreg_value = match self.pin as usize % 4 {
+            0 => PADREG::PAD0FNCSEL.val(0x3),
+            1 => PADREG::PAD1FNCSEL.val(0x3),
+            2 => PADREG::PAD2FNCSEL.val(0x3),
+            3 => PADREG::PAD3FNCSEL.val(0x3),
+            _ => unreachable!(),
+        };
+        regs.padreg[pagreg_offset].modify(pagreg_value);
+
+        // Set to push/pull
+        let cfgreg_offset = self.pin as usize / 8;
+        let cfgreg_value = match self.pin as usize % 8 {
+            0 => CFG::GPIO0OUTCFG.val(0x00),
+            1 => CFG::GPIO1OUTCFG.val(0x00),
+            2 => CFG::GPIO2OUTCFG.val(0x00),
+            3 => CFG::GPIO3OUTCFG.val(0x00),
+            4 => CFG::GPIO4OUTCFG.val(0x00),
+            5 => CFG::GPIO5OUTCFG.val(0x00),
+            6 => CFG::GPIO6OUTCFG.val(0x00),
+            7 => CFG::GPIO7OUTCFG.val(0x00),
+            _ => unreachable!(),
+        };
+        regs.cfg[cfgreg_offset].modify(cfgreg_value);
+
+        // Unset key
+        regs.padkey.set(0x00);
+
+        gpio::Configuration::LowPower
     }
 
     fn make_input(&self) -> gpio::Configuration {
-        unimplemented!();
+        let regs = self.registers;
+
+        // Set the key
+        regs.padkey.set(115);
+
+        // Configure the pin as GPIO
+        let pagreg_offset = self.pin as usize / 4;
+        let pagreg_value = match self.pin as usize % 4 {
+            0 => PADREG::PAD0FNCSEL.val(0x3),
+            1 => PADREG::PAD1FNCSEL.val(0x3),
+            2 => PADREG::PAD2FNCSEL.val(0x3),
+            3 => PADREG::PAD3FNCSEL.val(0x3),
+            _ => unreachable!(),
+        };
+        regs.padreg[pagreg_offset].modify(pagreg_value);
+
+        // Set to push/pull
+        let cfgreg_offset = self.pin as usize / 8;
+        let cfgreg_value = match self.pin as usize % 8 {
+            0 => CFG::GPIO0INTD::CLEAR + CFG::GPIO0INCFG.val(0x1),
+            1 => CFG::GPIO1INTD::CLEAR + CFG::GPIO1INCFG.val(0x1),
+            2 => CFG::GPIO2INTD::CLEAR + CFG::GPIO2INCFG.val(0x1),
+            3 => CFG::GPIO3INTD::CLEAR + CFG::GPIO3INCFG.val(0x1),
+            4 => CFG::GPIO4INTD::CLEAR + CFG::GPIO4INCFG.val(0x1),
+            5 => CFG::GPIO5INTD::CLEAR + CFG::GPIO5INCFG.val(0x1),
+            6 => CFG::GPIO6INTD::CLEAR + CFG::GPIO6INCFG.val(0x1),
+            7 => CFG::GPIO7INTD::CLEAR + CFG::GPIO7INCFG.val(0x1),
+            _ => unreachable!(),
+        };
+        regs.cfg[cfgreg_offset].modify(cfgreg_value);
+
+        // Unset key
+        regs.padkey.set(0x00);
+
+        gpio::Configuration::Input
     }
 
     fn disable_input(&self) -> gpio::Configuration {
