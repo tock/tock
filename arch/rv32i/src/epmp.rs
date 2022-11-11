@@ -575,22 +575,13 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         let region_num = config.unused_region_number(self.locked_region_mask.get())?;
 
         // Logical region
-        let mut start = unallocated_memory_start as usize;
-        let mut size = min_region_size;
+        let start = unallocated_memory_start as usize;
+        let size = min_region_size;
 
-        // Region start always has to align to 4 bytes
-        if start % 4 != 0 {
-            start += 4 - (start % 4);
-        }
-
-        // Region size always has to align to 4 bytes
-        if size % 4 != 0 {
-            size += 4 - (size % 4);
-        }
-
-        // Regions must be at least 8 bytes
-        if size < 8 {
-            size = 8;
+        // Region start and size always has to align to 4 bytes
+        // and size must be at-least 8 bytes
+        if start % 4 != 0 || size % 4 != 0 || size < 8 {
+            return None;
         }
 
         let region = PMPRegion::new_app(start as *const u8, size, permissions);
@@ -903,22 +894,13 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
         let region_num = config.unused_kernel_region_number(self.locked_region_mask.get())?;
 
         // Logical region
-        let mut start = memory_start as usize;
-        let mut size = memory_size;
+        let start = memory_start as usize;
+        let size = memory_size;
 
-        // Region start always has to align to 4 bytes
-        if start % 4 != 0 {
-            start += 4 - (start % 4);
-        }
-
-        // Region size always has to align to 4 bytes
-        if size % 4 != 0 {
-            size += 4 - (size % 4);
-        }
-
-        // Regions must be at least 8 bytes
-        if size < 8 {
-            size = 8;
+        // Region start and size always has to align to 4 bytes
+        // and size must be at-least 8 bytes
+        if start % 4 != 0 || size % 4 != 0 || size < 8 {
+            return None;
         }
 
         let region = PMPRegion::new_kernel(start as *const u8, size, permissions);
