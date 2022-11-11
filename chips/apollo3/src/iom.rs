@@ -564,6 +564,8 @@ impl<'a> Iom<'_> {
                         client.read_write_done(buffer, read_buffer, self.write_len.get(), Ok(()));
                     });
                 });
+
+                return;
             }
         }
 
@@ -628,52 +630,54 @@ impl<'a> Iom<'_> {
             } else {
                 self.buffer.take().map(|write_buffer| {
                     let offset = self.write_index.get();
-                    let burst_len = (self.write_len.get() - offset)
-                        .min(self.registers.fifoptr.read(FIFOPTR::FIFO0REM) as usize);
+                    if self.write_len.get() > offset {
+                        let burst_len = (self.write_len.get() - offset)
+                            .min(self.registers.fifoptr.read(FIFOPTR::FIFO0REM) as usize);
 
-                    // Start the transfer
-                    self.registers.cmd.write(
-                        CMD::TSIZE.val(burst_len as u32)
-                            + CMD::CMDSEL.val(1)
-                            + CMD::CONT::CLEAR
-                            + CMD::CMD::WRITE
-                            + CMD::OFFSETCNT.val(0 as u32)
-                            + CMD::OFFSETLO.val(0),
-                    );
-
-                    while self.registers.fifoptr.read(FIFOPTR::FIFO0REM) > 4
-                        && self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) < 32
-                        && self.write_index.get() < (((offset + burst_len) / 4) * 4)
-                        && self.write_len.get() - self.write_index.get() > 4
-                    {
-                        let idx = self.write_index.get();
-                        let data = u32::from_le_bytes(
-                            write_buffer[idx..(idx + 4)].try_into().unwrap_or([0; 4]),
+                        // Start the transfer
+                        self.registers.cmd.write(
+                            CMD::TSIZE.val(burst_len as u32)
+                                + CMD::CMDSEL.val(1)
+                                + CMD::CONT::CLEAR
+                                + CMD::CMD::WRITE
+                                + CMD::OFFSETCNT.val(0 as u32)
+                                + CMD::OFFSETLO.val(0),
                         );
 
-                        self.registers.fifopush.set(data);
-                        self.write_index.set(idx + 4);
-                    }
+                        while self.registers.fifoptr.read(FIFOPTR::FIFO0REM) > 4
+                            && self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) < 32
+                            && self.write_index.get() < (((offset + burst_len) / 4) * 4)
+                            && self.write_len.get() - self.write_index.get() > 4
+                        {
+                            let idx = self.write_index.get();
+                            let data = u32::from_le_bytes(
+                                write_buffer[idx..(idx + 4)].try_into().unwrap_or([0; 4]),
+                            );
 
-                    // Get an remaining data that isn't 4 bytes long
-                    if self.write_len.get() - self.write_index.get() < 4
-                        && self.write_index.get() < (offset + burst_len)
-                    {
-                        let len = self.write_len.get() - self.write_index.get();
-                        let mut buf = [0; 4];
-                        // Check if we have any left over data
-                        if len % 4 == 1 {
-                            buf[len - 1] = write_buffer[self.write_index.get() + 0];
-                        } else if len % 4 == 2 {
-                            buf[len - 2] = write_buffer[self.write_index.get() + 0];
-                            buf[len - 1] = write_buffer[self.write_index.get() + 1];
-                        } else if len % 4 == 3 {
-                            buf[len - 3] = write_buffer[self.write_index.get() + 0];
-                            buf[len - 2] = write_buffer[self.write_index.get() + 1];
-                            buf[len - 1] = write_buffer[self.write_index.get() + 2];
+                            self.registers.fifopush.set(data);
+                            self.write_index.set(idx + 4);
                         }
-                        self.registers.fifopush.set(u32::from_le_bytes(buf));
-                        self.write_index.set(self.write_index.get() + len);
+
+                        // Get remaining data that isn't 4 bytes long
+                        if self.write_len.get() - self.write_index.get() < 4
+                            && self.write_index.get() < (offset + burst_len)
+                        {
+                            let len = self.write_len.get() - self.write_index.get();
+                            let mut buf = [0; 4];
+                            // Check if we have any left over data
+                            if len % 4 == 1 {
+                                buf[len - 1] = write_buffer[self.write_index.get() + 0];
+                            } else if len % 4 == 2 {
+                                buf[len - 2] = write_buffer[self.write_index.get() + 0];
+                                buf[len - 1] = write_buffer[self.write_index.get() + 1];
+                            } else if len % 4 == 3 {
+                                buf[len - 3] = write_buffer[self.write_index.get() + 0];
+                                buf[len - 2] = write_buffer[self.write_index.get() + 1];
+                                buf[len - 1] = write_buffer[self.write_index.get() + 2];
+                            }
+                            self.registers.fifopush.set(u32::from_le_bytes(buf));
+                            self.write_index.set(self.write_index.get() + len);
+                        }
                     }
 
                     self.buffer.replace(write_buffer);
