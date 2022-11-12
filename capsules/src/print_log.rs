@@ -178,7 +178,7 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
         // if the next-to-be-given sequence number != this process+1, then a process has
         // grabbed this process+1 and has something to send.
         self.tx_in_progress.set(true);
-        self.alarm.set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(2));            
+        self.alarm.set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));            
     }
 }
 
