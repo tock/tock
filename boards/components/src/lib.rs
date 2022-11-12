@@ -50,6 +50,7 @@ pub mod ninedof;
 pub mod nonvolatile_storage;
 pub mod nrf51822;
 pub mod panic_button;
+pub mod print_log;
 pub mod process_console;
 pub mod process_printer;
 pub mod proximity;

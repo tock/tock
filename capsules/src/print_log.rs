@@ -36,6 +36,7 @@
 
 use core::cell::Cell;
 
+use kernel::debug;
 use kernel::debug_process_slice;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -52,9 +53,9 @@ mod ro_allow {
     /// Before the allow syscall was handled by the kernel,
     /// console used allow number "1", so to preserve compatibility
     /// we still use allow number 1 now.
-    pub const WRITE: usize = 0;
+    pub const WRITE: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: u8 = 1;
+    pub const COUNT: u8 = 2;
 }
 
 /// Ids for read-write allow buffers
@@ -62,16 +63,16 @@ mod rw_allow {
     /// Before the allow syscall was handled by the kernel,
     /// console used allow number "1", so to preserve compatibility
     /// we still use allow number 1 now.
-    pub const READ: usize = 0;
+    pub const _READ: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 0;
 }
 
 #[derive(Default)]
 pub struct App {
-    write_len: usize,
-    write_remaining: usize, // How many bytes didn't fit in the buffer and still need to be printed.
-    pending_write: bool,
+    write_len: usize, // Length of write
+    writing: bool, // Are we in the midst of a write
+    pending_write: bool, // Are we waiting to write
     tx_counter: usize, // Used to keep order of writes
 }
 
@@ -89,13 +90,13 @@ pub struct PrintLog<'a, A: Alarm<'a>> {
 
 impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
     pub fn new(
+        alarm: &'a A,
         grant: Grant<
             App,
             UpcallCount<3>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
             >,
-        alarm: &'a A
     ) -> PrintLog<'a, A> {
         PrintLog {
             apps: grant,
@@ -114,14 +115,13 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
         len: usize,
     ) -> Result<(), ErrorCode> {
         // We are already writing
-        if app.write_len > 0 {
+        if app.writing || app.pending_write {
             return Err(ErrorCode::BUSY);
         }
         app.write_len = kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
             .map_or(0, |write| write.len())
             .min(len);
-        app.write_remaining = app.write_len;
         // We have nothing to write
         if app.write_len == 0 {
             return Err(ErrorCode::NOMEM);
@@ -152,72 +152,59 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
 
     /// Internal helper function for sending data.
     fn send(&self, app: &mut App, kernel_data: &GrantKernelData) {
-        let transaction_len = kernel_data
+        kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
                 .and_then(|write| {
                     write.enter(|data| {
+                        // The slice might have become shorter than the requested
+                        // write; if so, just write what there is.
                         let remaining_data = match data
-                            .get(app.write_len - app.write_remaining..app.write_len)
+                            .get(0..app.write_len)
                         {
                             Some(remaining_data) => remaining_data,
-                            None => {
-                                // A slice has changed under us and is now
-                                // smaller than what we need to write. Our
-                                // behavior in this case is documented as
-                                // undefined; the simplest thing we can do
-                                // that doesn't panic is to abort the write.
-                                // We update app.write_len so that the
-                                // number of bytes written (which is passed
-                                // to the write done upcall) is correct.
-                                app.write_len -= app.write_remaining;
-                                app.write_remaining = 0;
-                                return 0;
-                            }
+                            None => data,
                         };
-                        debug_process_slice!(remaining_data)
-                    })})
-            .unwrap_or(0);
-        app.write_remaining -= transaction_len;
-
+                        if remaining_data.len() > 0 {
+                            app.writing = true;
+                            debug_process_slice!(remaining_data);
+                        } else {
+                            // We have a zero-length slice: send something else
+                        }
+                    })});
+        
         // If this process has more to write, or there are other processes with things to
         // write, start a timer to send more and block subsequent writes. Detect there
         // are other processes with things to write by looking at the sequence number;
         // if the next-to-be-given sequence number != this process+1, then a process has
         // grabbed this process+1 and has something to send.
-        let next_counter = app.tx_counter.wrapping_add(1);
-        if app.write_remaining > 0 || self.tx_counter.get() != next_counter {
-            self.tx_in_progress.set(true);
-            self.alarm.set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(2));            
-        }
+        self.tx_in_progress.set(true);
+        self.alarm.set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(2));            
     }
 }
 
 impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
     fn alarm(&self) {
+        //debug!("Alarm fired.");
         if self.tx_in_progress.get() {
-            let mut writing = false;
-            // First check if there is an in-progress write
+            self.tx_in_progress.set(false);
+
+            // Issue an upcall for the in-progress write
             for cntr in self.apps.iter() {
-                writing = writing || cntr.enter(|app, kernel_data| {
+                cntr.enter(|app, kernel_data| {
                     // This is the in-progress write
-                    if app.write_remaining > 0 && app.pending_write == false {
-                        self.send_continue(app, kernel_data);
-                        true
-                    } else {
-                        false
+                    if app.writing {
+                        kernel_data.schedule_upcall(1, (app.write_len, 0, 0));
+                        app.writing = false;
                     }
                 });
-                if writing {
-                    self.alarm.set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(2));
-                    return;
-                }
             }
             // We did not write from an outstanding writer: it completed. Go to the
             // next one and make it outstanding.
             let mut next_writer: Option<ProcessId> = None;
             let mut seqno = self.tx_counter.get();
-            
-            // Find the process that has an outstanding write with the lowest sequence number.
+
+            // Find the process that has an outstanding write with the
+            // lowest sequence number.
             for cntr in self.apps.iter() {
                 let appid = cntr.processid();
                 cntr.enter(|app, _| {
@@ -234,6 +221,8 @@ impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
 
             next_writer.map(|pid| {
                 self.apps.enter(pid, |app, kernel_data| {
+                    app.writing = true;
+                    app.pending_write = false;
                     self.send(app, kernel_data);
                 })
             });
@@ -267,6 +256,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for PrintLog<'a, A> {
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
+        //debug!("PrintLog receiving command: {} {} from {:?}", cmd_num, arg1, appid);
         let res = self
             .apps
             .enter(appid, |app, kernel_data| {
@@ -281,6 +271,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for PrintLog<'a, A> {
                 }
             })
             .map_err(ErrorCode::from);
+        //debug!("Result: {:?}", res);
         match res {
             Ok(Ok(())) => CommandReturn::success(),
             Ok(Err(e)) => CommandReturn::failure(e),

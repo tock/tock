@@ -11,6 +11,7 @@
 
 mod imix_components;
 use capsules::alarm::AlarmDriver;
+use capsules::print_log::PrintLog;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
@@ -50,6 +51,7 @@ use components::isl29035::AmbientLightComponent;
 use components::isl29035::Isl29035Component;
 use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
+use components::print_log::PrintLogComponent;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
 use components::si7021::SI7021Component;
@@ -404,6 +406,11 @@ pub unsafe fn main() {
         .finalize(components::console_component_static!());
     DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
 
+    let printlog = PrintLogComponent::new(board_kernel, capsules::print_log::DRIVER_NUM, mux_alarm)
+        .finalize(components::printlog_component_static!(
+            sam4l::ast::Ast
+        ));
+    
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization = Nrf51822Component::new(
@@ -688,6 +695,7 @@ pub unsafe fn main() {
         usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage,
+        printlog,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         credentials_checking_policy: checker,

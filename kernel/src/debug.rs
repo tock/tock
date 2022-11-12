@@ -551,22 +551,22 @@ pub fn debug_print(args: Arguments) {
     writer.publish_bytes();
 }
 
-pub fn debug_println(args: Arguments) -> usize {
+pub fn debug_println(args: Arguments) {
     let writer = unsafe { get_debug_writer() };
 
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
-    writer.publish_bytes()
+    writer.publish_bytes();
 }
 
-pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
+pub fn debug_slice(slice: &ReadableProcessSlice) {
     let writer = unsafe { get_debug_writer() };
-
+    
     for b in slice.iter() {
         let buf: [u8; 1] = [b.get(); 1];
         let _ = writer.write(&buf);
     }
-    writer.publish_bytes()
+    writer.publish_bytes();
 }
 
 fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
@@ -607,26 +607,11 @@ macro_rules! debug {
     });
 }
 
-/// In-kernel `println()` debugging that returns the length written.
-#[macro_export]
-macro_rules! debug_len {
-    () => ({
-        // Allow an empty debug!() to print the location when hit
-        debug!("")
-    });
-    ($msg:expr $(,)?) => ({
-        $crate::debug::debug_println(format_args!($msg))
-    });
-    ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::debug_println(format_args!($fmt, $($arg)+))
-    });
-}
-
 /// In-kernel `println()` debugging that can take a process slice.
 #[macro_export]
 macro_rules! debug_process_slice {
     ($msg:expr $(,)?) => ({
-        $crate::debug::debug_slice($msg)
+        $crate::debug::debug_slice($msg);
     });
 }
 
