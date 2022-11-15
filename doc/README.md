@@ -27,6 +27,7 @@ Tock Guides
 - **[Userland](Userland.md)** - Description of userland applications.
 - **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
 - **[Configuration](Configuration.md)** - Configuration options for the kernel.
+- **[External Dependencies](ExternalDependencies.md)** - Policy for including external dependencies.
 
 ### Interface Details
 - **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
