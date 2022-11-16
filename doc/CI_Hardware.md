@@ -45,7 +45,7 @@ This section explains the software setup needed for this box. These directions a
 **Note:** This machine should be on a stable, reliable network (i.e. a campus or office setup) to ensure it is always available to run tests. Also of note, runners may run arbitrary code from community-generated Pull Requests (PRs), which may create a security risk. Once initial configuration is complete, the only network access the runner should need is to Github servers, so this box can be firewalled accordingly.
 
 ## Getting Started 
-[Source](https://goodoomoodoo.github.io/tock-test-harness/GUIDE) of the **Getting Started** guide
+[Source](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/doc/CI_Hardware.md) of the **Getting Started** guide
 
 **Note:** if you are having trouble connecting Raspberry Pi to wifi (in step 1), either see [Troubleshoot](#troubleshoot) or connect to ethernet if possible. Ethernet connection is reliable and seamless for the following process. To find your Pi's IP address, you can check your network devices for an easier method (if possible) rather than using command line arguments. 
 
@@ -190,7 +190,7 @@ $ ./config.sh remove
 **Note**: Possible reason to this issue is that the server environment and path varaible cannot be update after it has started. Thus, it requires a reconfiguration to included the updated path and environment variables.
 
 ## Creating the Configuration File
-After all is set up, the first step in creating an instance is to run the [runner_init](https://github.com/goodoomoodoo/tock-test-harness/blob/main/runner_init.py) script to create a configuration file for the raspberry pi you just set up.
+After all is set up, the first step in creating an instance is to run the [runner_init](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/tools/tock-test-harness/runner_init.py) script to create a configuration file for the raspberry pi you just set up.
 Be sure to change permission to allow execution of the script:
 ```bash
 $ sudo chmod u+x runner_init.py
@@ -201,22 +201,25 @@ $ sudo chmod u+x runner_init.py
 $ python3 runner_init.py
 ```
 
-This configuration file will then be used in the workflow of actions for github whenever an update is pushed to be accessed by the runners, which will be denoted as config.toml for simplicity sake here.
+This configuration file will be used in the workflow of actions for github whenever an update is pushed to be accessed by the runners, which will be denoted as config.toml for simplicity sake here.
+This file is important for the workflow of hardware continuous integration, as this file denotes what board the Raspberry Pi is confiugred to test on, where the board files are located in the Raspberry Pi, and when the Raspberry Pi should be running based on the harness ID. 
 
 What this **configuration file** contains is:
 - Title
     - Name of the configuration. 
     - This can be anything you want but make sure to title it appropriately.
 - Board name
-    - This will be provided when the executable is called on what boards are supported. Choose which board you are using that is supported. You can NOT use a board that is not supported by the Tock OS, or else testing scripts will **NOT** work. For example, to use the specific nrf52480dk board, make sure the path is to this board, but the board name should be listed as "nrf52dk".
+    - This will be provided when the executable is called to provide which boards are supported. Choose which board you are setting this Raspberry Pi to test that is supported. You can NOT use a board that is not supported by the Tock OS, or else testing scripts will **NOT** work. For example, to use the specific nrf52480dk board, make sure the path is to this board, but the board name should be listed as "nrf52dk".
+    - Note, a single Raspberry Pi can only be configured to run tests in one board at a time. To change what board is ran on the Raspberry Pi, re-run this executable and delete the previous configuration file.
 - Board Path
-    - This is the path of the Tock supported board in the official tock repository. The path must be provided when setting up the configuration. This is essentially the directory relative to the Tock boards directory, and should be the speicifc board you are intending to test/use. 
+    - This is the path of the Tock supported board in the official tock repository. The path must be provided when setting up the configuration. This is essentially the directory relative to the Tock boards directory, and should be the speicifc board you are intending to test/use on this Raspberry Pi.
+    - Note, a single Raspberry Pi can only be configured to run tests in one board at a time. To change what board is ran on the Raspberry Pi, re-run this executable and delete the previous configuration file.
 - Harness ID
     - This is the specific Identity Number of the Raspberry Pi, which can be found with the command:
     ```bash
     $ cat /proc/cpuinfo
     ```
-    - It is denoted by the tag "Serial" when printed on the terminal. This will be used in the test.config.toml which is kept for each board type to run tests on in the runner and can be set to run on specific RPis with this Harness ID.
+    - It is denoted by the tag "Serial" when printed on the terminal. This will be used in the ci_test.config.toml which is kept for each board type to run tests on in the runner and the configuration file can be set to run on specific Raspberry Pis with this Harness ID.
 - Communication Protocol 
     - Used to run tockloader
     - The list of communication protocols are provided, and one chosen must be in the list. 
@@ -239,7 +242,7 @@ communication_protocol = "jlink"
 **Note:** {home} and {Pi ID} would depend on your configuration and Pi, where {home} will be your home directory to start the path, and {Pi ID} will be your specific Raspberry Pi ID.
 
 # How Instances Work
-Instances in this case are workflows with Github actions that set runners to complete said actions. This is how testing is conducted in Hardware Continuous Integration. The entire process is taken within the workflow through the yml files, which are another type of configuration file. Currently using the tock-hw-ci.yml as the workflow to run tests, in which we will use as an example throughout this document. (This file is located [here](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
+Instances in this case are workflows with Github actions that set runners to complete said actions. This is how testing is conducted in Hardware Continuous Integration. The entire process is taken within the workflow through the yml files, which are another type of configuration file. Currently using the tock-hw-ci.yml as the workflow to run tests, in which we will use as an example throughout this document. (This file is located [here](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/.github/workflows/tock-hw-ci.yml))
 
 ## Process of Instances
 As stated instances work through GitHub actions that set up runners. These are called workflows, and are set to call whenever a specific action occurs.
@@ -253,7 +256,7 @@ Github actions can be used to set up runners, which are [servers that have the G
 Before looking at the workflow, there are two configuration files that are important to the whole process of hardware CI and how it’s currently working through the main executable file that is called to run on runners. The two configuration files are:
 - **Config.toml**
     - This file is created when runner_init, the script used when setting up the Raspberry Pi, is run, which holds information about the target board and the harness id of the Raspberry Pi. Information that is held in this file was explained in the [previous section](#creating-the-configuration-file).
-- **Test.config.toml** (located [here - nrf52840dk board](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml)) Note: Each specific board will have this file when Hardware CI is implemented for said board.
+- **CI_test.config.toml** (located [here - nrf52840dk board](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/boards/nordic/nrf52840dk/ci_test.config.toml)) Note: Each specific board will have this file when Hardware CI is implemented for said board.
     - This configuration file is made for each board that is supported by the Tock OS that has Hardware CI set. Currently, the only board that has this file is the nrf52840dk board. This toml file contains board-specific test information, such as what tests are run for all Raspberry Pi’s, and what tests are to be performed on specific Raspberry Pi's harness ID. Note that the current setting for run is the default install script which can be changed to other scripts. Each test configuration file for each board will have a file in this format, and it’s necessary to be able to run tests.
     - **The file contains**
         - Script Object:
@@ -410,7 +413,7 @@ If commands on **Step 4** do not output anything, pigpio is properly setup. Slav
 
 ## Looking in the Workflow 
 
-**Note:** File we are using as example is the ([tock-hw-ci.yml](https://github.com/goodoomoodoo/tock/blob/master/.github/workflows/tock-hw-ci.yml))
+**Note:** File we are using as example is the ([tock-hw-ci.yml](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/.github/workflows/tock-hw-ci.yml))
 
 These files are the workflow of how instances work, setting up actions that create runners to run certain tasks or files.
 These configuration files call the python executables located at each directory listed, known as “main.py”, through the workflow/runners.
@@ -419,7 +422,7 @@ For example:
 - The workflow listed below is set to run when pushes or pull requests are called, then the listed jobs are executed.
 - There are three jobs when the workflow is called to be executed. These jobs are: Build, Install, and test. Each job requires the previous job to be executed. Remember, each job is performed one at a time. Thus, the chronological order of each job is important as it’s necessary to build, install, and test in this exact order.
 - **Build**
-    - This job goes to the directory path to execute Main.py with the “-b” flag. The Main (located [here](https://github.com/goodoomoodoo/tock-test-harness/blob/main/lib/main.py)) file then calls the runner file (located [here](https://github.com/goodoomoodoo/tock-test-harness/blob/main/lib/Runner.py)), which contains the functions to actually build, install, and test the Raspberry Pi with the specific board setup. In this case, the build flag, “-b”, is the argument when calling main, which calls the Tock_build function in Runner.py, setting up the Tock OS on the board with the specific configuration settings from config.toml file, the configuration file made from runner_init. 
+    - This job goes to the directory path to execute Main.py with the “-b” flag. The Main (located [here](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/tools/tock-test-harness/lib/main.py)) file then calls the runner file (located [here](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/tools/tock-test-harness/lib/Runner.py)), which contains the functions to actually build, install, and test the Raspberry Pi with the specific board setup. In this case, the build flag, “-b”, is the argument when calling main, which calls the Tock_build function in Runner.py, setting up the Tock OS on the board with the specific configuration settings from config.toml file, the configuration file made from runner_init. 
 - **Install**
     - When this job runs, it executes Main.py with the “-i” flag to run the install functions in Runner.py. This flag calls the Tock_install function which flashes the Tock OS bin to the board using information from the board-specific configuration test file, or test.config.toml. You can use the nrf52380dk board’s test configuration file as reference to view what information is held in the file. For install, the Tock_install function uses the run variable in the script object to flash the board and uses the postrun variable in the script to conduct a post-run installation script. A pre-install script can be created for the test configuration to be conducted as well, but this current board’s configuration file does not have this implemented.
 - **Test**
@@ -518,16 +521,16 @@ jobs:
 # Where Tests are Located and How They Work
 
 ## Location
-The tests are located in the “libtock-c” repository, and there is a list of tests held in the directory [libtock-c/examples/ci-tests](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests). Tests are held in each folder, and the labels of each folder are the kind of tests programmed to run. For example, ble folder represents the ble test. To explain how the tests work with the multiple files for each test folder, I’ll use the gpio test as reference.
+The tests are located in the “libtock-c” repository, and there is a list of tests held in the directory [libtock-c/examples/ci-tests](https://github.com/AnthonyQ619/libtock-c/tree/ci-test/examples/ci-tests). Tests are held in each folder, and the labels of each folder are the kind of tests programmed to run. For example, ble folder represents the ble test. To explain how the tests work with the multiple files for each test folder, I’ll use the gpio test as reference.
 
 ## How Tests Work 
 
-**Note:** Example test we are working with is in the ([gpio folder](https://github.com/goodoomoodoo/libtock-c/tree/master/examples/ci-tests/gpio))
+**Note:** Example test we are working with is in the ([gpio folder](https://github.com/AnthonyQ619/libtock-c/tree/ci-test/examples/ci-tests/gpio))
 
 There are two files for each test that are used for the actual process of testing, one makefile for the installation of the application onto the board/Raspberry Pi, and readme to explain the test. 
-- Main.c (located [here](https://github.com/goodoomoodoo/libtock-c/blob/master/examples/ci-tests/gpio/main.c)):
+- Main.c (located [here](https://github.com/AnthonyQ619/libtock-c/blob/ci-test/examples/ci-tests/gpio/main.c)):
     - This file is what’s used to install the test, or application, onto the target board. This goes for all main files for the test folders. What this application does is toggle the gpio state for a certain period of time.
-- Gpio_test.py (located [here](https://github.com/goodoomoodoo/libtock-c/blob/master/examples/ci-tests/gpio/gpio_test.py)):
+- Gpio_test.py (located [here](https://github.com/AnthonyQ619/libtock-c/blob/ci-test/examples/ci-tests/gpio/test.py)):
     - What this file does is monitor the state, the message, or the action on the target board. This goes for all python files for the test folders. What this specific python program does is that it is monitoring the gpio state, and reading into it, on the target board and gathering any meaningful information to dump. 
     - In sum, the main file will install the application onto the target board, and the test file, the python file, will be used to monitor the target board, reading for any messages, state, or action that is meaningful. The test is the process of running both of these files onto the target board, and compiling any messages from the python file to determine whether it succeeds or fails the test. 
 
@@ -543,7 +546,7 @@ As noted in the previous section we have a test.config.toml file that contains i
         - The python file will be named “test” which is the file that reads into any information from the application, and outputs any messages that are meaningful. This information can be the state, action, or messages from the application onto the target board.
         - Then, you can create a readme and makefile corresponding to the test to explain what functions are being tested on the board and to compile/build the application (test) for the board.
         - To add the test, you’ll push the files of the test with the title of the function being tested to the directory path libtock-c/examples/ci-tests in github. The full path will then be libtock-c/examples/ci-tests/{app} with “{app}” being the title to the test you made as the folder. This is necessary because the “main.py” file uses the path to build, install, and run the test.
-    2. To add the tests to the boards you want to test, you’ll need to go to the specific board in Tock/Boards directory ([Official Tock Repository](https://github.com/tock/tock/tree/master/boards/nordic) or [Forked Repository  w/ file](https://github.com/goodoomoodoo/tock/tree/master/boards/nordic/nrf52840dk)), and in the boards directory, you’ll either edit, or create, the test.config.toml file for that board. There, you’ll go to the test object, or create one, and either add it to the “all” specifier for all raspberry Pi’s to run the test, or add the test to specific Raspberry Pi’s by making the specifier for the test object be the identity number of said raspberry pi. To see what’s included currently in the test configuration file for each board, visit the [nrf52840dk board](https://github.com/goodoomoodoo/tock/blob/master/boards/nordic/nrf52840dk/test.config.toml) to see the contents and format. Also revisit the previous section discussing the test [configuration file](#configuration-files).
+    2. To add the tests to the boards you want to test, you’ll need to go to the specific board in Tock/Boards directory ([Official Tock Repository](https://github.com/tock/tock/tree/master/boards/nordic) or [Forked Repository  w/ file](https://github.com/AnthonyQ619/tock/tree/aq-config-updated/boards/nordic/nrf52840dk)), and in the boards directory, you’ll either edit, or create, the test.config.toml file for that board. There, you’ll go to the test object, or create one, and either add it to the “all” specifier for all raspberry Pi’s to run the test, or add the test to specific Raspberry Pi’s by making the specifier for the test object be the identity number of said raspberry pi. To see what’s included currently in the test configuration file for each board, visit the [nrf52840dk board](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/boards/nordic/nrf52840dk/ci_test.config.toml) to see the contents and format. Also revisit the previous section discussing the test [configuration file](#configuration-files).
 
 ![Diagram for Adding/Choosing Tests](images/ci-hardware/testsdiagram.png)
 
