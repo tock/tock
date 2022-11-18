@@ -549,7 +549,7 @@ impl<'a> Iom<'_> {
                 }
             }
 
-            if self.write_len.get() > 0 && self.write_index.get() == self.write_len.get() {
+            if self.write_len.get() > 0 && self.write_index.get() >= self.write_len.get() {
                 // Disable interrupts
                 regs.inten.set(0x00);
 
