@@ -83,14 +83,19 @@
  Using "/dev/cu.usbserial-c098e513000c - Hail IoT Module - TockOS"
 
  Listening for serial output.
- ProcessConsole::start
- Starting process console
  Initialization complete. Entering main loop
  Hello World!
  list
  PID    Name    Quanta  Syscalls  Restarts Grants  State
  00     blink        0       113         0  1/12   Yielded
  01     c_hello      0         8         0  3/12   Yielded
+ ```
+
+ To get the welcome message, use the `help` command:
+ ```text
+ help
+ Welcome to the process console.
+ Valid commands are: help status list stop start fault boot terminate process kernel panic
  ```
 
  To get a general view of the system, use the `status` command:
@@ -127,5 +132,58 @@ You can also force a kernel panic with the `panic` command:
 
 ```text
 panic
-Process Console forced a kernel panic.
+panicked at 'Process Console forced a kernel panic.', capsules/src/process_console.rs:728:13
+	Kernel version 41623783b
+
+---| Debug buffer not empty. Flushing. May repeat some of last message(s):
+Entering main loop.
+
+---| No debug queue found. You can set it with the DebugQueue component.
+
+---| RISC-V Machine State |---
+Last cause (mcause): Machine timer interrupt (interrupt=1, exception code=0x00000007)
+Last value (mtval):  0x00000000
+
+System register dump:
+ mepc:    0x8000ACC0    mstatus:     0x00000088
+ mcycle:  0xEAA35783    minstret:    0xEAA38155
+ mtvec:   0x80000100
+ mstatus: 0x00000088
+  uie:    false  upie:   false
+  sie:    false  spie:   false
+  mie:    true   mpie:   true
+  spp:    false
+ mie:   0x00000808   mip:   0x00000080
+  usoft:  false               false 
+  ssoft:  false               false 
+  msoft:  true                false 
+  utimer: false               false 
+  stimer: false               false 
+  mtimer: false               true  
+  uext:   false               false 
+  sext:   false               false 
+  mext:   true                false 
+```
+
+You can view the kernel memory map with the `kernel` command:
+
+```text
+kernel
+Kernel version: 2.1 (build 41623783b)
+tock$ 
+ ╔═══════════╤══════════════════════════════╗
+ ║  Address  │ Region Name    Used (bytes)  ║
+ ╚0x80202D10═╪══════════════════════════════╝
+             │   BSS          3328
+  0x8020200C ┼─────────────────────────────── S
+             │   Relocate       12            R
+  0x80202000 ┼─────────────────────────────── A
+             │ ▼ Stack        8192            M
+  0x80200000 ┼───────────────────────────────
+             .....
+  0x80012B5C ┼─────────────────────────────── F
+             │   RoData      20730            L
+  0x8000DA62 ┼─────────────────────────────── A
+             │   Code        55906            S
+  0x80000000 ┼─────────────────────────────── H
 ```
