@@ -500,9 +500,7 @@ impl DebugWriterWrapper {
     }
 
     fn publish_bytes(&self) -> usize {
-        self.dw.map_or(0, |dw| {
-            dw.publish_bytes()
-        })
+        self.dw.map_or(0, |dw| dw.publish_bytes())
     }
 
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
@@ -561,7 +559,7 @@ pub fn debug_println(args: Arguments) {
 
 pub fn debug_slice(slice: &ReadableProcessSlice) {
     let writer = unsafe { get_debug_writer() };
-    
+
     for b in slice.iter() {
         let buf: [u8; 1] = [b.get(); 1];
         let _ = writer.write(&buf);
@@ -610,9 +608,9 @@ macro_rules! debug {
 /// In-kernel `println()` debugging that can take a process slice.
 #[macro_export]
 macro_rules! debug_process_slice {
-    ($msg:expr $(,)?) => ({
+    ($msg:expr $(,)?) => {{
         $crate::debug::debug_slice($msg);
-    });
+    }};
 }
 
 /// In-kernel `println()` debugging with filename and line numbers.

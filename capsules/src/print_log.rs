@@ -36,11 +36,10 @@
 
 use core::cell::Cell;
 
-use kernel::debug;
 use kernel::debug_process_slice;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
-use kernel::processbuffer::{ReadableProcessBuffer};
+use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -70,10 +69,10 @@ mod rw_allow {
 
 #[derive(Default)]
 pub struct App {
-    write_len: usize, // Length of write
-    writing: bool, // Are we in the midst of a write
+    write_len: usize,    // Length of write
+    writing: bool,       // Are we in the midst of a write
     pending_write: bool, // Are we waiting to write
-    tx_counter: usize, // Used to keep order of writes
+    tx_counter: usize,   // Used to keep order of writes
 }
 
 pub struct PrintLog<'a, A: Alarm<'a>> {
@@ -82,10 +81,10 @@ pub struct PrintLog<'a, A: Alarm<'a>> {
         UpcallCount<3>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
-        >,
+    >,
     tx_in_progress: Cell<bool>, // If true there's an ongoing write so others must wait
     tx_counter: Cell<usize>,    // Sequence number for writes from different processes
-    alarm: &'a A,       // Timer for trying to send  more
+    alarm: &'a A,               // Timer for trying to send  more
 }
 
 impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
@@ -96,7 +95,7 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
             UpcallCount<3>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
-            >,
+        >,
     ) -> PrintLog<'a, A> {
         PrintLog {
             apps: grant,
@@ -139,46 +138,39 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
         Ok(())
     }
 
-    /// Internal helper function for continuing a previously set up transaction.
-    /// Returns `true` if this send is still active, or `false` if it has
-    /// completed.
-    fn send_continue(
-        &self,
-        app: &mut App,
-        kernel_data: &GrantKernelData,
-    ) {
-        self.send(app, kernel_data);
-    }
-
     /// Internal helper function for sending data.
     fn send(&self, app: &mut App, kernel_data: &GrantKernelData) {
-        kernel_data
+        // We can ignore the Result because if the call fails, it means
+        // the process has terminated, so issuing a callback doesn't matter.
+        // If the call fails, just use the alarm to try the next client.
+        let _res = kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
-                .and_then(|write| {
-                    write.enter(|data| {
-                        // The slice might have become shorter than the requested
-                        // write; if so, just write what there is.
-                        let remaining_data = match data
-                            .get(0..app.write_len)
-                        {
-                            Some(remaining_data) => remaining_data,
-                            None => data,
-                        };
-                        if remaining_data.len() > 0 {
-                            app.writing = true;
-                            debug_process_slice!(remaining_data);
-                        } else {
-                            // We have a zero-length slice: send something else
-                        }
-                    })});
-        
-        // If this process has more to write, or there are other processes with things to
-        // write, start a timer to send more and block subsequent writes. Detect there
-        // are other processes with things to write by looking at the sequence number;
-        // if the next-to-be-given sequence number != this process+1, then a process has
+            .and_then(|write| {
+                write.enter(|data| {
+                    // The slice might have become shorter than the requested
+                    // write; if so, just write what there is.
+                    let remaining_data = match data.get(0..app.write_len) {
+                        Some(remaining_data) => remaining_data,
+                        None => data,
+                    };
+                    app.writing = true;
+                    self.tx_in_progress.set(true);
+                    if remaining_data.len() > 0 {
+                        debug_process_slice!(remaining_data);
+                    } else {
+                        // We have a zero-length slice: send something else
+                    }
+                })
+            });
+
+        // We're writing, so start a timer to send more and
+        // block subsequent writes. Detect there are other
+        // processes with things to write by looking at the
+        // sequence number; if the next-to-be-given sequence
+        // number != this process+1, then a process has
         // grabbed this process+1 and has something to send.
-        self.tx_in_progress.set(true);
-        self.alarm.set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));            
+        self.alarm
+            .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
     }
 }
 
@@ -193,40 +185,39 @@ impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
                 cntr.enter(|app, kernel_data| {
                     // This is the in-progress write
                     if app.writing {
-                        kernel_data.schedule_upcall(1, (app.write_len, 0, 0));
+                        let _res = kernel_data.schedule_upcall(1, (app.write_len, 0, 0));
                         app.writing = false;
                     }
                 });
             }
-            // We did not write from an outstanding writer: it completed. Go to the
-            // next one and make it outstanding.
-            let mut next_writer: Option<ProcessId> = None;
-            let mut seqno = self.tx_counter.get();
+        }
 
-            // Find the process that has an outstanding write with the
-            // lowest sequence number.
-            for cntr in self.apps.iter() {
-                let appid = cntr.processid();
-                cntr.enter(|app, _| {
-                    if app.pending_write {
-                        // This means app.tx_counter is smaller than seqno, as long as
-                        // there aren't usize/2 processes.
-                        if seqno.wrapping_sub(app.tx_counter) < usize::MAX / 2 {
-                            seqno = app.tx_counter;
-                            next_writer = Some(appid);
-                        }
+        // Find if there's another writer and mark it busy.
+        let mut next_writer: Option<ProcessId> = None;
+        let mut seqno = self.tx_counter.get();
+
+        // Find the process that has an outstanding write with the
+        // lowest sequence number.
+        for cntr in self.apps.iter() {
+            let appid = cntr.processid();
+            cntr.enter(|app, _| {
+                if app.pending_write {
+                    // This means app.tx_counter is smaller than seqno, as long as
+                    // there aren't usize/2 processes.
+                    if seqno.wrapping_sub(app.tx_counter) < usize::MAX / 2 {
+                        seqno = app.tx_counter;
+                        next_writer = Some(appid);
                     }
-                });
-            }
-
-            next_writer.map(|pid| {
-                self.apps.enter(pid, |app, kernel_data| {
-                    app.writing = true;
-                    app.pending_write = false;
-                    self.send(app, kernel_data);
-                })
+                }
             });
         }
+
+        next_writer.map(|pid| {
+            self.apps.enter(pid, |app, kernel_data| {
+                app.pending_write = false;
+                self.send(app, kernel_data);
+            })
+        });
     }
 }
 

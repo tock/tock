@@ -11,9 +11,9 @@
 
 mod imix_components;
 use capsules::alarm::AlarmDriver;
-use capsules::print_log::PrintLog;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
+use capsules::print_log::PrintLog;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
@@ -145,7 +145,10 @@ struct Imix {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    printlog: &'static capsules::print_log::PrintLog<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    printlog: &'static capsules::print_log::PrintLog<
+        'static,
+        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     credentials_checking_policy: &'static AppCheckerSha256,
@@ -407,10 +410,8 @@ pub unsafe fn main() {
     DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
 
     let printlog = PrintLogComponent::new(board_kernel, capsules::print_log::DRIVER_NUM, mux_alarm)
-        .finalize(components::printlog_component_static!(
-            sam4l::ast::Ast
-        ));
-    
+        .finalize(components::printlog_component_static!(sam4l::ast::Ast));
+
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
     let nrf_serialization = Nrf51822Component::new(

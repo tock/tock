@@ -19,7 +19,6 @@
 //! let print_log = components::print_log::PrintLogComponent::new(board_kernel, driver_num, mux_alarm)
 //!     .finalize(components::printlog_component_static!(sam4l::ast::Ast));
 
-
 //! ```
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
@@ -36,10 +35,7 @@ use kernel::hil::time::{self, Alarm};
 macro_rules! printlog_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
-        let print_log = kernel::static_buf!(
-            PrintLog<'static, VirtualMuxAlarm<'static, $A>,
-            >
-        );
+        let print_log = kernel::static_buf!(PrintLog<'static, VirtualMuxAlarm<'static, $A>>);
         (mux_alarm, print_log)
     };};
 }
@@ -55,11 +51,11 @@ impl<A: 'static + time::Alarm<'static>> PrintLogComponent<A> {
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         alarm_mux: &'static MuxAlarm<'static, A>,
-    ) -> PrintLogComponent<A>{
+    ) -> PrintLogComponent<A> {
         PrintLogComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,
-            alarm_mux: alarm_mux
+            alarm_mux: alarm_mux,
         }
     }
 }
@@ -81,7 +77,7 @@ impl<A: 'static + time::Alarm<'static>> Component for PrintLogComponent<A> {
             virtual_alarm1,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
         ));
-        
+
         virtual_alarm1.set_alarm_client(print_log);
         print_log
     }
