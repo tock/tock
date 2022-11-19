@@ -1578,234 +1578,183 @@ impl<'a> UsbCtrl<'a> {
     }
 
     fn handle_buff_status(&self) {
-        for i in 0..31 {
-            match i {
-                0 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP0_IN) {
-                        self.handle_ep0datadone();
-                    }
-                }
-                1 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP0_OUT) {
-                        self.handle_endepout(0);
-                    }
-                }
-                2 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP1_IN) {
-                        self.handle_endepin(1);
-                    }
-                }
-                3 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP1_OUT) {
-                        self.handle_epdata_out(1);
-                    }
-                }
-                4 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP2_IN) {
-                        self.handle_epdata_in(2);
-                    }
-                }
-                5 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP2_OUT) {
-                        self.handle_epdata_out(2);
-                    }
-                }
-                6 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP3_IN) {
-                        self.handle_endepin(3);
-                    }
-                }
-                7 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP3_OUT) {
-                        self.handle_epdata_out(3);
-                    }
-                }
-                8 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP4_IN) {
-                        self.handle_epdata_in(4);
-                    }
-                }
-                9 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP4_OUT) {
-                        self.handle_epdata_out(4);
-                    }
-                }
-                10 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP5_IN) {
-                        self.handle_epdata_in(5);
-                    }
-                }
-                11 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP5_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP5_OUT::CLEAR);
-                        self.handle_epdata_out(5);
-                    }
-                }
-                12 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP6_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP6_IN::CLEAR);
-                        self.handle_epdata_in(6);
-                    }
-                }
-                13 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP6_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP6_OUT::CLEAR);
-                        self.handle_epdata_out(6);
-                    }
-                }
-                14 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP7_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP7_IN::CLEAR);
-                        self.handle_epdata_in(7);
-                    }
-                }
-                15 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP7_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP7_OUT::CLEAR);
-                        self.handle_epdata_out(7);
-                    }
-                }
-                16 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP8_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP8_IN::CLEAR);
-                        self.handle_epdata_in(8);
-                    }
-                }
-                17 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP8_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP8_OUT::CLEAR);
-                        self.handle_epdata_out(8);
-                    }
-                }
-                18 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP9_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP9_IN::CLEAR);
-                        self.handle_epdata_in(9);
-                    }
-                }
-                19 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP9_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP9_OUT::CLEAR);
-                        self.handle_epdata_out(9);
-                    }
-                }
-                20 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP10_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP10_IN::CLEAR);
-                        self.handle_epdata_in(10);
-                    }
-                }
-                21 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP10_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP10_OUT::CLEAR);
-                        self.handle_epdata_out(10);
-                    }
-                }
-                22 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP11_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP11_IN::CLEAR);
-                        self.handle_epdata_in(11);
-                    }
-                }
-                23 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP11_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP11_OUT::CLEAR);
-                        self.handle_epdata_out(11);
-                    }
-                }
-                24 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP12_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP12_IN::CLEAR);
-                        self.handle_epdata_in(12);
-                    }
-                }
-                25 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP12_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP12_OUT::CLEAR);
-                        self.handle_epdata_out(12);
-                    }
-                }
-                26 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP13_IN) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP13_IN::CLEAR);
-                        self.handle_epdata_in(13);
-                    }
-                }
-                27 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP13_OUT) {
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP13_OUT::CLEAR);
-                        self.handle_epdata_out(13);
-                    }
-                }
-                28 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP14_IN) {
-                        self.handle_epdata_in(14);
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP14_IN::CLEAR);
-                    }
-                }
-                29 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP14_OUT) {
-                        self.handle_epdata_out(14);
-                        self.registers
-                            .buff_status
-                            .modify(BUFF_STATUS::EP14_OUT::CLEAR);
-                    }
-                }
-                30 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP15_IN) {
-                        self.handle_epdata_in(15);
-                    }
-                    self.registers
-                        .buff_status
-                        .modify(BUFF_STATUS::EP15_IN::CLEAR);
-                }
-                31 => {
-                    if self.registers.buff_status.is_set(BUFF_STATUS::EP15_OUT) {
-                        self.handle_epdata_out(15);
-                    }
-                    self.registers
-                        .buff_status
-                        .modify(BUFF_STATUS::EP15_OUT::CLEAR);
-                }
-                _ => {}
-            }
+        // Endpoint 0
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP0_IN) {
+            self.handle_ep0datadone();
         }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP0_OUT) {
+            self.handle_endepout(0);
+        }
+        // Endpoint 1
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP1_IN) {
+            self.handle_endepin(1);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP1_OUT) {
+            self.handle_epdata_out(1);
+        }
+        // Endpoint 2
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP2_IN) {
+            self.handle_epdata_in(2);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP2_OUT) {
+            self.handle_epdata_out(2);
+        }
+        // Endpoint 3
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP3_IN) {
+            self.handle_endepin(3);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP3_OUT) {
+            self.handle_epdata_out(3);
+        }
+        // Endpoint 4
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP4_IN) {
+            self.handle_epdata_in(4);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP4_OUT) {
+            self.handle_epdata_out(4);
+        }
+        // Endpoint 5
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP5_IN) {
+            self.handle_epdata_in(5);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP5_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP5_OUT::CLEAR);
+            self.handle_epdata_out(5);
+        }
+        // Endpoint 6
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP6_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP6_IN::CLEAR);
+            self.handle_epdata_in(6);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP6_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP6_OUT::CLEAR);
+            self.handle_epdata_out(6);
+        }
+        // Endpoint 7
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP7_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP7_IN::CLEAR);
+            self.handle_epdata_in(7);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP7_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP7_OUT::CLEAR);
+            self.handle_epdata_out(7);
+        }
+        // Endpoint 8
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP8_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP8_IN::CLEAR);
+            self.handle_epdata_in(8);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP8_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP8_OUT::CLEAR);
+            self.handle_epdata_out(8);
+        }
+        // Endpoint 9
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP9_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP9_IN::CLEAR);
+            self.handle_epdata_in(9);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP9_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP9_OUT::CLEAR);
+            self.handle_epdata_out(9);
+        }
+        // Endpoint 10
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP10_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP10_IN::CLEAR);
+            self.handle_epdata_in(10);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP10_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP10_OUT::CLEAR);
+            self.handle_epdata_out(10);
+        }
+        // Endpoint 11
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP11_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP11_IN::CLEAR);
+            self.handle_epdata_in(11);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP11_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP11_OUT::CLEAR);
+            self.handle_epdata_out(11);
+        }
+        // Endpoint 12
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP12_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP12_IN::CLEAR);
+            self.handle_epdata_in(12);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP12_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP12_OUT::CLEAR);
+            self.handle_epdata_out(12);
+        }
+        // Endpoint 13
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP13_IN) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP13_IN::CLEAR);
+            self.handle_epdata_in(13);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP13_OUT) {
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP13_OUT::CLEAR);
+            self.handle_epdata_out(13);
+        }
+        // Endpoint 14
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP14_IN) {
+            self.handle_epdata_in(14);
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP14_IN::CLEAR);
+        }
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP14_OUT) {
+            self.handle_epdata_out(14);
+            self.registers
+                .buff_status
+                .modify(BUFF_STATUS::EP14_OUT::CLEAR);
+        }
+        // Endpoint 15
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP15_IN) {
+            self.handle_epdata_in(15);
+        }
+        self.registers
+            .buff_status
+            .modify(BUFF_STATUS::EP15_IN::CLEAR);
+
+        if self.registers.buff_status.is_set(BUFF_STATUS::EP15_OUT) {
+            self.handle_epdata_out(15);
+        }
+        self.registers
+            .buff_status
+            .modify(BUFF_STATUS::EP15_OUT::CLEAR);
+
         self.registers.buff_status.set(0);
     }
 
