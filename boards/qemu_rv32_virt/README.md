@@ -10,6 +10,14 @@ stable QEMU target for using Tock in a virtualized RISC-V environment. This can
 be useful for CI and other purposes. In the future, this target can be extended
 to support VirtIO peripherals.
 
+Known issues: Application Support
+---------------------------------
+
+Upstream QEMU currently contains a bug which makes it impossible to run
+userspace applications due to issues with the enforcement of memory protection
+(PMP). Tock issue [#3316](https://github.com/tock/tock/issues/3316) tracks these
+developments.
+
 Running QEMU
 ------------
 
