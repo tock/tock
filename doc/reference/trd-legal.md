@@ -24,8 +24,8 @@ Explicitly not discussed in this TRD are issues of trademark, the Tock brand,
 logos, or other non-code assets and artifacts.
 
 
-1. Introduction
-===============
+1 Introduction
+==============
 
 Tock’s goal is to provide a safe, secure, and efficient operating system for
 microcontroller-class devices. The Tock project further believes it is
@@ -39,8 +39,8 @@ The intent of these policies is to best satisfy the needs of all stakeholders
 in the Tock ecosystem.
 
 
-2. Licensing
-============
+2 Licensing
+===========
 
 All software artifacts under the umbrella of the Tock project are
 dual-licensed as Apache License, Version 2.0 (LICENSE-APACHE or
@@ -50,8 +50,8 @@ http://opensource.org/licenses/MIT).
 All contributions to Tock projects MUST be licensed under these terms.
 
 
-3. Copyright
-============
+3 Copyright
+===========
 
 Entities contributing resources to open-source projects often require
 attribution to recognize their efforts. Copyright notices are a common means to
@@ -69,8 +69,8 @@ the original copyright holder.
 For full authorship information, see the version control history.
 
 
-4. Implementation
-=================
+4 Implementation
+================
 
 All code artifacts in Tock projects MUST include a license notice.
 
@@ -173,7 +173,7 @@ this policy. Such situations MUST include public explanation and public
 record of non-anonymized vote results. This is not expected to ever occur.
 
 
-6 Author’s Address
+5 Author’s Address
 ==================
 
     Pat Pannuto
