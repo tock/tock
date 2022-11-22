@@ -89,8 +89,8 @@ Attendees:
    particular behavior is acceptable or even useful, but the full implications
    should be understood and the case carefully weighed before implementing any
    behavior described with this label.
- * Leon: It is best for this document to establish some new legal framework and
-   instead just state best practices
+ * Leon: It is best for this document to not establish some new legal framework
+   and instead just state best practices
  * Amit: I agree, this should be a statement of our expectations, nothing more.
  * Amit: OK, lets quickly go through the outstanding comments on the PR like
    Hudson suggested
