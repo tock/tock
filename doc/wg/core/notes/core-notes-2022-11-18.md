@@ -30,8 +30,8 @@ Attendees:
 
 # [PR #3318](https://github.com/tock/tock/pull/3318) Continued Discussion
  * Johnathan: Looking at the PR, there are currently three approvals out of the
-   working group and a lot of unadressed comments. I am not sure if it is too
-   soon to reach out to Google, but I think I may do that today
+   working group and a lot of unaddressed comments. I am not sure if it is too
+   soon to reach out to the lowRISC legal committee, but I think I may do that today
  * Hudson (chat): What I had in mind when I added this to the agenda was going
    through all of the unresolved comments and coming to a consensus among the
    people on this call how we should resolve them.
@@ -113,16 +113,16 @@ Attendees:
    the Tock project license headers/copyright notices.
  * Leon: That is nice because it means this document does not cover copyright
    enforcement
- * Johnathan: My next comments says that if another project's license header we
-   should be willing to accept theirs rather than nearly duplicating it at the
-   top of the file
+ * Johnathan: My next comments says that if another project's license header
+   is similar we should be willing to accept theirs rather than nearly
+   duplicating it at the top of the file
  * Amit + Phil: I basically agree with that
  * Johnathan: I think it is fair for the document to acknowledge that in cases
    when files are pulled in from other projects, the format of those notices
    might deviate slightly.
  * Amit: So we can modify license headers to make them compatible, but we do
    not need to if it is close enough?
- * Johnathan: No we can't modify
+ * Johnathan: I don't think we can modify them.
  * Leon: How will we specify which files are "Tock project files" to avoid
    adding our license headers to other project files
  * Leon: For example, if we pulled in a git submodule. Would we have a mechanism
@@ -155,8 +155,9 @@ Attendees:
  * Amit: I don't think that the license that applies to input that affects a
    binary should carry the same license as documentation. Does it even make
    sense to licenses for a README?
- * Johnathan: Unless our documentation is under a different license things get
-   weird, and our documentation includes copied code.
+ * Johnathan: We didn't specify that our documentation is under a different license,
+   so it is under the same license. Using a different license for our documentation
+   would be weird because we copy code between our documentation and implementation.
  * Amit: *updates comments on PR to reflect earlier discussion of not using RFC
    language to specify actions of individuals*
  * Leon: My next comment is that our current suggested approach feels weird
@@ -182,14 +183,14 @@ Attendees:
  * Amit: A tricky bit is something that is AGPL, which is fine to use as a
    tool, if it is not linked against.
  * Johnathan: AGPL stands out as one license that Google's lawyers really do
-   not like, so they are overly conservative about it.
+   not like, so they are very conservative about it.
  * Amit: An example is like a stack-analysis tool. We could pull it in using a
    shell script and run it, is that different than including it in the
    repository?
  * Phil: I think this is a lot easier if stuff within a particular repository
    has a very clear license.
  * Johnathan: I am really annoyed at picolibc because they removed all the
-   GPL/AGPL code, but added some GPL/AGPL binaries, which still makes it hard
+   GPL/LGPL code, but added some GPL/AGPL binaries, which still makes it hard
    to follow company policies with automated license headers. We (Google) might
    fork it and delete those 3 files.
  * Amit: Conclusion: It is easier if everything in a given repository is under
