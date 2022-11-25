@@ -334,6 +334,14 @@ impl Frequency for Freq16MHz {
     }
 }
 
+/// 10MHz `Frequency`
+pub enum Freq10MHz {}
+impl Frequency for Freq10MHz {
+    fn frequency() -> u32 {
+        10000000
+    }
+}
+
 /// 1MHz `Frequency`
 #[derive(Debug)]
 pub struct Freq1MHz;
