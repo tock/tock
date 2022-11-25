@@ -52,12 +52,13 @@ struct QemuRv32VirtPlatform {
     >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer:
-        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+    scheduler_timer: &'static VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -89,8 +90,9 @@ impl
     type ProcessFault = ();
     type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
+    type SchedulerTimer = VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -170,34 +172,37 @@ pub unsafe fn main() {
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
-        sifive::clint::Clint,
-        sifive::clint::Clint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE)
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, sifive::clint::Clint>,
+        MuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
     // Virtual alarm for the scheduler
     let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     systick_virtual_alarm.setup();
 
     // Virtual alarm and driver for userspace
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
+        capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
+        >,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -265,7 +270,9 @@ pub unsafe fn main() {
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+        VirtualSchedulerTimer<
+            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+        >,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
 
