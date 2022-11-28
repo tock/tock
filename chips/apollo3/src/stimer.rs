@@ -152,7 +152,7 @@ impl<'a> Counter<'a> for STimer<'a> {
 
     fn is_running(&self) -> bool {
         let regs = self.registers;
-        regs.stcfg.matches_any(STCFG::CLKSEL::XTAL_DIV2)
+        regs.stcfg.matches_any(&[STCFG::CLKSEL::XTAL_DIV2])
     }
 }
 

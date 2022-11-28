@@ -145,7 +145,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for SweRVolf
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET)
+            if !mip.any_matching_bits_set(mip::mtimer::SET)
                 && !unsafe { TIMER0_IRQ.get() }
                 && !unsafe { TIMER1_IRQ.get() }
                 && self.pic.get_saved_interrupts().is_none()
@@ -163,7 +163,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for SweRVolf
     fn has_pending_interrupts(&self) -> bool {
         let mip = CSR.mip.extract();
         self.pic.get_saved_interrupts().is_some()
-            || mip.matches_any(mip::mtimer::SET)
+            || mip.any_matching_bits_set(mip::mtimer::SET)
             || unsafe { TIMER0_IRQ.get() }
             || unsafe { TIMER1_IRQ.get() }
     }

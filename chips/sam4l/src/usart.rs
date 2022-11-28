@@ -330,7 +330,7 @@ impl<'a> USARTRegManager<'a> {
 impl Drop for USARTRegManager<'_> {
     fn drop(&mut self) {
         // Anything listening for RX or TX interrupts?
-        let ints_active = self.registers.imr.matches_any(
+        let ints_active = self.registers.imr.any_matching_bits_set(
             Interrupt::RXBUFF::SET
                 + Interrupt::TXEMPTY::SET
                 + Interrupt::TIMEOUT::SET
