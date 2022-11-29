@@ -15,8 +15,8 @@ Commands
   - `stop n` - stops the process with name n
   - `start n` - starts the stopped process with name n
   - `fault n` - forces the process with name n into a fault state
-  - `terminate n` - terminates the running process with name n, moving to the Terminated state
-  - `boot n` - tries to boot a Terminated process with name n
+  - `terminate n` - terminates the running process with name n, moving it to the Terminated state
+  - `boot n` - tries to restart a Terminated process with name n
   - `panic` - causes the kernel to run the panic handler
   - `kernel` - prints the kernel memory map
   - `process n` - prints the memory map of process with name n
@@ -61,11 +61,12 @@ Commands
 
  pconsole.start();
  ```
+> Note: Using the process console might require allocating more stack to the kernel. This is done by modifying the `STACK_MEMORY` variable from the board's `main.rs`.
 
  Using ProcessConsole
  --------------------
 
- With this capsule properly added to a board's `main.rs` and that kernel
+ With this capsule properly added to a board's `main.rs` and the Tock kernel
  loaded to the board, make sure there is a serial connection to the board.
  Likely, this just means connecting a USB cable from a computer to the board.
  Next, establish a serial console connection to the board. An easy way to do
@@ -135,7 +136,7 @@ tock$ list
  1      c_hello                  0         8         0   1/14   Yielded
  ```
 
-  - You can kill a process with `terminate` and then boot it up with `boot`:
+  - You can kill a process with `terminate` and then restart it with `boot`:
 
 ```text
 tock$ terminate blink
