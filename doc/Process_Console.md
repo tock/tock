@@ -1,10 +1,10 @@
  Process Console
  ===============
  
- `process_console` is a capsule that implements a text console over the UART that allows
- a terminal to inspect and control userspace processes.
+ `process_console` is a capsule that implements a small shell over the UART that allows
+ a terminal to inspect the kernel and control userspace processes.
 
- Protocol
+Commands
  --------
 
  This module provides a simple text-based console to inspect and control
@@ -89,7 +89,7 @@ tock$
 
  For the examples below we will have 2 processes on the board: blink (which will `blink` all the LEDs that are 
  connected to the kernel), and `c_hello` (which prints 'Hello World' when the console is started). Also, a micro:bit v2 board was used as support for the commands, so the results may vary on other devices.
- 
+ We will assume that the user has a serial connection to the board, either by using tockloader or another serial port software.
  With that console open, you can issue commands. For example, to get a list of the available commands, use the `help` command:
  ```text
 tock$ help
