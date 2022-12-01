@@ -81,18 +81,7 @@ members = [
     "libraries/tock-register-interface",
     "libraries/tickv",
 ]
-exclude = [
-    "tools/alert_codes",
-    "tools/board-runner",
-    "tools/qemu",
-    "tools/litex-ci-runner",
-    "tools/qemu-runner",
-    "tools/sha256sum",
-    "tools/usb/bulk-echo",
-    "tools/usb/bulk-echo-fast",
-    "tools/usb/bulk-test",
-    "tools/usb/control-test",
-]
+exclude = ["tools/"]
 
 [workspace.package]
 version = "0.1.0"

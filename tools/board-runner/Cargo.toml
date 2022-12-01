@@ -1,8 +1,8 @@
 [package]
 name = "board-runner"
 version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 rexpect = "0.4"
