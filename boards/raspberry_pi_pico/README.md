@@ -37,7 +37,7 @@ The Raspberry Pi Pico RP2040 Connect can be programmed using its bootloader, whi
 To flash the Pico RP2040, it needs to be put into BOOTSEL mode. This will mount
 a flash drive that allows one to copy a UF2 file. To enter BOOTSEL mode, press the BOOTSEL button and hold it while you connect the other end of the micro USB cable to your computer.
 
-Then `cd` into `boards/nano_rp2040_connect` directory and run:
+Then `cd` into `boards/raspberry_pi_pico` directory and run:
 
 ```bash
 $ make flash
