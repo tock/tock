@@ -4,41 +4,38 @@
  `process_console` is a capsule that implements a small shell over the UART that allows
  a terminal to inspect the kernel and control userspace processes.
 
+<!-- npm i -g markdown-toc; markdown-toc -i Process_Console.md -->
+
+<!-- toc -->
+
   - [Setup](#setup)
-  - [Using Process Console](#using-processconsole)
+  - [Using Process Console](#using-process-console)
   - [Commands](#commands)
+
+<!-- tocstop -->
 
  Setup
  -----
 
  Here is how to add `process_console` to a board's `main.rs` (the example is taken from the microbit's implementation of the Process console):
  ```rust
- static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
- 
  let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
 
  let _process_console = components::process_console::ProcessConsoleComponent::new(
-     static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES)),
-     components::console::UartMuxComponent::new(
-        &base_peripherals.uarte0,
-        115200,
-        dynamic_deferred_caller,
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
     )
-    .finalize(components::uart_mux_component_static!()),
-     components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc)),
-     process_printer,
- )
- .finalize(components::process_console_component_static!(
+    .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
- ));
+    ));
  let _ = _process_console.start();
  ```
 > Note: Using the process console might require allocating more stack to the kernel. This is done by modifying the `STACK_MEMORY` variable from the board's `main.rs`.
 
- Using ProcessConsole
+ Using Process Console
  --------------------
 
  With this capsule properly added to a board's `main.rs` and the Tock kernel
