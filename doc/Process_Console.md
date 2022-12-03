@@ -84,9 +84,9 @@ tock$
  ### `help`
 - To get a list of the available commands, use the `help` command:
  ```text
-tock$ help
-Welcome to the process console.
-Valid commands are: help status list stop start fault boot terminate process kernel panic
+     tock$ help
+     Welcome to the process console.
+     Valid commands are: help status list stop start fault boot terminate process kernel panic
  ```
 
  ### `list`
@@ -125,18 +125,18 @@ Valid commands are: help status list stop start fault boot terminate process ker
   - You can control processes with the `start` and `stop` commands:
 
  ```text
-    tock$ stop blink
-    Process blink stopped
-    tock$ list
-    PID    Name                Quanta  Syscalls  Restarts  Grants  State
-    2      blink                    0     22881         1   1/14   StoppedYielded
-    1      c_hello                  0         8         0   1/14   Yielded
-    tock$ start blink
-    Process blink resumed.
-    tock$ list
-    PID    Name                Quanta  Syscalls  Restarts  Grants  State
-    2      blink                    0     23284         1   1/14   Yielded
-    1      c_hello                  0         8         0   1/14   Yielded
+     tock$ stop blink
+     Process blink stopped
+     tock$ list
+     PID    Name                Quanta  Syscalls  Restarts  Grants  State
+     2      blink                    0     22881         1   1/14   StoppedYielded
+     1      c_hello                  0         8         0   1/14   Yielded
+     tock$ start blink
+     Process blink resumed.
+     tock$ list
+     PID    Name                Quanta  Syscalls  Restarts  Grants  State
+     2      blink                    0     23284         1   1/14   Yielded
+     1      c_hello                  0         8         0   1/14   Yielded
  ```
   ### `terminate` and `boot`
   - You can kill a process with `terminate` and then restart it with `boot`:
