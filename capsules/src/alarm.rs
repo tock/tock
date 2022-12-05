@@ -4,7 +4,7 @@
 use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
+use kernel::hil::time::{self, Alarm, Frequency, Ticks};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -248,14 +248,14 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
-        let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
+        let now = self.alarm.now();
         self.app_alarms.each(|_processid, alarm, upcalls| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
                 // as passed (since reference must be in the past)
                 if !now.within_range(
-                    Ticks32::from(reference),
-                    Ticks32::from(reference.wrapping_add(dt)),
+                    A::Ticks::from(reference),
+                    A::Ticks::from(reference.wrapping_add(dt)),
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
