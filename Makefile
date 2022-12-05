@@ -162,10 +162,7 @@ allstack stack stack-analysis:
 .PHONY: clean
 clean:
 	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
-	@for f in `./tools/list_tools.sh`;\
-		do echo "$$(tput bold)Clean tools/$$f";\
-		cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1;\
-		done
+	@echo "$$(tput bold)Clean tools Cargo workspace" && cargo clean --manifest-path tools/Cargo.toml
 	@echo "$$(tput bold)Clean rustdoc" && rm -rf doc/rustdoc
 	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf tools/ci-artifacts
 
@@ -477,12 +474,8 @@ ci-setup-tools:
 
 define ci_job_tools
 	$(call banner,CI-Job: Tools)
-	@for tool in `./tools/list_tools.sh`;\
-		do echo "$$(tput bold)Build & Test $$tool";\
-		cd tools/$$tool;\
-		NOWARNINGS=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1;\
-		cd - > /dev/null;\
-		done
+	@NOWARNINGS=true RUSTFLAGS="-D warnings" \
+		cargo build --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
 endef
 
 .PHONY: ci-job-tools
