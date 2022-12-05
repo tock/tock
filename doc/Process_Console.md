@@ -1,4 +1,4 @@
- Process Console
+Process Console
  ===============
  
  `process_console` is a capsule that implements a small shell over the UART that allows
@@ -8,13 +8,23 @@
 
 <!-- toc -->
 
-  - [Setup](#setup)
-  - [Using Process Console](#using-process-console)
-  - [Commands](#commands)
+- [Setup](#setup)
+- [Using Process Console](#using-process-console)
+- [Commands](#commands)
+  * [`help`](#help)
+  * [`list`](#list)
+    + [`list` Command Fields](#list-command-fields)
+  * [`status`](#status)
+  * [`start` and `stop`](#start-and-stop)
+  * [`terminate` and `boot`](#terminate-and-boot)
+  * [`fault`](#fault)
+  * [`panic`](#panic)
+  * [`kernel`](#kernel)
+  * [`process`](#process)
 
 <!-- tocstop -->
 
- Setup
+Setup
  -----
 
  Here is how to add `process_console` to a board's `main.rs` (the example is taken from the microbit's implementation of the Process console):
@@ -98,7 +108,7 @@ tock$
     0      blink                    0     26818         0   1/14   Yielded
     1      c_hello                  0         8         0   1/14   Yielded
 ```
-  #### `list` Command Fields:
+  #### `list` Command Fields
 
  - `PID`: The identifier for the process. This can change if the process
    restarts.

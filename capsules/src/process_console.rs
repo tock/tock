@@ -1,3 +1,7 @@
+//! Implements a text console over the UART that allows
+//! a terminal to inspect and control userspace processes.
+//!
+//! For a more in-depth documentation check /doc/Process_Console.md
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
