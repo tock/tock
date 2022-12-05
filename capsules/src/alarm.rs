@@ -15,7 +15,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
 #[derive(Copy, Clone, Debug)]
 enum Expiration {
     Disabled,
-    Enabled { reference: u32, dt: u32 },
+    Enabled { reference: u64, dt: u32 },
 }
 
 #[derive(Copy, Clone)]
@@ -131,20 +131,8 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 let _ = self.alarm.disarm();
             }
             Expiration::Enabled { reference, dt } => {
-                // This logic handles when the underlying Alarm is wider than
-                // 32 bits; it sets the reference to include the high bits of now
-                let mut high_bits = now.wrapping_sub(now_lower_bits);
-                // If lower bits have wrapped around from reference, this means the
-                // reference's high bits are actually one less; if we don't subtract
-                // one then the alarm will incorrectly be set 1<<32 higher than it should.
-                // This uses the invariant that reference <= now.
-                if now_lower_bits.into_u32() < reference {
-                    // Build 1<<32 in a way that just overflows to 0 if we are 32 bits
-                    let bit33 = A::Ticks::from(0xffffffffu32).wrapping_add(A::Ticks::from(0x1u32));
-                    high_bits = high_bits.wrapping_sub(bit33);
-                }
-                let real_reference = high_bits.wrapping_add(A::Ticks::from(reference));
-                self.alarm.set_alarm(real_reference, A::Ticks::from(dt));
+                self.alarm
+                    .set_alarm(A::Ticks::from(reference), A::Ticks::from(dt));
             }
         }
     }
@@ -176,16 +164,16 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
         self.app_alarms
             .enter(caller_id, |td, _upcalls| {
                 // helper function to rearm alarm
-                let mut rearm = |reference: usize, dt: usize| {
+                let mut rearm = |reference: u64, dt: usize| {
                     if let Expiration::Disabled = td.expiration {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
                     td.expiration = Expiration::Enabled {
-                        reference: reference as u32,
+                        reference,
                         dt: dt as u32,
                     };
                     (
-                        CommandReturn::success_u32(reference.wrapping_add(dt) as u32),
+                        CommandReturn::success_u64(reference.wrapping_add(dt as u64)),
                         true,
                     )
                 };
@@ -196,7 +184,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                         let freq = <A::Frequency>::frequency();
                         (CommandReturn::success_u32(freq), false)
                     },
-                    2 /* capture time */ => {
+                    2 /* capture time 32-bit (deprecated) */ => {
                         (CommandReturn::success_u32(now.into_u32()), false)
                     },
                     3 /* Stop */ => {
@@ -217,16 +205,36 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                         (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                     },
                     5 /* Set relative expiration */ => {
-                        let reference = now.into_u32() as usize;
+                        let reference = now.into_u64();
                         let dt = data;
                         // if previously unarmed, but now will become armed
                         rearm(reference, dt)
                     },
-                    6 /* Set absolute expiration with reference point */ => {
-                        let reference = data;
+                    6 /* Set absolute expiration with reference point (deprecated) */ => {
+                        let reference = data as u32;
                         let dt = data2;
-                        rearm(reference, dt)
+
+                        let now_lower_bits = A::Ticks::from(now.into_u32());
+
+                        // This logic handles when the underlying Alarm is wider than
+                        // 32 bits; it sets the reference to include the high bits of now
+                        let mut high_bits = now.wrapping_sub(now_lower_bits);
+                        // If lower bits have wrapped around from reference, this means the
+                        // reference's high bits are actually one less; if we don't subtract
+                        // one then the alarm will incorrectly be set 1<<32 higher than it should.
+                        // This uses the invariant that reference <= now.
+                        if now_lower_bits.into_u32() < reference as u32 {
+                            // Build 1<<32 in a way that just overflows to 0 if we are 32 bits
+                            let bit33 = A::Ticks::from(u32::MAX).wrapping_add(A::Ticks::from(0x1u32));
+                            high_bits = high_bits.wrapping_sub(bit33);
+                        }
+                        let real_reference = high_bits.wrapping_add(A::Ticks::from(reference));
+
+                        rearm(real_reference.into_u64(), dt)
                     }
+                    7 /* capture time 64-bit */ => {
+                        (CommandReturn::success_u64(now.into_u64()), false)
+                    },
                     _ => (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                 }
             })
@@ -255,7 +263,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                 // as passed (since reference must be in the past)
                 if !now.within_range(
                     A::Ticks::from(reference),
-                    A::Ticks::from(reference.wrapping_add(dt)),
+                    A::Ticks::from(reference.wrapping_add(dt as u64)),
                 ) {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
@@ -264,7 +272,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                             ALARM_CALLBACK_NUM,
                             (
                                 now.into_u32() as usize,
-                                reference.wrapping_add(dt) as usize,
+                                reference.wrapping_add(dt as u64) as usize,
                                 0,
                             ),
                         )
