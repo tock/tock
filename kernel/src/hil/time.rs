@@ -31,6 +31,10 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// are 32 bits.
     fn into_u32(self) -> u32;
 
+    /// Converts the type into a `u64`, filling the higher bits
+    /// with 0 if it is smaller than `u64`.
+    fn into_u64(self) -> u64;
+
     /// Add two values, wrapping around on overflow using standard
     /// unsigned arithmetic.
     fn wrapping_add(self, other: Self) -> Self;
@@ -401,6 +405,10 @@ impl Ticks for Ticks32 {
         self.0
     }
 
+    fn into_u64(self) -> u64 {
+        self.0 as u64
+    }
+
     fn wrapping_add(self, other: Self) -> Self {
         Ticks32(self.0.wrapping_add(other.0))
     }
@@ -480,6 +488,10 @@ impl Ticks for Ticks24 {
 
     fn into_u32(self) -> u32 {
         self.0
+    }
+
+    fn into_u64(self) -> u64 {
+        self.0 as u64
     }
 
     fn wrapping_add(self, other: Self) -> Self {
@@ -575,6 +587,10 @@ impl Ticks for Ticks16 {
         self.0 as u32
     }
 
+    fn into_u64(self) -> u64 {
+        self.0 as u64
+    }
+
     fn wrapping_add(self, other: Self) -> Self {
         Ticks16(self.0.wrapping_add(other.0))
     }
@@ -641,12 +657,6 @@ impl Eq for Ticks16 {}
 #[derive(Clone, Copy, Debug)]
 pub struct Ticks64(u64);
 
-impl Ticks64 {
-    pub fn into_u64(self) -> u64 {
-        self.0
-    }
-}
-
 impl From<u32> for Ticks64 {
     fn from(val: u32) -> Self {
         Ticks64(val as u64)
@@ -666,6 +676,10 @@ impl Ticks for Ticks64 {
 
     fn into_u32(self) -> u32 {
         self.0 as u32
+    }
+
+    fn into_u64(self) -> u64 {
+        self.0 as u64
     }
 
     fn wrapping_add(self, other: Self) -> Self {
