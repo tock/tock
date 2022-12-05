@@ -34,7 +34,7 @@ impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
         let counter = self.counter.get();
         let delay = self.alarm.ticks_from_ms(self.alarms[counter % 20]);
         let now = self.alarm.now();
-        let start = now.wrapping_sub(A::Ticks::from(10));
+        let start = now.wrapping_sub(A::Ticks::from(10u32));
 
         debug!(
             "{}: Setting alarm to {} + {} = {}",

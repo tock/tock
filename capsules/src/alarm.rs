@@ -58,7 +58,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     // underlying alarm is wider than 32 bits.
     fn reset_active_alarm(&self) {
         let mut earliest_alarm = Expiration::Disabled;
-        let mut earliest_end: A::Ticks = A::Ticks::from(0);
+        let mut earliest_end: A::Ticks = A::Ticks::from(0u32);
         // Scale now down to a u32 since that is the width of the alarm;
         // otherwise for larger widths (e.g., u64) now can be outside of
         // the range of what an alarm can be set to.
@@ -140,7 +140,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 // This uses the invariant that reference <= now.
                 if now_lower_bits.into_u32() < reference {
                     // Build 1<<32 in a way that just overflows to 0 if we are 32 bits
-                    let bit33 = A::Ticks::from(0xffffffff).wrapping_add(A::Ticks::from(0x1));
+                    let bit33 = A::Ticks::from(0xffffffffu32).wrapping_add(A::Ticks::from(0x1u32));
                     high_bits = high_bits.wrapping_sub(bit33);
                 }
                 let real_reference = high_bits.wrapping_add(A::Ticks::from(reference));

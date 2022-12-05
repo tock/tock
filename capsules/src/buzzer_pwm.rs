@@ -102,7 +102,7 @@ impl<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> hil::buzzer::Buzzer<'a>
         // Disarm the current alarm and instantly fire another.
         self.alarm.disarm()?;
         // This method was used to reduce the size of the code.
-        self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(0));
+        self.alarm.set_alarm(self.alarm.now(), A::Ticks::from(0u32));
         Ok(())
     }
 }
