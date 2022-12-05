@@ -73,7 +73,7 @@ impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
                         buf[4..8].copy_from_slice(&(pending_tasks as u32).to_le_bytes());
                     }
                     if buf.len() >= 16 {
-                        let now = self.timer.now().into_usize() as u64;
+                        let now = self.timer.now().into_u64();
                         buf[8..16].copy_from_slice(&now.to_le_bytes());
                     }
                 });
