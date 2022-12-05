@@ -4,7 +4,7 @@
 use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
+use kernel::hil::time::{self, Alarm, Frequency, Ticks};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -248,15 +248,30 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
-        let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
+        let now = self.alarm.now();
         self.app_alarms.each(|_processid, alarm, upcalls| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
-                // Now is not within reference, reference + ticks; this timer
-                // as passed (since reference must be in the past)
-                if !now.within_range(
-                    Ticks32::from(reference),
-                    Ticks32::from(reference.wrapping_add(dt)),
-                ) {
+                // `now` is a 64-bit value, but we are only allowed a 32-bit
+                // `reference` or `dt`.
+                let within_range = if now < u32::MAX.into() {
+                    // The current time fits in a 32-bit value. We can compare
+                    // `now` with `reference + dt` where all values are 64-bit.
+                    now.within_range(
+                        A::Ticks::from(reference),
+                        A::Ticks::from((reference as u64).wrapping_add(dt as u64)),
+                    )
+                } else {
+                    // `now` has 'overflowed" the 32-bit value, so let's mask
+                    // off the top bits to represent a 32-bit overflow.
+                    let now = A::Ticks::from(now.into_u32());
+
+                    now.within_range(
+                        A::Ticks::from(reference),
+                        A::Ticks::from(reference).wrapping_add(dt.into()),
+                    )
+                };
+
+                if !within_range {
                     alarm.expiration = Expiration::Disabled;
                     self.num_armed.set(self.num_armed.get() - 1);
                     upcalls
