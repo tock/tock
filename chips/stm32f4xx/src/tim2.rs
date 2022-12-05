@@ -437,7 +437,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1)
+        Self::Ticks::from(1u32)
     }
 }
 

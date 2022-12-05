@@ -405,7 +405,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(1)
+        Self::Ticks::from(1u32)
     }
 }
 

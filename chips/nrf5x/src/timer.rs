@@ -359,6 +359,6 @@ impl<'a> Alarm<'a> for TimerAlarm<'a> {
 
     fn minimum_dt(&self) -> Self::Ticks {
         // TODO: not tested, arbitrary value
-        Self::Ticks::from(10)
+        Self::Ticks::from(10u32)
     }
 }

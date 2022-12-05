@@ -18,7 +18,7 @@ use core::fmt;
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
 
-pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
+pub trait Ticks: Clone + Copy + From<u32> + From<u64> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
@@ -384,6 +384,12 @@ impl From<u32> for Ticks32 {
     }
 }
 
+impl From<u64> for Ticks32 {
+    fn from(val: u64) -> Self {
+        Ticks32(val as u32)
+    }
+}
+
 impl Ticks for Ticks32 {
     fn into_usize(self) -> usize {
         self.0 as usize
@@ -466,6 +472,12 @@ pub struct Ticks24(u32);
 impl From<u32> for Ticks24 {
     fn from(val: u32) -> Self {
         Ticks24(val)
+    }
+}
+
+impl From<u64> for Ticks24 {
+    fn from(val: u64) -> Self {
+        Ticks24(val as u32)
     }
 }
 
@@ -556,6 +568,12 @@ impl From<u16> for Ticks16 {
 
 impl From<u32> for Ticks16 {
     fn from(val: u32) -> Self {
+        Ticks16((val & 0xffff) as u16)
+    }
+}
+
+impl From<u64> for Ticks16 {
+    fn from(val: u64) -> Self {
         Ticks16((val & 0xffff) as u16)
     }
 }

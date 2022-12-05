@@ -74,8 +74,8 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         Self {
             alarm,
             processes: [List::new(), List::new(), List::new()],
-            next_reset: Cell::new(A::Ticks::from(0)),
-            last_reset_check: Cell::new(A::Ticks::from(0)),
+            next_reset: Cell::new(A::Ticks::from(0u32)),
+            last_reset_check: Cell::new(A::Ticks::from(0u32)),
             last_timeslice: Cell::new(0),
             last_queue_idx: Cell::new(0),
         }

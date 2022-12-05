@@ -53,7 +53,7 @@ impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<
 impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     /// After calling new, always call setup()
     pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
-        let zero = A::Ticks::from(0);
+        let zero = A::Ticks::from(0u32);
         VirtualMuxAlarm {
             mux: mux_alarm,
             dt_reference: Cell::new(TickDtReference {
@@ -182,7 +182,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         let extension = if dt_reference.extended {
             Self::Ticks::half_max_value()
         } else {
-            Self::Ticks::from(0)
+            Self::Ticks::from(0u32)
         };
         dt_reference.reference_plus_dt().wrapping_add(extension)
     }
@@ -521,7 +521,7 @@ mod tests {
 
         // Set the first alarm for 10 ticks in the future. This should then set the second alarm,
         // but not call fired for the second alarm until the timer gets to 100
-        v_alarms[0].set_alarm(0.into(), 10.into());
+        v_alarms[0].set_alarm(0u32.into(), 10u32.into());
         let still_armed = alarm.trigger_next_alarm();
 
         // Second alarm should not have triggered yet
@@ -570,15 +570,15 @@ mod tests {
 
         // Set one alarm to trigger immediately (at the hardware delay) and the other alarm to
         // trigger in the future by some large degree
-        let _ = v_alarms[0].set_alarm(now, 0.into());
-        let _ = v_alarms[1].set_alarm(now, 1_000.into());
+        let _ = v_alarms[0].set_alarm(now, 0u32.into());
+        let _ = v_alarms[1].set_alarm(now, 1_000u32.into());
 
         // Run the alarm long enough for every alarm but the longer alarm to fire, and all other
         // alarms should have fired once
-        alarm.run_for_ticks(Ticks32::from(750));
+        alarm.run_for_ticks(Ticks32::from(750u32));
         assert_eq!(client.count(), v_alarms.len() - 1);
         // Run the alarm long enough for the longer alarm to fire as well and verify count
-        alarm.run_for_ticks(Ticks32::from(750));
+        alarm.run_for_ticks(Ticks32::from(750u32));
         assert_eq!(client.count(), v_alarms.len());
     }
 }
