@@ -10,6 +10,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+clap = { features = ["derive"], version = "4.0.29" }
 ignore = "0.4"
 thiserror = "1.0.37"
 

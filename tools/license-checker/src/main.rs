@@ -37,6 +37,13 @@ fn is_copyright(comment: &str) -> bool {
     comment.starts_with("Copyright ")
 }
 
+#[derive(clap::Parser)]
+struct Args {
+    /// Enable verbose debugging output
+    #[arg(long, short)]
+    verbose: bool,
+}
+
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum LicenseError {
     #[error("license header missing")]
@@ -147,6 +154,8 @@ fn check_file(cache: &Cache, path: &Path) -> Vec<ErrorInfo> {
 }
 
 fn main() {
+    use clap::Parser as _;
+    let args = Args::parse();
     let cache = &Cache::default();
     let fs_walk = WalkBuilder::new("./")
         .add_custom_ignore_filename(".lcignore")
@@ -162,6 +171,9 @@ fn main() {
         let file_type = dir_entry.file_type().expect("File type read failed");
         if !file_type.is_file() {
             continue;
+        }
+        if args.verbose {
+            println!("Checking {}", dir_entry.path().display());
         }
         for error_info in check_file(cache, dir_entry.path()) {
             failed = true;
