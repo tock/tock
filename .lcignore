@@ -8,7 +8,7 @@
 
 # TODO: This disables the license checker over most of the repository, enabling
 # it on a handful of files for demonstration purposes. The next few lines should
-# be removed when license headers are removed.
+# be removed when license headers are added.
 *
 !/.lcignore
 !/tools/
