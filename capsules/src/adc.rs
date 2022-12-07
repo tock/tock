@@ -655,29 +655,93 @@ impl<'a> AdcVirtualized<'a> {
         appid: ProcessId,
     ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
-            self.apps
+            match self
+                .apps
                 .enter(appid, |app, _| {
-                    if self.current_app.is_none() {
-                        self.current_app.set(appid);
-                        let value = self.call_driver(command, channel);
-                        if value != Ok(()) {
-                            self.current_app.clear();
-                        }
-                        value
+                    if app.pending_command == true {
+                        Err(ErrorCode::BUSY)
                     } else {
-                        if app.pending_command == true {
-                            Err(ErrorCode::BUSY)
-                        } else {
-                            app.pending_command = true;
-                            app.command.set(command);
-                            app.channel = channel;
-                            Ok(())
-                        }
+                        app.pending_command = true;
+                        app.command.set(command);
+                        app.channel = channel;
+                        Ok(())
                     }
                 })
-                .unwrap_or_else(|err| err.into())
+                .map_err(ErrorCode::from)
+            {
+                Err(e) => Err(e),
+                Ok(mut r) => {
+                    if self.current_app.is_none() {
+                        self.current_app.set(appid);
+                        r = self.call_driver(command, channel);
+                        if r != Ok(()) {
+                            self.current_app.clear();
+                        }
+                        self.run_next_command();
+                    }
+                    r
+                }
+            }
         } else {
             Err(ErrorCode::NODEVICE)
+        }
+
+        // if channel < self.drivers.len() {
+        //     self.apps
+        //         .enter(appid, |app, _| {
+        //             if self.current_app.is_none() {
+        //                 self.current_app.set(appid);
+        //                 let value = self.call_driver(command, channel);
+        //                 if value != Ok(()) {
+        //                     self.current_app.clear();
+        //                 }
+        //                 app.channel = channel;
+        //                 value
+        //             } else {
+        //                 if app.pending_command == true {
+        //                     Err(ErrorCode::BUSY)
+        //                 } else {
+        //                     app.pending_command = true;
+        //                     app.command.set(command);
+        //                     app.channel = channel;
+        //                     Ok(())
+        //                 }
+        //             }
+        //         })
+        //         .unwrap_or_else(|err| err.into())
+        // } else {
+        //     Err(ErrorCode::NODEVICE)
+        // }
+    }
+
+    fn run_next_command(&self) {
+        let mut command = Operation::OneSample;
+        let mut channel = 0;
+        for app in self.apps.iter() {
+            let appid = app.processid();
+            let start_command = app.enter(|app, _| {
+                if app.pending_command {
+                    app.pending_command = false;
+                    app.command.take().map(|c| {
+                        command = c;
+                    });
+                    channel = app.channel;
+                    self.current_app.set(appid);
+                    true
+                } else {
+                    false
+                }
+            });
+            if start_command {
+                match self.call_driver(command, channel) {
+                    Err(_) => {
+                        self.current_app.clear();
+                    }
+                    Ok(()) => {
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -1298,5 +1362,6 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
                     .ok();
             });
         });
+        self.run_next_command();
     }
 }
