@@ -47,5 +47,5 @@ SECTIONS {
       /* size = 1024 bytes */
     } > rom
 }
-
+ASSERT (((_etext - _manifest) > 0), "Error: PMP and Flash protection setup assumes _etext follows _manifest");
 INCLUDE ../../kernel_layout.ld
