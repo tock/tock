@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "alert_codes",
+    "board-runner",
+    "litex-ci-runner",
+    "qemu-runner",
+    "sha256sum",
+    "usb/bulk-echo",
+    "usb/bulk-test",
+    "usb/control-test",
+]
+
+[workspace.package]
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2021"

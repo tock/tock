@@ -13,6 +13,12 @@ use kernel::utilities::registers::{
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpiHostStatus {
+    SpiTransferCmplt,
+    SpiTransferInprog,
+}
+
 register_structs! {
     pub SpiHostRegisters {
         //SPI: Interrupt State Register, type rw1c
@@ -197,7 +203,41 @@ impl SpiHost {
             //This could be set at init, so only follow through
             //once a transfer has started (is_busy())
             if status.is_set(status::TXEMPTY) && self.is_busy() {
-                self.continue_transfer();
+                match self.continue_transfer() {
+                    Ok(SpiHostStatus::SpiTransferCmplt) => {
+                        // Transfer success
+                        self.client.map(|client| match self.tx_buf.take() {
+                            None => (),
+                            Some(tx_buf) => client.read_write_done(
+                                tx_buf,
+                                self.rx_buf.take(),
+                                self.tx_len.get(),
+                                Ok(()),
+                            ),
+                        });
+
+                        self.disable_tx_interrupt();
+                        self.reset_internal_state();
+                    }
+                    Ok(SpiHostStatus::SpiTransferInprog) => {}
+                    Err(err) => {
+                        //Transfer failed, lets clean up
+                        //Clear all pending interrupts.
+                        self.clear_err_interrupt();
+                        //Something went wrong, reset IP and clear buffers
+                        self.reset_spi_ip();
+                        self.reset_internal_state();
+                        self.client.map(|client| match self.tx_buf.take() {
+                            None => (),
+                            Some(tx_buf) => client.read_write_done(
+                                tx_buf,
+                                self.rx_buf.take(),
+                                self.tx_offset.get(),
+                                Err(err),
+                            ),
+                        });
+                    }
+                }
             } else {
                 self.enable_interrupts();
             }
@@ -206,82 +246,110 @@ impl SpiHost {
 
     //Determine if transfer complete or if we need to keep
     //writing from an offset.
-    fn continue_transfer(&self) {
-        self.rx_buf.take().map(|rx_buf| {
-            let regs = self.registers;
-            let mut val32: u32;
-            let mut val8: u8;
-            let mut shift_mask;
-            let rx_len = self.tx_offset.get() - self.rx_offset.get();
-            let read_cycles = self.div_up(rx_len, 4);
+    fn continue_transfer(&self) -> Result<SpiHostStatus, ErrorCode> {
+        let rc = self
+            .rx_buf
+            .take()
+            .map(|rx_buf| -> Result<SpiHostStatus, ErrorCode> {
+                let regs = self.registers;
+                let mut val32: u32;
+                let mut val8: u8;
+                let mut shift_mask;
+                let rx_len = self.tx_offset.get() - self.rx_offset.get();
+                let read_cycles = self.div_up(rx_len, 4);
 
-            //Receive rx_data (Only 4byte reads are supported)
-            for _n in 0..read_cycles {
-                val32 = regs.rx_data.read(rx_data::DATA);
-                shift_mask = 0xFF;
-                for i in 0..4 {
-                    if self.rx_offset.get() >= self.rx_len.get() {
-                        break;
+                //Receive rx_data (Only 4byte reads are supported)
+                for _n in 0..read_cycles {
+                    val32 = regs.rx_data.read(rx_data::DATA);
+                    shift_mask = 0xFF;
+                    for i in 0..4 {
+                        if self.rx_offset.get() >= self.rx_len.get() {
+                            break;
+                        }
+                        val8 = ((val32 & shift_mask) >> i * 8) as u8;
+                        if let Some(ptr) = rx_buf.get_mut(self.rx_offset.get()) {
+                            *ptr = val8;
+                        } else {
+                            // We have run out of rx buffer size
+                            break;
+                        }
+                        self.rx_offset.set(self.rx_offset.get() + 1);
+                        shift_mask = shift_mask << 8;
                     }
-                    val8 = ((val32 & shift_mask) >> i * 8) as u8;
-                    rx_buf[self.rx_offset.get()] = val8;
-                    self.rx_offset.set(self.rx_offset.get() + 1);
-                    shift_mask = shift_mask << 8;
                 }
-            }
-            //Transfer was complete */
-            if self.tx_offset.get() == self.tx_len.get() {
-                self.client.map(|client| match self.tx_buf.take() {
-                    None => (),
-                    Some(tx_buf) => {
-                        client.read_write_done(tx_buf, Some(rx_buf), self.tx_len.get(), Ok(()))
-                    }
-                });
-
-                self.disable_tx_interrupt();
-                self.reset_internal_state();
-            } else {
+                //Save buffer!
                 self.rx_buf.replace(rx_buf);
-                //Theres more to transfer, continue writing from the offset
-                self.spi_transfer_progress();
-            }
-        });
+                //Transfer was complete */
+                if self.tx_offset.get() == self.tx_len.get() {
+                    Ok(SpiHostStatus::SpiTransferCmplt)
+                } else {
+                    //Theres more to transfer, continue writing from the offset
+                    self.spi_transfer_progress()
+                }
+            })
+            .map_or_else(|| Err(ErrorCode::FAIL), |rc| rc);
+
+        rc
     }
 
     /// Continue SPI transfer from offset point
-    fn spi_transfer_progress(&self) {
-        self.tx_buf.take().map(|tx_buf| {
-            let regs = self.registers;
-            let mut t_byte: u32;
-            let mut tx_slice: [u8; 4];
+    fn spi_transfer_progress(&self) -> Result<SpiHostStatus, ErrorCode> {
+        let mut transfer_complete = false;
+        if self
+            .tx_buf
+            .take()
+            .map(|tx_buf| -> Result<(), ErrorCode> {
+                let regs = self.registers;
+                let mut t_byte: u32;
+                let mut tx_slice: [u8; 4];
 
-            assert_eq!(regs.status.read(status::TXQD), 0);
-            assert_eq!(regs.status.read(status::ACTIVE), 0);
+                if regs.status.read(status::TXQD) != 0 || regs.status.read(status::ACTIVE) != 0 {
+                    self.tx_buf.replace(tx_buf);
+                    return Err(ErrorCode::BUSY);
+                }
 
-            while !regs.status.is_set(status::TXFULL) && regs.status.read(status::TXQD) < 64 {
-                tx_slice = [0, 0, 0, 0];
-                for n in 0..4 {
+                while !regs.status.is_set(status::TXFULL) && regs.status.read(status::TXQD) < 64 {
+                    tx_slice = [0, 0, 0, 0];
+                    for elem in tx_slice.iter_mut() {
+                        if self.tx_offset.get() >= self.tx_len.get() {
+                            break;
+                        }
+                        if let Some(val) = tx_buf.get(self.tx_offset.get()) {
+                            *elem = *val;
+                            self.tx_offset.set(self.tx_offset.get() + 1);
+                        } else {
+                            //Unexpectedly ran out of tx buffer
+                            break;
+                        }
+                    }
+                    t_byte = u32::from_le_bytes(tx_slice);
+                    regs.tx_data.write(tx_data::DATA.val(t_byte));
+
+                    //Transfer Complete in one-shot
                     if self.tx_offset.get() >= self.tx_len.get() {
+                        transfer_complete = true;
                         break;
                     }
-                    tx_slice[n] = tx_buf[self.tx_offset.get()];
-                    self.tx_offset.set(self.tx_offset.get() + 1);
                 }
-                t_byte = u32::from_le_bytes(tx_slice);
-                regs.tx_data.write(tx_data::DATA.val(t_byte));
 
-                //Transfer Complete in one-shot
-                if self.tx_offset.get() >= self.tx_len.get() {
-                    break;
-                }
-            }
+                //Hold tx_buf for offset transfer continue
+                self.tx_buf.replace(tx_buf);
 
-            //Hold tx_buf for offset transfer continue
-            self.tx_buf.replace(tx_buf);
+                //Set command register to init transfer
+                self.start_transceive();
+                Ok(())
+            })
+            .transpose()
+            .is_err()
+        {
+            return Err(ErrorCode::BUSY);
+        }
 
-            //Set command register to init transfer
-            self.start_transceive();
-        });
+        if transfer_complete {
+            Ok(SpiHostStatus::SpiTransferCmplt)
+        } else {
+            Ok(SpiHostStatus::SpiTransferInprog)
+        }
     }
 
     /// Issue a command to start SPI transaction
@@ -537,11 +605,11 @@ impl hil::spi::SpiMaster for SpiHost {
 
         while !regs.status.is_set(status::TXFULL) && regs.status.read(status::TXQD) < 64 {
             tx_slice = [0, 0, 0, 0];
-            for n in 0..4 {
+            for elem in tx_slice.iter_mut() {
                 if self.tx_offset.get() >= self.tx_len.get() {
                     break;
                 }
-                tx_slice[n] = tx_buf[self.tx_offset.get()];
+                *elem = tx_buf[self.tx_offset.get()];
                 self.tx_offset.set(self.tx_offset.get() + 1);
             }
             t_byte = u32::from_le_bytes(tx_slice);
