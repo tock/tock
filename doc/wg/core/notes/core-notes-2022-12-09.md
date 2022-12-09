@@ -118,7 +118,7 @@ Attendees:
  * Pat: I'll pick that up soon, sorry
  * Johnathan: Is there a reason we do the two lines (copyright and license) in the order we picked? I thought the other order was more common
  * Pat: I thought the order mattered for some reason. It was some implicit top-down thing. It felt arbitrary to me and I don't feel strongly about it.
- * Johnathan: The boilerplate for both MIT and Apache but the copyright first.
+ * Johnathan: The boilerplate for both MIT and Apache put the copyright first.
  * Pat: I'll read a few more things, and if it doesn't make sense to buck the trend, I'll make sure I follow it.
 
 # Capsule reorganization
