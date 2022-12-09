@@ -34,6 +34,7 @@ Tock Guides
 
 ### Tock Setup and Usage
 - **[Getting Started](Getting_Started.md)** - Installing the Tock toolchain and programming hardware.
+- **[Process Console](Process_Console.md)** - Using the process console to inspect the kernel and control userspace processes.
 - **[Porting Tock](Porting.md)** - Guide to add new platforms.
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Debugging Help](debugging)** - Guides for various debugging techniques.
