@@ -1275,8 +1275,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // Fixed addresses, can just run `make lst`.
                 let _ = writer.write_fmt(format_args!(
                     "\
-                    \r\nTo debug, run `make lst` in the app's folder\
-                    \r\nand open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
+                    \r\nTo debug libtock-c apps, run `make lst` in the app's\
+                    \r\nfolder and open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
                     debug.fixed_address_flash.unwrap_or(0),
                     debug.fixed_address_ram.unwrap_or(0)
                 ));
@@ -1288,8 +1288,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
                 let _ = writer.write_fmt(format_args!(
                     "\
-                    \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
-                    \r\nin the app's folder and open the .lst file.\r\n\r\n",
+                    \r\nTo debug libtock-c apps, run `make debug RAM_START={:#x}`\
+                    \r\nFLASH_INIT={:#x} in the app's folder and open the .lst file.\r\n\r\n",
                     sram_start, flash_init_fn
                 ));
             }
