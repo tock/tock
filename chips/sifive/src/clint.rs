@@ -1,6 +1,8 @@
 //! Create a timer using the Machine Timer registers.
 
-use kernel::hil::time::{self, Alarm, ConvertTicks, Freq32KHz, Frequency, Ticks, Ticks64, Time};
+use core::marker::PhantomData;
+
+use kernel::hil::time::{self, Alarm, ConvertTicks, Frequency, Ticks, Ticks64, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_structs, ReadWrite};
@@ -21,13 +23,14 @@ register_structs! {
     }
 }
 
-pub struct Clint<'a> {
+pub struct Clint<'a, F: Frequency> {
     registers: StaticRef<ClintRegisters>,
     client: OptionalCell<&'a dyn time::AlarmClient>,
     mtimer: MachineTimer<'a>,
+    _freq: PhantomData<F>,
 }
 
-impl<'a> Clint<'a> {
+impl<'a, F: Frequency> Clint<'a, F> {
     pub fn new(base: &'a StaticRef<ClintRegisters>) -> Self {
         Self {
             registers: *base,
@@ -38,6 +41,7 @@ impl<'a> Clint<'a> {
                 &base.value_low,
                 &base.value_high,
             ),
+            _freq: PhantomData,
         }
     }
 
@@ -55,8 +59,8 @@ impl<'a> Clint<'a> {
     }
 }
 
-impl Time for Clint<'_> {
-    type Frequency = Freq32KHz;
+impl<F: Frequency> Time for Clint<'_, F> {
+    type Frequency = F;
     type Ticks = Ticks64;
 
     fn now(&self) -> Ticks64 {
@@ -64,7 +68,7 @@ impl Time for Clint<'_> {
     }
 }
 
-impl<'a> time::Alarm<'a> for Clint<'a> {
+impl<'a, F: Frequency> time::Alarm<'a> for Clint<'a, F> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.client.set(client);
     }
@@ -94,7 +98,7 @@ impl<'a> time::Alarm<'a> for Clint<'a> {
 /// used by a chip if that chip has multiple hardware timer peripherals such that a different
 /// hardware timer can be used to provide alarms to capsules and userspace. This
 /// implementation will not work alongside other uses of the machine timer.
-impl kernel::platform::scheduler_timer::SchedulerTimer for Clint<'_> {
+impl<F: Frequency> kernel::platform::scheduler_timer::SchedulerTimer for Clint<'_, F> {
     fn start(&self, us: u32) {
         let now = self.now();
         let tics = self.ticks_from_us(us);

@@ -49,7 +49,7 @@ struct ArtyE21 {
     gpio: &'static capsules::gpio::GPIO<'static, arty_e21_chip::gpio::GpioPin<'static>>,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
+        VirtualMuxAlarm<'static, arty_e21_chip::chip::ArtyExxClint<'static>>,
     >,
     led: &'static capsules::led::LedDriver<
         'static,
@@ -176,7 +176,7 @@ pub unsafe fn main() {
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, sifive::clint::Clint>,
+        MuxAlarm<'static, arty_e21_chip::chip::ArtyExxClint>,
         MuxAlarm::new(&peripherals.machinetimer)
     );
     hil::time::Alarm::set_alarm_client(&peripherals.machinetimer, mux_alarm);
@@ -187,16 +187,18 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(sifive::clint::Clint));
+    .finalize(components::alarm_component_static!(
+        arty_e21_chip::chip::ArtyExxClint
+    ));
 
     // TEST for timer
     //
     // let virtual_alarm_test = static_init!(
-    //     VirtualMuxAlarm<'static, sifive::clint::Clint>,
+    //     VirtualMuxAlarm<'static, arty_e21_chip::chip::ArtyExxClint>,
     //     VirtualMuxAlarm::new(mux_alarm)
     // );
     // let timertest = static_init!(
-    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
+    //     timer_test::TimerTest<'static, VirtualMuxAlarm<'static, arty_e21_chip::chip::ArtyExxClint>>,
     //     timer_test::TimerTest::new(virtual_alarm_test)
     // );
     // virtual_alarm_test.set_client(timertest);
@@ -267,7 +269,7 @@ pub unsafe fn main() {
     // Uncomment to run tests
     //timertest.start();
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
-    .finalize(components::multi_alarm_test_component_buf!(sifive::clint::Clint))
+    .finalize(components::multi_alarm_test_component_buf!(arty_e21_chip::chip::ArtyExxClint))
     .run();*/
 
     // These symbols are defined in the linker script.
