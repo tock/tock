@@ -413,41 +413,80 @@ impl<'a> FlashCtrl<'a> {
         }
     }
 
-    fn configure_data_partition(&self) {
+    fn configure_data_partition(&self, num: FlashRegion) -> Result<(), ErrorCode> {
         self.registers.default_region.write(
             DEFAULT_REGION::RD_EN::Set
                 + DEFAULT_REGION::PROG_EN::Set
                 + DEFAULT_REGION::ERASE_EN::Set,
         );
 
+        if let Some(mp_region_cfg) = self.registers.mp_region_cfg.get(num as usize) {
+            mp_region_cfg.write(
+                MP_REGION_CFG::RD_EN::Set
+                    + MP_REGION_CFG::PROG_EN::Set
+                    + MP_REGION_CFG::ERASE_EN::Set
+                    + MP_REGION_CFG::SCRAMBLE_EN::Clear
+                    + MP_REGION_CFG::ECC_EN::Clear
+                    + MP_REGION_CFG::EN::Clear,
+            );
+
+            if let Some(mp_region) = self.registers.mp_region.get(num as usize) {
+                // Size and base are stored in different registers
+                mp_region.write(
+                    MP_REGION::BASE.val(FLASH_PAGES_PER_BANK as u32) + MP_REGION::SIZE.val(0x1),
+                );
+            } else {
+                return Err(ErrorCode::INVAL);
+            }
+
+            // Enable MP Region
+            mp_region_cfg.modify(MP_REGION_CFG::EN::Set);
+        } else {
+            return Err(ErrorCode::INVAL);
+        }
+
         self.data_configured.set(true);
+        Ok(())
     }
 
-    fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) {
+    fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) -> Result<(), ErrorCode> {
         if bank == FlashBank::BANK0 {
-            self.registers.bank0_info0_page_cfg[num as usize].write(
-                BANK_INFO_PAGE_CFG::RD_EN::Set
-                    + BANK_INFO_PAGE_CFG::PROG_EN::Set
-                    + BANK_INFO_PAGE_CFG::ERASE_EN::Set
-                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
-                    + BANK_INFO_PAGE_CFG::ECC_EN::Set
-                    + BANK_INFO_PAGE_CFG::EN::Clear,
-            );
-            self.registers.bank0_info0_page_cfg[num as usize].modify(BANK_INFO_PAGE_CFG::EN::Set);
+            if let Some(bank0_info0_page_cfg) =
+                self.registers.bank0_info0_page_cfg.get(num as usize)
+            {
+                bank0_info0_page_cfg.write(
+                    BANK_INFO_PAGE_CFG::RD_EN::Set
+                        + BANK_INFO_PAGE_CFG::PROG_EN::Set
+                        + BANK_INFO_PAGE_CFG::ERASE_EN::Set
+                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
+                        + BANK_INFO_PAGE_CFG::ECC_EN::Set
+                        + BANK_INFO_PAGE_CFG::EN::Clear,
+                );
+                bank0_info0_page_cfg.modify(BANK_INFO_PAGE_CFG::EN::Set);
+            } else {
+                return Err(ErrorCode::INVAL);
+            }
         } else if bank == FlashBank::BANK1 {
-            self.registers.bank1_info0_page_cfg[num as usize].write(
-                BANK_INFO_PAGE_CFG::RD_EN::Set
-                    + BANK_INFO_PAGE_CFG::PROG_EN::Set
-                    + BANK_INFO_PAGE_CFG::ERASE_EN::Set
-                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
-                    + BANK_INFO_PAGE_CFG::ECC_EN::Set
-                    + BANK_INFO_PAGE_CFG::EN::Clear,
-            );
-            self.registers.bank1_info0_page_cfg[num as usize].modify(BANK_INFO_PAGE_CFG::EN::Set);
+            if let Some(bank1_info0_page_cfg) =
+                self.registers.bank1_info0_page_cfg.get(num as usize)
+            {
+                bank1_info0_page_cfg.write(
+                    BANK_INFO_PAGE_CFG::RD_EN::Set
+                        + BANK_INFO_PAGE_CFG::PROG_EN::Set
+                        + BANK_INFO_PAGE_CFG::ERASE_EN::Set
+                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
+                        + BANK_INFO_PAGE_CFG::ECC_EN::Set
+                        + BANK_INFO_PAGE_CFG::EN::Clear,
+                );
+                bank1_info0_page_cfg.modify(BANK_INFO_PAGE_CFG::EN::Set);
+            } else {
+                return Err(ErrorCode::INVAL);
+            }
         } else {
-            panic!("Unsupported bank");
+            return Err(ErrorCode::INVAL);
         }
         self.info_configured.set(true);
+        Ok(())
     }
 
     /// Reset the internal FIFOs, used for when recovering from
@@ -913,17 +952,16 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // The info partitions have no default access. Specifically set up a region.
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition();
-        }
-
-        // Check control status before we commit
-        if !self.registers.ctrl_regwen.is_set(CTRL_REGWEN::EN) {
-            return Err((ErrorCode::BUSY, buf));
+            if let Err(e) = self.configure_data_partition(self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         // Enable interrupts and set the FIFO level
@@ -973,12 +1011,16 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
             // The info partitions have no default access. Specifically set up a region.
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition();
+            if let Err(e) = self.configure_data_partition(self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         // Check control status before we commit
@@ -1055,12 +1097,16 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition();
+            if let Err(e) = self.configure_data_partition(self.region_num) {
+                return Err(e);
+            }
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
+                return Err(e);
+            }
         }
 
         // Check control status before we commit
