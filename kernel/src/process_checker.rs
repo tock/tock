@@ -62,13 +62,24 @@ impl<'a> AppCredentialsChecker<'a> for () {
 
 /// Return whether `process` can run given the identifiers, version
 /// numbers, and execution state of other processes. A process is
-/// runnable if:
+/// runnable if its credentials have been approved, it is in the
+/// Terminated state, and one of the following conditions hold:
 ///
-///   - Its Application Identifier and Short ID are different from
+///   1. Its Application Identifier and Short ID are different from
 ///   all other processes, or
-///   - Other processes that share an Application Identifier or Short
-///   ID with it have a lower version number and are not running, or
-///   - Other processes that shared
+///   2. For every other process that shares an Application Identifier
+///   or Short ID:
+///      2A. If it has a lower or equal version number, it is not running
+///      2B. If it has a higher version number, it is in the Terminated,
+///      CredentialsUnchecked, or CredentialsFailed state.
+///
+/// Case 2A is because if a lower version number is currently running, it
+/// must be stopped before the higher version number can run. Case 2B is
+/// so that a lower or equal version number can be run if the higher or equal
+/// has been explicitly stopped (Terminated) or cannot run (Unchecked/Failed).
+/// This second case is designed so that at boot the highest version number
+/// will run (it will be in the CredentialsApproved state when this test
+/// runs at boot), but it can be stopped to let a lower version number run.
 pub fn is_runnable<AU: AppUniqueness>(
     process: &dyn Process,
     processes: &[Option<&dyn Process>],

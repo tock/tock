@@ -776,8 +776,8 @@ impl From<Error> for ErrorCode {
 
 /// States a process can be in.
 ///
-/// This is public so external implementations of `Process` want to
-/// re-use these process states.
+/// This is public so external implementations of `Process` can re-use
+/// these process states.
 ///
 /// When the kernel first creates a process structure, it places it
 /// in the `CredentialsUnchecked` state. If the process is able to
@@ -813,7 +813,6 @@ impl From<Error> for ErrorCode {
 /// When a process faults, it enters the `Faulted` state. To be
 /// restarted, it must first transition to the `Terminated` state,
 /// which means that all of its state has been cleaned up.
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum State {
     /// Process expects to be running code. The process may not be currently
