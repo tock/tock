@@ -11,14 +11,13 @@
 //! ```rust
 //! # use kernel::static_init;
 //! # use capsules::console::Console;
-//!
 //! let print_log = static_init!(
 //!     PrintLog,
 //!     PrintLog::new(&usart::USART0,
 //!                  115200,
 //!                  board_kernel.create_grant(&grant_cap)));
 //! ```
-//!
+//! 
 //! Usage
 //! -----
 //!
@@ -59,11 +58,7 @@ mod ro_allow {
 
 /// Ids for read-write allow buffers
 mod rw_allow {
-    /// Before the allow syscall was handled by the kernel,
-    /// console used allow number "1", so to preserve compatibility
-    /// we still use allow number 1 now.
     pub const _READ: usize = 0;
-    /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 0;
 }
 
@@ -222,11 +217,6 @@ impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> SyscallDriver for PrintLog<'a, A> {
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-
     /// Setup shared buffers.
     ///
     /// ### `allow_num`

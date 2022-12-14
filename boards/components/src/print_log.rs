@@ -18,10 +18,9 @@
 //! ast.configure(mux_alarm);
 //! let print_log = components::print_log::PrintLogComponent::new(board_kernel, driver_num, mux_alarm)
 //!     .finalize(components::printlog_component_static!(sam4l::ast::Ast));
-
 //! ```
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 1/08/2020
+// Last modified: 11/29/2022
 
 use capsules::print_log::PrintLog;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
