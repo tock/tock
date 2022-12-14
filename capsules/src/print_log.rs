@@ -17,7 +17,7 @@
 //!                  115200,
 //!                  board_kernel.create_grant(&grant_cap)));
 //! ```
-//! 
+//!
 //! Usage
 //! -----
 //!
