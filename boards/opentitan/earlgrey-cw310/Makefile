@@ -24,6 +24,10 @@ else
 	CARGO_FLAGS += --features=$(DEFAULT_BOARD_CONFIGURATION)
 endif
 
+# Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
+# default which causes incompatability with `core` built via `-Zbuild-std`.
+CARGO_FLAGS += -Zpanic-abort-tests
+
 .PHONY: ot-check
 OPENTITAN_ACTUAL_SHA := $(shell cd $(OPENTITAN_TREE); git show --pretty=format:"%H" --no-patch)
 # TODO: Theres mix and match of tab/space indenting in the block below,
@@ -94,7 +98,7 @@ endif
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD)  $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release
 # 	Test layout should be removed so that following apps (non-test) load the correct layout.
 	$(Q)rm $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 
@@ -102,10 +106,10 @@ test-hardware: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" OBJCOPY=${OBJCOPY} TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" OBJCOPY=${OBJCOPY} TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
 
 test-verilator: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=${OBJCOPY} TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests --features sim_verilator
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=${OBJCOPY} TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests --features sim_verilator
