@@ -58,6 +58,10 @@
 // code in this crate
 #![cfg_attr(not(feature = "register_types"), forbid(unsafe_code))]
 
+mod new;
+pub use new::*;
+pub use tock_registers_derive::peripheral;
+
 pub mod fields;
 pub mod interfaces;
 pub mod macros;

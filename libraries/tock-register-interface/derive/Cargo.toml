@@ -1,0 +1,20 @@
+[package]
+name = "tock-registers-derive"
+version = "0.8.1"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+description = "Procedural macros for tock-registers"
+homepage = "https://www.tockos.org/"
+repository = "https://github.com/tock/tock/tree/master/libraries/tock-register-interface"
+readme = "README.md"
+keywords = ["tock", "embedded", "registers", "mmio", "bare-metal"]
+categories = ["data-structures", "embedded", "no-std"]
+license = "MIT/Apache-2.0"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = "1.0.47"
+quote = "1.0.23"
+syn = "1.0.105"
+
+[lib]
+proc-macro = true

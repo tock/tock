@@ -14,6 +14,9 @@ edition = "2021"
 [badges]
 travis-ci = { repository = "tock/tock", branch = "master" }
 
+[dependencies]
+tock-registers-derive = { path = "derive" }
+
 [features]
 default = [ "register_types" ]
 
