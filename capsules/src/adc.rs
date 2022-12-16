@@ -655,72 +655,48 @@ impl<'a> AdcVirtualized<'a> {
         appid: ProcessId,
     ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
-            match self
+            if self.current_app.is_none() {
+                kernel::debug!("current app is none");
+                self.current_app.set(appid);
+                let r = self.call_driver(command, channel);
+                if r != Ok(()) {
+                    self.current_app.clear();
+                }
+                self.run_next_command();
+                Ok(())
+            } else {
+                match self
                 .apps
                 .enter(appid, |app, _| {
                     if app.pending_command == true {
+                        kernel::debug!("there is a command already pending, busy");
                         Err(ErrorCode::BUSY)
                     } else {
+                        kernel::debug!("set pending command");
                         app.pending_command = true;
                         app.command.set(command);
                         app.channel = channel;
                         Ok(())
                     }
-                })
-                .map_err(ErrorCode::from)
-            {
-                Err(e) => Err(e),
-                Ok(mut r) => {
-                    if self.current_app.is_none() {
-                        self.current_app.set(appid);
-                        r = self.call_driver(command, channel);
-                        if r != Ok(()) {
-                            self.current_app.clear();
-                        }
-                        self.run_next_command();
-                    }
-                    r
+                }).map_err(ErrorCode::from) {
+                    Err(e) => Err(e),
+                    Ok(_) => Ok(())
                 }
             }
         } else {
             Err(ErrorCode::NODEVICE)
         }
-
-        // if channel < self.drivers.len() {
-        //     self.apps
-        //         .enter(appid, |app, _| {
-        //             if self.current_app.is_none() {
-        //                 self.current_app.set(appid);
-        //                 let value = self.call_driver(command, channel);
-        //                 if value != Ok(()) {
-        //                     self.current_app.clear();
-        //                 }
-        //                 app.channel = channel;
-        //                 value
-        //             } else {
-        //                 if app.pending_command == true {
-        //                     Err(ErrorCode::BUSY)
-        //                 } else {
-        //                     app.pending_command = true;
-        //                     app.command.set(command);
-        //                     app.channel = channel;
-        //                     Ok(())
-        //                 }
-        //             }
-        //         })
-        //         .unwrap_or_else(|err| err.into())
-        // } else {
-        //     Err(ErrorCode::NODEVICE)
-        // }
     }
 
     fn run_next_command(&self) {
         let mut command = Operation::OneSample;
         let mut channel = 0;
         for app in self.apps.iter() {
+            kernel::debug!("an app");
             let appid = app.processid();
             let start_command = app.enter(|app, _| {
                 if app.pending_command {
+                    kernel::debug!("there is a pending command");
                     app.pending_command = false;
                     app.command.take().map(|c| {
                         command = c;
@@ -747,6 +723,7 @@ impl<'a> AdcVirtualized<'a> {
 
     /// Request the sample from the specified channel
     fn call_driver(&self, command: Operation, channel: usize) -> Result<(), ErrorCode> {
+        kernel::debug!("call driver");
         match command {
             Operation::OneSample => self.drivers[channel].sample(),
         }
@@ -1306,13 +1283,24 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
             // Single sample.
             1 => {
+                kernel::debug!("sample");
                 let res = self.enqueue_command(Operation::OneSample, channel, appid);
-                if res == Ok(()) {
+                let res1 = self.enqueue_command(Operation::OneSample, channel+1, appid);
+                if res == Ok(()) && res1 == Ok(()) {
                     CommandReturn::success()
                 } else {
-                    match ErrorCode::try_from(res) {
-                        Ok(error) => CommandReturn::failure(error),
-                        _ => panic!("ADC Syscall: invalid error from enqueue_command"),
+                    if res != Ok(()) {
+                        match ErrorCode::try_from(res) {
+                            Ok(error) => CommandReturn::failure(error),
+                            _ => panic!("ADC Syscall: invalid error from enqueue_command"),
+                        }
+                    } else if res1 != Ok(()) {
+                        match ErrorCode::try_from(res1) {
+                            Ok(error) => CommandReturn::failure(error),
+                            _ => panic!("ADC Syscall: invalid error from enqueue_command"),
+                        }
+                    } else {
+                        panic!("ADC Syscall: invalid error from enqueue_command")
                     }
                 }
             }
@@ -1350,10 +1338,12 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {
     fn sample_ready(&self, sample: u16) {
+        kernel::debug!("sample ready");
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
+                kernel::debug!("schedule upcall");
                 upcalls
                     .schedule_upcall(
                         0,
@@ -1362,6 +1352,7 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
                     .ok();
             });
         });
+        kernel::debug!("run next command");
         self.run_next_command();
     }
 }
