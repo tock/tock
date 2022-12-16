@@ -40,6 +40,10 @@ macro_rules! process_console_component_static {
         let read_buffer = kernel::static_buf!([u8; capsules::process_console::READ_BUF_LEN]);
         let queue_buffer = kernel::static_buf!([u8; capsules::process_console::QUEUE_BUF_LEN]);
         let command_buffer = kernel::static_buf!([u8; capsules::process_console::COMMAND_BUF_LEN]);
+        let command_history_buffer = kernel::static_buf!(
+            [[u8; capsules::process_console::COMMAND_BUF_LEN];
+                capsules::process_console::COMMAND_HISTORY_LEN]
+        );
 
         (
             alarm,
@@ -48,6 +52,7 @@ macro_rules! process_console_component_static {
             read_buffer,
             queue_buffer,
             command_buffer,
+            command_history_buffer,
             pconsole,
         )
     };};
@@ -101,6 +106,10 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
         &'static mut MaybeUninit<[u8; capsules::process_console::READ_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules::process_console::QUEUE_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules::process_console::COMMAND_BUF_LEN]>,
+        &'static mut MaybeUninit<
+            [[u8; capsules::process_console::COMMAND_BUF_LEN];
+                capsules::process_console::COMMAND_HISTORY_LEN],
+        >,
         &'static mut MaybeUninit<ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>>,
     );
     type Output =
@@ -144,8 +153,12 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
         let command_buffer = static_buffer
             .5
             .write([0; capsules::process_console::COMMAND_BUF_LEN]);
+        let command_history_buffer = static_buffer.6.write(
+            [[0; capsules::process_console::COMMAND_BUF_LEN];
+                capsules::process_console::COMMAND_HISTORY_LEN],
+        );
 
-        let console = static_buffer.6.write(ProcessConsole::new(
+        let console = static_buffer.7.write(ProcessConsole::new(
             console_uart,
             console_alarm,
             self.process_printer,
@@ -153,6 +166,7 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
             read_buffer,
             queue_buffer,
             command_buffer,
+            command_history_buffer,
             self.board_kernel,
             kernel_addresses,
             Capability,
