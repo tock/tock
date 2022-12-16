@@ -9,6 +9,7 @@ use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::ProcessId;
 
@@ -32,6 +33,8 @@ pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub const COMMAND_BUF_LEN: usize = 32;
+
+pub const COMMAND_HISTORY_LEN: usize = 10;
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
@@ -96,6 +99,10 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
+
+    control_seq_in_progress: Cell<bool>,
+    command_history: TakeCell<'static, [[u8; COMMAND_BUF_LEN]; COMMAND_HISTORY_LEN]>,
+    command_history_index: OptionalCell<usize>,
 
     /// Keep the previously read byte to consider \r\n sequences
     /// as a single \n.
@@ -164,6 +171,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
+        cmd_history_buffer: &'static mut [[u8; COMMAND_BUF_LEN]; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         capability: C,
@@ -181,6 +189,10 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
+
+            control_seq_in_progress: Cell::new(false),
+            command_history: TakeCell::new(cmd_history_buffer),
+            command_history_index: OptionalCell::empty(),
 
             previous_byte: Cell::new(0),
 
@@ -456,6 +468,15 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                 match cmd_str {
                     Ok(s) => {
                         let clean_str = s.trim();
+
+                        self.command_history.map(|cmd_arr| {
+                            for i in (1..10).rev() {
+                                cmd_arr[i] = cmd_arr[i - 1];
+                            }
+                            for i in 0..(terminator + 1) {
+                                cmd_arr[0][i] = command[i];
+                            }
+                        });
 
                         if clean_str.starts_with("help") {
                             let _ = self.write_bytes(b"Welcome to the process console.\r\n");
@@ -841,6 +862,9 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
+                        if command[0] == 0 {
+                            self.command_history_index.insert(None);
+                        }
                         let previous_byte = self.previous_byte.get();
                         self.previous_byte.set(read_buf[0]);
                         let index = self.command_index.get() as usize;
@@ -862,6 +886,73 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                 let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
                                 command[index - 1] = '\0' as u8;
                                 self.command_index.set(index - 1);
+                            }
+                        } else if read_buf[0] == ('\x1B' as u8)
+                            || self.control_seq_in_progress.get()
+                        {
+                            if read_buf[0] == ('\x1B' as u8) {
+                                self.control_seq_in_progress.set(true);
+                            } else if read_buf[0] != ('[' as u8) {
+                                match read_buf[0] {
+                                    b'A' => {
+                                        if let Some(index) =
+                                            if let Some(i) = self.command_history_index.extract() {
+                                                self.command_history
+                                                    .map(|cmd_arr| match cmd_arr[i + 1][0] {
+                                                        0 => None,
+                                                        _ => Some(i + 1),
+                                                    })
+                                                    .unwrap()
+                                            } else {
+                                                self.command_history
+                                                    .map(|cmd_arr| match cmd_arr[0][0] {
+                                                        0 => None,
+                                                        _ => Some(0),
+                                                    })
+                                                    .unwrap()
+                                            }
+                                        {
+                                            self.command_history_index.set(index);
+                                            self.command_history.map(|next_command| {
+                                                let prev_command_len = self.command_index.get();
+                                                let next_command_len = {
+                                                    let mut i = 0;
+                                                    loop {
+                                                        if next_command[index][i] == 0 {
+                                                            break i;
+                                                        }
+                                                        i = i + 1;
+                                                    }
+                                                };
+                                                for _ in 0..prev_command_len {
+                                                    let _ = self.write_bytes(&[
+                                                        '\x08' as u8,
+                                                        ' ' as u8,
+                                                        '\x08' as u8,
+                                                    ]);
+                                                }
+
+                                                for i in 0..next_command_len {
+                                                    let _ = self.write_byte(next_command[index][i]);
+                                                    command[i] = next_command[index][i];
+                                                }
+                                                self.command_index.set(next_command_len);
+                                                command[next_command_len] = '\0' as u8;
+                                            });
+                                        }
+                                    }
+                                    b'B' => {
+                                        if self.command_history_index.is_some()
+                                            && self.command_history_index.extract().unwrap() > 0
+                                        {
+                                            let index =
+                                                self.command_history_index.extract().unwrap() - 1;
+                                            self.command_history_index.set(index);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                                self.control_seq_in_progress.set(false);
                             }
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
                             // For some reason, sometimes reads return > 127 but no error,
