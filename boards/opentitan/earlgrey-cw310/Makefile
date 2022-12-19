@@ -1,6 +1,5 @@
 # Makefile for building the tock kernel for the OpenTitan platform
 
-DEFAULT_BOARD_CONFIGURATION=fpga_cw310
 TARGET=riscv32imc-unknown-none-elf
 PLATFORM=earlgrey-cw310
 FLASHID=--dev-id="0403:6010"
@@ -20,8 +19,6 @@ include ../../Makefile.common
 # Cargo `--features`. Please see `Cargo.toml` for available options.
 ifneq ($(BOARD_CONFIGURATION),)
 	CARGO_FLAGS += --features=$(BOARD_CONFIGURATION)
-else
-	CARGO_FLAGS += --features=$(DEFAULT_BOARD_CONFIGURATION)
 endif
 
 # Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
@@ -112,4 +109,4 @@ test-verilator: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=${OBJCOPY} TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests --features sim_verilator
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=${OBJCOPY} TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --no-default-features --features=hardware_tests,sim_verilator
