@@ -85,12 +85,6 @@ impl<T> VolatileCell<T> {
     {
         unsafe { ptr::write_volatile(self.value.get(), value) }
     }
-
-    /// Returns a raw pointer to the underlying data in the cell
-    #[inline(always)]
-    pub fn as_ptr(&self) -> *mut T {
-        self.value.get()
-    }
 }
 
 // NOTE implicit because of `UnsafeCell`
