@@ -11,6 +11,8 @@ QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
 QEMU_ENTRY_POINT=0x20000400
 # Latest supported commmit of OpenTitan
 OPENTITAN_SUPPORTED_SHA := d072ac505f82152678d6e04be95c72b728a347b8
+# Enable virtual function elimination
+VFUNC_ELIM=1
 
 
 include ../../Makefile.common
