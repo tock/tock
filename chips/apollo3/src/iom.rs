@@ -1281,7 +1281,7 @@ impl<'a> SpiMaster for Iom<'a> {
     }
 
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
-        if self.op.get() != Operation::SPI {
+        if self.op.get() != Operation::SPI && self.op.get() != Operation::None {
             return Err(ErrorCode::BUSY);
         }
 
@@ -1347,7 +1347,7 @@ impl<'a> SpiMaster for Iom<'a> {
     }
 
     fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
-        if self.op.get() != Operation::SPI {
+        if self.op.get() != Operation::SPI && self.op.get() != Operation::None {
             return Err(ErrorCode::BUSY);
         }
 
@@ -1369,7 +1369,7 @@ impl<'a> SpiMaster for Iom<'a> {
     }
 
     fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
-        if self.op.get() != Operation::SPI {
+        if self.op.get() != Operation::SPI && self.op.get() != Operation::None {
             return Err(ErrorCode::BUSY);
         }
 
