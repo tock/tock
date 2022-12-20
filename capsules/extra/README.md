@@ -69,6 +69,8 @@ Support for wireless radios.
 - **[RF233](src/rf233.rs)**: Driver for RF233 radio.
 - **[BLE Advertising](src/ble_advertising_driver.rs)**: Driver for sending BLE
   advertisements.
+- **[LoRa Phy]**: Support for exposing Semtech devices to userspace
+  See the lora_things_plus board for an example
 
 Libraries
 ---------
