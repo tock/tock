@@ -116,7 +116,7 @@ where
         command_num: usize,
         _arg: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver is present
@@ -126,7 +126,7 @@ where
             1 => {
                 let result = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         if app.awaiting.is_some() {
                             // Each app may make only one request at a time
                             Err(ErrorCode::BUSY)

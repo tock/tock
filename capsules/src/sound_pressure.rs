@@ -87,9 +87,9 @@ impl<'a> SoundPressureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
+    fn enqueue_command(&self, processid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -140,19 +140,25 @@ impl hil::sensors::SoundPressureClient for SoundPressureSensor<'_> {
 }
 
 impl SyscallDriver for SoundPressureSensor<'_> {
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
             0 => CommandReturn::success(),
 
             // read sound_pressure
-            1 => self.enqueue_command(appid),
+            1 => self.enqueue_command(processid),
 
             // enable
             2 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.enable = true;
                         CommandReturn::success()
                     })
@@ -169,7 +175,7 @@ impl SyscallDriver for SoundPressureSensor<'_> {
             3 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.enable = false;
                         CommandReturn::success()
                     })

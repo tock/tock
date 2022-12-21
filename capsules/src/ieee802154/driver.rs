@@ -208,7 +208,7 @@ pub struct RadioDriver<'a> {
     handle: OptionalCell<DeferredCallHandle>,
 
     /// Used to deliver callbacks to the correct app during deferred calls
-    saved_appid: OptionalCell<ProcessId>,
+    saved_processid: OptionalCell<ProcessId>,
 
     /// Used to save result for passing a callback from a deferred call.
     saved_result: OptionalCell<Result<(), ErrorCode>>,
@@ -236,7 +236,7 @@ impl<'a> RadioDriver<'a> {
             current_app: OptionalCell::empty(),
             kernel_tx: TakeCell::new(kernel_tx),
             deferred_caller,
-            saved_appid: OptionalCell::empty(),
+            saved_processid: OptionalCell::empty(),
             saved_result: OptionalCell::empty(),
             handle: OptionalCell::empty(),
         }
@@ -364,10 +364,10 @@ impl<'a> RadioDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            let appid = app.processid();
+            let processid = app.processid();
             app.enter(|app, _| {
                 if app.pending_tx.is_some() {
-                    pending_app = Some(appid);
+                    pending_app = Some(processid);
                 }
             });
             if pending_app.is_some() {
@@ -377,26 +377,26 @@ impl<'a> RadioDriver<'a> {
         pending_app
     }
 
-    /// Performs `appid`'s pending transmission asynchronously. If the
+    /// Performs `processid`'s pending transmission asynchronously. If the
     /// transmission is not successful, the error is returned to the app via its
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: ProcessId) {
-        let result = self.perform_tx_sync(appid);
+    fn perform_tx_async(&self, processid: ProcessId) {
+        let result = self.perform_tx_sync(processid);
         if result != Ok(()) {
-            self.saved_appid.set(appid);
+            self.saved_processid.set(processid);
             self.saved_result.set(result);
             self.handle.map(|handle| self.deferred_caller.set(*handle));
         }
     }
 
-    /// Performs `appid`'s pending transmission synchronously. The result is
+    /// Performs `processid`'s pending transmission synchronously. The result is
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: ProcessId) -> Result<(), ErrorCode> {
-        self.apps.enter(appid, |app, kerel_data| {
+    fn perform_tx_sync(&self, processid: ProcessId) -> Result<(), ErrorCode> {
+        self.apps.enter(processid, |app, kerel_data| {
             let (dst_addr, security_needed) = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
@@ -442,7 +442,7 @@ impl<'a> RadioDriver<'a> {
                 }
             });
             if result == Ok(()) {
-                self.current_app.set(appid);
+                self.current_app.set(processid);
             }
             result
         })?
@@ -453,7 +453,7 @@ impl<'a> RadioDriver<'a> {
     #[inline]
     fn do_next_tx_async(&self) {
         self.get_next_tx_if_idle()
-            .map(|appid| self.perform_tx_async(appid));
+            .map(|processid| self.perform_tx_async(processid));
     }
 
     /// Schedule the next transmission if there is one pending. If the next
@@ -462,12 +462,12 @@ impl<'a> RadioDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_sync(&self, new_appid: ProcessId) -> Result<(), ErrorCode> {
-        self.get_next_tx_if_idle().map_or(Ok(()), |appid| {
-            if appid == new_appid {
-                self.perform_tx_sync(appid)
+    fn do_next_tx_sync(&self, new_processid: ProcessId) -> Result<(), ErrorCode> {
+        self.get_next_tx_if_idle().map_or(Ok(()), |processid| {
+            if processid == new_processid {
+                self.perform_tx_sync(processid)
             } else {
-                self.perform_tx_async(appid);
+                self.perform_tx_async(processid);
                 Ok(())
             }
         })
@@ -478,8 +478,8 @@ impl DynamicDeferredCallClient for RadioDriver<'_> {
     fn call(&self, _handle: DeferredCallHandle) {
         let _ = self
             .apps
-            .enter(self.saved_appid.unwrap_or_panic(), |_app, upcalls| {
-                // Unwrap fail = missing appid
+            .enter(self.saved_processid.unwrap_or_panic(), |_app, upcalls| {
+                // Unwrap fail = missing processid
                 upcalls
                     .schedule_upcall(
                         1,
@@ -603,7 +603,7 @@ impl SyscallDriver for RadioDriver<'_> {
         command_number: usize,
         arg1: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_number {
             0 => CommandReturn::success(),
@@ -620,7 +620,7 @@ impl SyscallDriver for RadioDriver<'_> {
             }
             3 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -656,7 +656,7 @@ impl SyscallDriver for RadioDriver<'_> {
             }
             9 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -695,7 +695,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 }),
             16 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -717,7 +717,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             17 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -758,7 +758,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 }),
             22 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -784,7 +784,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             23 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -806,7 +806,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             24 => self
                 .apps
-                .enter(appid, |_, kernel_data| {
+                .enter(processid, |_, kernel_data| {
                     kernel_data
                         .get_readwrite_processbuffer(rw_allow::CFG)
                         .and_then(|cfg| {
@@ -836,7 +836,7 @@ impl SyscallDriver for RadioDriver<'_> {
             25 => self.remove_key(arg1).into(),
             26 => {
                 self.apps
-                    .enter(appid, |app, kernel_data| {
+                    .enter(processid, |app, kernel_data| {
                         if app.pending_tx.is_some() {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
@@ -881,7 +881,7 @@ impl SyscallDriver for RadioDriver<'_> {
                     .map_or_else(
                         |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
-                            Ok(_) => self.do_next_tx_sync(appid).into(),
+                            Ok(_) => self.do_next_tx_sync(processid).into(),
                             Err(e) => CommandReturn::failure(e.into()),
                         },
                     )
@@ -898,8 +898,8 @@ impl SyscallDriver for RadioDriver<'_> {
 impl device::TxClient for RadioDriver<'_> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |_app, upcalls| {
+        self.current_app.take().map(|processid| {
+            let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         1,

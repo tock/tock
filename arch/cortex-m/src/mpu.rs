@@ -754,16 +754,16 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, app_id: &ProcessId) {
+    fn configure_mpu(&self, config: &Self::MpuConfig, processid: &ProcessId) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
-        if !self.hardware_is_configured_for.contains(app_id) || config.is_dirty.get() {
+        if !self.hardware_is_configured_for.contains(processid) || config.is_dirty.get() {
             // Set MPU regions
             for region in config.regions.iter() {
                 self.registers.rbar.write(region.base_address());
                 self.registers.rasr.write(region.attributes());
             }
-            self.hardware_is_configured_for.set(*app_id);
+            self.hardware_is_configured_for.set(*processid);
             config.is_dirty.set(false);
         }
     }

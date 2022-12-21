@@ -58,11 +58,11 @@ impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
 
 impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
     fn context_switch_hook(&self, process: &dyn process::Process) {
-        let appid = process.processid();
+        let processid = process.processid();
         let pending_tasks = process.pending_tasks();
 
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 let count = app.count.get();
 
                 let _ = app.mem_region.mut_enter(|buf| {
@@ -93,12 +93,12 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
     ///        This should only be read by the app and written by the capsule.
     fn allow_userspace_readable(
         &self,
-        appid: ProcessId,
+        processid: ProcessId,
         which: usize,
         mut slice: UserspaceReadableProcessBuffer,
     ) -> Result<UserspaceReadableProcessBuffer, (UserspaceReadableProcessBuffer, ErrorCode)> {
         if which == 0 {
-            let res = self.apps.enter(appid, |data, _| {
+            let res = self.apps.enter(processid, |data, _| {
                 core::mem::swap(&mut data.mem_region, &mut slice);
             });
             match res {
@@ -120,7 +120,7 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
         command_number: usize,
         _target_id: usize,
         _: usize,
-        _appid: ProcessId,
+        _processid: ProcessId,
     ) -> CommandReturn {
         match command_number {
             // get version

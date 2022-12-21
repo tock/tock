@@ -27,8 +27,6 @@ use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
 
-use nrf52_components::ble::BLEComponent;
-
 const LED1_PIN: Pin = Pin::P0_26;
 const LED2_PIN: Pin = Pin::P0_22;
 const LED3_PIN: Pin = Pin::P0_23;
@@ -124,6 +122,7 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -136,6 +135,9 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -227,12 +229,12 @@ pub unsafe fn main() {
             6 => &nrf52832_peripherals.gpio_port[Pin::P0_31]
         ),
     )
-    .finalize(components::gpio_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::gpio_component_static!(nrf52832::gpio::GPIOPin));
 
     //
     // LEDs
     //
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52832::gpio::GPIOPin>,
         LedLow::new(&nrf52832_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52832_peripherals.gpio_port[LED2_PIN]),
@@ -274,7 +276,9 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(nrf52832::gpio::GPIOPin));
+    .finalize(components::button_component_static!(
+        nrf52832::gpio::GPIOPin
+    ));
 
     //
     // RTC for Timers
@@ -316,9 +320,10 @@ pub unsafe fn main() {
     //
 
     // RTT communication channel
-    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new().finalize(());
+    let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+        .finalize(components::segger_rtt_memory_component_static!());
     let rtt = components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
-        .finalize(components::segger_rtt_component_helper!(nrf52832::rtc::Rtc));
+        .finalize(components::segger_rtt_component_static!(nrf52832::rtc::Rtc));
 
     //
     // Virtual UART
@@ -336,7 +341,8 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     //
     // I2C Devices
@@ -411,13 +417,16 @@ pub unsafe fn main() {
     // BLE
     //
 
-    let ble_radio = BLEComponent::new(
+    let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
         capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
-    .finalize(());
+    .finalize(components::ble_component_static!(
+        nrf52832::rtc::Rtc,
+        nrf52832::ble_radio::Radio
+    ));
 
     //
     // Temperature
@@ -562,7 +571,7 @@ pub unsafe fn main() {
     while !base_peripherals.clock.high_started() {}
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
         button: button,

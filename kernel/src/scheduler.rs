@@ -9,7 +9,6 @@ use crate::dynamic_deferred_call::DynamicDeferredCall;
 use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
-use crate::Kernel;
 
 /// Trait which any scheduler must implement.
 pub trait Scheduler<C: Chip> {
@@ -24,7 +23,7 @@ pub trait Scheduler<C: Chip> {
     /// process. If the timeslice is `None`, the process will be run
     /// cooperatively (i.e. without preemption). Otherwise the process will run
     /// with a timeslice set to the specified length.
-    fn next(&self, kernel: &Kernel) -> SchedulingDecision;
+    fn next(&self) -> SchedulingDecision;
 
     /// Inform the scheduler of why the last process stopped executing, and how
     /// long it executed for. Notably, `execution_time_us` will be `None`

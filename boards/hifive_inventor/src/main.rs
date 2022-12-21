@@ -52,11 +52,12 @@ struct HiFiveInventor {
     >,
     alarm: &'static capsules::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
+        VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
     >,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer:
-        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+    scheduler_timer: &'static VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -80,9 +81,10 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -95,6 +97,11 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
     }
+
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
+        &()
+    }
+
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }
@@ -172,33 +179,36 @@ pub unsafe fn main() {
     .finalize(components::uart_mux_component_static!());
 
     let hardware_timer = static_init!(
-        sifive::clint::Clint,
-        sifive::clint::Clint::new(&e310_g003::clint::CLINT_BASE)
+        e310_g003::chip::E310xClint,
+        e310_g003::chip::E310xClint::new(&e310_g003::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, sifive::clint::Clint>,
+        MuxAlarm<'static, e310_g003::chip::E310xClint>,
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
+        VirtualMuxAlarm<'static, e310_g003::chip::E310xClint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
+        VirtualMuxAlarm<'static, e310_g003::chip::E310xClint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     systick_virtual_alarm.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
+        capsules::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, e310_g003::chip::E310xClint>,
+        >,
         capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -212,8 +222,8 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -223,7 +233,7 @@ pub unsafe fn main() {
         process_printer,
     )
     .finalize(components::process_console_component_static!(
-        sifive::clint::Clint
+        e310_g003::chip::E310xClint
     ));
     let _ = process_console.start();
 
@@ -244,14 +254,15 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     debug!("HiFive1 initialization complete. Entering main loop.");
 
@@ -268,10 +279,10 @@ pub unsafe fn main() {
     }
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
 

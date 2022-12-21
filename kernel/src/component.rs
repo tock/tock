@@ -53,5 +53,5 @@ pub trait Component {
     ///   `static_memory` argument. The `finalize()` method MUST NOT use
     ///   `static_init!()` or `static_buf!()` directly. This restriction ensures
     ///   that memory is not aliased if the component is used multiple times.
-    unsafe fn finalize(self, static_memory: Self::StaticInput) -> Self::Output;
+    fn finalize(self, static_memory: Self::StaticInput) -> Self::Output;
 }

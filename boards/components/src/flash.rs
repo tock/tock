@@ -1,15 +1,16 @@
 //! Component for Flash
 //!
-//! Provides `FlashMux` and `FlashUser` (virtual flash)
+//! Provides `FlashMux` and `FlashUser` (virtual flash).
+//!
 //! Usage
 //! -----
 //! ```rust
 //!    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
-//!       components::flash_mux_component_helper!(nrf52833::nvmc::Nvmc),
+//!       components::flash_mux_component_static!(nrf52833::nvmc::Nvmc),
 //!    );
 //!
 //!    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
-//!       components::flash_user_component_helper!(nrf52833::nvmc::Nvmc),
+//!       components::flash_user_component_static!(nrf52833::nvmc::Nvmc),
 //!    );
 //! ```
 
@@ -18,26 +19,19 @@ use capsules::virtual_flash::MuxFlash;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::flash::{Flash, HasClient};
-use kernel::static_init_half;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! flash_user_component_helper {
+macro_rules! flash_user_component_static {
     ($F:ty) => {{
-        use capsules::virtual_flash::FlashUser;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<FlashUser<'static, $F>> = MaybeUninit::uninit();
-        &mut BUF1
+        kernel::static_buf!(capsules::virtual_flash::FlashUser<'static, $F>)
     };};
 }
 
 #[macro_export]
-macro_rules! flash_mux_component_helper {
+macro_rules! flash_mux_component_static {
     ($F:ty) => {{
-        use capsules::virtual_flash::MuxFlash;
-        use core::mem::MaybeUninit;
-        static mut BUF1: MaybeUninit<MuxFlash<'static, $F>> = MaybeUninit::uninit();
-        &mut BUF1
+        kernel::static_buf!(capsules::virtual_flash::MuxFlash<'static, $F>)
     };};
 }
 
@@ -57,8 +51,8 @@ impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
     type StaticInput = &'static mut MaybeUninit<MuxFlash<'static, F>>;
     type Output = &'static MuxFlash<'static, F>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let mux_flash = static_init_half!(s, MuxFlash<'static, F>, MuxFlash::new(self.flash));
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let mux_flash = s.write(MuxFlash::new(self.flash));
         HasClient::set_client(self.flash, mux_flash);
 
         mux_flash
@@ -81,10 +75,7 @@ impl<F: 'static + Flash + HasClient<'static, MuxFlash<'static, F>>> Component
     type StaticInput = &'static mut MaybeUninit<FlashUser<'static, F>>;
     type Output = &'static FlashUser<'static, F>;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let virtual_flash =
-            static_init_half!(s, FlashUser<'static, F>, FlashUser::new(self.mux_flash));
-
-        virtual_flash
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        s.write(FlashUser::new(self.mux_flash))
     }
 }

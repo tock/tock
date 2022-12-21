@@ -102,6 +102,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -114,6 +115,9 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -462,13 +466,14 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, stm32f412g::gpio::Pin>,
         LedLow::new(
             base_peripherals
@@ -549,13 +554,13 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f412g::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f412g::gpio::Pin));
 
     // ALARM
 
     let tim2 = &base_peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f412g::tim2::Tim2),
+        components::alarm_mux_component_static!(stm32f412g::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -563,7 +568,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32f412g::tim2::Tim2));
+    .finalize(components::alarm_component_static!(stm32f412g::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(
@@ -598,11 +603,11 @@ pub unsafe fn main() {
             // 20 => base_peripherals.gpio_ports.get_pin(stm32f412g::gpio::PinId::PB00).unwrap() //A5
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f412g::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f412g::gpio::Pin));
 
     // RNG
-    let rng =
-        RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng).finalize(());
+    let rng = RngComponent::new(board_kernel, capsules::rng::DRIVER_NUM, &peripherals.trng)
+        .finalize(components::rng_component_static!());
 
     // FT6206
 
@@ -611,45 +616,39 @@ pub unsafe fn main() {
         None,
         dynamic_deferred_caller,
     )
-    .finalize(components::i2c_mux_component_helper!());
+    .finalize(components::i2c_mux_component_static!());
 
     let ft6x06 = components::ft6x06::Ft6x06Component::new(
+        mux_i2c,
+        0x38,
         base_peripherals
             .gpio_ports
             .get_pin(stm32f412g::gpio::PinId::PG05)
             .unwrap(),
     )
-    .finalize(components::ft6x06_i2c_component_helper!(mux_i2c));
+    .finalize(components::ft6x06_component_static!());
 
-    let bus = components::bus::Bus8080BusComponent::new().finalize(
-        components::bus8080_bus_component_helper!(
-            // bus type
-            stm32f412g::fsmc::Fsmc,
-            // bus
-            &base_peripherals.fsmc
-        ),
+    let bus = components::bus::Bus8080BusComponent::new(&base_peripherals.fsmc).finalize(
+        components::bus8080_bus_component_static!(stm32f412g::fsmc::Fsmc,),
     );
 
-    let tft = components::st77xx::ST77XXComponent::new(mux_alarm).finalize(
-        components::st77xx_component_helper!(
-            // screen
-            &capsules::st77xx::ST7789H2,
-            // bus type
-            capsules::bus::Bus8080Bus<'static, stm32f412g::fsmc::Fsmc>,
-            // bus
-            &bus,
-            // timer type
-            stm32f412g::tim2::Tim2,
-            // pin type
-            stm32f412g::gpio::Pin,
-            // dc pin (optional)
-            None,
-            // reset pin
-            base_peripherals
-                .gpio_ports
-                .get_pin(stm32f412g::gpio::PinId::PD11)
-        ),
-    );
+    let tft = components::st77xx::ST77XXComponent::new(
+        mux_alarm,
+        bus,
+        None,
+        base_peripherals
+            .gpio_ports
+            .get_pin(stm32f412g::gpio::PinId::PD11),
+        &capsules::st77xx::ST7789H2,
+    )
+    .finalize(components::st77xx_component_static!(
+        // bus type
+        capsules::bus::Bus8080Bus<'static, stm32f412g::fsmc::Fsmc>,
+        // timer type
+        stm32f412g::tim2::Tim2,
+        // pin type
+        stm32f412g::gpio::Pin,
+    ));
 
     let _ = tft.init();
 
@@ -659,7 +658,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_buffer_size!(57600));
+    .finalize(components::screen_component_static!(57600));
 
     let touch = components::touch::MultiTouchComponent::new(
         board_kernel,
@@ -668,7 +667,7 @@ pub unsafe fn main() {
         Some(ft6x06),
         Some(tft),
     )
-    .finalize(());
+    .finalize(components::touch_component_static!());
 
     touch.set_screen_rotation_offset(ScreenRotation::Rotated90);
 
@@ -679,17 +678,17 @@ pub unsafe fn main() {
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)
-        .finalize(components::adc_mux_component_helper!(stm32f412g::adc::Adc));
+        .finalize(components::adc_mux_component_static!(stm32f412g::adc::Adc));
 
-    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(2.5, 0.76)
-        .finalize(components::temperaturestm_adc_component_helper!(
-            // spi type
-            stm32f412g::adc::Adc,
-            // chip select
-            stm32f412g::adc::Channel::Channel18,
-            // spi mux
-            adc_mux
-        ));
+    let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(
+        adc_mux,
+        stm32f412g::adc::Channel::Channel18,
+        2.5,
+        0.76,
+    )
+    .finalize(components::temperature_stm_adc_component_static!(
+        stm32f412g::adc::Adc
+    ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
@@ -702,27 +701,27 @@ pub unsafe fn main() {
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel1)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_1 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel11)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel13)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_3 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel14)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_4 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel15)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_5 =
         components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
-            .finalize(components::adc_component_helper!(stm32f412g::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -735,8 +734,8 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE
@@ -752,7 +751,7 @@ pub unsafe fn main() {
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f412g = STM32F412GDiscovery {
         console,

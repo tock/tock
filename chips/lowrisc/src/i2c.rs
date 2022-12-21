@@ -270,7 +270,8 @@ impl<'a> I2c<'_> {
                     break;
                 }
                 // Send the data
-                regs.fdata.write(FDATA::FBYTE.val(buf[i as usize] as u32));
+                regs.fdata
+                    .write(FDATA::FBYTE.val(*buf.get(i).unwrap_or(&0) as u32));
                 data_pushed = i;
             }
 
@@ -278,7 +279,7 @@ impl<'a> I2c<'_> {
             if regs.status.read(STATUS::FMTFULL) == 0 && data_pushed == (len - 1) {
                 // Send the last byte with the stop signal
                 regs.fdata
-                    .write(FDATA::FBYTE.val(buf[len as usize] as u32) + FDATA::STOP::SET);
+                    .write(FDATA::FBYTE.val(*buf.get(len).unwrap_or(&0) as u32) + FDATA::STOP::SET);
 
                 data_pushed = len;
             }
@@ -309,14 +310,16 @@ impl<'a> I2c<'_> {
         let len = self.write_len.get();
 
         self.buffer.map(|buf| {
-            for i in data_pushed..(len - 1) {
+            let start_index = data_pushed;
+            for i in start_index..(len - 1) {
                 if regs.status.read(STATUS::FMTFULL) != 0 {
                     // The FMT buffer is full
                     data_pushed = i;
                     break;
                 }
                 // Send the data
-                regs.fdata.write(FDATA::FBYTE.val(buf[i as usize] as u32));
+                regs.fdata
+                    .write(FDATA::FBYTE.val(*buf.get(i).unwrap_or(&0) as u32));
                 data_pushed = i;
             }
 
@@ -324,7 +327,7 @@ impl<'a> I2c<'_> {
             if regs.status.read(STATUS::FMTFULL) == 0 && data_pushed == (len - 1) {
                 // Send the last byte with the stop signal
                 regs.fdata
-                    .write(FDATA::FBYTE.val(buf[len as usize] as u32) + FDATA::STOP::SET);
+                    .write(FDATA::FBYTE.val(*buf.get(len).unwrap_or(&0) as u32) + FDATA::STOP::SET);
 
                 data_pushed = len;
             }

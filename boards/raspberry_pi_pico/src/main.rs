@@ -22,6 +22,7 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
@@ -49,6 +50,15 @@ mod flash_bootloader;
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+// Function for the CDC/USB stack used to ask the MCU to reset into
+// tockbootloader.
+fn baud_rate_reset_bootloader_enter() {
+    // unsafe {
+    // cortexm0::scb::reset();
+    // }
+    // TODO reset into bootloader
+}
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -109,6 +119,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm0p::systick::SysTick;
     type WatchDog = ();
@@ -121,6 +132,9 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -249,9 +263,6 @@ pub unsafe fn main() {
     let peripherals = get_peripherals();
     peripherals.resolve_dependencies();
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
-
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
     peripherals.resets.reset_all_except(&[
         Peripheral::IOQSpi,
@@ -308,7 +319,7 @@ pub unsafe fn main() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -316,23 +327,57 @@ pub unsafe fn main() {
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
-        .finalize(components::alarm_mux_component_helper!(RPTimer));
+        .finalize(components::alarm_mux_component_static!(RPTimer));
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(RPTimer));
+    .finalize(components::alarm_component_static!(RPTimer));
+
+    // CDC
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Raspberry Pi",      // Manufacturer
+            "Pico - TockOS",     // Product
+            "00000000000000000", // Serial number
+        ]
+    );
+
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &peripherals.usb,
+        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        64,
+        0x0,
+        0x1,
+        strings,
+        mux_alarm,
+        dynamic_deferred_caller,
+        Some(&baud_rate_reset_bootloader_enter),
+    )
+    .finalize(components::cdc_acm_component_static!(
+        rp2040::usb::UsbCtrl,
+        rp2040::timer::RPTimer
+    ));
 
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+        .finalize(components::uart_mux_component_static!());
+
+    // Uncomment this to use UART as an output
+    // let uart_mux2 = components::console::UartMuxComponent::new(
+    //     &peripherals.uart0,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(components::uart_mux_component_static!());
+
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -342,7 +387,11 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
+
+    cdc.enable();
+    cdc.attach();
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -386,9 +435,9 @@ pub unsafe fn main() {
             // 29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
     )
-    .finalize(components::gpio_component_buf!(RPGpioPin<'static>));
+    .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
-    let led = LedsComponent::new().finalize(components::led_component_helper!(
+    let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
         LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
     ));
@@ -396,14 +445,17 @@ pub unsafe fn main() {
     peripherals.adc.init();
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
-        .finalize(components::adc_mux_component_helper!(Adc));
+        .finalize(components::adc_mux_component_static!(Adc));
 
-    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(1.721, 0.706)
-        .finalize(components::temperaturerp2040_adc_component_helper!(
-            rp2040::adc::Adc,
-            Channel::Channel4,
-            adc_mux
-        ));
+    let temp_sensor = components::temperature_rp2040::TemperatureRp2040Component::new(
+        adc_mux,
+        Channel::Channel4,
+        1.721,
+        0.706,
+    )
+    .finalize(components::temperature_rp2040_adc_component_static!(
+        rp2040::adc::Adc
+    ));
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
@@ -416,16 +468,16 @@ pub unsafe fn main() {
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_channel_3 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel3)
-        .finalize(components::adc_component_helper!(Adc));
+        .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -436,8 +488,8 @@ pub unsafe fn main() {
                 adc_channel_3,
             ));
     // PROCESS CONSOLE
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -474,7 +526,7 @@ pub unsafe fn main() {
     i2c0.set_master_client(i2c);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(

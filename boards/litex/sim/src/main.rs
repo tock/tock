@@ -180,6 +180,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -202,6 +203,9 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -453,7 +457,7 @@ pub unsafe fn main() {
             31 => gpio0.get_gpio_pin(31).unwrap(),
         ),
     )
-    .finalize(components::gpio_component_buf!(GPIOPin));
+    .finalize(components::gpio_component_static!(GPIOPin));
 
     // ---------- LED DRIVER ----------
 
@@ -472,7 +476,7 @@ pub unsafe fn main() {
     );
 
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             kernel::hil::led::LedHigh<GPIOPin>,
             LedHigh::new(&led_gpios[0]),
             LedHigh::new(&led_gpios[1]),
@@ -533,7 +537,7 @@ pub unsafe fn main() {
             ),
         ),
     )
-    .finalize(components::button_component_buf!(GPIOPin));
+    .finalize(components::button_component_static!(GPIOPin));
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ----------
 
@@ -559,8 +563,8 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
 
     PANIC_REFERENCES.process_printer = Some(process_printer);
 
@@ -581,14 +585,15 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
 
@@ -605,7 +610,7 @@ pub unsafe fn main() {
     }
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let litex_sim = LiteXSim {
         gpio_driver: gpio_driver,

@@ -70,6 +70,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = msp432::wdt::Wdt;
@@ -82,6 +83,9 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -253,10 +257,10 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(msp432::gpio::IntPin));
+    .finalize(components::button_component_static!(msp432::gpio::IntPin));
 
     // Setup LEDs
-    let leds = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let leds = components::led::LedsComponent::new().finalize(components::led_component_static!(
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin>,
         kernel::hil::led::LedHigh::new(
             &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P02_0 as usize]
@@ -316,7 +320,7 @@ pub unsafe fn main() {
             34 => &peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P03_6 as usize]
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         msp432::gpio::IntPin<'static>
     ));
 
@@ -348,69 +352,62 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // Setup alarm
     let timer0 = &peripherals.timer_a0;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(timer0).finalize(
-        components::alarm_mux_component_helper!(msp432::timer::TimerA),
+        components::alarm_mux_component_static!(msp432::timer::TimerA),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(msp432::timer::TimerA));
+    .finalize(components::alarm_component_static!(msp432::timer::TimerA));
 
     // Setup ADC
-
     setup_adc_pins(&peripherals.gpio);
 
     let adc_channels = static_init!(
-        [&'static msp432::adc::Channel; 24],
+        [msp432::adc::Channel; 24],
         [
-            &msp432::adc::Channel::Channel0,  // A0
-            &msp432::adc::Channel::Channel1,  // A1
-            &msp432::adc::Channel::Channel2,  // A2
-            &msp432::adc::Channel::Channel3,  // A3
-            &msp432::adc::Channel::Channel4,  // A4
-            &msp432::adc::Channel::Channel5,  // A5
-            &msp432::adc::Channel::Channel6,  // A6
-            &msp432::adc::Channel::Channel7,  // A7
-            &msp432::adc::Channel::Channel8,  // A8
-            &msp432::adc::Channel::Channel9,  // A9
-            &msp432::adc::Channel::Channel10, // A10
-            &msp432::adc::Channel::Channel11, // A11
-            &msp432::adc::Channel::Channel12, // A12
-            &msp432::adc::Channel::Channel13, // A13
-            &msp432::adc::Channel::Channel14, // A14
-            &msp432::adc::Channel::Channel15, // A15
-            &msp432::adc::Channel::Channel16, // A16
-            &msp432::adc::Channel::Channel17, // A17
-            &msp432::adc::Channel::Channel18, // A18
-            &msp432::adc::Channel::Channel19, // A19
-            &msp432::adc::Channel::Channel20, // A20
-            &msp432::adc::Channel::Channel21, // A21
-            &msp432::adc::Channel::Channel22, // A22
-            &msp432::adc::Channel::Channel23, // A23
+            msp432::adc::Channel::Channel0,  // A0
+            msp432::adc::Channel::Channel1,  // A1
+            msp432::adc::Channel::Channel2,  // A2
+            msp432::adc::Channel::Channel3,  // A3
+            msp432::adc::Channel::Channel4,  // A4
+            msp432::adc::Channel::Channel5,  // A5
+            msp432::adc::Channel::Channel6,  // A6
+            msp432::adc::Channel::Channel7,  // A7
+            msp432::adc::Channel::Channel8,  // A8
+            msp432::adc::Channel::Channel9,  // A9
+            msp432::adc::Channel::Channel10, // A10
+            msp432::adc::Channel::Channel11, // A11
+            msp432::adc::Channel::Channel12, // A12
+            msp432::adc::Channel::Channel13, // A13
+            msp432::adc::Channel::Channel14, // A14
+            msp432::adc::Channel::Channel15, // A15
+            msp432::adc::Channel::Channel16, // A16
+            msp432::adc::Channel::Channel17, // A17
+            msp432::adc::Channel::Channel18, // A18
+            msp432::adc::Channel::Channel19, // A19
+            msp432::adc::Channel::Channel20, // A20
+            msp432::adc::Channel::Channel21, // A21
+            msp432::adc::Channel::Channel22, // A22
+            msp432::adc::Channel::Channel23, // A23
         ]
     );
-
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_adc = board_kernel.create_grant(capsules::adc::DRIVER_NUM, &grant_cap);
-    let adc = static_init!(
-        capsules::adc::AdcDedicated<'static, msp432::adc::Adc>,
-        capsules::adc::AdcDedicated::new(
-            &peripherals.adc,
-            grant_adc,
-            adc_channels,
-            &mut capsules::adc::ADC_BUFFER1,
-            &mut capsules::adc::ADC_BUFFER2,
-            &mut capsules::adc::ADC_BUFFER3
-        )
-    );
-
-    peripherals.adc.set_client(adc);
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(
+        msp432::adc::Adc
+    ));
 
     // Set the reference voltage for the ADC to 2.5V
     peripherals
@@ -420,10 +417,10 @@ pub unsafe fn main() {
     peripherals.adc_ref.enable_temp_sensor(true);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let msp_exp432p4014 = MspExp432P401R {

@@ -278,7 +278,19 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
             .virtual_alarms
             .iter()
             .filter(|cur| cur.armed.get())
-            .min_by_key(|cur| cur.dt_reference.get().reference_plus_dt().wrapping_sub(now));
+            .min_by_key(|cur| {
+                let when = cur.dt_reference.get();
+                // If the alarm has already expired, then it should be
+                // considered as the earliest possible (0 ticks), so it
+                // will trigger as soon as possible. This can happen
+                // if the alarm expired *after* it was examined in the
+                // above loop.
+                if !now.within_range(when.reference, when.reference_plus_dt()) {
+                    A::Ticks::from(0u32)
+                } else {
+                    when.reference_plus_dt().wrapping_sub(now)
+                }
+            });
 
         // Set the alarm.
         if let Some(valrm) = next {
@@ -314,18 +326,52 @@ mod tests {
             }
         }
 
+        /// The emulated delay from when hardware timer to when kernel loop will
+        /// run to check if alarms have fired or not.
+        pub fn hardware_delay(&self) -> Ticks32 {
+            Ticks32::from(10)
+        }
+
         /// Fast forwards time to the next time we would fire an alarm and call client. Returns if
         /// alarm is still armed after triggering client
-        fn trigger_next_alarm(&self) -> bool {
-            let hardware_delay = Ticks32::from(10);
+        pub fn trigger_next_alarm(&self) -> bool {
+            if !self.is_armed() {
+                return false;
+            }
             self.now.set(
                 self.reference
                     .get()
                     .wrapping_add(self.dt.get())
-                    .wrapping_add(hardware_delay),
+                    .wrapping_add(self.hardware_delay()),
             );
             self.client.map(|c| c.alarm());
             self.is_armed()
+        }
+
+        /// Runs for the specified number of ticks as long as there are alarms armed.
+        pub fn run_for_ticks(&self, left: Ticks32) {
+            let final_now = self.now.get().wrapping_add(left);
+            let mut left = left.into_u32();
+
+            while self.is_armed() {
+                // Ensure that we have enough remaining ticks to handle the next alarm. Reference is
+                // always in the past, so we need to figure out the difference between the reference
+                // and now to discount the DT the alarm needs to wait by.
+                let ticks_from_reference = self.now.get().wrapping_sub(self.reference.get());
+                let dt = self
+                    .dt
+                    .get()
+                    .into_u32()
+                    .saturating_sub(ticks_from_reference.into_u32());
+                if dt <= left {
+                    left -= dt;
+                    self.trigger_next_alarm();
+                } else {
+                    break;
+                }
+            }
+            // Ensure that we ate up all of the time we were suppose to run for
+            self.now.set(final_now);
         }
     }
 
@@ -488,5 +534,51 @@ mod tests {
         assert!(alarm.now().into_u32() > 100);
         assert_eq!(counter.count(), 1);
         assert!(!still_armed);
+    }
+
+    #[test]
+    fn test_quick_alarms_not_skipped() {
+        let alarm = FakeAlarm::new();
+        let client = ClientCounter::new();
+
+        let mux = MuxAlarm::new(&alarm);
+        alarm.set_alarm_client(&mux);
+
+        let v_alarms = &[
+            VirtualMuxAlarm::new(&mux),
+            VirtualMuxAlarm::new(&mux),
+            VirtualMuxAlarm::new(&mux),
+            VirtualMuxAlarm::new(&mux),
+            VirtualMuxAlarm::new(&mux),
+            VirtualMuxAlarm::new(&mux),
+        ];
+
+        // Precalculated the now and dt for all alarms. The DT should be large enough that the
+        // initial check for firing is not true, but after evaluating all alarms, they would all
+        // be firing. This happens since time "progresses" every time now() is called, which
+        // emulates the clock progressing in real time.
+        let now = alarm.now();
+        let dt = alarm
+            .hardware_delay()
+            .wrapping_add(Ticks32::from(v_alarms.len() as u32));
+
+        for v in v_alarms {
+            v.setup();
+            v.set_alarm_client(&client);
+            let _ = v.set_alarm(now, dt);
+        }
+
+        // Set one alarm to trigger immediately (at the hardware delay) and the other alarm to
+        // trigger in the future by some large degree
+        let _ = v_alarms[0].set_alarm(now, 0.into());
+        let _ = v_alarms[1].set_alarm(now, 1_000.into());
+
+        // Run the alarm long enough for every alarm but the longer alarm to fire, and all other
+        // alarms should have fired once
+        alarm.run_for_ticks(Ticks32::from(750));
+        assert_eq!(client.count(), v_alarms.len() - 1);
+        // Run the alarm long enough for the longer alarm to fire as well and verify count
+        alarm.run_for_ticks(Ticks32::from(750));
+        assert_eq!(client.count(), v_alarms.len());
     }
 }

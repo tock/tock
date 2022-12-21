@@ -87,9 +87,9 @@ impl<'a> TemperatureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
+    fn enqueue_command(&self, processid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -125,13 +125,19 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
 }
 
 impl SyscallDriver for TemperatureSensor<'_> {
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
             0 => CommandReturn::success(),
 
             // read temperature
-            1 => self.enqueue_command(appid),
+            1 => self.enqueue_command(processid),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

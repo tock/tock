@@ -51,7 +51,6 @@ fn trivial_assertion() {
 
 mod aes_test;
 mod csrng;
-mod flash_ctrl;
 mod hmac;
 mod multi_alarm;
 mod otbn;
@@ -61,3 +60,8 @@ mod sha256soft_test; // Test software SHA capsule
 mod sip_hash;
 mod spi_host;
 mod tickv_test;
+/// Only run the flash_ctrl tests last, as testing memory protection
+/// may deny access to flash pages for other tests depending
+/// on flash (i.e tickV).
+#[rustfmt::skip]
+mod flash_ctrl;

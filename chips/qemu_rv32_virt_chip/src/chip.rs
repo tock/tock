@@ -4,6 +4,7 @@ use core::fmt::Write;
 
 use kernel;
 use kernel::debug;
+use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -19,11 +20,13 @@ use crate::interrupts;
 
 type QemuRv32VirtPMP = PMP<8>;
 
+pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
+
 pub struct QemuRv32VirtChip<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: QemuRv32VirtPMP,
     plic: &'a Plic,
-    timer: &'a sifive::clint::Clint<'a>,
+    timer: &'a QemuRv32VirtClint<'a>,
     plic_interrupt_service: &'a I,
 }
 
@@ -56,7 +59,7 @@ impl<'a> InterruptService<()> for QemuRv32VirtDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService<()> + 'a> QemuRv32VirtChip<'a, I> {
-    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a sifive::clint::Clint<'a>) -> Self {
+    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a QemuRv32VirtClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),

@@ -113,6 +113,7 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
@@ -125,6 +126,9 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -332,12 +336,13 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(lpuart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(lpuart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // LEDs
 
     // Clock to Port A is enabled in `set_pin_primary_functions()
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         LedLow::new(peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)),
     ));
@@ -355,12 +360,12 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(imxrt1050::gpio::Pin));
+    .finalize(components::button_component_static!(imxrt1050::gpio::Pin));
 
     // ALARM
     let gpt1 = &peripherals.gpt1;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(gpt1).finalize(
-        components::alarm_mux_component_helper!(imxrt1050::gpt::Gpt1),
+        components::alarm_mux_component_static!(imxrt1050::gpt::Gpt1),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -368,7 +373,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(imxrt1050::gpt::Gpt1));
+    .finalize(components::alarm_component_static!(imxrt1050::gpt::Gpt1));
 
     // GPIO
     // For now we expose only two pins
@@ -381,7 +386,7 @@ pub unsafe fn main() {
             0 => peripherals.ports.pin(imxrt1050::gpio::PinId::AdB0_09)
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         imxrt1050::gpio::Pin<'static>
     ));
 
@@ -441,22 +446,23 @@ pub unsafe fn main() {
     use imxrt1050::gpio::PinId;
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
         mux_i2c,
+        0x1f,
         peripherals.ports.pin(PinId::AdB1_00),
     )
-    .finalize(());
+    .finalize(components::fxos8700_component_static!());
 
     // Ninedof
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(fxos8700));
+            .finalize(components::ninedof_component_static!(fxos8700));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let imxrt1050 = Imxrt1050EVKB {
         console: console,
@@ -483,8 +489,8 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // Process Console
     //---------------------------------------------------------------------------
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(

@@ -2,6 +2,7 @@
 name = "bulk-test"
 version = "0.1.0"
 authors = ["Daniel B. Giffin <dbg@scs.stanford.edu>"]
+edition.workspace = true
 
 [dependencies]
 libusb = { git ="https://github.com/tock/libusb-rs" }

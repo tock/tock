@@ -1,43 +1,42 @@
-//! Proximity SyscallDriver for the Adafruit APDS9960 gesture/ambient light/proximity sensor.
+//! Proximity SyscallDriver for the Adafruit APDS9960 gesture/ambient
+//! light/proximity sensor.
 //!
-//! <https://content.arduino.cc/assets/Nano_BLE_Sense_av02-4191en_ds_apds-9960.pdf>   <-- Datasheet
+//! Datasheet:
+//! <https://content.arduino.cc/assets/Nano_BLE_Sense_av02-4191en_ds_apds-9960.pdf>
 //!
-//! > The APDS-9960 device features advanced Gesture detection, Proximity detection, Digital Ambient Light Sense
-//! > (ALS) and Color Sense (RGBC). The slim modular package,
-//! > L 3.94 x W 2.36 x H 1.35 mm, incorporates an IR LED and
-//! > factory calibrated LED driver for drop-in compatibility
-//! > with existing footprints
+//! > The APDS-9960 device features advanced Gesture detection, Proximity
+//! > detection, Digital Ambient Light Sense (ALS) and Color Sense (RGBC). The
+//! > slim modular package, L 3.94 x W 2.36 x H 1.35 mm, incorporates an IR LED
+//! > and factory calibrated LED driver for drop-in compatibility with existing
+//! > footprints
 //!
 //! Usage
 //! -----
 //!
 //! ```rust
-//! # use kernel::static_init;
-//!
 //! let apds9960_i2c = static_init!(
 //!    capsules::virtual_i2c::I2CDevice,
 //!    capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
-//!);
+//! );
 //!
-//!let apds9960 = static_init!(
+//! let apds9960 = static_init!(
 //!    capsules::apds9960::APDS9960<'static>,
 //!    capsules::apds9960::APDS9960::new(
 //!        apds9960_i2c,
 //!        &nrf52840::gpio::PORT[APDS9960_PIN],
 //!        &mut capsules::apds9960::BUFFER
 //!    )
-//!);
-//!apds9960_i2c.set_client(apds9960);
-//!nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
-
-//!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! );
+//! apds9960_i2c.set_client(apds9960);
+//! nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
 //!
-//!let proximity = static_init!(
+//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//!
+//! let proximity = static_init!(
 //!    capsules::proximity::ProximitySensor<'static>,
 //!    capsules::proximity::ProximitySensor::new(apds9960 , board_kernel.create_grant(&grant_cap)));
-
-//!kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 //!
+//! kernel::hil::sensors::ProximityDriver::set_client(apds9960, proximity);
 //! ```
 
 use core::cell::Cell;
@@ -47,7 +46,7 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // I2C Buffer of 16 bytes
-pub static mut BUFFER: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 175];
+pub const BUF_LEN: usize = 16;
 
 // BUFFER Layout:  [0,...  ,   12                            , 13               ,                   14                ,   15]
 //                             ^take_meas() callback stored    ^take_meas_int callback stored       ^low thresh           ^high thresh

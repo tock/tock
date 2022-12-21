@@ -6,14 +6,13 @@
 //! -----
 //!
 //! ```rust
-//! # use kernel::static_init;
-//!
+//! let buffer = static_init!([u8; capsules::lps25hb::BUF_LEN], [0; capsules::lps25hb::BUF_LEN]);
 //! let lps25hb_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x5C));
 //! let lps25hb = static_init!(
 //!     capsules::lps25hb::LPS25HB<'static>,
 //!     capsules::lps25hb::LPS25HB::new(lps25hb_i2c,
 //!         &sam4l::gpio::PA[10],
-//!         &mut capsules::lps25hb::BUFFER));
+//!         buffer));
 //! lps25hb_i2c.set_client(lps25hb);
 //! sam4l::gpio::PA[10].set_client(lps25hb);
 //! ```
@@ -32,8 +31,8 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Lps25hb as usize;
 
-// Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 5] = [0; 5];
+// Expected buffer length.
+pub const BUF_LEN: usize = 5;
 
 /// Register values
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;

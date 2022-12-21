@@ -88,6 +88,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -100,6 +101,9 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -300,13 +304,14 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // LEDs
     // Clock to Port A, B, C are enabled in `set_pin_primary_functions()`
     let gpio_ports = &base_peripherals.gpio_ports;
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, stm32f401cc::gpio::Pin>,
         LedLow::new(gpio_ports.get_pin(stm32f401cc::gpio::PinId::PC13).unwrap()),
     ));
@@ -324,13 +329,13 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(stm32f401cc::gpio::Pin));
+    .finalize(components::button_component_static!(stm32f401cc::gpio::Pin));
 
     // ALARM
 
     let tim2 = &base_peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f401cc::tim2::Tim2),
+        components::alarm_mux_component_static!(stm32f401cc::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -338,7 +343,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32f401cc::tim2::Tim2));
+    .finalize(components::alarm_component_static!(stm32f401cc::tim2::Tim2));
 
     // GPIO
     let gpio = GpioComponent::new(
@@ -382,35 +387,35 @@ pub unsafe fn main() {
             46 => gpio_ports.pins[1][9].as_ref().unwrap(), // B9
         ),
     )
-    .finalize(components::gpio_component_buf!(stm32f401cc::gpio::Pin));
+    .finalize(components::gpio_component_static!(stm32f401cc::gpio::Pin));
 
     // ADC
     let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc1)
-        .finalize(components::adc_mux_component_helper!(stm32f401cc::adc::Adc));
+        .finalize(components::adc_mux_component_static!(stm32f401cc::adc::Adc));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(&adc_mux, stm32f401cc::adc::Channel::Channel3)
-            .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_channel_1 =
         components::adc::AdcComponent::new(&adc_mux, stm32f401cc::adc::Channel::Channel10)
-            .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f401cc::adc::Channel::Channel13)
-            .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_channel_3 =
         components::adc::AdcComponent::new(&adc_mux, stm32f401cc::adc::Channel::Channel9)
-            .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_channel_4 =
         components::adc::AdcComponent::new(&adc_mux, stm32f401cc::adc::Channel::Channel15)
-            .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_channel_5 =
         components::adc::AdcComponent::new(&adc_mux, stm32f401cc::adc::Channel::Channel8)
-            .finalize(components::adc_component_helper!(stm32f401cc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -423,8 +428,8 @@ pub unsafe fn main() {
                 adc_channel_5
             ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE
@@ -440,7 +445,7 @@ pub unsafe fn main() {
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let weact_f401cc = WeactF401CC {
         console: console,

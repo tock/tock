@@ -13,15 +13,15 @@
 //!     None,
 //! );
 //!
-//! components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+//! components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
 //! ```
 //!
 //! The debug queue is optional, if not set in the board it is just ignored.
 //! You can add one in the board file as follows:
 //!
 //! ```ignore
-//! let buf = static_init!([u8; 1024], [0; 1024]);
-//! components::debug_queue::DebugQueueComponent::new(buf).finalize(());
+//! components::debug_queue::DebugQueueComponent::new()
+//!     .finalize(components::debug_queue_component_static!());
 //! ```
 //!
 //! Example

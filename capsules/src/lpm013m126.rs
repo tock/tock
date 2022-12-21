@@ -28,7 +28,7 @@ use kernel::ErrorCode;
 /// plus 2 bytes of data transfer period at the end
 ///
 /// 176 * 2 + 2 = 354 bytes.
-pub const BUFFER_SIZE: usize = 3872 + 354;
+pub const BUF_LEN: usize = 3872 + 354;
 
 /// Best Tock can do, sadly.
 /// Would be better to have it offset.
@@ -221,7 +221,7 @@ where
         deferred_caller: &'a DynamicDeferredCall,
         frame_buffer: &'static mut [u8],
     ) -> Result<Self, InitError> {
-        if frame_buffer.len() < BUFFER_SIZE {
+        if frame_buffer.len() < BUF_LEN {
             Err(InitError::BufferTooSmall)
         } else {
             Ok(Self {

@@ -114,6 +114,7 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::WindoWdg<'static>;
@@ -126,6 +127,9 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -435,13 +439,14 @@ pub unsafe fn main() {
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // LEDs
 
     // Clock to Port E is enabled in `set_pin_primary_functions()`
 
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
         LedHigh::new(
             &peripherals
@@ -509,7 +514,7 @@ pub unsafe fn main() {
             )
         ),
     )
-    .finalize(components::button_component_buf!(
+    .finalize(components::button_component_static!(
         stm32f303xc::gpio::Pin<'static>
     ));
 
@@ -517,7 +522,7 @@ pub unsafe fn main() {
 
     let tim2 = &peripherals.tim2;
     let mux_alarm = components::alarm::AlarmMuxComponent::new(tim2).finalize(
-        components::alarm_mux_component_helper!(stm32f303xc::tim2::Tim2),
+        components::alarm_mux_component_static!(stm32f303xc::tim2::Tim2),
     );
 
     let alarm = components::alarm::AlarmDriverComponent::new(
@@ -525,7 +530,7 @@ pub unsafe fn main() {
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(stm32f303xc::tim2::Tim2));
+    .finalize(components::alarm_component_static!(stm32f303xc::tim2::Tim2));
 
     let gpio_ports = &peripherals.gpio_ports;
     // GPIO
@@ -627,24 +632,24 @@ pub unsafe fn main() {
             86 => &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PC09).unwrap()
         ),
     )
-    .finalize(components::gpio_component_buf!(
+    .finalize(components::gpio_component_static!(
         stm32f303xc::gpio::Pin<'static>
     ));
 
     // L3GD20 sensor
     let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
-        .finalize(components::spi_mux_component_helper!(stm32f303xc::spi::Spi));
+        .finalize(components::spi_mux_component_static!(stm32f303xc::spi::Spi));
 
-    let l3gd20 =
-        components::l3gd20::L3gd20SpiComponent::new(board_kernel, capsules::l3gd20::DRIVER_NUM)
-            .finalize(components::l3gd20_spi_component_helper!(
-                // spi type
-                stm32f303xc::spi::Spi,
-                // chip select
-                &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
-                // spi mux
-                spi_mux
-            ));
+    let l3gd20 = components::l3gd20::L3gd20Component::new(
+        spi_mux,
+        &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
+        board_kernel,
+        capsules::l3gd20::DRIVER_NUM,
+    )
+    .finalize(components::l3gd20_component_static!(
+        // spi type
+        stm32f303xc::spi::Spi
+    ));
 
     l3gd20.power_on();
 
@@ -663,13 +668,16 @@ pub unsafe fn main() {
 
     let mux_i2c =
         components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_helper!());
+            .finalize(components::i2c_mux_component_static!());
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
+        mux_i2c,
+        None,
+        None,
         board_kernel,
         capsules::lsm303dlhc::DRIVER_NUM,
     )
-    .finalize(components::lsm303dlhc_i2c_component_helper!(mux_i2c));
+    .finalize(components::lsm303dlhc_component_static!());
 
     if let Err(error) = lsm303dlhc.configure(
         lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
@@ -685,14 +693,14 @@ pub unsafe fn main() {
 
     let ninedof =
         components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_helper!(l3gd20, lsm303dlhc));
+            .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
-        .finalize(components::adc_mux_component_helper!(stm32f303xc::adc::Adc));
+        .finalize(components::adc_mux_component_static!(stm32f303xc::adc::Adc));
 
     // Uncomment this if you want to use ADC MCU temp sensor
     // let temp_sensor = components::temperature_stm::TemperatureSTMComponent::new(4.3, 1.43)
-    //     .finalize(components::temperaturestm_adc_component_helper!(
+    //     .finalize(components::temperaturestm_adc_component_static!(
     //         // spi type
     //         stm32f303xc::adc::Adc,
     //         // chip select
@@ -712,23 +720,23 @@ pub unsafe fn main() {
     // shared with button
     // let adc_channel_1 =
     //     components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel1)
-    //         .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+    //         .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_2 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel2)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_3 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel3)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_4 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel4)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_channel_5 =
         components::adc::AdcComponent::new(&adc_mux, stm32f303xc::adc::Channel::Channel5)
-            .finalize(components::adc_component_helper!(stm32f303xc::adc::Adc));
+            .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
@@ -756,12 +764,12 @@ pub unsafe fn main() {
         &_sstorage as *const u8 as usize,
         &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize,
     )
-    .finalize(components::nv_storage_component_helper!(
+    .finalize(components::nonvolatile_storage_component_static!(
         stm32f303xc::flash::Flash
     ));
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // PROCESS CONSOLE
@@ -777,7 +785,7 @@ pub unsafe fn main() {
     let _ = process_console.start();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f3discovery = STM32F3Discovery {
         console: console,

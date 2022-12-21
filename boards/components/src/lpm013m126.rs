@@ -20,7 +20,7 @@
 //!         dynamic_deferred_caller,
 //!     )
 //!     .finalize(
-//!         components::lpm013m126_component_helper!(
+//!         components::lpm013m126_component_static!(
 //!             nrf52840::rtc::Rtc<'static>,
 //!             nrf52840::gpio::GPIOPin,
 //!             VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
@@ -34,8 +34,7 @@
 
 use capsules::lpm013m126::Lpm013m126;
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_spi::VirtualSpiMasterDevice;
-use core::marker::PhantomData;
+use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -93,27 +92,15 @@ impl<'a, P: gpio::Pin> gpio::Input for Inverted<'a, P> {
 
 /// Setup static space for the driver and its requirements.
 #[macro_export]
-macro_rules! lpm013m126_component_helper {
-    ($A:ty, $P:ty, $S:ty, $mux_spi:expr, $chip_select:expr $(,)?) => {{
-        use capsules::lpm013m126::{Lpm013m126, BUFFER_SIZE};
-        use capsules::virtual_alarm::VirtualMuxAlarm;
-        use capsules::virtual_spi::VirtualSpiMasterDevice;
-        use components::lpm013m126::Inverted;
-        use kernel::static_buf;
-
-        let alarm = static_buf!(VirtualMuxAlarm<'static, $A>);
-        static mut BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
-
-        let chip_select = static_init!(Inverted<'static, $P>, Inverted($chip_select),);
-
-        let spi_device = static_init!(
-            VirtualSpiMasterDevice<'static, $S>,
-            VirtualSpiMasterDevice::new($mux_spi, chip_select,),
-        );
-        spi_device.setup();
-
-        let lpm013m126 = static_buf!(
-            Lpm013m126<
+macro_rules! lpm013m126_component_static {
+    ($A:ty, $P:ty, $S:ty $(,)?) => {{
+        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let buffer = kernel::static_buf!([u8; capsules::lpm013m126::BUF_LEN]);
+        let chip_select = kernel::static_buf!(components::lpm013m126::Inverted<'static, $P>);
+        let spi_device =
+            kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let lpm013m126 = kernel::static_buf!(
+            capsules::lpm013m126::Lpm013m126<
                 'static,
                 VirtualMuxAlarm<'static, $A>,
                 $P,
@@ -121,7 +108,7 @@ macro_rules! lpm013m126_component_helper {
             >
         );
 
-        (alarm, &mut BUFFER, spi_device, lpm013m126)
+        (alarm, buffer, chip_select, spi_device, lpm013m126)
     }};
 }
 
@@ -132,7 +119,8 @@ where
     P: gpio::Pin,
     S: 'static + SpiMaster,
 {
-    spi: PhantomData<S>,
+    spi: &'static MuxSpiMaster<'static, S>,
+    chip_select: &'static P,
     disp: &'static P,
     extcomin: &'static P,
     alarm_mux: &'static MuxAlarm<'static, A>,
@@ -147,13 +135,17 @@ where
     S: 'static + SpiMaster,
 {
     pub fn new(
+        spi: &'static MuxSpiMaster<'static, S>,
+
+        chip_select: &'static P,
         disp: &'static P,
         extcomin: &'static P,
         alarm_mux: &'static MuxAlarm<'static, A>,
         deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
         Self {
-            spi: PhantomData::default(),
+            spi,
+            chip_select,
             disp,
             extcomin,
             alarm_mux,
@@ -166,12 +158,13 @@ impl<A, P, S> Component for Lpm013m126Component<A, P, S>
 where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
-    S: 'static + SpiMaster,
+    S: 'static + SpiMaster<ChipSelect = &'static mut Inverted<'static, P>>,
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut [u8],
-        &'static VirtualSpiMasterDevice<'static, S>,
+        &'static mut MaybeUninit<[u8; capsules::lpm013m126::BUF_LEN]>,
+        &'static mut MaybeUninit<Inverted<'static, P>>,
+        &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<
             Lpm013m126<'static, VirtualMuxAlarm<'static, A>, P, VirtualSpiMasterDevice<'static, S>>,
         >,
@@ -183,12 +176,19 @@ where
         VirtualSpiMasterDevice<'static, S>,
     >;
 
-    unsafe fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let (alarm, buffer, spi_device, lpm013m126) = s;
-        let lpm013m126_alarm = alarm.write(VirtualMuxAlarm::new(self.alarm_mux));
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let lpm013m126_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         lpm013m126_alarm.setup();
 
-        let lpm013m126 = lpm013m126.write(
+        let buffer = s.1.write([0; capsules::lpm013m126::BUF_LEN]);
+
+        let chip_select = s.2.write(Inverted(self.chip_select));
+
+        let spi_device =
+            s.3.write(VirtualSpiMasterDevice::new(self.spi, chip_select));
+        spi_device.setup();
+
+        let lpm013m126 = s.4.write(
             Lpm013m126::new(
                 spi_device,
                 self.extcomin,

@@ -376,12 +376,12 @@ impl hil::digest::HmacSha256 for Hmac<'_> {
         for i in 0..(key.len() / 4) {
             let idx = i * 4;
 
-            let mut k = key[idx + 3] as u32;
-            k |= (key[i * 4 + 2] as u32) << 8;
-            k |= (key[i * 4 + 1] as u32) << 16;
-            k |= (key[i * 4 + 0] as u32) << 24;
+            let mut k = *key.get(idx + 3).ok_or(ErrorCode::INVAL)? as u32;
+            k |= (*key.get(i * 4 + 2).ok_or(ErrorCode::INVAL)? as u32) << 8;
+            k |= (*key.get(i * 4 + 1).ok_or(ErrorCode::INVAL)? as u32) << 16;
+            k |= (*key.get(i * 4 + 0).ok_or(ErrorCode::INVAL)? as u32) << 24;
 
-            regs.key[i as usize].set(k);
+            regs.key.get(i).ok_or(ErrorCode::INVAL)?.set(k);
             key_idx = i + 1;
         }
 
@@ -389,15 +389,17 @@ impl hil::digest::HmacSha256 for Hmac<'_> {
             let mut k = 0;
 
             for i in 0..(key.len() % 4) {
-                k = k | (key[key_idx * 4 + i] as u32) << (8 * (3 - i));
+                k = k
+                    | ((*key.get(key_idx * 4 + 1).ok_or(ErrorCode::INVAL)? as u32)
+                        << (8 * (3 - i)));
             }
 
-            regs.key[key_idx].set(k);
+            regs.key.get(key_idx).ok_or(ErrorCode::INVAL)?.set(k);
             key_idx = key_idx + 1;
         }
 
         for i in key_idx..8 {
-            regs.key[i as usize].set(0);
+            regs.key.get(i).ok_or(ErrorCode::INVAL)?.set(0);
         }
 
         Ok(())

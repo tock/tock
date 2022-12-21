@@ -94,13 +94,13 @@ impl<'a> TextScreen<'a> {
         command: TextScreenCommand,
         data1: usize,
         data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         let res = self
             .apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if self.current_app.is_none() {
-                    self.current_app.set(appid);
+                    self.current_app.set(processid);
                     app.data1 = data1;
                     app.data2 = data2;
                     app.command = command;
@@ -211,11 +211,11 @@ impl<'a> TextScreen<'a> {
     fn run_next_command(&self) {
         // Check for pending events.
         for app in self.apps.iter() {
-            let appid = app.processid();
+            let processid = app.processid();
             let current_command = app.enter(|app, _| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(appid);
+                    self.current_app.set(processid);
                     true
                 } else {
                     false
@@ -232,8 +232,8 @@ impl<'a> TextScreen<'a> {
     }
 
     fn schedule_callback(&self, data1: usize, data2: usize, data3: usize) {
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, kernel_data| {
+        self.current_app.take().map(|processid| {
+            let _ = self.apps.enter(processid, |app, kernel_data| {
                 app.pending_command = false;
                 kernel_data.schedule_upcall(0, (data1, data2, data3)).ok();
             });
@@ -247,33 +247,33 @@ impl<'a> SyscallDriver for TextScreen<'a> {
         command_num: usize,
         data1: usize,
         data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // This driver exists.
             0 => CommandReturn::success(),
             // Get Resolution
-            1 => self.enqueue_command(TextScreenCommand::GetResolution, data1, data2, appid),
+            1 => self.enqueue_command(TextScreenCommand::GetResolution, data1, data2, processid),
             // Display
-            2 => self.enqueue_command(TextScreenCommand::Display, data1, data2, appid),
+            2 => self.enqueue_command(TextScreenCommand::Display, data1, data2, processid),
             // No Display
-            3 => self.enqueue_command(TextScreenCommand::NoDisplay, data1, data2, appid),
+            3 => self.enqueue_command(TextScreenCommand::NoDisplay, data1, data2, processid),
             // Blink
-            4 => self.enqueue_command(TextScreenCommand::Blink, data1, data2, appid),
+            4 => self.enqueue_command(TextScreenCommand::Blink, data1, data2, processid),
             // No Blink
-            5 => self.enqueue_command(TextScreenCommand::NoBlink, data1, data2, appid),
+            5 => self.enqueue_command(TextScreenCommand::NoBlink, data1, data2, processid),
             // Show Cursor
-            6 => self.enqueue_command(TextScreenCommand::ShowCursor, data1, data2, appid),
+            6 => self.enqueue_command(TextScreenCommand::ShowCursor, data1, data2, processid),
             // No Cursor
-            7 => self.enqueue_command(TextScreenCommand::NoCursor, data1, data2, appid),
+            7 => self.enqueue_command(TextScreenCommand::NoCursor, data1, data2, processid),
             // Write
-            8 => self.enqueue_command(TextScreenCommand::Write, data1, data2, appid),
+            8 => self.enqueue_command(TextScreenCommand::Write, data1, data2, processid),
             // Clear
-            9 => self.enqueue_command(TextScreenCommand::Clear, data1, data2, appid),
+            9 => self.enqueue_command(TextScreenCommand::Clear, data1, data2, processid),
             // Home
-            10 => self.enqueue_command(TextScreenCommand::Home, data1, data2, appid),
+            10 => self.enqueue_command(TextScreenCommand::Home, data1, data2, processid),
             //Set Curosr
-            11 => self.enqueue_command(TextScreenCommand::SetCursor, data1, data2, appid),
+            11 => self.enqueue_command(TextScreenCommand::SetCursor, data1, data2, processid),
             // NOSUPPORT
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
