@@ -224,6 +224,13 @@ What this **configuration file** contains is:
     - Used to run tockloader
     - The list of communication protocols are provided, and one chosen must be in the list. 
         - Typically Jlink is the one chosen here
+- I2C On Boot
+    - Used to run an i2c testing script on boot
+    - I2C Master Tests (When RPi runs as Slave) run into an issue when the Raspberry Pi boots up, the test initially fails for the first run due to an empty buffer transfer, but following executions of the testing script pass. It only fails in the first execution of the testing script. More info here [i2cboot](https://github.com/AnthonyQ619/libtock-c/tree/ci-test/examples/ci-tests/boot-up)
+    - Answers to this prompt is Yes/No, which is based on whether the board the Raspberry Pi is being configured to has an I2C test or not
+        - Yes: Runs the script and commits a i2c Master Reception transaction on the board. More info on script in `i2cboot` link above
+        - No: Ignores the I2C test and instantly returns.
+
 
 When runner_init script is executed, there will be prompts to fill in this information and the configuration file will be created based on the responses, filling in the file with the information listed above.
 
@@ -237,6 +244,7 @@ board = "nrf52dk"
 path = "{home}/actions-runner/_work/tock/tock/boards/nordic/nrf52dk/"
 harness_id = "{Pi ID}"
 communication_protocol = "jlink"
+i2c_on_boot = "yes"
 ```
 
 **Note:** {home} and {Pi ID} would depend on your configuration and Pi, where {home} will be your home directory to start the path, and {Pi ID} will be your specific Raspberry Pi ID.

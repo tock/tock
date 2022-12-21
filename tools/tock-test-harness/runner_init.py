@@ -131,6 +131,7 @@ KNOWN_BOARDS = {
 COMMUNICATION_PROCTOCOLS = ['Other', 'jlink', 'openocd']
 TOCK_BOARD_PATH = f'{Path.home()}/actions-runner/_work/tock/tock/boards/'
 TOCK_HARNESS_PATH = f'{Path.home()}/tock/tools/tock-test-harness/'
+I2C_BOOT_CONFIG = ['yes', 'no']
 title = ''
 board = ''
 board_path = ''
@@ -219,6 +220,17 @@ while True:
         print(f'\nCommunication protocol {comm_proc} is invalid.')
 
 
+while True:
+    i2c_board = input('Enter if board has i2c test (yes/no/y/n): ')
+
+    if i2c_board.lower() == 'yes' or i2c_board.lower() == 'y':
+        i2c_board = I2C_BOOT_CONFIG[0]
+        break
+    elif i2c_board.lower() == 'no' or i2c_board.lower() == 'n':
+        i2c_board = I2C_BOOT_CONFIG[1]
+        break
+    else:
+        print(f'\nInvalid input - {i2c_board} - for I2C boot configuration ')
 # Separate next prompt with the previous prompt
 print('\n')
 
@@ -264,7 +276,8 @@ with open(TOCK_HARNESS_PATH + 'config.toml', 'w') as output_toml_file:
             'board': board,
             'path': board_path,
             'harness_id': harness_id,
-            'communication_protocol': comm_proc
+            'communication_protocol': comm_proc,
+            'i2c_on_boot' : i2c_board
         }
     }
 
