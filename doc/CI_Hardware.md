@@ -249,6 +249,27 @@ i2c_on_boot = "yes"
 
 **Note:** {home} and {Pi ID} would depend on your configuration and Pi, where {home} will be your home directory to start the path, and {Pi ID} will be your specific Raspberry Pi ID.
 
+## Add I2C Script to bashrc File
+
+After configuration file is made, head into home directory with this command:
+
+```bash
+$ cd ~
+```
+Then, once in home directory, open your bashrc file to add the proper i2c on boot testing script to run whenever the RPi is ssh into from terminal
+```bash
+$ sudo nano /home/ubuntu/.bashrc
+```
+Once in the bashrc file, add the following two lines
+```bash
+echo Running at boot 
+sudo python /home/ubuntu/libtock-c/examples/ci-tests/boot-up/i2cboot.py
+```
+This will then run the script whenever the RPi is ssh into from terminal. Thus, it's important to ssh into the RPi initially on boot before left to run as a test harness, or i2c test will fail in the initial run.
+
+**Note:** For more info how bashrc file works, check this [link](https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/) on look at method 2
+
+**Note:** For more info on the testing script, check this github [link](https://github.com/AnthonyQ619/libtock-c/tree/ci-test/examples/ci-tests/boot-up)
 # How Instances Work
 Instances in this case are workflows with Github actions that set runners to complete said actions. This is how testing is conducted in Hardware Continuous Integration. The entire process is taken within the workflow through the yml files, which are another type of configuration file. Currently using the tock-hw-ci.yml as the workflow to run tests, in which we will use as an example throughout this document. (This file is located [here](https://github.com/AnthonyQ619/tock/blob/aq-config-updated/.github/workflows/tock-hw-ci.yml))
 
