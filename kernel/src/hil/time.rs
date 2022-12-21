@@ -316,57 +316,69 @@ pub trait Timer<'a>: Time {
     fn cancel(&self) -> Result<(), ErrorCode>;
 }
 
+// The following "frequencies" are represented as variant-less enums. Because
+// they can never be constructed, it forces them to be used purely as
+// type-markers which are guaranteed to be elided at runtime.
+
 /// 100MHz `Frequency`
 #[derive(Debug)]
-pub struct Freq100MHz;
+pub enum Freq100MHz {}
 impl Frequency for Freq100MHz {
     fn frequency() -> u32 {
-        100000000
+        100_000_000
     }
 }
 
 /// 16MHz `Frequency`
 #[derive(Debug)]
-pub struct Freq16MHz;
+pub enum Freq16MHz {}
 impl Frequency for Freq16MHz {
     fn frequency() -> u32 {
-        16000000
+        16_000_000
+    }
+}
+
+/// 10MHz `Frequency`
+pub enum Freq10MHz {}
+impl Frequency for Freq10MHz {
+    fn frequency() -> u32 {
+        10_000_000
     }
 }
 
 /// 1MHz `Frequency`
 #[derive(Debug)]
-pub struct Freq1MHz;
+pub enum Freq1MHz {}
 impl Frequency for Freq1MHz {
     fn frequency() -> u32 {
-        1000000
+        1_000_000
     }
 }
 
-/// 32KHz `Frequency`
+/// 32.768KHz `Frequency`
 #[derive(Debug)]
-pub struct Freq32KHz;
+pub enum Freq32KHz {}
 impl Frequency for Freq32KHz {
     fn frequency() -> u32 {
-        32768
+        32_768
     }
 }
 
 /// 16KHz `Frequency`
 #[derive(Debug)]
-pub struct Freq16KHz;
+pub enum Freq16KHz {}
 impl Frequency for Freq16KHz {
     fn frequency() -> u32 {
-        16000
+        16_000
     }
 }
 
 /// 1KHz `Frequency`
 #[derive(Debug)]
-pub struct Freq1KHz;
+pub enum Freq1KHz {}
 impl Frequency for Freq1KHz {
     fn frequency() -> u32 {
-        1000
+        1_000
     }
 }
 
