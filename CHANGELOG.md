@@ -1,3 +1,23 @@
+New in 2.1.1
+============
+
+Tock 2.1.1 fixes an issue present in the Tock 2.0 and Tock 2.1
+releases concerning system call error return values issued when
+userspace applications were issuing system calls towards non-existent
+capsules.
+
+ * Breaking Changes
+
+   - The Tock system call interface specification (TRD 104) mandates
+     that the kernel returns an error of `NODEVICE` when issuing a
+     system call towards a non-registered driver number. However, Tock
+     2.0 would instead return an error of `NOMEM` on a subscribe
+     system call. Furthermore, Tock 2.1 returns an error of `NOMEM` on
+     all of read-only allow, read-write allow and subscribe system
+     calls. This release changes this behavior and returns an error of
+     `NOMEM` for all of these cases, in compliance with the
+     specification (https://github.com/tock/tock/pull/3300).
+
 New in 2.1
 ==========
 
