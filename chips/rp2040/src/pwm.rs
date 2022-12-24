@@ -39,6 +39,10 @@ register_bitfields![u32,
     CC [
         A OFFSET(0) NUMBITS(16) [],
         B OFFSET(16) NUMBITS(16) []
+    ],
+
+    TOP [
+        TOP OFFSET(0) NUMBITS(16) []
     ]
 ];
 
