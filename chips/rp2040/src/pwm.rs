@@ -25,6 +25,11 @@ register_bitfields![u32,
         // Advance the phase of the counter by 1 count, while it is running
         // Self clearing. Write a 1, and poll until low. Counter must be running.
         PH_ADV OFFSET(7) NUMBITS(1) []
+    ],
+
+    DIV [
+        FRAC OFFSET(0) NUMBITS(4) [],
+        INT OFFSET(4) NUMBITS(8) []
     ]
 ];
 
