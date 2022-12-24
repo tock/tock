@@ -60,7 +60,11 @@ register_bitfields![u32,
         B OFFSET(16) NUMBITS(16) []
     ],
 
-    /// Counter wrap value
+    /// Counter top value
+    /// When the value of the counter reaches the top value, depending on the
+    /// ph_correct value, the counter will either:
+    /// + wrap to 0 if ph_correct == 0
+    /// + it starts counting downward until it reaches 0 again if ph_correct == 0
     TOP [
         TOP OFFSET(0) NUMBITS(16) []
     ],
@@ -138,19 +142,30 @@ pub enum ChannelNumber {
 }
 
 pub struct PwmChannelConfiguration {
-    pub en: bool,
-    pub ph_correct: bool,
-    pub a_inv: bool,
-    pub b_inv: bool,
-    pub divmode: DivMode,
-    pub int: u8,
-    pub frac: u8,
-    pub cc_a: u16,
-    pub cc_b: u16,
-    pub top: u16,
+    en: bool,
+    ph_correct: bool,
+    a_inv: bool,
+    b_inv: bool,
+    divmode: DivMode,
+    int: u8,
+    frac: u8,
+    cc_a: u16,
+    cc_b: u16,
+    top: u16,
 }
 
 impl PwmChannelConfiguration {
+    /// Create a set of default values to use for configuring a PWM channel:
+    /// + enabled = false
+    /// + ph_correct = false
+    /// + a_inv = false (no pin A polarity inversion)
+    /// + b_inv = false (no pin B polarity inversion)
+    /// + divmode = DivMode::FreeRunning (clock divider is always enabled)
+    /// + int = 1 (integral part of the clock divider)
+    /// + frac = 0 (fractional part of the clock divider)
+    /// + cc_a = 0 (counter compare value for pin A)
+    /// + cc_b = 0 (counter compare value for pin B)
+    /// + top = u16::MAX (counter top value)
     pub fn default_config() -> Self {
         PwmChannelConfiguration {
             en: false,
@@ -164,6 +179,58 @@ impl PwmChannelConfiguration {
             cc_b: 0,
             top: u16::MAX
         }
+    }
+
+    // enable == false ==> disable channel
+    // enable == true ==> enable channel
+    pub fn set_enabled(&mut self, enable: bool) {
+        self.en = enable;
+    }
+
+    // ph_correct == false ==> trailing-edge modulation
+    // ph_correct == true ==> phase-correct modulation
+    pub fn set_ph_correct(&mut self, ph_correct: bool) {
+        self.ph_correct = ph_correct;
+    }
+
+    // a_inv == true ==> invert polarity for pin A
+    // b_inv == true ==> invert polarity for pin B
+    pub fn set_invert_polarity(&mut self, a_inv: bool, b_inv: bool) {
+        self.a_inv = a_inv;
+        self.b_inv = b_inv;
+    }
+
+    // divmode == FreeRunning ==> always enable clock divider
+    // divmode == High ==> enable clock divider when pin B is high
+    // divmode == Rising ==> enable clock divider when pin B is rising
+    // divmode == Falling ==> enable clock divider when pin B is falling
+    pub fn set_div_mode(&mut self, divmode: DivMode) {
+        self.divmode = divmode;
+    }
+
+    // RP 2040 uses a 8.4 fractional clock divider
+    // The minimum value of the divider is   1 (int) +  0 / 16 (frac)
+    // The maximum value of the divider is 255 (int) + 15 / 16 (frac)
+    pub fn set_divider_int_frac(&mut self, int: u8, frac: u8) {
+        // No need to check the upper bound, since the int parameter is u8
+        assert!(int >= 1);
+        // No need to check the lower bound, since the frac parameter is u8
+        assert!(frac <= 15);
+        self.int = int;
+        self.frac = frac;
+    }
+
+    // Set compare values
+    // If counter value < compare value A ==> pin A high
+    // If couter value < compare value B ==> pin B high (if divmode == FreeRunning)
+    pub fn set_compare_values(&mut self, cc_a: u16, cc_b: u16) {
+        self.cc_a = cc_a;
+        self.cc_b = cc_b;
+    }
+
+    // Set counter top value
+    pub fn set_top_value(&mut self, top: u16) {
+        self.top = top;
     }
 }
 
@@ -236,15 +303,15 @@ impl<'a> Pwm<'a> {
 
     // Set compare values
     // If counter value < compare value A ==> pin A high
-    // If couter value < compare value B ==> pin B high
+    // If couter value < compare value B ==> pin B high (if divmode == FreeRunning)
     pub fn set_compare_values(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
         self.registers.ch[channel_number as usize].cc.write(CC::A.val(cc_a as u32));
         self.registers.ch[channel_number as usize].cc.write(CC::B.val(cc_b as u32));
     }
 
-    // Counter wrap value
-    pub fn set_wrap(&self, channel_number: ChannelNumber, wrap: u16) {
-        self.registers.ch[channel_number as usize].top.write(TOP::TOP.val(wrap as u32));
+    // Set counter top value
+    pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
+        self.registers.ch[channel_number as usize].top.write(TOP::TOP.val(top as u32));
     }
 
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
@@ -254,7 +321,7 @@ impl<'a> Pwm<'a> {
         self.set_div_mode(channel_number, config.divmode);
         self.set_divider_int_frac(channel_number, config.int, config.frac);
         self.set_compare_values(channel_number, config.cc_a, config.cc_b);
-        self.set_wrap(channel_number, config.top);
+        self.set_top(channel_number, config.top);
     }
 
     pub fn init(&self) {
