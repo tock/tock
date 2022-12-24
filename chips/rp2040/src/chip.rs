@@ -119,20 +119,20 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
 }
 
 pub struct Rp2040DefaultPeripherals<'a> {
+    pub adc: adc::Adc,
+    pub clocks: Clocks,
+    pub i2c0: i2c::I2c<'a>,
+    pub pins: RPPins<'a>,
+    pub pwm: pwm::Pwm<'a>,
     pub resets: Resets,
     pub sio: SIO,
-    pub clocks: Clocks,
-    pub xosc: Xosc,
-    pub timer: RPTimer<'a>,
-    pub watchdog: Watchdog,
-    pub pins: RPPins<'a>,
-    pub uart0: Uart<'a>,
-    pub uart1: Uart<'a>,
-    pub adc: adc::Adc,
     pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
-    pub i2c0: i2c::I2c<'a>,
-    pub pwm: pwm::Pwm<'a>
+    pub timer: RPTimer<'a>,
+    pub uart0: Uart<'a>,
+    pub uart1: Uart<'a>,
+    pub watchdog: Watchdog,
+    pub xosc: Xosc,
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
