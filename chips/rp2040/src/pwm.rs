@@ -5,19 +5,27 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, Writ
 
 register_bitfields![u32,
     CSR [
-        EN OFFSET(0) NUMBITS(1) [], /// Enable PWM channel
-        PH_CORRECT OFFSET(1) NUMBITS(1) [], /// Enable phase-correct modulation
-        A_INV OFFSET(2) NUMBITS(1) [], /// Invert output A
-        B_INV OFFSET(3) NUMBITS(1) [], /// Invert output B
+        /// Enable PWM channel
+        EN OFFSET(0) NUMBITS(1) [],
+        /// Enable phase-correct modulation
+        PH_CORRECT OFFSET(1) NUMBITS(1) [],
+        /// Invert output A
+        A_INV OFFSET(2) NUMBITS(1) [],
+        /// Invert output B
+        B_INV OFFSET(3) NUMBITS(1) [],
         /// PWM slice event selection for fractional clock divider
         /// Default value = FREE_RUNNING (always on)
         /// If the event is different from FREE_RUNNING, then pin B becomes
         /// an input pin
         DIVMOD OFFSET(4) NUMBITS(2) [
-            FREE_RUNNING = 0, /// Free-running counting at rate dictated by fractional divider
-            B_HIGH = 1, /// Fractional divider operation is gated by the PWM B pin
-            B_RISING = 2, /// Counter advances with each rising edge of the PWM B pin
-            B_FALLING = 3 /// Counter advances with each falling edge of the PWM B pin
+            /// Free-running counting at rate dictated by fractional divider
+            FREE_RUNNING = 0,
+            /// Fractional divider operation is gated by the PWM B pin
+            B_HIGH = 1,
+            /// Counter advances with each rising edge of the PWM B pin
+            B_RISING = 2,
+            /// Counter advances with each falling edge of the PWM B pin
+            B_FALLING = 3
         ],
         /// Retard the phase of the counter by 1 count, while it is running
         /// Self-clearing. Write a 1, and poll until low. Counter must be running.
