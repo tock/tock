@@ -77,15 +77,15 @@ register_bitfields![u32,
 #[repr(C)]
 struct Ch {
     /// Control and status register
-    csr: ReadWrite<u32>,
+    csr: ReadWrite<u32, CSR::Register>,
     /// Division register
-    div: ReadWrite<u32>,
+    div: ReadWrite<u32, DIV::Register>,
     /// Direct access to the PWM counter register
-    ctr: ReadWrite<u32>,
+    ctr: ReadWrite<u32, CTR::Register>,
     /// Counter compare values register
-    cc: ReadWrite<u32>,
+    cc: ReadWrite<u32, CC::Register>,
     /// Counter wrap value register
-    top: ReadWrite<u32>
+    top: ReadWrite<u32, TOP::Register>
 }
 
 #[repr(C)]
@@ -96,13 +96,13 @@ struct PwmRegisters {
     /// This register aliases the CSR_EN bits for all channels.
     /// Writing to this register allows multiple channels to be enabled or disabled
     /// or disables simultaneously, so they can run in perfect sync.
-    en: ReadWrite<u32>,
+    en: ReadWrite<u32, CH::Register>,
     /// Raw interrupts register
-    intr: WriteOnly<u32>,
+    intr: WriteOnly<u32, CH::Register>,
     /// Interrupt enable register
-    inte: ReadWrite<u32>,
+    inte: ReadWrite<u32, CH::Register>,
     /// Interrupt force register
-    intf: ReadWrite<u32>,
+    intf: ReadWrite<u32, CH::Register>,
     /// Interrupt status after masking & forcing
-    ints: ReadOnly<u32>
+    ints: ReadOnly<u32, CH::Register>
 }
