@@ -11,6 +11,7 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::{RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
+use crate::pwm;
 use crate::resets::Resets;
 use crate::spi;
 use crate::sysinfo;
@@ -131,6 +132,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
     pub i2c0: i2c::I2c<'a>,
+    pub pwm: pwm::Pwm<'a>
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
@@ -149,6 +151,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
             i2c0: i2c::I2c::new_i2c0(),
+            pwm: pwm::Pwm::new()
         }
     }
 

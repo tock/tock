@@ -1,7 +1,11 @@
 //! PWM driver for RP2040.
 
 //use kernel::hil;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
+use kernel::utilities::StaticRef;
+
+use crate::clocks;
 
 register_bitfields![u32,
     CSR [
@@ -105,4 +109,21 @@ struct PwmRegisters {
     intf: ReadWrite<u32, CH::Register>,
     /// Interrupt status after masking & forcing
     ints: ReadOnly<u32, CH::Register>
+}
+
+pub struct Pwm<'a> {
+    registers: StaticRef<PwmRegisters>,
+    clocks: OptionalCell<&'a clocks::Clocks>
+}
+
+const PWM_BASE: StaticRef<PwmRegisters> =
+    unsafe { StaticRef::new(0x40050000 as *const PwmRegisters) };
+
+impl<'a> Pwm<'a> {
+    pub fn new() -> Self {
+        Self {
+            registers: PWM_BASE,
+            clocks: OptionalCell::empty()
+        }
+    }
 }
