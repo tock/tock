@@ -33,7 +33,12 @@ register_bitfields![u32,
     ],
 
     CTR [
-       CTR OFFSET(0) NUMBITS(16) []
+        CTR OFFSET(0) NUMBITS(16) []
+    ],
+
+    CC [
+        A OFFSET(0) NUMBITS(16) [],
+        B OFFSET(16) NUMBITS(16) []
     ]
 ];
 
