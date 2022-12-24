@@ -176,7 +176,7 @@ impl<'a> Pwm<'a> {
 
     // enable == false ==> disable channel
     // enable == true ==> enable channel
-    fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
+    pub fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
         self.registers.ch[channel_number as usize].csr.write(match enable {
             true => CSR::EN::SET,
             false => CSR::EN::CLEAR
@@ -185,7 +185,7 @@ impl<'a> Pwm<'a> {
 
     // ph_correct == false ==> trailing-edge modulation
     // ph_correct == true ==> phase-correct modulation
-    fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
+    pub fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
         self.registers.ch[channel_number as usize].csr.write(match ph_correct {
             true => CSR::PH_CORRECT::SET,
             false => CSR::PH_CORRECT::CLEAR
@@ -194,7 +194,7 @@ impl<'a> Pwm<'a> {
 
     // a_inv == true ==> invert polarity for pin A
     // b_inv == true ==> invert polarity for pin B
-    fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
+    pub fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
         self.registers.ch[channel_number as usize].csr.write(match a_inv {
             true => CSR::A_INV::SET,
             false => CSR::A_INV::CLEAR
@@ -209,7 +209,7 @@ impl<'a> Pwm<'a> {
     // divmode == High ==> enable clock divider when pin B is high
     // divmode == Rising ==> enable clock divider when pin B is rising
     // divmode == Falling ==> enable clock divider when pin B is falling
-    fn set_div_mode(&self, channel_number: ChannelNumber, divmode: DivMode) {
+    pub fn set_div_mode(&self, channel_number: ChannelNumber, divmode: DivMode) {
         self.registers.ch[channel_number as usize].csr.write(match divmode {
             DivMode::FreeRunning => CSR::DIVMOD::FREE_RUNNING,
             DivMode::High => CSR::DIVMOD::B_HIGH,
@@ -221,7 +221,7 @@ impl<'a> Pwm<'a> {
     // RP 2040 uses a 8.4 fractional clock divider
     // The minimum value of the divider is   1 (int) +  0 / 16 (frac)
     // The maximum value of the divider is 255 (int) + 15 / 16 (frac)
-    fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
+    pub fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
         // No need to check the upper bound, since the int parameter is u8
         assert!(int >= 1);
         // No need to check the lower bound, since the frac parameter is u8
@@ -231,7 +231,7 @@ impl<'a> Pwm<'a> {
     }
 
     // Counter wrap value
-    fn set_wrap(&self, channel_number: ChannelNumber, wrap: u16) {
+    pub fn set_wrap(&self, channel_number: ChannelNumber, wrap: u16) {
         self.registers.ch[channel_number as usize].top.write(TOP::TOP.val(wrap as u32));
     }
 
