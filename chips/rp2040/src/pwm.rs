@@ -145,6 +145,8 @@ pub struct PwmChannelConfiguration {
     pub divmode: DivMode,
     pub int: u8,
     pub frac: u8,
+    pub cc_a: u16,
+    pub cc_b: u16,
     pub top: u16,
 }
 
@@ -158,6 +160,8 @@ impl PwmChannelConfiguration {
             divmode: DivMode::FreeRunning,
             int: 1,
             frac: 0,
+            cc_a: 0,
+            cc_b: 0,
             top: u16::MAX
         }
     }
@@ -230,6 +234,14 @@ impl<'a> Pwm<'a> {
         self.registers.ch[channel_number as usize].div.write(DIV::FRAC.val(frac as u32));
     }
 
+    // Set compare values
+    // If counter value < compare value A ==> pin A high
+    // If couter value < compare value B ==> pin B high
+    pub fn set_compare_values(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
+        self.registers.ch[channel_number as usize].cc.write(CC::A.val(cc_a as u32));
+        self.registers.ch[channel_number as usize].cc.write(CC::B.val(cc_b as u32));
+    }
+
     // Counter wrap value
     pub fn set_wrap(&self, channel_number: ChannelNumber, wrap: u16) {
         self.registers.ch[channel_number as usize].top.write(TOP::TOP.val(wrap as u32));
@@ -241,6 +253,7 @@ impl<'a> Pwm<'a> {
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
         self.set_div_mode(channel_number, config.divmode);
         self.set_divider_int_frac(channel_number, config.int, config.frac);
+        self.set_compare_values(channel_number, config.cc_a, config.cc_b);
         self.set_wrap(channel_number, config.top);
     }
 
