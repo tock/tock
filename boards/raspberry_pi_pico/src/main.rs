@@ -40,6 +40,7 @@ use rp2040::i2c::I2c;
 use rp2040::resets::Peripheral;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
+use rp2040::pwm;
 
 mod io;
 

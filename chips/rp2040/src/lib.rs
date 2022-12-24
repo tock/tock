@@ -7,6 +7,7 @@ pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
+pub mod pwm;
 pub mod resets;
 pub mod spi;
 pub mod sysinfo;
