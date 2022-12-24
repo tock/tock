@@ -30,6 +30,10 @@ register_bitfields![u32,
     DIV [
         FRAC OFFSET(0) NUMBITS(4) [],
         INT OFFSET(4) NUMBITS(8) []
+    ],
+
+    CTR [
+       CTR OFFSET(0) NUMBITS(16) []
     ]
 ];
 
