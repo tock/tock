@@ -157,6 +157,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
 
     pub fn resolve_dependencies(&'a self) {
         self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
+        self.pwm.set_clocks(&self.clocks);
         self.spi0.set_clocks(&self.clocks);
         self.uart0.set_clocks(&self.clocks);
     }
