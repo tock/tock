@@ -43,6 +43,17 @@ register_bitfields![u32,
 
     TOP [
         TOP OFFSET(0) NUMBITS(16) []
+    ],
+
+    CH [
+        CH0 0,
+        CH1 1,
+        CH2 2,
+        CH3 3,
+        CH4 4,
+        CH5 5,
+        CH6 6,
+        CH7 7
     ]
 ];
 
