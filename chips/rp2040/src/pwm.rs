@@ -380,6 +380,43 @@ impl<'a> Pwm<'a> {
     }
 }
 
+// Helper function to compute top, int and frac values
+// max_freq_hz ==> the maximum frequency obtained from get_maximum_frequency_hz()
+// threshold_freq_hz ==> the minimal frequency that can be obtained without using
+// the divider
+// selected_freq_hz ==> user's desired frequency
+//
+// Return value: Ok(top, int, frac) in case of no error, otherwise Err(())
+fn compute_top_int_frac(
+    max_freq_hz: usize,
+    threshold_freq_hz: usize,
+    selected_freq_hz: usize) -> Result<(u16, u8, u8), ()> {
+    // If the selected frequency is high enough, then there is no need for a divider
+    // Note that unwrap can never fail.
+    if selected_freq_hz >= threshold_freq_hz {
+        return Ok(((max_freq_hz / selected_freq_hz - 1).try_into().unwrap(), 1, 0));
+    }
+    // If the selected frequency is below the threshold frequency, then a divider is necessary
+
+    // Set top to max
+    let top = u16::MAX;
+    // Get the corresponding divider value
+    let divider = threshold_freq_hz as f32 / selected_freq_hz as f32;
+    // If the desired frequency is too low, then it can't be achieved using the divider.
+    // In this case, notify the caller with an error. Otherwise, get the integral part
+    // of the divider.
+    let int = if divider as u32 > u8::MAX as u32 {
+       return Err(());
+    } else {
+        divider as u8
+    };
+    // Now that the integral part of the divider has been computed, frac can be too.
+    let frac = ((divider - int as f32) * 16.0) as u8;
+
+    // Return the final result
+    Ok((top, int, frac))
+}
+
 pub struct PwmPin<'a> {
     pwm_struct: &'a Pwm<'a>,
     channel_number: ChannelNumber
@@ -390,28 +427,33 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     // If the pin was already running, the new values for the frequency and
     // the duty cycle will take effect at the end of the current PWM period.
     //
-    // Starting the PWM pin might fail if the given frequency is too low. Minimal
-    // value for the frequency is get_maximum_frequency_hz() / get_maximum_duty_cycle().
+    // Starting the PWM pin might fail if the given frequency is too low. The minimal
+    // value for the frequency is get_maximum_frequency_hz() / 16_773_120.
     // **Note**: the actual duty cycle value may vary due to precission errors. For
-    // maximum precision, frequency should be set to its minimal value.
+    // maximum precision, the frequency should be set to as close as get_maximum_frequency_hz() /
+    // u16::MAX (higher the frequency, lower the precision). Beyond this value,
+    // the precision will not increase.
+    // **Note**: if a 100% duty cycle is desired, then the selected frequency should be higher than
+    // the threshold frequency. One easy way to achieve this is to set frequency_hz to
+    // get_maximum_frequency_hz() and duty_cycle to get_maximum_duty_cycle().
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        let top = self.get_maximum_frequency_hz() / frequency_hz - 1;
-        // If frequency is too low, then report an error
-        let top: u16 = match top.try_into() {
-            Ok(top) => top,
+        let max_freq_hz = self.get_maximum_frequency_hz();
+        let threshold_freq_hz = max_freq_hz / self.get_maximum_duty_cycle();
+        let (top, int, frac) = match compute_top_int_frac(max_freq_hz, threshold_freq_hz, frequency_hz) {
+            Ok(result) => result,
             Err(_) => return Result::from(ErrorCode::INVAL)
         };
 
         // If top value is equal to u16::MAX, then it is impossible to
         // have a 100% duty cycle, so an error will be generated. A solution
-        // to this would be setting a slightly higher frequency, since the lose in
-        // precission is insignificant for very high top values
+        // to this would be setting a higher frequency than the threshold frequency,
+        // since the lose in precision is insignificant for very high top values.
         let compare_value = if duty_cycle == self.get_maximum_duty_cycle() {
             if top == u16::MAX {
                 return Result::from(ErrorCode::INVAL);
             }
             else {
-                // compare value for 100% glitch-free duty cycle
+                // counter compare value for 100% glitch-free duty cycle
                 top + 1
             }
         } else {
@@ -421,6 +463,7 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
         // Create a channel configuration and set the corresponding parameters
         let mut config = PwmChannelConfiguration::default_config();
         config.set_top_value(top);
+        config.set_divider_int_frac(int, frac);
         config.set_compare_values(compare_value, compare_value);
         config.set_enabled(true);
         self.pwm_struct.configure_channel(self.channel_number, &config);
@@ -454,10 +497,6 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
 
     // Since the PWM counter is a 16-bit counter, its maximum value is used as a
     // reference to compute the duty cycle.
-    // **Note**: If maximum precision is required for the duty cycle, then the minimum
-    // frequency should be chosen:
-    // `freq = get_maximum_frequency_hz() / get_maximum_duty_cycle()`
-    // Failing in doing so will result in a less precise duty cycle due to round errors
     fn get_maximum_duty_cycle(&self) -> usize {
         return u16::MAX as usize;
     }
