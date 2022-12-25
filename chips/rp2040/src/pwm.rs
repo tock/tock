@@ -7,6 +7,7 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, Writ
 use kernel::utilities::StaticRef;
 
 use crate::clocks;
+use crate::gpio::RPGpio;
 
 register_bitfields![u32,
     CSR [
@@ -355,4 +356,26 @@ impl<'a> Pwm<'a> {
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
+
+    fn new_pwm_pin(&'a self, channel_number: ChannelNumber) -> PwmPin<'a> {
+        PwmPin {pwm_struct: self, channel_number}
+    }
+
+    pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
+        match gpio {
+            RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => self.new_pwm_pin(ChannelNumber::Ch0),
+            RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => self.new_pwm_pin(ChannelNumber::Ch1),
+            RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => self.new_pwm_pin(ChannelNumber::Ch2),
+            RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => self.new_pwm_pin(ChannelNumber::Ch3),
+            RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => self.new_pwm_pin(ChannelNumber::Ch4),
+            RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => self.new_pwm_pin(ChannelNumber::Ch5),
+            RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => self.new_pwm_pin(ChannelNumber::Ch6),
+            RPGpio::GPIO14 | RPGpio::GPIO15 => self.new_pwm_pin(ChannelNumber::Ch7),
+        }
+    }
+}
+
+pub struct PwmPin<'a> {
+    pwm_struct: &'a Pwm<'a>,
+    channel_number: ChannelNumber
 }
