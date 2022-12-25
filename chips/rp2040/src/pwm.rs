@@ -391,8 +391,8 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     // **Note**: the actual duty cycle value may vary due to precission errors. For
     // maximum precision, frequency should be set to its minimal value.
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        let mut config = PwmChannelConfiguration::default_config();
         let top = self.get_maximum_frequency_hz() / frequency_hz - 1;
+        // If frequency is too low, then report an error
         let top: u16 = match top.try_into() {
             Ok(top) => top,
             Err(_) => return Result::from(ErrorCode::INVAL)
@@ -414,6 +414,8 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
             top * ((duty_cycle / self.get_maximum_duty_cycle()) as u16)
         };
 
+        // Create a channel configuration and set the corresponding parameters
+        let mut config = PwmChannelConfiguration::default_config();
         config.set_top_value(top);
         config.set_compare_values(compare_value, compare_value);
         config.set_enabled(true);
