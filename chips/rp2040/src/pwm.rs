@@ -72,14 +72,16 @@ register_bitfields![u32,
     /// Control multiple channels at once.
     /// Each bit controls one channel.
     CH [
-        CH0 0,
-        CH1 1,
-        CH2 2,
-        CH3 3,
-        CH4 4,
-        CH5 5,
-        CH6 6,
-        CH7 7
+        CH OFFSET(0) NUMBITS(8) [
+            CH0 = 0,
+            CH1 = 1,
+            CH2 = 2,
+            CH3 = 3,
+            CH4 = 4,
+            CH5 = 5,
+            CH6 = 6,
+            CH7 = 7
+        ]
     ]
 ];
 
@@ -254,6 +256,13 @@ impl<'a> Pwm<'a> {
             true => CSR::EN::SET,
             false => CSR::EN::CLEAR
         });
+    }
+
+    // This function allows multiple channels to be enabled or disabled
+    // simultaneously, so they can run in perfect sync.
+    // Bits 0-7 enable channels 0-7 respectively
+    pub fn set_mask_enabled(&self, mask: u8) {
+        self.registers.en.write(CH::CH.val(mask as u32));
     }
 
     // ph_correct == false ==> trailing-edge modulation
