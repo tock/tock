@@ -120,11 +120,6 @@ struct PwmRegisters {
     ints: ReadOnly<u32, CH::Register>
 }
 
-pub struct Pwm<'a> {
-    registers: StaticRef<PwmRegisters>,
-    clocks: OptionalCell<&'a clocks::Clocks>
-}
-
 #[derive(Clone, Copy)]
 pub enum DivMode {
     FreeRunning,
@@ -240,6 +235,11 @@ impl PwmChannelConfiguration {
 
 const PWM_BASE: StaticRef<PwmRegisters> =
     unsafe { StaticRef::new(0x40050000 as *const PwmRegisters) };
+
+pub struct Pwm<'a> {
+    registers: StaticRef<PwmRegisters>,
+    clocks: OptionalCell<&'a clocks::Clocks>
+}
 
 impl<'a> Pwm<'a> {
     pub fn new() -> Self {
