@@ -397,7 +397,22 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
             Ok(top) => top,
             Err(_) => return Result::from(ErrorCode::INVAL)
         };
-        let compare_value = top * ((duty_cycle / self.get_maximum_duty_cycle()) as u16);
+
+        // If top value is equal to u16::MAX, then it is impossible to
+        // have a 100% duty cycle, so an error will be generated. A solution
+        // to this would be setting a slightly higher frequency, since the lose in
+        // precission is insignificant for very high top values
+        let compare_value = if duty_cycle == self.get_maximum_duty_cycle() {
+            if top == u16::MAX {
+                return Result::from(ErrorCode::INVAL);
+            }
+            else {
+                // compare value for 100% glitch-free duty cycle
+                top + 1
+            }
+        } else {
+            top * ((duty_cycle / self.get_maximum_duty_cycle()) as u16)
+        };
 
         config.set_top_value(top);
         config.set_compare_values(compare_value, compare_value);
