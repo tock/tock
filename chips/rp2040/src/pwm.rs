@@ -354,14 +354,18 @@ impl<'a> Pwm<'a> {
         }
     }
 
+    // This method should be called when resolving dependencies for the
+    // default peripherals
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
 
+    // Given a channel number, returns a struct that allows controlling its pins
     fn new_pwm_pin(&'a self, channel_number: ChannelNumber) -> PwmPin<'a> {
         PwmPin {pwm_struct: self, channel_number}
     }
 
+    // For a given GPIO, return the corresponding PwmPin struct to control it
     pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
         match gpio {
             RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => self.new_pwm_pin(ChannelNumber::Ch0),
