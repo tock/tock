@@ -1,6 +1,7 @@
 //! PWM driver for RP2040.
 
-//use kernel::hil;
+use kernel::ErrorCode;
+use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
@@ -378,4 +379,65 @@ impl<'a> Pwm<'a> {
 pub struct PwmPin<'a> {
     pwm_struct: &'a Pwm<'a>,
     channel_number: ChannelNumber
+}
+
+impl hil::pwm::PwmPin for PwmPin<'_> {
+    // Starts the pin with the given frequency and the given duty cycle.
+    // If the pin was already running, the new values for the frequency and
+    // the duty cycle will take effect at the end of the current PWM period.
+    //
+    // Starting the PWM pin might fail if the given frequency is too low. Minimal
+    // value for the frequency is get_maximum_frequency_hz() / get_maximum_duty_cycle().
+    // **Note**: the actual duty cycle value may vary due to precission errors. For
+    // maximum precision, frequency should be set to its minimal value.
+    fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
+        let mut config = PwmChannelConfiguration::default_config();
+        let top = self.get_maximum_frequency_hz() / frequency_hz - 1;
+        let top: u16 = match top.try_into() {
+            Ok(top) => top,
+            Err(_) => return Result::from(ErrorCode::INVAL)
+        };
+        let compare_value = top * ((duty_cycle / self.get_maximum_duty_cycle()) as u16);
+
+        config.set_top_value(top);
+        config.set_compare_values(compare_value, compare_value);
+        config.set_enabled(true);
+        self.pwm_struct.configure_channel(self.channel_number, &config);
+        Ok(())
+    }
+
+    // Stops the pin. If the pin was already stopped, this function does nothing.
+    // **Note**: any subsequent start of the pin will continue where it stopped.
+    fn stop(&self) -> Result<(), ErrorCode> {
+        self.pwm_struct.set_enabled(self.channel_number, false);
+        Ok(())
+    }
+
+    // unwrap_or_panic() should never panic if peripherals were correctly configured.
+    // If it panics, then it means that the clock dependency was not configured
+    // correctly inside Rp2040DefaultPeripherals.resolve_dependencies() or that
+    // clocks were misconfigured.
+    // Using a default value makes no sense, since the PWM counter frequency depends
+    // on the system clock frequency.
+    //
+    // The resulting frequency has *u32* type, so it is necessary to convert it to a *usize*.
+    // The conversation cannot fail since all MCUs supported by Tock are 32-bit.
+    // TODO: Maybe change the return type of Clocks::get_frequency() to usize
+    fn get_maximum_frequency_hz(&self) -> usize {
+        return self.pwm_struct.clocks
+            .unwrap_or_panic()
+            .get_frequency(clocks::Clock::System)
+            .try_into()
+            .unwrap();
+    }
+
+    // Since the PWM counter is a 16-bit counter, its maximum value is used as a
+    // reference to compute the duty cycle.
+    // **Note**: If maximum precision is required for the duty cycle, then the minimum
+    // frequency should be chosen:
+    // `freq = get_maximum_frequency_hz() / get_maximum_duty_cycle()`
+    // Failing in doing so will result in a less precise duty cycle due to round errors
+    fn get_maximum_duty_cycle(&self) -> usize {
+        return u16::MAX as usize;
+    }
 }
