@@ -100,7 +100,9 @@ struct Ch {
 #[repr(C)]
 struct PwmRegisters {
     /// Channel registers
-    ch: [Ch; 7],
+    // TODO: Remove hard coding of the number of channels
+    // core::mem::variant_count::<ChannenlNumber>() can't be used since it is not stable
+    ch: [Ch; 8],
     /// Enable register
     /// This register aliases the CSR_EN bits for all channels.
     /// Writing to this register allows multiple channels to be enabled or disabled
