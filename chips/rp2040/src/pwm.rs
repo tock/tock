@@ -3,7 +3,7 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
 use kernel::utilities::StaticRef;
 
@@ -254,7 +254,7 @@ impl<'a> Pwm<'a> {
     // enable == false ==> disable channel
     // enable == true ==> enable channel
     pub fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
-        self.registers.ch[channel_number as usize].csr.write(match enable {
+        self.registers.ch[channel_number as usize].csr.modify(match enable {
             true => CSR::EN::SET,
             false => CSR::EN::CLEAR
         });
@@ -264,13 +264,13 @@ impl<'a> Pwm<'a> {
     // simultaneously, so they can run in perfect sync.
     // Bits 0-7 enable channels 0-7 respectively
     pub fn set_mask_enabled(&self, mask: u8) {
-        self.registers.en.write(CH::CH.val(mask as u32));
+        self.registers.en.modify(CH::CH.val(mask as u32));
     }
 
     // ph_correct == false ==> trailing-edge modulation
     // ph_correct == true ==> phase-correct modulation
     pub fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
-        self.registers.ch[channel_number as usize].csr.write(match ph_correct {
+        self.registers.ch[channel_number as usize].csr.modify(match ph_correct {
             true => CSR::PH_CORRECT::SET,
             false => CSR::PH_CORRECT::CLEAR
         });
@@ -279,11 +279,11 @@ impl<'a> Pwm<'a> {
     // a_inv == true ==> invert polarity for pin A
     // b_inv == true ==> invert polarity for pin B
     pub fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
-        self.registers.ch[channel_number as usize].csr.write(match a_inv {
+        self.registers.ch[channel_number as usize].csr.modify(match a_inv {
             true => CSR::A_INV::SET,
             false => CSR::A_INV::CLEAR
         });
-        self.registers.ch[channel_number as usize].csr.write(match b_inv {
+        self.registers.ch[channel_number as usize].csr.modify(match b_inv {
             true => CSR::B_INV::SET,
             false => CSR::B_INV::CLEAR
         });
@@ -294,7 +294,7 @@ impl<'a> Pwm<'a> {
     // divmode == Rising ==> enable clock divider when pin B is rising
     // divmode == Falling ==> enable clock divider when pin B is falling
     pub fn set_div_mode(&self, channel_number: ChannelNumber, divmode: DivMode) {
-        self.registers.ch[channel_number as usize].csr.write(match divmode {
+        self.registers.ch[channel_number as usize].csr.modify(match divmode {
             DivMode::FreeRunning => CSR::DIVMOD::FREE_RUNNING,
             DivMode::High => CSR::DIVMOD::B_HIGH,
             DivMode::Rising => CSR::DIVMOD::B_RISING,
@@ -310,21 +310,21 @@ impl<'a> Pwm<'a> {
         assert!(int >= 1);
         // No need to check the lower bound, since the frac parameter is u8
         assert!(frac <= 15);
-        self.registers.ch[channel_number as usize].div.write(DIV::INT.val(int as u32));
-        self.registers.ch[channel_number as usize].div.write(DIV::FRAC.val(frac as u32));
+        self.registers.ch[channel_number as usize].div.modify(DIV::INT.val(int as u32));
+        self.registers.ch[channel_number as usize].div.modify(DIV::FRAC.val(frac as u32));
     }
 
     // Set compare values
     // If counter value < compare value A ==> pin A high
     // If couter value < compare value B ==> pin B high (if divmode == FreeRunning)
     pub fn set_compare_values(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
-        self.registers.ch[channel_number as usize].cc.write(CC::A.val(cc_a as u32));
-        self.registers.ch[channel_number as usize].cc.write(CC::B.val(cc_b as u32));
+        self.registers.ch[channel_number as usize].cc.modify(CC::A.val(cc_a as u32));
+        self.registers.ch[channel_number as usize].cc.modify(CC::B.val(cc_b as u32));
     }
 
     // Set counter top value
     pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
-        self.registers.ch[channel_number as usize].top.write(TOP::TOP.val(top as u32));
+        self.registers.ch[channel_number as usize].top.modify(TOP::TOP.val(top as u32));
     }
 
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
@@ -379,6 +379,26 @@ impl<'a> Pwm<'a> {
         }
     }
 }
+
+//impl hil::pwm::Pwm for Pwm<'_> {
+    //type Pin = RPGpio;
+
+    //fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
+        //Ok(())
+    //}
+
+    //fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode> {
+        //Ok(())
+    //}
+
+    //fn get_maximum_frequency_hz(&self) -> usize {
+        //0
+    //}
+
+    //fn get_maximum_duty_cycle(&self) -> usize {
+        //0
+    //}
+//}
 
 // Helper function to compute top, int and frac values
 // max_freq_hz ==> the maximum frequency obtained from get_maximum_frequency_hz()
@@ -457,7 +477,9 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
                 top + 1
             }
         } else {
-            top * ((duty_cycle / self.get_maximum_duty_cycle()) as u16)
+            // Normally, no overflow should occur if duty_cycle is less than or
+            // equal to get_maximum_duty_cycle().
+            (top as usize * duty_cycle / self.get_maximum_duty_cycle()) as u16
         };
 
         // Create a channel configuration and set the corresponding parameters
