@@ -21,7 +21,7 @@ impl PwmTest {
         let pwm_pin_14 = self.peripherals.pwm.gpio_to_pwm_pin(RPGpio::GPIO14);
         let max_freq = pwm_pin_14.get_maximum_frequency_hz();
         let max_duty_cycle = pwm_pin_14.get_maximum_duty_cycle();
-        assert_eq!(pwm_pin_14.start(max_freq / 8, max_duty_cycle / 4), Ok(()));
+        assert_eq!(pwm_pin_14.start(max_freq / 8, max_duty_cycle / 8 * 5), Ok(()));
         debug!("PWM pin 14 started");
         let pwm_pin_15 = self.peripherals.pwm.gpio_to_pwm_pin(RPGpio::GPIO15);
         let max_freq = pwm_pin_15.get_maximum_frequency_hz();
