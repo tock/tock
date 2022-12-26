@@ -354,7 +354,6 @@ impl<'a> Pwm<'a> {
     }
 
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
-        self.set_enabled(channel_number, config.en);
         self.set_ph_correct(channel_number, config.ph_correct);
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
         self.set_div_mode(channel_number, config.divmode);
@@ -366,6 +365,7 @@ impl<'a> Pwm<'a> {
             self.set_compare_value_b(channel_number, cc_b);
         }
         self.set_top(channel_number, config.top);
+        self.set_enabled(channel_number, config.en);
     }
 
     pub fn init(&self) {
