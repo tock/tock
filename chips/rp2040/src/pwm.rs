@@ -142,6 +142,14 @@ pub enum ChannelNumber {
     Ch7
 }
 
+// Each channel has two output pins associated
+// **Note**: an output pin corresponds to two GPIOs, except for the 7th channel
+#[derive(PartialEq)]
+pub enum ChannelPin {
+    A,
+    B
+}
+
 pub struct PwmChannelConfiguration {
     en: bool,
     ph_correct: bool,
@@ -150,8 +158,8 @@ pub struct PwmChannelConfiguration {
     divmode: DivMode,
     int: u8,
     frac: u8,
-    cc_a: u16,
-    cc_b: u16,
+    cc_a: Option<u16>,
+    cc_b: Option<u16>,
     top: u16,
 }
 
@@ -164,8 +172,8 @@ impl PwmChannelConfiguration {
     /// + divmode = DivMode::FreeRunning (clock divider is always enabled)
     /// + int = 1 (integral part of the clock divider)
     /// + frac = 0 (fractional part of the clock divider)
-    /// + cc_a = 0 (counter compare value for pin A)
-    /// + cc_b = 0 (counter compare value for pin B)
+    /// + cc_a = None (don't change current compare value for pin A)
+    /// + cc_b = None (don't change current compare value for pin B)
     /// + top = u16::MAX (counter top value)
     pub fn default_config() -> Self {
         PwmChannelConfiguration {
@@ -176,8 +184,8 @@ impl PwmChannelConfiguration {
             divmode: DivMode::FreeRunning,
             int: 1,
             frac: 0,
-            cc_a: 0,
-            cc_b: 0,
+            cc_a: None,
+            cc_b: None,
             top: u16::MAX
         }
     }
@@ -221,12 +229,21 @@ impl PwmChannelConfiguration {
         self.frac = frac;
     }
 
-    // Set compare values
-    // If counter value < compare value A ==> pin A high
-    // If couter value < compare value B ==> pin B high (if divmode == FreeRunning)
-    pub fn set_compare_values(&mut self, cc_a: u16, cc_b: u16) {
-        self.cc_a = cc_a;
-        self.cc_b = cc_b;
+    // Set compare value for channel A
+    // If counter value < compare value ==> pin A high
+    pub fn set_compare_value_a(&mut self, cc_a: u16) {
+        self.cc_a = Some(cc_a);
+    }
+
+    // Set compare value for channel B
+    // If counter value < compare value ==> pin B high (if divmode == FreeRuning)
+    pub fn set_compare_value_b(&mut self, cc_b: u16) {
+        self.cc_b = Some(cc_b);
+    }
+
+    pub fn set_compare_values_a_and_b(&mut self, cc_a: u16, cc_b: u16) {
+        self.set_compare_value_a(cc_a);
+        self.set_compare_value_b(cc_b);
     }
 
     // Set counter top value
@@ -314,12 +331,21 @@ impl<'a> Pwm<'a> {
         self.registers.ch[channel_number as usize].div.modify(DIV::FRAC.val(frac as u32));
     }
 
-    // Set compare values
+    // Set output pin A compare value
     // If counter value < compare value A ==> pin A high
-    // If couter value < compare value B ==> pin B high (if divmode == FreeRunning)
-    pub fn set_compare_values(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
+    pub fn set_compare_value_a(&self, channel_number: ChannelNumber, cc_a: u16) {
         self.registers.ch[channel_number as usize].cc.modify(CC::A.val(cc_a as u32));
+    }
+
+    // Set output pin B compare value
+    // If counter value < compare value B ==> pin B high (if divmode == FreeRunning)
+    pub fn set_compare_value_b(&self, channel_number: ChannelNumber, cc_b: u16) {
         self.registers.ch[channel_number as usize].cc.modify(CC::B.val(cc_b as u32));
+    }
+
+    pub fn set_compare_values_a_and_b(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
+        self.set_compare_value_a(channel_number, cc_a);
+        self.set_compare_value_b(channel_number, cc_b);
     }
 
     // Set counter top value
@@ -333,7 +359,12 @@ impl<'a> Pwm<'a> {
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
         self.set_div_mode(channel_number, config.divmode);
         self.set_divider_int_frac(channel_number, config.int, config.frac);
-        self.set_compare_values(channel_number, config.cc_a, config.cc_b);
+        if let Some(cc_a) = config.cc_a {
+            self.set_compare_value_a(channel_number, cc_a);
+        }
+        if let Some(cc_b) = config.cc_b {
+            self.set_compare_value_b(channel_number, cc_b);
+        }
         self.set_top(channel_number, config.top);
     }
 
@@ -348,7 +379,8 @@ impl<'a> Pwm<'a> {
             ChannelNumber::Ch6,
             ChannelNumber::Ch7,
         ];
-        let default_config = PwmChannelConfiguration::default_config();
+        let mut default_config = PwmChannelConfiguration::default_config();
+        default_config.set_compare_values_a_and_b(0, 0);
         for channel_number in channel_numbers {
             self.configure_channel(channel_number, &default_config);
         }
@@ -361,21 +393,70 @@ impl<'a> Pwm<'a> {
     }
 
     // Given a channel number, returns a struct that allows controlling its pins
-    fn new_pwm_pin(&'a self, channel_number: ChannelNumber) -> PwmPin<'a> {
-        PwmPin {pwm_struct: self, channel_number}
+    fn new_pwm_pin(&'a self, channel_number: ChannelNumber, channel_pin: ChannelPin) -> PwmPin<'a> {
+        PwmPin {pwm_struct: self, channel_number, channel_pin}
     }
 
     // For a given GPIO, return the corresponding PwmPin struct to control it
+    // Even GPIO pins are mapped to output pin A, and odd GPIO pins are mapped to output pin B
     pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
         match gpio {
-            RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => self.new_pwm_pin(ChannelNumber::Ch0),
-            RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => self.new_pwm_pin(ChannelNumber::Ch1),
-            RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => self.new_pwm_pin(ChannelNumber::Ch2),
-            RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => self.new_pwm_pin(ChannelNumber::Ch3),
-            RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => self.new_pwm_pin(ChannelNumber::Ch4),
-            RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => self.new_pwm_pin(ChannelNumber::Ch5),
-            RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => self.new_pwm_pin(ChannelNumber::Ch6),
-            RPGpio::GPIO14 | RPGpio::GPIO15 => self.new_pwm_pin(ChannelNumber::Ch7),
+            RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch0, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch0, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch1, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch1, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch2, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch2, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch3, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch3, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch4, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch4, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch5, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch5, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch6, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch6, ChannelPin::B)
+                }
+            }
+            RPGpio::GPIO14 | RPGpio::GPIO15 => {
+                if gpio as usize % 2 == 0 {
+                    self.new_pwm_pin(ChannelNumber::Ch7, ChannelPin::A)
+                } else {
+                    self.new_pwm_pin(ChannelNumber::Ch7, ChannelPin::B)
+                }
+            }
         }
     }
 }
@@ -439,7 +520,8 @@ fn compute_top_int_frac(
 
 pub struct PwmPin<'a> {
     pwm_struct: &'a Pwm<'a>,
-    channel_number: ChannelNumber
+    channel_number: ChannelNumber,
+    channel_pin: ChannelPin
 }
 
 impl hil::pwm::PwmPin for PwmPin<'_> {
@@ -486,7 +568,13 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
         let mut config = PwmChannelConfiguration::default_config();
         config.set_top_value(top);
         config.set_divider_int_frac(int, frac);
-        config.set_compare_values(compare_value, compare_value);
+        // Set the compare value corresponding to the pin
+        if self.channel_pin == ChannelPin::A {
+            config.set_compare_value_a(compare_value);
+        }
+        else {
+            config.set_compare_value_b(compare_value);
+        };
         config.set_enabled(true);
         self.pwm_struct.configure_channel(self.channel_number, &config);
         Ok(())
