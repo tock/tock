@@ -583,6 +583,16 @@ pub struct PwmPin<'a> {
     channel_pin: ChannelPin
 }
 
+impl PwmPin<'_> {
+    pub fn get_channel_number(&self) -> ChannelNumber {
+        self.channel_number
+    }
+
+    pub fn get_channel_pin(&self) -> ChannelPin {
+        self.channel_pin
+    }
+}
+
 impl hil::pwm::PwmPin for PwmPin<'_> {
     // Starts the pin with the given frequency and the given duty cycle.
     // If the pin was already running, the new values for the frequency and
