@@ -29,4 +29,27 @@ impl PwmTest {
         assert_eq!(pwm_pin_15.start(max_freq / 8, max_duty_cycle / 8 * 7), Ok(()));
         debug!("PWM pin 15 started");
     }
+
+    pub fn fading_pwm(&self) {
+        self.peripherals.pins.get_pin(RPGpio::GPIO12).set_function(GpioFunction::PWM);
+        let pwm = &self.peripherals.pwm;
+        let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO12).get_channel_number();
+        pwm.enable_interrupt(channel_number);
+        pwm.set_divider_int_frac(channel_number, 2, 0);
+        pwm.set_enabled(channel_number, true);
+        debug!("PWM pin 12 started");
+        let mut compare_value = 0isize;
+        let mut dif = 1isize;
+        loop {
+            compare_value += dif;
+            while pwm.get_counter(channel_number) != 0 {}
+            pwm.set_compare_value_a(channel_number, (compare_value * compare_value).try_into().unwrap());
+            if compare_value == 255 {
+                dif = -dif;
+            }
+            else if compare_value == 0 {
+                dif = -dif;
+            }
+        }
+    }
 }
