@@ -154,7 +154,7 @@ impl From<RPGpio> for ChannelNumber {
             6 => ChannelNumber::Ch6,
             7 => ChannelNumber::Ch7,
             // This branch can't be reached due to logical AND
-            _ => panic!("Invalid val for From<u8>::ChannelNumber")
+            _ => panic!("Unreachable branch")
         }
     }
 }
@@ -165,6 +165,17 @@ impl From<RPGpio> for ChannelNumber {
 pub enum ChannelPin {
     A,
     B
+}
+
+impl From<RPGpio> for ChannelPin {
+    fn from(gpio: RPGpio) -> Self {
+        match gpio as u8 & 1 {
+            0 => ChannelPin::A,
+            1 => ChannelPin::B,
+            // This branch can't be reached due to logical AND
+            _ => panic!("Unreachable branch")
+        }
+    }
 }
 
 pub struct PwmChannelConfiguration {
@@ -411,13 +422,7 @@ impl<'a> Pwm<'a> {
 
     // Even GPIO pins are mapped to output pin A, and odd GPIO pins are mapped to output pin B
     fn gpio_to_pwm(&self, gpio: RPGpio) -> (ChannelNumber, ChannelPin) {
-        let channel_number = ChannelNumber::from(gpio);
-        let channel_pin = if gpio as usize & 1 == 0 {
-            ChannelPin::A
-        } else {
-            ChannelPin::B
-        };
-        (channel_number, channel_pin)
+        (ChannelNumber::from(gpio), ChannelPin::from(gpio))
     }
 
     // For a given GPIO, return the corresponding PwmPin struct to control it
