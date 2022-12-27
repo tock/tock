@@ -52,4 +52,22 @@ impl PwmTest {
             }
         }
     }
+
+    pub fn synchronious_start(&self) {
+        self.peripherals.pins.get_pin(RPGpio::GPIO6).set_function(GpioFunction::PWM);
+        self.peripherals.pins.get_pin(RPGpio::GPIO8).set_function(GpioFunction::PWM);
+        self.peripherals.pins.get_pin(RPGpio::GPIO10).set_function(GpioFunction::PWM);
+        let pwm = &self.peripherals.pwm;
+        let mut mask = 0u8;
+        let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO6).get_channel_number();
+        mask |= 1 << channel_number as u8;
+        pwm.set_compare_value_a(channel_number, 32768); // 50% duty cycle
+        let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO8).get_channel_number();
+        mask |= 1 << channel_number as u8;
+        pwm.set_compare_value_a(channel_number, 32768); // 50% duty cycle
+        let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO10).get_channel_number();
+        mask |= 1 << channel_number as u8;
+        pwm.set_compare_value_a(channel_number, 32768); // 50% duty cycle
+        pwm.set_mask_enabled(mask);
+    }
 }
