@@ -399,70 +399,61 @@ impl<'a> Pwm<'a> {
 
     // Even GPIO pins are mapped to output pin A, and odd GPIO pins are mapped to output pin B
     fn gpio_to_pwm(&self, gpio: RPGpio) -> (ChannelNumber, ChannelPin) {
-        match gpio {
-            RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch0, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch0, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch1, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch1, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch2, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch2, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch3, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch3, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch4, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch4, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch5, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch5, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch6, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch6, ChannelPin::B)
-                }
-            }
-            RPGpio::GPIO14 | RPGpio::GPIO15 => {
-                if gpio as usize % 2 == 0 {
-                    (ChannelNumber::Ch7, ChannelPin::A)
-                } else {
-                    (ChannelNumber::Ch7, ChannelPin::B)
-                }
-            }
-        }
+        let channel_number = match gpio {
+            RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => ChannelNumber::Ch0,
+            RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => ChannelNumber::Ch1,
+            RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => ChannelNumber::Ch2,
+            RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => ChannelNumber::Ch3,
+            RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => ChannelNumber::Ch4,
+            RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => ChannelNumber::Ch5,
+            RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => ChannelNumber::Ch6,
+            RPGpio::GPIO14 | RPGpio::GPIO15 => ChannelNumber::Ch7
+        };
+        let channel_pin = if gpio as usize % 2 == 0 {
+            ChannelPin::A
+        } else {
+            ChannelPin::B
+        };
+        (channel_number, channel_pin)
     }
 
     // For a given GPIO, return the corresponding PwmPin struct to control it
     pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
         let (channel_number, channel_pin) = self.gpio_to_pwm(gpio);
         self.new_pwm_pin(channel_number, channel_pin)
+    }
+
+    // Helper function to compute top, int and frac values
+    // selected_freq_hz ==> user's desired frequency
+    //
+    // Return value: Ok(top, int, frac) in case of no error, otherwise Err(())
+    fn compute_top_int_frac(&self, selected_freq_hz: usize) -> Result<(u16, u8, u8), ()> {
+        // If the selected frequency is high enough, then there is no need for a divider
+        // Note that unwrap can never fail.
+        let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(self);
+        let threshold_freq_hz = max_freq_hz / hil::pwm::Pwm::get_maximum_duty_cycle(self);
+        if selected_freq_hz >= threshold_freq_hz {
+            return Ok(((max_freq_hz / selected_freq_hz - 1).try_into().unwrap(), 1, 0));
+        }
+        // If the selected frequency is below the threshold frequency, then a divider is necessary
+
+        // Set top to max
+        let top = u16::MAX;
+        // Get the corresponding divider value
+        let divider = threshold_freq_hz as f32 / selected_freq_hz as f32;
+        // If the desired frequency is too low, then it can't be achieved using the divider.
+        // In this case, notify the caller with an error. Otherwise, get the integral part
+        // of the divider.
+        let int = if divider as u32 > u8::MAX as u32 {
+           return Err(());
+        } else {
+            divider as u8
+        };
+        // Now that the integral part of the divider has been computed, frac can be too.
+        let frac = ((divider - int as f32) * 16.0) as u8;
+
+        // Return the final result
+        Ok((top, int, frac))
     }
 }
 
@@ -490,42 +481,6 @@ impl hil::pwm::Pwm for Pwm<'_> {
     }
 }
 
-// Helper function to compute top, int and frac values
-// max_freq_hz ==> the maximum frequency obtained from get_maximum_frequency_hz()
-// threshold_freq_hz ==> the minimal frequency that can be obtained without using
-// the divider
-// selected_freq_hz ==> user's desired frequency
-//
-// Return value: Ok(top, int, frac) in case of no error, otherwise Err(())
-fn compute_top_int_frac(
-    max_freq_hz: usize,
-    threshold_freq_hz: usize,
-    selected_freq_hz: usize) -> Result<(u16, u8, u8), ()> {
-    // If the selected frequency is high enough, then there is no need for a divider
-    // Note that unwrap can never fail.
-    if selected_freq_hz >= threshold_freq_hz {
-        return Ok(((max_freq_hz / selected_freq_hz - 1).try_into().unwrap(), 1, 0));
-    }
-    // If the selected frequency is below the threshold frequency, then a divider is necessary
-
-    // Set top to max
-    let top = u16::MAX;
-    // Get the corresponding divider value
-    let divider = threshold_freq_hz as f32 / selected_freq_hz as f32;
-    // If the desired frequency is too low, then it can't be achieved using the divider.
-    // In this case, notify the caller with an error. Otherwise, get the integral part
-    // of the divider.
-    let int = if divider as u32 > u8::MAX as u32 {
-       return Err(());
-    } else {
-        divider as u8
-    };
-    // Now that the integral part of the divider has been computed, frac can be too.
-    let frac = ((divider - int as f32) * 16.0) as u8;
-
-    // Return the final result
-    Ok((top, int, frac))
-}
 
 pub struct PwmPin<'a> {
     pwm_struct: &'a Pwm<'a>,
@@ -550,7 +505,7 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         let max_freq_hz = self.get_maximum_frequency_hz();
         let threshold_freq_hz = max_freq_hz / self.get_maximum_duty_cycle();
-        let (top, int, frac) = match compute_top_int_frac(max_freq_hz, threshold_freq_hz, frequency_hz) {
+        let (top, int, frac) = match self.pwm_struct.compute_top_int_frac(frequency_hz) {
             Ok(result) => result,
             Err(_) => return Result::from(ErrorCode::INVAL)
         };
