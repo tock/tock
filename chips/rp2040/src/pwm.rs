@@ -404,7 +404,7 @@ impl<'a> Pwm<'a> {
             RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => ChannelNumber::Ch6,
             RPGpio::GPIO14 | RPGpio::GPIO15 => ChannelNumber::Ch7
         };
-        let channel_pin = if gpio as usize % 2 == 0 {
+        let channel_pin = if gpio as usize & 1 == 0 {
             ChannelPin::A
         } else {
             ChannelPin::B
