@@ -144,7 +144,7 @@ pub enum ChannelNumber {
 
 // Each channel has two output pins associated
 // **Note**: an output pin corresponds to two GPIOs, except for the 7th channel
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ChannelPin {
     A,
     B
@@ -247,7 +247,7 @@ impl PwmChannelConfiguration {
     }
 
     // Set counter top value
-    pub fn set_top_value(&mut self, top: u16) {
+    pub fn set_top(&mut self, top: u16) {
         self.top = top;
     }
 }
@@ -451,17 +451,70 @@ impl<'a> Pwm<'a> {
         // Return the final result
         Ok((top, int, frac))
     }
+
+    fn start_pwm_pin(
+        &self,
+        channel_number: ChannelNumber,
+        channel_pin: ChannelPin,
+        frequency_hz: usize,
+        duty_cycle: usize
+    ) -> Result<(), ErrorCode>
+    {
+        let (top, int, frac) = match self.compute_top_int_frac(frequency_hz) {
+            Ok(result) => result,
+            Err(_) => return Result::from(ErrorCode::INVAL)
+        };
+
+        // If top value is equal to u16::MAX, then it is impossible to
+        // have a 100% duty cycle, so an error will be generated. A solution
+        // to this would be setting a higher frequency than the threshold frequency,
+        // since the lose in precision is insignificant for very high top values.
+        let max_duty_cycle = hil::pwm::Pwm::get_maximum_duty_cycle(self);
+        let compare_value = if duty_cycle == max_duty_cycle {
+            if top == u16::MAX {
+                return Result::from(ErrorCode::INVAL);
+            }
+            else {
+                // counter compare value for 100% glitch-free duty cycle
+                top + 1
+            }
+        } else {
+            // Normally, no overflow should occur if duty_cycle is less than or
+            // equal to get_maximum_duty_cycle().
+            (top as usize * duty_cycle / max_duty_cycle) as u16
+        };
+
+        // Create a channel configuration and set the corresponding parameters
+        self.set_top(channel_number, top);
+        self.set_divider_int_frac(channel_number, int, frac);
+        // Set the compare value corresponding to the pin
+        if channel_pin == ChannelPin::A {
+            self.set_compare_value_a(channel_number, compare_value);
+        }
+        else {
+            self.set_compare_value_b(channel_number, compare_value);
+        };
+        self.set_enabled(channel_number, true);
+        Ok(())
+    }
+
+    fn stop_pwm_channel(&self, channel_number: ChannelNumber) -> Result<(), ErrorCode> {
+        self.set_enabled(channel_number, false);
+        Ok(())
+    }
 }
 
 impl hil::pwm::Pwm for Pwm<'_> {
     type Pin = RPGpio;
 
     fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        Ok(())
+        let (channel_number, channel_pin) = self.gpio_to_pwm(*pin);
+        self.start_pwm_pin(channel_number, channel_pin, frequency_hz, duty_cycle)
     }
 
     fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode> {
-        Ok(())
+        let (channel_number, _) = self.gpio_to_pwm(*pin);
+        self.stop_pwm_channel(channel_number)
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {
@@ -499,51 +552,14 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     // the threshold frequency. One easy way to achieve this is to set frequency_hz to
     // get_maximum_frequency_hz() and duty_cycle to get_maximum_duty_cycle().
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        let max_freq_hz = self.get_maximum_frequency_hz();
-        let threshold_freq_hz = max_freq_hz / self.get_maximum_duty_cycle();
-        let (top, int, frac) = match self.pwm_struct.compute_top_int_frac(frequency_hz) {
-            Ok(result) => result,
-            Err(_) => return Result::from(ErrorCode::INVAL)
-        };
-
-        // If top value is equal to u16::MAX, then it is impossible to
-        // have a 100% duty cycle, so an error will be generated. A solution
-        // to this would be setting a higher frequency than the threshold frequency,
-        // since the lose in precision is insignificant for very high top values.
-        let compare_value = if duty_cycle == self.get_maximum_duty_cycle() {
-            if top == u16::MAX {
-                return Result::from(ErrorCode::INVAL);
-            }
-            else {
-                // counter compare value for 100% glitch-free duty cycle
-                top + 1
-            }
-        } else {
-            // Normally, no overflow should occur if duty_cycle is less than or
-            // equal to get_maximum_duty_cycle().
-            (top as usize * duty_cycle / self.get_maximum_duty_cycle()) as u16
-        };
-
-        // Create a channel configuration and set the corresponding parameters
-        let mut config = PwmChannelConfiguration::default_config();
-        config.set_top_value(top);
-        config.set_divider_int_frac(int, frac);
-        // Set the compare value corresponding to the pin
-        if self.channel_pin == ChannelPin::A {
-            config.set_compare_value_a(compare_value);
-        }
-        else {
-            config.set_compare_value_b(compare_value);
-        };
-        config.set_enabled(true);
-        self.pwm_struct.configure_channel(self.channel_number, &config);
+        self.pwm_struct.start_pwm_pin(self.channel_number, self.channel_pin, frequency_hz, duty_cycle);
         Ok(())
     }
 
     // Stops the pin. If the pin was already stopped, this function does nothing.
     // **Note**: any subsequent start of the pin will continue where it stopped.
     fn stop(&self) -> Result<(), ErrorCode> {
-        self.pwm_struct.set_enabled(self.channel_number, false);
+        self.pwm_struct.stop_pwm_channel(self.channel_number);
         Ok(())
     }
 
