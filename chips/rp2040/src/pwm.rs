@@ -3,7 +3,7 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
 use kernel::utilities::StaticRef;
 
@@ -397,6 +397,26 @@ impl<'a> Pwm<'a> {
     pub fn retard_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize].csr.modify(CSR::PH_RET::SET);
         while self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 1 {}
+    }
+
+    pub fn enable_interrupt(&self, channel_number: ChannelNumber) {
+        self.registers.inte.modify(CH::CH.val(channel_number as u32));
+    }
+
+    pub fn enable_mask_interrupt(&self, mask: u8) {
+        self.registers.inte.modify(CH::CH.val(mask as u32));
+    }
+
+    pub fn clear_interrupt(&self, channel_number: ChannelNumber) {
+        self.registers.intr.write(CH::CH.val(channel_number as u32));
+    }
+
+    pub fn force_interrupt(&self, channel_number: ChannelNumber) {
+        self.registers.intf.modify(CH::CH.val(channel_number as u32));
+    }
+
+    pub fn get_interrupt_status_mask(&self) -> u8 {
+        self.registers.ints.read(CH::CH) as u8
     }
 
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
