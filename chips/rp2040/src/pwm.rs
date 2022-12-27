@@ -389,6 +389,16 @@ impl<'a> Pwm<'a> {
         self.registers.ch[channel_number as usize].ctr.modify(CTR::CTR.val(value as u32));
     }
 
+    pub fn advance_count(&self, channel_number: ChannelNumber) {
+        self.registers.ch[channel_number as usize].csr.modify(CSR::PH_ADV::SET);
+        while self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 1 {}
+    }
+
+    pub fn retard_count(&self, channel_number: ChannelNumber) {
+        self.registers.ch[channel_number as usize].csr.modify(CSR::PH_RET::SET);
+        while self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 1 {}
+    }
+
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
         self.set_ph_correct(channel_number, config.ph_correct);
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
