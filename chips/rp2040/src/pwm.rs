@@ -392,94 +392,103 @@ impl<'a> Pwm<'a> {
         self.clocks.set(clocks);
     }
 
-    // Given a channel number, returns a struct that allows controlling its pins
+    // Given a channel number and a channel pin, return a struct that allows controlling its pins
     fn new_pwm_pin(&'a self, channel_number: ChannelNumber, channel_pin: ChannelPin) -> PwmPin<'a> {
         PwmPin {pwm_struct: self, channel_number, channel_pin}
     }
 
-    // For a given GPIO, return the corresponding PwmPin struct to control it
     // Even GPIO pins are mapped to output pin A, and odd GPIO pins are mapped to output pin B
-    pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
+    fn gpio_to_pwm(&self, gpio: RPGpio) -> (ChannelNumber, ChannelPin) {
         match gpio {
             RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch0, ChannelPin::A)
+                    (ChannelNumber::Ch0, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch0, ChannelPin::B)
+                    (ChannelNumber::Ch0, ChannelPin::B)
                 }
             }
             RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch1, ChannelPin::A)
+                    (ChannelNumber::Ch1, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch1, ChannelPin::B)
+                    (ChannelNumber::Ch1, ChannelPin::B)
                 }
             }
             RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch2, ChannelPin::A)
+                    (ChannelNumber::Ch2, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch2, ChannelPin::B)
+                    (ChannelNumber::Ch2, ChannelPin::B)
                 }
             }
             RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch3, ChannelPin::A)
+                    (ChannelNumber::Ch3, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch3, ChannelPin::B)
+                    (ChannelNumber::Ch3, ChannelPin::B)
                 }
             }
             RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch4, ChannelPin::A)
+                    (ChannelNumber::Ch4, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch4, ChannelPin::B)
+                    (ChannelNumber::Ch4, ChannelPin::B)
                 }
             }
             RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch5, ChannelPin::A)
+                    (ChannelNumber::Ch5, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch5, ChannelPin::B)
+                    (ChannelNumber::Ch5, ChannelPin::B)
                 }
             }
             RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch6, ChannelPin::A)
+                    (ChannelNumber::Ch6, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch6, ChannelPin::B)
+                    (ChannelNumber::Ch6, ChannelPin::B)
                 }
             }
             RPGpio::GPIO14 | RPGpio::GPIO15 => {
                 if gpio as usize % 2 == 0 {
-                    self.new_pwm_pin(ChannelNumber::Ch7, ChannelPin::A)
+                    (ChannelNumber::Ch7, ChannelPin::A)
                 } else {
-                    self.new_pwm_pin(ChannelNumber::Ch7, ChannelPin::B)
+                    (ChannelNumber::Ch7, ChannelPin::B)
                 }
             }
         }
     }
+
+    // For a given GPIO, return the corresponding PwmPin struct to control it
+    pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
+        let (channel_number, channel_pin) = self.gpio_to_pwm(gpio);
+        self.new_pwm_pin(channel_number, channel_pin)
+    }
 }
 
-//impl hil::pwm::Pwm for Pwm<'_> {
-    //type Pin = RPGpio;
+impl hil::pwm::Pwm for Pwm<'_> {
+    type Pin = RPGpio;
 
-    //fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        //Ok(())
-    //}
+    fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
+        Ok(())
+    }
 
-    //fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode> {
-        //Ok(())
-    //}
+    fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode> {
+        Ok(())
+    }
 
-    //fn get_maximum_frequency_hz(&self) -> usize {
-        //0
-    //}
+    fn get_maximum_frequency_hz(&self) -> usize {
+        return self.clocks
+            .unwrap_or_panic()
+            .get_frequency(clocks::Clock::System)
+            .try_into()
+            .unwrap();
+    }
 
-    //fn get_maximum_duty_cycle(&self) -> usize {
-        //0
-    //}
-//}
+    fn get_maximum_duty_cycle(&self) -> usize {
+        return u16::MAX as usize
+    }
+}
 
 // Helper function to compute top, int and frac values
 // max_freq_hz ==> the maximum frequency obtained from get_maximum_frequency_hz()
@@ -595,19 +604,15 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     // on the system clock frequency.
     //
     // The resulting frequency has *u32* type, so it is necessary to convert it to a *usize*.
-    // The conversation cannot fail since all MCUs supported by Tock are 32-bit.
+    // The conversion cannot fail since all MCUs supported by Tock are 32-bit.
     // TODO: Maybe change the return type of Clocks::get_frequency() to usize
     fn get_maximum_frequency_hz(&self) -> usize {
-        return self.pwm_struct.clocks
-            .unwrap_or_panic()
-            .get_frequency(clocks::Clock::System)
-            .try_into()
-            .unwrap();
+        hil::pwm::Pwm::get_maximum_frequency_hz(self.pwm_struct)
     }
 
     // Since the PWM counter is a 16-bit counter, its maximum value is used as a
     // reference to compute the duty cycle.
     fn get_maximum_duty_cycle(&self) -> usize {
-        return u16::MAX as usize;
+        hil::pwm::Pwm::get_maximum_duty_cycle(self.pwm_struct)
     }
 }
