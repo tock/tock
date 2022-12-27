@@ -449,7 +449,7 @@ impl<'a> Pwm<'a> {
         let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(self);
         let threshold_freq_hz = max_freq_hz / hil::pwm::Pwm::get_maximum_duty_cycle(self);
         if selected_freq_hz >= threshold_freq_hz {
-            return Ok(((max_freq_hz / selected_freq_hz - 1).try_into().unwrap(), 1, 0));
+            return Ok(((max_freq_hz / selected_freq_hz - 1) as u16, 1, 0));
         }
         // If the selected frequency is below the threshold frequency, then a divider is necessary
 
@@ -538,11 +538,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {
-        return self.clocks
-            .unwrap_or_panic()
-            .get_frequency(clocks::Clock::System)
-            .try_into()
-            .unwrap();
+        self.clocks.unwrap_or_panic().get_frequency(clocks::Clock::System) as usize
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
