@@ -375,8 +375,7 @@ impl<'a> Pwm<'a> {
             ChannelNumber::Ch6,
             ChannelNumber::Ch7,
         ];
-        let mut default_config = PwmChannelConfiguration::default_config();
-        default_config.set_compare_values_a_and_b(0, 0);
+        let default_config = PwmChannelConfiguration::default_config();
         for channel_number in channel_numbers {
             self.configure_channel(channel_number, &default_config);
         }
