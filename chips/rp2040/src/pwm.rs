@@ -3,7 +3,7 @@
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
 use kernel::utilities::StaticRef;
 
@@ -379,6 +379,14 @@ impl<'a> Pwm<'a> {
     // Set counter top value
     pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
         self.registers.ch[channel_number as usize].top.modify(TOP::TOP.val(top as u32));
+    }
+
+    pub fn get_counter(&self, channel_number: ChannelNumber) -> u16 {
+        self.registers.ch[channel_number as usize].ctr.read(CTR::CTR) as u16
+    }
+
+    pub fn set_counter(&self, channel_number: ChannelNumber, value: u16) {
+        self.registers.ch[channel_number as usize].ctr.modify(CTR::CTR.val(value as u32));
     }
 
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
