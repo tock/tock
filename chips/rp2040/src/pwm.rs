@@ -142,6 +142,23 @@ pub enum ChannelNumber {
     Ch7
 }
 
+impl From<RPGpio> for ChannelNumber {
+    fn from(gpio: RPGpio) -> Self {
+        match gpio as u8 >> 1 & 7 {
+            0 => ChannelNumber::Ch0,
+            1 => ChannelNumber::Ch1,
+            2 => ChannelNumber::Ch2,
+            3 => ChannelNumber::Ch3,
+            4 => ChannelNumber::Ch4,
+            5 => ChannelNumber::Ch5,
+            6 => ChannelNumber::Ch6,
+            7 => ChannelNumber::Ch7,
+            // This branch can't be reached due to logical AND
+            _ => panic!("Invalid val for From<u8>::ChannelNumber")
+        }
+    }
+}
+
 // Each channel has two output pins associated
 // **Note**: an output pin corresponds to two GPIOs, except for the 7th channel
 #[derive(Clone, Copy, PartialEq)]
@@ -394,16 +411,7 @@ impl<'a> Pwm<'a> {
 
     // Even GPIO pins are mapped to output pin A, and odd GPIO pins are mapped to output pin B
     fn gpio_to_pwm(&self, gpio: RPGpio) -> (ChannelNumber, ChannelPin) {
-        let channel_number = match gpio {
-            RPGpio::GPIO0 | RPGpio::GPIO1 | RPGpio::GPIO16 | RPGpio::GPIO17 => ChannelNumber::Ch0,
-            RPGpio::GPIO2 | RPGpio::GPIO3 | RPGpio::GPIO18 | RPGpio::GPIO19 => ChannelNumber::Ch1,
-            RPGpio::GPIO4 | RPGpio::GPIO5 | RPGpio::GPIO20 | RPGpio::GPIO21 => ChannelNumber::Ch2,
-            RPGpio::GPIO6 | RPGpio::GPIO7 | RPGpio::GPIO22 | RPGpio::GPIO23 => ChannelNumber::Ch3,
-            RPGpio::GPIO8 | RPGpio::GPIO9 | RPGpio::GPIO24 | RPGpio::GPIO25 => ChannelNumber::Ch4,
-            RPGpio::GPIO10 | RPGpio::GPIO11 | RPGpio::GPIO26 | RPGpio::GPIO27 => ChannelNumber::Ch5,
-            RPGpio::GPIO12 | RPGpio::GPIO13 | RPGpio::GPIO28 | RPGpio::GPIO29 => ChannelNumber::Ch6,
-            RPGpio::GPIO14 | RPGpio::GPIO15 => ChannelNumber::Ch7
-        };
+        let channel_number = ChannelNumber::from(gpio);
         let channel_pin = if gpio as usize & 1 == 0 {
             ChannelPin::A
         } else {
