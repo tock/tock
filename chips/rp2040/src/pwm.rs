@@ -551,15 +551,13 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     // the threshold frequency. One easy way to achieve this is to set frequency_hz to
     // get_maximum_frequency_hz() and duty_cycle to get_maximum_duty_cycle().
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        self.pwm_struct.start_pwm_pin(self.channel_number, self.channel_pin, frequency_hz, duty_cycle);
-        Ok(())
+        self.pwm_struct.start_pwm_pin(self.channel_number, self.channel_pin, frequency_hz, duty_cycle)
     }
 
     // Stops the pin. If the pin was already stopped, this function does nothing.
     // **Note**: any subsequent start of the pin will continue where it stopped.
     fn stop(&self) -> Result<(), ErrorCode> {
-        self.pwm_struct.stop_pwm_channel(self.channel_number);
-        Ok(())
+        self.pwm_struct.stop_pwm_channel(self.channel_number)
     }
 
     // unwrap_or_panic() should never panic if peripherals were correctly configured.
