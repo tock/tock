@@ -158,8 +158,8 @@ pub struct PwmChannelConfiguration {
     divmode: DivMode,
     int: u8,
     frac: u8,
-    cc_a: Option<u16>,
-    cc_b: Option<u16>,
+    cc_a: u16,
+    cc_b: u16,
     top: u16,
 }
 
@@ -184,8 +184,8 @@ impl PwmChannelConfiguration {
             divmode: DivMode::FreeRunning,
             int: 1,
             frac: 0,
-            cc_a: None,
-            cc_b: None,
+            cc_a: 0,
+            cc_b: 0,
             top: u16::MAX
         }
     }
@@ -232,13 +232,13 @@ impl PwmChannelConfiguration {
     // Set compare value for channel A
     // If counter value < compare value ==> pin A high
     pub fn set_compare_value_a(&mut self, cc_a: u16) {
-        self.cc_a = Some(cc_a);
+        self.cc_a = cc_a;
     }
 
     // Set compare value for channel B
     // If counter value < compare value ==> pin B high (if divmode == FreeRuning)
     pub fn set_compare_value_b(&mut self, cc_b: u16) {
-        self.cc_b = Some(cc_b);
+        self.cc_b = cc_b;
     }
 
     pub fn set_compare_values_a_and_b(&mut self, cc_a: u16, cc_b: u16) {
@@ -358,12 +358,8 @@ impl<'a> Pwm<'a> {
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
         self.set_div_mode(channel_number, config.divmode);
         self.set_divider_int_frac(channel_number, config.int, config.frac);
-        if let Some(cc_a) = config.cc_a {
-            self.set_compare_value_a(channel_number, cc_a);
-        }
-        if let Some(cc_b) = config.cc_b {
-            self.set_compare_value_b(channel_number, cc_b);
-        }
+        self.set_compare_value_a(channel_number, config.cc_a);
+        self.set_compare_value_b(channel_number, config.cc_b);
         self.set_top(channel_number, config.top);
         self.set_enabled(channel_number, config.en);
     }
