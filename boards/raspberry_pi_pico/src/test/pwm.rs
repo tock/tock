@@ -15,7 +15,7 @@ impl PwmTest {
         PwmTest { peripherals }
     }
 
-    pub fn hello_world_hil(&self) {
+    pub fn hello_pwm(&self) {
         self.peripherals.pins.get_pin(RPGpio::GPIO14).set_function(GpioFunction::PWM);
         self.peripherals.pins.get_pin(RPGpio::GPIO15).set_function(GpioFunction::PWM);
         let pwm_pin_14 = self.peripherals.pwm.gpio_to_pwm_pin(RPGpio::GPIO14);
