@@ -198,6 +198,10 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
                 self.i2c0.handle_interrupt();
                 true
             }
+            interrupts::PWM_IRQ_WRAP => {
+                // TODO: Implement interrupt handler for pwm
+                true
+            }
             _ => false,
         }
     }

@@ -1,5 +1,6 @@
 //! PWM driver for RP2040.
 
+use kernel::debug;
 use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
@@ -75,14 +76,14 @@ register_bitfields![u32,
     /// Each bit controls one channel.
     CH [
         CH OFFSET(0) NUMBITS(8) [
-            CH0 = 0,
-            CH1 = 1,
-            CH2 = 2,
-            CH3 = 3,
-            CH4 = 4,
-            CH5 = 5,
-            CH6 = 6,
-            CH7 = 7
+            CH0 = 1,
+            CH1 = 2,
+            CH2 = 4,
+            CH3 = 8,
+            CH4 = 16,
+            CH5 = 32,
+            CH6 = 64,
+            CH7 = 128
         ]
     ]
 ];
@@ -400,7 +401,15 @@ impl<'a> Pwm<'a> {
     }
 
     pub fn enable_interrupt(&self, channel_number: ChannelNumber) {
-        self.registers.inte.modify(CH::CH.val(channel_number as u32));
+        // What about adding a new method to the register interface which performs
+        // a bitwise OR and another one for AND?
+        let mask = self.registers.inte.read(CH::CH);
+        self.registers.inte.modify(CH::CH.val(mask | 1 << channel_number as u32));
+    }
+
+    pub fn disable_interrupt(&self, channel_number: ChannelNumber) {
+        let mask = self.registers.inte.read(CH::CH);
+        self.registers.inte.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
     pub fn enable_mask_interrupt(&self, mask: u8) {
@@ -412,7 +421,13 @@ impl<'a> Pwm<'a> {
     }
 
     pub fn force_interrupt(&self, channel_number: ChannelNumber) {
-        self.registers.intf.modify(CH::CH.val(channel_number as u32));
+        let mask = self.registers.intf.read(CH::CH);
+        self.registers.intf.modify(CH::CH.val(mask | 1 << channel_number as u32));
+    }
+
+    pub fn unforce_interrupt(&self, channel_number: ChannelNumber) {
+        let mask = self.registers.intf.read(CH::CH);
+        self.registers.intf.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
     pub fn get_interrupt_status_mask(&self) -> u8 {
@@ -635,5 +650,120 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     // reference to compute the duty cycle.
     fn get_maximum_duty_cycle(&self) -> usize {
         hil::pwm::Pwm::get_maximum_duty_cycle(self.pwm_struct)
+    }
+}
+
+pub mod tests {
+    use super::*;
+
+    fn test_channel(pwm: &Pwm, channel_number: ChannelNumber) {
+        debug!("Starting testing channel {}...", channel_number as usize);
+
+        // Testing set_enabled()
+        pwm.set_enabled(channel_number, true);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::EN), 1);
+        pwm.set_enabled(channel_number, false);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::EN), 0);
+
+        // Testing set_ph_correct()
+        pwm.set_ph_correct(channel_number, true);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::PH_CORRECT), 1);
+        pwm.set_ph_correct(channel_number, false);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::PH_CORRECT), 0);
+
+        // Testing set_invert_polarity()
+        pwm.set_invert_polarity(channel_number, true, true);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 1);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 1);
+        pwm.set_invert_polarity(channel_number, true, false);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 1);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 0);
+        pwm.set_invert_polarity(channel_number, false, true);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 0);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 1);
+        pwm.set_invert_polarity(channel_number, false, false);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 0);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 0);
+
+        // Testing set_div_mode()
+        pwm.set_div_mode(channel_number, DivMode::FreeRunning);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::FreeRunning as u32);
+        pwm.set_div_mode(channel_number, DivMode::High);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::High as u32);
+        pwm.set_div_mode(channel_number, DivMode::Rising);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::Rising as u32);
+        pwm.set_div_mode(channel_number, DivMode::Falling);
+        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::Falling as u32);
+
+        // Testing set_divider_int_frac()
+        pwm.set_divider_int_frac(channel_number, 123, 4);
+        assert_eq!(pwm.registers.ch[channel_number as usize].div.read(DIV::INT), 123);
+        assert_eq!(pwm.registers.ch[channel_number as usize].div.read(DIV::FRAC), 4);
+
+        // Testing set_compare_value() methods
+        pwm.set_compare_value_a(channel_number, 2022);
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 2022);
+        pwm.set_compare_value_b(channel_number, 12);
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::B), 12);
+        pwm.set_compare_values_a_and_b(channel_number, 2023, 1);
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 2023);
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::B), 1);
+
+        // Testing set_top()
+        pwm.set_top(channel_number, 12345);
+        assert_eq!(pwm.registers.ch[channel_number as usize].top.read(TOP::TOP), 12345);
+
+        // Testing get_counter() and set_counter()
+        pwm.set_counter(channel_number, 1);
+        assert_eq!(pwm.registers.ch[channel_number as usize].ctr.read(CTR::CTR), 1);
+        assert_eq!(pwm.get_counter(channel_number), 1);
+
+        // Testing advance_count and retard_count()
+        // The counter must be running to pass retard_count()
+        // The counter must run at less than full speed (div_int + div_frac / 16 > 1) to pass
+        // advance_count()
+        pwm.set_div_mode(channel_number, DivMode::FreeRunning);
+        pwm.advance_count(channel_number);
+        assert_eq!(pwm.get_counter(channel_number), 2);
+        pwm.set_enabled(channel_number, true);
+        // No assert for retard count since it is impossible to predict how much the counter
+        // will advance while running. However, the fact that the function returns is a good
+        // indicator that it does its job.
+        pwm.retard_count(channel_number);
+        // Disabling PWM to prevent it from generating interrupts signals for next tests
+        pwm.set_enabled(channel_number, false);
+
+        // Testing enable_interrupt() and disable_interrupt()
+        pwm.enable_interrupt(channel_number);
+        assert_eq!(pwm.registers.inte.read(CH::CH), 1 << (channel_number as u32));
+        pwm.disable_interrupt(channel_number);
+        assert_eq!(pwm.registers.inte.read(CH::CH), 0);
+
+        // Testing force_interrupt(), unforce_interrupt() and get_interrupt_status_mask()
+        pwm.force_interrupt(channel_number);
+        assert_eq!(pwm.registers.intf.read(CH::CH), 1 << (channel_number as u32));
+        assert_eq!(pwm.get_interrupt_status_mask(), 1 << (channel_number as u8));
+        pwm.unforce_interrupt(channel_number);
+        assert_eq!(pwm.registers.intf.read(CH::CH), 0);
+        assert_eq!(pwm.get_interrupt_status_mask(), 0);
+
+        debug!("Channel {} works!", channel_number as usize);
+    }
+
+    pub fn run(pwm: &Pwm) {
+        let channel_number_list = [
+            // Pins 0 and 1 are kept available for UART
+            ChannelNumber::Ch1,
+            ChannelNumber::Ch2,
+            ChannelNumber::Ch3,
+            ChannelNumber::Ch4,
+            ChannelNumber::Ch5,
+            ChannelNumber::Ch6,
+            ChannelNumber::Ch7
+        ];
+
+        for channel_number in channel_number_list {
+            test_channel(pwm, channel_number);
+        }
     }
 }
