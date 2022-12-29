@@ -583,7 +583,7 @@ impl<'a> Pwm<'a> {
         } else {
             // Normally, no overflow should occur if duty_cycle is less than or
             // equal to get_maximum_duty_cycle().
-            (top as usize * duty_cycle / max_duty_cycle) as u16
+            ((top as usize + 1) * duty_cycle / max_duty_cycle) as u16
         };
 
         // Create a channel configuration and set the corresponding parameters
@@ -624,7 +624,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
-        return u16::MAX as usize
+        return u16::MAX as usize + 1
     }
 }
 
@@ -822,33 +822,53 @@ pub mod tests {
         debug!("Testing PWM HIL trait...");
         let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(pwm);
         let max_duty_cycle = hil::pwm::Pwm::get_maximum_duty_cycle(pwm);
+
         let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz).unwrap();
         assert_eq!(top, 0);
         assert_eq!(int, 1);
         assert_eq!(frac, 0);
+
         let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / 4).unwrap();
         assert_eq!(top, 3);
         assert_eq!(int, 1);
         assert_eq!(frac, 0);
+
         let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle).unwrap();
-        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(top, u16::MAX);
         assert_eq!(int, 1);
         assert_eq!(frac, 0);
+
         let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 2).unwrap();
-        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(top, u16::MAX);
         assert_eq!(int, 2);
         assert_eq!(frac, 0);
+
         let freq = ((max_freq_hz / max_duty_cycle) as f32 / 2.5) as usize;
         let (top, int, frac) = pwm.compute_top_int_frac(freq).unwrap();
-        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(top, u16::MAX);
         assert_eq!(int, 2);
         assert_eq!(frac, 8);
+
         let freq = ((max_freq_hz / max_duty_cycle) as f32 / 3.14) as usize;
         let (top, int, frac) = pwm.compute_top_int_frac(freq).unwrap();
-        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(top, u16::MAX);
         assert_eq!(int, 3);
         assert_eq!(frac, 2);
+
         assert!(pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 256).is_err());
+
+        let (channel_number, channel_pin) = pwm.gpio_to_pwm(RPGpio::GPIO24);
+        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, 0).is_ok());
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 0);
+
+        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle / 4 * 3).is_ok());
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 3);
+
+        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle).is_ok());
+        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 4);
+
+
+        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / max_duty_cycle, max_duty_cycle).is_err());
         debug!("PWM HIL trait OK")
     }
 
