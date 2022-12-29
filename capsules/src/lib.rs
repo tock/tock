@@ -95,6 +95,7 @@ pub mod touch;
 pub mod tsl2561;
 pub mod usb;
 pub mod virtual_adc;
+pub mod virtual_adc_fake;
 pub mod virtual_aes_ccm;
 pub mod virtual_alarm;
 pub mod virtual_digest;

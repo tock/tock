@@ -691,12 +691,13 @@ impl<'a> AdcVirtualized<'a> {
     fn run_next_command(&self) {
         let mut command = Operation::OneSample;
         let mut channel = 0;
+        kernel::debug!("checking for apps...");
         for app in self.apps.iter() {
             kernel::debug!("an app");
             let appid = app.processid();
             let start_command = app.enter(|app, _| {
                 if app.pending_command {
-                    kernel::debug!("there is a pending command");
+                    kernel::debug!("there is a pending command!");
                     app.pending_command = false;
                     app.command.take().map(|c| {
                         command = c;
@@ -1283,24 +1284,14 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
             // Single sample.
             1 => {
-                kernel::debug!("sample");
+                kernel::debug!("asking for a sample");
                 let res = self.enqueue_command(Operation::OneSample, channel, appid);
-                let res1 = self.enqueue_command(Operation::OneSample, channel+1, appid);
-                if res == Ok(()) && res1 == Ok(()) {
+                if res == Ok(()) {
                     CommandReturn::success()
                 } else {
-                    if res != Ok(()) {
-                        match ErrorCode::try_from(res) {
-                            Ok(error) => CommandReturn::failure(error),
-                            _ => panic!("ADC Syscall: invalid error from enqueue_command"),
-                        }
-                    } else if res1 != Ok(()) {
-                        match ErrorCode::try_from(res1) {
-                            Ok(error) => CommandReturn::failure(error),
-                            _ => panic!("ADC Syscall: invalid error from enqueue_command"),
-                        }
-                    } else {
-                        panic!("ADC Syscall: invalid error from enqueue_command")
+                    match ErrorCode::try_from(res) {
+                        Ok(error) => CommandReturn::failure(error),
+                        _ => panic!("ADC Syscall: invalid error from enqueue_command"),
                     }
                 }
             }
