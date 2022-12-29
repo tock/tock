@@ -319,7 +319,8 @@ impl<'a> Pwm<'a> {
     // simultaneously, so they can run in perfect sync.
     // Bits 0-7 enable channels 0-7 respectively
     pub fn set_mask_enabled(&self, mask: u8) {
-        self.registers.en.modify(CH::CH.val(mask as u32));
+        let val = self.registers.en.read(CH::CH);
+        self.registers.en.modify(CH::CH.val(val | mask as u32));
     }
 
     // ph_correct == false ==> trailing-edge modulation
