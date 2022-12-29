@@ -417,7 +417,7 @@ impl<'a> Pwm<'a> {
     }
 
     pub fn clear_interrupt(&self, channel_number: ChannelNumber) {
-        self.registers.intr.write(CH::CH.val(channel_number as u32));
+        self.registers.intr.write(CH::CH.val(1 << channel_number as u32));
     }
 
     pub fn force_interrupt(&self, channel_number: ChannelNumber) {
@@ -428,6 +428,10 @@ impl<'a> Pwm<'a> {
     pub fn unforce_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers.intf.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
+    }
+
+    pub fn get_interrupt_status(&self, channel_number: ChannelNumber) -> bool {
+        (self.registers.ints.read(CH::CH) & 1 << channel_number as u32) != 0
     }
 
     pub fn get_interrupt_status_mask(&self) -> u8 {
@@ -460,6 +464,7 @@ impl<'a> Pwm<'a> {
         for channel_number in channel_numbers {
             self.configure_channel(channel_number, &default_config);
         }
+        self.registers.intr.write(CH::CH.val(0));
     }
 
     // This method should be called when resolving dependencies for the
@@ -739,13 +744,24 @@ pub mod tests {
         pwm.disable_interrupt(channel_number);
         assert_eq!(pwm.registers.inte.read(CH::CH), 0);
 
-        // Testing force_interrupt(), unforce_interrupt() and get_interrupt_status_mask()
+        // Testing get_interrupt_status()
+        pwm.enable_interrupt(channel_number);
+        pwm.set_counter(channel_number, 12345);
+        pwm.advance_count(channel_number);
+        assert_eq!(pwm.get_interrupt_status(channel_number), true);
+        pwm.disable_interrupt(channel_number);
+
+        // Testing clear_interrupt()
+        pwm.clear_interrupt(channel_number);
+        assert_eq!(pwm.get_interrupt_status(channel_number), false);
+
+        // Testing force_interrupt(), unforce_interrupt()
         pwm.force_interrupt(channel_number);
         assert_eq!(pwm.registers.intf.read(CH::CH), 1 << (channel_number as u32));
-        assert_eq!(pwm.get_interrupt_status_mask(), 1 << (channel_number as u8));
+        assert_eq!(pwm.get_interrupt_status(channel_number), true);
         pwm.unforce_interrupt(channel_number);
         assert_eq!(pwm.registers.intf.read(CH::CH), 0);
-        assert_eq!(pwm.get_interrupt_status_mask(), 0);
+        assert_eq!(pwm.get_interrupt_status(channel_number), false);
 
         debug!("Channel {} works!", channel_number as usize);
     }
