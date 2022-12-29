@@ -2,12 +2,55 @@
 
 use kernel::debug;
 use kernel::hil::pwm::PwmPin;
+use kernel::utilities::cells::OptionalCell;
+use kernel::static_init;
 
 use rp2040::chip::Rp2040DefaultPeripherals;
 use rp2040::gpio::{RPGpio, GpioFunction};
+use rp2040::pwm;
 
 pub struct PwmTest {
     peripherals: &'static Rp2040DefaultPeripherals<'static>
+}
+
+struct FadingLedInterrupt {
+    pwm: &'static pwm::Pwm<'static>,
+    channel_number: pwm::ChannelNumber,
+    compare_value: OptionalCell<u16>,
+    diff: u16,
+    upwards: OptionalCell<bool>
+}
+
+impl FadingLedInterrupt {
+    fn new(pwm: &'static pwm::Pwm, gpio: RPGpio) -> Self {
+        FadingLedInterrupt {
+            pwm,
+            channel_number: pwm::ChannelNumber::from(gpio),
+            compare_value: OptionalCell::new(0),
+            diff: 1,
+            upwards: OptionalCell::new(true)
+        }
+    }
+}
+
+impl pwm::Interrupt for FadingLedInterrupt {
+    fn fired(&self, channel_number: pwm::ChannelNumber) {
+        if self.channel_number == channel_number {
+            let mut compare_value = self.compare_value.unwrap_or_panic();
+            if self.upwards.unwrap_or_panic() {
+                compare_value += self.diff;
+            } else {
+                compare_value -= self.diff;
+            }
+            self.compare_value.set(compare_value);
+            self.pwm.set_compare_values_a_and_b(channel_number, compare_value * compare_value, compare_value * compare_value);
+            if compare_value == 255 {
+                self.upwards.set(false);
+            } else if compare_value == 0 {
+                self.upwards.set(true);
+            }
+        }
+    }
 }
 
 impl PwmTest {
@@ -35,22 +78,11 @@ impl PwmTest {
         let pwm = &self.peripherals.pwm;
         let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO12).get_channel_number();
         pwm.enable_interrupt(channel_number);
-        pwm.set_divider_int_frac(channel_number, 2, 0);
+        pwm.set_divider_int_frac(channel_number, 8, 0);
+        let fading_led_interrupt = unsafe {static_init!(FadingLedInterrupt, FadingLedInterrupt::new(pwm, RPGpio::GPIO12))};
+        pwm.set_interrupt_handler(fading_led_interrupt);
         pwm.set_enabled(channel_number, true);
         debug!("PWM pin 12 started");
-        let mut compare_value = 0isize;
-        let mut dif = 1isize;
-        loop {
-            compare_value += dif;
-            while pwm.get_counter(channel_number) != 0 {}
-            pwm.set_compare_value_a(channel_number, (compare_value * compare_value).try_into().unwrap());
-            if compare_value == 255 {
-                dif = -dif;
-            }
-            else if compare_value == 0 {
-                dif = -dif;
-            }
-        }
     }
 
     pub fn synchronious_start(&self) {
