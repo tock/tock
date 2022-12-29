@@ -133,7 +133,7 @@ pub enum DivMode {
     Falling
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChannelNumber {
     Ch0,
     Ch1,
@@ -164,7 +164,7 @@ impl From<RPGpio> for ChannelNumber {
 
 // Each channel has two output pins associated
 // **Note**: an output pin corresponds to two GPIOs, except for the 7th channel
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChannelPin {
     A,
     B
@@ -531,7 +531,7 @@ impl<'a> Pwm<'a> {
         // Note that unwrap can never fail.
         let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(self);
         let threshold_freq_hz = max_freq_hz / hil::pwm::Pwm::get_maximum_duty_cycle(self);
-        if selected_freq_hz >= threshold_freq_hz {
+        if selected_freq_hz > threshold_freq_hz {
             return Ok(((max_freq_hz / selected_freq_hz - 1) as u16, 1, 0));
         }
         // If the selected frequency is below the threshold frequency, then a divider is necessary
@@ -541,14 +541,13 @@ impl<'a> Pwm<'a> {
         // Get the corresponding divider value
         let divider = threshold_freq_hz as f32 / selected_freq_hz as f32;
         // If the desired frequency is too low, then it can't be achieved using the divider.
-        // In this case, notify the caller with an error. Otherwise, get the integral part
-        // of the divider.
-        let int = if divider as u32 > u8::MAX as u32 {
-           return Err(());
-        } else {
-            divider as u8
-        };
-        // Now that the integral part of the divider has been computed, frac can be too.
+        // In this case, notify the caller with an error.
+        if divider >= 256.0f32 {
+            return Err(())
+        }
+        // At this point, the divider is a valid value. Its integral and fractional part
+        // can be computed.
+        let int = divider as u8;
         let frac = ((divider - int as f32) * 16.0) as u8;
 
         // Return the final result
@@ -698,6 +697,22 @@ pub trait Interrupt {
 pub mod tests {
     use super::*;
 
+    fn test_channel_number() {
+        debug!("Testing ChannelNumber enum...");
+        assert_eq!(ChannelNumber::from(RPGpio::GPIO0), ChannelNumber::Ch0);
+        assert_eq!(ChannelNumber::from(RPGpio::GPIO3), ChannelNumber::Ch1);
+        assert_eq!(ChannelNumber::from(RPGpio::GPIO14), ChannelNumber::Ch7);
+        assert_eq!(ChannelNumber::from(RPGpio::GPIO28), ChannelNumber::Ch6);
+        debug!("ChannelNumber enum OK");
+    }
+
+    fn test_channel_pin() {
+        debug!("Testing ChannelPin enum...");
+        assert_eq!(ChannelPin::from(RPGpio::GPIO4), ChannelPin::A);
+        assert_eq!(ChannelPin::from(RPGpio::GPIO5), ChannelPin::B);
+        debug!("ChannelPin enum OK");
+    }
+
     fn test_channel(pwm: &Pwm, channel_number: ChannelNumber) {
         debug!("Starting testing channel {}...", channel_number as usize);
 
@@ -803,7 +818,42 @@ pub mod tests {
         debug!("Channel {} works!", channel_number as usize);
     }
 
-    pub fn run(pwm: &Pwm) {
+    fn test_pwm_trait(pwm: &Pwm) {
+        debug!("Testing PWM HIL trait...");
+        let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(pwm);
+        let max_duty_cycle = hil::pwm::Pwm::get_maximum_duty_cycle(pwm);
+        let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz).unwrap();
+        assert_eq!(top, 0);
+        assert_eq!(int, 1);
+        assert_eq!(frac, 0);
+        let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / 4).unwrap();
+        assert_eq!(top, 3);
+        assert_eq!(int, 1);
+        assert_eq!(frac, 0);
+        let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle).unwrap();
+        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(int, 1);
+        assert_eq!(frac, 0);
+        let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 2).unwrap();
+        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(int, 2);
+        assert_eq!(frac, 0);
+        let freq = ((max_freq_hz / max_duty_cycle) as f32 / 2.5) as usize;
+        let (top, int, frac) = pwm.compute_top_int_frac(freq).unwrap();
+        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(int, 2);
+        assert_eq!(frac, 8);
+        let freq = ((max_freq_hz / max_duty_cycle) as f32 / 3.14) as usize;
+        let (top, int, frac) = pwm.compute_top_int_frac(freq).unwrap();
+        assert_eq!(top, max_duty_cycle as u16);
+        assert_eq!(int, 3);
+        assert_eq!(frac, 2);
+        assert!(pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 256).is_err());
+        debug!("PWM HIL trait OK")
+    }
+
+    fn test_pwm_struct(pwm: &Pwm) {
+        debug!("Testing PWM struct...");
         let channel_number_list = [
             // Pins 0 and 1 are kept available for UART
             ChannelNumber::Ch1,
@@ -818,5 +868,13 @@ pub mod tests {
         for channel_number in channel_number_list {
             test_channel(pwm, channel_number);
         }
+        debug!("PWM struct OK");
+    }
+
+    pub fn run(pwm: &Pwm) {
+        test_channel_number();
+        test_channel_pin();
+        test_pwm_struct(pwm);
+        test_pwm_trait(pwm);
     }
 }
