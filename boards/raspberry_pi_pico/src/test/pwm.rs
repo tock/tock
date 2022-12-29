@@ -158,4 +158,11 @@ impl PwmTest {
         pwm.set_mask_enabled(mask);
         debug!("PWM pin 8 and 6 started");
     }
+
+    pub fn run_all(&self) {
+        self.hello_pwm();
+        self.fading_pwm();
+        self.controllable_pwm();
+        self.synchronious_pwm();
+    }
 }
