@@ -102,4 +102,15 @@ impl PwmTest {
         pwm.set_compare_value_a(channel_number, 32768); // 50% duty cycle
         pwm.set_mask_enabled(mask);
     }
+
+    pub fn controllable_pwm(&self) {
+        self.peripherals.pins.get_pin(RPGpio::GPIO10).set_function(GpioFunction::PWM);
+        self.peripherals.pins.get_pin(RPGpio::GPIO11).set_function(GpioFunction::PWM);
+        let pwm = &self.peripherals.pwm;
+        let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO10).get_channel_number();
+        pwm.set_compare_value_a(channel_number, 26214); //40% duty cycle
+        pwm.set_div_mode(channel_number, pwm::DivMode::High);
+        pwm.set_enabled(channel_number, true);
+        debug!("PWM pin 10 started");
+    }
 }
