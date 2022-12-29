@@ -88,6 +88,8 @@ register_bitfields![u32,
     ]
 ];
 
+const NUMBER_CHANNELS: usize = 8;
+
 #[repr(C)]
 struct Ch {
     /// Control and status register
@@ -107,7 +109,7 @@ struct PwmRegisters {
     /// Channel registers
     // TODO: Remove hard coding of the number of channels
     // core::mem::variant_count::<ChannenlNumber>() can't be used since it is not stable
-    ch: [Ch; 8],
+    ch: [Ch; NUMBER_CHANNELS],
     /// Enable register
     /// This register aliases the CSR_EN bits for all channels.
     /// Writing to this register allows multiple channels to be enabled or disabled
@@ -131,7 +133,7 @@ pub enum DivMode {
     Falling
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ChannelNumber {
     Ch0,
     Ch1,
@@ -286,14 +288,21 @@ const PWM_BASE: StaticRef<PwmRegisters> =
 
 pub struct Pwm<'a> {
     registers: StaticRef<PwmRegisters>,
-    clocks: OptionalCell<&'a clocks::Clocks>
+    clocks: OptionalCell<&'a clocks::Clocks>,
+    interrupt_handler: OptionalCell<&'a dyn Interrupt>
 }
 
 impl<'a> Pwm<'a> {
     pub fn new() -> Self {
         Self {
             registers: PWM_BASE,
-            clocks: OptionalCell::empty()
+            clocks: OptionalCell::empty(),
+            // There is no option to create an array of OptionalCell, so
+            // only one global interrupt_handler is supported.
+            // If arrays of OptionalCell are going to be added,
+            // then it will be possible to configure an interrupt handler
+            // per PWM channel and provide a more user-friendly API.
+            interrupt_handler: OptionalCell::empty()
         }
     }
 
@@ -438,6 +447,25 @@ impl<'a> Pwm<'a> {
         self.registers.ints.read(CH::CH) as u8
     }
 
+    pub fn handle_interrupt(&self) {
+        let channel_numbers = [
+            ChannelNumber::Ch0,
+            ChannelNumber::Ch1,
+            ChannelNumber::Ch2,
+            ChannelNumber::Ch3,
+            ChannelNumber::Ch4,
+            ChannelNumber::Ch5,
+            ChannelNumber::Ch6,
+            ChannelNumber::Ch7,
+        ];
+        for channel_number in channel_numbers {
+            if self.get_interrupt_status(channel_number) {
+                self.interrupt_handler.map(|handler| handler.fired(channel_number));
+                self.clear_interrupt(channel_number);
+            }
+        }
+    }
+
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
         self.set_ph_correct(channel_number, config.ph_correct);
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
@@ -447,6 +475,10 @@ impl<'a> Pwm<'a> {
         self.set_compare_value_b(channel_number, config.cc_b);
         self.set_top(channel_number, config.top);
         self.set_enabled(channel_number, config.en);
+    }
+
+    pub fn set_interrupt_handler(&self, interrupt_handler: &'a dyn Interrupt) {
+        self.interrupt_handler.set(interrupt_handler);
     }
 
     pub fn init(&self) {
@@ -656,6 +688,10 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
     fn get_maximum_duty_cycle(&self) -> usize {
         hil::pwm::Pwm::get_maximum_duty_cycle(self.pwm_struct)
     }
+}
+
+pub trait Interrupt {
+    fn fired(&self, channel_number: ChannelNumber);
 }
 
 pub mod tests {

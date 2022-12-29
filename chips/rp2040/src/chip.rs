@@ -199,7 +199,7 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
                 true
             }
             interrupts::PWM_IRQ_WRAP => {
-                // TODO: Implement interrupt handler for pwm
+                self.pwm.handle_interrupt();
                 true
             }
             _ => false,
