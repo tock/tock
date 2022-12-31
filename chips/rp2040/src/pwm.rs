@@ -518,7 +518,7 @@ impl<'a> Pwm<'a> {
         while self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 1 {}
     }
 
-    /// Enable PWM channel interrupt
+    /// Enable interrupt on the given PWM channel
     pub fn enable_interrupt(&self, channel_number: ChannelNumber) {
         // What about adding a new method to the register interface which performs
         // a bitwise OR and another one for AND?
@@ -526,7 +526,7 @@ impl<'a> Pwm<'a> {
         self.registers.inte.modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
-    /// Disable PWM channel interrupt
+    /// Disable interrupt on the given PWM channel
     pub fn disable_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.inte.read(CH::CH);
         self.registers.inte.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
@@ -539,8 +539,8 @@ impl<'a> Pwm<'a> {
         self.registers.inte.modify(CH::CH.val(mask as u32));
     }
 
-    // TODO: make this method private
-    pub fn clear_interrupt(&self, channel_number: ChannelNumber) {
+    // Clear interrupt flag
+    fn clear_interrupt(&self, channel_number: ChannelNumber) {
         self.registers.intr.write(CH::CH.val(1 << channel_number as u32));
     }
 
@@ -550,25 +550,20 @@ impl<'a> Pwm<'a> {
         self.registers.intf.modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
-    // TODO: Make this method private and call it in handle_interrupt()
-    pub fn unforce_interrupt(&self, channel_number: ChannelNumber) {
+    // Unforce interrupt
+    fn unforce_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers.intf.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
-    // TODO: make this method private
-    pub fn get_interrupt_status(&self, channel_number: ChannelNumber) -> bool {
+    // Get interrupt status
+    fn get_interrupt_status(&self, channel_number: ChannelNumber) -> bool {
         (self.registers.ints.read(CH::CH) & 1 << channel_number as u32) != 0
-    }
-
-    // TODO: make this method private
-    pub fn get_interrupt_status_mask(&self) -> u8 {
-        self.registers.ints.read(CH::CH) as u8
     }
 
     /// Handle PWM interrupts
     ///
-    /// This method should be called only inside [chip::Rp2040DefaultPeripherals::service_interrupt].
+    /// This method should be called only inside crate::chip::Rp2040DefaultPeripherals::service_interrupt.
     pub fn handle_interrupt(&self) {
         let channel_numbers = [
             ChannelNumber::Ch0,
@@ -584,6 +579,7 @@ impl<'a> Pwm<'a> {
             if self.get_interrupt_status(channel_number) {
                 self.interrupt_handler.map(|handler| handler.fired(channel_number));
                 self.clear_interrupt(channel_number);
+                self.unforce_interrupt(channel_number);
             }
         }
     }
