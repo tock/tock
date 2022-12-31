@@ -138,7 +138,6 @@ struct Ch {
 #[repr(C)]
 struct PwmRegisters {
     // Channel registers
-    // TODO: Remove hard coding of the number of channels
     // core::mem::variant_count::<ChannenlNumber>() can't be used since it is not stable
     ch: [Ch; NUMBER_CHANNELS],
     // Enable register
@@ -338,11 +337,9 @@ impl PwmChannelConfiguration {
 
     /// See [Pwm::set_divider_int_frac]
     pub fn set_divider_int_frac(&mut self, int: u8, frac: u8) {
-        // TODO: Remove asserts
-        // No need to check the upper bound, since the int parameter is u8
-        assert!(int >= 1);
-        // No need to check the lower bound, since the frac parameter is u8
-        assert!(frac <= 15);
+        if int == 0 || frac > 15 {
+            return;
+        }
         self.int = int;
         self.frac = frac;
     }
@@ -461,12 +458,11 @@ impl<'a> Pwm<'a> {
     /// The minimum value of the divider is   1 (int) +  0 / 16 (frac).  
     /// The maximum value of the divider is 255 (int) + 15 / 16 (frac).  
     ///
-    /// **Note**: this method will panic if int is 0 or frac is higher than 15  
+    /// **Note**: this method will do nothing if int == 0 || frac > 15.
     pub fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
-        // No need to check the upper bound, since the int parameter is u8
-        assert!(int >= 1);
-        // No need to check the lower bound, since the frac parameter is u8
-        assert!(frac <= 15);
+        if int == 0 || frac > 15 {
+            return;
+        }
         self.registers.ch[channel_number as usize].div.modify(DIV::INT.val(int as u32));
         self.registers.ch[channel_number as usize].div.modify(DIV::FRAC.val(frac as u32));
     }
