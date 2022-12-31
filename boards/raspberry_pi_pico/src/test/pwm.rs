@@ -1,4 +1,57 @@
-//! Tests for PWM peripheral
+//! Integration tests for PWM peripheral
+//!
+//! This module provides four integration tests:
+//!
+//! ## hello_pwm
+//!
+//! This test sets up GPIOs 14 and 15 as PWM pins. GPIO 15 should be much brighter than 14.
+//!
+//! ## fade_pwm
+//!
+//! GPIO 12 is set as a PWM pin. Its brightness should increase and decrease over time.
+//!
+//! ## controllable_pwm
+//!
+//! GPIO 10 is set as an output PWM pin and GPIO 11 as an PWM input pin. Connect the input pin to a
+//! source of 3.3V. The output pin should have a medium brightness. Now, remove the input voltage
+//! from the input pin. Depending on the timing, the output LED should either:
+//! + stop brighting
+//! + bright very strongly
+//!
+//! The input pin can be connected again to a power supply to start brighting as before.
+//!
+//! ## synchronious_pwm
+//!
+//! GPIOs 8 and 6 are set as output PWM pins. They should be both fading, but in opposite
+//! directions: when GPIO 6 is at its maximum brightness, GPIO 8 is at its lowest one.
+//!
+//! ## Running the tests
+//!
+//! First step is including the test module:
+//!
+//! ```
+//! mod test;
+//! ```
+//!
+//! Then create a test instance:
+//!
+//! ```
+//! let pwm_test = test::pwm::PwmTest::new(peripherals);
+//! ```
+//!
+//! To run a specific test:
+//!
+//! ```
+//! pwm_test.hello_pwm();
+//! ```
+//!
+//! To run all tests at once:
+//!
+//! ```
+//! pwm_test.run_all();
+//! ```
+//!
+//! For more details, see [PwmTest].
 
 use kernel::debug;
 use kernel::hil::pwm::PwmPin;
@@ -10,6 +63,7 @@ use rp2040::chip::Rp2040DefaultPeripherals;
 use rp2040::gpio::{RPGpio, GpioFunction};
 use rp2040::pwm;
 
+#[doc(hidden)]
 struct PwmInterrupt {
     pwm: &'static pwm::Pwm<'static>,
     fading_channel_number: pwm::ChannelNumber,
@@ -21,6 +75,7 @@ struct PwmInterrupt {
     synchronious_upwards: OptionalCell<bool>
 }
 
+#[doc(hidden)]
 impl PwmInterrupt {
     fn new(
         pwm: &'static pwm::Pwm,
@@ -41,6 +96,7 @@ impl PwmInterrupt {
     }
 }
 
+#[doc(hidden)]
 impl pwm::Interrupt for PwmInterrupt {
     fn fired(&self, channel_number: pwm::ChannelNumber) {
         if channel_number == self.fading_channel_number {
@@ -86,11 +142,13 @@ impl pwm::Interrupt for PwmInterrupt {
     }
 }
 
+/// Struct used to run integration tests
 pub struct PwmTest {
     peripherals: &'static Rp2040DefaultPeripherals<'static>
 }
 
 impl PwmTest {
+    /// Create a PwmTest to run tests
     pub fn new(peripherals: &'static Rp2040DefaultPeripherals<'static>) -> PwmTest {
         let pwm_interrupt = unsafe {
             static_init!(PwmInterrupt, PwmInterrupt::new(
@@ -104,6 +162,7 @@ impl PwmTest {
         PwmTest { peripherals }
     }
 
+    /// Run hello_pwm test
     pub fn hello_pwm(&self) {
         self.peripherals.pins.get_pin(RPGpio::GPIO14).set_function(GpioFunction::PWM);
         self.peripherals.pins.get_pin(RPGpio::GPIO15).set_function(GpioFunction::PWM);
@@ -119,6 +178,7 @@ impl PwmTest {
         debug!("PWM pin 15 started");
     }
 
+    /// Run fading_pwm
     pub fn fading_pwm(&self) {
         self.peripherals.pins.get_pin(RPGpio::GPIO12).set_function(GpioFunction::PWM);
         let pwm = &self.peripherals.pwm;
@@ -129,6 +189,7 @@ impl PwmTest {
         debug!("PWM pin 12 started");
     }
 
+    /// Run controllable_pwm test
     pub fn controllable_pwm(&self) {
         self.peripherals.pins.get_pin(RPGpio::GPIO10).set_function(GpioFunction::PWM);
         self.peripherals.pins.get_pin(RPGpio::GPIO11).set_function(GpioFunction::PWM);
@@ -140,6 +201,7 @@ impl PwmTest {
         debug!("PWM pin 10 started");
     }
 
+    /// Run synchronious_pwm test
     pub fn synchronious_pwm(&self) {
         self.peripherals.pins.get_pin(RPGpio::GPIO8).set_function(GpioFunction::PWM);
         self.peripherals.pins.get_pin(RPGpio::GPIO6).set_function(GpioFunction::PWM);
@@ -159,6 +221,7 @@ impl PwmTest {
         debug!("PWM pin 8 and 6 started");
     }
 
+    /// Run all integration tests
     pub fn run_all(&self) {
         self.hello_pwm();
         self.fading_pwm();
