@@ -438,25 +438,36 @@ impl<'a> Pwm<'a> {
         });
     }
 
+    /// Invert polarity for pin A
     /// a_inv == true ==> invert polarity for pin A  
-    /// b_inv == true ==> invert polarity for pin B
-    pub fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
-        self.registers.ch[channel_number as usize].csr.modify(match a_inv {
+    pub fn set_invert_polarity_a(&self, channel_number: ChannelNumber, inv: bool) {
+        self.registers.ch[channel_number as usize].csr.modify(match inv {
             true => CSR::A_INV::SET,
             false => CSR::A_INV::CLEAR
         });
-        self.registers.ch[channel_number as usize].csr.modify(match b_inv {
+    }
+
+    /// Invert polarity for pin B
+    /// b_inv == true ==> invert polarity for pin B
+    pub fn set_invert_polarity_b(&self, channel_number: ChannelNumber, inv: bool) {
+        self.registers.ch[channel_number as usize].csr.modify(match inv {
             true => CSR::B_INV::SET,
             false => CSR::B_INV::CLEAR
         });
+    }
+
+    /// Invert polarity for both pins
+    pub fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
+        self.set_invert_polarity_a(channel_number, a_inv);
+        self.set_invert_polarity_b(channel_number, b_inv);
     }
 
     /// divmode == FreeRunning ==> always enable clock divider  
     /// divmode == High ==> enable clock divider when pin B is high  
     /// divmode == Rising ==> enable clock divider when pin B is rising  
     /// divmode == Falling ==> enable clock divider when pin B is falling
-    pub fn set_div_mode(&self, channel_number: ChannelNumber, divmode: DivMode) {
-        self.registers.ch[channel_number as usize].csr.modify(match divmode {
+    pub fn set_div_mode(&self, channel_number: ChannelNumber, div_mode: DivMode) {
+        self.registers.ch[channel_number as usize].csr.modify(match div_mode {
             DivMode::FreeRunning => CSR::DIVMOD::FREE_RUNNING,
             DivMode::High => CSR::DIVMOD::B_HIGH,
             DivMode::Rising => CSR::DIVMOD::B_RISING,
@@ -858,6 +869,26 @@ impl PwmPin<'_> {
     #[inline]
     pub fn get_channel_pin(&self) -> ChannelPin {
         self.channel_pin
+    }
+
+    /// See [Pwm::set_invert_polarity_a] and [Pwm::set_invert_polarity_b]
+    #[inline]
+    pub fn set_invert_polarity(&self, inv: bool) {
+        if self.channel_pin == ChannelPin::A {
+            self.pwm_struct.set_invert_polarity_a(self.channel_number, inv);
+        } else {
+            self.pwm_struct.set_invert_polarity_b(self.channel_number, inv);
+        }
+    }
+
+    /// See [Pwm::set_compare_value_a] and [Pwm::set_compare_value_b]
+    #[inline]
+    pub fn set_compare_value(&self, compare_value: u16) {
+        if self.channel_pin == ChannelPin::A {
+            self.pwm_struct.set_compare_value_a(self.channel_number, compare_value);
+        } else {
+            self.pwm_struct.set_compare_value_b(self.channel_number, compare_value);
+        }
     }
 }
 
