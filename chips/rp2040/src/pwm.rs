@@ -607,7 +607,6 @@ impl<'a> Pwm<'a> {
     ///
     /// This method should be called when setting up the kernel. Failing in doing so
     /// will result in undefined behaviour.
-    // TODO: set the counter value to 0.
     pub fn init(&self) {
         let channel_numbers = [
             ChannelNumber::Ch0,
@@ -622,6 +621,7 @@ impl<'a> Pwm<'a> {
         let default_config = PwmChannelConfiguration::default_config();
         for channel_number in channel_numbers {
             self.configure_channel(channel_number, &default_config);
+            self.set_counter(channel_number, 0);
         }
         self.registers.intr.write(CH::CH.val(0));
     }
