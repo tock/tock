@@ -1,4 +1,35 @@
-//! PWM driver for RP2040.
+//! Pulse wave modulation (PWM) driver for RP2040.
+//!
+//! # Features
+//!
+//! The following features are supported by the driver:
+//!
+//! + Configurable top and compare values
+//! + Independent configuration for each channel and for each output/input pin
+//! + Duty cycle from 0% to 100% **inclusive**
+//! + Trailing edge and dual slope modulation
+//! + Edge-sensitive input mode for frequency measurement
+//! + Level-sensitive input mode for duty cycle measurement
+//! + Interrupt requests
+//! + Phase can be precisely advanced or retarded while running (increments or retardation of one
+//! count)
+//! + Global control register to allow perfect lockstep run for multiple channels
+//!
+//! Currently, the driver doesn't support DMA requests (DREQ) since no DMA module is available yet.
+//!
+//! # Hardware Interface Layer (HIL)
+//!
+//! The driver implements both Pwm and PwmPin HILs. The following features are available when using
+//! the driver through HIL:
+//!
+//! + Configurable top and compare values
+//! + Independent configuration for each channel and for each output/input pin
+//! + Duty cycle from 0% to 100% **inclusive**
+//!
+//! # Examples
+//!
+// TODO: Add link to integration tests
+//! The integration tests provide some examples using the driver both natively or through HIL.
 
 use kernel::debug;
 use kernel::ErrorCode;
@@ -13,67 +44,67 @@ use crate::gpio::RPGpio;
 
 register_bitfields![u32,
     CSR [
-        /// Enable PWM channel
+        // Enable PWM channel
         EN OFFSET(0) NUMBITS(1) [],
-        /// Enable phase-correct modulation
+        // Enable phase-correct modulation
         PH_CORRECT OFFSET(1) NUMBITS(1) [],
-        /// Invert output A
+        // Invert output A
         A_INV OFFSET(2) NUMBITS(1) [],
-        /// Invert output B
+        // Invert output B
         B_INV OFFSET(3) NUMBITS(1) [],
-        /// PWM slice event selection for fractional clock divider
-        /// Default value = FREE_RUNNING (always on)
-        /// If the event is different from FREE_RUNNING, then pin B becomes
-        /// an input pin
+        // PWM slice event selection for fractional clock divider
+        // Default value = FREE_RUNNING (always on)
+        // If the event is different from FREE_RUNNING, then pin B becomes
+        // an input pin
         DIVMOD OFFSET(4) NUMBITS(2) [
-            /// Free-running counting at rate dictated by fractional divider
+            // Free-running counting at rate dictated by fractional divider
             FREE_RUNNING = 0,
-            /// Fractional divider operation is gated by the PWM B pin
+            // Fractional divider operation is gated by the PWM B pin
             B_HIGH = 1,
-            /// Counter advances with each rising edge of the PWM B pin
+            // Counter advances with each rising edge of the PWM B pin
             B_RISING = 2,
-            /// Counter advances with each falling edge of the PWM B pin
+            // Counter advances with each falling edge of the PWM B pin
             B_FALLING = 3
         ],
-        /// Retard the phase of the counter by 1 count, while it is running
-        /// Self-clearing. Write a 1, and poll until low. Counter must be running.
+        // Retard the phase of the counter by 1 count, while it is running
+        // Self-clearing. Write a 1, and poll until low. Counter must be running.
         PH_RET OFFSET(6) NUMBITS(1) [],
-        /// Advance the phase of the counter by 1 count, while it is running
-        /// Self clearing. Write a 1, and poll until low. Counter must be running.
+        // Advance the phase of the counter by 1 count, while it is running
+        // Self clearing. Write a 1, and poll until low. Counter must be running.
         PH_ADV OFFSET(7) NUMBITS(1) []
     ],
 
-    /// DIV register
-    /// INT and FRAC form a fixed-point fractional number.
-    /// Counting rate is system clock frequency divided by this number.
-    /// Fractional division uses simple 1st-order sigma-delta.
+    // DIV register
+    // INT and FRAC form a fixed-point fractional number.
+    // Counting rate is system clock frequency divided by this number.
+    // Fractional division uses simple 1st-order sigma-delta.
     DIV [
         FRAC OFFSET(0) NUMBITS(4) [],
         INT OFFSET(4) NUMBITS(8) []
     ],
 
-    /// Direct access to the PWM counter
+    // Direct access to the PWM counter
     CTR [
         CTR OFFSET(0) NUMBITS(16) []
     ],
 
-    /// Counter compare values
+    // Counter compare values
     CC [
         A OFFSET(0) NUMBITS(16) [],
         B OFFSET(16) NUMBITS(16) []
     ],
 
-    /// Counter top value
-    /// When the value of the counter reaches the top value, depending on the
-    /// ph_correct value, the counter will either:
-    /// + wrap to 0 if ph_correct == 0
-    /// + it starts counting downward until it reaches 0 again if ph_correct == 0
+    // Counter top value
+    // When the value of the counter reaches the top value, depending on the
+    // ph_correct value, the counter will either:
+    // + wrap to 0 if ph_correct == 0
+    // + it starts counting downward until it reaches 0 again if ph_correct == 0
     TOP [
         TOP OFFSET(0) NUMBITS(16) []
     ],
 
-    /// Control multiple channels at once.
-    /// Each bit controls one channel.
+    // Control multiple channels at once.
+    // Each bit controls one channel.
     CH [
         CH OFFSET(0) NUMBITS(8) [
             CH0 = 1,
@@ -92,40 +123,52 @@ const NUMBER_CHANNELS: usize = 8;
 
 #[repr(C)]
 struct Ch {
-    /// Control and status register
+    // Control and status register
     csr: ReadWrite<u32, CSR::Register>,
-    /// Division register
+    // Division register
     div: ReadWrite<u32, DIV::Register>,
-    /// Direct access to the PWM counter register
+    // Direct access to the PWM counter register
     ctr: ReadWrite<u32, CTR::Register>,
-    /// Counter compare values register
+    // Counter compare values register
     cc: ReadWrite<u32, CC::Register>,
-    /// Counter wrap value register
+    // Counter wrap value register
     top: ReadWrite<u32, TOP::Register>
 }
 
 #[repr(C)]
 struct PwmRegisters {
-    /// Channel registers
+    // Channel registers
     // TODO: Remove hard coding of the number of channels
     // core::mem::variant_count::<ChannenlNumber>() can't be used since it is not stable
     ch: [Ch; NUMBER_CHANNELS],
-    /// Enable register
-    /// This register aliases the CSR_EN bits for all channels.
-    /// Writing to this register allows multiple channels to be enabled or disabled
-    /// or disables simultaneously, so they can run in perfect sync.
+    // Enable register
+    // This register aliases the CSR_EN bits for all channels.
+    // Writing to this register allows multiple channels to be enabled or disabled
+    // or disables simultaneously, so they can run in perfect sync.
     en: ReadWrite<u32, CH::Register>,
-    /// Raw interrupts register
+    // Raw interrupts register
     intr: WriteOnly<u32, CH::Register>,
-    /// Interrupt enable register
+    // Interrupt enable register
     inte: ReadWrite<u32, CH::Register>,
-    /// Interrupt force register
+    // Interrupt force register
     intf: ReadWrite<u32, CH::Register>,
-    /// Interrupt status after masking & forcing
+    // Interrupt status after masking & forcing
     ints: ReadOnly<u32, CH::Register>
 }
 
 #[derive(Clone, Copy)]
+/// Fractional clock divider running mode
+///
+/// Each channel can be configured to run in four different ways:
+///
+/// + Free running: The fractional clock divider is always enabled. In this mode,
+/// pins A and B are configured as output pins. In other modes, pin B becomes
+/// an input pin.
+/// + High: The fractional clock divider is enabled when pin B is high.
+/// + Rising: The fractional clock divider is enabled when a rising-edge is
+/// detected on pin B.
+/// + Falling: The fractional clock divider is enabled when a falling-edge
+/// is detected on pin B.
 pub enum DivMode {
     FreeRunning,
     High,
@@ -133,6 +176,9 @@ pub enum DivMode {
     Falling
 }
 
+/// Channel identifier
+///
+/// There are a total of 8 eight PWM channels.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChannelNumber {
     Ch0,
@@ -145,6 +191,48 @@ pub enum ChannelNumber {
     Ch7
 }
 
+/// Each GPIO pin can be configured as a PWM pin.
+/// The following table shows the mapping between GPIO pins and PWM pins:
+///
+/// | GPIO  | PWM |
+/// | ----- | --- |
+/// | 0     | 0A  |
+/// | 1     | 0B  |
+/// | 2     | 1A  |
+/// | 3     | 1B  |
+/// | 4     | 2A  |
+/// | 5     | 2B  |
+/// | 6     | 3A  |
+/// | 7     | 3B  |
+/// | 8     | 4A  |
+/// | 9     | 4B  |
+/// | 10    | 5A  |
+/// | 11    | 5B  |
+/// | 12    | 6A  |
+/// | 13    | 6B  |
+/// | 14    | 7A  |
+/// | 15    | 7B  |
+/// | 16    | 0A  |
+/// | 17    | 0B  |
+/// | 18    | 1A  |
+/// | 19    | 1B  |
+/// | 20    | 2A  |
+/// | 21    | 2B  |
+/// | 22    | 3A  |
+/// | 23    | 3B  |
+/// | 24    | 4A  |
+/// | 25    | 4B  |
+/// | 26    | 5A  |
+/// | 27    | 5B  |
+/// | 28    | 6A  |
+/// | 29    | 6B  |
+///
+/// **Note**:
+///
+/// + The same PWM output can be selected on two GPIO pins. The same signal will appear on each
+/// GPIO.
+/// + If a PWM B pin is used as an input, and is selected on multiple GPIO pins, then the PWM
+/// channel will see the logical OR of those two GPIO inputs
 impl From<RPGpio> for ChannelNumber {
     fn from(gpio: RPGpio) -> Self {
         match gpio as u8 >> 1 & 7 {
@@ -162,14 +250,20 @@ impl From<RPGpio> for ChannelNumber {
     }
 }
 
-// Each channel has two output pins associated
-// **Note**: an output pin corresponds to two GPIOs, except for the 7th channel
+/// Identifier for a channel pin
+///
+/// Each PWM channel has two pins: A and B.  
+/// Pin A is always configured as an output pin.  
+/// Pin B is configured as an output pin when running in free running mode. Otherwise, it is
+/// configured as an input pin.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChannelPin {
     A,
     B
 }
 
+// TODO: Maybe add an intradoc link.
+/// Check ChannelNumber implementation for more details
 impl From<RPGpio> for ChannelPin {
     fn from(gpio: RPGpio) -> Self {
         match gpio as u8 & 1 {
@@ -181,6 +275,9 @@ impl From<RPGpio> for ChannelPin {
     }
 }
 
+/// PWM channel configuration structure
+///
+/// This helper struct allows multiple channels to share the same configuration.
 pub struct PwmChannelConfiguration {
     en: bool,
     ph_correct: bool,
@@ -196,16 +293,13 @@ pub struct PwmChannelConfiguration {
 
 impl PwmChannelConfiguration {
     /// Create a set of default values to use for configuring a PWM channel:
-    /// + enabled = false
-    /// + ph_correct = false
-    /// + a_inv = false (no pin A polarity inversion)
-    /// + b_inv = false (no pin B polarity inversion)
-    /// + divmode = DivMode::FreeRunning (clock divider is always enabled)
-    /// + int = 1 (integral part of the clock divider)
-    /// + frac = 0 (fractional part of the clock divider)
-    /// + cc_a = None (don't change current compare value for pin A)
-    /// + cc_b = None (don't change current compare value for pin B)
-    /// + top = u16::MAX (counter top value)
+    /// + the channel is disabled
+    /// + trailing-edge modulation configured
+    /// + no pin A and B polarity inversion
+    /// + free running mode for the fractional clock divider
+    /// + integral part of the divider is 1 and the fractional part is 0
+    /// + compare values for both pins are set 0 (0% duty cycle)
+    /// + top value is set to its maximum value
     pub fn default_config() -> Self {
         PwmChannelConfiguration {
             en: false,
@@ -221,37 +315,30 @@ impl PwmChannelConfiguration {
         }
     }
 
-    // enable == false ==> disable channel
-    // enable == true ==> enable channel
+    /// See [Pwm::set_enabled]
     pub fn set_enabled(&mut self, enable: bool) {
         self.en = enable;
     }
 
-    // ph_correct == false ==> trailing-edge modulation
-    // ph_correct == true ==> phase-correct modulation
+    /// See [Pwm::set_ph_correct]
     pub fn set_ph_correct(&mut self, ph_correct: bool) {
         self.ph_correct = ph_correct;
     }
 
-    // a_inv == true ==> invert polarity for pin A
-    // b_inv == true ==> invert polarity for pin B
+    /// See [Pwm::set_invert_polarity]
     pub fn set_invert_polarity(&mut self, a_inv: bool, b_inv: bool) {
         self.a_inv = a_inv;
         self.b_inv = b_inv;
     }
 
-    // divmode == FreeRunning ==> always enable clock divider
-    // divmode == High ==> enable clock divider when pin B is high
-    // divmode == Rising ==> enable clock divider when pin B is rising
-    // divmode == Falling ==> enable clock divider when pin B is falling
+    /// See [Pwm::set_div_mode]
     pub fn set_div_mode(&mut self, divmode: DivMode) {
         self.divmode = divmode;
     }
 
-    // RP 2040 uses a 8.4 fractional clock divider
-    // The minimum value of the divider is   1 (int) +  0 / 16 (frac)
-    // The maximum value of the divider is 255 (int) + 15 / 16 (frac)
+    /// See [Pwm::set_divider_int_frac]
     pub fn set_divider_int_frac(&mut self, int: u8, frac: u8) {
+        // TODO: Remove asserts
         // No need to check the upper bound, since the int parameter is u8
         assert!(int >= 1);
         // No need to check the lower bound, since the frac parameter is u8
@@ -260,24 +347,23 @@ impl PwmChannelConfiguration {
         self.frac = frac;
     }
 
-    // Set compare value for channel A
-    // If counter value < compare value ==> pin A high
+    /// See [Pwm::set_compare_value_a]
     pub fn set_compare_value_a(&mut self, cc_a: u16) {
         self.cc_a = cc_a;
     }
 
-    // Set compare value for channel B
-    // If counter value < compare value ==> pin B high (if divmode == FreeRuning)
+    /// See [Pwm::set_compare_value_b]
     pub fn set_compare_value_b(&mut self, cc_b: u16) {
         self.cc_b = cc_b;
     }
 
+    /// See [Pwm::set_compare_values_a_and_b]
     pub fn set_compare_values_a_and_b(&mut self, cc_a: u16, cc_b: u16) {
         self.set_compare_value_a(cc_a);
         self.set_compare_value_b(cc_b);
     }
 
-    // Set counter top value
+    /// See [Pwm::set_top]
     pub fn set_top(&mut self, top: u16) {
         self.top = top;
     }
@@ -286,6 +372,7 @@ impl PwmChannelConfiguration {
 const PWM_BASE: StaticRef<PwmRegisters> =
     unsafe { StaticRef::new(0x40050000 as *const PwmRegisters) };
 
+/// Main struct for controlling PWM peripheral
 pub struct Pwm<'a> {
     registers: StaticRef<PwmRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
@@ -293,6 +380,16 @@ pub struct Pwm<'a> {
 }
 
 impl<'a> Pwm<'a> {
+    /// Create a new Pwm struct
+    ///
+    /// **Note**:
+    /// + This method must be called only once when setting up the kernel peripherals.
+    /// + The structure must be initialized and its dependencies resolved.
+    /// Otherwise, using the struct results in undefined behaviour.
+    /// + Also, if interrupts are required, then an interrupt handler must be set. Otherwise, all
+    /// the interrupts will be ignored.
+    ///
+    /// See [Pwm::init] and [Pwm::set_clocks]
     pub fn new() -> Self {
         Self {
             registers: PWM_BASE,
@@ -306,8 +403,8 @@ impl<'a> Pwm<'a> {
         }
     }
 
-    // enable == false ==> disable channel
-    // enable == true ==> enable channel
+    /// enable == false ==> disable channel  
+    /// enable == true ==> enable channel  
     pub fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
         self.registers.ch[channel_number as usize].csr.modify(match enable {
             true => CSR::EN::SET,
@@ -315,16 +412,17 @@ impl<'a> Pwm<'a> {
         });
     }
 
-    // This function allows multiple channels to be enabled or disabled
-    // simultaneously, so they can run in perfect sync.
-    // Bits 0-7 enable channels 0-7 respectively
+    /// This function allows multiple channels to be enabled or disabled  
+    /// simultaneously, so they can run in perfect sync.  
+    /// Bits 0-7 enable channels 0-7 respectively  
     pub fn set_mask_enabled(&self, mask: u8) {
+        // TODO: Change val name to old_mask
         let val = self.registers.en.read(CH::CH);
         self.registers.en.modify(CH::CH.val(val | mask as u32));
     }
 
-    // ph_correct == false ==> trailing-edge modulation
-    // ph_correct == true ==> phase-correct modulation
+    /// ph_correct == false ==> trailing-edge modulation  
+    /// ph_correct == true ==> phase-correct modulation  
     pub fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
         self.registers.ch[channel_number as usize].csr.modify(match ph_correct {
             true => CSR::PH_CORRECT::SET,
@@ -332,8 +430,8 @@ impl<'a> Pwm<'a> {
         });
     }
 
-    // a_inv == true ==> invert polarity for pin A
-    // b_inv == true ==> invert polarity for pin B
+    /// a_inv == true ==> invert polarity for pin A  
+    /// b_inv == true ==> invert polarity for pin B
     pub fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
         self.registers.ch[channel_number as usize].csr.modify(match a_inv {
             true => CSR::A_INV::SET,
@@ -345,10 +443,10 @@ impl<'a> Pwm<'a> {
         });
     }
 
-    // divmode == FreeRunning ==> always enable clock divider
-    // divmode == High ==> enable clock divider when pin B is high
-    // divmode == Rising ==> enable clock divider when pin B is rising
-    // divmode == Falling ==> enable clock divider when pin B is falling
+    /// divmode == FreeRunning ==> always enable clock divider  
+    /// divmode == High ==> enable clock divider when pin B is high  
+    /// divmode == Rising ==> enable clock divider when pin B is rising  
+    /// divmode == Falling ==> enable clock divider when pin B is falling
     pub fn set_div_mode(&self, channel_number: ChannelNumber, divmode: DivMode) {
         self.registers.ch[channel_number as usize].csr.modify(match divmode {
             DivMode::FreeRunning => CSR::DIVMOD::FREE_RUNNING,
@@ -358,9 +456,12 @@ impl<'a> Pwm<'a> {
         });
     }
 
-    // RP 2040 uses a 8.4 fractional clock divider
-    // The minimum value of the divider is   1 (int) +  0 / 16 (frac)
-    // The maximum value of the divider is 255 (int) + 15 / 16 (frac)
+    /// Set integral and fractional part of the clock divider  
+    /// RP 2040 uses a 8.4 fractional clock divider.  
+    /// The minimum value of the divider is   1 (int) +  0 / 16 (frac).  
+    /// The maximum value of the divider is 255 (int) + 15 / 16 (frac).  
+    ///
+    /// **Note**: this method will panic if int is 0 or frac is higher than 15  
     pub fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
         // No need to check the upper bound, since the int parameter is u8
         assert!(int >= 1);
@@ -370,46 +471,58 @@ impl<'a> Pwm<'a> {
         self.registers.ch[channel_number as usize].div.modify(DIV::FRAC.val(frac as u32));
     }
 
-    // Set output pin A compare value
-    // If counter value < compare value A ==> pin A high
+    /// Set output pin A compare value  
+    /// If counter value < compare value A ==> pin A high
     pub fn set_compare_value_a(&self, channel_number: ChannelNumber, cc_a: u16) {
         self.registers.ch[channel_number as usize].cc.modify(CC::A.val(cc_a as u32));
     }
 
-    // Set output pin B compare value
-    // If counter value < compare value B ==> pin B high (if divmode == FreeRunning)
+    /// Set output pin B compare value  
+    /// If counter value < compare value B ==> pin B high (if divmode == FreeRunning)
     pub fn set_compare_value_b(&self, channel_number: ChannelNumber, cc_b: u16) {
         self.registers.ch[channel_number as usize].cc.modify(CC::B.val(cc_b as u32));
     }
 
+    /// Set compare values for both pins
     pub fn set_compare_values_a_and_b(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
         self.set_compare_value_a(channel_number, cc_a);
         self.set_compare_value_b(channel_number, cc_b);
     }
 
-    // Set counter top value
+    /// Set counter top value
     pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
         self.registers.ch[channel_number as usize].top.modify(TOP::TOP.val(top as u32));
     }
 
+    /// Get the current value of the counter
     pub fn get_counter(&self, channel_number: ChannelNumber) -> u16 {
         self.registers.ch[channel_number as usize].ctr.read(CTR::CTR) as u16
     }
 
+    /// Set the value of the counter
     pub fn set_counter(&self, channel_number: ChannelNumber, value: u16) {
         self.registers.ch[channel_number as usize].ctr.modify(CTR::CTR.val(value as u32));
     }
 
+    /// Increments the value of the counter
+    ///
+    /// The counter must be running at less than full speed. The method will return
+    /// once the increment is complete.
     pub fn advance_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize].csr.modify(CSR::PH_ADV::SET);
         while self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 1 {}
     }
 
+    /// Retards the phase of the counter by 1 count
+    ///
+    /// The counter must be running. The method will return once the retardation
+    /// is complete.
     pub fn retard_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize].csr.modify(CSR::PH_RET::SET);
         while self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 1 {}
     }
 
+    /// Enable PWM channel interrupt
     pub fn enable_interrupt(&self, channel_number: ChannelNumber) {
         // What about adding a new method to the register interface which performs
         // a bitwise OR and another one for AND?
@@ -417,37 +530,49 @@ impl<'a> Pwm<'a> {
         self.registers.inte.modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
+    /// Disable PWM channel interrupt
     pub fn disable_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.inte.read(CH::CH);
         self.registers.inte.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
+    /// Enable multiple channel interrupts at once.
+    ///
+    /// Bits 0 to 7 ==> enable channel 0-7 interrupts.
     pub fn enable_mask_interrupt(&self, mask: u8) {
         self.registers.inte.modify(CH::CH.val(mask as u32));
     }
 
+    // TODO: make this method private
     pub fn clear_interrupt(&self, channel_number: ChannelNumber) {
         self.registers.intr.write(CH::CH.val(1 << channel_number as u32));
     }
 
+    /// Force interrupt on the given channel
     pub fn force_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers.intf.modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
+    // TODO: Make this method private and call it in handle_interrupt()
     pub fn unforce_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers.intf.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
+    // TODO: make this method private
     pub fn get_interrupt_status(&self, channel_number: ChannelNumber) -> bool {
         (self.registers.ints.read(CH::CH) & 1 << channel_number as u32) != 0
     }
 
+    // TODO: make this method private
     pub fn get_interrupt_status_mask(&self) -> u8 {
         self.registers.ints.read(CH::CH) as u8
     }
 
+    /// Handle PWM interrupts
+    ///
+    /// This method should be called only inside [chip::Rp2040DefaultPeripherals::service_interrupt].
     pub fn handle_interrupt(&self) {
         let channel_numbers = [
             ChannelNumber::Ch0,
@@ -467,6 +592,7 @@ impl<'a> Pwm<'a> {
         }
     }
 
+    /// Configure the given channel using the given configuration
     pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
         self.set_ph_correct(channel_number, config.ph_correct);
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
@@ -478,10 +604,18 @@ impl<'a> Pwm<'a> {
         self.set_enabled(channel_number, config.en);
     }
 
+    /// Set an interrupt handler
+    ///
+    /// See [Interrupt]
     pub fn set_interrupt_handler(&self, interrupt_handler: &'a dyn Interrupt) {
         self.interrupt_handler.set(interrupt_handler);
     }
 
+    /// Initialize the struct
+    ///
+    /// This method should be called when setting up the kernel. Failing in doing so
+    /// will result in undefined behaviour.
+    // TODO: set the counter value to 0.
     pub fn init(&self) {
         let channel_numbers = [
             ChannelNumber::Ch0,
@@ -500,23 +634,29 @@ impl<'a> Pwm<'a> {
         self.registers.intr.write(CH::CH.val(0));
     }
 
-    // This method should be called when resolving dependencies for the
-    // default peripherals
+    /// This method should be called when resolving dependencies for the
+    /// default peripherals. See
+    /// [resolve_dependencies()](crate::chip::Rp2040DefaultPeripherals::resolve_dependencies)
+    // TODO: Add a wrapper method called resolve_dependencies()
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
 
-    // Given a channel number and a channel pin, return a struct that allows controlling its pins
+    // Given a channel number and a channel pin, return a struct that allows controlling it
     fn new_pwm_pin(&'a self, channel_number: ChannelNumber, channel_pin: ChannelPin) -> PwmPin<'a> {
         PwmPin {pwm_struct: self, channel_number, channel_pin}
     }
 
-    // Even GPIO pins are mapped to output pin A, and odd GPIO pins are mapped to output pin B
+    // Map the given GPIO to a PWM channel and a PWM pin
     fn gpio_to_pwm(&self, gpio: RPGpio) -> (ChannelNumber, ChannelPin) {
         (ChannelNumber::from(gpio), ChannelPin::from(gpio))
     }
 
-    // For a given GPIO, return the corresponding PwmPin struct to control it
+    /// Map the GPIO to a PwmPin struct
+    ///
+    /// The returned structure can be used to control the PWM pin.
+    ///
+    /// See [PwmPin]
     pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
         let (channel_number, channel_pin) = self.gpio_to_pwm(gpio);
         self.new_pwm_pin(channel_number, channel_pin)
@@ -554,6 +694,9 @@ impl<'a> Pwm<'a> {
         Ok((top, int, frac))
     }
 
+    // Starts a PWM pin with the given frequency and duty cycle.
+    //
+    // Note: the actual values may vary due to rounding errors.
     fn start_pwm_pin(
         &self,
         channel_number: ChannelNumber,
@@ -568,9 +711,7 @@ impl<'a> Pwm<'a> {
         };
 
         // If top value is equal to u16::MAX, then it is impossible to
-        // have a 100% duty cycle, so an error will be generated. A solution
-        // to this would be setting a higher frequency than the threshold frequency,
-        // since the lose in precision is insignificant for very high top values.
+        // have a 100% duty cycle, so an error will be returned.
         let max_duty_cycle = hil::pwm::Pwm::get_maximum_duty_cycle(self);
         let compare_value = if duty_cycle == max_duty_cycle {
             if top == u16::MAX {
@@ -582,53 +723,103 @@ impl<'a> Pwm<'a> {
             }
         } else {
             // Normally, no overflow should occur if duty_cycle is less than or
-            // equal to get_maximum_duty_cycle().
+            // equal to get_maximum_duty_cycle(). It is in user's responsability to
+            // ensure the value is valid.
             ((top as usize + 1) * duty_cycle / max_duty_cycle) as u16
         };
 
-        // Create a channel configuration and set the corresponding parameters
+        // Configure the channel accordingly
         self.set_top(channel_number, top);
         self.set_divider_int_frac(channel_number, int, frac);
-        // Set the compare value corresponding to the pin
+        // Configure the pin accordingly
         if channel_pin == ChannelPin::A {
             self.set_compare_value_a(channel_number, compare_value);
         }
         else {
             self.set_compare_value_b(channel_number, compare_value);
         };
+        // Finally, enable the channel
         self.set_enabled(channel_number, true);
         Ok(())
     }
 
+    // Stop a PWM channel.
+    //
+    // This method does nothing if the PWM channel was already disabled.
+    //
+    // Note that disabling a PWM channel may result in disabling multiple PWM pins.
     fn stop_pwm_channel(&self, channel_number: ChannelNumber) -> Result<(), ErrorCode> {
         self.set_enabled(channel_number, false);
         Ok(())
     }
 }
 
+/// Implementation of the Hardware Interface Layer (HIL)
 impl hil::pwm::Pwm for Pwm<'_> {
     type Pin = RPGpio;
 
+    /// Start a PWM pin
+    ///
+    /// Start the given PWM pin with the given frequency and the given duty cycle.
+    /// The actual values may vary due to rounding errors. For high precision duty cycles,
+    /// the frequency should be set less than:
+    ///
+    /// ```
+    /// let threshold_freq = pwm_struct.get_maximum_frequency_hz() / pwm_struct.get_maximum_duty_cycle()
+    /// ```
+    ///
+    /// ## Errors
+    ///
+    /// This method may fail in one of the following situations:
+    ///
+    /// + 100% duty cycle demand for low frequencies (close to or below threshold_freq)
+    /// + very low frequencies
+    ///
+    /// Also, it is in the caller's responsability to ensure that both frequency_hz and duty_cycle
+    /// are lower than their maximum values. Failing in doing so results in undefined behaviour.
+    ///
+    /// ## Safety
+    ///
+    /// It is safe to call multiples times this method with different values while the pin is
+    /// running.
+    ///
+    /// **Note**: the pin must be set as a PWM pin prior to calling this method.
     fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         let (channel_number, channel_pin) = self.gpio_to_pwm(*pin);
         self.start_pwm_pin(channel_number, channel_pin, frequency_hz, duty_cycle)
     }
 
+    /// Stop the given pin
+    ///
+    /// ## Errors
+    ///
+    /// This method may never fail.
+    ///
+    /// ## Safety
+    ///
+    /// It is safe to call this method multiple times on the same pin. If the pin is already
+    /// stopped, then it does nothing.
     fn stop(&self, pin: &Self::Pin) -> Result<(), ErrorCode> {
         let (channel_number, _) = self.gpio_to_pwm(*pin);
         self.stop_pwm_channel(channel_number)
     }
 
+    /// Return the maximum value of the frequency in Hz
+    ///
+    /// ## Panics
+    ///
+    /// This method will panic if the dependencies are not resolved.
     fn get_maximum_frequency_hz(&self) -> usize {
         self.clocks.unwrap_or_panic().get_frequency(clocks::Clock::System) as usize
     }
 
+    /// Return an opaque value representing 100% duty cycle
     fn get_maximum_duty_cycle(&self) -> usize {
         return u16::MAX as usize + 1
     }
 }
 
-
+/// Helper structure to control a PWM pin
 pub struct PwmPin<'a> {
     pwm_struct: &'a Pwm<'a>,
     channel_number: ChannelNumber,
@@ -636,65 +827,90 @@ pub struct PwmPin<'a> {
 }
 
 impl PwmPin<'_> {
+    /// Returns the PWM channel the pin belongs to
     pub fn get_channel_number(&self) -> ChannelNumber {
         self.channel_number
     }
 
+    /// Returns the PWM pin the pin belongs to
     pub fn get_channel_pin(&self) -> ChannelPin {
         self.channel_pin
     }
 }
 
 impl hil::pwm::PwmPin for PwmPin<'_> {
-    // Starts the pin with the given frequency and the given duty cycle.
-    // If the pin was already running, the new values for the frequency and
-    // the duty cycle will take effect at the end of the current PWM period.
-    //
-    // Starting the PWM pin might fail if the given frequency is too low. The minimal
-    // value for the frequency is get_maximum_frequency_hz() / 16_773_120.
-    // **Note**: the actual duty cycle value may vary due to precission errors. For
-    // maximum precision, the frequency should be set to as close as get_maximum_frequency_hz() /
-    // u16::MAX (higher the frequency, lower the precision). Beyond this value,
-    // the precision will not increase.
-    // **Note**: if a 100% duty cycle is desired, then the selected frequency should be higher than
-    // the threshold frequency. One easy way to achieve this is to set frequency_hz to
-    // get_maximum_frequency_hz() and duty_cycle to get_maximum_duty_cycle().
+    /// Same as Pwm::start
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         self.pwm_struct.start_pwm_pin(self.channel_number, self.channel_pin, frequency_hz, duty_cycle)
     }
 
-    // Stops the pin. If the pin was already stopped, this function does nothing.
-    // **Note**: any subsequent start of the pin will continue where it stopped.
+    /// Same as Pwm::stop
     fn stop(&self) -> Result<(), ErrorCode> {
         self.pwm_struct.stop_pwm_channel(self.channel_number)
     }
 
-    // unwrap_or_panic() should never panic if peripherals were correctly configured.
-    // If it panics, then it means that the clock dependency was not configured
-    // correctly inside Rp2040DefaultPeripherals.resolve_dependencies() or that
-    // clocks were misconfigured.
-    // Using a default value makes no sense, since the PWM counter frequency depends
-    // on the system clock frequency.
-    //
-    // The resulting frequency has *u32* type, so it is necessary to convert it to a *usize*.
-    // The conversion cannot fail since all MCUs supported by Tock are 32-bit.
-    // TODO: Maybe change the return type of Clocks::get_frequency() to usize
+    /// Same as Pwm::get_maximum_frequency_hz
     fn get_maximum_frequency_hz(&self) -> usize {
         hil::pwm::Pwm::get_maximum_frequency_hz(self.pwm_struct)
     }
 
-    // Since the PWM counter is a 16-bit counter, its maximum value is used as a
-    // reference to compute the duty cycle.
+    /// Same as Pwm::get_maximum_duty_cycle
     fn get_maximum_duty_cycle(&self) -> usize {
         hil::pwm::Pwm::get_maximum_duty_cycle(self.pwm_struct)
     }
 }
 
+/// Interrupt trait for interrupt handlers
+///
+/// One should implement this trait if they need to perform some action
+/// on PWM interrupts. A PWM interrupt is raised when a counter wraps if running
+/// in trailing-edge mode or when it reaches again the value 0 when running in dual
+/// slope mode.
 pub trait Interrupt {
+    /// Method to be called when an interrupt is raised
+    ///
+    /// channel_number: The channel identifier which raised the interrupt.
     fn fired(&self, channel_number: ChannelNumber);
 }
 
-pub mod tests {
+/// Unit tests
+///
+/// This module provides unit tests for the PWM driver.
+///
+/// To run the tests, add the following line before loading processes:
+///
+/// ```
+/// rp2040::pwm::test::run::(&peripherals.pwm);
+/// ```
+///
+/// Compile and flash the kernel on the board. Then, connect to UART on GPIOs 1 and 2.
+/// If everything goes right, the following output should be displayed:
+///
+/// ```txt
+/// Testing ChannelNumber enum...  
+/// ChannelNumber enum OK  
+/// Testing ChannelPin enum...  
+/// ChannelPin enum OK  
+/// Testing PWM struct...  
+/// Starting testing channel 1...  
+/// Channel 1 works!  
+/// Starting testing channel 2...  
+/// Channel 2 works!  
+/// Starting testing channel 3...  
+/// Channel 3 works!  
+/// Starting testing channel 4...  
+/// Channel 4 works!  
+/// Starting testing channel 5...  
+/// Channel 5 works!  
+/// Starting testing channel 6...  
+/// Channel 6 works!  
+/// Starting testing channel 7...  
+/// Channel 7 works!  
+/// PWM struct OK  
+/// Testing PWM HIL trait...  
+/// PWM HIL trait OK
+/// ```
+pub mod test {
     use super::*;
 
     fn test_channel_number() {
@@ -891,6 +1107,9 @@ pub mod tests {
         debug!("PWM struct OK");
     }
 
+    /// Run all unit tests
+    ///
+    /// pwm must be initialized and its dependencies resolved.
     pub fn run(pwm: &Pwm) {
         test_channel_number();
         test_channel_pin();
