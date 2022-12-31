@@ -627,9 +627,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// This method should be called when resolving dependencies for the
-    /// default peripherals. See
-    /// [resolve_dependencies()](crate::chip::Rp2040DefaultPeripherals::resolve_dependencies)
-    // TODO: Add a wrapper method called resolve_dependencies()
+    /// default peripherals. See [crate::chip::Rp2040DefaultPeripherals::resolve_dependencies]
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
