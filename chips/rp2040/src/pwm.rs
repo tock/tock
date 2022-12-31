@@ -315,27 +315,32 @@ impl PwmChannelConfiguration {
     }
 
     /// See [Pwm::set_enabled]
+    #[inline]
     pub fn set_enabled(&mut self, enable: bool) {
         self.en = enable;
     }
 
     /// See [Pwm::set_ph_correct]
+    #[inline]
     pub fn set_ph_correct(&mut self, ph_correct: bool) {
         self.ph_correct = ph_correct;
     }
 
     /// See [Pwm::set_invert_polarity]
+    #[inline]
     pub fn set_invert_polarity(&mut self, a_inv: bool, b_inv: bool) {
         self.a_inv = a_inv;
         self.b_inv = b_inv;
     }
 
     /// See [Pwm::set_div_mode]
+    #[inline]
     pub fn set_div_mode(&mut self, divmode: DivMode) {
         self.divmode = divmode;
     }
 
     /// See [Pwm::set_divider_int_frac]
+    #[inline]
     pub fn set_divider_int_frac(&mut self, int: u8, frac: u8) {
         if int == 0 || frac > 15 {
             return;
@@ -345,22 +350,26 @@ impl PwmChannelConfiguration {
     }
 
     /// See [Pwm::set_compare_value_a]
+    #[inline]
     pub fn set_compare_value_a(&mut self, cc_a: u16) {
         self.cc_a = cc_a;
     }
 
     /// See [Pwm::set_compare_value_b]
+    #[inline]
     pub fn set_compare_value_b(&mut self, cc_b: u16) {
         self.cc_b = cc_b;
     }
 
     /// See [Pwm::set_compare_values_a_and_b]
+    #[inline]
     pub fn set_compare_values_a_and_b(&mut self, cc_a: u16, cc_b: u16) {
         self.set_compare_value_a(cc_a);
         self.set_compare_value_b(cc_b);
     }
 
     /// See [Pwm::set_top]
+    #[inline]
     pub fn set_top(&mut self, top: u16) {
         self.top = top;
     }
@@ -402,6 +411,7 @@ impl<'a> Pwm<'a> {
 
     /// enable == false ==> disable channel  
     /// enable == true ==> enable channel  
+    #[inline]
     pub fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
         self.registers.ch[channel_number as usize].csr.modify(match enable {
             true => CSR::EN::SET,
@@ -412,6 +422,7 @@ impl<'a> Pwm<'a> {
     /// This function allows multiple channels to be enabled or disabled  
     /// simultaneously, so they can run in perfect sync.  
     /// Bits 0-7 enable channels 0-7 respectively  
+    #[inline]
     pub fn set_mask_enabled(&self, mask: u8) {
         let val = self.registers.en.read(CH::CH);
         self.registers.en.modify(CH::CH.val(val | mask as u32));
@@ -419,6 +430,7 @@ impl<'a> Pwm<'a> {
 
     /// ph_correct == false ==> trailing-edge modulation  
     /// ph_correct == true ==> phase-correct modulation  
+    #[inline]
     pub fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
         self.registers.ch[channel_number as usize].csr.modify(match ph_correct {
             true => CSR::PH_CORRECT::SET,
@@ -458,6 +470,7 @@ impl<'a> Pwm<'a> {
     /// The maximum value of the divider is 255 (int) + 15 / 16 (frac).  
     ///
     /// **Note**: this method will do nothing if int == 0 || frac > 15.
+    #[inline]
     pub fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
         if int == 0 || frac > 15 {
             return;
@@ -468,33 +481,39 @@ impl<'a> Pwm<'a> {
 
     /// Set output pin A compare value  
     /// If counter value < compare value A ==> pin A high
+    #[inline]
     pub fn set_compare_value_a(&self, channel_number: ChannelNumber, cc_a: u16) {
         self.registers.ch[channel_number as usize].cc.modify(CC::A.val(cc_a as u32));
     }
 
     /// Set output pin B compare value  
     /// If counter value < compare value B ==> pin B high (if divmode == FreeRunning)
+    #[inline]
     pub fn set_compare_value_b(&self, channel_number: ChannelNumber, cc_b: u16) {
         self.registers.ch[channel_number as usize].cc.modify(CC::B.val(cc_b as u32));
     }
 
     /// Set compare values for both pins
+    #[inline]
     pub fn set_compare_values_a_and_b(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
         self.set_compare_value_a(channel_number, cc_a);
         self.set_compare_value_b(channel_number, cc_b);
     }
 
     /// Set counter top value
+    #[inline]
     pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
         self.registers.ch[channel_number as usize].top.modify(TOP::TOP.val(top as u32));
     }
 
     /// Get the current value of the counter
+    #[inline]
     pub fn get_counter(&self, channel_number: ChannelNumber) -> u16 {
         self.registers.ch[channel_number as usize].ctr.read(CTR::CTR) as u16
     }
 
     /// Set the value of the counter
+    #[inline]
     pub fn set_counter(&self, channel_number: ChannelNumber, value: u16) {
         self.registers.ch[channel_number as usize].ctr.modify(CTR::CTR.val(value as u32));
     }
@@ -503,6 +522,7 @@ impl<'a> Pwm<'a> {
     ///
     /// The counter must be running at less than full speed. The method will return
     /// once the increment is complete.
+    #[inline]
     pub fn advance_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize].csr.modify(CSR::PH_ADV::SET);
         while self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 1 {}
@@ -512,12 +532,14 @@ impl<'a> Pwm<'a> {
     ///
     /// The counter must be running. The method will return once the retardation
     /// is complete.
+    #[inline]
     pub fn retard_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize].csr.modify(CSR::PH_RET::SET);
         while self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 1 {}
     }
 
     /// Enable interrupt on the given PWM channel
+    #[inline]
     pub fn enable_interrupt(&self, channel_number: ChannelNumber) {
         // What about adding a new method to the register interface which performs
         // a bitwise OR and another one for AND?
@@ -526,6 +548,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// Disable interrupt on the given PWM channel
+    #[inline]
     pub fn disable_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.inte.read(CH::CH);
         self.registers.inte.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
@@ -534,28 +557,33 @@ impl<'a> Pwm<'a> {
     /// Enable multiple channel interrupts at once.
     ///
     /// Bits 0 to 7 ==> enable channel 0-7 interrupts.
+    #[inline]
     pub fn enable_mask_interrupt(&self, mask: u8) {
         self.registers.inte.modify(CH::CH.val(mask as u32));
     }
 
     // Clear interrupt flag
+    #[inline]
     fn clear_interrupt(&self, channel_number: ChannelNumber) {
         self.registers.intr.write(CH::CH.val(1 << channel_number as u32));
     }
 
     /// Force interrupt on the given channel
+    #[inline]
     pub fn force_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers.intf.modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
     // Unforce interrupt
+    #[inline]
     fn unforce_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers.intf.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
     // Get interrupt status
+    #[inline]
     fn get_interrupt_status(&self, channel_number: ChannelNumber) -> bool {
         (self.registers.ints.read(CH::CH) & 1 << channel_number as u32) != 0
     }
@@ -627,6 +655,7 @@ impl<'a> Pwm<'a> {
 
     /// This method should be called when resolving dependencies for the
     /// default peripherals. See [crate::chip::Rp2040DefaultPeripherals::resolve_dependencies]
+    #[inline]
     pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
@@ -637,6 +666,7 @@ impl<'a> Pwm<'a> {
     }
 
     // Map the given GPIO to a PWM channel and a PWM pin
+    #[inline]
     fn gpio_to_pwm(&self, gpio: RPGpio) -> (ChannelNumber, ChannelPin) {
         (ChannelNumber::from(gpio), ChannelPin::from(gpio))
     }
@@ -798,11 +828,13 @@ impl hil::pwm::Pwm for Pwm<'_> {
     /// ## Panics
     ///
     /// This method will panic if the dependencies are not resolved.
+    #[inline]
     fn get_maximum_frequency_hz(&self) -> usize {
         self.clocks.unwrap_or_panic().get_frequency(clocks::Clock::System) as usize
     }
 
     /// Return an opaque value representing 100% duty cycle
+    #[inline]
     fn get_maximum_duty_cycle(&self) -> usize {
         return u16::MAX as usize + 1
     }
@@ -817,11 +849,13 @@ pub struct PwmPin<'a> {
 
 impl PwmPin<'_> {
     /// Returns the PWM channel the pin belongs to
+    #[inline]
     pub fn get_channel_number(&self) -> ChannelNumber {
         self.channel_number
     }
 
     /// Returns the PWM pin the pin belongs to
+    #[inline]
     pub fn get_channel_pin(&self) -> ChannelPin {
         self.channel_pin
     }
@@ -829,21 +863,25 @@ impl PwmPin<'_> {
 
 impl hil::pwm::PwmPin for PwmPin<'_> {
     /// Same as Pwm::start
+    #[inline]
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
         self.pwm_struct.start_pwm_pin(self.channel_number, self.channel_pin, frequency_hz, duty_cycle)
     }
 
     /// Same as Pwm::stop
+    #[inline]
     fn stop(&self) -> Result<(), ErrorCode> {
         self.pwm_struct.stop_pwm_channel(self.channel_number)
     }
 
     /// Same as Pwm::get_maximum_frequency_hz
+    #[inline]
     fn get_maximum_frequency_hz(&self) -> usize {
         hil::pwm::Pwm::get_maximum_frequency_hz(self.pwm_struct)
     }
 
     /// Same as Pwm::get_maximum_duty_cycle
+    #[inline]
     fn get_maximum_duty_cycle(&self) -> usize {
         hil::pwm::Pwm::get_maximum_duty_cycle(self.pwm_struct)
     }
