@@ -190,6 +190,17 @@ pub enum ChannelNumber {
     Ch7
 }
 
+const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
+    ChannelNumber::Ch0,
+    ChannelNumber::Ch1,
+    ChannelNumber::Ch2,
+    ChannelNumber::Ch3,
+    ChannelNumber::Ch4,
+    ChannelNumber::Ch5,
+    ChannelNumber::Ch6,
+    ChannelNumber::Ch7
+];
+
 /// Each GPIO pin can be configured as a PWM pin.
 /// The following table shows the mapping between GPIO pins and PWM pins:
 ///
@@ -575,17 +586,7 @@ impl<'a> Pwm<'a> {
     ///
     /// This method should be called only inside crate::chip::Rp2040DefaultPeripherals::service_interrupt.
     pub fn handle_interrupt(&self) {
-        let channel_numbers = [
-            ChannelNumber::Ch0,
-            ChannelNumber::Ch1,
-            ChannelNumber::Ch2,
-            ChannelNumber::Ch3,
-            ChannelNumber::Ch4,
-            ChannelNumber::Ch5,
-            ChannelNumber::Ch6,
-            ChannelNumber::Ch7,
-        ];
-        for channel_number in channel_numbers {
+        for channel_number in CHANNEL_NUMBERS {
             if self.get_interrupt_status(channel_number) {
                 self.interrupt_handler.map(|handler| handler.fired(channel_number));
                 self.clear_interrupt(channel_number);
@@ -618,18 +619,8 @@ impl<'a> Pwm<'a> {
     /// This method should be called when setting up the kernel. Failing in doing so
     /// will result in undefined behaviour.
     pub fn init(&self) {
-        let channel_numbers = [
-            ChannelNumber::Ch0,
-            ChannelNumber::Ch1,
-            ChannelNumber::Ch2,
-            ChannelNumber::Ch3,
-            ChannelNumber::Ch4,
-            ChannelNumber::Ch5,
-            ChannelNumber::Ch6,
-            ChannelNumber::Ch7,
-        ];
         let default_config = PwmChannelConfiguration::default_config();
-        for channel_number in channel_numbers {
+        for channel_number in CHANNEL_NUMBERS {
             self.configure_channel(channel_number, &default_config);
             self.set_counter(channel_number, 0);
         }
