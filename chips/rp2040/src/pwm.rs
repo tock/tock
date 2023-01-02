@@ -916,6 +916,8 @@ pub trait Interrupt {
 /// Starting testing channel 7...  
 /// Channel 7 works!  
 /// PWM struct OK  
+/// Testing PwmPinStruct...
+/// PwmPin struct OK
 /// Testing PWM HIL trait...  
 /// PWM HIL trait OK
 /// ```
@@ -1043,6 +1045,41 @@ pub mod test {
         debug!("Channel {} works!", channel_number as usize);
     }
 
+    fn test_pwm_struct(pwm: &Pwm) {
+        debug!("Testing PWM struct...");
+        let channel_number_list = [
+            // Pins 0 and 1 are kept available for UART
+            ChannelNumber::Ch1,
+            ChannelNumber::Ch2,
+            ChannelNumber::Ch3,
+            ChannelNumber::Ch4,
+            ChannelNumber::Ch5,
+            ChannelNumber::Ch6,
+            ChannelNumber::Ch7
+        ];
+
+        for channel_number in channel_number_list {
+            test_channel(pwm, channel_number);
+        }
+        debug!("PWM struct OK");
+    }
+
+    fn test_pwm_pin_struct<'a>(pwm: &'a Pwm<'a>) {
+        debug!("Testing PwmPin struct...");
+        let pwm_pin = pwm.gpio_to_pwm_pin(RPGpio::GPIO13);
+        assert_eq!(pwm_pin.get_channel_number(), ChannelNumber::Ch6);
+        assert_eq!(pwm_pin.get_channel_pin(), ChannelPin::B);
+
+        pwm_pin.set_invert_polarity(true);
+        assert_eq!(pwm.registers.ch[pwm_pin.get_channel_number() as usize].csr.read(CSR::B_INV), 1);
+        pwm_pin.set_invert_polarity(false);
+        assert_eq!(pwm.registers.ch[pwm_pin.get_channel_number() as usize].csr.read(CSR::B_INV), 0);
+
+        pwm_pin.set_compare_value(987);
+        assert_eq!(pwm.registers.ch[pwm_pin.get_channel_number() as usize].cc.read(CC::B), 987);
+        debug!("PwmPin struct OK");
+    }
+
     fn test_pwm_trait(pwm: &Pwm) {
         debug!("Testing PWM HIL trait...");
         let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(pwm);
@@ -1097,32 +1134,14 @@ pub mod test {
         debug!("PWM HIL trait OK")
     }
 
-    fn test_pwm_struct(pwm: &Pwm) {
-        debug!("Testing PWM struct...");
-        let channel_number_list = [
-            // Pins 0 and 1 are kept available for UART
-            ChannelNumber::Ch1,
-            ChannelNumber::Ch2,
-            ChannelNumber::Ch3,
-            ChannelNumber::Ch4,
-            ChannelNumber::Ch5,
-            ChannelNumber::Ch6,
-            ChannelNumber::Ch7
-        ];
-
-        for channel_number in channel_number_list {
-            test_channel(pwm, channel_number);
-        }
-        debug!("PWM struct OK");
-    }
-
     /// Run all unit tests
     ///
     /// pwm must be initialized and its dependencies resolved.
-    pub fn run(pwm: &Pwm) {
+    pub fn run<'a>(pwm: &'a Pwm<'a>) {
         test_channel_number();
         test_channel_pin();
         test_pwm_struct(pwm);
+        test_pwm_pin_struct(pwm);
         test_pwm_trait(pwm);
     }
 }
