@@ -31,6 +31,7 @@ run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	@echo
 	qemu-system-riscv32 \
 	  -machine virt \
+	  -semihosting \
 	  -bios $^ \
 	  -global virtio-mmio.force-legacy=false \
 	  -device virtio-rng-device \
@@ -52,6 +53,7 @@ run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
 	qemu-system-riscv32 \
 	  -machine virt \
+	  -semihosting \
 	  -bios $^ \
 	  -global virtio-mmio.force-legacy=false \
 	  -device virtio-rng-device \
