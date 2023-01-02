@@ -28,16 +28,16 @@
 //!
 //! # Examples
 //!
-// TODO: Add link to integration tests
-//! The integration tests provide some examples using the driver both natively or through HIL.
+//! The integration tests for Raspberry Pi Pico provide some examples using the driver
+//! both natively or through HIL. See boards/raspberry_pi_pico/src/test/pwm.rs
 
 use kernel::debug;
-use kernel::ErrorCode;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadWrite, ReadOnly, WriteOnly};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 use crate::clocks;
 use crate::gpio::RPGpio;
@@ -132,7 +132,7 @@ struct Ch {
     // Counter compare values register
     cc: ReadWrite<u32, CC::Register>,
     // Counter wrap value register
-    top: ReadWrite<u32, TOP::Register>
+    top: ReadWrite<u32, TOP::Register>,
 }
 
 #[repr(C)]
@@ -152,7 +152,7 @@ struct PwmRegisters {
     // Interrupt force register
     intf: ReadWrite<u32, CH::Register>,
     // Interrupt status after masking & forcing
-    ints: ReadOnly<u32, CH::Register>
+    ints: ReadOnly<u32, CH::Register>,
 }
 
 #[derive(Clone, Copy)]
@@ -172,7 +172,7 @@ pub enum DivMode {
     FreeRunning,
     High,
     Rising,
-    Falling
+    Falling,
 }
 
 /// Channel identifier
@@ -187,7 +187,7 @@ pub enum ChannelNumber {
     Ch4,
     Ch5,
     Ch6,
-    Ch7
+    Ch7,
 }
 
 const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
@@ -198,7 +198,7 @@ const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
     ChannelNumber::Ch4,
     ChannelNumber::Ch5,
     ChannelNumber::Ch6,
-    ChannelNumber::Ch7
+    ChannelNumber::Ch7,
 ];
 
 /// Each GPIO pin can be configured as a PWM pin.
@@ -255,7 +255,7 @@ impl From<RPGpio> for ChannelNumber {
             6 => ChannelNumber::Ch6,
             7 => ChannelNumber::Ch7,
             // This branch can't be reached due to logical AND
-            _ => panic!("Unreachable branch")
+            _ => panic!("Unreachable branch"),
         }
     }
 }
@@ -269,10 +269,9 @@ impl From<RPGpio> for ChannelNumber {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ChannelPin {
     A,
-    B
+    B,
 }
 
-// TODO: Maybe add an intradoc link.
 /// Check ChannelNumber implementation for more details
 impl From<RPGpio> for ChannelPin {
     fn from(gpio: RPGpio) -> Self {
@@ -280,7 +279,7 @@ impl From<RPGpio> for ChannelPin {
             0 => ChannelPin::A,
             1 => ChannelPin::B,
             // This branch can't be reached due to logical AND
-            _ => panic!("Unreachable branch")
+            _ => panic!("Unreachable branch"),
         }
     }
 }
@@ -321,7 +320,7 @@ impl PwmChannelConfiguration {
             frac: 0,
             cc_a: 0,
             cc_b: 0,
-            top: u16::MAX
+            top: u16::MAX,
         }
     }
 
@@ -384,7 +383,7 @@ const PWM_BASE: StaticRef<PwmRegisters> =
 pub struct Pwm<'a> {
     registers: StaticRef<PwmRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
-    interrupt_handler: OptionalCell<&'a dyn Interrupt>
+    interrupt_handler: OptionalCell<&'a dyn Interrupt>,
 }
 
 impl<'a> Pwm<'a> {
@@ -407,17 +406,19 @@ impl<'a> Pwm<'a> {
             // If arrays of OptionalCell are going to be added,
             // then it will be possible to configure an interrupt handler
             // per PWM channel and provide a more user-friendly API.
-            interrupt_handler: OptionalCell::empty()
+            interrupt_handler: OptionalCell::empty(),
         }
     }
 
     /// enable == false ==> disable channel  
     /// enable == true ==> enable channel  
     pub fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
-        self.registers.ch[channel_number as usize].csr.modify(match enable {
-            true => CSR::EN::SET,
-            false => CSR::EN::CLEAR
-        });
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(match enable {
+                true => CSR::EN::SET,
+                false => CSR::EN::CLEAR,
+            });
     }
 
     /// This function allows multiple channels to be enabled or disabled  
@@ -431,28 +432,34 @@ impl<'a> Pwm<'a> {
     /// ph_correct == false ==> trailing-edge modulation  
     /// ph_correct == true ==> phase-correct modulation  
     pub fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
-        self.registers.ch[channel_number as usize].csr.modify(match ph_correct {
-            true => CSR::PH_CORRECT::SET,
-            false => CSR::PH_CORRECT::CLEAR
-        });
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(match ph_correct {
+                true => CSR::PH_CORRECT::SET,
+                false => CSR::PH_CORRECT::CLEAR,
+            });
     }
 
     /// Invert polarity for pin A
     /// a_inv == true ==> invert polarity for pin A  
     pub fn set_invert_polarity_a(&self, channel_number: ChannelNumber, inv: bool) {
-        self.registers.ch[channel_number as usize].csr.modify(match inv {
-            true => CSR::A_INV::SET,
-            false => CSR::A_INV::CLEAR
-        });
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(match inv {
+                true => CSR::A_INV::SET,
+                false => CSR::A_INV::CLEAR,
+            });
     }
 
     /// Invert polarity for pin B
     /// b_inv == true ==> invert polarity for pin B
     pub fn set_invert_polarity_b(&self, channel_number: ChannelNumber, inv: bool) {
-        self.registers.ch[channel_number as usize].csr.modify(match inv {
-            true => CSR::B_INV::SET,
-            false => CSR::B_INV::CLEAR
-        });
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(match inv {
+                true => CSR::B_INV::SET,
+                false => CSR::B_INV::CLEAR,
+            });
     }
 
     /// Invert polarity for both pins
@@ -466,12 +473,14 @@ impl<'a> Pwm<'a> {
     /// divmode == Rising ==> enable clock divider when pin B is rising  
     /// divmode == Falling ==> enable clock divider when pin B is falling
     pub fn set_div_mode(&self, channel_number: ChannelNumber, div_mode: DivMode) {
-        self.registers.ch[channel_number as usize].csr.modify(match div_mode {
-            DivMode::FreeRunning => CSR::DIVMOD::FREE_RUNNING,
-            DivMode::High => CSR::DIVMOD::B_HIGH,
-            DivMode::Rising => CSR::DIVMOD::B_RISING,
-            DivMode::Falling => CSR::DIVMOD::B_FALLING
-        });
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(match div_mode {
+                DivMode::FreeRunning => CSR::DIVMOD::FREE_RUNNING,
+                DivMode::High => CSR::DIVMOD::B_HIGH,
+                DivMode::Rising => CSR::DIVMOD::B_RISING,
+                DivMode::Falling => CSR::DIVMOD::B_FALLING,
+            });
     }
 
     /// Set integral and fractional part of the clock divider  
@@ -484,20 +493,28 @@ impl<'a> Pwm<'a> {
         if int == 0 || frac > 15 {
             return;
         }
-        self.registers.ch[channel_number as usize].div.modify(DIV::INT.val(int as u32));
-        self.registers.ch[channel_number as usize].div.modify(DIV::FRAC.val(frac as u32));
+        self.registers.ch[channel_number as usize]
+            .div
+            .modify(DIV::INT.val(int as u32));
+        self.registers.ch[channel_number as usize]
+            .div
+            .modify(DIV::FRAC.val(frac as u32));
     }
 
     /// Set output pin A compare value  
     /// If counter value < compare value A ==> pin A high
     pub fn set_compare_value_a(&self, channel_number: ChannelNumber, cc_a: u16) {
-        self.registers.ch[channel_number as usize].cc.modify(CC::A.val(cc_a as u32));
+        self.registers.ch[channel_number as usize]
+            .cc
+            .modify(CC::A.val(cc_a as u32));
     }
 
     /// Set output pin B compare value  
     /// If counter value < compare value B ==> pin B high (if divmode == FreeRunning)
     pub fn set_compare_value_b(&self, channel_number: ChannelNumber, cc_b: u16) {
-        self.registers.ch[channel_number as usize].cc.modify(CC::B.val(cc_b as u32));
+        self.registers.ch[channel_number as usize]
+            .cc
+            .modify(CC::B.val(cc_b as u32));
     }
 
     /// Set compare values for both pins
@@ -508,17 +525,23 @@ impl<'a> Pwm<'a> {
 
     /// Set counter top value
     pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
-        self.registers.ch[channel_number as usize].top.modify(TOP::TOP.val(top as u32));
+        self.registers.ch[channel_number as usize]
+            .top
+            .modify(TOP::TOP.val(top as u32));
     }
 
     /// Get the current value of the counter
     pub fn get_counter(&self, channel_number: ChannelNumber) -> u16 {
-        self.registers.ch[channel_number as usize].ctr.read(CTR::CTR) as u16
+        self.registers.ch[channel_number as usize]
+            .ctr
+            .read(CTR::CTR) as u16
     }
 
     /// Set the value of the counter
     pub fn set_counter(&self, channel_number: ChannelNumber, value: u16) {
-        self.registers.ch[channel_number as usize].ctr.modify(CTR::CTR.val(value as u32));
+        self.registers.ch[channel_number as usize]
+            .ctr
+            .modify(CTR::CTR.val(value as u32));
     }
 
     /// Increments the value of the counter
@@ -526,8 +549,14 @@ impl<'a> Pwm<'a> {
     /// The counter must be running at less than full speed. The method will return
     /// once the increment is complete.
     pub fn advance_count(&self, channel_number: ChannelNumber) {
-        self.registers.ch[channel_number as usize].csr.modify(CSR::PH_ADV::SET);
-        while self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 1 {}
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(CSR::PH_ADV::SET);
+        while self.registers.ch[channel_number as usize]
+            .csr
+            .read(CSR::PH_ADV)
+            == 1
+        {}
     }
 
     /// Retards the phase of the counter by 1 count
@@ -535,8 +564,14 @@ impl<'a> Pwm<'a> {
     /// The counter must be running. The method will return once the retardation
     /// is complete.
     pub fn retard_count(&self, channel_number: ChannelNumber) {
-        self.registers.ch[channel_number as usize].csr.modify(CSR::PH_RET::SET);
-        while self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 1 {}
+        self.registers.ch[channel_number as usize]
+            .csr
+            .modify(CSR::PH_RET::SET);
+        while self.registers.ch[channel_number as usize]
+            .csr
+            .read(CSR::PH_RET)
+            == 1
+        {}
     }
 
     /// Enable interrupt on the given PWM channel
@@ -544,13 +579,17 @@ impl<'a> Pwm<'a> {
         // What about adding a new method to the register interface which performs
         // a bitwise OR and another one for AND?
         let mask = self.registers.inte.read(CH::CH);
-        self.registers.inte.modify(CH::CH.val(mask | 1 << channel_number as u32));
+        self.registers
+            .inte
+            .modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
     /// Disable interrupt on the given PWM channel
     pub fn disable_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.inte.read(CH::CH);
-        self.registers.inte.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
+        self.registers
+            .inte
+            .modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
     /// Enable multiple channel interrupts at once.
@@ -562,19 +601,25 @@ impl<'a> Pwm<'a> {
 
     // Clear interrupt flag
     fn clear_interrupt(&self, channel_number: ChannelNumber) {
-        self.registers.intr.write(CH::CH.val(1 << channel_number as u32));
+        self.registers
+            .intr
+            .write(CH::CH.val(1 << channel_number as u32));
     }
 
     /// Force interrupt on the given channel
     pub fn force_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
-        self.registers.intf.modify(CH::CH.val(mask | 1 << channel_number as u32));
+        self.registers
+            .intf
+            .modify(CH::CH.val(mask | 1 << channel_number as u32));
     }
 
     // Unforce interrupt
     fn unforce_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
-        self.registers.intf.modify(CH::CH.val(mask & !(1 << channel_number as u32)));
+        self.registers
+            .intf
+            .modify(CH::CH.val(mask & !(1 << channel_number as u32)));
     }
 
     // Get interrupt status
@@ -588,7 +633,8 @@ impl<'a> Pwm<'a> {
     pub fn handle_interrupt(&self) {
         for channel_number in CHANNEL_NUMBERS {
             if self.get_interrupt_status(channel_number) {
-                self.interrupt_handler.map(|handler| handler.fired(channel_number));
+                self.interrupt_handler
+                    .map(|handler| handler.fired(channel_number));
                 self.clear_interrupt(channel_number);
                 self.unforce_interrupt(channel_number);
             }
@@ -596,7 +642,11 @@ impl<'a> Pwm<'a> {
     }
 
     /// Configure the given channel using the given configuration
-    pub fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
+    pub fn configure_channel(
+        &self,
+        channel_number: ChannelNumber,
+        config: &PwmChannelConfiguration,
+    ) {
         self.set_ph_correct(channel_number, config.ph_correct);
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
         self.set_div_mode(channel_number, config.divmode);
@@ -635,7 +685,11 @@ impl<'a> Pwm<'a> {
 
     // Given a channel number and a channel pin, return a struct that allows controlling it
     fn new_pwm_pin(&'a self, channel_number: ChannelNumber, channel_pin: ChannelPin) -> PwmPin<'a> {
-        PwmPin {pwm_struct: self, channel_number, channel_pin}
+        PwmPin {
+            pwm_struct: self,
+            channel_number,
+            channel_pin,
+        }
     }
 
     // Map the given GPIO to a PWM channel and a PWM pin
@@ -674,7 +728,7 @@ impl<'a> Pwm<'a> {
         // If the desired frequency is too low, then it can't be achieved using the divider.
         // In this case, notify the caller with an error.
         if divider >= 256.0f32 {
-            return Err(())
+            return Err(());
         }
         // At this point, the divider is a valid value. Its integral and fractional part
         // can be computed.
@@ -693,12 +747,11 @@ impl<'a> Pwm<'a> {
         channel_number: ChannelNumber,
         channel_pin: ChannelPin,
         frequency_hz: usize,
-        duty_cycle: usize
-    ) -> Result<(), ErrorCode>
-    {
+        duty_cycle: usize,
+    ) -> Result<(), ErrorCode> {
         let (top, int, frac) = match self.compute_top_int_frac(frequency_hz) {
             Ok(result) => result,
-            Err(_) => return Result::from(ErrorCode::INVAL)
+            Err(_) => return Result::from(ErrorCode::INVAL),
         };
 
         // If top value is equal to u16::MAX, then it is impossible to
@@ -707,8 +760,7 @@ impl<'a> Pwm<'a> {
         let compare_value = if duty_cycle == max_duty_cycle {
             if top == u16::MAX {
                 return Result::from(ErrorCode::INVAL);
-            }
-            else {
+            } else {
                 // counter compare value for 100% glitch-free duty cycle
                 top + 1
             }
@@ -725,8 +777,7 @@ impl<'a> Pwm<'a> {
         // Configure the pin accordingly
         if channel_pin == ChannelPin::A {
             self.set_compare_value_a(channel_number, compare_value);
-        }
-        else {
+        } else {
             self.set_compare_value_b(channel_number, compare_value);
         };
         // Finally, enable the channel
@@ -775,7 +826,12 @@ impl hil::pwm::Pwm for Pwm<'_> {
     /// running.
     ///
     /// **Note**: the pin must be set as a PWM pin prior to calling this method.
-    fn start(&self, pin: &Self::Pin, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
+    fn start(
+        &self,
+        pin: &Self::Pin,
+        frequency_hz: usize,
+        duty_cycle: usize,
+    ) -> Result<(), ErrorCode> {
         let (channel_number, channel_pin) = self.gpio_to_pwm(*pin);
         self.start_pwm_pin(channel_number, channel_pin, frequency_hz, duty_cycle)
     }
@@ -801,12 +857,14 @@ impl hil::pwm::Pwm for Pwm<'_> {
     ///
     /// This method will panic if the dependencies are not resolved.
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.clocks.unwrap_or_panic().get_frequency(clocks::Clock::System) as usize
+        self.clocks
+            .unwrap_or_panic()
+            .get_frequency(clocks::Clock::System) as usize
     }
 
     /// Return an opaque value representing 100% duty cycle
     fn get_maximum_duty_cycle(&self) -> usize {
-        return u16::MAX as usize + 1
+        return u16::MAX as usize + 1;
     }
 }
 
@@ -814,7 +872,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
 pub struct PwmPin<'a> {
     pwm_struct: &'a Pwm<'a>,
     channel_number: ChannelNumber,
-    channel_pin: ChannelPin
+    channel_pin: ChannelPin,
 }
 
 impl PwmPin<'_> {
@@ -831,18 +889,22 @@ impl PwmPin<'_> {
     /// See [Pwm::set_invert_polarity_a] and [Pwm::set_invert_polarity_b]
     pub fn set_invert_polarity(&self, inv: bool) {
         if self.channel_pin == ChannelPin::A {
-            self.pwm_struct.set_invert_polarity_a(self.channel_number, inv);
+            self.pwm_struct
+                .set_invert_polarity_a(self.channel_number, inv);
         } else {
-            self.pwm_struct.set_invert_polarity_b(self.channel_number, inv);
+            self.pwm_struct
+                .set_invert_polarity_b(self.channel_number, inv);
         }
     }
 
     /// See [Pwm::set_compare_value_a] and [Pwm::set_compare_value_b]
     pub fn set_compare_value(&self, compare_value: u16) {
         if self.channel_pin == ChannelPin::A {
-            self.pwm_struct.set_compare_value_a(self.channel_number, compare_value);
+            self.pwm_struct
+                .set_compare_value_a(self.channel_number, compare_value);
         } else {
-            self.pwm_struct.set_compare_value_b(self.channel_number, compare_value);
+            self.pwm_struct
+                .set_compare_value_b(self.channel_number, compare_value);
         }
     }
 }
@@ -850,7 +912,12 @@ impl PwmPin<'_> {
 impl hil::pwm::PwmPin for PwmPin<'_> {
     /// Same as Pwm::start
     fn start(&self, frequency_hz: usize, duty_cycle: usize) -> Result<(), ErrorCode> {
-        self.pwm_struct.start_pwm_pin(self.channel_number, self.channel_pin, frequency_hz, duty_cycle)
+        self.pwm_struct.start_pwm_pin(
+            self.channel_number,
+            self.channel_pin,
+            frequency_hz,
+            duty_cycle,
+        )
     }
 
     /// Same as Pwm::stop
@@ -945,61 +1012,157 @@ pub mod test {
 
         // Testing set_enabled()
         pwm.set_enabled(channel_number, true);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::EN), 1);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].csr.read(CSR::EN),
+            1
+        );
         pwm.set_enabled(channel_number, false);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::EN), 0);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].csr.read(CSR::EN),
+            0
+        );
 
         // Testing set_ph_correct()
         pwm.set_ph_correct(channel_number, true);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::PH_CORRECT), 1);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::PH_CORRECT),
+            1
+        );
         pwm.set_ph_correct(channel_number, false);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::PH_CORRECT), 0);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::PH_CORRECT),
+            0
+        );
 
         // Testing set_invert_polarity()
         pwm.set_invert_polarity(channel_number, true, true);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 1);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 1);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::A_INV),
+            1
+        );
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::B_INV),
+            1
+        );
         pwm.set_invert_polarity(channel_number, true, false);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 1);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 0);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::A_INV),
+            1
+        );
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::B_INV),
+            0
+        );
         pwm.set_invert_polarity(channel_number, false, true);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 0);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 1);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::A_INV),
+            0
+        );
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::B_INV),
+            1
+        );
         pwm.set_invert_polarity(channel_number, false, false);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::A_INV), 0);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::B_INV), 0);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::A_INV),
+            0
+        );
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::B_INV),
+            0
+        );
 
         // Testing set_div_mode()
         pwm.set_div_mode(channel_number, DivMode::FreeRunning);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::FreeRunning as u32);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::DIVMOD),
+            DivMode::FreeRunning as u32
+        );
         pwm.set_div_mode(channel_number, DivMode::High);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::High as u32);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::DIVMOD),
+            DivMode::High as u32
+        );
         pwm.set_div_mode(channel_number, DivMode::Rising);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::Rising as u32);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::DIVMOD),
+            DivMode::Rising as u32
+        );
         pwm.set_div_mode(channel_number, DivMode::Falling);
-        assert_eq!(pwm.registers.ch[channel_number as usize].csr.read(CSR::DIVMOD), DivMode::Falling as u32);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::DIVMOD),
+            DivMode::Falling as u32
+        );
 
         // Testing set_divider_int_frac()
         pwm.set_divider_int_frac(channel_number, 123, 4);
-        assert_eq!(pwm.registers.ch[channel_number as usize].div.read(DIV::INT), 123);
-        assert_eq!(pwm.registers.ch[channel_number as usize].div.read(DIV::FRAC), 4);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].div.read(DIV::INT),
+            123
+        );
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize]
+                .div
+                .read(DIV::FRAC),
+            4
+        );
 
         // Testing set_compare_value() methods
         pwm.set_compare_value_a(channel_number, 2022);
-        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 2022);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].cc.read(CC::A),
+            2022
+        );
         pwm.set_compare_value_b(channel_number, 12);
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::B), 12);
         pwm.set_compare_values_a_and_b(channel_number, 2023, 1);
-        assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 2023);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].cc.read(CC::A),
+            2023
+        );
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::B), 1);
 
         // Testing set_top()
         pwm.set_top(channel_number, 12345);
-        assert_eq!(pwm.registers.ch[channel_number as usize].top.read(TOP::TOP), 12345);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].top.read(TOP::TOP),
+            12345
+        );
 
         // Testing get_counter() and set_counter()
         pwm.set_counter(channel_number, 1);
-        assert_eq!(pwm.registers.ch[channel_number as usize].ctr.read(CTR::CTR), 1);
+        assert_eq!(
+            pwm.registers.ch[channel_number as usize].ctr.read(CTR::CTR),
+            1
+        );
         assert_eq!(pwm.get_counter(channel_number), 1);
 
         // Testing advance_count and retard_count()
@@ -1019,7 +1182,10 @@ pub mod test {
 
         // Testing enable_interrupt() and disable_interrupt()
         pwm.enable_interrupt(channel_number);
-        assert_eq!(pwm.registers.inte.read(CH::CH), 1 << (channel_number as u32));
+        assert_eq!(
+            pwm.registers.inte.read(CH::CH),
+            1 << (channel_number as u32)
+        );
         pwm.disable_interrupt(channel_number);
         assert_eq!(pwm.registers.inte.read(CH::CH), 0);
 
@@ -1036,7 +1202,10 @@ pub mod test {
 
         // Testing force_interrupt(), unforce_interrupt()
         pwm.force_interrupt(channel_number);
-        assert_eq!(pwm.registers.intf.read(CH::CH), 1 << (channel_number as u32));
+        assert_eq!(
+            pwm.registers.intf.read(CH::CH),
+            1 << (channel_number as u32)
+        );
         assert_eq!(pwm.get_interrupt_status(channel_number), true);
         pwm.unforce_interrupt(channel_number);
         assert_eq!(pwm.registers.intf.read(CH::CH), 0);
@@ -1055,7 +1224,7 @@ pub mod test {
             ChannelNumber::Ch4,
             ChannelNumber::Ch5,
             ChannelNumber::Ch6,
-            ChannelNumber::Ch7
+            ChannelNumber::Ch7,
         ];
 
         for channel_number in channel_number_list {
@@ -1071,12 +1240,27 @@ pub mod test {
         assert_eq!(pwm_pin.get_channel_pin(), ChannelPin::B);
 
         pwm_pin.set_invert_polarity(true);
-        assert_eq!(pwm.registers.ch[pwm_pin.get_channel_number() as usize].csr.read(CSR::B_INV), 1);
+        assert_eq!(
+            pwm.registers.ch[pwm_pin.get_channel_number() as usize]
+                .csr
+                .read(CSR::B_INV),
+            1
+        );
         pwm_pin.set_invert_polarity(false);
-        assert_eq!(pwm.registers.ch[pwm_pin.get_channel_number() as usize].csr.read(CSR::B_INV), 0);
+        assert_eq!(
+            pwm.registers.ch[pwm_pin.get_channel_number() as usize]
+                .csr
+                .read(CSR::B_INV),
+            0
+        );
 
         pwm_pin.set_compare_value(987);
-        assert_eq!(pwm.registers.ch[pwm_pin.get_channel_number() as usize].cc.read(CC::B), 987);
+        assert_eq!(
+            pwm.registers.ch[pwm_pin.get_channel_number() as usize]
+                .cc
+                .read(CC::B),
+            987
+        );
         debug!("PwmPin struct OK");
     }
 
@@ -1095,12 +1279,16 @@ pub mod test {
         assert_eq!(int, 1);
         assert_eq!(frac, 0);
 
-        let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle).unwrap();
+        let (top, int, frac) = pwm
+            .compute_top_int_frac(max_freq_hz / max_duty_cycle)
+            .unwrap();
         assert_eq!(top, u16::MAX);
         assert_eq!(int, 1);
         assert_eq!(frac, 0);
 
-        let (top, int, frac) = pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 2).unwrap();
+        let (top, int, frac) = pwm
+            .compute_top_int_frac(max_freq_hz / max_duty_cycle / 2)
+            .unwrap();
         assert_eq!(top, u16::MAX);
         assert_eq!(int, 2);
         assert_eq!(frac, 0);
@@ -1117,20 +1305,39 @@ pub mod test {
         assert_eq!(int, 3);
         assert_eq!(frac, 2);
 
-        assert!(pwm.compute_top_int_frac(max_freq_hz / max_duty_cycle / 256).is_err());
+        assert!(pwm
+            .compute_top_int_frac(max_freq_hz / max_duty_cycle / 256)
+            .is_err());
 
         let (channel_number, channel_pin) = pwm.gpio_to_pwm(RPGpio::GPIO24);
-        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, 0).is_ok());
+        assert!(pwm
+            .start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, 0)
+            .is_ok());
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 0);
 
-        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle / 4 * 3).is_ok());
+        assert!(pwm
+            .start_pwm_pin(
+                channel_number,
+                channel_pin,
+                max_freq_hz / 4,
+                max_duty_cycle / 4 * 3
+            )
+            .is_ok());
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 3);
 
-        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle).is_ok());
+        assert!(pwm
+            .start_pwm_pin(channel_number, channel_pin, max_freq_hz / 4, max_duty_cycle)
+            .is_ok());
         assert_eq!(pwm.registers.ch[channel_number as usize].cc.read(CC::A), 4);
 
-
-        assert!(pwm.start_pwm_pin(channel_number, channel_pin, max_freq_hz / max_duty_cycle, max_duty_cycle).is_err());
+        assert!(pwm
+            .start_pwm_pin(
+                channel_number,
+                channel_pin,
+                max_freq_hz / max_duty_cycle,
+                max_duty_cycle
+            )
+            .is_err());
         debug!("PWM HIL trait OK")
     }
 

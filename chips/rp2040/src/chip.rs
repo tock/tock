@@ -151,7 +151,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
             i2c0: i2c::I2c::new_i2c0(),
-            pwm: pwm::Pwm::new()
+            pwm: pwm::Pwm::new(),
         }
     }
 
