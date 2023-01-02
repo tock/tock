@@ -399,6 +399,10 @@ impl<'b> SharedDescriptorBuffer<'b> {
     }
 
     pub fn into_slice(self) -> &'b mut [u8] {
+        // SAFETY: This is guaranteed to be safe because this struct can only be
+        // using the `from_slice()` constructor, `ptr` and `len` cannot be
+        // modified after this struct is created, and this method consumes the
+        // struct.
         unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
     }
 }
