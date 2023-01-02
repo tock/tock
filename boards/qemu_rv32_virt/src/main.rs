@@ -45,6 +45,15 @@ pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct QemuRv32VirtPlatform {
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        capsules::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
+        >,
+        components::process_console::Capability,
+    >,
     console: &'static capsules::console::Console<'static>,
     lldb: &'static capsules::low_level_debug::LowLevelDebug<
         'static,
@@ -414,6 +423,17 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // Initialize the kernel's process console.
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+    )
+    .finalize(components::process_console_component_static!(
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint
+    ));
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -432,6 +452,34 @@ pub unsafe fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
+
+    let scheduler_timer = static_init!(
+        VirtualSchedulerTimer<
+            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+        >,
+        VirtualSchedulerTimer::new(systick_virtual_alarm)
+    );
+
+    let platform = QemuRv32VirtPlatform {
+        pconsole,
+        console,
+        alarm,
+        lldb,
+        scheduler,
+        scheduler_timer,
+        virtio_rng: virtio_rng_driver,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
+    };
+
+    // Start the process console:
+    let _ = platform.pconsole.start();
+
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
     debug!("Entering main loop.");
 
@@ -446,30 +494,6 @@ pub unsafe fn main() {
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
-
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
-
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<
-            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-        >,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
-
-    let platform = QemuRv32VirtPlatform {
-        console,
-        alarm,
-        lldb,
-        scheduler,
-        scheduler_timer,
-        virtio_rng: virtio_rng_driver,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_cap,
-        ),
-    };
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
