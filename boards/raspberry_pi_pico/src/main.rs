@@ -40,7 +40,6 @@ use rp2040::i2c::I2c;
 use rp2040::resets::Peripheral;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
-use rp2040::pwm;
 
 mod io;
 
@@ -485,6 +484,8 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    peripherals.pwm.init();
+
     let raspberry_pi_pico = RaspberryPiPico {
         ipc: kernel::ipc::IPC::new(
             board_kernel,
@@ -513,6 +514,7 @@ pub unsafe fn main() {
         peripherals.sysinfo.get_revision(),
         platform_type
     );
+
     debug!("Initialization complete. Enter main loop");
 
     // These symbols are defined in the linker script.
