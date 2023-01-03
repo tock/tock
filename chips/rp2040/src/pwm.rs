@@ -806,7 +806,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
     /// The actual values may vary due to rounding errors. For high precision duty cycles,
     /// the frequency should be set less than:
     ///
-    /// ```
+    /// ```rust,ignore
     /// let threshold_freq = pwm_struct.get_maximum_frequency_hz() / pwm_struct.get_maximum_duty_cycle()
     /// ```
     ///
@@ -864,7 +864,7 @@ impl hil::pwm::Pwm for Pwm<'_> {
 
     /// Return an opaque value representing 100% duty cycle
     fn get_maximum_duty_cycle(&self) -> usize {
-        return u16::MAX as usize + 1;
+        u16::MAX as usize + 1
     }
 }
 
@@ -955,7 +955,7 @@ pub trait Interrupt {
 ///
 /// To run the tests, add the following line before loading processes:
 ///
-/// ```
+/// ```rust,ignore
 /// rp2040::pwm::test::run::(&peripherals.pwm);
 /// ```
 ///
@@ -1299,7 +1299,7 @@ pub mod test {
         assert_eq!(int, 2);
         assert_eq!(frac, 8);
 
-        let freq = ((max_freq_hz / max_duty_cycle) as f32 / 3.14) as usize;
+        let freq = ((max_freq_hz / max_duty_cycle) as f32 / 3.15) as usize;
         let (top, int, frac) = pwm.compute_top_int_frac(freq).unwrap();
         assert_eq!(top, u16::MAX);
         assert_eq!(int, 3);
