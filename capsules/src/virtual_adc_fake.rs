@@ -1,4 +1,4 @@
-//! Virtual ADC Capsule
+//! Fake Virtual ADC Capsule, for testing purposes
 //!
 //! Support Single Sample for now.
 
@@ -6,7 +6,6 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
-use crate::virtual_alarm::VirtualMuxAlarm;
 
 /// ADC Mux
 pub struct MuxAdcFake<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> {
@@ -22,7 +21,6 @@ impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> hil::adc::Client for MuxAdcF
                 if node.channel == inflight.channel {
                     node.operation.take().map(|operation| match operation {
                         Operation::OneSample => {
-                            kernel::debug!("notify client");
                             node.client.map(|client| client.sample_ready(sample))
                         }
                     });
@@ -76,6 +74,7 @@ pub(crate) enum Operation {
 }
 
 /// Fake ADC device, for testing
+/// Sample function sets an alarm
 pub struct AdcDeviceFake<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> {
     mux: &'a MuxAdcFake<'a, A, B>,
     channel: A::Channel,
@@ -86,7 +85,11 @@ pub struct AdcDeviceFake<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> {
 }
 
 impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> AdcDeviceFake<'a, A, B> {
-    pub const fn new(mux: &'a MuxAdcFake<'a, A, B>, channel: A::Channel, alarm: &'a B) -> AdcDeviceFake<'a, A, B> {
+    pub const fn new(
+        mux: &'a MuxAdcFake<'a, A, B>,
+        channel: A::Channel,
+        alarm: &'a B,
+    ) -> AdcDeviceFake<'a, A, B> {
         let adc_user = AdcDeviceFake {
             mux: mux,
             channel: channel,
@@ -103,16 +106,19 @@ impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> AdcDeviceFake<'a, A, B> {
     }
 }
 
-impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> ListNode<'a, AdcDeviceFake<'a, A, B>> for AdcDeviceFake<'a, A, B> {
+impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> ListNode<'a, AdcDeviceFake<'a, A, B>>
+    for AdcDeviceFake<'a, A, B>
+{
     fn next(&'a self) -> &'a ListLink<'a, AdcDeviceFake<'a, A, B>> {
         &self.next
     }
 }
 
-impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> hil::adc::AdcChannel for AdcDeviceFake<'a, A, B> {
+impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> hil::adc::AdcChannel
+    for AdcDeviceFake<'a, A, B>
+{
     fn sample(&self) -> Result<(), ErrorCode> {
         self.operation.set(Operation::OneSample);
-        kernel::debug!("sampling...");
         self.alarm.set_alarm(self.alarm.now(), B::Ticks::from(3000));
         Ok(())
     }
@@ -139,9 +145,10 @@ impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> hil::adc::AdcChannel for Adc
     }
 }
 
-impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> hil::time::AlarmClient for AdcDeviceFake<'a, A, B> {
+impl<'a, A: hil::adc::Adc, B: hil::time::Alarm<'a>> hil::time::AlarmClient
+    for AdcDeviceFake<'a, A, B>
+{
     fn alarm(&self) {
         self.mux.do_next_op();
-        kernel::debug!("done sampling!");
     }
 }

@@ -656,7 +656,6 @@ impl<'a> AdcVirtualized<'a> {
     ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
             if self.current_app.is_none() {
-                kernel::debug!("current app is none");
                 self.current_app.set(appid);
                 let r = self.call_driver(command, channel);
                 if r != Ok(()) {
@@ -666,21 +665,21 @@ impl<'a> AdcVirtualized<'a> {
                 Ok(())
             } else {
                 match self
-                .apps
-                .enter(appid, |app, _| {
-                    if app.pending_command == true {
-                        kernel::debug!("there is a command already pending, busy");
-                        Err(ErrorCode::BUSY)
-                    } else {
-                        kernel::debug!("set pending command");
-                        app.pending_command = true;
-                        app.command.set(command);
-                        app.channel = channel;
-                        Ok(())
-                    }
-                }).map_err(ErrorCode::from) {
+                    .apps
+                    .enter(appid, |app, _| {
+                        if app.pending_command == true {
+                            Err(ErrorCode::BUSY)
+                        } else {
+                            app.pending_command = true;
+                            app.command.set(command);
+                            app.channel = channel;
+                            Ok(())
+                        }
+                    })
+                    .map_err(ErrorCode::from)
+                {
                     Err(e) => Err(e),
-                    Ok(_) => Ok(())
+                    Ok(_) => Ok(()),
                 }
             }
         } else {
@@ -688,16 +687,14 @@ impl<'a> AdcVirtualized<'a> {
         }
     }
 
+    /// Run next command in queue, when available
     fn run_next_command(&self) {
         let mut command = Operation::OneSample;
         let mut channel = 0;
-        kernel::debug!("checking for apps...");
         for app in self.apps.iter() {
-            kernel::debug!("an app");
             let appid = app.processid();
             let start_command = app.enter(|app, _| {
                 if app.pending_command {
-                    kernel::debug!("there is a pending command!");
                     app.pending_command = false;
                     app.command.take().map(|c| {
                         command = c;
@@ -724,7 +721,6 @@ impl<'a> AdcVirtualized<'a> {
 
     /// Request the sample from the specified channel
     fn call_driver(&self, command: Operation, channel: usize) -> Result<(), ErrorCode> {
-        kernel::debug!("call driver");
         match command {
             Operation::OneSample => self.drivers[channel].sample(),
         }
@@ -1284,7 +1280,6 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
             // Single sample.
             1 => {
-                kernel::debug!("asking for a sample");
                 let res = self.enqueue_command(Operation::OneSample, channel, appid);
                 if res == Ok(()) {
                     CommandReturn::success()
@@ -1329,12 +1324,10 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {
     fn sample_ready(&self, sample: u16) {
-        kernel::debug!("sample ready");
         self.current_app.take().map(|appid| {
             let _ = self.apps.enter(appid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
-                kernel::debug!("schedule upcall");
                 upcalls
                     .schedule_upcall(
                         0,
@@ -1343,7 +1336,6 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
                     .ok();
             });
         });
-        kernel::debug!("run next command");
         self.run_next_command();
     }
 }

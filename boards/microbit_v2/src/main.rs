@@ -112,7 +112,7 @@ pub struct MicroBit {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
     >,
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
-    //sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
+    sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -137,7 +137,7 @@ impl SyscallDriverLookup for MicroBit {
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
-            //capsules::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
+            capsules::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -441,75 +441,66 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     base_peripherals.adc.calibrate();
 
-    // let virtual_alarm_adc = static_init!(
-    //     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
-    //     capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm1)
-    // );
-    // virtual_alarm_adc.setup();
-
-    let adc_mux = components::adc::AdcMuxFakeComponent::new(&base_peripherals.adc)
-        .finalize(components::adc_mux_fake_component_helper!(nrf52833::adc::Adc, nrf52833::rtc::Rtc));
+    let adc_mux = components::adc::AdcMuxComponent::new(&base_peripherals.adc)
+        .finalize(components::adc_mux_component_helper!(nrf52833::adc::Adc));
 
     // Comment out the following to use P0, P1 and P2 as GPIO
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
-            .finalize(components::adc_syscall_fake_component_helper!(
+            .finalize(components::adc_syscall_component_helper!(
                 // ADC Ring 0 (P0)
-                components::adc::AdcFakeComponent::new(
+                components::adc::AdcComponent::new(
                     &adc_mux,
-                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0),
-                    mux_alarm,
+                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
                 )
-                .finalize(components::adc_fake_component_helper!(nrf52833::adc::Adc, nrf52833::rtc::Rtc,)),
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
                 // ADC Ring 1 (P1)
-                components::adc::AdcFakeComponent::new(
+                components::adc::AdcComponent::new(
                     &adc_mux,
-                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1),
-                    mux_alarm,
+                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
                 )
-                .finalize(components::adc_fake_component_helper!(nrf52833::adc::Adc, nrf52833::rtc::Rtc,)),
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc)),
                 // ADC Ring 2 (P2)
-                components::adc::AdcFakeComponent::new(
+                components::adc::AdcComponent::new(
                     &adc_mux,
-                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2),
-                    mux_alarm
+                    nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
                 )
-                .finalize(components::adc_fake_component_helper!(nrf52833::adc::Adc, nrf52833::rtc::Rtc,))
+                .finalize(components::adc_component_helper!(nrf52833::adc::Adc))
             ));
 
     // Microphone
 
-    // let adc_microphone = components::adc_microphone::AdcMicrophoneComponent::new().finalize(
-    //     components::adc_microphone_component_helper!(
-    //         // adc
-    //         nrf52833::adc::Adc,
-    //         // adc channel
-    //         nrf52833::adc::AdcChannelSetup::setup(
-    //             nrf52833::adc::AdcChannel::AnalogInput3,
-    //             nrf52833::adc::AdcChannelGain::Gain4,
-    //             nrf52833::adc::AdcChannelResistor::Bypass,
-    //             nrf52833::adc::AdcChannelResistor::Pulldown,
-    //             nrf52833::adc::AdcChannelSamplingTime::us3
-    //         ),
-    //         // adc mux
-    //         adc_mux,
-    //         // buffer size
-    //         50,
-    //         // gpio
-    //         nrf52833::gpio::GPIOPin,
-    //         // optional gpio pin
-    //         Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN])
-    //     ),
-    // );
+    let adc_microphone = components::adc_microphone::AdcMicrophoneComponent::new().finalize(
+        components::adc_microphone_component_helper!(
+            // adc
+            nrf52833::adc::Adc,
+            // adc channel
+            nrf52833::adc::AdcChannelSetup::setup(
+                nrf52833::adc::AdcChannel::AnalogInput3,
+                nrf52833::adc::AdcChannelGain::Gain4,
+                nrf52833::adc::AdcChannelResistor::Bypass,
+                nrf52833::adc::AdcChannelResistor::Pulldown,
+                nrf52833::adc::AdcChannelSamplingTime::us3
+            ),
+            // adc mux
+            adc_mux,
+            // buffer size
+            50,
+            // gpio
+            nrf52833::gpio::GPIOPin,
+            // optional gpio pin
+            Some(&nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN])
+        ),
+    );
 
     let _ = &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
-    // let sound_pressure = components::sound_pressure::SoundPressureComponent::new(
-    //     board_kernel,
-    //     capsules::sound_pressure::DRIVER_NUM,
-    //     adc_microphone,
-    // )
-    // .finalize(());
+    let sound_pressure = components::sound_pressure::SoundPressureComponent::new(
+        board_kernel,
+        capsules::sound_pressure::DRIVER_NUM,
+        adc_microphone,
+    )
+    .finalize(());
 
     //--------------------------------------------------------------------------
     // STORAGE
@@ -661,7 +652,7 @@ pub unsafe fn main() {
         lsm303agr,
         ninedof,
         buzzer,
-        //sound_pressure,
+        sound_pressure,
         adc: adc_syscall,
         alarm,
         app_flash,

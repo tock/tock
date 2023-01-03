@@ -1,16 +1,16 @@
 use capsules::adc::AdcVirtualized;
 use capsules::virtual_adc::{AdcDevice, MuxAdc};
-use capsules::virtual_adc_fake::{MuxAdcFake, AdcDeviceFake};
+use capsules::virtual_adc_fake::{AdcDeviceFake, MuxAdcFake};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::adc;
 use kernel::hil;
-use kernel::static_init_half;
-use core::marker::PhantomData;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::hil::adc;
 use kernel::hil::time::Alarm;
+use kernel::static_init_half;
 
 #[macro_export]
 macro_rules! adc_mux_component_helper {
@@ -154,7 +154,8 @@ macro_rules! adc_mux_fake_component_helper {
         use capsules::virtual_adc_fake::MuxAdcFake;
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<MuxAdcFake<'static, $A, VirtualMuxAlarm<'static, $B>>> = MaybeUninit::uninit();
+        static mut BUF: MaybeUninit<MuxAdcFake<'static, $A, VirtualMuxAlarm<'static, $B>>> =
+            MaybeUninit::uninit();
         &mut BUF
     };};
 }
@@ -166,11 +167,10 @@ macro_rules! adc_fake_component_helper {
         use capsules::virtual_alarm::VirtualMuxAlarm;
         use core::mem::MaybeUninit;
         static mut alarm: MaybeUninit<VirtualMuxAlarm<'static, $B>> = MaybeUninit::uninit();
-        static mut adc_device: MaybeUninit<AdcDeviceFake<'static, $A, VirtualMuxAlarm<'static, $B>>> = MaybeUninit::uninit();
-        (
-            &mut adc_device,
-            &mut alarm,
-        )
+        static mut adc_device: MaybeUninit<
+            AdcDeviceFake<'static, $A, VirtualMuxAlarm<'static, $B>>,
+        > = MaybeUninit::uninit();
+        (&mut adc_device, &mut alarm)
     };};
 }
 
@@ -198,7 +198,7 @@ macro_rules! adc_syscall_fake_component_helper {
 
 pub struct AdcMuxFakeComponent<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> {
     adc: &'static A,
-    _phantom: PhantomData<B>
+    _phantom: PhantomData<B>,
 }
 
 pub struct AdcFakeComponent<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> {
@@ -209,8 +209,8 @@ pub struct AdcFakeComponent<A: 'static + adc::Adc, B: 'static + hil::time::Alarm
 
 impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> AdcMuxFakeComponent<A, B> {
     pub fn new(adc: &'static A) -> Self {
-        AdcMuxFakeComponent { 
-            adc: adc, 
+        AdcMuxFakeComponent {
+            adc: adc,
             _phantom: PhantomData,
         }
     }
@@ -221,12 +221,19 @@ pub struct AdcVirtualFakeComponent {
     driver_num: usize,
 }
 
-impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component for AdcMuxFakeComponent<A, B> {
-    type StaticInput = &'static mut MaybeUninit<MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>>;
+impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component
+    for AdcMuxFakeComponent<A, B>
+{
+    type StaticInput =
+        &'static mut MaybeUninit<MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>>;
     type Output = &'static MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let adc_mux = static_init_half!(static_buffer, MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>, MuxAdcFake::new(self.adc));
+        let adc_mux = static_init_half!(
+            static_buffer,
+            MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>,
+            MuxAdcFake::new(self.adc)
+        );
 
         self.adc.set_client(adc_mux);
 
@@ -235,7 +242,11 @@ impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component fo
 }
 
 impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> AdcFakeComponent<A, B> {
-    pub fn new(mux: &'static MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>, channel: A::Channel, mux_alarm: &'static MuxAlarm<'static, B>) -> Self {
+    pub fn new(
+        mux: &'static MuxAdcFake<'static, A, VirtualMuxAlarm<'static, B>>,
+        channel: A::Channel,
+        mux_alarm: &'static MuxAlarm<'static, B>,
+    ) -> Self {
         AdcFakeComponent {
             adc_mux: mux,
             channel: channel,
@@ -244,7 +255,9 @@ impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> AdcFakeCompo
     }
 }
 
-impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component for AdcFakeComponent<A, B> {
+impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component
+    for AdcFakeComponent<A, B>
+{
     type StaticInput = (
         &'static mut MaybeUninit<AdcDeviceFake<'static, A, VirtualMuxAlarm<'static, B>>>,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, B>>,
@@ -252,14 +265,13 @@ impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component fo
     type Output = &'static AdcDeviceFake<'static, A, VirtualMuxAlarm<'static, B>>;
 
     unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        
         let virtual_alarm_adc = static_init_half!(
             static_buffer.1,
             VirtualMuxAlarm<'static, B>,
             VirtualMuxAlarm::new(self.mux_alarm)
         );
         virtual_alarm_adc.setup();
-        
+
         let adc_device = static_init_half!(
             static_buffer.0,
             AdcDeviceFake<'static, A, VirtualMuxAlarm<'static, B>>,
@@ -275,7 +287,10 @@ impl<A: 'static + adc::Adc, B: 'static + hil::time::Alarm<'static>> Component fo
 }
 
 impl AdcVirtualFakeComponent {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> AdcVirtualFakeComponent {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+    ) -> AdcVirtualFakeComponent {
         AdcVirtualFakeComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,
