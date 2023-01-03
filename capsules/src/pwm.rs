@@ -68,7 +68,7 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
         &self,
         command_num: usize,
         data1: usize,
-        data2: usize, 
+        data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {

@@ -254,7 +254,7 @@ pub unsafe fn main() {
             // 1 => &nrf52833_peripherals.gpio_port[_GPIO_P1],
             // 2 => &nrf52833_peripherals.gpio_port[_GPIO_P2],
             // Used as PWM, comment them out in the PWM section to use them as GPIO
-            //8 => &nrf52833_peripherals.gpio_port[GPIO_P8], 
+            //8 => &nrf52833_peripherals.gpio_port[GPIO_P8],
             9 => &nrf52833_peripherals.gpio_port[GPIO_P9],
             16 => &nrf52833_peripherals.gpio_port[GPIO_P16],
         ),

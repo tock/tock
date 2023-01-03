@@ -1,10 +1,10 @@
+use capsules::pwm::Pwm;
 use capsules::virtual_pwm::{MuxPwm, PwmPinUser};
 use core::mem::MaybeUninit;
-use kernel::component::Component;
-use kernel::hil::pwm;
 use kernel::capabilities;
+use kernel::component::Component;
 use kernel::create_capability;
-use capsules::pwm::Pwm;
+use kernel::hil::pwm;
 
 #[macro_export]
 macro_rules! pwm_mux_component_static {
@@ -88,14 +88,17 @@ impl<A: 'static + pwm::Pwm> Component for PwmPinComponent<A> {
 
 pub struct PwmVirtualComponent<const NUM_PINS: usize> {
     board_kernel: &'static kernel::Kernel,
-    driver_num: usize
+    driver_num: usize,
 }
 
 impl<const NUM_PINS: usize> PwmVirtualComponent<NUM_PINS> {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> PwmVirtualComponent<NUM_PINS> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+    ) -> PwmVirtualComponent<NUM_PINS> {
         PwmVirtualComponent {
             board_kernel: board_kernel,
-            driver_num: driver_num
+            driver_num: driver_num,
         }
     }
 }
@@ -103,7 +106,7 @@ impl<const NUM_PINS: usize> PwmVirtualComponent<NUM_PINS> {
 impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
     type StaticInput = (
         &'static mut MaybeUninit<Pwm<'static, NUM_PINS>>,
-        &'static [&'static dyn kernel::hil::pwm::PwmPin; NUM_PINS]
+        &'static [&'static dyn kernel::hil::pwm::PwmPin; NUM_PINS],
     );
     type Output = &'static capsules::pwm::Pwm<'static, NUM_PINS>;
 
@@ -111,10 +114,9 @@ impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let pwm = static_buffer.0.write(capsules::pwm::Pwm::new(
-            static_buffer.1,
-            grant_adc,
-        ));
+        let pwm = static_buffer
+            .0
+            .write(capsules::pwm::Pwm::new(static_buffer.1, grant_adc));
 
         pwm
     }
