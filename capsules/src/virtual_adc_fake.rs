@@ -1,6 +1,52 @@
 //! Fake Virtual ADC Capsule, for testing purposes
 //!
 //! Support Single Sample for now.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! # use kernel::static_init;
+//!
+//! let mux_alarm1 = components::alarm::AlarmMuxComponent::new(rtc)
+//!    .finalize(components::alarm_mux_component_helper!(nrf52::rtc::Rtc));
+//!
+//! let virtual_alarm_adc = static_init!(
+//!    capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+//!    capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm1)
+//! );
+//! virtual_alarm_adc.setup();
+//!
+//! let adc_mux = components::adc::AdcMuxFakeComponent::new(&base_peripherals.adc)
+//!    .finalize(components::adc_mux_fake_component_helper!(nrf52833::adc::Adc, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>));
+//!
+//! 
+//! let adc_syscall =
+//!    components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+//!        .finalize(components::adc_syscall_fake_component_helper!(
+//!            // ADC Ring 0 (P0)
+//!            components::adc::AdcFakeComponent::new(
+//!                &adc_mux,
+//!                nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0),
+//!                &virtual_alarm_adc,
+//!            )
+//!            .finalize(components::adc_fake_component_helper!(nrf52833::adc::Adc, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,)),
+//!            // ADC Ring 1 (P1)
+//!            components::adc::AdcFakeComponent::new(
+//!                &adc_mux,
+//!                nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1),
+//!                &virtual_alarm_adc
+//!            )
+//!            .finalize(components::adc_fake_component_helper!(nrf52833::adc::Adc, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,)),
+//!            // ADC Ring 2 (P2)
+//!            components::adc::AdcFakeComponent::new(
+//!                &adc_mux,
+//!                nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2),
+//!                &virtual_alarm_adc
+//!            )
+//!            .finalize(components::adc_fake_component_helper!(nrf52833::adc::Adc, capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,))
+//!        ));
+//! ```
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil;
