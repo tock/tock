@@ -107,6 +107,14 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    fn head<'a>(&'a self) -> Option<&'a T> {
+	if self.has_elements() {
+            Some(&self.ring[self.head])
+        } else {
+            None
+        }
+    }
+
     fn empty(&mut self) {
         self.head = 0;
         self.tail = 0;

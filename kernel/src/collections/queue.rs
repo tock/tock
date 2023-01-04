@@ -20,6 +20,9 @@ pub trait Queue<T> {
     /// Remove the element from the front of the queue.
     fn dequeue(&mut self) -> Option<T>;
 
+    /// Get a reference to the element at the front of the queue.
+    fn head<'a>(&'a self) -> Option<&'a T>;
+
     /// Remove all elements from the ring buffer.
     fn empty(&mut self);
 

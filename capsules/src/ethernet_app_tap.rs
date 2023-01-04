@@ -201,6 +201,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::ErrorCode;
 use kernel::ProcessId;
+use kernel::debug;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = crate::driver::NUM::EthernetTAP as usize;
@@ -235,7 +236,7 @@ pub struct App {
     rx_bytes: u32,
     rx_packets_missed: u32,
     // Per-process interface state
-    rx_acked: bool,
+    rx_packet_pending: Option<u16>,
     tx_info_acked: bool,
 }
 
@@ -247,7 +248,7 @@ impl Default for App {
             rx_packets: 0,
             rx_bytes: 0,
             rx_packets_missed: 0,
-            rx_acked: true,
+            rx_packet_pending: None,
             tx_info_acked: true,
         }
     }
@@ -398,11 +399,11 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
     fn acknowledge_rx_packet(&self, process_id: ProcessId) -> Result<(), ErrorCode> {
         self.apps
             .enter(process_id, |grant, _| {
-                if grant.rx_acked {
+                if grant.rx_packet_pending.is_none() {
                     return Err(ErrorCode::ALREADY);
                 }
 
-                grant.rx_acked = true;
+                grant.rx_packet_pending = None;
 
                 Ok(())
             })
@@ -410,14 +411,40 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
             .and_then(|_| {
                 // Check if other packets are remaining in the RingBuffer and
                 // write them to the processbuffer, scheduling a callback.
-                self.rx_packets.map(|ring_buffer| {
-                    if let Some((buffer, len, ts, ts_src)) = ring_buffer.dequeue() {
-                        let _ = self.write_packet(process_id, &buffer, len, ts, ts_src);
-                    }
-                });
+		self.try_write_buffered_packet(process_id);
 
                 Ok(())
             })
+    }
+
+    /// Try to place a packet from the rx_packets ring buffer into the
+    /// application buffer.
+    fn try_write_buffered_packet(&self, process_id: ProcessId) -> Option<u16> {
+	self.rx_packets.map(|ring_buffer| {
+	    let write_res =
+		if let Some((buffer, len, ts, ts_src)) = ring_buffer.head() {
+		    self.write_packet(process_id, buffer, *len, *ts, *ts_src)
+			.map(|v| (v, *len))
+		} else {
+		    Err(ErrorCode::BUSY)
+		};
+
+	    match write_res {
+		Ok(((), len)) => {
+		    ring_buffer.dequeue();
+		    Some(len)
+		},
+		Err(ErrorCode::BUSY) => {
+		    // Don't dequeue and try again next time
+		    None
+		},
+		Err(_) => {
+		    // Reception will never work, dequeue.
+		    ring_buffer.dequeue();
+		    None
+		}
+	    }
+	}).unwrap()
     }
 
     /// Acknowledge the "TX info" message written to the respective read-write
@@ -456,21 +483,31 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
 
         self.apps
             .enter(process_id, |grant, kernel_data| {
-                // Regardless of any potential packet reception errors, count
-                // this packet towards the statistics
-                grant.rx_packets = grant.rx_packets.wrapping_add(1);
-                grant.rx_bytes = grant.rx_bytes.wrapping_add(len as u32);
+		// Check that we're not overwriting another pending packet.
+		if grant.rx_packet_pending.is_some() {
+		    return Err(ErrorCode::BUSY);
+		}
 
                 // Determine the length of the application's packet reception
                 // buffer:
                 let app_rx_len = kernel_data
                     .get_readwrite_processbuffer(rw_allow::RX_PACKET)
                     .and_then(|rx_packet| Ok(rx_packet.len()))
-                    .unwrap_or(0);
+		    .unwrap_or(0);
 
-                // If the app's allowed buffer is of insufficent size, deliver
-                // an error callback with the respective error code set:
-                if app_rx_len < len as usize {
+		// Can't distinguish whether we don't have a buffer to copy in
+		// to, or one of size 0. We assume good faith and return BUSY,
+		// enqueueing the packet for later delivery:
+		if app_rx_len == 0 {
+		    return Err(ErrorCode::BUSY);
+		}
+
+		// Regardless of further packet reception errors, count
+                // this packet towards the statistics
+                grant.rx_packets = grant.rx_packets.wrapping_add(1);
+                grant.rx_bytes = grant.rx_bytes.wrapping_add(len as u32);
+
+		if app_rx_len < len as usize {
                     grant.rx_packets_missed = grant.rx_packets_missed.wrapping_add(1);
                     kernel_data
                         .schedule_upcall(
@@ -499,7 +536,8 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
 
                 // Set the internal state to be non-acked, such that
                 // we won't try to write more packets to the buffer:
-                grant.rx_acked = false;
+		debug!("write_packet: rx_packet_pending set.");
+                grant.rx_packet_pending = Some(len);
 
                 // Inform the application:
                 let ts_bytes: [u8; 8] =
@@ -626,58 +664,40 @@ impl<'a, E: EthernetAdapter<'a>> EthernetAdapterClient for TapDriver<'a, E> {
     }
 
     fn rx_packet(&self, packet: &[u8], timestamp: Option<u64>) {
+	debug!("Kernel RX pkt len {}", packet.len());
         if let Some(process_id) = self.current_app.get() {
-            // Check whether we can attempt to write the packet to the
-            // application directly, or whether it is going to be
-            // enqueued into the pending packets ring-buffer.
-            let write_packet_now = self
-                .apps
-                .enter(process_id, |grant, _kernel_data| {
-                    // Check if the app has already acknowledged the
-                    // most recent reception:
-                    if grant.rx_acked {
-                        // The app has acknowledged the must recent
-                        // reception, so we can safely attempt to write
-                        // into the app buffer
+	    // Attempt to write the packet into the application buffer first. If
+	    // that doesn't work, enqueue it in the kernel-internal ring buffer:
+	    let res = self.write_packet(process_id, packet, packet.len() as u16, timestamp, true);
 
-                        // Deliver the packet directly
-                        true
+	    // Depending on the error code, the packet was successfully written,
+	    // must be discarded, or shall be enqueued:
+	    if let Err(ErrorCode::BUSY) = res {
+		debug!("Enqueueing!");
+                // We couldn't write the packet directly to the app, instead
+                // write it to the ring buffer.
+                self.rx_packets.map(|ring_buffer| {
+                    // TODO: avoid creating this on the stack
+                    let mut pbuf: [u8; MAX_MTU] = [0; MAX_MTU];
+
+                    if packet.len() < pbuf.len() && !ring_buffer.is_full() {
+			debug!("Kernel enqueue packet");
+                        pbuf[0..(packet.len())].copy_from_slice(packet);
+
+                        ring_buffer.enqueue((
+                            pbuf,
+                            packet.len() as u16,
+                            timestamp,
+                            timestamp.is_some(),
+                        ));
                     } else {
-                        // We can't write the packet directly to the app,
-                        // instead write it to the ring buffer
-                        self.rx_packets
-                            .map(|ring_buffer| {
-                                // TODO: avoid creating this on the stack
-                                let mut pbuf: [u8; MAX_MTU] = [0; MAX_MTU];
-
-                                if packet.len() > pbuf.len() || ring_buffer.is_full() {
-                                    grant.rx_packets_missed += 1;
-
-                                    // Don't deliver the packet directly
-                                    false
-                                } else {
-                                    pbuf[0..(packet.len())].copy_from_slice(packet);
-                                    ring_buffer.enqueue((
-                                        pbuf,
-                                        packet.len() as u16,
-                                        timestamp,
-                                        timestamp.is_some(),
-                                    ));
-
-                                    // Don't deliver the packet directly
-                                    false
-                                }
-                            })
-                            .unwrap()
-                    }
-                })
-                .unwrap_or(false);
-
-            // The app should have space in its allowed processbuffer,
-            // hence attempt to deliver the packet:
-            if write_packet_now {
-                let _ = self.write_packet(process_id, packet, packet.len() as u16, timestamp, true);
-            }
+			self.apps.enter(process_id, |grant, _kernel_data| {
+			    grant.rx_packets_missed += 1;
+			});
+			debug!("Packet missed!");
+		    }
+                }).unwrap()
+	    }
         }
     }
 }
@@ -771,6 +791,35 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 }
             },
+
+	    9 /* Check whether the packet_receive buffer currently
+               * contains a non-acknowledged packet. If it does not,
+               * try to write one. */ => {
+		   if self.lock_acquired(process_id) {
+		       let rx_packet_pending = self.apps
+			   .enter(process_id, |grant, _| Ok(grant.rx_packet_pending))
+			   .unwrap_or(Err(ErrorCode::FAIL));
+
+		       match rx_packet_pending {
+			   Err(e) => CommandReturn::failure(e),
+			   Ok(Some(len)) => {
+			       debug!("Pending check: PENDING!");
+			       CommandReturn::success_u32((1 << 31) | (len as u32))
+			   },
+			   Ok(None) => {
+			       // Check if other packets are remaining in the RingBuffer and
+			       // write them to the processbuffer, scheduling a callback.
+			       CommandReturn::success_u32(
+				   self.try_write_buffered_packet(process_id)
+				       .map(|len| (1 << 31) | (len as u32))
+				       .unwrap_or(0)
+			       )
+			   }
+		       }
+		   } else {
+                       CommandReturn::failure(ErrorCode::RESERVE)
+                   }
+	     }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
