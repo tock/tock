@@ -60,6 +60,12 @@ struct QemuRv32VirtPlatform {
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
     virtio_rng: Option<&'static capsules::rng::RngDriver<'static>>,
+    virtio_net_tap: Option<
+        &'static capsules::ethernet_app_tap::TapDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+        >,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -68,16 +74,15 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
+        use kernel::syscall::SyscallDriver;
+
         match driver_num {
             capsules::console::DRIVER_NUM => f(Some(self.console)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules::rng::DRIVER_NUM => {
-                if let Some(rng_driver) = self.virtio_rng {
-                    f(Some(rng_driver))
-                } else {
-                    f(None)
-                }
+            capsules::rng::DRIVER_NUM => f(self.virtio_rng.map(|d| d as &dyn SyscallDriver)),
+            capsules::ethernet_app_tap::DRIVER_NUM => {
+                f(self.virtio_net_tap.map(|d| d as &dyn SyscallDriver))
             }
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -306,8 +311,11 @@ pub unsafe fn main() {
     //
     // A template dummy driver is provided to verify basic functionality of this
     // interface.
-    let _virtio_net_if: Option<
-        &'static qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+    let virtio_net_tap: Option<
+        &'static capsules::ethernet_app_tap::TapDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+        >,
     > = if let Some(net_idx) = virtio_net_idx {
         use qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
@@ -369,14 +377,42 @@ pub unsafe fn main() {
             .initialize(virtio_net, mmio_queues)
             .unwrap();
 
-        // Don't forget to enable RX once when integrating this into a
-        // proper Ethernet stack:
-        // virtio_net.enable_rx();
+        // Setup the userspace Ethernet TAP driver:
+        let virtio_net_tap_txbuf = static_init!(
+            [u8; capsules::ethernet_app_tap::MAX_MTU],
+            [0; capsules::ethernet_app_tap::MAX_MTU]
+        );
+        let virtio_net_tap_rxbufs = static_init!(
+            [(
+                [u8; capsules::ethernet_app_tap::MAX_MTU],
+                u16,
+                Option<u64>,
+                bool
+            ); 16],
+            [([0; capsules::ethernet_app_tap::MAX_MTU], 0, None, false); 16]
+        );
 
-        // TODO: When we have a proper Ethernet driver available for userspace,
-        // return that. For now, just return a reference to the raw VirtIONet
-        // driver:
-        Some(virtio_net as &'static VirtIONet)
+        let virtio_net_tap = static_init!(
+            capsules::ethernet_app_tap::TapDriver<
+                'static,
+                qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+            >,
+            capsules::ethernet_app_tap::TapDriver::new(
+                virtio_net,
+                board_kernel.create_grant(
+                    capsules::ethernet_app_tap::DRIVER_NUM,
+                    &memory_allocation_cap
+                ),
+                virtio_net_tap_txbuf,
+                virtio_net_tap_rxbufs,
+            ),
+        );
+        kernel::hil::ethernet::EthernetAdapter::set_client(virtio_net, virtio_net_tap);
+
+        // Enable RX on the VirtIO network card
+        virtio_net.enable_rx();
+
+        Some(virtio_net_tap)
     } else {
         // No VirtIO NetworkCard discovered
         None
@@ -456,6 +492,7 @@ pub unsafe fn main() {
         scheduler,
         scheduler_timer,
         virtio_rng: virtio_rng_driver,
+        virtio_net_tap,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
