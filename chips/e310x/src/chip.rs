@@ -14,14 +14,17 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::plic::PLIC;
 use crate::uart::DEFERRED_CALLS;
 use kernel::deferred_call;
+use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use sifive::plic::Plic;
+
+pub type E310xClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
 pub struct E310x<'a, I: InterruptService<DeferredCallTask> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP<4>,
     plic: &'a Plic,
-    timer: &'a sifive::clint::Clint<'a>,
+    timer: &'a E310xClint<'a>,
     plic_interrupt_service: &'a I,
 }
 
@@ -68,7 +71,7 @@ impl<'a> InterruptService<DeferredCallTask> for E310xDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> E310x<'a, I> {
-    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a sifive::clint::Clint<'a>) -> Self {
+    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a E310xClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),

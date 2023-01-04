@@ -2,14 +2,13 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
+use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
-
-use kernel::hil;
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -51,7 +50,7 @@ register_structs! {
         (0x16C => op_status: ReadWrite<u32, OP_STATUS::Register>),
         (0x170 => status: ReadOnly<u32, STATUS::Register>),
         (0x174 => debug_state: ReadOnly<u32>),
-        (0x178 => err_code: ReadOnly<u32>),
+        (0x178 => err_code: ReadWrite<u32, ERR_CODE::Register>),
         (0x17C => std_fault_status: ReadOnly<u32>),
         (0x180 => fault_status: ReadOnly<u32>),
         (0x184 => err_addr: ReadOnly<u32>),
@@ -110,6 +109,15 @@ register_bitfields![u32,
         INFO_SEL OFFSET(9) NUMBITS(2) [],
         NUM OFFSET(16) NUMBITS(12) []
     ],
+    ERR_CODE [
+        OP_ERR OFFSET(0) NUMBITS(1) [],
+        MP_ERR OFFSET(1) NUMBITS(1) [],
+        RD_ERR OFFSET(2) NUMBITS(1) [],
+        PROG_ERR OFFSET(3) NUMBITS(1) [],
+        PROG_WIN_ERR OFFSET(4) NUMBITS(1) [],
+        PROG_TYPE_ERR OFFSET(5) NUMBITS(1) [],
+        UPDATE_ERR OFFSET(6) NUMBITS(1) [],
+    ],
     PROG_TYPE_EN [
         NORMAL OFFSET(0) NUMBITS(1) [],
         REPAIR OFFSET(1) NUMBITS(1) [],
@@ -121,7 +129,12 @@ register_bitfields![u32,
         START OFFSET(0) NUMBITS(32) []
     ],
     REGION_CFG_REGWEN [
-        REGION OFFSET(0) NUMBITS(1) []
+        REGION OFFSET(0) NUMBITS(1) [
+            // Once locked, region cannot be modified till next reset
+            Locked = 0,
+            // Region can be configured.
+            Enabled = 1,
+        ]
     ],
     MP_REGION_CFG [
         // These config register fields require a special value of
@@ -157,7 +170,7 @@ register_bitfields![u32,
     ],
     MP_REGION [
         BASE OFFSET(0) NUMBITS(9) [],
-        SIZE OFFSET(9) NUMBITS(9) []
+        SIZE OFFSET(10) NUMBITS(10) []
     ],
     BANK_INFO_REGWEN [
         REGION OFFSET(0) NUMBITS(1) [
@@ -257,16 +270,38 @@ register_bitfields![u32,
 ];
 
 pub const PAGE_SIZE: usize = 2048;
+pub const FLASH_ADDR_OFFSET: usize = 0x20000000;
 pub const FLASH_WORD_SIZE: usize = 8;
 pub const FLASH_PAGES_PER_BANK: usize = 256;
 pub const FLASH_NUM_BANKS: usize = 2;
 pub const FLASH_MAX_PAGES: usize = FLASH_NUM_BANKS * FLASH_PAGES_PER_BANK;
 pub const FLASH_NUM_BUSWORDS_PER_BANK: usize = PAGE_SIZE / 4;
+pub const FLASH_MP_MAX_CFGS: usize = 8;
 // The programming windows size in words (32bit)
 pub const FLASH_PROG_WINDOW_SIZE: usize = 16;
 pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
 
 pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
+
+/// Defines region permissions for flash memory protection.
+/// To be used when requesting the flash controller to set
+/// specific permissions for a regions, or when reading
+/// the existing permission associated with a region.
+#[derive(PartialEq, Debug)]
+pub struct FlashMPConfig {
+    /// Region can be read.
+    pub read_en: bool,
+    /// Region can be programmed.
+    pub write_en: bool,
+    /// Region can be erased
+    pub erase_en: bool,
+    /// Region is scramble enabled
+    pub scramble_en: bool,
+    /// Region has ECC enabled
+    pub ecc_en: bool,
+    /// Region is high endurance enabled
+    pub he_en: bool,
+}
 
 impl Default for LowRiscPage {
     fn default() -> Self {
@@ -378,71 +413,115 @@ impl<'a> FlashCtrl<'a> {
         }
     }
 
-    fn configure_data_partition(&self, num: FlashRegion) {
+    fn configure_data_partition(&self, num: FlashRegion) -> Result<(), ErrorCode> {
         self.registers.default_region.write(
             DEFAULT_REGION::RD_EN::Set
                 + DEFAULT_REGION::PROG_EN::Set
                 + DEFAULT_REGION::ERASE_EN::Set,
         );
 
-        self.registers.mp_region_cfg[num as usize].write(
-            MP_REGION_CFG::RD_EN::Set
-                + MP_REGION_CFG::PROG_EN::Set
-                + MP_REGION_CFG::ERASE_EN::Set
-                + MP_REGION_CFG::SCRAMBLE_EN::Clear
-                + MP_REGION_CFG::ECC_EN::Clear
-                + MP_REGION_CFG::EN::Clear,
-        );
+        if let Some(mp_region_cfg) = self.registers.mp_region_cfg.get(num as usize) {
+            mp_region_cfg.write(
+                MP_REGION_CFG::RD_EN::Set
+                    + MP_REGION_CFG::PROG_EN::Set
+                    + MP_REGION_CFG::ERASE_EN::Set
+                    + MP_REGION_CFG::SCRAMBLE_EN::Clear
+                    + MP_REGION_CFG::ECC_EN::Clear
+                    + MP_REGION_CFG::EN::Clear,
+            );
 
-        // Size and base are stored in different registers
-        self.registers.mp_region[num as usize]
-            .write(MP_REGION::BASE.val(FLASH_PAGES_PER_BANK as u32) + MP_REGION::SIZE.val(0x1));
+            if let Some(mp_region) = self.registers.mp_region.get(num as usize) {
+                // Size and base are stored in different registers
+                mp_region.write(
+                    MP_REGION::BASE.val(FLASH_PAGES_PER_BANK as u32) + MP_REGION::SIZE.val(0x1),
+                );
+            } else {
+                return Err(ErrorCode::INVAL);
+            }
 
-        // Enable MP Region
-        self.registers.mp_region_cfg[num as usize].modify(MP_REGION_CFG::EN::Set);
+            // Enable MP Region
+            mp_region_cfg.modify(MP_REGION_CFG::EN::Set);
+        } else {
+            return Err(ErrorCode::INVAL);
+        }
+
         self.data_configured.set(true);
+        Ok(())
     }
 
-    fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) {
+    fn configure_info_partition(&self, bank: FlashBank, num: FlashRegion) -> Result<(), ErrorCode> {
         if bank == FlashBank::BANK0 {
-            self.registers.bank0_info0_page_cfg[num as usize].write(
-                BANK_INFO_PAGE_CFG::RD_EN::Set
-                    + BANK_INFO_PAGE_CFG::PROG_EN::Set
-                    + BANK_INFO_PAGE_CFG::ERASE_EN::Set
-                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
-                    + BANK_INFO_PAGE_CFG::ECC_EN::Set
-                    + BANK_INFO_PAGE_CFG::EN::Clear,
-            );
-            self.registers.bank0_info0_page_cfg[num as usize].modify(BANK_INFO_PAGE_CFG::EN::Set);
+            if let Some(bank0_info0_page_cfg) =
+                self.registers.bank0_info0_page_cfg.get(num as usize)
+            {
+                bank0_info0_page_cfg.write(
+                    BANK_INFO_PAGE_CFG::RD_EN::Set
+                        + BANK_INFO_PAGE_CFG::PROG_EN::Set
+                        + BANK_INFO_PAGE_CFG::ERASE_EN::Set
+                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
+                        + BANK_INFO_PAGE_CFG::ECC_EN::Set
+                        + BANK_INFO_PAGE_CFG::EN::Clear,
+                );
+                bank0_info0_page_cfg.modify(BANK_INFO_PAGE_CFG::EN::Set);
+            } else {
+                return Err(ErrorCode::INVAL);
+            }
         } else if bank == FlashBank::BANK1 {
-            self.registers.bank1_info0_page_cfg[num as usize].write(
-                BANK_INFO_PAGE_CFG::RD_EN::Set
-                    + BANK_INFO_PAGE_CFG::PROG_EN::Set
-                    + BANK_INFO_PAGE_CFG::ERASE_EN::Set
-                    + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
-                    + BANK_INFO_PAGE_CFG::ECC_EN::Set
-                    + BANK_INFO_PAGE_CFG::EN::Clear,
-            );
-            self.registers.bank1_info0_page_cfg[num as usize].modify(BANK_INFO_PAGE_CFG::EN::Set);
+            if let Some(bank1_info0_page_cfg) =
+                self.registers.bank1_info0_page_cfg.get(num as usize)
+            {
+                bank1_info0_page_cfg.write(
+                    BANK_INFO_PAGE_CFG::RD_EN::Set
+                        + BANK_INFO_PAGE_CFG::PROG_EN::Set
+                        + BANK_INFO_PAGE_CFG::ERASE_EN::Set
+                        + BANK_INFO_PAGE_CFG::SCRAMBLE_EN::Set
+                        + BANK_INFO_PAGE_CFG::ECC_EN::Set
+                        + BANK_INFO_PAGE_CFG::EN::Clear,
+                );
+                bank1_info0_page_cfg.modify(BANK_INFO_PAGE_CFG::EN::Set);
+            } else {
+                return Err(ErrorCode::INVAL);
+            }
         } else {
-            panic!("Unsupported bank");
+            return Err(ErrorCode::INVAL);
         }
         self.info_configured.set(true);
+        Ok(())
+    }
+
+    /// Reset the internal FIFOs, used for when recovering from
+    /// errors.
+    pub fn reset_fifos(&self) {
+        // This field is active high, and will hold the FIFO
+        // in reset for as long as it is held.
+        self.registers.fifo_rst.write(FIFO_RST::EN::SET);
+        self.registers.fifo_rst.write(FIFO_RST::EN::CLEAR);
     }
 
     pub fn handle_interrupt(&self) {
         let irqs = self.registers.intr_state.extract();
+        // MP faults don't seem to trigger any errors in intr_state,
+        // so lets check for them here.
+        let mp_fault = self.registers.err_code.is_set(ERR_CODE::MP_ERR);
 
         self.disable_interrupts();
 
-        if irqs.is_set(INTR::OP_ERROR) {
+        if irqs.is_set(INTR::OP_ERROR) || mp_fault {
             self.registers.op_status.set(0);
+            // RW1C Clear any pending errors
+            self.registers.err_code.set(0xFFFF_FFFF);
+            self.reset_fifos();
 
             let read_buf = self.read_buf.take();
+            let error = if mp_fault {
+                hil::flash::Error::FlashMemoryProtectionError
+            } else {
+                hil::flash::Error::FlashError
+            };
             if let Some(buf) = read_buf {
                 // We were doing a read
                 self.flash_client.map(move |client| {
-                    client.read_complete(buf, hil::flash::Error::FlashError);
+                    client.read_complete(buf, error);
                 });
             }
 
@@ -450,7 +529,14 @@ impl<'a> FlashCtrl<'a> {
             if let Some(buf) = write_buf {
                 // We were doing a write
                 self.flash_client.map(move |client| {
-                    client.write_complete(buf, hil::flash::Error::FlashError);
+                    client.write_complete(buf, error);
+                });
+            }
+
+            if self.registers.control.matches_all(CONTROL::OP::ERASE) {
+                // We were doing an erase
+                self.flash_client.map(move |client| {
+                    client.erase_complete(error);
                 });
             }
         }
@@ -564,6 +650,282 @@ impl<'a> FlashCtrl<'a> {
             }
         }
     }
+
+    // *** Public API for interfacing to flash memory protection ***
+
+    /// Helper function to convert an address space into page numbers for the flash controller.
+    ///
+    /// Returns `Ok(start_page_num, n_pages_used)` on successful conversion
+    /// Returns `Returns [`NOSUPPORT`](ErrorCode::NOSUPPORT)` if address space is not supported
+    ///     or is out of supported bounds
+    ///
+    /// # Arguments
+    ///
+    /// * `start_addr`  - Starting address to be converted to a page number
+    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
+    /// * `end_addr`    - End address to be converted to a page number
+    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
+    fn mp_addr_to_page_range(
+        &self,
+        mut start_addr: usize,
+        mut end_addr: usize,
+    ) -> Result<(usize, usize), ErrorCode> {
+        if start_addr >= end_addr {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        // Offset Absolute addresses into flash relative addresses
+        // i.e 0x20000000 -> 0x00, where 0x00 is the first word in Bank 0, Page 0.
+        if let Some(addr) = start_addr.checked_sub(FLASH_ADDR_OFFSET) {
+            start_addr = addr;
+        } else {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+        if let Some(addr) = end_addr.checked_sub(FLASH_ADDR_OFFSET) {
+            end_addr = addr;
+        } else {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        let start_page_num = start_addr.saturating_div(PAGE_SIZE);
+        let end_page_num = end_addr.saturating_div(PAGE_SIZE);
+
+        if start_page_num >= FLASH_MAX_PAGES || end_page_num >= FLASH_MAX_PAGES {
+            // The address space does not fall within the flash layout
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        // Find the pages utilized by the addr space, at-least one
+        // page must be used, even if both start/end addresses fall on the same page.
+        let n_pages_used: usize = end_page_num.saturating_sub(start_page_num).max(1);
+
+        // Pages numbers are 0 indexed,
+        // For example, if start_page_num is 0 and n_pages_used is 1,
+        // then the mp region is defined by page 0.
+        // If start_page_num is 0 and n_pages_used is 2, then the region is defined by pages 0 and 1.
+        Ok((start_page_num, n_pages_used))
+    }
+
+    /// Setup the specified flash memory protection configuration
+    ///
+    /// Returns `Ok(())` on successfully applying the requested configuration
+    /// Returns `[`NOSUPPORT`](ErrorCode::NOSUPPORT)` if address space is not supported,
+    ///     or the `region_num` does not exist
+    ///
+    /// # Arguments
+    ///
+    /// * `start_addr`  - Starting address that bounds the start of this region.
+    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
+    /// * `end_addr`    - End address that bounds the end of this region
+    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
+    /// * `region_num`  - The configuration region number associated with this region.
+    ///                   This associates the specified permissions to a configuration region,
+    ///                   the number of simultaneous configs supported
+    ///                   should be requested by `mp_get_num_regions()`
+    /// * `mp_perms`    - Specifies the permissions to set
+    ///
+    /// # Examples
+    ///
+    /// Usage:
+    ///
+    /// ```ignore
+    /// peripherals
+    ///     .flash_ctrl
+    ///     .mp_set_region_perms(0x0, text_end_addr as usize, 5, &mp_cfg)
+    /// ```
+    ///
+    /// The snippet reads as:
+    /// Allow access controls as specified by mp_cfg, for the address space bounded by
+    /// `start_addr=0x0` to `end_addr=text_end_addr` and associate this cfg to `region_num=5`.
+    ///
+    /// If a user would want to modify this region (assuming it wasn't locked), you can index into it with the
+    /// associated `region_num`, in this case `5`.
+    pub fn mp_set_region_perms(
+        &self,
+        start_addr: usize,
+        end_addr: usize,
+        region_num: usize,
+        mp_perms: &FlashMPConfig,
+    ) -> Result<(), ErrorCode> {
+        let (page_number, num_pages) = self.mp_addr_to_page_range(start_addr, end_addr)?;
+
+        if region_num > FlashRegion::REGION7 as usize || page_number >= FLASH_MAX_PAGES {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        // Number of pages exceeds the number of remaining pages from `page_number`
+        if num_pages > FLASH_MAX_PAGES - page_number {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        let regs = self.registers;
+
+        if !regs.region_cfg_regwen[region_num].is_set(REGION_CFG_REGWEN::REGION) {
+            // Region locked, cannot modify until next reset
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        // Clear any existing permissions (reset state)
+        self.registers.mp_region_cfg[region_num].write(
+            MP_REGION_CFG::EN::Clear
+                + MP_REGION_CFG::RD_EN::Clear
+                + MP_REGION_CFG::PROG_EN::Clear
+                + MP_REGION_CFG::ERASE_EN::Clear
+                + MP_REGION_CFG::SCRAMBLE_EN::Clear
+                + MP_REGION_CFG::ECC_EN::Clear
+                + MP_REGION_CFG::HE_EN::Clear,
+        );
+
+        // Set the specified permissions
+        if mp_perms.read_en {
+            self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::RD_EN::Set);
+        }
+
+        if mp_perms.write_en {
+            self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::PROG_EN::Set);
+        }
+
+        if mp_perms.erase_en {
+            self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::ERASE_EN::Set);
+        }
+
+        if mp_perms.scramble_en {
+            self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::SCRAMBLE_EN::Set);
+        }
+
+        if mp_perms.ecc_en {
+            self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::ECC_EN::Set);
+        }
+
+        if mp_perms.he_en {
+            self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::HE_EN::Set);
+        }
+
+        // Set the page-range for the cfg to be set
+        // For example, if base is 0 and size is 1, then the region is defined by page 0.
+        // If base is 0 and size is 2, then the region is defined by pages 0 and 1.
+        regs.mp_region[region_num]
+            .write(MP_REGION::BASE.val(page_number as u32) + MP_REGION::SIZE.val(num_pages as u32));
+
+        // Activate protection region with specified permissions
+        self.registers.mp_region_cfg[region_num].modify(MP_REGION_CFG::EN::Set);
+
+        Ok(())
+    }
+
+    /// Read the flash memory protection configuration bounded by the specified region
+    ///
+    /// Returns `[`FlashMPConfig`](lowrisc::flash_ctrl::FlashMPConfig)` on success, with the permissions
+    ///     specified by this region
+    /// Returns `[`NOSUPPORT`](ErrorCode::NOSUPPORT)` if the `region_num` does not exist
+    ///
+    /// # Arguments
+    ///
+    /// * `region_num`  - The configuration region number associated with this region.
+    ///                   This associates the specified permissions to a configuration region.
+    pub fn mp_read_region_perms(&self, region_num: usize) -> Result<FlashMPConfig, ErrorCode> {
+        if region_num > FlashRegion::REGION7 as usize {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        let mp_cfg = self.registers.mp_region_cfg[region_num].extract();
+
+        let mut cfg = FlashMPConfig {
+            read_en: false,
+            write_en: false,
+            erase_en: false,
+            scramble_en: false,
+            ecc_en: false,
+            he_en: false,
+        };
+
+        if mp_cfg.matches_all(MP_REGION_CFG::RD_EN::Set) {
+            cfg.read_en = true;
+        }
+
+        if mp_cfg.matches_all(MP_REGION_CFG::PROG_EN::Set) {
+            cfg.write_en = true;
+        }
+
+        if mp_cfg.matches_all(MP_REGION_CFG::ERASE_EN::Set) {
+            cfg.erase_en = true;
+        }
+
+        if mp_cfg.matches_all(MP_REGION_CFG::SCRAMBLE_EN::Set) {
+            cfg.scramble_en = true;
+        }
+
+        if mp_cfg.matches_all(MP_REGION_CFG::ECC_EN::Set) {
+            cfg.ecc_en = true;
+        }
+
+        if mp_cfg.matches_all(MP_REGION_CFG::HE_EN::Set) {
+            cfg.he_en = true;
+        }
+
+        Ok(cfg)
+    }
+
+    /// Get the number of configuration regions supported by this hardware
+    ///
+    /// Returns `Ok(FLASH_MP_MAX_CFGS)` where FLASH_MP_MAX_CFGS is the number of
+    ///     cfg regions supported
+    ///
+    /// Note: Indexing starts with 0, this returns the total
+    /// number of configuration registers.
+    pub fn mp_get_num_regions(&self) -> Result<u32, ErrorCode> {
+        Ok(FLASH_MP_MAX_CFGS as u32)
+    }
+
+    /// Check if the specified `region_num` is locked by hardware
+    ///
+    /// Returns `Ok(bool)` on success, if true the region is locked till next reset,
+    ///     if false, it is unlocked.
+    /// Returns `[`NOSUPPORT`](ErrorCode::NOSUPPORT)` if the `region_num` does not exist
+    ///
+    /// # Arguments
+    ///
+    /// * `region_num`  - The configuration region number associated with this region.
+    ///                   This associates the specified permissions to a configuration region.
+    pub fn mp_is_region_locked(&self, region_num: usize) -> Result<bool, ErrorCode> {
+        if region_num > FlashRegion::REGION7 as usize {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        if !self.registers.region_cfg_regwen[region_num].is_set(REGION_CFG_REGWEN::REGION) {
+            // Region locked until next reset
+            return Ok(true);
+        }
+        // Region enabled and can be modified
+        Ok(false)
+    }
+
+    /// Lock the configuration
+    /// Locks the config bounded by `region_num`
+    /// such that no further modifications can be made until the next system reset.
+    ///
+    /// Returns `[`NOSUPPORT`](ErrorCode::NOSUPPORT)` if the `region_num` does not exist
+    /// Returns `[`ALREADY`](ErrorCode::ALREADY)` if the `region_num` region is already locked
+    /// Returns `Ok(())` on successfully locking the region
+    ///
+    /// # Arguments
+    ///
+    /// * `region_num`  - The configuration region number associated with this region.
+    ///                   This associates the specified permissions to a configuration region.
+    pub fn mp_lock_region_cfg(&self, region_num: usize) -> Result<(), ErrorCode> {
+        if region_num > FlashRegion::REGION7 as usize {
+            return Err(ErrorCode::NOSUPPORT);
+        }
+
+        if !self.registers.region_cfg_regwen[region_num].is_set(REGION_CFG_REGWEN::REGION) {
+            // Region already locked
+            return Err(ErrorCode::ALREADY);
+        }
+
+        self.registers.region_cfg_regwen[region_num].write(REGION_CFG_REGWEN::REGION::Locked);
+
+        Ok(())
+    }
 }
 
 impl<C: hil::flash::Client<Self>> hil::flash::HasClient<'static, C> for FlashCtrl<'_> {
@@ -590,12 +952,16 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.info_configured.get() {
             // The info partitions have no default access. Specifically set up a region.
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition(self.region_num);
+            if let Err(e) = self.configure_data_partition(self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         // Enable interrupts and set the FIFO level
@@ -645,12 +1011,16 @@ impl hil::flash::Flash for FlashCtrl<'_> {
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
             // The info partitions have no default access. Specifically set up a region.
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition(self.region_num);
+            if let Err(e) = self.configure_data_partition(self.region_num) {
+                return Err((e, buf));
+            }
         }
 
         // Check control status before we commit
@@ -727,12 +1097,21 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_data_partition(self.region_num);
+            if let Err(e) = self.configure_data_partition(self.region_num) {
+                return Err(e);
+            }
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            self.configure_info_partition(FlashBank::BANK1, self.region_num);
+            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
+                return Err(e);
+            }
+        }
+
+        // Check control status before we commit
+        if !self.registers.ctrl_regwen.is_set(CTRL_REGWEN::EN) {
+            return Err(ErrorCode::BUSY);
         }
 
         // Disable bank erase
@@ -755,7 +1134,6 @@ impl hil::flash::Flash for FlashCtrl<'_> {
                 + CONTROL::PARTITION_SEL::DATA
                 + CONTROL::START::SET,
         );
-
         Ok(())
     }
 }

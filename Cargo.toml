@@ -74,6 +74,7 @@ members = [
     "chips/stm32f4xx",
     "chips/swerv",
     "chips/swervolf-eh1",
+    "chips/virtio",
     "kernel",
     "libraries/enum_primitive",
     "libraries/riscv-csr",
@@ -81,18 +82,12 @@ members = [
     "libraries/tock-register-interface",
     "libraries/tickv",
 ]
-exclude = [
-    "tools/alert_codes",
-    "tools/board-runner",
-    "tools/qemu",
-    "tools/litex-ci-runner",
-    "tools/qemu-runner",
-    "tools/sha256sum",
-    "tools/usb/bulk-echo",
-    "tools/usb/bulk-echo-fast",
-    "tools/usb/bulk-test",
-    "tools/usb/control-test",
-]
+exclude = ["tools/"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+edition = "2021"
 
 [profile.dev]
 panic = "abort"

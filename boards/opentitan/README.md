@@ -205,7 +205,7 @@ Programming Apps
 Tock apps for OpenTitan must be included in the Tock binary file flashed with
 the steps mentioned above.
 
-Apps are built out of tree.
+**Apps are built out of tree.**
 
 The OpenTitan Makefile can also handle this process automatically. Follow
 the steps above but instead run the `flash-app` make target.
@@ -219,10 +219,44 @@ the LLVM one doesn't support updating sections.
 
 ### Programming Apps in Verilator
 
-An app can be bundled and loaded with the kernel into Verilator with:
+A **single app** in `.tbf (tock binary format)` can be bundled and loaded with the kernel into Verilator with:
 
 ```shell
 $ APP=<...> make BOARD_CONFIGURATION=sim_verilator verilator
+```
+
+### Libtock-C App Verilator Example
+
+To load a libtock-c app, we can do the following to load the `c_hello` sample app:
+
+**Build app:**
+```
+$ git clone https://github.com/tock/libtock-c.git
+$ cd libtock-c/examples/c_hello/
+$ make RISCV=1
+```
+**Load and Run:**
+
+Now, in the Opentitan board directory in tock (`tock/boards/opentitan/earlgrey-cw310`)
+```
+$ APP=<PATH_TO_LIBTOCK-C>/examples/c_hello/build/rv32imc/rv32imc.0x20030080.0x10005000.tbf make BOARD_CONFIGURATION=sim_verilator verilator
+```
+Note: be sure to use the correct `tbf` file here, that is,
+> use: `rv32imc.0x20030080.0x10005000.tbf`
+
+as this falls within the supported app flash region (0x20030080) and ram (0x10005000) regions for Opentitan.
+
+**App Output:**
+
+To see the output, when Verilator loads up it will show the endpoint for the
+pseudoterminal slave, something like `UART: Created /dev/pts/7 for uart0`.
+
+```
+$ screen /dev/pts/7
+.
+...
+OpenTitan initialisation complete. Entering main loop
+Hello World!
 ```
 
 Running in QEMU

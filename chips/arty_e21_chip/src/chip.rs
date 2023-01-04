@@ -1,6 +1,7 @@
 use core::fmt::Write;
 use kernel;
 use kernel::debug;
+use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::Readable;
 use rv32i;
@@ -15,16 +16,18 @@ extern "C" {
     fn _start_trap();
 }
 
+pub type ArtyExxClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
+
 pub struct ArtyExx<'a, I: InterruptService<DeferredCallTask> + 'a> {
     pmp: PMP<2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
-    machinetimer: &'a sifive::clint::Clint<'a>,
+    machinetimer: &'a ArtyExxClint<'a>,
     interrupt_service: &'a I,
 }
 
 pub struct ArtyExxDefaultPeripherals<'a> {
-    pub machinetimer: sifive::clint::Clint<'a>,
+    pub machinetimer: ArtyExxClint<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub uart0: sifive::uart::Uart<'a, DeferredCallTask>,
 }
@@ -32,7 +35,7 @@ pub struct ArtyExxDefaultPeripherals<'a> {
 impl<'a> ArtyExxDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            machinetimer: sifive::clint::Clint::new(&clint::CLINT_BASE),
+            machinetimer: ArtyExxClint::new(&clint::CLINT_BASE),
             gpio_port: crate::gpio::Port::new(),
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000, &DEFERRED_CALLS[0]),
         }
@@ -77,10 +80,7 @@ impl<'a> InterruptService<DeferredCallTask> for ArtyExxDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> ArtyExx<'a, I> {
-    pub unsafe fn new(
-        machinetimer: &'a sifive::clint::Clint<'a>,
-        interrupt_service: &'a I,
-    ) -> Self {
+    pub unsafe fn new(machinetimer: &'a ArtyExxClint<'a>, interrupt_service: &'a I) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend
         // to use on this chip.
         // 0001 1111 1111 1111 1111 0000 0000 1000 0000

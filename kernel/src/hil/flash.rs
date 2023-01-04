@@ -100,6 +100,9 @@ pub enum Error {
 
     /// An error occurred during the flash operation.
     FlashError,
+
+    /// A flash memory protection violation was detected.
+    FlashMemoryProtectionError,
 }
 
 pub trait HasClient<'a, C> {
