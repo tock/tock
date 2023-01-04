@@ -354,18 +354,10 @@ pub unsafe fn main() {
         // incoming packets into
         let rx_buffer = static_init!([u8; 1526], [0; 1526]);
 
-        // Instantiate the VirtIONet (NetworkCard) driver and set
-        // the queues
+        // Instantiate the VirtIONet (NetworkCard) driver and set the queues
         let virtio_net = static_init!(
             VirtIONet<'static>,
-            VirtIONet::new(
-                0,
-                tx_queue,
-                tx_header_buf,
-                rx_queue,
-                rx_header_buf,
-                rx_buffer,
-            ),
+            VirtIONet::new(tx_queue, tx_header_buf, rx_queue, rx_header_buf, rx_buffer),
         );
         tx_queue.set_client(virtio_net);
         rx_queue.set_client(virtio_net);
