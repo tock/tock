@@ -332,7 +332,7 @@ impl<'a> SyscallDriver for Touch<'a> {
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 =>
@@ -344,7 +344,7 @@ impl<'a> SyscallDriver for Touch<'a> {
             // touch enable
             1 => {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.touch_enable = true;
                     })
                     .unwrap_or(());
@@ -355,7 +355,7 @@ impl<'a> SyscallDriver for Touch<'a> {
             // touch disable
             2 => {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.touch_enable = false;
                     })
                     .unwrap_or(());
@@ -366,7 +366,7 @@ impl<'a> SyscallDriver for Touch<'a> {
             // multi touch ack
             10 => {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.ack = true;
                     })
                     .unwrap_or(());
@@ -376,7 +376,7 @@ impl<'a> SyscallDriver for Touch<'a> {
             // multi touch enable
             11 => {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.multi_touch_enable = true;
                     })
                     .unwrap_or(());
@@ -387,7 +387,7 @@ impl<'a> SyscallDriver for Touch<'a> {
             // multi touch disable
             12 => {
                 self.apps
-                    .enter(appid, |app, _| {
+                    .enter(processid, |app, _| {
                         app.multi_touch_enable = false;
                     })
                     .unwrap_or(());

@@ -79,7 +79,6 @@ pub const OTG_HS_EP1_IN: u32 = 75;
 pub const OTG_HS_WKUP: u32 = 76;
 pub const OTG_HS: u32 = 77;
 pub const DCMI: u32 = 78;
-pub const RNG: u32 = 80;
 pub const FPU: u32 = 81;
 pub const SPI4: u32 = 84;
 pub const SAI1: u32 = 87;

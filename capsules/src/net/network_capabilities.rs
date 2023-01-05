@@ -73,7 +73,7 @@ impl PortRange {
             PortRange::Any => true,
             PortRange::NoPorts => false,
             PortRange::PortSet(allowed_ports) => allowed_ports.iter().any(|&p| p == port), // TODO: check refs
-            PortRange::Range(low, high) => (*low <= port && port <= *high),
+            PortRange::Range(low, high) => *low <= port && port <= *high,
             PortRange::Port(allowed_port) => port == *allowed_port,
         }
     }

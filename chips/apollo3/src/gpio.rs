@@ -168,6 +168,19 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            6 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD2PULL::SET
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::SET
+                        + PADREG::PAD2FNCSEL.val(0x00),
+                );
+                regs.cfg[0].modify(CFG::GPIO6OUTCFG.val(0x03) + CFG::GPIO6OUTCFG.val(0x00));
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD2_DS1::SET + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("sda not supported");
             }
@@ -187,8 +200,253 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            5 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD1PULL::SET
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::SET
+                        + PADREG::PAD1FNCSEL.val(0x00)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(CFG::GPIO5OUTCFG.val(0x03) + CFG::GPIO1OUTCFG.val(0x00));
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("scl not supported");
+            }
+        }
+    }
+
+    pub fn enable_spi(&self, sck: &GpioPin, mosi: &GpioPin, miso: &GpioPin) {
+        let regs = GPIO_BASE;
+
+        match sck.pin as usize {
+            5 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD1PULL::CLEAR
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::SET
+                        + PADREG::PAD1FNCSEL.val(0x1)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO1INCFG.val(0x00)
+                        + CFG::GPIO1OUTCFG.val(0x000)
+                        + CFG::GPIO1INTD.val(0x00),
+                );
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            18 => {
+                regs.padkey.set(115);
+                regs.padreg[4].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::CLEAR
+                        + PADREG::PAD2STRNG::SET
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[2].modify(
+                    CFG::GPIO2INCFG.val(0x00)
+                        + CFG::GPIO2OUTCFG.val(0x000)
+                        + CFG::GPIO2INTD.val(0x00),
+                );
+                regs.altpadcfge
+                    .modify(ALTPADCFG::PAD2_DS1::SET + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            27 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD3PULL::CLEAR
+                        + PADREG::PAD3INPEN::SET
+                        + PADREG::PAD3STRNG::SET
+                        + PADREG::PAD3FNCSEL.val(0x5)
+                        + PADREG::PAD3RSEL.val(0x00),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO3INCFG.val(0x00)
+                        + CFG::GPIO3OUTCFG.val(0x000)
+                        + CFG::GPIO3INTD.val(0x00),
+                );
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD3_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            42 => {
+                regs.padkey.set(115);
+                regs.padreg[10].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::SET
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[5].modify(
+                    CFG::GPIO2INCFG.val(0x00)
+                        + CFG::GPIO2OUTCFG.val(0x000)
+                        + CFG::GPIO2INTD.val(0x00),
+                );
+                regs.altpadcfgk
+                    .modify(ALTPADCFG::PAD2_DS1::SET + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("sck not supported");
+            }
+        }
+
+        match mosi.pin as usize {
+            7 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD3PULL::CLEAR
+                        + PADREG::PAD3INPEN::CLEAR
+                        + PADREG::PAD3STRNG::SET
+                        + PADREG::PAD3FNCSEL.val(0x1)
+                        + PADREG::PAD3RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO4INCFG.val(0x00)
+                        + CFG::GPIO4OUTCFG.val(0x000)
+                        + CFG::GPIO4INTD.val(0x00),
+                );
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD0_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            17 => {
+                regs.padkey.set(115);
+                regs.padreg[4].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[2].modify(
+                    CFG::GPIO1INCFG.val(0x00)
+                        + CFG::GPIO1OUTCFG.val(0x000)
+                        + CFG::GPIO1INTD.val(0x00),
+                );
+                regs.altpadcfge
+                    .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            28 => {
+                regs.padkey.set(115);
+                regs.padreg[7].modify(
+                    PADREG::PAD0PULL::CLEAR
+                        + PADREG::PAD0INPEN::CLEAR
+                        + PADREG::PAD0STRING::SET
+                        + PADREG::PAD0FNCSEL.val(0x5)
+                        + PADREG::PAD0RSEL.val(0x00),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO4INCFG.val(0x00)
+                        + CFG::GPIO4OUTCFG.val(0x000)
+                        + CFG::GPIO4INTD.val(0x00),
+                );
+                regs.altpadcfgh
+                    .modify(ALTPADCFG::PAD0_DS1::SET + ALTPADCFG::PAD0_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            38 => {
+                regs.padkey.set(115);
+                regs.padreg[9].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::CLEAR
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[4].modify(
+                    CFG::GPIO6INCFG.val(0x00)
+                        + CFG::GPIO6OUTCFG.val(0x000)
+                        + CFG::GPIO6INTD.val(0x00),
+                );
+                regs.altpadcfgj
+                    .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("mosi not supported");
+            }
+        }
+
+        match miso.pin as usize {
+            6 => {
+                regs.padkey.set(115);
+                regs.padreg[1].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x1),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO3INCFG.val(0x00)
+                        + CFG::GPIO3OUTCFG.val(0x000)
+                        + CFG::GPIO3INTD.val(0x00),
+                );
+                regs.altpadcfgb
+                    .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            25 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD1PULL::CLEAR
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::CLEAR
+                        + PADREG::PAD1FNCSEL.val(0x5)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO1INCFG.val(0x00)
+                        + CFG::GPIO1OUTCFG.val(0x000)
+                        + CFG::GPIO1INTD.val(0x00),
+                );
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            26 => {
+                regs.padkey.set(115);
+                regs.padreg[6].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[3].modify(
+                    CFG::GPIO2INCFG.val(0x00)
+                        + CFG::GPIO2OUTCFG.val(0x000)
+                        + CFG::GPIO2INTD.val(0x00),
+                );
+                regs.altpadcfgg
+                    .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            43 => {
+                regs.padkey.set(115);
+                regs.padreg[10].modify(
+                    PADREG::PAD3PULL::CLEAR
+                        + PADREG::PAD3INPEN::SET
+                        + PADREG::PAD3STRNG::CLEAR
+                        + PADREG::PAD3FNCSEL.val(0x5),
+                );
+                regs.cfg[5].modify(
+                    CFG::GPIO3INCFG.val(0x00)
+                        + CFG::GPIO3OUTCFG.val(0x000)
+                        + CFG::GPIO3INTD.val(0x00),
+                );
+                regs.altpadcfgk
+                    .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("miso not supported");
             }
         }
     }
@@ -504,8 +762,60 @@ impl<'a> gpio::Configure for GpioPin<'a> {
         unimplemented!();
     }
 
-    fn set_floating_state(&self, _mode: gpio::FloatingState) {
-        unimplemented!();
+    fn set_floating_state(&self, mode: gpio::FloatingState) {
+        // Set the key
+        self.registers.padkey.set(115);
+
+        match mode {
+            gpio::FloatingState::PullUp => {
+                let cfgreg_offset = self.pin as usize / 8;
+                let cfgreg_value = match self.pin as usize % 8 {
+                    0 => CFG::GPIO0OUTCFG.val(0x1),
+                    1 => CFG::GPIO1OUTCFG.val(0x1),
+                    2 => CFG::GPIO2OUTCFG.val(0x1),
+                    3 => CFG::GPIO3OUTCFG.val(0x1),
+                    4 => CFG::GPIO4OUTCFG.val(0x1),
+                    5 => CFG::GPIO5OUTCFG.val(0x1),
+                    6 => CFG::GPIO6OUTCFG.val(0x1),
+                    7 => CFG::GPIO7OUTCFG.val(0x1),
+                    _ => unreachable!(),
+                };
+                self.registers.cfg[cfgreg_offset].modify(cfgreg_value);
+            }
+            gpio::FloatingState::PullDown => {
+                let cfgreg_offset = self.pin as usize / 8;
+                let cfgreg_value = match self.pin as usize % 8 {
+                    0 => CFG::GPIO0OUTCFG.val(0x2),
+                    1 => CFG::GPIO1OUTCFG.val(0x2),
+                    2 => CFG::GPIO2OUTCFG.val(0x2),
+                    3 => CFG::GPIO3OUTCFG.val(0x2),
+                    4 => CFG::GPIO4OUTCFG.val(0x2),
+                    5 => CFG::GPIO5OUTCFG.val(0x2),
+                    6 => CFG::GPIO6OUTCFG.val(0x2),
+                    7 => CFG::GPIO7OUTCFG.val(0x2),
+                    _ => unreachable!(),
+                };
+                self.registers.cfg[cfgreg_offset].modify(cfgreg_value);
+            }
+            gpio::FloatingState::PullNone => {
+                let cfgreg_offset = self.pin as usize / 8;
+                let cfgreg_value = match self.pin as usize % 8 {
+                    0 => CFG::GPIO0OUTCFG.val(0x3),
+                    1 => CFG::GPIO1OUTCFG.val(0x3),
+                    2 => CFG::GPIO2OUTCFG.val(0x3),
+                    3 => CFG::GPIO3OUTCFG.val(0x3),
+                    4 => CFG::GPIO4OUTCFG.val(0x3),
+                    5 => CFG::GPIO5OUTCFG.val(0x3),
+                    6 => CFG::GPIO6OUTCFG.val(0x3),
+                    7 => CFG::GPIO7OUTCFG.val(0x3),
+                    _ => unreachable!(),
+                };
+                self.registers.cfg[cfgreg_offset].modify(cfgreg_value);
+            }
+        }
+
+        // Unset key
+        self.registers.padkey.set(0x00);
     }
 
     fn floating_state(&self) -> gpio::FloatingState {
@@ -537,14 +847,14 @@ impl<'a> gpio::Configure for GpioPin<'a> {
         // Set to push/pull
         let cfgreg_offset = self.pin as usize / 8;
         let cfgreg_value = match self.pin as usize % 8 {
-            0 => CFG::GPIO0INTD::CLEAR + CFG::GPIO0OUTCFG.val(0x1),
-            1 => CFG::GPIO1INTD::CLEAR + CFG::GPIO1OUTCFG.val(0x1),
-            2 => CFG::GPIO2INTD::CLEAR + CFG::GPIO2OUTCFG.val(0x1),
-            3 => CFG::GPIO3INTD::CLEAR + CFG::GPIO3OUTCFG.val(0x1),
-            4 => CFG::GPIO4INTD::CLEAR + CFG::GPIO4OUTCFG.val(0x1),
-            5 => CFG::GPIO5INTD::CLEAR + CFG::GPIO5OUTCFG.val(0x1),
-            6 => CFG::GPIO6INTD::CLEAR + CFG::GPIO6OUTCFG.val(0x1),
-            7 => CFG::GPIO7INTD::CLEAR + CFG::GPIO7OUTCFG.val(0x1),
+            0 => CFG::GPIO0OUTCFG.val(0x1),
+            1 => CFG::GPIO1OUTCFG.val(0x1),
+            2 => CFG::GPIO2OUTCFG.val(0x1),
+            3 => CFG::GPIO3OUTCFG.val(0x1),
+            4 => CFG::GPIO4OUTCFG.val(0x1),
+            5 => CFG::GPIO5OUTCFG.val(0x1),
+            6 => CFG::GPIO6OUTCFG.val(0x1),
+            7 => CFG::GPIO7OUTCFG.val(0x1),
             _ => unreachable!(),
         };
         regs.cfg[cfgreg_offset].modify(cfgreg_value);
@@ -556,11 +866,79 @@ impl<'a> gpio::Configure for GpioPin<'a> {
     }
 
     fn disable_output(&self) -> gpio::Configuration {
-        unimplemented!();
+        let regs = self.registers;
+
+        // Set the key
+        regs.padkey.set(115);
+
+        // Configure the pin as GPIO
+        let pagreg_offset = self.pin as usize / 4;
+        let pagreg_value = match self.pin as usize % 4 {
+            0 => PADREG::PAD0FNCSEL.val(0x3),
+            1 => PADREG::PAD1FNCSEL.val(0x3),
+            2 => PADREG::PAD2FNCSEL.val(0x3),
+            3 => PADREG::PAD3FNCSEL.val(0x3),
+            _ => unreachable!(),
+        };
+        regs.padreg[pagreg_offset].modify(pagreg_value);
+
+        // Set to push/pull
+        let cfgreg_offset = self.pin as usize / 8;
+        let cfgreg_value = match self.pin as usize % 8 {
+            0 => CFG::GPIO0OUTCFG.val(0x00),
+            1 => CFG::GPIO1OUTCFG.val(0x00),
+            2 => CFG::GPIO2OUTCFG.val(0x00),
+            3 => CFG::GPIO3OUTCFG.val(0x00),
+            4 => CFG::GPIO4OUTCFG.val(0x00),
+            5 => CFG::GPIO5OUTCFG.val(0x00),
+            6 => CFG::GPIO6OUTCFG.val(0x00),
+            7 => CFG::GPIO7OUTCFG.val(0x00),
+            _ => unreachable!(),
+        };
+        regs.cfg[cfgreg_offset].modify(cfgreg_value);
+
+        // Unset key
+        regs.padkey.set(0x00);
+
+        gpio::Configuration::LowPower
     }
 
     fn make_input(&self) -> gpio::Configuration {
-        unimplemented!();
+        let regs = self.registers;
+
+        // Set the key
+        regs.padkey.set(115);
+
+        // Configure the pin as GPIO
+        let pagreg_offset = self.pin as usize / 4;
+        let pagreg_value = match self.pin as usize % 4 {
+            0 => PADREG::PAD0FNCSEL.val(0x3),
+            1 => PADREG::PAD1FNCSEL.val(0x3),
+            2 => PADREG::PAD2FNCSEL.val(0x3),
+            3 => PADREG::PAD3FNCSEL.val(0x3),
+            _ => unreachable!(),
+        };
+        regs.padreg[pagreg_offset].modify(pagreg_value);
+
+        // Set to push/pull
+        let cfgreg_offset = self.pin as usize / 8;
+        let cfgreg_value = match self.pin as usize % 8 {
+            0 => CFG::GPIO0INTD::CLEAR + CFG::GPIO0INCFG.val(0x1),
+            1 => CFG::GPIO1INTD::CLEAR + CFG::GPIO1INCFG.val(0x1),
+            2 => CFG::GPIO2INTD::CLEAR + CFG::GPIO2INCFG.val(0x1),
+            3 => CFG::GPIO3INTD::CLEAR + CFG::GPIO3INCFG.val(0x1),
+            4 => CFG::GPIO4INTD::CLEAR + CFG::GPIO4INCFG.val(0x1),
+            5 => CFG::GPIO5INTD::CLEAR + CFG::GPIO5INCFG.val(0x1),
+            6 => CFG::GPIO6INTD::CLEAR + CFG::GPIO6INCFG.val(0x1),
+            7 => CFG::GPIO7INTD::CLEAR + CFG::GPIO7INCFG.val(0x1),
+            _ => unreachable!(),
+        };
+        regs.cfg[cfgreg_offset].modify(cfgreg_value);
+
+        // Unset key
+        regs.padkey.set(0x00);
+
+        gpio::Configuration::Input
     }
 
     fn disable_input(&self) -> gpio::Configuration {

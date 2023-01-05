@@ -6,5 +6,3 @@ MEMORY
   prog (rx) : ORIGIN = 0x00030000, LENGTH = 0x00040000
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 64K
 }
-
-MPU_MIN_ALIGN = 8K;

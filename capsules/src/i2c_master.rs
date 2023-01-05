@@ -28,7 +28,7 @@ pub static mut BUF: [u8; 64] = [0; 64];
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to
     /// the client
-    app_id: ProcessId,
+    processid: ProcessId,
     /// The total amount to transmit
     read_len: OptionalCell<usize>,
 }
@@ -56,7 +56,7 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
 
     fn operation(
         &self,
-        app_id: ProcessId,
+        processid: ProcessId,
         kernel_data: &GrantKernelData,
         command: Cmd,
         addr: u8,
@@ -76,7 +76,10 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
                         } else {
                             read_len = OptionalCell::new(rlen as usize);
                         }
-                        self.tx.put(Transaction { app_id, read_len });
+                        self.tx.put(Transaction {
+                            processid,
+                            read_len,
+                        });
 
                         let res = match command {
                             Cmd::Ping => {
@@ -127,25 +130,31 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
     // - `0`: Write buffer completed callback
 
     /// Initiate transfers
-    fn command(&self, cmd_num: usize, arg1: usize, arg2: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        cmd_num: usize,
+        arg1: usize,
+        arg2: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         if let Some(cmd) = Cmd::from_usize(cmd_num) {
             match cmd {
                 Cmd::Ping => CommandReturn::success(),
                 Cmd::Write => self
                     .apps
-                    .enter(appid, |_, kernel_data| {
+                    .enter(processid, |_, kernel_data| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
-                        self.operation(appid, kernel_data, Cmd::Write, addr, write_len as u8, 0)
+                        self.operation(processid, kernel_data, Cmd::Write, addr, write_len as u8, 0)
                             .into()
                     })
                     .unwrap_or_else(|err| err.into()),
                 Cmd::Read => self
                     .apps
-                    .enter(appid, |_, kernel_data| {
+                    .enter(processid, |_, kernel_data| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
-                        self.operation(appid, kernel_data, Cmd::Read, addr, 0, read_len as u8)
+                        self.operation(processid, kernel_data, Cmd::Read, addr, 0, read_len as u8)
                             .into()
                     })
                     .unwrap_or_else(|err| err.into()),
@@ -154,9 +163,9 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
                     let write_len = arg1 >> 8; // can extend to 24 bit write length
                     let read_len = arg2; // can extend to 32 bit read length
                     self.apps
-                        .enter(appid, |_, kernel_data| {
+                        .enter(processid, |_, kernel_data| {
                             self.operation(
-                                appid,
+                                processid,
                                 kernel_data,
                                 Cmd::WriteRead,
                                 addr,
@@ -181,7 +190,7 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
 impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
-            self.apps.enter(tx.app_id, |_, kernel_data| {
+            self.apps.enter(tx.processid, |_, kernel_data| {
                 if let Some(read_len) = tx.read_len.take() {
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::BUFFER)

@@ -130,4 +130,4 @@ impl ClockInterface for NoClockControl {
 
 /// Instance of NoClockControl for things that need references to
 /// `ClockInterface` objects.
-pub static mut NO_CLOCK_CONTROL: NoClockControl = NoClockControl {};
+pub const NO_CLOCK_CONTROL: NoClockControl = NoClockControl {};

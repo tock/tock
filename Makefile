@@ -162,10 +162,7 @@ allstack stack stack-analysis:
 .PHONY: clean
 clean:
 	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
-	@for f in `./tools/list_tools.sh`;\
-		do echo "$$(tput bold)Clean tools/$$f";\
-		cargo clean --manifest-path "tools/$$f/Cargo.toml" || exit 1;\
-		done
+	@echo "$$(tput bold)Clean tools Cargo workspace" && cargo clean --manifest-path tools/Cargo.toml
 	@echo "$$(tput bold)Clean rustdoc" && rm -rf doc/rustdoc
 	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf tools/ci-artifacts
 
@@ -477,12 +474,8 @@ ci-setup-tools:
 
 define ci_job_tools
 	$(call banner,CI-Job: Tools)
-	@for tool in `./tools/list_tools.sh`;\
-		do echo "$$(tput bold)Build & Test $$tool";\
-		cd tools/$$tool;\
-		NOWARNINGS=true RUSTFLAGS="-D warnings" cargo build --all-targets || exit 1;\
-		cd - > /dev/null;\
-		done
+	@NOWARNINGS=true RUSTFLAGS="-D warnings" \
+		cargo build --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
 endef
 
 .PHONY: ci-job-tools
@@ -515,7 +508,7 @@ ci-job-cargo-test-build:
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=0ebf76aae58324b8f7bf6af798696687f5f4c2a9
+QEMU_COMMIT_HASH=dbc4f48b5ab3e6d85f78aa4df6bd6ad561c3d152
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
@@ -526,22 +519,6 @@ define ci_setup_qemu_riscv
 	@$(MAKE) -C "tools/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
 endef
 
-define ci_setup_qemu_opentitan
-	$(call banner,CI-Setup: Get OpenTitan boot ROM image)
-	# Download OpenTitan image. The latest image URL is available at
-	# https://storage.googleapis.com/artifacts.opentitan.org/latest.txt
-	# We download a fixed version so that new OpenTitan images do not
-	# unexpectedly change OpenTitan's behavior in our CI.
-	@printf "Downloading OpenTitan boot ROM\n"
-	@pwd=$$(pwd) && \
-		temp=$$(mktemp -d) && \
-		cd $$temp && \
-		curl 'https://storage.googleapis.com/artifacts.opentitan.org/opentitan-earlgrey_silver_release_v5-157-ga28c280bb.tar.xz' \
-			--output opentitan-dist.tar.xz; \
-		tar -xf opentitan-dist.tar.xz; \
-		mv opentitan-earlgrey_silver_release_*/sw/device/boot_rom/boot_rom_fpga_nexysvideo.elf $$pwd/tools/qemu-runner/opentitan-boot-rom.elf
-endef
-
 .PHONY: ci-setup-qemu
 ci-setup-qemu:
 	$(call ci_setup_helper,\
@@ -550,12 +527,7 @@ ci-setup-qemu:
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
-	$(call ci_setup_helper,\
-		[[ $$(cksum tools/qemu-runner/opentitan-boot-rom.elf | cut -d" " -f1) == "328682170" ]] && echo yes,\
-		Download opentitan archive and unpack a ROM image,\
-		ci_setup_qemu_opentitan,\
-		CI_JOB_QEMU_OPENTITAN)
-	$(if $(CI_JOB_QEMU_RISCV),$(if $(CI_JOB_QEMU_OPENTITAN),$(eval CI_JOB_QEMU := true)))
+	$(if $(CI_JOB_QEMU_RISCV),$(eval CI_JOB_QEMU := true))
 
 
 

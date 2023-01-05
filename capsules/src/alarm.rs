@@ -241,8 +241,8 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
             )
     }
 
-    fn allocate_grant(&self, appid: ProcessId) -> Result<(), kernel::process::Error> {
-        self.app_alarms.enter(appid, |_, _| {})
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+        self.app_alarms.enter(processid, |_, _| {})
     }
 }
 

@@ -145,7 +145,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
         command_num: usize,
         data: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         let pins = self.pins;
         match command_num {
@@ -156,7 +156,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             1 => {
                 if data < pins.len() {
                     self.apps
-                        .enter(appid, |cntr, _| {
+                        .enter(processid, |cntr, _| {
                             cntr.subscribe_map |= 1 << data;
                             let _ = pins[data]
                                 .0
@@ -176,7 +176,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
                 } else {
                     let res = self
                         .apps
-                        .enter(appid, |cntr, _| {
+                        .enter(processid, |cntr, _| {
                             cntr.subscribe_map &= !(1 << data);
                             CommandReturn::success()
                         })

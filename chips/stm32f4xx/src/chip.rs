@@ -30,7 +30,6 @@ pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub usart3: crate::usart::Usart<'a, dma::Dma1<'a>>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub fsmc: crate::fsmc::Fsmc<'a>,
-    pub trng: crate::trng::Trng<'a>,
 }
 
 impl<'a> Stm32f4xxDefaultPeripherals<'a> {
@@ -69,7 +68,6 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
                 ],
                 rcc,
             ),
-            trng: crate::trng::Trng::new(rcc),
         }
     }
 
@@ -127,8 +125,6 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f4xxDefaultPeripherals<'a> 
             nvic::EXTI15_10 => self.exti.handle_interrupt(),
 
             nvic::TIM2 => self.tim2.handle_interrupt(),
-
-            nvic::RNG => self.trng.handle_interrupt(),
 
             _ => return false,
         }

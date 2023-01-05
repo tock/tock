@@ -87,9 +87,9 @@ impl<'a> TemperatureSensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: ProcessId) -> CommandReturn {
+    fn enqueue_command(&self, processid: ProcessId) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if !self.busy.get() {
                     app.subscribed = true;
                     self.busy.set(true);
@@ -108,27 +108,36 @@ impl<'a> TemperatureSensor<'a> {
 }
 
 impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
-    fn callback(&self, temp_val: usize) {
-        for cntr in self.apps.iter() {
-            cntr.enter(|app, upcalls| {
-                if app.subscribed {
-                    self.busy.set(false);
-                    app.subscribed = false;
-                    upcalls.schedule_upcall(0, (temp_val, 0, 0)).ok();
-                }
-            });
+    fn callback(&self, temp_val: Result<i32, ErrorCode>) {
+        if let Ok(temp_val) = temp_val {
+            // TODO: forward error conditions
+            for cntr in self.apps.iter() {
+                cntr.enter(|app, upcalls| {
+                    if app.subscribed {
+                        self.busy.set(false);
+                        app.subscribed = false;
+                        upcalls.schedule_upcall(0, (temp_val as usize, 0, 0)).ok();
+                    }
+                });
+            }
         }
     }
 }
 
 impl SyscallDriver for TemperatureSensor<'_> {
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
             0 => CommandReturn::success(),
 
             // read temperature
-            1 => self.enqueue_command(appid),
+            1 => self.enqueue_command(processid),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

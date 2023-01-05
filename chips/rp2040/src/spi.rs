@@ -507,7 +507,8 @@ impl<'a> SpiMaster for Spi<'a> {
     }
 
     fn is_busy(&self) -> bool {
-        self.registers.sspsr.is_set(SSPSR::BSY)
+        // self.registers.sspsr.is_set(SSPSR::BSY)
+        self.transfers.get() != SPI_IDLE
     }
 
     fn read_write_bytes(

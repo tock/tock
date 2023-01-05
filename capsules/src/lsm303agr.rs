@@ -544,23 +544,17 @@ impl i2c::I2CClient for Lsm303agrI2C<'_> {
                 self.state.set(State::Idle);
             }
             State::ReadTemperature => {
-                let mut temp: usize = 0;
-                let values = if status == Ok(()) {
-                    temp = (buffer[1] as u16 as i16 | ((buffer[0] as i16) << 8)) as usize;
-                    self.temperature_client.map(|client| {
-                        client.callback((temp as i16 / 8) as usize);
-                    });
-                    true
-                } else {
-                    self.temperature_client.map(|client| {
-                        client.callback(usize::MAX);
-                    });
-                    false
+                let values = match status {
+                    Ok(()) => Ok((buffer[1] as u16 as i16 | ((buffer[0] as i16) << 8)) as i32 / 8),
+                    Err(i2c_err) => Err(i2c_err.into()),
                 };
+                self.temperature_client.map(|client| {
+                    client.callback(values);
+                });
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(*pid, |_app, upcalls| {
-                        if values {
-                            upcalls.schedule_upcall(0, (temp, 0, 0)).ok();
+                        if let Ok(temp) = values {
+                            upcalls.schedule_upcall(0, (temp as usize, 0, 0)).ok();
                         } else {
                             upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                         }

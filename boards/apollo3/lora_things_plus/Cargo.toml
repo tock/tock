@@ -1,0 +1,14 @@
+[package]
+name = "lora_things_plus"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "build.rs"
+
+
+[dependencies]
+components = { path = "../../components" }
+cortexm4 = { path = "../../../arch/cortex-m4" }
+capsules = { path = "../../../capsules" }
+kernel = { path = "../../../kernel" }
+apollo3 = { path = "../../../chips/apollo3" }

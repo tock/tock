@@ -10,9 +10,6 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-const RNG_BASE: StaticRef<RngRegisters> =
-    unsafe { StaticRef::new(0x5006_0800 as *const RngRegisters) };
-
 #[repr(C)]
 pub struct RngRegisters {
     cr: ReadWrite<u32, Control::Register>,
@@ -57,9 +54,9 @@ pub struct Trng<'a> {
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Trng<'a> {
+    pub const fn new(registers: StaticRef<RngRegisters>, rcc: &'a rcc::Rcc) -> Trng<'a> {
         Trng {
-            registers: RNG_BASE,
+            registers: registers,
             clock: RngClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB2(rcc::HCLK2::RNG),
                 rcc,

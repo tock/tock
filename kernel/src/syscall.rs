@@ -228,7 +228,7 @@ pub enum SyscallReturnVariant {
     SuccessU32U32 = 130,
     SuccessU64 = 131,
     SuccessU32U32U32 = 132,
-    SuccessU64U32 = 133,
+    SuccessU32U64 = 133,
 }
 
 /// Enumeration of the possible system call return variants specified
@@ -269,7 +269,7 @@ pub enum SyscallReturn {
     SuccessU64(u64),
     /// Generic success case, with an additional 32-bit and 64-bit
     /// data field
-    SuccessU64U32(u64, u32),
+    SuccessU32U64(u32, u64),
 
     // These following types are used by the scheduler so that it can
     // return values to userspace in an architecture (pointer-width)
@@ -329,7 +329,7 @@ impl SyscallReturn {
             SyscallReturn::SuccessU32U32(_, _) => true,
             SyscallReturn::SuccessU32U32U32(_, _, _) => true,
             SyscallReturn::SuccessU64(_) => true,
-            SyscallReturn::SuccessU64U32(_, _) => true,
+            SyscallReturn::SuccessU32U64(_, _) => true,
             SyscallReturn::AllowReadWriteSuccess(_, _) => true,
             SyscallReturn::UserspaceReadableAllowSuccess(_, _) => true,
             SyscallReturn::AllowReadOnlySuccess(_, _) => true,
@@ -397,13 +397,13 @@ impl SyscallReturn {
                 *a1 = data0_lsb;
                 *a2 = data0_msb;
             }
-            &SyscallReturn::SuccessU64U32(data0, data1) => {
-                let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
+            &SyscallReturn::SuccessU32U64(data0, data1) => {
+                let (data1_msb, data1_lsb) = u64_to_be_u32s(data1);
 
-                *a0 = SyscallReturnVariant::SuccessU64U32 as u32;
-                *a1 = data0_lsb;
-                *a2 = data0_msb;
-                *a3 = data1;
+                *a0 = SyscallReturnVariant::SuccessU32U64 as u32;
+                *a1 = data0;
+                *a2 = data1_lsb;
+                *a3 = data1_msb;
             }
             &SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;

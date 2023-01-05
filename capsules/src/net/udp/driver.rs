@@ -160,10 +160,10 @@ impl<'a> UDPDriver<'a> {
         }
         let mut pending_app = None;
         for app in self.apps.iter() {
-            let appid = app.processid();
+            let processid = app.processid();
             app.enter(|app, _| {
                 if app.pending_tx.is_some() {
-                    pending_app = Some(appid);
+                    pending_app = Some(processid);
                 }
             });
             if pending_app.is_some() {
@@ -173,15 +173,15 @@ impl<'a> UDPDriver<'a> {
         pending_app
     }
 
-    /// Performs `appid`'s pending transmission asynchronously. If the
+    /// Performs `processid`'s pending transmission asynchronously. If the
     /// transmission is not successful, the error is returned to the app via its
     /// `tx_callback`. Assumes that the driver is currently idle and the app has
     /// a pending transmission.
     #[inline]
-    fn perform_tx_async(&self, appid: ProcessId) {
-        let result = self.perform_tx_sync(appid);
+    fn perform_tx_async(&self, processid: ProcessId) {
+        let result = self.perform_tx_sync(processid);
         if result != Ok(()) {
-            let _ = self.apps.enter(appid, |_app, upcalls| {
+            let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
                     .ok();
@@ -189,12 +189,12 @@ impl<'a> UDPDriver<'a> {
         }
     }
 
-    /// Performs `appid`'s pending transmission synchronously. The result is
+    /// Performs `processid`'s pending transmission synchronously. The result is
     /// returned immediately to the app. Assumes that the driver is currently
     /// idle and the app has a pending transmission.
     #[inline]
-    fn perform_tx_sync(&self, appid: ProcessId) -> Result<(), ErrorCode> {
-        self.apps.enter(appid, |app, kernel_data| {
+    fn perform_tx_sync(&self, processid: ProcessId) -> Result<(), ErrorCode> {
+        self.apps.enter(processid, |app, kernel_data| {
             let addr_ports = match app.pending_tx.take() {
                 Some(pending_tx) => pending_tx,
                 None => {
@@ -241,7 +241,7 @@ impl<'a> UDPDriver<'a> {
                 })
                 .unwrap_or(Err(ErrorCode::NOMEM));
             if result == Ok(()) {
-                self.current_app.set(Some(appid));
+                self.current_app.set(Some(processid));
             }
             result
         })?
@@ -253,7 +253,7 @@ impl<'a> UDPDriver<'a> {
     #[allow(dead_code)]
     fn do_next_tx_queued(&self) {
         self.get_next_tx_if_idle()
-            .map(|appid| self.perform_tx_async(appid));
+            .map(|processid| self.perform_tx_async(processid));
     }
 
     /// Schedule the next transmission if there is one pending. If the next
@@ -262,17 +262,17 @@ impl<'a> UDPDriver<'a> {
     /// On the other hand, if it is some other app, then return any errors via
     /// callbacks.
     #[inline]
-    fn do_next_tx_immediate(&self, new_appid: ProcessId) -> Result<u32, ErrorCode> {
-        self.get_next_tx_if_idle().map_or(Ok(0), |appid| {
-            if appid == new_appid {
-                let sync_result = self.perform_tx_sync(appid);
+    fn do_next_tx_immediate(&self, new_processid: ProcessId) -> Result<u32, ErrorCode> {
+        self.get_next_tx_if_idle().map_or(Ok(0), |processid| {
+            if processid == new_processid {
+                let sync_result = self.perform_tx_sync(processid);
                 if sync_result == Ok(()) {
                     Ok(1) //Indicates packet passed to radio
                 } else {
                     Err(ErrorCode::try_from(sync_result).unwrap())
                 }
             } else {
-                self.perform_tx_async(appid);
+                self.perform_tx_async(processid);
                 Ok(0) //indicates async transmission
             }
         })
@@ -384,7 +384,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
         command_num: usize,
         arg1: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
@@ -393,7 +393,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
             // `arg1`: number of interfaces requested that will fit into the buffer
             1 => {
                 self.apps
-                    .enter(appid, |_, kernel_data| {
+                    .enter(processid, |_, kernel_data| {
                         kernel_data
                             .get_readwrite_processbuffer(rw_allow::CFG)
                             .and_then(|cfg| {
@@ -421,7 +421,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
             2 => {
                 let res = self
                     .apps
-                    .enter(appid, |app, kernel_data| {
+                    .enter(processid, |app, kernel_data| {
                         if app.pending_tx.is_some() {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
@@ -469,7 +469,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                     })
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
-                    Ok(_) => self.do_next_tx_immediate(appid).map_or_else(
+                    Ok(_) => self.do_next_tx_immediate(processid).map_or_else(
                         |err| CommandReturn::failure(err.into()),
                         |v| CommandReturn::success_u32(v),
                     ),
@@ -479,7 +479,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
             3 => {
                 let err = self
                     .apps
-                    .enter(appid, |app, kernel_data| {
+                    .enter(processid, |app, kernel_data| {
                         // Move UDPEndpoint into udp.rs?
                         let requested_addr_opt = kernel_data
                             .get_readwrite_processbuffer(rw_allow::RX_CFG)
@@ -534,7 +534,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                         CommandReturn::failure(ErrorCode::BUSY)
                                     } else {
                                         self.apps
-                                            .enter(appid, |app, _| {
+                                            .enter(processid, |app, _| {
                                                 // The requested addr is free and valid
                                                 app.bound_port = Some(requested_addr);
                                                 CommandReturn::success()
@@ -570,8 +570,8 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);
-        self.current_app.get().map(|appid| {
-            let _ = self.apps.enter(appid, |_app, upcalls| {
+        self.current_app.get().map(|processid| {
+            let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
                     .ok();

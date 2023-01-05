@@ -3,6 +3,7 @@
 pub mod adc;
 pub mod chip;
 pub mod clocks;
+pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
@@ -11,6 +12,7 @@ pub mod spi;
 pub mod sysinfo;
 pub mod timer;
 pub mod uart;
+pub mod usb;
 pub mod watchdog;
 pub mod xosc;
 

@@ -1,8 +1,7 @@
 /*
  * This is the generic linker script for Tock. For most developers, it should
  * be sufficient to define {ROM/PROG/RAM}_{ORIGIN/LENGTH} (6 variables, the
- * start and length for each), MPU_MIN_ALIGN (the minimum alignment
- * granularity supported by the MPU) and PAGE_SIZE (the size of a flash page).
+ * start and length for each) and PAGE_SIZE (the size of a flash page).
  * If undefined, PAGE_SIZE uses the default value of 512 bytes.
  *
  * --------------------------------------------------------------------------
@@ -324,12 +323,11 @@ SECTIONS
          *
          * Tock uses the remainder of SRAM for application memory.
          *
-         * Currently, Tock allocates a fixed array of application memories at
+         * Currently, Tock allocates a fixed array of application memory at
          * compile-time, and that array is simply placed here. A possible
          * future enhancement may allow the kernel to parcel this memory space
          * dynamically, requiring changes to this section.
          */
-        . = ALIGN(MPU_MIN_ALIGN);
         _sappmem = .;
         *(.app_memory)
     } > ram

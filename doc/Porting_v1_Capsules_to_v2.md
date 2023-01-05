@@ -65,7 +65,7 @@ pub trait SyscallDriver {
         Err((slice, ErrorCode::NOSUPPORT))
     }
 
-    fn allocate_grant(&self, appid: ProcessId) -> Result<(), crate::process::Error>;
+    fn allocate_grant(&self, processid: ProcessId) -> Result<(), crate::process::Error>;
 }
 ```
 
@@ -154,19 +154,19 @@ Here is a slightly more complex implementation of `command`, from the
 `console` capsule.
 
 ```rust
-    fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandResult{
+    fn command(&self, cmd_num: usize, arg1: usize, _: usize, processid: ProcessId) -> CommandResult{
         let res = match cmd_num {
             0 => Ok(Ok(())),
             1 => { // putstr
                 let len = arg1;
-                self.apps.enter(appid, |app, _| {
-                    self.send_new(appid, app, len)
+                self.apps.enter(processid, |app, _| {
+                    self.send_new(processid, app, len)
                 }).map_err(ErrorCode::from)
             },
             2 => { // getnstr
                 let len = arg1;
-                self.apps.enter(appid, |app, _| {
-                    self.receive_new(appid, app, len)
+                self.apps.enter(processid, |app, _| {
+                    self.receive_new(processid, app, len)
                 }).map_err(ErrorCode::from)
             },
             3 => { // Abort RX
@@ -252,7 +252,7 @@ pub struct App {
         let res = match allow_num {
             1 => self
                 .apps
-                .enter(appid, |process_id, _| {
+                .enter(processid, |process_id, _| {
                     mem::swap(&mut process_id.write_buffer, &mut buffer);
                 })
                 .map_err(ErrorCode::from),
@@ -310,7 +310,7 @@ Finally to schedule an upcall any calls to `app.upcall.schedule()` should be
 replaced with code like:
 
 ```rust
-self.apps.enter(appid, |app, upcalls| {
+self.apps.enter(processid, |app, upcalls| {
     upcalls.schedule_upcall(upcall_number, (r0, r1, r2));
 });
 ```

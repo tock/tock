@@ -11,6 +11,4 @@ MEMORY
   ram (rwx) : ORIGIN = 0x80000000, LENGTH = 0x4000
 }
 
-MPU_MIN_ALIGN = 1K;
-
 INCLUDE ../kernel_layout.ld

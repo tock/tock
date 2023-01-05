@@ -1,19 +1,18 @@
-ESP32-C3 Board
-==============
+# ESP32-C3 Board
 
 ESP32-C3 is a system on a chip that integrates the following features:
- * Wi-Fi (2.4 GHz band)
- * Bluetooth Low Energy
- * High performance 32-bit RISC-V-ish single-core processor
- * Multiple peripherals
- * Built-in security hardware
+
+- Wi-Fi (2.4 GHz band)
+- Bluetooth Low Energy
+- High performance 32-bit RISC-V-ish single-core processor
+- Multiple peripherals
+- Built-in security hardware
 
 Powered by 40 nm technology, ESP32-C3 provides a robust, highly integrated
 platform, which helps meet the continuous demands for efficient power usage,
 compact design, security, high performance, and reliability.
 
-Setup
------
+## Setup
 
 Install the ESP tool
 
@@ -67,8 +66,23 @@ Entering main loop.
 screen /dev/ttyUSB0  115200
 ```
 
-JTAG Debugging
---------------
+## Building and Flashing Applications
+
+Apps are built out-of-tree, for example:
+
+```bash
+$ cd libtock-c/examples/<app>
+$ make RISCV=1
+```
+
+Then to flash an app:
+
+```
+$ cd tock/boards/esp32-c3-devkitM-1
+$ make flash-app APP=../../../libtock-c/examples/<app>/build/rv32imac/rv32imac.0x403B0060.0x3FCC0000.tbf
+```
+
+## JTAG Debugging
 
 In order to use JTAG debugging you first need to build a fork of OpenOCD
 

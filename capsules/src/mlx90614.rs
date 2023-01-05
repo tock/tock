@@ -139,25 +139,21 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 self.state.set(State::Idle);
             }
             State::ReadAmbientTemp | State::ReadObjTemp => {
-                let mut temp: usize = 0;
-
-                let values = if status == Ok(()) {
+                let values = match status {
+                    Ok(()) =>
                     // Convert to centi celsius
-                    temp = ((buffer[0] as usize | (buffer[1] as usize) << 8) * 2) - 27300;
-                    self.temperature_client.map(|client| {
-                        client.callback(temp as usize);
-                    });
-                    true
-                } else {
-                    self.temperature_client.map(|client| {
-                        client.callback(0);
-                    });
-                    false
+                    {
+                        Ok(((buffer[0] as usize | (buffer[1] as usize) << 8) * 2) as i32 - 27300)
+                    }
+                    Err(i2c_error) => Err(i2c_error.into()),
                 };
-                if values {
+                self.temperature_client.map(|client| {
+                    client.callback(values);
+                });
+                if let Ok(temp) = values {
                     self.owning_process.map(|pid| {
                         let _ = self.apps.enter(*pid, |_app, upcalls| {
-                            upcalls.schedule_upcall(0, (temp, 0, 0)).ok();
+                            upcalls.schedule_upcall(0, (temp as usize, 0, 0)).ok();
                         });
                     });
                 } else {

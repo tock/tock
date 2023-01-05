@@ -66,9 +66,9 @@ impl<'a> AirQualitySensor<'a> {
         }
     }
 
-    fn enqueue_command(&self, appid: ProcessId, op: Operation) -> CommandReturn {
+    fn enqueue_command(&self, processid: ProcessId, op: Operation) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if !self.busy.get() {
                     self.busy.set(true);
                     app.operation = op;
@@ -131,7 +131,13 @@ impl hil::sensors::AirQualityClient for AirQualitySensor<'_> {
 }
 
 impl SyscallDriver for AirQualitySensor<'_> {
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             // check whether the driver exists!!
             0 => CommandReturn::success(),
@@ -140,10 +146,10 @@ impl SyscallDriver for AirQualitySensor<'_> {
             1 => CommandReturn::failure(ErrorCode::NOSUPPORT),
 
             // read CO2
-            2 => self.enqueue_command(appid, Operation::CO2),
+            2 => self.enqueue_command(processid, Operation::CO2),
 
             // read TVOC
-            3 => self.enqueue_command(appid, Operation::TVOC),
+            3 => self.enqueue_command(processid, Operation::TVOC),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

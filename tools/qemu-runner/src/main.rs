@@ -54,14 +54,10 @@ fn earlgrey_cw310() -> Result<(), Error> {
     rom_path.push("opentitan-boot-rom.elf");
 
     let mut p = spawn(
-        &format!(
-            "make OPENTITAN_BOOT_ROM={} qemu -C ../../boards/opentitan/earlgrey-cw310",
-            rom_path.to_str().unwrap()
-        ),
+        "make qemu -C ../../boards/opentitan/earlgrey-cw310",
         Some(10_000),
     )?;
 
-    p.exp_string("Boot ROM initialisation has completed, jump into flash!")?;
     p.exp_string("OpenTitan initialisation complete. Entering main loop")?;
 
     // Test completed, kill QEMU

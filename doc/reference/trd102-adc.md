@@ -73,6 +73,8 @@ pub trait Adc {
     /// Can be used to stop any simple or high-speed sampling operation. No
     /// further callbacks will occur.
     fn stop_sampling(&self) -> Result<(), ErrorCode>;
+
+    fn set_client(&self, client: &'static dyn Client);
 }
 ```
 
@@ -192,6 +194,8 @@ pub trait AdcHighSpeed: Adc {
     fn retrieve_buffers(&self)
                         -> (Result<(), ErrorCode>, Option<&'static mut [u16]>,
                             Option<&'static mut [u16]>);
+
+    fn set_highspeed_client(&self, client: &'static dyn HighSpeedClient);
 }
 ```
 
@@ -317,19 +321,16 @@ pub static mut CHANNEL_AD1: AdcChannel = AdcChannel::new(Channel::AD1);
 pub static mut CHANNEL_REFERENCE_GROUND: AdcChannel = AdcChannel::new(Channel::ReferenceGround);
 ```
 
-6.2 Client Type
+6.2 Client Handling
 ---------------------------------
 
-It is difficult in Rust to require a argument that implements two types.
-However, it is convenient for the implementation to expect a single client that
-implements both the `adc::Client` and `adc::HighSpeedClient` interfaces. It is
-possible to do so by defining a new trait that requires each.
+As ADC functionality is split between two traits, there are two callback traits.
+ADC driver implementations that use both `Adc` and `AdcHighSpeed` need two
+clients, which must both be set:
 
 ```
-/// Create a trait of both client types to allow a single client reference to
-/// act as both
-pub trait EverythingClient: hil::adc::Client + hil::adc::HighSpeedClient {}
-impl<C: hil::adc::Client + hil::adc::HighSpeedClient> EverythingClient for C {}
+hil::adc::Adc::set_client(&peripherals.adc, adc);
+hil::adc::AdcHighSpeed::set_client(&peripherals.adc, adc);
 ```
 
 6.3 Clock Initialization

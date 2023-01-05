@@ -72,14 +72,14 @@ impl<'a> AppFlash<'a> {
     // Check to see if we are doing something. If not, go ahead and do this
     // command. If so, this is queued and will be run when the pending command
     // completes.
-    fn enqueue_write(&self, flash_address: usize, appid: ProcessId) -> Result<(), ErrorCode> {
+    fn enqueue_write(&self, flash_address: usize, processid: ProcessId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, kernel_data| {
+            .enter(processid, |app, kernel_data| {
                 // Check that this is a valid range in the app's flash.
                 let flash_length = kernel_data
                     .get_readonly_processbuffer(ro_allow::BUFFER)
                     .map_or(0, |buffer| buffer.len());
-                let (app_flash_start, app_flash_end) = appid.get_editable_flash_range();
+                let (app_flash_start, app_flash_end) = processid.get_editable_flash_range();
                 if flash_address < app_flash_start
                     || flash_address >= app_flash_end
                     || flash_address + flash_length >= app_flash_end
@@ -88,7 +88,7 @@ impl<'a> AppFlash<'a> {
                 }
 
                 if self.current_app.is_none() {
-                    self.current_app.set(appid);
+                    self.current_app.set(processid);
 
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::BUFFER)
@@ -134,19 +134,19 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_
         self.buffer.replace(buffer);
 
         // Notify the current application that the command finished.
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |_app, upcalls| {
+        self.current_app.take().map(|processid| {
+            let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (0, 0, 0)).ok();
             });
         });
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
-            let appid = cntr.processid();
+            let processid = cntr.processid();
             let started_command = cntr.enter(|app, kernel_data| {
                 if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(appid);
+                    self.current_app.set(processid);
                     let flash_address = app.flash_address;
 
                     kernel_data
@@ -213,7 +213,7 @@ impl SyscallDriver for AppFlash<'_> {
         command_num: usize,
         arg1: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 /* This driver exists. */ => {
@@ -223,7 +223,7 @@ impl SyscallDriver for AppFlash<'_> {
             1 /* Write to flash from the allowed buffer */ => {
                 let flash_address = arg1;
 
-                let res = self.enqueue_write(flash_address, appid);
+                let res = self.enqueue_write(flash_address, processid);
 
                 match res {
                     Ok(()) => CommandReturn::success(),
