@@ -73,13 +73,13 @@ For full authorship information, see the version control history.
 4 Implementation
 ================
 
-All textual files that allow comments MUST include a license notice.
+All textual files that allow comments MUST include a license notice and
+copyright notice(s).
 
-Code artifacts MAY include copyright notice(s). Copyright notices SHOULD
-include a year. Newer copyright notices SHOULD be placed after existing
-copyright notices. If non-trivial updates are performed by an original
-copyright author, they MAY amend the year(s) indicated on their existing
-copyright statement or MAY add an additional copyright line, at their
+Copyright notices SHOULD include a year. Newer copyright notices SHOULD be
+placed after existing copyright notices. If non-trivial updates are performed by
+an original copyright author, they MAY amend the year(s) indicated on their
+existing copyright statement or MAY add an additional copyright line, at their
 discretion.
 
 
