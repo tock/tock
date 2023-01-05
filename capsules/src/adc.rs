@@ -1322,8 +1322,8 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {
     fn sample_ready(&self, sample: u16) {
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, upcalls| {
+        self.current_process.take().map(|processid| {
+            let _ = self.apps.enter(processid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
                 upcalls
