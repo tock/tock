@@ -47,7 +47,8 @@ dual-licensed as Apache License, Version 2.0 (LICENSE-APACHE or
 http://www.apache.org/licenses/LICENSE-2.0) or MIT license (LICENSE-MIT or
 http://opensource.org/licenses/MIT).
 
-All contributions to Tock projects MUST be licensed under these terms.
+All contributions to the Tock kernel (the code hosted at
+https://github.com/tock/tock) MUST be licensed under these terms.
 
 
 3 Copyright
@@ -62,9 +63,9 @@ Copyrights in Tock projects are retained by their contributors. No
 copyright assignment is required to contribute to Tock projects.
 
 Artifacts in the Tock project MAY include explicit copyright notices.
-Substantial updates to an artifact MAY add additional copyright notices
-to an artifact. Copyright notices SHOULD NOT be removed by any party except
-the original copyright holder.
+Substantial updates to an artifact MAY add additional copyright notices to an
+artifact. In general, modifications to a file are expected to retain existing
+copyright notices.
 
 For full authorship information, see the version control history.
 
@@ -72,7 +73,7 @@ For full authorship information, see the version control history.
 4 Implementation
 ================
 
-All code artifacts in Tock projects MUST include a license notice.
+All textual files that allow comments MUST include a license notice.
 
 Code artifacts MAY include copyright notice(s). Copyright notices SHOULD
 include a year. Newer copyright notices SHOULD be placed after existing
@@ -84,12 +85,6 @@ discretion.
 
 4.1 Format
 ----------
-
-License and copyright information SHOULD appear near the top of a file.
-Generally, license and copyright information SHOULD be the first lines in a file
-unless necessary for technical (e.g. to accommodate the shebang in a shell
-script) or other reasons (e.g. importing a file with an existing copyright
-notice in a different location).
 
 License and copyright information SHOULD have exactly one (1) blank line
 separating it from any other content in the file.
