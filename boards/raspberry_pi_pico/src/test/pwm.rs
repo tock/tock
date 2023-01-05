@@ -206,7 +206,7 @@ impl PwmTest {
         self.peripherals.pins.get_pin(RPGpio::GPIO8).set_function(GpioFunction::PWM);
         self.peripherals.pins.get_pin(RPGpio::GPIO6).set_function(GpioFunction::PWM);
         let pwm = &self.peripherals.pwm;
-        let mut config = pwm::PwmChannelConfiguration::default_config();
+        let mut config: pwm::PwmChannelConfiguration = Default::default();
         config.set_divider_int_frac(32, 0);
         let mut mask = 0u8;
         let channel_number = pwm.gpio_to_pwm_pin(RPGpio::GPIO8).get_channel_number();

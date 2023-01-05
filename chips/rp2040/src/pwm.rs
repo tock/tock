@@ -298,7 +298,7 @@ pub struct PwmChannelConfiguration {
     top: u16,
 }
 
-impl PwmChannelConfiguration {
+impl Default for PwmChannelConfiguration {
     /// Create a set of default values to use for configuring a PWM channel:
     /// + the channel is disabled
     /// + trailing-edge modulation configured
@@ -307,7 +307,7 @@ impl PwmChannelConfiguration {
     /// + integral part of the divider is 1 and the fractional part is 0
     /// + compare values for both pins are set 0 (0% duty cycle)
     /// + top value is set to its maximum value
-    pub fn default_config() -> Self {
+    fn default() -> Self {
         PwmChannelConfiguration {
             en: false,
             ph_correct: false,
@@ -321,7 +321,9 @@ impl PwmChannelConfiguration {
             top: u16::MAX,
         }
     }
+}
 
+impl PwmChannelConfiguration {
     /// See [Pwm::set_enabled]
     pub fn set_enabled(&mut self, enable: bool) {
         self.en = enable;
@@ -667,7 +669,7 @@ impl<'a> Pwm<'a> {
     /// This method should be called when setting up the kernel. Failing in doing so
     /// will result in undefined behaviour.
     pub fn init(&self) {
-        let default_config = PwmChannelConfiguration::default_config();
+        let default_config: PwmChannelConfiguration = Default::default();
         for channel_number in CHANNEL_NUMBERS {
             self.configure_channel(channel_number, &default_config);
             self.set_counter(channel_number, 0);
