@@ -34,6 +34,7 @@ macro_rules! adc_syscall_component_helper {
         use core::mem::MaybeUninit;
         use kernel::hil;
         use kernel::count_expressions;
+        use kernel::static_init;
         const NUM_DRIVERS: usize = count_expressions!($($P),+);
 
         let drivers = static_init!(
