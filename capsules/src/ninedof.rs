@@ -77,12 +77,12 @@ impl<'a> NineDof<'a> {
         &self,
         command: NineDofCommand,
         arg1: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if self.current_app.is_none() {
-                    self.current_app.set(appid);
+                    self.current_app.set(processid);
                     let value = self.call_driver(command, arg1);
                     if value != Ok(()) {
                         self.current_app.clear();
@@ -149,8 +149,8 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
         // the result.
         let mut finished_command = NineDofCommand::Exists;
         let mut finished_command_arg = 0;
-        self.current_app.take().map(|appid| {
-            let _ = self.apps.enter(appid, |app, upcalls| {
+        self.current_app.take().map(|processid| {
+            let _ = self.apps.enter(processid, |app, upcalls| {
                 app.pending_command = false;
                 finished_command = app.command;
                 finished_command_arg = app.arg1;
@@ -160,7 +160,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
 
         // Check if there are any pending events.
         for cntr in self.apps.iter() {
-            let appid = cntr.processid();
+            let processid = cntr.processid();
             let started_command = cntr.enter(|app, upcalls| {
                 if app.pending_command
                     && app.command == finished_command
@@ -173,7 +173,7 @@ impl hil::sensors::NineDofClient for NineDof<'_> {
                     false
                 } else if app.pending_command {
                     app.pending_command = false;
-                    self.current_app.set(appid);
+                    self.current_app.set(processid);
                     self.call_driver(app.command, app.arg1) == Ok(())
                 } else {
                     false
@@ -192,18 +192,18 @@ impl SyscallDriver for NineDof<'_> {
         command_num: usize,
         arg1: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
             // Single acceleration reading.
-            1 => self.enqueue_command(NineDofCommand::ReadAccelerometer, arg1, appid),
+            1 => self.enqueue_command(NineDofCommand::ReadAccelerometer, arg1, processid),
 
             // Single magnetometer reading.
-            100 => self.enqueue_command(NineDofCommand::ReadMagnetometer, arg1, appid),
+            100 => self.enqueue_command(NineDofCommand::ReadMagnetometer, arg1, processid),
 
             // Single gyroscope reading.
-            200 => self.enqueue_command(NineDofCommand::ReadGyroscope, arg1, appid),
+            200 => self.enqueue_command(NineDofCommand::ReadGyroscope, arg1, processid),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

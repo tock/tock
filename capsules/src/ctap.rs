@@ -65,7 +65,7 @@ pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
     app: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
-    appid: OptionalCell<ProcessId>,
+    processid: OptionalCell<ProcessId>,
     phantom: PhantomData<&'a U>,
 
     send_buffer: TakeCell<'static, [u8; 64]>,
@@ -82,7 +82,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
         CtapDriver {
             usb: usb,
             app: grant,
-            appid: OptionalCell::empty(),
+            processid: OptionalCell::empty(),
             phantom: PhantomData,
             send_buffer: TakeCell::new(send_buffer),
             recv_buffer: TakeCell::new(recv_buffer),
@@ -137,7 +137,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
         buffer: &'static mut [u8; 64],
         _endpoint: usize,
     ) {
-        self.appid.map(|id| {
+        self.processid.map(|id| {
             self.app
                 .enter(*id, |app, kernel_data| {
                     let _ = kernel_data
@@ -167,7 +167,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
         buffer: &'static mut [u8; 64],
         _endpoint: usize,
     ) {
-        self.appid.map(|id| {
+        self.processid.map(|id| {
             self.app
                 .enter(*id, |_app, kernel_data| {
                     kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
@@ -184,7 +184,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     }
 
     fn can_receive(&'a self) -> bool {
-        self.appid
+        self.processid
             .map(|id| {
                 self.app
                     .enter(*id, |app, _| app.can_receive.get())
@@ -209,10 +209,10 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
-        let can_access = self.appid.map_or(true, |owning_app| {
-            if owning_app == &appid {
+        let can_access = self.processid.map_or(true, |owning_app| {
+            if owning_app == &processid {
                 // We own the Ctap device
                 true
             } else {
@@ -228,8 +228,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             // Send data
             0 => self
                 .app
-                .enter(appid, |_, kernel_data| {
-                    self.appid.set(appid);
+                .enter(processid, |_, kernel_data| {
+                    self.processid.set(processid);
                     if let Some(usb) = self.usb {
                         kernel_data
                             .get_readwrite_processbuffer(rw_allow::SEND)
@@ -256,8 +256,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             // Allow receive
             1 => self
                 .app
-                .enter(appid, |app, _| {
-                    self.appid.set(appid);
+                .enter(processid, |app, _| {
+                    self.processid.set(processid);
                     if let Some(usb) = self.usb {
                         app.can_receive.set(true);
                         if let Some(buf) = self.recv_buffer.take() {
@@ -279,8 +279,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             // Cancel send
             2 => self
                 .app
-                .enter(appid, |_app, _| {
-                    self.appid.set(appid);
+                .enter(processid, |_app, _| {
+                    self.processid.set(processid);
                     if let Some(usb) = self.usb {
                         match usb.receive_cancel() {
                             Ok(buf) => {
@@ -297,8 +297,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             // Cancel receive
             3 => self
                 .app
-                .enter(appid, |_app, _| {
-                    self.appid.set(appid);
+                .enter(processid, |_app, _| {
+                    self.processid.set(processid);
                     if let Some(usb) = self.usb {
                         match usb.receive_cancel() {
                             Ok(buf) => {
@@ -328,7 +328,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             //            send buffer.
             4 => self
                 .app
-                .enter(appid, |app, kernel_data| {
+                .enter(processid, |app, kernel_data| {
                     if let Some(usb) = self.usb {
                         if app.can_receive.get() {
                             // We are already receiving

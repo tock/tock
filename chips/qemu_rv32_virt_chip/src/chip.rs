@@ -4,6 +4,7 @@ use core::fmt::Write;
 
 use kernel;
 use kernel::debug;
+use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -17,24 +18,39 @@ use sifive::plic::Plic;
 
 use crate::interrupts;
 
+use virtio::transports::mmio::VirtIOMMIODevice;
+
 type QemuRv32VirtPMP = PMP<8>;
+
+pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
 pub struct QemuRv32VirtChip<'a, I: InterruptService<()> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: QemuRv32VirtPMP,
     plic: &'a Plic,
-    timer: &'a sifive::clint::Clint<'a>,
+    timer: &'a QemuRv32VirtClint<'a>,
     plic_interrupt_service: &'a I,
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
     pub uart0: crate::uart::Uart16550<'a>,
+    pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
 impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
             uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
+            virtio_mmio: [
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_2_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_3_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_4_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_5_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_6_BASE),
+                VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_7_BASE),
+            ],
         }
     }
 }
@@ -42,9 +58,15 @@ impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
 impl<'a> InterruptService<()> for QemuRv32VirtDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::UART0 => {
-                self.uart0.handle_interrupt();
-            }
+            interrupts::UART0 => self.uart0.handle_interrupt(),
+            interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_1 => self.virtio_mmio[1].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_2 => self.virtio_mmio[2].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_3 => self.virtio_mmio[3].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_4 => self.virtio_mmio[4].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_5 => self.virtio_mmio[5].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_6 => self.virtio_mmio[6].handle_interrupt(),
+            interrupts::VIRTIO_MMIO_7 => self.virtio_mmio[7].handle_interrupt(),
             _ => return false,
         }
         true
@@ -56,7 +78,7 @@ impl<'a> InterruptService<()> for QemuRv32VirtDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService<()> + 'a> QemuRv32VirtChip<'a, I> {
-    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a sifive::clint::Clint<'a>) -> Self {
+    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a QemuRv32VirtClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),
@@ -120,6 +142,14 @@ impl<'a, I: InterruptService<()> + 'a> Chip for QemuRv32VirtChip<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
+        // First check if the global machine timer interrupt is set.
+        // We would also need to check for additional global interrupt bits
+        // if there were to be used for anything in the future.
+        if CSR.mip.is_set(mip::mtimer) {
+            return true;
+        }
+
+        // Then we can check the PLIC.
         self.plic.get_saved_interrupts().is_some()
     }
 

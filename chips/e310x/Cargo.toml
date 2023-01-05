@@ -1,11 +1,10 @@
 [package]
 name = "e310x"
-version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 sifive = { path = "../sifive" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
-

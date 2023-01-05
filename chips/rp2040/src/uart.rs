@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use kernel::deferred_call::DeferredCall;
 use kernel::hil;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
@@ -11,6 +12,7 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::clocks;
+use crate::deferred_call_tasks::DeferredCallTask;
 
 register_structs! {
     /// controls serial port
@@ -353,6 +355,13 @@ register_bitfields! [u32,
     ]
 ];
 
+static DEFERRED_CALLS: [DeferredCall<DeferredCallTask>; 2] = unsafe {
+    [
+        DeferredCall::new(DeferredCallTask::Uart0),
+        DeferredCall::new(DeferredCallTask::Uart1),
+    ]
+};
+
 #[derive(Copy, Clone, PartialEq)]
 enum UARTStateTX {
     Idle,
@@ -489,17 +498,6 @@ impl<'a> Uart<'a> {
                             });
                         });
                     }
-                } else if self.tx_status.get() == UARTStateTX::AbortRequested {
-                    self.tx_status.replace(UARTStateTX::Idle);
-                    self.tx_client.map(|client| {
-                        if let Some(buf) = self.tx_buffer.take() {
-                            client.transmitted_buffer(
-                                buf,
-                                self.tx_position.get(),
-                                Err(ErrorCode::CANCEL),
-                            );
-                        }
-                    });
                 }
             }
         }
@@ -536,19 +534,34 @@ impl<'a> Uart<'a> {
                         });
                     }
                 }
-            } else if self.rx_status.get() == UARTStateRX::AbortRequested {
-                self.rx_status.replace(UARTStateRX::Idle);
-                self.rx_client.map(|client| {
-                    if let Some(buf) = self.rx_buffer.take() {
-                        client.received_buffer(
-                            buf,
-                            self.rx_position.get(),
-                            Err(ErrorCode::CANCEL),
-                            hil::uart::Error::Aborted,
-                        );
-                    }
-                });
             }
+        }
+    }
+
+    pub fn handle_deferred_call(&self) {
+        if self.tx_status.get() == UARTStateTX::AbortRequested {
+            // alert client
+            self.tx_client.map(|client| {
+                self.tx_buffer.take().map(|buf| {
+                    client.transmitted_buffer(buf, self.tx_position.get(), Err(ErrorCode::CANCEL));
+                });
+            });
+            self.tx_status.set(UARTStateTX::Idle);
+        }
+
+        if self.rx_status.get() == UARTStateRX::AbortRequested {
+            // alert client
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|buf| {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        Err(ErrorCode::CANCEL),
+                        hil::uart::Error::Aborted,
+                    );
+                });
+            });
+            self.rx_status.set(UARTStateRX::Idle);
         }
     }
 
@@ -693,7 +706,21 @@ impl<'a> Transmit<'a> for Uart<'a> {
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        if self.tx_status.get() != UARTStateTX::Idle {
+            self.disable_transmit_interrupt();
+            self.tx_status.set(UARTStateTX::AbortRequested);
+
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*UART0_BASE) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*UART1_BASE) as *const _ {
+                DEFERRED_CALLS[1].set()
+            }
+
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -729,7 +756,16 @@ impl<'a> Receive<'a> for Uart<'a> {
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
         if self.rx_status.get() != UARTStateRX::Idle {
+            self.disable_receive_interrupt();
             self.rx_status.set(UARTStateRX::AbortRequested);
+
+            let ptr = &(*self.registers) as *const _;
+            if ptr == &(*UART0_BASE) as *const _ {
+                DEFERRED_CALLS[0].set()
+            } else if ptr == &(*UART1_BASE) as *const _ {
+                DEFERRED_CALLS[1].set()
+            }
+
             Err(ErrorCode::BUSY)
         } else {
             Ok(())

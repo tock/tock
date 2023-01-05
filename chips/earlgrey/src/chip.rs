@@ -35,6 +35,7 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub spi_host1: lowrisc::spi_host::SpiHost,
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
     pub rng: lowrisc::csrng::CsRng<'a>,
+    pub watchdog: lowrisc::aon_timer::AonTimer,
 }
 
 impl<'a> EarlGreyDefaultPeripherals<'a> {
@@ -64,6 +65,10 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
             ),
 
             rng: lowrisc::csrng::CsRng::new(crate::csrng::CSRNG_BASE),
+            watchdog: lowrisc::aon_timer::AonTimer::new(
+                crate::aon_timer::AON_TIMER_BASE,
+                CONFIG.cpu_freq,
+            ),
         }
     }
 }
@@ -94,12 +99,14 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
             interrupts::CSRNG_CSCMDREQDONE..=interrupts::CSRNG_CSFATALERR => {
                 self.rng.handle_interrupt()
             }
-            interrupts::SPIHOST0ERROR..=interrupts::SPIHOST0SPIEVENT => {
+            interrupts::SPIHOST0_ERROR..=interrupts::SPIHOST0_SPIEVENT => {
                 self.spi_host0.handle_interrupt()
             }
-            interrupts::SPIHOST1ERROR..=interrupts::SPIHOST1SPIEVENT => {
+            interrupts::SPIHOST1_ERROR..=interrupts::SPIHOST1_SPIEVENT => {
                 self.spi_host1.handle_interrupt()
             }
+            interrupts::AON_TIMER_AON_WKUP_TIMER_EXPIRED
+                ..=interrupts::AON_TIMER_AON_WDOG_TIMER_BARK => self.watchdog.handle_interrupt(),
             _ => return false,
         }
         true

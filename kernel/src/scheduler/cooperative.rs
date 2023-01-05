@@ -12,7 +12,7 @@
 //! that was executing.
 
 use crate::collections::list::{List, ListLink, ListNode};
-use crate::kernel::{Kernel, StoppedExecutingReason};
+use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::scheduler::{Scheduler, SchedulingDecision};
@@ -52,33 +52,40 @@ impl<'a> CooperativeSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
-    fn next(&self, kernel: &Kernel) -> SchedulingDecision {
-        if kernel.processes_blocked() {
-            // No processes ready
-            SchedulingDecision::TrySleep
-        } else {
-            let mut next = None; // This will be replaced, bc a process is guaranteed
-                                 // to be ready if processes_blocked() is false
+    fn next(&self) -> SchedulingDecision {
+        let mut first_head = None;
+        let mut next = None;
 
-            // Find next ready process. Place any *empty* process slots, or not-ready
-            // processes, at the back of the queue.
-            for node in self.processes.iter() {
-                match node.proc {
-                    Some(proc) => {
-                        if proc.ready() {
-                            next = Some(proc.processid());
-                            break;
-                        }
-                        self.processes.push_tail(self.processes.pop_head().unwrap());
-                    }
-                    None => {
-                        self.processes.push_tail(self.processes.pop_head().unwrap());
+        // Find next ready process. Place any *empty* process slots, or not-ready
+        // processes, at the back of the queue.
+        for node in self.processes.iter() {
+            // Ensure we do not loop forever if all processes are not not ready
+            match first_head {
+                None => first_head = Some(node),
+                Some(first_head) => {
+                    // We make a full iteration and nothing was ready. Try to sleep instead
+                    if core::ptr::eq(first_head, node) {
+                        return SchedulingDecision::TrySleep;
                     }
                 }
             }
-
-            SchedulingDecision::RunProcess((next.unwrap(), None))
+            match node.proc {
+                Some(proc) => {
+                    if proc.ready() {
+                        next = Some(proc.processid());
+                        break;
+                    }
+                    self.processes.push_tail(self.processes.pop_head().unwrap());
+                }
+                None => {
+                    self.processes.push_tail(self.processes.pop_head().unwrap());
+                }
+            }
         }
+
+        // next will not be None, because if we make a full iteration and nothing
+        // is ready we return early
+        SchedulingDecision::RunProcess((next.unwrap(), None))
     }
 
     fn result(&self, result: StoppedExecutingReason, _: Option<u32>) {

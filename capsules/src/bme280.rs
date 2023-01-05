@@ -188,12 +188,13 @@ impl<'a> HumidityDriver<'a> for Bme280<'a> {
 
 impl<'a> I2CClient for Bme280<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
-        if status.is_err() {
+        if let Err(i2c_err) = status {
             // We have no way to report an error, so just return a bogus value
             match self.op.get() {
                 Operation::None => (),
                 Operation::Temp => {
-                    self.temperature_client.map(|client| client.callback(0));
+                    self.temperature_client
+                        .map(|client| client.callback(Err(i2c_err.into())));
                 }
                 Operation::Pressure => {
                     unimplemented!();
@@ -318,7 +319,7 @@ impl<'a> I2CClient for Bme280<'a> {
                         let temperature = ((self.t_fine.get() * 5 + 128) >> 8) / 100;
 
                         self.temperature_client
-                            .map(|client| client.callback(temperature));
+                            .map(|client| client.callback(Ok(temperature as i32)));
                     }
                     Operation::Pressure => {
                         unimplemented!();

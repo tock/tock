@@ -7,6 +7,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -178,6 +179,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
@@ -200,6 +202,9 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -407,7 +412,7 @@ pub unsafe fn main() {
         socc::UART_BAUDRATE,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
@@ -438,7 +443,7 @@ pub unsafe fn main() {
 
     // LEDs
     let led_driver =
-        components::led::LedsComponent::new().finalize(components::led_component_helper!(
+        components::led::LedsComponent::new().finalize(components::led_component_static!(
             litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
             led0.get_led(0).unwrap(),
             led0.get_led(1).unwrap(),
@@ -469,8 +474,8 @@ pub unsafe fn main() {
 
     PANIC_REFERENCES.chip = Some(chip);
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
 
     PANIC_REFERENCES.process_printer = Some(process_printer);
 
@@ -490,7 +495,7 @@ pub unsafe fn main() {
         mux_alarm,
         process_printer,
     )
-    .finalize(components::process_console_component_helper!(
+    .finalize(components::process_console_component_static!(
         litex_vexriscv::timer::LiteXAlarm<
             'static,
             'static,
@@ -505,20 +510,21 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(());
+    .finalize(components::low_level_debug_component_static!());
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let litex_arty = LiteXArty {
         console,

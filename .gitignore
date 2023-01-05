@@ -79,4 +79,4 @@ boards/swervolf/fusesoc_libraries/
 boards/esp32-c3-devkitM-1/binary.hex
 
 # Redboard Artemis Nano test binary
-boards/redboard_artemis_nano/redboard-artemis-nano-tests.bin
+boards/apollo3/redboard_artemis_nano/redboard-artemis-nano-tests.bin

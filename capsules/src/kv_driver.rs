@@ -54,7 +54,7 @@ pub struct KVSystemDriver<
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
-    appid: OptionalCell<ProcessId>,
+    processid: OptionalCell<ProcessId>,
 
     data_buffer: TakeCell<'static, [u8]>,
     dest_buffer: TakeCell<'static, [u8]>,
@@ -76,16 +76,16 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
             kv,
             active: Cell::new(false),
             apps: grant,
-            appid: OptionalCell::empty(),
+            processid: OptionalCell::empty(),
             data_buffer: TakeCell::new(data_buffer),
             dest_buffer: TakeCell::new(dest_buffer),
         }
     }
 
     fn run(&self) -> Result<(), ErrorCode> {
-        self.appid.map_or(Err(ErrorCode::RESERVE), |appid| {
+        self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(*appid, |app, kernel_data| {
+                .enter(*processid, |app, kernel_data| {
                     if let Some(operation) = app.op.get() {
                         match operation {
                             UserSpaceOp::Get => {
@@ -111,7 +111,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                 if let Some(Some(Err(e))) =
                                     self.data_buffer.take().map(|data_buffer| {
                                         self.dest_buffer.take().map(|dest_buffer| {
-                                            let perms = appid
+                                            let perms = processid
                                                 .get_storage_permissions()
                                                 .ok_or(ErrorCode::INVAL)?;
                                             if let Err((data, dest, e)) =
@@ -171,7 +171,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                 if let Some(Some(Err(e))) =
                                     self.data_buffer.take().map(|data_buffer| {
                                         self.dest_buffer.take().map(|dest_buffer| {
-                                            let perms = appid
+                                            let perms = processid
                                                 .get_storage_permissions()
                                                 .ok_or(ErrorCode::INVAL)?;
                                             if let Err((data, dest, e)) = self.kv.set(
@@ -212,8 +212,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                     .unwrap_or(Err(ErrorCode::RESERVE))?;
 
                                 if let Some(Err(e)) = self.data_buffer.take().map(|data_buffer| {
-                                    let perms =
-                                        appid.get_storage_permissions().ok_or(ErrorCode::INVAL)?;
+                                    let perms = processid
+                                        .get_storage_permissions()
+                                        .ok_or(ErrorCode::INVAL)?;
                                     if let Err((data, e)) = self.kv.delete(data_buffer, perms) {
                                         self.data_buffer.replace(data);
                                         return Err(e);
@@ -236,14 +237,14 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
         for appiter in self.apps.iter() {
             let started_command = appiter.enter(|app, _| {
                 // If an app is already running let it complete
-                if self.appid.is_some() {
+                if self.processid.is_some() {
                     return true;
                 }
 
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |appid| {
+                app.pending_run_app.take().map_or(false, |processid| {
                     // Mark this driver as being in use.
-                    self.appid.set(appid);
+                    self.processid.set(processid);
                     // Actually make the buzz happen.
                     self.run() == Ok(())
                 })
@@ -267,7 +268,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
         self.data_buffer.replace(key);
         self.dest_buffer.replace(ret_buf);
 
-        self.appid.map(move |id| {
+        self.processid.map(move |id| {
             self.apps.enter(*id, move |app, upcalls| {
                 if app.op.get().map(|op| op == UserSpaceOp::Get).is_some() {
                     if let Err(e) = result {
@@ -309,7 +310,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
                             }
                         });
 
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 }
             })
@@ -325,7 +326,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
         self.data_buffer.replace(key);
         self.dest_buffer.replace(value);
 
-        self.appid.map(move |id| {
+        self.processid.map(move |id| {
             self.apps.enter(*id, move |app, upcalls| {
                 if app.op.get().map(|op| op == UserSpaceOp::Set).is_some() {
                     if let Err(e) = result {
@@ -338,7 +339,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
                     } else {
                         upcalls.schedule_upcall(upcalls::VALUE, (0, 0, 0)).ok();
 
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 }
             })
@@ -348,7 +349,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
     fn delete_complete(&self, result: Result<(), ErrorCode>, key: &'static mut [u8]) {
         self.data_buffer.replace(key);
 
-        self.appid.map(move |id| {
+        self.processid.map(move |id| {
             self.apps.enter(*id, move |app, upcalls| {
                 if app.op.get().map(|op| op == UserSpaceOp::Delete).is_some() {
                     if let Err(e) = result {
@@ -361,7 +362,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
                     } else {
                         upcalls.schedule_upcall(upcalls::VALUE, (0, 0, 0)).ok();
 
-                        self.appid.clear();
+                        self.processid.clear();
                     }
                 }
             })
@@ -377,9 +378,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
         command_num: usize,
         _data1: usize,
         _data2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
-        let match_or_empty_or_nonexistant = self.appid.map_or(true, |owning_app| {
+        let match_or_empty_or_nonexistant = self.processid.map_or(true, |owning_app| {
             // We have recorded that an app has ownership of the KV Store.
 
             // If the KV Store is still active, then we need to wait for the operation
@@ -388,7 +389,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &appid
+                owning_app == &processid
             } else {
                 // Check the app still exists.
                 //
@@ -398,7 +399,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &appid)
+                    .enter(*owning_app, |_, _| owning_app == &processid)
                     .unwrap_or(true)
             }
         });
@@ -410,8 +411,8 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
             // get, set, delete
             1 | 2 | 3 => {
                 if match_or_empty_or_nonexistant {
-                    self.appid.set(appid);
-                    let _ = self.apps.enter(appid, |app, _| match command_num {
+                    self.processid.set(processid);
+                    let _ = self.apps.enter(processid, |app, _| match command_num {
                         1 => app.op.set(Some(UserSpaceOp::Get)),
                         2 => app.op.set(Some(UserSpaceOp::Set)),
                         3 => app.op.set(Some(UserSpaceOp::Delete)),
@@ -420,7 +421,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
                     let ret = self.run();
 
                     if let Err(e) = ret {
-                        self.appid.clear();
+                        self.processid.clear();
                         self.check_queue();
                         CommandReturn::failure(e)
                     } else {
@@ -429,7 +430,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
                 } else {
                     // There is an active app, so queue this request (if possible).
                     self.apps
-                        .enter(appid, |app, _| {
+                        .enter(processid, |app, _| {
                             // Some app is using the storage, we must wait.
                             if app.pending_run_app.is_some() {
                                 // No more room in the queue, nowhere to store this
@@ -437,7 +438,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
                                 CommandReturn::failure(ErrorCode::NOMEM)
                             } else {
                                 // We can store this, so lets do it.
-                                app.pending_run_app = Some(appid);
+                                app.pending_run_app = Some(processid);
                                 match command_num {
                                     1 => app.op.set(Some(UserSpaceOp::Get)),
                                     2 => app.op.set(Some(UserSpaceOp::Set)),

@@ -51,6 +51,17 @@
 /// otherwise managing processes.
 pub unsafe trait ProcessManagementCapability {}
 
+/// The `ProcessApprovalCapability` allows the holder to approve the cryptographic
+/// credentials of a process, indicating they have permission to be run.
+pub unsafe trait ProcessApprovalCapability {}
+
+/// The `ProcessInitCapability` allows the holder to start a process
+/// to run by pushing an init function stack frame. This is controlled
+/// and separate from `ProcessManagementCapability` because the process
+/// must have a unique application identifier and so only modules which
+/// check this may do so.
+pub unsafe trait ProcessInitCapability {}
+
 /// The `MainLoopCapability` capability allows the holder to start executing as
 /// well as manage the main scheduler loop in Tock. This is needed in a board's
 /// main.rs file to start the kernel. It also allows an external implementation

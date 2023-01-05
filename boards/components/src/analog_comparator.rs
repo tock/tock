@@ -1,14 +1,14 @@
 //! Component for initializing an Analog Comparator.
 //!
-//! This provides one Component, AcComponent, which implements
-//! a userspace syscall interface to a passed analog comparator driver.
+//! This provides one Component, AcComponent, which implements a userspace
+//! syscall interface to a passed analog comparator driver.
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let analog_comparator = components::analog_comparator::AcComponent::new(
+//! let analog_comparator = components::analog_comparator::AnalogComparatorComponent::new(
 //!     &sam4l::acifc::ACIFC,
-//!     components::acomp_component_helper!(
+//!     components::analog_comparator_component_helper!(
 //!         <sam4l::acifc::Acifc as kernel::hil::analog_comparator::AnalogComparator>::Channel,
 //!         &sam4l::acifc::CHANNEL_AC0,
 //!         &sam4l::acifc::CHANNEL_AC1,
@@ -16,21 +16,18 @@
 //!         &sam4l::acifc::CHANNEL_AC3
 //!     ),
 //! )
-//! .finalize(components::acomp_component_buf!(sam4l::acifc::Acifc));
+//! .finalize(components::analog_comparator_component_static!(sam4l::acifc::Acifc));
 //! ```
 
+use capsules::analog_comparator::AnalogComparator;
 use core::mem::MaybeUninit;
-
 use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::static_init_half;
-
-use capsules::analog_comparator;
 
 #[macro_export]
-macro_rules! acomp_component_helper {
+macro_rules! analog_comparator_component_helper {
     ($Channel:ty, $($P:expr),+ $(,)?) => {{
         use kernel::count_expressions;
         use kernel::static_init;
@@ -46,23 +43,24 @@ macro_rules! acomp_component_helper {
 }
 
 #[macro_export]
-macro_rules! acomp_component_buf {
-    ($Comp:ty $(,)?) => {{
-        use capsules::analog_comparator::AnalogComparator;
-        use core::mem::MaybeUninit;
-        static mut BUF: MaybeUninit<AnalogComparator<'static, $Comp>> = MaybeUninit::uninit();
-        &mut BUF
+macro_rules! analog_comparator_component_static {
+    ($AC:ty $(,)?) => {{
+        kernel::static_buf!(capsules::analog_comparator::AnalogComparator<'static, $AC>)
     };};
 }
 
-pub struct AcComponent<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> {
+pub struct AnalogComparatorComponent<
+    AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
+> {
     comp: &'static AC,
     ac_channels: &'static [&'static AC::Channel],
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> AcComponent<AC> {
+impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>>
+    AnalogComparatorComponent<AC>
+{
     pub fn new(
         comp: &'static AC,
         ac_channels: &'static [&'static AC::Channel],
@@ -79,20 +77,17 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Ac
 }
 
 impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Component
-    for AcComponent<AC>
+    for AnalogComparatorComponent<AC>
 {
-    type StaticInput = &'static mut MaybeUninit<analog_comparator::AnalogComparator<'static, AC>>;
-    type Output = &'static analog_comparator::AnalogComparator<'static, AC>;
+    type StaticInput = &'static mut MaybeUninit<AnalogComparator<'static, AC>>;
+    type Output = &'static AnalogComparator<'static, AC>;
 
-    unsafe fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_ac = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let analog_comparator = static_init_half!(
-            static_buffer,
-            analog_comparator::AnalogComparator<'static, AC>,
-            analog_comparator::AnalogComparator::new(self.comp, self.ac_channels, grant_ac)
-        );
+        let analog_comparator =
+            static_buffer.write(AnalogComparator::new(self.comp, self.ac_channels, grant_ac));
         self.comp.set_client(analog_comparator);
 
         analog_comparator

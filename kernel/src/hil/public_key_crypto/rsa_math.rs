@@ -91,8 +91,8 @@ pub trait ClientMut<'a> {
 }
 
 pub trait RsaCryptoBaseMut<'a> {
-    /// Set the `Client` client to be called on completion.
-    fn set_client(&'a self, client: &'a dyn Client<'a>);
+    /// Set the `ClientMut` client to be called on completion.
+    fn set_client(&'a self, client: &'a dyn ClientMut<'a>);
 
     /// Clear any confidential data.
     fn clear_data(&self);

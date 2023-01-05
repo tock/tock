@@ -3,7 +3,7 @@
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::LocalRegisterCopy;
-use kernel::utilities::registers::{register_bitfields, ReadWrite};
+use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 #[repr(C)]
@@ -13,7 +13,7 @@ pub struct PlicRegisters {
     priority: [ReadWrite<u32, priority::Register>; 51],
     _reserved1: [u8; 3888],
     /// Interrupt Pending Register
-    pending: [ReadWrite<u32>; 2],
+    pending: [ReadOnly<u32>; 2],
     _reserved2: [u8; 4088],
     /// Interrupt Enable Register
     enable: [ReadWrite<u32>; 2],
@@ -46,10 +46,22 @@ impl Plic {
         }
     }
 
-    /// Clear all pending interrupts.
+    /// Clear all pending interrupts. The [`E31 core manual`] PLIC Chapter 9.8
+    /// p 117: A successful claim also atomically clears the corresponding
+    /// pending bit on the interrupt source.
+    /// Note that this function requires you call `enable_all()` first! (As ch.
+    /// 9.4 p.114 writes.)
+    ///
+    /// [`E31 core manual`]: https://sifive.cdn.prismic.io/sifive/c29f9c69-5254-4f9a-9e18-24ea73f34e81_e31_core_complex_manual_21G2.pdf
     pub fn clear_all_pending(&self) {
-        for pending in self.registers.pending.iter() {
-            pending.set(0);
+        let regs = self.registers;
+
+        loop {
+            let id = regs.claim.get();
+            if id == 0 {
+                break;
+            }
+            regs.claim.set(id);
         }
     }
 

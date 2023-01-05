@@ -89,9 +89,9 @@
 #![warn(unreachable_pub)]
 #![no_std]
 
-// Define the kernel major and minor versions
-pub const MAJOR: u16 = 2;
-pub const MINOR: u16 = 0;
+// Define the kernel major and minor versions.
+pub const KERNEL_MAJOR_VERSION: u16 = 2;
+pub const KERNEL_MINOR_VERSION: u16 = 1;
 
 pub mod capabilities;
 pub mod collections;
@@ -106,6 +106,7 @@ pub mod introspection;
 pub mod ipc;
 pub mod platform;
 pub mod process;
+pub mod process_checker;
 pub mod processbuffer;
 pub mod scheduler;
 pub mod storage_permissions;
@@ -116,10 +117,10 @@ pub mod utilities;
 mod config;
 mod kernel;
 mod memop;
+mod process_loading;
 mod process_policies;
 mod process_printer;
 mod process_standard;
-mod process_utilities;
 mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.

@@ -365,16 +365,6 @@ macro_rules! register_structs {
         ),*
     } => {
         $( $crate::register_fields!(@root $(#[$attr])* $vis_struct $name $(<$life>)? { $($fields)* } ); )*
-
-        mod static_validate_register_structs {
-        $(
-            #[allow(non_snake_case)]
-            mod $name {
-                use super::super::*;
-
-                $crate::test_fields!(@root $name $(<$life>)? { $($fields)* } );
-            }
-        )*
-        }
+        $( $crate::test_fields!(@root $name $(<$life>)? { $($fields)* } ); )*
     };
 }

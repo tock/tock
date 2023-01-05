@@ -4,9 +4,9 @@
 
 <!-- toc -->
 
-- [App Linked List](#app-linked-list)
+- [App Storage](#app-storage)
 - [Empty Tock Apps](#empty-tock-apps)
-- [TBF Header](#tbf-header)
+- [TBF Header Section](#tbf-header-section)
   * [TBF Header Base](#tbf-header-base)
   * [TLV Elements](#tlv-elements)
   * [TLV Types](#tlv-types)
@@ -17,26 +17,40 @@
     + [`6` Permissions](#6-permissions)
     + [`7` Persistent ACL](#7-persistent-acl)
     + [`8` Kernel Version](#8-kernel-version)
+    + [`9` Program](#9-program)
+    + [`128` Credentials Footer](#128-credentials-footer)
 - [Code](#code)
 
 <!-- tocstop -->
 
-Tock process binaries are must be in the Tock Binary Format (TBF). A TBF
-includes a header portion, which encodes meta-data about the process, followed
-by a binary blob which is executed directly, followed by optional padding.
+Tock userspace applications must follow the Tock Binary Format
+(TBF). A TBF Object has four parts: a Header section, which encodes
+meta-data about the TBF Object, the actual Userspace Binary, an
+optional Footer section which encodes metadata about the TBF Object,
+and finally optional padding. 
+
+TBF Headers and Footers differ in how they are handled for TBF Object
+integrity. Integrity values (e.g., hashes) for a TBF Object are
+computed over the Header section and Userspace Binary but not the
+Footer Region or padding after footers. TBF Headers are covered by
+integrity, while TBF Footers are not covered by integrity.
 
 ```
 Tock App Binary:
 
 Start of app -> +-------------------+---
-                | TBF Header        | ^
-                +-------------------+ | Protected region
-                | Optional padding  | V
-                +-------------------+---
-                | Compiled app      |
-                | binary            |
-                |                   |
-                |                   |
+              ^ | TBF Header        | ^
+              | +-------------------+ | Protected region
+              | | Optional padding  | V
+ Covered by   | +-------------------+---
+ integrity    | | Userspace Binary  |
+              | |                   |
+              | |                   |
+              V |                   |
+                +-------------------+
+                | Optional footers  |
+                | (only if Program  |
+                |  header present)  |
                 +-------------------+
                 | Optional padding  |
                 +-------------------+
@@ -47,54 +61,68 @@ understand important aspects of the app. In particular, the kernel must know
 where in the application binary is the entry point that it should start
 executing when running the app for the first time.
 
-After the header the app is free to include whatever binary data it wants, and
-the format is completely up to the app. All support for relocations must be
-handled by the app itself, for example.
+After the header the app is free to include whatever Userspace Binary
+it wants, and the format is completely up to the app. All support for
+relocations must be handled by the app itself, for example.
 
-Finally, the app binary can be padded to a specific length. This is necessary
-for MPU restrictions where length and starting points must be at powers of two.
+If the TBF Object has a Program Header in the Header section, the
+Userspace Binary can be followed by optional TBF Footers.
 
-## App Linked List
+Finally, the TBF Object can be padded to a specific length. This is
+useful when a memory protection unit (MPU) restricts the length and
+offset of protection regions to powers of two. In such cases, padding
+allows a TBF Object to be padded to a power of two in size, so the
+next TBF Object is at a valid alignment.
 
-Apps in Tock create an effective linked list structure in flash. That is, the
-start of the next app is immediately at the end of the previous app. Therefore,
-the TBF header must specify the length of the app so that the kernel can find
-the start of the next app.
+Both TBF Footers and Headers follow the same TLV (type-length-value)
+format, to simplify parsing.
 
-If there is a gap between apps an "empty app" can be inserted to keep the linked
-list structure intact.
+## App Storage
 
-Also, functionally Tock apps are sorted by size from longest to shortest. This
-is to match MPU rules about alignment.
+TBF Objects in Tock are stored sequentially.  The start of TBF Object
+N+1 is immediately at the end of TBF Object N. Therefore, the TBF
+header specifies the length of the TBF Object so that the kernel can
+find the start of the next one.
+
+If there is a gap between TBF Objects an "empty object" can be
+inserted to keep the structure intact.
+
+Tock apps are typically stored in sorted order, from longest to
+shortest. This is to help match MPU rules about alignment.
 
 ## Empty Tock Apps
 
-An "app" need not contain any code. An app can be marked as disabled and
-effectively act as padding between apps.
+A TBF Object can contain no code. A TBF Object can be marked as
+disabled to act as padding between other objects.
 
-## TBF Header
+## TBF Header Section
 
-The fields of the TBF header are as shown below. All fields in the header are
-little-endian.
+The TBF Header section contains all of a TBF Object's headers. All TBF
+Objects have a Base Header and the Base Header is always first.  All
+headers are a multiple of 4 bytes long; the TBF Header section is
+multiple of 4 bytes long.
+
+These are the Rust structures the kernel uses, defined in the
+`tock-tbf` crate, to represent headers.  Their in-flash
+representations are described below.
 
 ```rust
-struct TbfHeader {
+struct TbfHeaderV2Base {
     version: u16,            // Version of the Tock Binary Format (currently 2)
-    header_size: u16,        // Number of bytes in the complete TBF header
+    header_size: u16,        // Number of bytes in the TBF header section
     total_size: u32,         // Total padded size of the program image in bytes, including header
     flags: u32,              // Various flags associated with the application
     checksum: u32,           // XOR of all 4 byte words in the header, including existing optional structs
-
-    // Optional structs. All optional structs start on a 4-byte boundary.
-    main: Option<TbfHeaderMain>,
-    pic_options: Option<TbfHeaderPicOption1Fields>,
-    name: Option<TbfHeaderPackageName>,
-    flash_regions: Option<TbfHeaderWriteableFlashRegions>,
-    fixed_address: Option<TbfHeaderV2FixedAddresses>,
-    permissions: Option<TbfHeaderV2Permissions>,
-    persistent_acl: Option<TbfHeaderV2PersistentAcl>,
 }
+```
 
+After the Base Header come optional headers. Optional headers are
+structured as TLVs (type-length-values). Footers are encoded in the
+same way. Footers are also called headers for historical reasons:
+originally TBFs only had headers, and since footers follow the same
+format TBFs keep these types without changing their names.
+
+```rust
 // Identifiers for the optional header structs.
 enum TbfHeaderTypes {
     TbfHeaderMain = 1,
@@ -105,8 +133,9 @@ enum TbfHeaderTypes {
     TbfHeaderPermissions = 6,
     TbfHeaderPersistent = 7,
     TbfHeaderKernelVersion = 8,
+    TbfHeaderProgram = 9,
+    TbfFooterCredentials = 128,
 }
-
 // Type-length-value header to identify each struct.
 struct TbfHeaderTlv {
     tipe: TbfHeaderTypes,    // 16 bit specifier of which struct follows
@@ -115,14 +144,28 @@ struct TbfHeaderTlv {
     length: u16,             // Number of bytes of the following struct
 }
 
-// Main settings required for all apps. If this does not exist, the "app" is
-// considered padding and used to insert an empty linked-list element into the
-// app flash space.
+// All apps must have a Main Header or a Program Header; it may
+// have both. Without either, the "app" is considered padding and used 
+// to insert an empty linked-list element into the app flash space. If 
+// an app has both, it is the kernel's decision which to use. Older kernels
+// use Main Headers, while newer (>= 2.1) kernels use Program Headers.
 struct TbfHeaderMain {
     base: TbfHeaderTlv,
     init_fn_offset: u32,     // The function to call to start the application
     protected_size: u32,     // The number of bytes the application cannot write
     minimum_ram_size: u32,   // How much RAM the application is requesting
+}
+
+// A Program Header specifies the end of the application binary within the 
+// TBF, such that the application binary can be followed by footers. It also
+// has a version number, such that multiple versions of the same application
+// can be installed.
+pub struct TbfHeaderV2Program {
+    init_fn_offset: u32,
+    protected_size: u32,
+    minimum_ram_size: u32,
+    binary_end_offset: u32,
+    version: u32,
 }
 
 // Optional package name for the app.
@@ -179,16 +222,28 @@ struct TbfHeaderV2KernelVersion {
     major: u16,
     minor: u16
 }
+
+// Types of credentials footers
+pub enum TbfFooterV2CredentialsType {
+    Reserved = 0,
+    Rsa3072Key = 1,
+    Rsa4096Key = 2,
+    SHA256 = 3,
+    SHA384 = 4,
+    SHA512 = 5,
+}
+
+// Credentials footer. The length field of the TLV determines
+// the size of the data slice.
+pub struct TbfFooterV2Credentials {
+    format: TbfFooterV2CredentialsType,
+    data: &'static [u8],
+}
 ```
-
-Since all headers are a multiple of four bytes, and all TLV structures must be a
-multiple of four bytes, the entire TBF header will always be a multiple of four
-bytes.
-
 
 ### TBF Header Base
 
-The TBF header contains a base header, followed by a sequence of
+The TBF Header section contains a Base Header, followed by a sequence of
 type-length-value encoded elements. All fields in both the base header and TLV
 elements are little-endian. The base header is 16 bytes, and has 5 fields:
 
@@ -279,6 +334,12 @@ The `Main` element has three 32-bit fields:
     needs.
 
 If the Main TLV header is not present, these values all default to `0`.
+
+The Main Header and Program Header have overlapping functionality. If
+a TBF Object has both, the kernel decides which to use.  Tock is
+transitioning to having the Program Header as the standard one to use,
+but older kernels (2.0 and earlier) do not recognize it and use the
+Main Header.
 
 #### `2` Writeable Flash Region
 
@@ -459,6 +520,79 @@ data between kernel and userspace and the the system call numbers.
 +-------------+-------------+---------------------------+
 ```
 
+#### `9` Program
+
+A Program Header is an extended form of the Main Header. It adds two
+fields, `binary_end_offset` and `version`. The `binary_end_offset` field
+allows the kernel to identify where in the TBF object the application
+binary ends. The gap between the end of the application binary and
+the end of the TBF object can contain footers. 
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (9)    | Length (20) | init_offset               |
++-------------+-------------+---------------------------+
+| protected_size            | min_ram_size              |
++---------------------------+---------------------------+
+| binary_end_offset         | version                   |
++---------------------------+---------------------------+
+```
+
+  * `init_offset` the offset in bytes from the beginning of binary payload
+    (i.e. the actual application binary) that contains the first instruction to
+   	execute (typically the `_start` symbol).
+  * `protected_size` the size of the protected region in bytes. Processes do not
+    have write access to the protected region. TBF headers are contained in the
+    protected region.
+  * `minimum_ram_size` the minimum amount of memory, in bytes, the process
+    needs.
+  * `binary_end_offset` specifies the offset from the beginning of the TBF
+    Object at which the Userspace Binary ends and optional footers begin.
+  * `version` specifies a version number for the application implemented by
+    the Userspace Binary. This allows a kernel to distinguish different 
+	versions of a given application.
+
+If a Program header is not present, `binary_end_offset` can be
+considered to be `total_size` of the Base Header and `version` is 0.
+
+The Main Header and Program Header have overlapping functionality. If
+a TBF Object has both, the kernel decides which to use.  Tock is
+transitioning to having the Program Header as the standard one to use,
+but older kernels (2.0 and earlier) do not recognize it and use the
+Main Header.
+
+#### `128` Credentials Footer
+
+A Credentials Footer contains cryptographic credentials for the integrity
+and possibly identity of a Userspace Binary. A Credentials Footer has
+the following format:
+
+```
+0             2             4             6             8
++-------------+-------------+---------------------------+
+| Type (128)  | Length (4+n)| format                    |
++-------------+-------------+---------------------------+
+| data...
++---------------------------+---------------------------+
+```
+
+The length of the data field is defined by the `Length` field. If
+the data field is `n` bytes long, the `Length` field is 4+n. The
+`format` field defines the format of the data field:
+
+```rust
+pub enum TbfFooterV2CredentialsType {
+    Reserved = 0,
+    Rsa3072Key = 1,
+    Rsa4096Key = 2,
+    SHA256 = 3,
+    SHA384 = 4,
+    SHA512 = 5,
+}
+```
+[TRD-appid](reference/trd-appid.md) provides further details on 
+TBF Credentials Footers, their format, and processing.
 
 ## Code
 

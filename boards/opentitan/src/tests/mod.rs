@@ -5,6 +5,8 @@ use crate::PLATFORM;
 use kernel::debug;
 
 pub fn semihost_command_exit_success() -> ! {
+    run_kernel_op(10000);
+
     // Exit QEMU with a return code of 0
     unsafe {
         rv32i::semihost_command(0x18, 0x20026, 0);
@@ -13,6 +15,8 @@ pub fn semihost_command_exit_success() -> ! {
 }
 
 pub fn semihost_command_exit_failure() -> ! {
+    run_kernel_op(10000);
+
     // Exit QEMU with a return code of 1
     unsafe {
         rv32i::semihost_command(0x18, 1, 0);
@@ -56,3 +60,8 @@ mod sha256soft_test; // Test software SHA capsule
 mod sip_hash;
 mod spi_host;
 mod tickv_test;
+/// Only run the flash_ctrl tests last, as testing memory protection
+/// may deny access to flash pages for other tests depending
+/// on flash (i.e tickV).
+#[rustfmt::skip]
+mod flash_ctrl;

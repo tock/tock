@@ -74,6 +74,7 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
@@ -86,6 +87,9 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -138,7 +142,7 @@ pub unsafe fn main() {
         115200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
 
     let mtimer = static_init!(
         swervolf_eh1::syscon::SysCon,
@@ -181,8 +185,8 @@ pub unsafe fn main() {
     CHIP = Some(chip);
 
     // Create a process printer for panic.
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     // Need to enable all interrupts for Tock Kernel
@@ -204,9 +208,10 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     debug!("SweRVolf initialisation complete.");
     debug!("Entering main loop.");
@@ -224,7 +229,7 @@ pub unsafe fn main() {
     }
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::coop_component_helper!(NUM_PROCS));
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let swervolf = SweRVolf {
         console,

@@ -21,7 +21,7 @@ use core::cell::Cell;
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time::{self, ConvertTicks, Ticks};
-use crate::kernel::{Kernel, StoppedExecutingReason};
+use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessId;
@@ -136,35 +136,31 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 }
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
-    fn next(&self, kernel: &Kernel) -> SchedulingDecision {
-        if kernel.processes_blocked() {
-            // No processes ready
-            SchedulingDecision::TrySleep
-        } else {
-            let now = self.alarm.now();
-            let next_reset = self.next_reset.get();
-            let last_reset_check = self.last_reset_check.get();
+    fn next(&self) -> SchedulingDecision {
+        let now = self.alarm.now();
+        let next_reset = self.next_reset.get();
+        let last_reset_check = self.last_reset_check.get();
 
-            // storing last reset check is necessary to avoid missing a reset when the underlying
-            // alarm wraps around
-            if !now.within_range(last_reset_check, next_reset) {
-                // Promote all processes to highest priority queue
-                self.next_reset.set(
-                    now.wrapping_add(self.alarm.ticks_from_ms(Self::PRIORITY_REFRESH_PERIOD_MS)),
-                );
-                self.redeem_all_procs();
-            }
-            self.last_reset_check.set(now);
-            let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
-            let node_ref = node_ref_opt.unwrap(); // Panic if fail bc processes_blocked()!
-            let timeslice =
-                self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
-            let next = node_ref.proc.unwrap().processid(); // Panic if fail bc processes_blocked()!
-            self.last_queue_idx.set(queue_idx);
-            self.last_timeslice.set(timeslice);
-
-            SchedulingDecision::RunProcess((next, Some(timeslice)))
+        // storing last reset check is necessary to avoid missing a reset when the underlying
+        // alarm wraps around
+        if !now.within_range(last_reset_check, next_reset) {
+            // Promote all processes to highest priority queue
+            self.next_reset
+                .set(now.wrapping_add(self.alarm.ticks_from_ms(Self::PRIORITY_REFRESH_PERIOD_MS)));
+            self.redeem_all_procs();
         }
+        self.last_reset_check.set(now);
+        let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
+        if node_ref_opt.is_none() {
+            return SchedulingDecision::TrySleep;
+        }
+        let node_ref = node_ref_opt.unwrap();
+        let timeslice = self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
+        let next = node_ref.proc.unwrap().processid();
+        self.last_queue_idx.set(queue_idx);
+        self.last_timeslice.set(timeslice);
+
+        SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {

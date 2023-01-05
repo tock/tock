@@ -6,19 +6,43 @@
 
 use capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
+use capsules::net::udp::udp_port_table::UdpPortManager;
 use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
 use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
-
 use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-
-use capsules::net::udp::udp_port_table::UdpPortManager;
+use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
-use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
 
+#[macro_export]
+/// Macro for constructing a mock UDP capsule for tests.
+macro_rules! mock_udp_component_static {
+    () => {{
+        use capsules::net::udp::udp_recv::UDPReceiver;
+        use capsules::net::udp::udp_send::UDPSendStruct;
+        use capsules::virtual_alarm::VirtualMuxAlarm;
+        let udp_send = kernel::static_buf!(
+            UDPSendStruct<
+                'static,
+                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+                >,
+            >
+        );
+
+        let udp_recv = kernel::static_buf!(UDPReceiver<'static>);
+        let udp_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, sam4l::ast::Ast>,);
+
+        let mock_udp = kernel::static_buf!(
+            capsules::test::udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+        );
+        (udp_send, udp_recv, udp_alarm, mock_udp)
+    }};
+}
+
 pub struct MockUDPComponent {
-    // TODO: consider putting bound_port_table in a TakeCell
     udp_send_mux: &'static MuxUdpSender<
         'static,
         IP6SendStruct<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
@@ -49,28 +73,22 @@ impl MockUDPComponent {
         udp_vis: &'static UdpVisibilityCapability,
     ) -> MockUDPComponent {
         MockUDPComponent {
-            udp_send_mux: udp_send_mux,
-            udp_recv_mux: udp_recv_mux,
-            bound_port_table: bound_port_table,
+            udp_send_mux,
+            udp_recv_mux,
+            bound_port_table,
             alarm_mux: alarm,
             udp_payload: TakeCell::new(udp_payload),
-            id: id,
-            dst_port: dst_port,
-            net_cap: net_cap,
-            udp_vis: udp_vis,
+            id,
+            dst_port,
+            net_cap,
+            udp_vis,
         }
     }
 }
 
 impl Component for MockUDPComponent {
-    type StaticInput = ();
-    type Output = &'static capsules::test::udp::MockUdp<
-        'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    >;
-
-    unsafe fn finalize(self, _s: Self::StaticInput) -> Self::Output {
-        let udp_send = static_init!(
+    type StaticInput = (
+        &'static mut MaybeUninit<
             UDPSendStruct<
                 'static,
                 capsules::net::ipv6::ipv6_send::IP6SendStruct<
@@ -78,33 +96,43 @@ impl Component for MockUDPComponent {
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
             >,
-            UDPSendStruct::new(self.udp_send_mux, self.udp_vis)
-        );
+        >,
+        &'static mut MaybeUninit<UDPReceiver<'static>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+        &'static mut MaybeUninit<
+            capsules::test::udp::MockUdp<
+                'static,
+                VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+            >,
+        >,
+    );
+    type Output = &'static capsules::test::udp::MockUdp<
+        'static,
+        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    >;
 
-        let udp_recv = static_init!(UDPReceiver<'static>, UDPReceiver::new());
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let udp_send =
+            s.0.write(UDPSendStruct::new(self.udp_send_mux, self.udp_vis));
+
+        let udp_recv = s.1.write(UDPReceiver::new());
         self.udp_recv_mux.add_client(udp_recv);
 
-        let udp_alarm = static_init!(
-            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
-            VirtualMuxAlarm::new(self.alarm_mux)
-        );
+        let udp_alarm = s.2.write(VirtualMuxAlarm::new(self.alarm_mux));
         udp_alarm.setup();
 
-        let mock_udp = static_init!(
-            capsules::test::udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
-            capsules::test::udp::MockUdp::new(
-                self.id,
-                udp_alarm,
-                udp_send,
-                udp_recv,
-                self.bound_port_table,
-                kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(
-                    self.udp_payload.take().expect("missing payload")
-                ),
-                self.dst_port,
-                self.net_cap,
-            )
-        );
+        let mock_udp = s.3.write(capsules::test::udp::MockUdp::new(
+            self.id,
+            udp_alarm,
+            udp_send,
+            udp_recv,
+            self.bound_port_table,
+            kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(
+                self.udp_payload.take().expect("missing payload"),
+            ),
+            self.dst_port,
+            self.net_cap,
+        ));
         udp_send.set_client(mock_udp);
         udp_recv.set_client(mock_udp);
         udp_alarm.set_alarm_client(mock_udp);

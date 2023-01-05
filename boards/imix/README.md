@@ -3,6 +3,14 @@ imix: Platform-Specific Instructions
 
 This board file is for imix version 2.
 
+This board requires that applications have a SHA256 credential.
+SHA256 credentials can be added to TBF objects using the `--sha256`
+command line option in `elf2tab`. The simplest way to do so for
+libtock-c applications is to add
+
+`ELF2TAB_ARGS += --sha256` at the end of the application Makefile,
+after the line in which `AppMakefile.mk` is included.
+
 
 ## Userspace Resource Mapping
 

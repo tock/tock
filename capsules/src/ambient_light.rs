@@ -47,9 +47,9 @@ impl<'a> AmbientLight<'a> {
         }
     }
 
-    fn enqueue_sensor_reading(&self, appid: ProcessId) -> Result<(), ErrorCode> {
+    fn enqueue_sensor_reading(&self, processid: ProcessId) -> Result<(), ErrorCode> {
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 if app.pending {
                     Err(ErrorCode::NOMEM)
                 } else {
@@ -84,11 +84,17 @@ impl SyscallDriver for AmbientLight<'_> {
     ///
     /// - `0`: Check driver presence
     /// - `1`: Start a light sensor reading
-    fn command(&self, command_num: usize, _: usize, _: usize, appid: ProcessId) -> CommandReturn {
+    fn command(
+        &self,
+        command_num: usize,
+        _: usize,
+        _: usize,
+        processid: ProcessId,
+    ) -> CommandReturn {
         match command_num {
             0 /* check if present */ => CommandReturn::success(),
             1 => {
-                let _ = self.enqueue_sensor_reading(appid);
+                let _ = self.enqueue_sensor_reading(processid);
                 CommandReturn::success()
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT)

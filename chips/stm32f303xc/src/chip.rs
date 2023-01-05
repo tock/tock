@@ -57,6 +57,8 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> 
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::USART1 => self.usart1.handle_interrupt(),
+            nvic::USART2 => self.usart2.handle_interrupt(),
+            nvic::USART3 => self.usart3.handle_interrupt(),
 
             nvic::TIM2 => self.tim2.handle_interrupt(),
 
@@ -83,6 +85,9 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> 
     unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
         match task {
             DeferredCallTask::Flash => self.flash.handle_interrupt(),
+            DeferredCallTask::Usart1 => self.usart1.handle_deferred_task(),
+            DeferredCallTask::Usart2 => self.usart2.handle_deferred_task(),
+            DeferredCallTask::Usart3 => self.usart3.handle_deferred_task(),
         }
         true
     }

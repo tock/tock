@@ -71,6 +71,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
@@ -83,6 +84,9 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -263,9 +267,10 @@ pub unsafe fn main() {
         115_200,
         dynamic_deferred_caller,
     )
-    .finalize(());
+    .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
-    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // Setup the console
     let console = components::console::ConsoleComponent::new(
@@ -273,24 +278,24 @@ pub unsafe fn main() {
         capsules::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_helper!());
+    .finalize(components::console_component_static!());
 
     // LED
-    let led = components::led::LedsComponent::new().finalize(components::led_component_helper!(
+    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<imxrt1060::gpio::Pin>,
         LedHigh::new(peripherals.ports.pin(PinId::B0_03))
     ));
 
     // Alarm
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.gpt1).finalize(
-        components::alarm_mux_component_helper!(imxrt1060::gpt::Gpt1),
+        components::alarm_mux_component_static!(imxrt1060::gpt::Gpt1),
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_helper!(imxrt1060::gpt::Gpt1));
+    .finalize(components::alarm_component_static!(imxrt1060::gpt::Gpt1));
 
     //
     // Capabilities
@@ -306,12 +311,12 @@ pub unsafe fn main() {
         &memory_allocation_capability,
     );
 
-    let process_printer =
-        components::process_printer::ProcessPrinterTextComponent::new().finalize(());
+    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
+        .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
-        .finalize(components::rr_component_helper!(NUM_PROCS));
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     //
     // Platform

@@ -5,6 +5,4 @@ MEMORY
   prog (rx) : ORIGIN = 0x403B0000, LENGTH = 0x30000
 }
 
-MPU_MIN_ALIGN = 1K;
-
 INCLUDE ../kernel_layout.ld

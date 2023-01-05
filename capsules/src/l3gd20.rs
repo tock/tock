@@ -152,8 +152,8 @@ const L3GD20_REG_INT1_DURATION: u8 = 0x38;
 pub const L3GD20_TX_SIZE: usize = 10;
 pub const L3GD20_RX_SIZE: usize = 10;
 
-pub static mut TXBUFFER: [u8; L3GD20_TX_SIZE] = [0; L3GD20_TX_SIZE];
-pub static mut RXBUFFER: [u8; L3GD20_RX_SIZE] = [0; L3GD20_RX_SIZE];
+pub const TX_BUF_LEN: usize = L3GD20_TX_SIZE;
+pub const RX_BUF_LEN: usize = L3GD20_RX_SIZE;
 
 /* Sensitivity factors, datasheet pg. 9 */
 const L3GD20_SCALE_250: isize = 875; /* 8.75 mdps/digit */
@@ -488,17 +488,17 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                     }
 
                     L3gd20Status::ReadTemperature => {
-                        let mut temperature: usize = 0;
+                        let mut temperature = 0;
                         let value = if let Some(ref buf) = read_buffer {
                             if len >= 2 {
-                                temperature = (buf[1] as i8) as usize;
+                                temperature = buf[1] as i32;
                                 self.temperature_client.map(|client| {
-                                    client.callback(temperature * 100);
+                                    client.callback(Ok(temperature * 100));
                                 });
                                 true
                             } else {
                                 self.temperature_client.map(|client| {
-                                    client.callback(0);
+                                    client.callback(Err(ErrorCode::FAIL));
                                 });
                                 false
                             }
@@ -506,7 +506,9 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         if value {
-                            upcalls.schedule_upcall(0, (temperature, 0, 0)).ok();
+                            upcalls
+                                .schedule_upcall(0, (temperature as usize, 0, 0))
+                                .ok();
                         } else {
                             upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                         }

@@ -109,11 +109,11 @@ impl<'a> ProximitySensor<'a> {
         command: ProximityCommand,
         arg1: usize,
         arg2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
-        // Enqueue command by saving command type, args, appid within app struct in grant region
+        // Enqueue command by saving command type, args, processid within app struct in grant region
         self.apps
-            .enter(appid, |app, _| {
+            .enter(processid, |app, _| {
                 // Return busy if same app attempts to enqueue second command before first one is "callbacked"
                 if app.subscribed {
                     return CommandReturn::failure(ErrorCode::BUSY);
@@ -296,21 +296,21 @@ impl SyscallDriver for ProximitySensor<'_> {
         command_num: usize,
         arg1: usize,
         arg2: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
             // check whether the driver exist!!
             0 => CommandReturn::success(),
 
             // Instantaneous proximity measurement
-            1 => self.enqueue_command(ProximityCommand::ReadProximity, arg1, arg2, appid),
+            1 => self.enqueue_command(ProximityCommand::ReadProximity, arg1, arg2, processid),
 
             // Upcall occurs only after interrupt is fired
             2 => self.enqueue_command(
                 ProximityCommand::ReadProximityOnInterrupt,
                 arg1,
                 arg2,
-                appid,
+                processid,
             ),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

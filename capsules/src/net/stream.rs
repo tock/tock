@@ -101,7 +101,8 @@ macro_rules! stream_cond {
     };
 }
 
-/// Gets the result of an Option<T>, throwing a stream error if it is None
+/// Gets the result of an `Option<T>`, throwing a stream error if it
+/// is `None`
 #[macro_export]
 macro_rules! stream_from_option {
     ($opt:expr, $err:expr) => {

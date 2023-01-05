@@ -19,8 +19,6 @@ MEMORY
   ram   (rwx) : ORIGIN = 0x20200000, LENGTH = 512K
 }
 
-MPU_MIN_ALIGN = 8K;
-
 SECTIONS
 {
   .boot : 

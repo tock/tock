@@ -125,7 +125,7 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
         command_number: usize,
         target_id: usize,
         _: usize,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
         match command_number {
             0 => CommandReturn::success(),
@@ -133,7 +133,7 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
             /* Discover */
             {
                 self.data
-                    .enter(appid, |_, kernel_data| {
+                    .enter(processid, |_, kernel_data| {
                         kernel_data
                             .get_readonly_processbuffer(ro_allow::SEARCH)
                             .and_then(|search| {
@@ -182,7 +182,7 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
                         CommandReturn::failure(ErrorCode::INVAL),
                         otherapp,
                         |target| {
-                            let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                            let ret = target.enqueue_task(process::Task::IPC((processid, cb_type)));
                             match ret {
                                 Ok(()) => CommandReturn::success(),
                                 Err(e) => {
@@ -215,7 +215,7 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
                         CommandReturn::failure(ErrorCode::INVAL),
                         otherapp,
                         |target| {
-                            let ret = target.enqueue_task(process::Task::IPC((appid, cb_type)));
+                            let ret = target.enqueue_task(process::Task::IPC((processid, cb_type)));
                             match ret {
                                 Ok(()) => CommandReturn::success(),
                                 Err(e) => {

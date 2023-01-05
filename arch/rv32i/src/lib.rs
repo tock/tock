@@ -2,7 +2,7 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(asm_sym, naked_functions)]
+#![feature(naked_functions)]
 #![no_std]
 
 use core::fmt::Write;

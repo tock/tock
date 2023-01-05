@@ -5,7 +5,7 @@ use kernel::utilities::registers::register_bitfields;
 register_bitfields![usize,
     pub mseccfg [
         mml OFFSET(0) NUMBITS(1) [],
-        mwmp OFFSET(1) NUMBITS(1) [],
+        mmwp OFFSET(1) NUMBITS(1) [],
         rlb OFFSET(2) NUMBITS(1) [],
     ]
 ];
@@ -21,8 +21,8 @@ register_bitfields![usize,
 #[cfg(target_arch = "riscv64")]
 register_bitfields![usize,
     pub mseccfg [
-        MML OFFSET(0) NUMBITS(1) [],
-        MMWP OFFSET(1) NUMBITS(1) [],
-        RLB OFFSET(2) NUMBITS(1) [],
+        mml OFFSET(0) NUMBITS(1) [],
+        mmwp OFFSET(1) NUMBITS(1) [],
+        rlb OFFSET(2) NUMBITS(1) [],
     ]
 ];

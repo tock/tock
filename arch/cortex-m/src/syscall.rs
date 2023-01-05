@@ -5,8 +5,7 @@ use core::fmt::Write;
 use core::marker::PhantomData;
 use core::mem::{self, size_of};
 use core::ops::Range;
-use core::ptr::{read_volatile, write_volatile};
-
+use core::ptr::{self, read_volatile, write_volatile};
 use kernel::errorcode::ErrorCode;
 
 use crate::CortexMVariant;
@@ -228,13 +227,13 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //  - Instruction addresses require `|1` to indicate thumb code
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
-        write_volatile(stack_bottom.offset(7), state.psr); //......... -> APSR
-        write_volatile(stack_bottom.offset(6), callback.pc | 1); //... -> PC
-        write_volatile(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
-        write_volatile(stack_bottom.offset(3), callback.argument3); // -> R3
-        write_volatile(stack_bottom.offset(2), callback.argument2); // -> R2
-        write_volatile(stack_bottom.offset(1), callback.argument1); // -> R1
-        write_volatile(stack_bottom.offset(0), callback.argument0); // -> R0
+        ptr::write(stack_bottom.offset(7), state.psr); //......... -> APSR
+        ptr::write(stack_bottom.offset(6), callback.pc | 1); //... -> PC
+        ptr::write(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
+        ptr::write(stack_bottom.offset(3), callback.argument3); // -> R3
+        ptr::write(stack_bottom.offset(2), callback.argument2); // -> R2
+        ptr::write(stack_bottom.offset(1), callback.argument1); // -> R1
+        ptr::write(stack_bottom.offset(0), callback.argument0); // -> R0
 
         Ok(())
     }
@@ -279,20 +278,20 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             // syscall (i.e. we return a value to the app immediately) then this
             // will have no effect. If we are doing something like `yield()`,
             // however, then we need to have this state.
-            state.yield_pc = read_volatile(new_stack_pointer.offset(6));
-            state.psr = read_volatile(new_stack_pointer.offset(7));
+            state.yield_pc = ptr::read(new_stack_pointer.offset(6));
+            state.psr = ptr::read(new_stack_pointer.offset(7));
 
             // Get the syscall arguments and return them along with the syscall.
             // It's possible the app did something invalid, in which case we put
             // the app in the fault state.
-            let r0 = read_volatile(new_stack_pointer.offset(0));
-            let r1 = read_volatile(new_stack_pointer.offset(1));
-            let r2 = read_volatile(new_stack_pointer.offset(2));
-            let r3 = read_volatile(new_stack_pointer.offset(3));
+            let r0 = ptr::read(new_stack_pointer.offset(0));
+            let r1 = ptr::read(new_stack_pointer.offset(1));
+            let r2 = ptr::read(new_stack_pointer.offset(2));
+            let r3 = ptr::read(new_stack_pointer.offset(3));
 
             // Get the actual SVC number.
-            let pcptr = read_volatile((new_stack_pointer as *const *const u16).offset(6));
-            let svc_instr = read_volatile(pcptr.offset(-1));
+            let pcptr = ptr::read((new_stack_pointer as *const *const u16).offset(6));
+            let svc_instr = ptr::read(pcptr.offset(-1));
             let svc_num = (svc_instr & 0xff) as u8;
 
             // Use the helper function to convert these raw values into a Tock
@@ -336,14 +335,14 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
                 0xBAD00BAD,
             )
         } else {
-            let r0 = read_volatile(stack_pointer.offset(0));
-            let r1 = read_volatile(stack_pointer.offset(1));
-            let r2 = read_volatile(stack_pointer.offset(2));
-            let r3 = read_volatile(stack_pointer.offset(3));
-            let r12 = read_volatile(stack_pointer.offset(4));
-            let lr = read_volatile(stack_pointer.offset(5));
-            let pc = read_volatile(stack_pointer.offset(6));
-            let xpsr = read_volatile(stack_pointer.offset(7));
+            let r0 = ptr::read(stack_pointer.offset(0));
+            let r1 = ptr::read(stack_pointer.offset(1));
+            let r2 = ptr::read(stack_pointer.offset(2));
+            let r3 = ptr::read(stack_pointer.offset(3));
+            let r12 = ptr::read(stack_pointer.offset(4));
+            let lr = ptr::read(stack_pointer.offset(5));
+            let pc = ptr::read(stack_pointer.offset(6));
+            let xpsr = ptr::read(stack_pointer.offset(7));
             (r0, r1, r2, r3, r12, lr, pc, xpsr)
         };
 

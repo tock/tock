@@ -101,6 +101,19 @@ Options:
 Note: depends on llvm-objdump to extract symbols"""
     )
 
+def is_private_symbol(symbol):
+    """Returns whether a symbol is a private symbol. Private symbols
+    are inserted by the compiler and denote internal structure: they
+    are not included when attributing space to symbols."""
+    if symbol[0:4] == ".LBB":
+        return True
+    elif symbol[0:4] == ".LBE":
+        return True
+    elif symbol[0:5] == ".Ltmp":
+        return True
+    else:
+       return False
+
 
 def process_section_line(line):
     """Parses a line from the Sections: header of an ELF objdump,
@@ -156,7 +169,7 @@ def parse_mangled_name(name):
     # Not a mangled name, just return it unchanged.
     if name[0:3] != "_ZN":
         return name
-    
+
     # Trim a trailing . number (e.g., ".71") which breaks demangling
     match = re.search("\.\d+$", name)
     if match != None:
@@ -243,7 +256,7 @@ def process_symbol_line(line):
         # between it and application RAM.
         if name == "_ezero":
             name = "Padding at end of kernel RAM"
-            
+
         # Initialized data: part of the flash image, then copied into RAM
         # on start. The .data section in normal hosted C.
         if segment == "relocate":
@@ -260,6 +273,9 @@ def process_symbol_line(line):
         elif segment == "text":
             match = re.search("\$(((\w+\.\.)+)(\w+))\$", name)
             # It's a function
+            if is_private_symbol(name):
+                # Skip this symbol
+                return
             if symbol_type == "F" or symbol_type == "f":
                 try:
                     symbol = parse_mangled_name(name)
@@ -454,7 +470,7 @@ def split_text_into_data_and_functions():
             kernel_functions.append((name, addr, reported_size, real_size, desc))
         elif desc == "data":
             kernel_data.append((name, addr, reported_size, real_size, desc))
-    
+
 
 def print_symbol_information():
     """Print out all of the variable and function groups with their flash/RAM
@@ -484,8 +500,8 @@ def print_all_symbols(title, symbols):
         output = output + "  " + name + size_str + " bytes\n"
     print(title + ": " + str(symbol_sum) + " bytes")
     print(output, end="")
-    
-        
+
+
 def print_all_symbol_information():
     """Print out the size of every symbol."""
     print_all_symbols("Initialized variable groups (Flash+RAM)", kernel_initialized)
@@ -499,7 +515,7 @@ def print_all_symbol_information():
     print_all_symbols("Padding within functions and embedded data (flash)", padding_text)
     print()
 
-        
+
 def print_grouped_symbol_information():
     """Print out the size taken up by symbols, with symbols grouped
     by their names"""
@@ -507,7 +523,7 @@ def print_grouped_symbol_information():
     gaps = group_symbols(initialized_groups, kernel_initialized, show_waste, "Flash+RAM")
     print_groups("Initialized variable groups (Flash+RAM)", initialized_groups)
     print()
-    
+
     uninitialized_groups = {}
     gaps = gaps + group_symbols(
         uninitialized_groups, kernel_uninitialized, show_waste, "RAM"
@@ -529,8 +545,8 @@ def print_grouped_symbol_information():
     gaps = group_symbols(padding, padding_text, False, "Flash")
     print_groups("Padding within functions and embedded padding (flash)", padding)
     print(gaps)
-    
-    
+
+
 def sort_value(symbol_entry):
     """Helper function for sorting symbols by start address and size."""
     value = (symbol_entry[1] << 16) + symbol_entry[2]
@@ -568,7 +584,7 @@ def compute_padding(symbols, text):
         # defined size. Sometimes, when there is embedded data, it is in space
         # after a symbol, i.e., there is space after symbol+length and the
         # next symbol. Other times, the embedded data is within a symbol's
-        # region. 
+        # region.
         if total_size != esize and total_size > 0 and padding_size > 0:
             elements.append((esymbol, 0, padding_size, padding_size, edesc))
             diff = diff + padding_size

@@ -4,6 +4,7 @@
 #![crate_name = "lowrisc"]
 #![crate_type = "rlib"]
 
+pub mod aon_timer;
 pub mod csrng;
 pub mod flash_ctrl;
 pub mod gpio;
