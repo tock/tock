@@ -246,6 +246,7 @@ const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
 impl From<RPGpio> for ChannelNumber {
     fn from(gpio: RPGpio) -> Self {
         match gpio as u8 >> 1 & 7 {
+            // Because of the bitwise AND, there are only eight possible values
             0 => ChannelNumber::Ch0,
             1 => ChannelNumber::Ch1,
             2 => ChannelNumber::Ch2,
@@ -253,9 +254,7 @@ impl From<RPGpio> for ChannelNumber {
             4 => ChannelNumber::Ch4,
             5 => ChannelNumber::Ch5,
             6 => ChannelNumber::Ch6,
-            7 => ChannelNumber::Ch7,
-            // This branch can't be reached due to logical AND
-            _ => panic!("Unreachable branch"),
+            _ => ChannelNumber::Ch7,
         }
     }
 }
@@ -275,11 +274,10 @@ pub enum ChannelPin {
 /// Check ChannelNumber implementation for more details
 impl From<RPGpio> for ChannelPin {
     fn from(gpio: RPGpio) -> Self {
-        match gpio as u8 & 1 {
+        match gpio as u8 & 0b0000_0001 {
+            // Because of the bitwise AND, there are only two possible values
             0 => ChannelPin::A,
-            1 => ChannelPin::B,
-            // This branch can't be reached due to logical AND
-            _ => panic!("Unreachable branch"),
+            _ => ChannelPin::B,
         }
     }
 }
