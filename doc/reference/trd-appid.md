@@ -406,7 +406,8 @@ conflicts with another processs. When the main kernel loop examines a
 process in the `CredentialsApproved` state, it determines whether to
 run the process based on its Application Identifier, Short ID, and the
 Application Binary version number (stored in the Program Header,
-described in Section 5.1). At boot, the kernel starts a process if:
+described in Section 5.1). At boot, the kernel starts a process if
+either of:
 
   - The process has a unique Application Identifier and Short ID,
   - The process has a higher Application Binary version number than
