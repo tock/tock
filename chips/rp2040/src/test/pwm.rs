@@ -28,15 +28,15 @@
 //! ```
 
 use kernel::debug;
-use kernel::hil::pwm::PwmPin;
 use kernel::hil::pwm::Pwm;
+use kernel::hil::pwm::PwmPin;
 
 use crate::chip::Rp2040DefaultPeripherals;
-use crate::gpio::{RPGpio, GpioFunction};
+use crate::gpio::{GpioFunction, RPGpio};
 
 /// Struct used to run integration tests
 pub struct PwmTest {
-    peripherals: &'static Rp2040DefaultPeripherals<'static>
+    peripherals: &'static Rp2040DefaultPeripherals<'static>,
 }
 
 /// Create a PwmTest to run tests
@@ -47,8 +47,14 @@ pub fn new(peripherals: &'static Rp2040DefaultPeripherals<'static>) -> PwmTest {
 impl PwmTest {
     /// Run hello_pwm test
     pub fn hello_pwm(&self) {
-        self.peripherals.pins.get_pin(RPGpio::GPIO14).set_function(GpioFunction::PWM);
-        self.peripherals.pins.get_pin(RPGpio::GPIO15).set_function(GpioFunction::PWM);
+        self.peripherals
+            .pins
+            .get_pin(RPGpio::GPIO14)
+            .set_function(GpioFunction::PWM);
+        self.peripherals
+            .pins
+            .get_pin(RPGpio::GPIO15)
+            .set_function(GpioFunction::PWM);
         let pwm_pin_14 = self.peripherals.pwm.gpio_to_pwm_pin(RPGpio::GPIO14);
         let max_freq = pwm_pin_14.get_maximum_frequency_hz();
         let max_duty_cycle = pwm_pin_14.get_maximum_duty_cycle();
@@ -57,7 +63,10 @@ impl PwmTest {
         debug!("PWM pin 14 started");
         let max_freq = pwm.get_maximum_frequency_hz();
         let max_duty_cycle = pwm.get_maximum_duty_cycle();
-        assert_eq!(pwm.start(&RPGpio::GPIO15, max_freq / 8, max_duty_cycle / 8 * 7), Ok(()));
+        assert_eq!(
+            pwm.start(&RPGpio::GPIO15, max_freq / 8, max_duty_cycle / 8 * 7),
+            Ok(())
+        );
         debug!("PWM pin 15 started");
     }
 }

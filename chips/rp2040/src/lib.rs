@@ -11,11 +11,11 @@ pub mod pwm;
 pub mod resets;
 pub mod spi;
 pub mod sysinfo;
+pub mod test;
 pub mod timer;
 pub mod uart;
 pub mod watchdog;
 pub mod xosc;
-pub mod test;
 
 use cortexm0p::{
     self, initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant,

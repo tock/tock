@@ -520,7 +520,9 @@ impl<'a> Pwm<'a> {
     // Bits 0 to 7 ==> enable channel 0-7 interrupts.
     fn enable_mask_interrupt(&self, mask: u8) {
         let old_mask = self.registers.inte.read(CH::CH);
-        self.registers.inte.modify(CH::CH.val(old_mask | mask as u32));
+        self.registers
+            .inte
+            .modify(CH::CH.val(old_mask | mask as u32));
     }
 
     // Disable multiple channel interrupts at once.
@@ -528,7 +530,9 @@ impl<'a> Pwm<'a> {
     // Bits 0 to 7 ==> disable channel 0-7 interrupts.
     fn disable_mask_interrupt(&self, mask: u8) {
         let old_mask = self.registers.inte.read(CH::CH);
-        self.registers.inte.modify(CH::CH.val(old_mask & !mask as u32));
+        self.registers
+            .inte
+            .modify(CH::CH.val(old_mask & !mask as u32));
     }
 
     // Clear interrupt flag
@@ -574,11 +578,7 @@ impl<'a> Pwm<'a> {
     }
 
     // Configure the given channel using the given configuration
-    fn configure_channel(
-        &self,
-        channel_number: ChannelNumber,
-        config: &PwmChannelConfiguration,
-    ) {
+    fn configure_channel(&self, channel_number: ChannelNumber, config: &PwmChannelConfiguration) {
         self.set_ph_correct(channel_number, config.ph_correct);
         self.set_invert_polarity(channel_number, config.a_inv, config.b_inv);
         self.set_div_mode(channel_number, config.divmode);
@@ -598,7 +598,7 @@ impl<'a> Pwm<'a> {
 
     // Initialize the struct
     fn init(&self) {
-        let default_config: PwmChannelConfiguration = Default::default();
+        let default_config: PwmChannelConfiguration = PwmChannelConfiguration::default();
         for channel_number in CHANNEL_NUMBERS {
             self.configure_channel(channel_number, &default_config);
             self.set_counter(channel_number, 0);
@@ -1119,7 +1119,6 @@ pub mod unit_tests {
         pwm.disable_interrupt(channel_number);
         assert_eq!(pwm.registers.inte.read(CH::CH), 0);
 
-
         // Testing get_interrupt_status()
         pwm.enable_interrupt(channel_number);
         pwm.set_counter(channel_number, 12345);
@@ -1160,15 +1159,9 @@ pub mod unit_tests {
 
         // Testing enable_mask_interrupt() and disable_mask_interrupt()
         pwm.enable_mask_interrupt(u8::MAX);
-        assert_eq!(
-            pwm.registers.inte.read(CH::CH),
-            u8::MAX as u32
-        );
+        assert_eq!(pwm.registers.inte.read(CH::CH), u8::MAX as u32);
         pwm.disable_mask_interrupt(u8::MAX);
-        assert_eq!(
-            pwm.registers.inte.read(CH::CH),
-            0
-        );
+        assert_eq!(pwm.registers.inte.read(CH::CH), 0);
 
         for channel_number in channel_number_list {
             test_channel(pwm, channel_number);
