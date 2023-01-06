@@ -424,7 +424,7 @@ variables in the kernel implemementation might be different. The exact
 Tock process state machine and names of its states is outside the
 scope of this document.
 
-One a Tock system is running, management interfaces may change the set
+Once a Tock system is running, management interfaces may change the set
 of running processes from those which the boot sequence
 selected. E.g., the process console might terminate a process so that
 it can run a different process with the same Short ID and a lower
