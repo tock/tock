@@ -14,7 +14,7 @@ macro_rules! pwm_mux_component_static {
 }
 
 #[macro_export]
-macro_rules! pwm_component_static {
+macro_rules! pwm_pin_user_component_static {
     ($A:ty $(,)?) => {{
         kernel::static_buf!(capsules::virtual_pwm::PwmPinUser<'static, $A>)
     };};
@@ -38,19 +38,19 @@ macro_rules! pwm_syscall_component_helper {
     };};
 }
 
-pub struct PwmMuxComponent<A: 'static + pwm::Pwm> {
-    pwm: &'static A,
+pub struct PwmMuxComponent<P: 'static + pwm::Pwm> {
+    pwm: &'static P,
 }
 
-impl<A: 'static + pwm::Pwm> PwmMuxComponent<A> {
-    pub fn new(pwm: &'static A) -> Self {
+impl<P: 'static + pwm::Pwm> PwmMuxComponent<P> {
+    pub fn new(pwm: &'static P) -> Self {
         PwmMuxComponent { pwm: pwm }
     }
 }
 
-impl<A: 'static + pwm::Pwm> Component for PwmMuxComponent<A> {
-    type StaticInput = &'static mut MaybeUninit<MuxPwm<'static, A>>;
-    type Output = &'static MuxPwm<'static, A>;
+impl<P: 'static + pwm::Pwm> Component for PwmMuxComponent<P> {
+    type StaticInput = &'static mut MaybeUninit<MuxPwm<'static, P>>;
+    type Output = &'static MuxPwm<'static, P>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let pwm_mux = static_buffer.write(MuxPwm::new(self.pwm));
@@ -59,13 +59,13 @@ impl<A: 'static + pwm::Pwm> Component for PwmMuxComponent<A> {
     }
 }
 
-pub struct PwmPinComponent<A: 'static + pwm::Pwm> {
-    pwm_mux: &'static MuxPwm<'static, A>,
-    channel: A::Pin,
+pub struct PwmPinComponent<P: 'static + pwm::Pwm> {
+    pwm_mux: &'static MuxPwm<'static, P>,
+    channel: P::Pin,
 }
 
-impl<A: 'static + pwm::Pwm> PwmPinComponent<A> {
-    pub fn new(mux: &'static MuxPwm<'static, A>, channel: A::Pin) -> Self {
+impl<P: 'static + pwm::Pwm> PwmPinComponent<P> {
+    pub fn new(mux: &'static MuxPwm<'static, P>, channel: P::Pin) -> Self {
         PwmPinComponent {
             pwm_mux: mux,
             channel: channel,
@@ -73,9 +73,9 @@ impl<A: 'static + pwm::Pwm> PwmPinComponent<A> {
     }
 }
 
-impl<A: 'static + pwm::Pwm> Component for PwmPinComponent<A> {
-    type StaticInput = &'static mut MaybeUninit<PwmPinUser<'static, A>>;
-    type Output = &'static PwmPinUser<'static, A>;
+impl<P: 'static + pwm::Pwm> Component for PwmPinComponent<P> {
+    type StaticInput = &'static mut MaybeUninit<PwmPinUser<'static, P>>;
+    type Output = &'static PwmPinUser<'static, P>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let pwm_pin = static_buffer.write(PwmPinUser::new(self.pwm_mux, self.channel));
