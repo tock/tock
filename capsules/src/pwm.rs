@@ -49,6 +49,11 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
             }
         })
     }
+
+    pub fn release_pin(&self, pin: usize) {
+        // Release the claimed pin so that it can now be used by another process.
+        self.active_process[pin].clear();
+    }
 }
 
 /// Provide an interface for userland.
@@ -119,7 +124,7 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
                         CommandReturn::failure(ErrorCode::OFF)
                     } else {
                         // Release the pin and stop pwm output.
-                        self.active_process[pin].clear();
+                        self.release_pin(pin);
                         self.pwm_pins[pin].stop().into()
                     }
                 }
