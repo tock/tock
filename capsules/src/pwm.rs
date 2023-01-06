@@ -80,7 +80,7 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
 
             // Start the pwm output.
 
-            // data1 format  
+            // data1 format
             // +------------------+---------------+
             // | duty cycle (u16) | pwm pin (u16) |
             // +------------------+---------------+

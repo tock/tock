@@ -385,7 +385,9 @@ pub unsafe fn main() {
                 &mux_pwm,
                 nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32)
             )
-            .finalize(components::pwm_pin_user_component_static!(nrf52833::pwm::Pwm))
+            .finalize(components::pwm_pin_user_component_static!(
+                nrf52833::pwm::Pwm
+            ))
         ));
 
     //--------------------------------------------------------------------------
