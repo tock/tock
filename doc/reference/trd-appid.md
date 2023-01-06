@@ -442,7 +442,7 @@ processes: A, B and C.
   - C has a version number of 3, an APplication ID of Y and a Short ID of 7
 
 Following the above logic, A cannot run because it shares a Short ID
-with A and has a lower version number. At the same time, B cannot run
+with B and has a lower version number. At the same time, B cannot run
 because it has a lower version number than C and the same Application
 ID. C can run.  While A cannot run at the same time as B, it can run
 at the same time as C. At boot, however, A will not be started. Once
