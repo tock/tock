@@ -37,7 +37,7 @@
 //! Then create a test instance:
 //!
 //! ```rust,ignore
-//! let pwm_test = test::pwm::integration_tests::new(peripherals);
+//! let pwm_test = test::pwm::new(peripherals);
 //! ```
 //!
 //! To run a specific test:

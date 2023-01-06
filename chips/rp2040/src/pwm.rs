@@ -954,7 +954,7 @@ pub trait Interrupt {
 /// To run the tests, add the following line before loading processes:
 ///
 /// ```rust,ignore
-/// rp2040::pwm::test::run::(&peripherals.pwm);
+/// rp2040::pwm::unit_tests::run::(&peripherals.pwm);
 /// ```
 ///
 /// Compile and flash the kernel on the board. Then, connect to UART on GPIOs 1 and 2.
@@ -986,7 +986,8 @@ pub trait Interrupt {
 /// Testing PWM HIL trait...  
 /// PWM HIL trait OK
 /// ```
-pub mod test {
+
+pub mod unit_tests {
     use super::*;
 
     fn test_channel_number() {
