@@ -391,14 +391,13 @@ impl<'a> Pwm<'a> {
     ///
     /// **Note**:
     /// + This method must be called only once when setting up the kernel peripherals.
-    /// + The structure must be initialized and its dependencies resolved.
-    /// Otherwise, using the struct results in undefined behaviour.
+    /// + This peripheral depends on the chip's clocks.
     /// + Also, if interrupts are required, then an interrupt handler must be set. Otherwise, all
     /// the interrupts will be ignored.
     ///
-    /// See [Pwm::init] and [Pwm::set_clocks]
+    /// See [Pwm::set_clocks]
     pub fn new() -> Self {
-        Self {
+        let pwm = Self {
             registers: PWM_BASE,
             clocks: OptionalCell::empty(),
             // There is no option to create an array of OptionalCell, so
@@ -407,7 +406,9 @@ impl<'a> Pwm<'a> {
             // then it will be possible to configure an interrupt handler
             // per PWM channel and provide a more user-friendly API.
             interrupt_handler: OptionalCell::empty(),
-        }
+        };
+        pwm.init();
+        pwm
     }
 
     /// enable == false ==> disable channel  
@@ -664,11 +665,8 @@ impl<'a> Pwm<'a> {
         self.interrupt_handler.set(interrupt_handler);
     }
 
-    /// Initialize the struct
-    ///
-    /// This method should be called when setting up the kernel. Failing in doing so
-    /// will result in undefined behaviour.
-    pub fn init(&self) {
+    // Initialize the struct
+    fn init(&self) {
         let default_config: PwmChannelConfiguration = Default::default();
         for channel_number in CHANNEL_NUMBERS {
             self.configure_channel(channel_number, &default_config);
