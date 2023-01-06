@@ -413,7 +413,7 @@ impl<'a> Pwm<'a> {
 
     /// enable == false ==> disable channel  
     /// enable == true ==> enable channel  
-    pub fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
+    fn set_enabled(&self, channel_number: ChannelNumber, enable: bool) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(match enable {
@@ -432,7 +432,7 @@ impl<'a> Pwm<'a> {
 
     /// ph_correct == false ==> trailing-edge modulation  
     /// ph_correct == true ==> phase-correct modulation  
-    pub fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
+    fn set_ph_correct(&self, channel_number: ChannelNumber, ph_correct: bool) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(match ph_correct {
@@ -443,7 +443,7 @@ impl<'a> Pwm<'a> {
 
     /// Invert polarity for pin A
     /// a_inv == true ==> invert polarity for pin A  
-    pub fn set_invert_polarity_a(&self, channel_number: ChannelNumber, inv: bool) {
+    fn set_invert_polarity_a(&self, channel_number: ChannelNumber, inv: bool) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(match inv {
@@ -454,7 +454,7 @@ impl<'a> Pwm<'a> {
 
     /// Invert polarity for pin B
     /// b_inv == true ==> invert polarity for pin B
-    pub fn set_invert_polarity_b(&self, channel_number: ChannelNumber, inv: bool) {
+    fn set_invert_polarity_b(&self, channel_number: ChannelNumber, inv: bool) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(match inv {
@@ -464,7 +464,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// Invert polarity for both pins
-    pub fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
+    fn set_invert_polarity(&self, channel_number: ChannelNumber, a_inv: bool, b_inv: bool) {
         self.set_invert_polarity_a(channel_number, a_inv);
         self.set_invert_polarity_b(channel_number, b_inv);
     }
@@ -473,7 +473,7 @@ impl<'a> Pwm<'a> {
     /// divmode == High ==> enable clock divider when pin B is high  
     /// divmode == Rising ==> enable clock divider when pin B is rising  
     /// divmode == Falling ==> enable clock divider when pin B is falling
-    pub fn set_div_mode(&self, channel_number: ChannelNumber, div_mode: DivMode) {
+    fn set_div_mode(&self, channel_number: ChannelNumber, div_mode: DivMode) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(match div_mode {
@@ -490,7 +490,7 @@ impl<'a> Pwm<'a> {
     /// The maximum value of the divider is 255 (int) + 15 / 16 (frac).  
     ///
     /// **Note**: this method will do nothing if int == 0 || frac > 15.
-    pub fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
+    fn set_divider_int_frac(&self, channel_number: ChannelNumber, int: u8, frac: u8) {
         if int == 0 || frac > 15 {
             return;
         }
@@ -504,7 +504,7 @@ impl<'a> Pwm<'a> {
 
     /// Set output pin A compare value  
     /// If counter value < compare value A ==> pin A high
-    pub fn set_compare_value_a(&self, channel_number: ChannelNumber, cc_a: u16) {
+    fn set_compare_value_a(&self, channel_number: ChannelNumber, cc_a: u16) {
         self.registers.ch[channel_number as usize]
             .cc
             .modify(CC::A.val(cc_a as u32));
@@ -512,34 +512,34 @@ impl<'a> Pwm<'a> {
 
     /// Set output pin B compare value  
     /// If counter value < compare value B ==> pin B high (if divmode == FreeRunning)
-    pub fn set_compare_value_b(&self, channel_number: ChannelNumber, cc_b: u16) {
+    fn set_compare_value_b(&self, channel_number: ChannelNumber, cc_b: u16) {
         self.registers.ch[channel_number as usize]
             .cc
             .modify(CC::B.val(cc_b as u32));
     }
 
     /// Set compare values for both pins
-    pub fn set_compare_values_a_and_b(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
+    fn set_compare_values_a_and_b(&self, channel_number: ChannelNumber, cc_a: u16, cc_b: u16) {
         self.set_compare_value_a(channel_number, cc_a);
         self.set_compare_value_b(channel_number, cc_b);
     }
 
     /// Set counter top value
-    pub fn set_top(&self, channel_number: ChannelNumber, top: u16) {
+    fn set_top(&self, channel_number: ChannelNumber, top: u16) {
         self.registers.ch[channel_number as usize]
             .top
             .modify(TOP::TOP.val(top as u32));
     }
 
     /// Get the current value of the counter
-    pub fn get_counter(&self, channel_number: ChannelNumber) -> u16 {
+    fn get_counter(&self, channel_number: ChannelNumber) -> u16 {
         self.registers.ch[channel_number as usize]
             .ctr
             .read(CTR::CTR) as u16
     }
 
     /// Set the value of the counter
-    pub fn set_counter(&self, channel_number: ChannelNumber, value: u16) {
+    fn set_counter(&self, channel_number: ChannelNumber, value: u16) {
         self.registers.ch[channel_number as usize]
             .ctr
             .modify(CTR::CTR.val(value as u32));
@@ -549,7 +549,7 @@ impl<'a> Pwm<'a> {
     ///
     /// The counter must be running at less than full speed. The method will return
     /// once the increment is complete.
-    pub fn advance_count(&self, channel_number: ChannelNumber) {
+    fn advance_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_ADV::SET);
@@ -564,7 +564,7 @@ impl<'a> Pwm<'a> {
     ///
     /// The counter must be running. The method will return once the retardation
     /// is complete.
-    pub fn retard_count(&self, channel_number: ChannelNumber) {
+    fn retard_count(&self, channel_number: ChannelNumber) {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_RET::SET);
@@ -576,7 +576,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// Enable interrupt on the given PWM channel
-    pub fn enable_interrupt(&self, channel_number: ChannelNumber) {
+    fn enable_interrupt(&self, channel_number: ChannelNumber) {
         // What about adding a new method to the register interface which performs
         // a bitwise OR and another one for AND?
         let mask = self.registers.inte.read(CH::CH);
@@ -586,7 +586,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// Disable interrupt on the given PWM channel
-    pub fn disable_interrupt(&self, channel_number: ChannelNumber) {
+    fn disable_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.inte.read(CH::CH);
         self.registers
             .inte
@@ -596,8 +596,17 @@ impl<'a> Pwm<'a> {
     /// Enable multiple channel interrupts at once.
     ///
     /// Bits 0 to 7 ==> enable channel 0-7 interrupts.
-    pub fn enable_mask_interrupt(&self, mask: u8) {
-        self.registers.inte.modify(CH::CH.val(mask as u32));
+    fn enable_mask_interrupt(&self, mask: u8) {
+        let old_mask = self.registers.inte.read(CH::CH);
+        self.registers.inte.modify(CH::CH.val(old_mask | mask as u32));
+    }
+
+    /// Disable multiple channel interrupts at once.
+    ///
+    /// Bits 0 to 7 ==> disable channel 0-7 interrupts.
+    fn disable_mask_interrupt(&self, mask: u8) {
+        let old_mask = self.registers.inte.read(CH::CH);
+        self.registers.inte.modify(CH::CH.val(old_mask & !mask as u32));
     }
 
     // Clear interrupt flag
@@ -608,7 +617,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// Force interrupt on the given channel
-    pub fn force_interrupt(&self, channel_number: ChannelNumber) {
+    fn force_interrupt(&self, channel_number: ChannelNumber) {
         let mask = self.registers.intf.read(CH::CH);
         self.registers
             .intf
@@ -643,7 +652,7 @@ impl<'a> Pwm<'a> {
     }
 
     /// Configure the given channel using the given configuration
-    pub fn configure_channel(
+    fn configure_channel(
         &self,
         channel_number: ChannelNumber,
         config: &PwmChannelConfiguration,
@@ -885,7 +894,7 @@ impl PwmPin<'_> {
     }
 
     /// See [Pwm::set_invert_polarity_a] and [Pwm::set_invert_polarity_b]
-    pub fn set_invert_polarity(&self, inv: bool) {
+    fn set_invert_polarity(&self, inv: bool) {
         if self.channel_pin == ChannelPin::A {
             self.pwm_struct
                 .set_invert_polarity_a(self.channel_number, inv);
@@ -896,7 +905,7 @@ impl PwmPin<'_> {
     }
 
     /// See [Pwm::set_compare_value_a] and [Pwm::set_compare_value_b]
-    pub fn set_compare_value(&self, compare_value: u16) {
+    fn set_compare_value(&self, compare_value: u16) {
         if self.channel_pin == ChannelPin::A {
             self.pwm_struct
                 .set_compare_value_a(self.channel_number, compare_value);
@@ -1188,6 +1197,7 @@ pub mod unit_tests {
         pwm.disable_interrupt(channel_number);
         assert_eq!(pwm.registers.inte.read(CH::CH), 0);
 
+
         // Testing get_interrupt_status()
         pwm.enable_interrupt(channel_number);
         pwm.set_counter(channel_number, 12345);
@@ -1225,6 +1235,18 @@ pub mod unit_tests {
             ChannelNumber::Ch6,
             ChannelNumber::Ch7,
         ];
+
+        // Testing enable_mask_interrupt() and disable_mask_interrupt()
+        pwm.enable_mask_interrupt(u8::MAX);
+        assert_eq!(
+            pwm.registers.inte.read(CH::CH),
+            u8::MAX as u32
+        );
+        pwm.disable_mask_interrupt(u8::MAX);
+        assert_eq!(
+            pwm.registers.inte.read(CH::CH),
+            0
+        );
 
         for channel_number in channel_number_list {
             test_channel(pwm, channel_number);
