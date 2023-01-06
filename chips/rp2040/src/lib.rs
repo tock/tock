@@ -14,6 +14,7 @@ pub mod sysinfo;
 pub mod test;
 pub mod timer;
 pub mod uart;
+pub mod usb;
 pub mod watchdog;
 pub mod xosc;
 

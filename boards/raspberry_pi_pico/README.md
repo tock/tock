@@ -10,9 +10,59 @@ board developed by the Raspberry Pi Foundation and is based on the RP2040 chip.
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
+## Installing elf2uf2
+
+The Raspberry Pi Pico RP2040 uses UF2 files for flashing. Tock compiles to an ELF file.
+The `elf2uf2` utility is needed to transform the Tock ELF file into an UF2 file.
+
+To install `elf2uf2`, run the commands:
+
+```bash
+$ git clone https://github.com/raspberrypi/pico-sdk
+$ cd pico-sdk
+$ cd tools/elf2uf2
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+$ sudo cp elf2uf2 /usr/local/bin
+```
+
 ## Flashing the kernel
 
-The Raspberry Pi Pico can be programmed via an SWD connection, which requires the Pico to be connected to a regular Raspberry Pi device that exposes the necessary pins OR using another Raspberry Pi Pico set up in “Picoprobe” mode. The kernel is transferred to the Raspberry Pi Pico using a [custom version of OpenOCD](https://github.com/raspberrypi/openocd).
+The Raspberry Pi Pico RP2040 Connect can be programmed using its bootloader, which requires an UF2 file.
+
+### Enter BOOTSEL mode
+
+To flash the Pico RP2040, it needs to be put into BOOTSEL mode. This will mount
+a flash drive that allows one to copy a UF2 file. To enter BOOTSEL mode, press the BOOTSEL button and hold it while you connect the other end of the micro USB cable to your computer.
+
+Then `cd` into `boards/raspberry_pi_pico` directory and run:
+
+```bash
+$ make flash
+
+(or)
+
+$ make flash-debug
+```
+
+> Note: The Makefile provides the BOOTSEL_FOLDER variable that points towards the mount point of
+> the Pico RP2040 flash drive. By default, this is located in `/media/$(USER)/RP2040`. This might
+> be different on several systems, make sure to adjust it.
+
+## Flashing app
+
+Enter BOOTSEL mode.
+
+Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
+```bash
+$ APP="<path to app's tbf file>" make flash-app
+```
+
+## Debugging
+
+The Raspberry Pi Pico can also be programmed via an SWD connection, which requires the Pico to be connected to a regular Raspberry Pi device that exposes the necessary pins OR using another Raspberry Pi Pico set up in “Picoprobe” mode. The kernel is transferred to the Raspberry Pi Pico using a [custom version of OpenOCD](https://github.com/raspberrypi/openocd).
 
 ### Flashing Setup
 

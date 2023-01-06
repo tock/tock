@@ -200,7 +200,8 @@ impl<'a> Uart<'a> {
                         break;
                     }
                     let tx_idx = idx + i;
-                    regs.wdata.write(wdata::data.val(tx_buf[tx_idx] as u32));
+                    let data: u32 = *tx_buf.get(tx_idx).unwrap_or(&0) as u32;
+                    regs.wdata.write(wdata::data.val(data));
                     self.tx_index.set(tx_idx + 1)
                 }
             });

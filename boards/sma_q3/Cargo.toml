@@ -1,12 +1,12 @@
 [package]
 name = "sma_q3"
-version = "0.1.0"
+version.workspace = true
 authors = [
     "Tock Project Developers <tock-dev@googlegroups.com>",
     "Dorota <gihu.dcz@porcupinefactory.org>"
 ]
 build = "build.rs"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 components = { path = "../components" }

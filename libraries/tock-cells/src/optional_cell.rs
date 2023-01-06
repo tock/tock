@@ -4,7 +4,6 @@ use core::cell::Cell;
 
 /// `OptionalCell` is a `Cell` that wraps an `Option`. This is helper type
 /// that makes keeping types that can be `None` a little cleaner.
-#[derive(Default)]
 pub struct OptionalCell<T> {
     value: Cell<Option<T>>,
 }
@@ -215,5 +214,14 @@ impl<T: Copy> OptionalCell<T> {
     /// with the value of the cell and return the result.
     pub fn and_then<U, F: FnOnce(T) -> Option<U>>(&self, f: F) -> Option<U> {
         self.value.get().and_then(f)
+    }
+}
+
+// Manual implementation of the [`Default`] trait, as
+// `#[derive(Default)]` incorrectly constraints `T: Default`.
+impl<T> Default for OptionalCell<T> {
+    /// Returns an empty [`OptionalCell`].
+    fn default() -> Self {
+        OptionalCell::empty()
     }
 }

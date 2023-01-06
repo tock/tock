@@ -270,7 +270,8 @@ impl<'a> I2c<'_> {
                     break;
                 }
                 // Send the data
-                regs.fdata.write(FDATA::FBYTE.val(buf[i as usize] as u32));
+                regs.fdata
+                    .write(FDATA::FBYTE.val(*buf.get(i).unwrap_or(&0) as u32));
                 data_pushed = i;
             }
 
@@ -278,7 +279,7 @@ impl<'a> I2c<'_> {
             if regs.status.read(STATUS::FMTFULL) == 0 && data_pushed == (len - 1) {
                 // Send the last byte with the stop signal
                 regs.fdata
-                    .write(FDATA::FBYTE.val(buf[len as usize] as u32) + FDATA::STOP::SET);
+                    .write(FDATA::FBYTE.val(*buf.get(len).unwrap_or(&0) as u32) + FDATA::STOP::SET);
 
                 data_pushed = len;
             }
@@ -317,7 +318,8 @@ impl<'a> I2c<'_> {
                     break;
                 }
                 // Send the data
-                regs.fdata.write(FDATA::FBYTE.val(buf[i as usize] as u32));
+                regs.fdata
+                    .write(FDATA::FBYTE.val(*buf.get(i).unwrap_or(&0) as u32));
                 data_pushed = i;
             }
 
@@ -325,7 +327,7 @@ impl<'a> I2c<'_> {
             if regs.status.read(STATUS::FMTFULL) == 0 && data_pushed == (len - 1) {
                 // Send the last byte with the stop signal
                 regs.fdata
-                    .write(FDATA::FBYTE.val(buf[len as usize] as u32) + FDATA::STOP::SET);
+                    .write(FDATA::FBYTE.val(*buf.get(len).unwrap_or(&0) as u32) + FDATA::STOP::SET);
 
                 data_pushed = len;
             }

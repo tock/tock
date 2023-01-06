@@ -8,7 +8,7 @@ use kernel::platform::chip::InterruptService;
 use crate::adc;
 use crate::clocks::Clocks;
 use crate::deferred_call_tasks::DeferredCallTask;
-use crate::gpio::{RPPins, SIO};
+use crate::gpio::{RPGpio, RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
 use crate::pwm;
@@ -17,6 +17,7 @@ use crate::spi;
 use crate::sysinfo;
 use crate::timer::RPTimer;
 use crate::uart::Uart;
+use crate::usb;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
 use cortexm0p::{interrupt_mask, CortexM0P, CortexMVariant};
@@ -131,6 +132,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub timer: RPTimer<'a>,
     pub uart0: Uart<'a>,
     pub uart1: Uart<'a>,
+    pub usb: usb::UsbCtrl<'a>,
     pub watchdog: Watchdog,
     pub xosc: Xosc,
 }
@@ -138,20 +140,21 @@ pub struct Rp2040DefaultPeripherals<'a> {
 impl<'a> Rp2040DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
+            adc: adc::Adc::new(),
+            clocks: Clocks::new(),
+            i2c0: i2c::I2c::new_i2c0(),
+            pins: RPPins::new(),
+            pwm: pwm::Pwm::new(),
             resets: Resets::new(),
             sio: SIO::new(),
-            clocks: Clocks::new(),
-            xosc: Xosc::new(),
-            timer: RPTimer::new(),
-            watchdog: Watchdog::new(),
-            pins: RPPins::new(),
-            uart0: Uart::new_uart0(),
-            uart1: Uart::new_uart1(),
-            adc: adc::Adc::new(),
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
-            i2c0: i2c::I2c::new_i2c0(),
-            pwm: pwm::Pwm::new(),
+            timer: RPTimer::new(),
+            uart0: Uart::new_uart0(),
+            uart1: Uart::new_uart1(),
+            usb: usb::UsbCtrl::new(),
+            watchdog: Watchdog::new(),
+            xosc: Xosc::new(),
         }
     }
 
@@ -160,6 +163,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
         self.pwm.set_clocks(&self.clocks);
         self.spi0.set_clocks(&self.clocks);
         self.uart0.set_clocks(&self.clocks);
+        self.usb.set_gpio(self.pins.get_pin(RPGpio::GPIO15));
     }
 }
 
@@ -188,6 +192,10 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
             }
             interrupts::ADC_IRQ_FIFO => {
                 self.adc.handle_interrupt();
+                true
+            }
+            interrupts::USBCTRL_IRQ => {
+                self.usb.handle_interrupt();
                 true
             }
             interrupts::IO_IRQ_BANK0 => {

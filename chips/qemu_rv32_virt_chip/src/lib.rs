@@ -4,7 +4,10 @@
 #![crate_name = "qemu_rv32_virt_chip"]
 #![crate_type = "rlib"]
 
+pub use virtio;
+
 mod interrupts;
+pub mod virtio_mmio;
 
 pub mod chip;
 pub mod clint;

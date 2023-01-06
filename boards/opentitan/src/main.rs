@@ -36,6 +36,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup, TbfHeaderFilterDefa
 use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
+use lowrisc::flash_ctrl::FlashMPConfig;
 use rv32i::csr;
 
 pub mod io;
@@ -455,6 +456,32 @@ unsafe fn setup() -> (
         /// Beginning on the ROM region containing app images.
         static _sstorage: u8;
         static _estorage: u8;
+    }
+
+    // Flash setup memory protection for the ROM/Kernel
+    // Only allow reads for this region, any other ops will cause an MP fault
+    let mp_cfg = FlashMPConfig {
+        read_en: true,
+        write_en: false,
+        erase_en: false,
+        scramble_en: false,
+        ecc_en: false,
+        he_en: false,
+    };
+
+    // Allocate a flash protection region (associated cfg number: 0), for the code section.
+    if let Err(e) = peripherals.flash_ctrl.mp_set_region_perms(
+        &_manifest as *const u8 as usize,
+        &_etext as *const u8 as usize,
+        0,
+        &mp_cfg,
+    ) {
+        debug!("Failed to set flash memory protection: {:?}", e);
+    } else {
+        // Lock region 0, until next system reset.
+        if let Err(e) = peripherals.flash_ctrl.mp_lock_region_cfg(0) {
+            debug!("Failed to lock memory protection config: {:?}", e);
+        }
     }
 
     // Flash

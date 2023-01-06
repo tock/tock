@@ -2,6 +2,9 @@
 
 BUILD_DIR="verilator_build/"
 
+# Preemptively cleanup layout (incase this was a test) so that following apps (non-tests) load the correct layout.
+rm $TOCK_ROOT_DIRECTORY/target/$TARGET/release/deps/layout.ld
+
 if [[ "${VERILATOR}" == "yes" ]]; then
 		if [ -d "$BUILD_DIR" ]; then
 			# Cleanup before we build again
@@ -16,7 +19,7 @@ if [[ "${VERILATOR}" == "yes" ]]; then
 	if [[ "${APP}" != "" ]]; then
 		# An app was specified, copy it in
 		printf "[CW-130: Verilator Tests]: Linking APP...\n\n"
-		riscv64-linux-gnu-objcopy --update-section .apps=${APP} "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.elf
+		${OBJCOPY} --update-section .apps=${APP} "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.elf
 	fi
 	${OBJCOPY} --output-target=binary "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.bin
 	# Create VMEM file from test binary
@@ -29,8 +32,8 @@ if [[ "${VERILATOR}" == "yes" ]]; then
 		--meminit=flash,./"$BUILD_DIR"/binary.64.vmem \
 		--meminit=otp,${OPENTITAN_TREE}/bazel-out/k8-fastbuild/bin/hw/ip/otp_ctrl/data/img_rma.24.vmem
 elif [[ "${OPENTITAN_TREE}" != "" ]]; then
-	riscv64-linux-gnu-objcopy --update-section .apps=${APP} ${1} bundle.elf
-	riscv64-linux-gnu-objcopy --output-target=binary bundle.elf binary
+	${OBJCOPY} --update-section .apps=${APP} ${1} bundle.elf
+	${OBJCOPY} --output-target=binary bundle.elf binary
 
 	${OPENTITAN_TREE}/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap binary
 else
