@@ -199,7 +199,10 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
                 true
             }
             interrupts::PWM_IRQ_WRAP => {
-                self.pwm.handle_interrupt();
+                // As the PWM HIL doesn't provide any support for interrupts, they are
+                // simply ignored.
+                //
+                // Note that PWM interrupts are raised only during unit tests.
                 true
             }
             _ => false,
