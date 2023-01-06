@@ -29,25 +29,26 @@
 //!
 //! First step is including the test module:
 //!
-//! ```
-//! mod test;
+//! ```rust,ignore
+//! #[allow(dead_code)]
+//! use rp2040::test;
 //! ```
 //!
 //! Then create a test instance:
 //!
-//! ```
-//! let pwm_test = test::pwm::PwmTest::new(peripherals);
+//! ```rust,ignore
+//! let pwm_test = test::pwm::integration_tests::new(peripherals);
 //! ```
 //!
 //! To run a specific test:
 //!
-//! ```
+//! ```rust,ignore
 //! pwm_test.hello_pwm();
 //! ```
 //!
 //! To run all tests at once:
 //!
-//! ```
+//! ```rust,ignore
 //! pwm_test.run_all();
 //! ```
 //!
@@ -59,9 +60,9 @@ use kernel::hil::pwm::Pwm;
 use kernel::utilities::cells::OptionalCell;
 use kernel::static_init;
 
-use rp2040::chip::Rp2040DefaultPeripherals;
-use rp2040::gpio::{RPGpio, GpioFunction};
-use rp2040::pwm;
+use crate::chip::Rp2040DefaultPeripherals;
+use crate::gpio::{RPGpio, GpioFunction};
+use crate::pwm;
 
 #[doc(hidden)]
 struct PwmInterrupt {
@@ -147,20 +148,21 @@ pub struct PwmTest {
     peripherals: &'static Rp2040DefaultPeripherals<'static>
 }
 
+/// Create a PwmTest to run tests
+pub fn new(peripherals: &'static Rp2040DefaultPeripherals<'static>) -> PwmTest {
+    let pwm_interrupt = unsafe {
+        static_init!(PwmInterrupt, PwmInterrupt::new(
+                &peripherals.pwm,
+                RPGpio::GPIO12,
+                RPGpio::GPIO8,
+                RPGpio::GPIO6
+        ))
+    };
+    peripherals.pwm.set_interrupt_handler(pwm_interrupt);
+    PwmTest { peripherals }
+}
+
 impl PwmTest {
-    /// Create a PwmTest to run tests
-    pub fn new(peripherals: &'static Rp2040DefaultPeripherals<'static>) -> PwmTest {
-        let pwm_interrupt = unsafe {
-            static_init!(PwmInterrupt, PwmInterrupt::new(
-                    &peripherals.pwm,
-                    RPGpio::GPIO12,
-                    RPGpio::GPIO8,
-                    RPGpio::GPIO6
-            ))
-        };
-        peripherals.pwm.set_interrupt_handler(pwm_interrupt);
-        PwmTest { peripherals }
-    }
 
     /// Run hello_pwm test
     pub fn hello_pwm(&self) {
