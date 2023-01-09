@@ -85,10 +85,13 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
 
             // Start the pwm output.
 
-            // data1 format
-            // +------------------+---------------+
-            // | duty cycle (u16) | pwm pin (u16) |
-            // +------------------+---------------+
+            // data1 stores the duty cycle and the pin number in the format
+            // +------------------+------------------+
+            // | duty cycle (u16) |   pwm pin (u16)  |
+            // +------------------+------------------+
+            // This format was chosen because there are only 2 parameters in the command function that can be used for storing values,
+            // but in this case, 3 values are needed (pin, frequency, duty cycle), so data1 stores two of these values that can be
+            // represented using only 16 bits.
             2 => {
                 let pin = data1 & ((1 << 16) - 1);
                 let duty_cycle = data1 >> 16;
