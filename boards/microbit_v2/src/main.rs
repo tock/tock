@@ -190,7 +190,7 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> {
+unsafe fn create_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> {
     // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
@@ -205,7 +205,7 @@ unsafe fn get_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> 
 pub unsafe fn main() {
     nrf52833::init();
 
-    let nrf52833_peripherals = get_peripherals();
+    let nrf52833_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52833_peripherals.init();
