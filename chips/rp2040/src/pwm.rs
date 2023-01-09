@@ -467,34 +467,36 @@ impl<'a> Pwm<'a> {
             .modify(CTR::CTR.val(value as u32));
     }
 
+    fn wait_for(count: usize, f: impl Fn() -> bool) -> bool {
+        for _ in 0..count {
+            if f() {
+                return true;
+            }
+        }
+
+        false
+    }
+
     // Increments the value of the counter
     //
     // The counter must be running at less than full speed. The method will return
     // once the increment is complete.
-    fn advance_count(&self, channel_number: ChannelNumber) {
+    fn advance_count(&self, channel_number: ChannelNumber) -> bool {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_ADV::SET);
-        while self.registers.ch[channel_number as usize]
-            .csr
-            .read(CSR::PH_ADV)
-            == 1
-        {}
+        Self::wait_for(100, || self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 0)
     }
 
     // Retards the phase of the counter by 1 count
     //
     // The counter must be running. The method will return once the retardation
     // is complete.
-    fn retard_count(&self, channel_number: ChannelNumber) {
+    fn retard_count(&self, channel_number: ChannelNumber) -> bool {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_RET::SET);
-        while self.registers.ch[channel_number as usize]
-            .csr
-            .read(CSR::PH_RET)
-            == 1
-        {}
+        Self::wait_for(100, || self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 0)
     }
 
     // Enable interrupt on the given PWM channel
@@ -1067,13 +1069,13 @@ pub mod unit_tests {
         // The counter must run at less than full speed (div_int + div_frac / 16 > 1) to pass
         // advance_count()
         pwm.set_div_mode(channel_number, DivMode::FreeRunning);
-        pwm.advance_count(channel_number);
+        assert_eq!(pwm.advance_count(channel_number), true);
         assert_eq!(pwm.get_counter(channel_number), 2);
         pwm.set_enabled(channel_number, true);
         // No assert for retard count since it is impossible to predict how much the counter
-        // will advance while running. However, the fact that the function returns is a good
-        // indicator that it does its job.
-        pwm.retard_count(channel_number);
+        // will advance while running. However, the fact that the function returns true is a
+        // good indicator that it does its job.
+        assert_eq!(pwm.retard_count(channel_number), true);
         // Disabling PWM to prevent it from generating interrupts signals for next tests
         pwm.set_enabled(channel_number, false);
 
