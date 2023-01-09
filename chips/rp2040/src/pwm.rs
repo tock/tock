@@ -632,20 +632,20 @@ impl<'a> Pwm<'a> {
 
         // Set top to max
         let top = u16::MAX;
-        // Get the corresponding divider value
-        let divider = threshold_freq_hz as f32 / selected_freq_hz as f32;
+        // Get the corresponding integral part of the divider
+        let int = threshold_freq_hz / selected_freq_hz;
         // If the desired frequency is too low, then it can't be achieved using the divider.
         // In this case, notify the caller with an error.
-        if divider >= 256.0f32 {
+        if int >= 256 {
             return Err(());
         }
-        // At this point, the divider is a valid value. Its integral and fractional part
-        // can be computed.
-        let int = divider as u8;
-        let frac = ((divider - int as f32) * 16.0) as u8;
+        // Now that the integral part is valid, the fractional part can be computed as well.
+        // The fractional part is on 4 bits.
+        let frac = ((threshold_freq_hz << 4) / selected_freq_hz - (int << 4)) as u8;
 
         // Return the final result
-        Ok((top, int, frac))
+        // Since int < 256, the cast will not truncate the value.
+        Ok((top, int as u8, frac))
     }
 
     // Starts a PWM pin with the given frequency and duty cycle.
