@@ -893,52 +893,22 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                             if read_buf[0] == ('\x1B' as u8) {
                                 self.control_seq_in_progress.set(true);
                             } else if read_buf[0] != ('[' as u8) {
-                                match read_buf[0] {
+                                if let Some(index) = match read_buf[0] {
                                     b'A' => {
-                                        if let Some(index) =
-                                            if let Some(i) = self.command_history_index.extract() {
-                                                self.command_history
-                                                    .map(|cmd_arr| match cmd_arr[i + 1][0] {
-                                                        0 => None,
-                                                        _ => Some(i + 1),
-                                                    })
-                                                    .unwrap()
-                                            } else {
-                                                self.command_history
-                                                    .map(|cmd_arr| match cmd_arr[0][0] {
-                                                        0 => None,
-                                                        _ => Some(0),
-                                                    })
-                                                    .unwrap()
-                                            }
-                                        {
-                                            self.command_history_index.set(index);
-                                            self.command_history.map(|next_command| {
-                                                let prev_command_len = self.command_index.get();
-                                                let next_command_len = {
-                                                    let mut i = 0;
-                                                    loop {
-                                                        if next_command[index][i] == 0 {
-                                                            break i;
-                                                        }
-                                                        i = i + 1;
-                                                    }
-                                                };
-                                                for _ in 0..prev_command_len {
-                                                    let _ = self.write_bytes(&[
-                                                        '\x08' as u8,
-                                                        ' ' as u8,
-                                                        '\x08' as u8,
-                                                    ]);
-                                                }
-
-                                                for i in 0..next_command_len {
-                                                    let _ = self.write_byte(next_command[index][i]);
-                                                    command[i] = next_command[index][i];
-                                                }
-                                                self.command_index.set(next_command_len);
-                                                command[next_command_len] = '\0' as u8;
-                                            });
+                                        if let Some(i) = self.command_history_index.extract() {
+                                            self.command_history
+                                                .map(|cmd_arr| match cmd_arr[i + 1][0] {
+                                                    0 => None,
+                                                    _ => Some(i + 1),
+                                                })
+                                                .unwrap()
+                                        } else {
+                                            self.command_history
+                                                .map(|cmd_arr| match cmd_arr[0][0] {
+                                                    0 => None,
+                                                    _ => Some(0),
+                                                })
+                                                .unwrap()
                                         }
                                     }
                                     b'B' => {
@@ -947,11 +917,42 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                         {
                                             let index =
                                                 self.command_history_index.extract().unwrap() - 1;
-                                            self.command_history_index.set(index);
+                                            Some(index)
+                                        } else {
+                                            None
                                         }
                                     }
-                                    _ => {}
-                                }
+                                    _ => None,
+                                } {
+                                    self.command_history_index.set(index);
+                                    self.command_history.map(|next_command| {
+                                        let prev_command_len = self.command_index.get();
+                                        let next_command_len = {
+                                            let mut i = 0;
+                                            loop {
+                                                if next_command[index][i] == 0 {
+                                                    break i;
+                                                }
+                                                i = i + 1;
+                                            }
+                                        };
+
+                                        for _ in 0..prev_command_len {
+                                            let _ = self.write_bytes(&[
+                                                '\x08' as u8,
+                                                ' ' as u8,
+                                                '\x08' as u8,
+                                            ]);
+                                        }
+                                        for i in 0..next_command_len {
+                                            let _ = self.write_byte(next_command[index][i]);
+                                            command[i] = next_command[index][i];
+                                        }
+
+                                        self.command_index.set(next_command_len);
+                                        command[next_command_len] = '\0' as u8;
+                                    });
+                                };
                                 self.control_seq_in_progress.set(false);
                             }
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
@@ -976,3 +977,6 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
         let _ = self.uart.receive_buffer(read_buf, 1);
     }
 }
+
+/*
+*/
