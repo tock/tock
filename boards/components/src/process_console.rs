@@ -73,9 +73,9 @@ impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
         process_printer: &'static dyn ProcessPrinter,
     ) -> ProcessConsoleComponent<A> {
         ProcessConsoleComponent {
-            board_kernel: board_kernel,
-            uart_mux: uart_mux,
-            alarm_mux: alarm_mux,
+            board_kernel,
+            uart_mux,
+            alarm_mux,
             process_printer,
         }
     }
