@@ -7,7 +7,7 @@ PLATFORM = qemu_rv32_virt
 include ../Makefile.common
 
 QEMU_CMD             := qemu-system-riscv32
-WORKING_QEMU_VERSION := 7.0.0
+WORKING_QEMU_VERSION := 7.2.0
 
 # Whether a VirtIO network device shall be attached to the QEMU
 # machine, and which backend should be used. The following options are
