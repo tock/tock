@@ -105,7 +105,7 @@ register_bitfields![u32,
 const NUMBER_CHANNELS: usize = 8;
 
 #[repr(C)]
-struct Ch {
+struct Channel {
     // Control and status register
     csr: ReadWrite<u32, CSR::Register>,
     // Division register
@@ -121,7 +121,7 @@ struct Ch {
 register_structs! {
     PwmRegisters {
         // Channel registers
-        (0x0000 => ch: [Ch; NUMBER_CHANNELS]),
+        (0x0000 => ch: [Channel; NUMBER_CHANNELS]),
         // Enable register
         // This register aliases the CSR_EN bits for all channels.
         // Writing to this register allows multiple channels to be enabled or disabled
