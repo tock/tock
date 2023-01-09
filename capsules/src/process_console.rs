@@ -102,6 +102,8 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
 
     control_seq_in_progress: Cell<bool>,
     command_history: TakeCell<'static, [[u8; COMMAND_BUF_LEN]; COMMAND_HISTORY_LEN]>,
+    //None        => user is typing a command
+    //Some(index) => command_history[index] was last copied into the command_buffer
     command_history_index: OptionalCell<usize>,
 
     /// Keep the previously read byte to consider \r\n sequences
@@ -863,6 +865,9 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                 1 => {
                     self.command_buffer.map(|command| {
                         if command[0] == 0 {
+                            //None is seen as a "user is typing" state
+                            //from the perspective of the command browser
+                            //and thus it returns to the default state
                             self.command_history_index.insert(None);
                         }
                         let previous_byte = self.previous_byte.get();
@@ -890,34 +895,34 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                         } else if read_buf[0] == ('\x1B' as u8)
                             || self.control_seq_in_progress.get()
                         {
+                            //the only recognized control sequences are "\x1B[A" and "\x1B[B"
                             if read_buf[0] == ('\x1B' as u8) {
+                                //signal that a control sequence has started
+                                //and captures if flow on subsequent callbacks until control sequence is handled
                                 self.control_seq_in_progress.set(true);
                             } else if read_buf[0] != ('[' as u8) {
+                                //get the index of the next command in the history array, if it is valid
                                 if let Some(index) = match read_buf[0] {
+                                    //up arrow case
                                     b'A' => {
-                                        if let Some(i) = self.command_history_index.extract() {
-                                            self.command_history
-                                                .map(|cmd_arr| match cmd_arr[i + 1][0] {
-                                                    0 => None,
-                                                    _ => Some(i + 1),
-                                                })
-                                                .unwrap()
-                                        } else {
-                                            self.command_history
-                                                .map(|cmd_arr| match cmd_arr[0][0] {
-                                                    0 => None,
-                                                    _ => Some(0),
-                                                })
-                                                .unwrap()
-                                        }
+                                        let i = match self.command_history_index.extract() {
+                                            Some(i) => i + 1,
+                                            None => 0,
+                                        };
+                                        //check if there even is a command to move up to
+                                        self.command_history
+                                            .map(|cmd_arr| match cmd_arr[i][0] {
+                                                0 => None,
+                                                _ => Some(i),
+                                            })
+                                            .unwrap()
                                     }
+                                    //down arrow case
                                     b'B' => {
                                         if self.command_history_index.is_some()
                                             && self.command_history_index.extract().unwrap() > 0
                                         {
-                                            let index =
-                                                self.command_history_index.extract().unwrap() - 1;
-                                            Some(index)
+                                            Some(self.command_history_index.extract().unwrap() - 1)
                                         } else {
                                             None
                                         }
@@ -937,6 +942,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                             }
                                         };
 
+                                        //remove the last command from screen
                                         for _ in 0..prev_command_len {
                                             let _ = self.write_bytes(&[
                                                 '\x08' as u8,
@@ -944,6 +950,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                                 '\x08' as u8,
                                             ]);
                                         }
+                                        //and copy the next one
                                         for i in 0..next_command_len {
                                             let _ = self.write_byte(next_command[index][i]);
                                             command[i] = next_command[index][i];
