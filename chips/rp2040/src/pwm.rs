@@ -229,7 +229,7 @@ const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
 /// channel will see the logical OR of those two GPIO inputs
 impl From<RPGpio> for ChannelNumber {
     fn from(gpio: RPGpio) -> Self {
-        match gpio as u8 >> 1 & 7 {
+        match gpio as u8 >> 1 & 0b111 {
             // Because of the bitwise AND, there are only eight possible values
             0 => ChannelNumber::Ch0,
             1 => ChannelNumber::Ch1,
