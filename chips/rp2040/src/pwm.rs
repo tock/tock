@@ -18,7 +18,7 @@ use kernel::debug;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -118,24 +118,25 @@ struct Ch {
     top: ReadWrite<u32, TOP::Register>,
 }
 
-#[repr(C)]
-struct PwmRegisters {
-    // Channel registers
-    // core::mem::variant_count::<ChannenlNumber>() can't be used since it is not stable
-    ch: [Ch; NUMBER_CHANNELS],
-    // Enable register
-    // This register aliases the CSR_EN bits for all channels.
-    // Writing to this register allows multiple channels to be enabled or disabled
-    // or disables simultaneously, so they can run in perfect sync.
-    en: ReadWrite<u32, CH::Register>,
-    // Raw interrupts register
-    intr: WriteOnly<u32, CH::Register>,
-    // Interrupt enable register
-    inte: ReadWrite<u32, CH::Register>,
-    // Interrupt force register
-    intf: ReadWrite<u32, CH::Register>,
-    // Interrupt status after masking & forcing
-    ints: ReadOnly<u32, CH::Register>,
+register_structs! {
+    PwmRegisters {
+        // Channel registers
+        (0x0000 => ch: [Ch; NUMBER_CHANNELS]),
+        // Enable register
+        // This register aliases the CSR_EN bits for all channels.
+        // Writing to this register allows multiple channels to be enabled or disabled
+        // or disables simultaneously, so they can run in perfect sync.
+        (0x00A0 => en: ReadWrite<u32, CH::Register>),
+        // Raw interrupts register
+        (0x00A4 => intr: WriteOnly<u32, CH::Register>),
+        // Interrupt enable register
+        (0x00A8 => inte: ReadWrite<u32, CH::Register>),
+        // Interrupt force register
+        (0x00AC => intf: ReadWrite<u32, CH::Register>),
+        // Interrupt status after masking & forcing
+        (0x00B0 => ints: ReadOnly<u32, CH::Register>),
+        (0x00B4 => @END),
+    }
 }
 
 #[derive(Clone, Copy)]
