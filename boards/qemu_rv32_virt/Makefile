@@ -68,31 +68,29 @@ QEMU_BASE_CMDLINE := \
     $(QEMU_NETDEV_CMDLINE) \
     -nographic
 
-# Some helpful instructions & information. Requires that a qemu-riscv32-system
-# binary is in the user's PATH. The tested & verified QEMU version is printed
-# along with the one used. No actual version check is performed given the
-# simulation might work with different version, though should at leat work on
-# the tested one.
-.PHONY: qemu-usage-instructions
-qemu-usage-instructions:
-	@echo
-	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)" \
-	  "(tested: $(WORKING_QEMU_VERSION)) with\n" \
-          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
-	@test "\"$(APP)\" != \"\"" && echo -e "  - app $(APP)"
-	@echo "To exit type C-a x"
-	@echo
-
 # Run the kernel inside a qemu-riscv32-system "virt" machine type simulation
 .PHONY: run
-run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf qemu-usage-instructions
+run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	@echo
+	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)"\
+	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
+	@echo "To exit type C-a x"
+	@echo
 	$(QEMU_BASE_CMDLINE) \
 	  -bios $<
 
 # Same as `run`, but load an application specified by $(APP) into the respective
 # memory location.
 .PHONY: run-app
-run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf qemu-usage-instructions
+run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	@echo
+	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)"\
+	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf\n"\
+	  " - app $(APP)"
+	@echo "To exit type C-a x"
+	@echo
 	$(QEMU_BASE_CMDLINE) \
 	  -bios $< \
 	  -device loader,file=$(APP),addr=0x80100000
