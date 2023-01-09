@@ -909,13 +909,17 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                             Some(i) => i + 1,
                                             None => 0,
                                         };
-                                        //check if there even is a command to move up to
-                                        self.command_history
-                                            .map(|cmd_arr| match cmd_arr[i][0] {
-                                                0 => None,
-                                                _ => Some(i),
-                                            })
-                                            .unwrap()
+                                        if i >= COMMAND_HISTORY_LEN {
+                                            None
+                                        } else {
+                                            //check if there even is a command to move up to
+                                            self.command_history
+                                                .map(|cmd_arr| match cmd_arr[i][0] {
+                                                    0 => None,
+                                                    _ => Some(i),
+                                                })
+                                                .unwrap()
+                                        }
                                     }
                                     //down arrow case
                                     b'B' => {
