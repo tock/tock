@@ -21,6 +21,11 @@ WORKING_QEMU_VERSION := 7.2.0
 #   sockets. This option also accepts an optional NETDEV_SLIRP_ARGS
 #   which is appended to the provided string.
 #
+#   To forward TCP port 1234 on the emulated Tock device (having IP
+#   192.168.1.50) to the host port 5678, set the following variable:
+#
+#       NETDEV_SLIRP_ARGS=hostfwd=tcp::5678-192.168.1.50:1234
+#
 # - NETDEV: TAP
 #
 #   Creates a TAP network interface to act as a layer-2 Ethernet
@@ -29,16 +34,16 @@ WORKING_QEMU_VERSION := 7.2.0
 #   host. Use SUDO-TAP instead to run QEMU through `sudo`.
 NETDEV            ?= NONE
 ifneq ($(NETDEV_SLIRP_ARGS),)
-  NETDEV_SLIRP_ARGS := ,$(NETDEV_SLIRP_ARGS)
+  NETDEV_SLIRP_ARGS_INT := ,$(NETDEV_SLIRP_ARGS)
 else
-  NETDEV_SLIRP_ARGS :=
+  NETDEV_SLIRP_ARGS_INT :=
 endif
 
 ifeq ($(NETDEV),NONE)
   QEMU_NETDEV_CMDLINE = ""
 else ifeq ($(NETDEV),SLIRP)
   QEMU_NETDEV_CMDLINE = \
-    -netdev user,id=n0,net=192.168.1.0/24,dhcpstart=192.168.1.255$(NETDEV_SLIRP_ARGS) \
+    -netdev user,id=n0,net=192.168.1.0/24,dhcpstart=192.168.1.255$(NETDEV_SLIRP_ARGS_INT) \
     -device virtio-net-device,netdev=n0
 else ifneq (,$(filter $(NETDEV),TAP SUDO-TAP))
   QEMU_NETDEV_CMDLINE = \
