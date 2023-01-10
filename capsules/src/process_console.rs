@@ -988,6 +988,3 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
         let _ = self.uart.receive_buffer(read_buf, 1);
     }
 }
-
-/*
-*/
