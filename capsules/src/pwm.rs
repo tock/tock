@@ -77,11 +77,8 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // Check whether the driver exists.
-            0 => CommandReturn::success(),
-
             // Return number of usable PWM pins.
-            1 => CommandReturn::success_u32(NUM_PINS as u32),
+            0 => CommandReturn::success_u32(NUM_PINS as u32),
 
             // Start the pwm output.
 
@@ -92,7 +89,7 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
             // This format was chosen because there are only 2 parameters in the command function that can be used for storing values,
             // but in this case, 3 values are needed (pin, frequency, duty cycle), so data1 stores two of these values that can be
             // represented using only 16 bits.
-            2 => {
+            1 => {
                 let pin = data1 & ((1 << 16) - 1);
                 let duty_cycle = data1 >> 16;
                 let frequency_hz = data2;
@@ -107,13 +104,21 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
                     } else {
                         // App can claim pin, start pwm pin at given frequency and duty_cycle.
                         self.active_process[pin].set(processid);
-                        self.pwm_pins[pin].start(frequency_hz, duty_cycle).into()
+                        // Duty cycle is represented as a 4 digit number, so we divide by 10000 to get the percentage of the max duty cycle.
+                        // e.g.: a duty cycle of 60.5% is represented as 6050, so the actual value of the duty cycle is
+                        // 6050 * max_duty_cycle / 10000 = 0.605 * max_duty_cycle
+                        self.pwm_pins[pin]
+                            .start(
+                                frequency_hz,
+                                duty_cycle * self.pwm_pins[pin].get_maximum_duty_cycle() / 10000,
+                            )
+                            .into()
                     }
                 }
             }
 
             // Stop the PWM output.
-            3 => {
+            2 => {
                 let pin = data1;
                 if pin >= NUM_PINS {
                     // App asked to use a pin that doesn't exist.
@@ -134,7 +139,7 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
             }
 
             // Get max frequency of pin.
-            4 => {
+            3 => {
                 let pin = data1;
                 if pin >= NUM_PINS {
                     CommandReturn::failure(ErrorCode::INVAL)
