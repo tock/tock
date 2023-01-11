@@ -145,7 +145,8 @@ struct Imix {
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    credentials_checking_policy: &'static AppCheckerSha256,
+    credentials_checking_policy: &'static (),
+    //credentials_checking_policy: &'static AppCheckerSha256,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -196,7 +197,8 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = AppCheckerSha256;
+    type CredentialsCheckingPolicy = ();
+    //type CredentialsCheckingPolicy = AppCheckerSha256;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -688,7 +690,8 @@ pub unsafe fn main() {
         nonvolatile_storage,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
-        credentials_checking_policy: checker,
+        //credentials_checking_policy: checker,
+        credentials_checking_policy: &(),
     };
 
     // Need to initialize the UART for the nRF51 serialization.
