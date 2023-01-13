@@ -73,8 +73,9 @@ For full authorship information, see the version control history.
 4 Implementation
 ================
 
-All textual files that allow comments MUST include a license notice and
-copyright notice(s).
+Where possible, all textual files that allow comments MUST include a license
+notice and copyright notice(s). Files that are not authored by Tock contributors
+(such as files copied from other projects) are exempt from this policy.
 
 Copyright notices SHOULD include a year. Newer copyright notices SHOULD be
 placed after existing copyright notices. If non-trivial updates are performed by
@@ -124,16 +125,18 @@ copyright holder to relinquish the initial copyright.
 
 ### 4.1.1 Examples
 
-The common-case format is the top of a file with only license information:
+The common-case format is:
 
 ```rust
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors <YYYY>.
+// Copyright <you/your company> <YYYY>.
 
 //! Module-level documentation...
 ```
 
-It need not include a copyright line.
+placed at the top of the file.
 
 A file with a long history and multiple copyrights may look as follows:
 
@@ -142,8 +145,8 @@ A file with a long history and multiple copyrights may look as follows:
 
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2014.
 # Copyright Pat Pannuto 2014,2016-2018,2021.
-# Copyright Tock Project Developers 2015.
 # Copyright Amit Levy 2016-2019.
 # Copyright Bradford James Campbell 2022.
 
