@@ -87,7 +87,7 @@ discretion.
 4.1 Format
 ----------
 
-License and copyright information SHOULD have exactly one (1) blank line
+License and copyright information SHOULD have at least one (1) blank line
 separating it from any other content in the file.
 
 Text described in this section SHOULD be pre-fixed or post-fixed with
@@ -131,12 +131,23 @@ The common-case format is:
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors <YYYY>.
-// Copyright <you/your company> <YYYY>.
 
 //! Module-level documentation...
 ```
 
 placed at the top of the file.
+
+If you wish to specifically call out the contribution by you or your company,
+you may do so by adding another copyright line:
+
+```rust
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors <YYYY>.
+// Copyright <you/your company> <YYYY>.
+
+//! Module-level documentation...
+```
 
 A file with a long history and multiple copyrights may look as follows:
 
