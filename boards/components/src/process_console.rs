@@ -31,6 +31,7 @@ macro_rules! process_console_component_static {
         let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
             capsules::process_console::ProcessConsole<
+                { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
                 capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 components::process_console::Capability,
             >
@@ -56,22 +57,54 @@ macro_rules! process_console_component_static {
             pconsole,
         )
     };};
+    ($A: ty $(,)?, $COMMAND_HISTORY_LEN: literal) => {{
+        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
+        let pconsole = kernel::static_buf!(
+            capsules::process_console::ProcessConsole<
+                $COMMAND_HISTORY_LEN,
+                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                components::process_console::Capability,
+            >
+        );
+
+        let write_buffer = kernel::static_buf!([u8; capsules::process_console::WRITE_BUF_LEN]);
+        let read_buffer = kernel::static_buf!([u8; capsules::process_console::READ_BUF_LEN]);
+        let queue_buffer = kernel::static_buf!([u8; capsules::process_console::QUEUE_BUF_LEN]);
+        let command_buffer = kernel::static_buf!([u8; capsules::process_console::COMMAND_BUF_LEN]);
+        let command_history_buffer = kernel::static_buf!(
+            [capsules::process_console::Command; capsules::process_console::$COMMAND_HISTORY_LEN]
+        );
+
+        (
+            alarm,
+            uart,
+            write_buffer,
+            read_buffer,
+            queue_buffer,
+            command_buffer,
+            command_history_buffer,
+            pconsole,
+        )
+    };};
 }
 
-pub struct ProcessConsoleComponent<A: 'static + Alarm<'static>> {
+pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     process_printer: &'static dyn ProcessPrinter,
 }
 
-impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
+impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
+    ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         uart_mux: &'static MuxUart,
         alarm_mux: &'static MuxAlarm<'static, A>,
         process_printer: &'static dyn ProcessPrinter,
-    ) -> ProcessConsoleComponent<A> {
+    ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A> {
         ProcessConsoleComponent {
             board_kernel,
             uart_mux,
@@ -98,7 +131,9 @@ extern "C" {
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
-impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
+impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
+    for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<UartDevice<'static>>,
@@ -106,14 +141,17 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
         &'static mut MaybeUninit<[u8; capsules::process_console::READ_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules::process_console::QUEUE_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules::process_console::COMMAND_BUF_LEN]>,
+        &'static mut MaybeUninit<[capsules::process_console::Command; COMMAND_HISTORY_LEN]>,
         &'static mut MaybeUninit<
-            [capsules::process_console::Command;
-                capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN],
+            ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>, Capability>,
         >,
-        &'static mut MaybeUninit<ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>>,
     );
-    type Output =
-        &'static process_console::ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>;
+    type Output = &'static process_console::ProcessConsole<
+        'static,
+        COMMAND_HISTORY_LEN,
+        VirtualMuxAlarm<'static, A>,
+        Capability,
+    >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
@@ -153,10 +191,9 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
         let command_buffer = static_buffer
             .5
             .write([0; capsules::process_console::COMMAND_BUF_LEN]);
-        let command_history_buffer = static_buffer.6.write(
-            [capsules::process_console::Command::new();
-                capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN],
-        );
+        let command_history_buffer = static_buffer
+            .6
+            .write([capsules::process_console::Command::new(); COMMAND_HISTORY_LEN]);
 
         let console = static_buffer.7.write(ProcessConsole::new(
             console_uart,
