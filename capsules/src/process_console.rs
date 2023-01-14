@@ -69,6 +69,68 @@ impl Default for WriterState {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct Command<const LEN: usize> {
+    buf: [u8; LEN],
+    len: usize,
+}
+impl<const LEN: usize> Command<LEN> {
+    pub fn new() -> Command<LEN> {
+        Command {
+            buf: [0; LEN],
+            len: 0,
+        }
+    }
+
+    pub fn fill(&mut self, buf: &[u8], terminator_idx: usize) -> Result<(), ErrorCode> {
+        if terminator_idx >= LEN {
+            self.len = LEN;
+        } else {
+            self.len = terminator_idx;
+        }
+
+        for i in 0..self.len {
+            self.buf[i] = buf[i];
+        }
+
+        Ok(())
+    }
+
+    pub fn is_buffer_empty(&mut self) -> Option<bool> {
+        Some(self.len == 0 && self.buf[0] == 0)
+    }
+
+    pub fn is_byte_empty(&mut self, byte_idx: usize) -> Option<bool> {
+        if byte_idx >= self.len {
+            return None;
+        }
+
+        Some(self.buf[byte_idx] == 0)
+    }
+
+    pub fn get_byte(&mut self, byte_idx: usize) -> Option<u8> {
+        if byte_idx >= self.len {
+            return None;
+        }
+
+        Some(self.buf[byte_idx])
+    }
+
+    pub fn same_bytes(&mut self, buf: &[u8], terminator_idx: usize) -> Option<bool> {
+        if terminator_idx != self.len {
+            return Some(false);
+        }
+
+        for i in 0..self.len {
+            if self.buf[i] != buf[i] {
+                return Some(false);
+            }
+        }
+
+        Some(true)
+    }
+}
+
 /// Data structure to hold addresses about how the kernel is stored in memory on
 /// the chip.
 ///
@@ -100,10 +162,12 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
 
+    /// Keep a history of inserted commands
+    command_history: TakeCell<'static, [Command<{ COMMAND_BUF_LEN }>; COMMAND_HISTORY_LEN]>,
+
     control_seq_in_progress: Cell<bool>,
-    command_history: TakeCell<'static, [[u8; COMMAND_BUF_LEN]; COMMAND_HISTORY_LEN]>,
-    //None        => user is typing a command
-    //Some(index) => command_history[index] was last copied into the command_buffer
+
+    /// Index of the last copied command in the history
     command_history_index: OptionalCell<usize>,
 
     /// Keep the previously read byte to consider \r\n sequences
@@ -173,7 +237,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
-        cmd_history_buffer: &'static mut [[u8; COMMAND_BUF_LEN]; COMMAND_HISTORY_LEN],
+        cmd_history_buffer: &'static mut [Command<{ COMMAND_BUF_LEN }>; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         capability: C,
@@ -471,12 +535,29 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                     Ok(s) => {
                         let clean_str = s.trim();
 
+                        // Try to add a new command to the history buffer
                         self.command_history.map(|cmd_arr| {
-                            for i in (1..10).rev() {
-                                cmd_arr[i] = cmd_arr[i - 1];
-                            }
-                            for i in 0..(terminator + 1) {
-                                cmd_arr[0][i] = command[i];
+                            match cmd_arr[0].same_bytes(command, terminator + 1) {
+                                Some(q) => {
+                                    if !q {
+                                        for i in (1..COMMAND_HISTORY_LEN).rev() {
+                                            cmd_arr[i] = cmd_arr[i - 1];
+                                        }
+
+                                        match cmd_arr[0].fill(command, terminator + 1) {
+                                            Err(_) => {
+                                                let _ = self.write_bytes(
+                                                    b"Error: input command too long.\r\n",
+                                                );
+                                            }
+                                            _ => {
+                                                // Ignore the Ok message
+                                            }
+                                        }
+                                    }
+                                }
+
+                                _ => {}
                             }
                         });
 
@@ -865,9 +946,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                 1 => {
                     self.command_buffer.map(|command| {
                         if command[0] == 0 {
-                            //None is seen as a "user is typing" state
-                            //from the perspective of the command browser
-                            //and thus it returns to the default state
+                            // Sets the default state when user is typing
                             self.command_history_index.insert(None);
                         }
                         let previous_byte = self.previous_byte.get();
@@ -877,8 +956,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                             if (previous_byte == ('\n' as u8) || previous_byte == ('\r' as u8))
                                 && previous_byte != read_buf[0]
                             {
-                                // ignore the \n or \r as it is the second byte of a \r\n sequence
-                                // reset the sequence
+                                // Reset the sequence, when \r\n is received
                                 self.previous_byte.set(0);
                             } else {
                                 self.execute.set(true);
@@ -895,15 +973,14 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                         } else if read_buf[0] == ('\x1B' as u8)
                             || self.control_seq_in_progress.get()
                         {
-                            //the only recognized control sequences are "\x1B[A" and "\x1B[B"
+                            // Catch the Up and Down arrow keys
                             if read_buf[0] == ('\x1B' as u8) {
-                                //signal that a control sequence has started
-                                //and captures if flow on subsequent callbacks until control sequence is handled
+                                // Signal that a control sequence has started and capture it
                                 self.control_seq_in_progress.set(true);
                             } else if read_buf[0] != ('[' as u8) {
-                                //get the index of the next command in the history array, if it is valid
+                                // Fetch the index of the last command added to the history
                                 if let Some(index) = match read_buf[0] {
-                                    //up arrow case
+                                    // Up arrow case
                                     b'A' => {
                                         let i = match self.command_history_index.extract() {
                                             Some(i) => i + 1,
@@ -912,16 +989,19 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                         if i >= COMMAND_HISTORY_LEN {
                                             None
                                         } else {
-                                            //check if there even is a command to move up to
+                                            // Check if any command can be displayed
                                             self.command_history
-                                                .map(|cmd_arr| match cmd_arr[i][0] {
-                                                    0 => None,
-                                                    _ => Some(i),
+                                                .map(|cmd_arr| match cmd_arr[i].is_buffer_empty() {
+                                                    None => None,
+                                                    Some(q) => match q {
+                                                        true => None,
+                                                        _ => Some(i),
+                                                    },
                                                 })
                                                 .unwrap()
                                         }
                                     }
-                                    //down arrow case
+                                    // Down arrow case
                                     b'B' => {
                                         if self.command_history_index.is_some()
                                             && self.command_history_index.extract().unwrap() > 0
@@ -939,14 +1019,17 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                         let next_command_len = {
                                             let mut i = 0;
                                             loop {
-                                                if next_command[index][i] == 0 {
+                                                if match next_command[index].is_byte_empty(i) {
+                                                    None => true,
+                                                    Some(q) => q,
+                                                } {
                                                     break i;
                                                 }
                                                 i = i + 1;
                                             }
                                         };
 
-                                        //remove the last command from screen
+                                        // Reset the command displayed
                                         for _ in 0..prev_command_len {
                                             let _ = self.write_bytes(&[
                                                 '\x08' as u8,
@@ -954,10 +1037,16 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                                 '\x08' as u8,
                                             ]);
                                         }
-                                        //and copy the next one
+
+                                        // Display the new command
                                         for i in 0..next_command_len {
-                                            let _ = self.write_byte(next_command[index][i]);
-                                            command[i] = next_command[index][i];
+                                            let byte_to_write =
+                                                match next_command[index].get_byte(i) {
+                                                    None => '\0' as u8,
+                                                    Some(q) => q,
+                                                };
+                                            let _ = self.write_byte(byte_to_write);
+                                            command[i] = byte_to_write;
                                         }
 
                                         self.command_index.set(next_command_len);
