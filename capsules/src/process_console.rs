@@ -533,23 +533,25 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         let clean_str = s.trim();
 
                         // Try to add a new command to the history buffer
-                        self.command_history.map(|cmd_arr| {
-                            if !cmd_arr[0].same_bytes(command, terminator + 1) {
-                                for i in (1..DEFAULT_COMMAND_HISTORY_LEN).rev() {
-                                    cmd_arr[i] = cmd_arr[i - 1];
-                                }
+                        if DEFAULT_COMMAND_HISTORY_LEN > 0 {
+                            self.command_history.map(|cmd_arr| {
+                                if !cmd_arr[0].same_bytes(command, terminator + 1) {
+                                    for i in (1..DEFAULT_COMMAND_HISTORY_LEN).rev() {
+                                        cmd_arr[i] = cmd_arr[i - 1];
+                                    }
 
-                                match cmd_arr[0].fill(command, terminator + 1) {
-                                    Err(_) => {
-                                        let _ =
-                                            self.write_bytes(b"Error: input command too long.\r\n");
-                                    }
-                                    _ => {
-                                        // Ignore the Ok message
+                                    match cmd_arr[0].fill(command, terminator + 1) {
+                                        Err(_) => {
+                                            let _ = self
+                                                .write_bytes(b"Error: input command too long.\r\n");
+                                        }
+                                        _ => {
+                                            // Ignore the Ok message
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            });
+                        }
 
                         if clean_str.starts_with("help") {
                             let _ = self.write_bytes(b"Welcome to the process console.\r\n");
