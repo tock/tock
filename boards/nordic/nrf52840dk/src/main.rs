@@ -72,7 +72,6 @@
 use capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::process_console::Command;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
