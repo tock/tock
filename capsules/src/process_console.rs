@@ -34,12 +34,14 @@ pub const READ_BUF_LEN: usize = 4;
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub const COMMAND_BUF_LEN: usize = 32;
 
-pub const COMMAND_HISTORY_LEN: usize = 10;
+pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
     b"help status list stop start fault boot terminate process kernel panic\r\n";
+
+const ESC: u8 = '\x1B' as u8;
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -70,34 +72,35 @@ impl Default for WriterState {
 }
 
 #[derive(Copy, Clone)]
-pub struct Command<const LEN: usize> {
-    buf: [u8; LEN],
+pub struct Command {
+    buf: [u8; COMMAND_BUF_LEN],
     len: usize,
 }
-impl<const LEN: usize> Command<LEN> {
-    pub fn new() -> Command<LEN> {
+impl Command {
+    pub fn new() -> Command {
         Command {
-            buf: [0; LEN],
+            buf: [0; COMMAND_BUF_LEN],
             len: 0,
         }
     }
 
+    /// Fill the buffer with the provided data.
+    /// If the provided data length is smaller than the buffer length,
+    /// the left over bytes are not modified due to '\0' termination.
     pub fn fill(&mut self, buf: &[u8], terminator_idx: usize) -> Result<(), ErrorCode> {
-        if terminator_idx >= LEN {
-            self.len = LEN;
+        if terminator_idx >= COMMAND_BUF_LEN {
+            self.len = COMMAND_BUF_LEN;
         } else {
             self.len = terminator_idx;
         }
 
-        for i in 0..self.len {
-            self.buf[i] = buf[i];
-        }
+        self.buf[..self.len].copy_from_slice(&buf[..self.len]);
 
         Ok(())
     }
 
-    pub fn is_buffer_empty(&mut self) -> Option<bool> {
-        Some(self.len == 0 && self.buf[0] == 0)
+    pub fn is_buffer_empty(&mut self) -> bool {
+        self.len == 0 && self.buf[0] == 0
     }
 
     pub fn is_byte_empty(&mut self, byte_idx: usize) -> Option<bool> {
@@ -116,18 +119,12 @@ impl<const LEN: usize> Command<LEN> {
         Some(self.buf[byte_idx])
     }
 
-    pub fn same_bytes(&mut self, buf: &[u8], terminator_idx: usize) -> Option<bool> {
+    pub fn same_bytes(&mut self, buf: &[u8], terminator_idx: usize) -> bool {
         if terminator_idx != self.len {
-            return Some(false);
+            return false;
         }
 
-        for i in 0..self.len {
-            if self.buf[i] != buf[i] {
-                return Some(false);
-            }
-        }
-
-        Some(true)
+        self.buf.iter().zip(buf.iter()).all(|(a, b)| a == b)
     }
 }
 
@@ -163,7 +160,7 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     command_index: Cell<usize>,
 
     /// Keep a history of inserted commands
-    command_history: TakeCell<'static, [Command<{ COMMAND_BUF_LEN }>; COMMAND_HISTORY_LEN]>,
+    command_history: TakeCell<'static, [Command; DEFAULT_COMMAND_HISTORY_LEN]>,
 
     control_seq_in_progress: Cell<bool>,
 
@@ -237,7 +234,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
-        cmd_history_buffer: &'static mut [Command<{ COMMAND_BUF_LEN }>; COMMAND_HISTORY_LEN],
+        cmd_history_buffer: &'static mut [Command; DEFAULT_COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         capability: C,
@@ -537,27 +534,20 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
 
                         // Try to add a new command to the history buffer
                         self.command_history.map(|cmd_arr| {
-                            match cmd_arr[0].same_bytes(command, terminator + 1) {
-                                Some(q) => {
-                                    if !q {
-                                        for i in (1..COMMAND_HISTORY_LEN).rev() {
-                                            cmd_arr[i] = cmd_arr[i - 1];
-                                        }
-
-                                        match cmd_arr[0].fill(command, terminator + 1) {
-                                            Err(_) => {
-                                                let _ = self.write_bytes(
-                                                    b"Error: input command too long.\r\n",
-                                                );
-                                            }
-                                            _ => {
-                                                // Ignore the Ok message
-                                            }
-                                        }
-                                    }
+                            if !cmd_arr[0].same_bytes(command, terminator + 1) {
+                                for i in (1..DEFAULT_COMMAND_HISTORY_LEN).rev() {
+                                    cmd_arr[i] = cmd_arr[i - 1];
                                 }
 
-                                _ => {}
+                                match cmd_arr[0].fill(command, terminator + 1) {
+                                    Err(_) => {
+                                        let _ =
+                                            self.write_bytes(b"Error: input command too long.\r\n");
+                                    }
+                                    _ => {
+                                        // Ignore the Ok message
+                                    }
+                                }
                             }
                         });
 
@@ -970,11 +960,9 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                 command[index - 1] = '\0' as u8;
                                 self.command_index.set(index - 1);
                             }
-                        } else if read_buf[0] == ('\x1B' as u8)
-                            || self.control_seq_in_progress.get()
-                        {
+                        } else if read_buf[0] == ESC || self.control_seq_in_progress.get() {
                             // Catch the Up and Down arrow keys
-                            if read_buf[0] == ('\x1B' as u8) {
+                            if read_buf[0] == ESC {
                                 // Signal that a control sequence has started and capture it
                                 self.control_seq_in_progress.set(true);
                             } else if read_buf[0] != ('[' as u8) {
@@ -986,17 +974,14 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                             Some(i) => i + 1,
                                             None => 0,
                                         };
-                                        if i >= COMMAND_HISTORY_LEN {
+                                        if i >= DEFAULT_COMMAND_HISTORY_LEN {
                                             None
                                         } else {
                                             // Check if any command can be displayed
                                             self.command_history
                                                 .map(|cmd_arr| match cmd_arr[i].is_buffer_empty() {
-                                                    None => None,
-                                                    Some(q) => match q {
-                                                        true => None,
-                                                        _ => Some(i),
-                                                    },
+                                                    true => None,
+                                                    _ => Some(i),
                                                 })
                                                 .unwrap()
                                         }

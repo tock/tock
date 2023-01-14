@@ -41,8 +41,8 @@ macro_rules! process_console_component_static {
         let queue_buffer = kernel::static_buf!([u8; capsules::process_console::QUEUE_BUF_LEN]);
         let command_buffer = kernel::static_buf!([u8; capsules::process_console::COMMAND_BUF_LEN]);
         let command_history_buffer = kernel::static_buf!(
-            [capsules::process_console::Command<{ capsules::process_console::COMMAND_BUF_LEN }>;
-                capsules::process_console::COMMAND_HISTORY_LEN]
+            [capsules::process_console::Command;
+                capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN]
         );
 
         (
@@ -107,8 +107,8 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
         &'static mut MaybeUninit<[u8; capsules::process_console::QUEUE_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules::process_console::COMMAND_BUF_LEN]>,
         &'static mut MaybeUninit<
-            [capsules::process_console::Command<{ capsules::process_console::COMMAND_BUF_LEN }>;
-                capsules::process_console::COMMAND_HISTORY_LEN],
+            [capsules::process_console::Command;
+                capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN],
         >,
         &'static mut MaybeUninit<ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>>,
     );
@@ -154,8 +154,8 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
             .5
             .write([0; capsules::process_console::COMMAND_BUF_LEN]);
         let command_history_buffer = static_buffer.6.write(
-            [capsules::process_console::Command::<{ capsules::process_console::COMMAND_BUF_LEN }>::new();
-                capsules::process_console::COMMAND_HISTORY_LEN],
+            [capsules::process_console::Command::new();
+                capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN],
         );
 
         let console = static_buffer.7.write(ProcessConsole::new(
