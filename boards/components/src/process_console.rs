@@ -73,7 +73,7 @@ macro_rules! process_console_component_static {
         let queue_buffer = kernel::static_buf!([u8; capsules::process_console::QUEUE_BUF_LEN]);
         let command_buffer = kernel::static_buf!([u8; capsules::process_console::COMMAND_BUF_LEN]);
         let command_history_buffer = kernel::static_buf!(
-            [capsules::process_console::Command; capsules::process_console::$COMMAND_HISTORY_LEN]
+            [capsules::process_console::Command; $COMMAND_HISTORY_LEN]
         );
 
         (
