@@ -119,11 +119,7 @@ impl Command {
         Some(self.buf[byte_idx])
     }
 
-    pub fn same_bytes(&mut self, buf: &[u8], terminator_idx: usize) -> bool {
-        if terminator_idx != self.len {
-            return false;
-        }
-
+    pub fn same_bytes(&mut self, buf: &[u8; COMMAND_BUF_LEN]) -> bool {
         self.buf.iter().zip(buf.iter()).all(|(a, b)| a == b)
     }
 }
@@ -535,18 +531,24 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         // Try to add a new command to the history buffer
                         if DEFAULT_COMMAND_HISTORY_LEN > 0 {
                             self.command_history.map(|cmd_arr| {
-                                if !cmd_arr[0].same_bytes(command, terminator + 1) {
-                                    for i in (1..DEFAULT_COMMAND_HISTORY_LEN).rev() {
-                                        cmd_arr[i] = cmd_arr[i - 1];
-                                    }
+                                if len == COMMAND_BUF_LEN {
+                                    let mut command_array = [0; COMMAND_BUF_LEN];
+                                    command_array.copy_from_slice(command);
 
-                                    match cmd_arr[0].fill(command, terminator + 1) {
-                                        Err(_) => {
-                                            let _ = self
-                                                .write_bytes(b"Error: input command too long.\r\n");
+                                    if !cmd_arr[0].same_bytes(&command_array) {
+                                        for i in (1..DEFAULT_COMMAND_HISTORY_LEN).rev() {
+                                            cmd_arr[i] = cmd_arr[i - 1];
                                         }
-                                        _ => {
-                                            // Ignore the Ok message
+
+                                        match cmd_arr[0].fill(command, terminator + 1) {
+                                            Err(_) => {
+                                                let _ = self.write_bytes(
+                                                    b"Error: input command too long.\r\n",
+                                                );
+                                            }
+                                            _ => {
+                                                // Ignore the Ok message
+                                            }
                                         }
                                     }
                                 }
