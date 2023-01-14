@@ -141,7 +141,12 @@ pub struct KernelAddresses {
     pub bss_end: *const u8,
 }
 
-pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
+pub struct ProcessConsole<
+    'a,
+    const COMMAND_HISTORY_LEN: usize,
+    A: Alarm<'a>,
+    C: ProcessManagementCapability,
+> {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
     process_printer: &'a dyn ProcessPrinter,
@@ -156,7 +161,7 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     command_index: Cell<usize>,
 
     /// Keep a history of inserted commands
-    command_history: TakeCell<'static, [Command; DEFAULT_COMMAND_HISTORY_LEN]>,
+    command_history: TakeCell<'static, [Command; COMMAND_HISTORY_LEN]>,
 
     control_seq_in_progress: Cell<bool>,
 
@@ -221,7 +226,9 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> {
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
+    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+{
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         alarm: &'a A,
@@ -230,11 +237,11 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
-        cmd_history_buffer: &'static mut [Command; DEFAULT_COMMAND_HISTORY_LEN],
+        cmd_history_buffer: &'static mut [Command; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         capability: C,
-    ) -> ProcessConsole<'a, A, C> {
+    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
             uart: uart,
             alarm: alarm,
@@ -529,27 +536,18 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                         let clean_str = s.trim();
 
                         // Try to add a new command to the history buffer
-                        if DEFAULT_COMMAND_HISTORY_LEN > 0 {
+                        if COMMAND_HISTORY_LEN > 0 {
                             self.command_history.map(|cmd_arr| {
                                 if len == COMMAND_BUF_LEN {
                                     let mut command_array = [0; COMMAND_BUF_LEN];
                                     command_array.copy_from_slice(command);
 
                                     if !cmd_arr[0].same_bytes(&command_array) {
-                                        for i in (1..DEFAULT_COMMAND_HISTORY_LEN).rev() {
+                                        for i in (1..COMMAND_HISTORY_LEN).rev() {
                                             cmd_arr[i] = cmd_arr[i - 1];
                                         }
 
-                                        match cmd_arr[0].fill(command, terminator + 1) {
-                                            Err(_) => {
-                                                let _ = self.write_bytes(
-                                                    b"Error: input command too long.\r\n",
-                                                );
-                                            }
-                                            _ => {
-                                                // Ignore the Ok message
-                                            }
-                                        }
+                                        let _ = cmd_arr[0].fill(command, terminator + 1);
                                     }
                                 }
                             });
@@ -878,7 +876,9 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient for ProcessConsole<'a, A, C> {
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+{
     fn alarm(&self) {
         self.prompt();
         self.rx_buffer.take().map(|buffer| {
@@ -888,8 +888,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient for ProcessCo
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::TransmitClient
-    for ProcessConsole<'a, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
+    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn transmitted_buffer(
         &self,
@@ -924,8 +924,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::TransmitClient
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
-    for ProcessConsole<'a, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
+    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn received_buffer(
         &self,
@@ -978,7 +978,7 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                             Some(i) => i + 1,
                                             None => 0,
                                         };
-                                        if i >= DEFAULT_COMMAND_HISTORY_LEN {
+                                        if i >= COMMAND_HISTORY_LEN {
                                             None
                                         } else {
                                             // Check if any command can be displayed
