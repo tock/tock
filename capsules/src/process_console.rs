@@ -536,7 +536,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         let clean_str = s.trim();
 
                         // Try to add a new command to the history buffer
-                        if COMMAND_HISTORY_LEN > 0 {
+                        if clean_str.len() > 0 && COMMAND_HISTORY_LEN > 0 {
                             self.command_history.map(|cmd_arr| {
                                 if len == COMMAND_BUF_LEN {
                                     let mut command_array = [0; COMMAND_BUF_LEN];
