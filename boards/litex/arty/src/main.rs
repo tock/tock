@@ -114,6 +114,7 @@ struct LiteXArty {
     console: &'static capsules::console::Console<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<
             'static,
             litex_vexriscv::timer::LiteXAlarm<

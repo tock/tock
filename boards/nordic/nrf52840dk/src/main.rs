@@ -165,7 +165,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
-        20,
+        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,
@@ -438,8 +438,7 @@ pub unsafe fn main() {
         process_printer,
     )
     .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc<'static>,
-        20
+        nrf52840::rtc::Rtc<'static>
     ));
 
     // Setup the console.
