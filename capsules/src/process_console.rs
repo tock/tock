@@ -85,33 +85,23 @@ impl Command {
     }
 
     /// Fill the buffer with the provided data.
-    /// If the provided data length is smaller than the buffer length,
+    /// If the provided data's length is smaller than the buffer length,
     /// the left over bytes are not modified due to '\0' termination.
-    pub fn fill(&mut self, buf: &[u8], terminator_idx: usize) -> Result<(), ErrorCode> {
-        if terminator_idx >= COMMAND_BUF_LEN {
-            self.len = COMMAND_BUF_LEN;
+    pub fn fill(&mut self, buf: &[u8], terminator_idx: usize) {
+        self.len = if terminator_idx >= COMMAND_BUF_LEN {
+            COMMAND_BUF_LEN
         } else {
-            self.len = terminator_idx;
-        }
+            terminator_idx
+        };
 
         self.buf[..self.len].copy_from_slice(&buf[..self.len]);
-
-        Ok(())
     }
 
     pub fn is_buffer_empty(&mut self) -> bool {
-        self.len == 0 && self.buf[0] == 0
+        self.len == 0
     }
 
-    pub fn is_byte_empty(&mut self, byte_idx: usize) -> Option<bool> {
-        if byte_idx >= self.len {
-            return None;
-        }
-
-        Some(self.buf[byte_idx] == 0)
-    }
-
-    pub fn get_byte(&mut self, byte_idx: usize) -> Option<u8> {
+    pub fn get_byte(&self, byte_idx: usize) -> Option<u8> {
         if byte_idx >= self.len {
             return None;
         }
@@ -538,17 +528,15 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         // Try to add a new command to the history buffer
                         if clean_str.len() > 0 && COMMAND_HISTORY_LEN > 0 {
                             self.command_history.map(|cmd_arr| {
-                                if len == COMMAND_BUF_LEN {
-                                    let mut command_array = [0; COMMAND_BUF_LEN];
-                                    command_array.copy_from_slice(command);
+                                let mut command_array = [0; COMMAND_BUF_LEN];
+                                command_array.copy_from_slice(command);
 
-                                    if !cmd_arr[0].same_bytes(&command_array) {
-                                        for i in (1..COMMAND_HISTORY_LEN).rev() {
-                                            cmd_arr[i] = cmd_arr[i - 1];
-                                        }
-
-                                        let _ = cmd_arr[0].fill(command, terminator + 1);
+                                if !cmd_arr[0].same_bytes(&command_array) {
+                                    for i in (1..COMMAND_HISTORY_LEN).rev() {
+                                        cmd_arr[i] = cmd_arr[i - 1];
                                     }
+
+                                    cmd_arr[0].fill(command, terminator);
                                 }
                             });
                         }
@@ -1003,22 +991,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     _ => None,
                                 } {
                                     self.command_history_index.set(index);
-                                    self.command_history.map(|next_command| {
+                                    self.command_history.map(|cmd_arr| {
+                                        let next_command = cmd_arr[index];
                                         let prev_command_len = self.command_index.get();
-                                        let next_command_len = {
-                                            let mut i = 0;
-                                            loop {
-                                                if match next_command[index].is_byte_empty(i) {
-                                                    None => true,
-                                                    Some(q) => q,
-                                                } {
-                                                    break i;
-                                                }
-                                                i = i + 1;
-                                            }
-                                        };
+                                        let next_command_len = next_command.len;
 
-                                        // Reset the command displayed
+                                        // Clear the displayed command
                                         for _ in 0..prev_command_len {
                                             let _ = self.write_bytes(&[
                                                 '\x08' as u8,
@@ -1029,13 +1007,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                                         // Display the new command
                                         for i in 0..next_command_len {
-                                            let byte_to_write =
-                                                match next_command[index].get_byte(i) {
-                                                    None => '\0' as u8,
-                                                    Some(q) => q,
-                                                };
-                                            let _ = self.write_byte(byte_to_write);
-                                            command[i] = byte_to_write;
+                                            let byte = next_command.buf[i];
+                                            let _ = self.write_byte(byte);
+                                            command[i] = byte;
                                         }
 
                                         self.command_index.set(next_command_len);
