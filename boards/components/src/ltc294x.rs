@@ -18,6 +18,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
+use kernel::hil::i2c;
 
 #[macro_export]
 macro_rules! ltc294x_component_static {
@@ -38,15 +39,15 @@ macro_rules! ltc294x_driver_component_static {
     };};
 }
 
-pub struct Ltc294xComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Ltc294xComponent<I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: Option<&'static dyn gpio::InterruptPin<'static>>,
 }
 
-impl Ltc294xComponent {
+impl<I: 'static + i2c::I2CMaster> Ltc294xComponent<I> {
     pub fn new(
-        i2c_mux: &'static MuxI2C<'static>,
+        i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         interrupt_pin: Option<&'static dyn gpio::InterruptPin<'static>>,
     ) -> Self {
@@ -58,9 +59,9 @@ impl Ltc294xComponent {
     }
 }
 
-impl Component for Ltc294xComponent {
+impl<I: 'static + i2c::I2CMaster> Component for Ltc294xComponent<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<LTC294X<'static>>,
         &'static mut MaybeUninit<[u8; capsules_extra::ltc294x::BUF_LEN]>,
     );

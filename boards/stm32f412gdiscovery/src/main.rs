@@ -613,7 +613,7 @@ pub unsafe fn main() {
     // FT6206
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(&base_peripherals.i2c1, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(stm32f412g::i2c::I2C));
 
     let ft6x06 = components::ft6x06::Ft6x06Component::new(
         mux_i2c,
@@ -623,7 +623,7 @@ pub unsafe fn main() {
             .get_pin(stm32f412g::gpio::PinId::PG05)
             .unwrap(),
     )
-    .finalize(components::ft6x06_component_static!());
+    .finalize(components::ft6x06_component_static!(stm32f412g::i2c::I2C));
 
     let bus = components::bus::Bus8080BusComponent::new(&base_peripherals.fsmc).finalize(
         components::bus8080_bus_component_static!(stm32f412g::fsmc::Fsmc,),

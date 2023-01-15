@@ -453,7 +453,7 @@ pub unsafe fn main() {
     );
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(nrf52833::i2c::TWI));
 
     // LSM303AGR
 
@@ -464,7 +464,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_component_static!());
+    .finalize(components::lsm303agr_component_static!(nrf52833::i2c::TWI));
 
     if let Err(error) = lsm303agr.configure(
         capsules_extra::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,

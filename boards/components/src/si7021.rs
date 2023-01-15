@@ -19,17 +19,18 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::si7021::SI7021;
 use kernel::component::Component;
+use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! si7021_component_static {
-    ($A:ty $(,)?) => {{
+    ($A:ty $(,)?, $I:ty $(,)?) => {{
         let alarm = kernel::static_buf!(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
         let si7021 = kernel::static_buf!(
             capsules_extra::si7021::SI7021<
                 'static,
@@ -42,15 +43,15 @@ macro_rules! si7021_component_static {
     };};
 }
 
-pub struct SI7021Component<A: 'static + time::Alarm<'static>> {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct SI7021Component<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     i2c_address: u8,
 }
 
-impl<A: 'static + time::Alarm<'static>> SI7021Component<A> {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> SI7021Component<A, I> {
     pub fn new(
-        i2c: &'static MuxI2C<'static>,
+        i2c: &'static MuxI2C<'static, I>,
         alarm: &'static MuxAlarm<'static, A>,
         i2c_address: u8,
     ) -> Self {
@@ -62,10 +63,12 @@ impl<A: 'static + time::Alarm<'static>> SI7021Component<A> {
     }
 }
 
-impl<A: 'static + time::Alarm<'static>> Component for SI7021Component<A> {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> Component
+    for SI7021Component<A, I>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, A>>>,
         &'static mut MaybeUninit<[u8; 14]>,
     );

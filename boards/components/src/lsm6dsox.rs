@@ -30,34 +30,35 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! lsm6ds_i2c_component_static {
-    () => {{
+    ($I:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; 8]);
         let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
         let lsm6dsoxtr = kernel::static_buf!(capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
 
         (i2c_device, buffer, lsm6dsoxtr)
     };};
 }
 
-pub struct Lsm6dsoxtrI2CComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Lsm6dsoxtrI2CComponent<I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl Lsm6dsoxtrI2CComponent {
+impl<I: 'static + i2c::I2CMaster> Lsm6dsoxtrI2CComponent<I> {
     pub fn new(
-        i2c_mux: &'static MuxI2C<'static>,
+        i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> Lsm6dsoxtrI2CComponent {
+    ) -> Lsm6dsoxtrI2CComponent<I> {
         Lsm6dsoxtrI2CComponent {
             i2c_mux,
             i2c_address,
@@ -67,9 +68,9 @@ impl Lsm6dsoxtrI2CComponent {
     }
 }
 
-impl Component for Lsm6dsoxtrI2CComponent {
+impl<I: 'static + i2c::I2CMaster> Component for Lsm6dsoxtrI2CComponent<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 8]>,
         &'static mut MaybeUninit<Lsm6dsoxtrI2C<'static>>,
     );

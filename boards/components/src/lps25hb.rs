@@ -7,6 +7,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::gpio;
+use kernel::hil::i2c;
 
 #[macro_export]
 macro_rules! lps25hb_component_static {
@@ -20,17 +21,17 @@ macro_rules! lps25hb_component_static {
     };};
 }
 
-pub struct Lps25hbComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl Lps25hbComponent {
+impl<I: 'static + i2c::I2CMaster> Lps25hbComponent<I> {
     pub fn new(
-        i2c_mux: &'static MuxI2C<'static>,
+        i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
         board_kernel: &'static kernel::Kernel,
@@ -46,9 +47,9 @@ impl Lps25hbComponent {
     }
 }
 
-impl Component for Lps25hbComponent {
+impl<I: 'static + i2c::I2CMaster> Component for Lps25hbComponent<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<LPS25HB<'static>>,
         &'static mut MaybeUninit<[u8; capsules_extra::lps25hb::BUF_LEN]>,
     );

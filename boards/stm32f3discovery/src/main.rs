@@ -668,7 +668,7 @@ pub unsafe fn main() {
     // LSM303DLHC
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(stm32f303xc::i2c::I2C));
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
         mux_i2c,
@@ -677,7 +677,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm303dlhc::DRIVER_NUM,
     )
-    .finalize(components::lsm303dlhc_component_static!());
+    .finalize(components::lsm303dlhc_component_static!(
+        stm32f303xc::i2c::I2C
+    ));
 
     if let Err(error) = lsm303dlhc.configure(
         lsm303xx::Lsm303AccelDataRate::DataRate25Hz,

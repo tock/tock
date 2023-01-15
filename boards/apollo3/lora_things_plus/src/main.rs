@@ -315,11 +315,13 @@ unsafe fn setup() -> (
     let _ = &peripherals.iom0.set_master_client(i2c_master);
     let _ = &peripherals.iom0.enable();
 
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None)
-        .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None).finalize(
+        components::i2c_mux_component_static!(apollo3::iom::Iom<'static>),
+    );
 
-    let bme280 =
-        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
+    let bme280 = Bme280Component::new(mux_i2c, 0x77).finalize(
+        components::bme280_component_static!(apollo3::iom::Iom<'static>),
+    );
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -334,8 +336,9 @@ unsafe fn setup() -> (
     .finalize(components::humidity_component_static!());
     BME280 = Some(bme280);
 
-    let ccs811 =
-        Ccs811Component::new(mux_i2c, 0x5B).finalize(components::ccs811_component_static!());
+    let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
+        components::ccs811_component_static!(apollo3::iom::Iom<'static>),
+    );
     let air_quality = components::air_quality::AirQualityComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,

@@ -20,6 +20,7 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -33,16 +34,16 @@ macro_rules! mlx90614_component_static {
     };};
 }
 
-pub struct Mlx90614SMBusComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Mlx90614SMBusComponent<I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl Mlx90614SMBusComponent {
+impl<I: 'static + i2c::I2CMaster> Mlx90614SMBusComponent<I> {
     pub fn new(
-        i2c: &'static MuxI2C<'static>,
+        i2c: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -56,9 +57,9 @@ impl Mlx90614SMBusComponent {
     }
 }
 
-impl Component for Mlx90614SMBusComponent {
+impl<I: 'static + i2c::I2CMaster> Component for Mlx90614SMBusComponent<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<SMBusDevice<'static>>,
+        &'static mut MaybeUninit<SMBusDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 14]>,
         &'static mut MaybeUninit<Mlx90614SMBus<'static>>,
     );

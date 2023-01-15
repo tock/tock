@@ -25,35 +25,32 @@ use kernel::hil::i2c;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! i2c_mux_component_static {
-    () => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>)
+    ($I:ty $(,)?) => {{
+        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, $I>)
     };};
 }
 
 #[macro_export]
 macro_rules! i2c_component_static {
-    () => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>)
+    ($I:ty $(,)?) => {{
+        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>)
     };};
 }
 
-pub struct I2CMuxComponent {
-    i2c: &'static dyn i2c::I2CMaster,
+pub struct I2CMuxComponent<I: 'static + i2c::I2CMaster> {
+    i2c: &'static I,
     smbus: Option<&'static dyn i2c::SMBusMaster>,
 }
 
-impl I2CMuxComponent {
-    pub fn new(
-        i2c: &'static dyn i2c::I2CMaster,
-        smbus: Option<&'static dyn i2c::SMBusMaster>,
-    ) -> Self {
+impl<I: 'static + i2c::I2CMaster> I2CMuxComponent<I> {
+    pub fn new(i2c: &'static I, smbus: Option<&'static dyn i2c::SMBusMaster>) -> Self {
         I2CMuxComponent { i2c, smbus }
     }
 }
 
-impl Component for I2CMuxComponent {
-    type StaticInput = &'static mut MaybeUninit<MuxI2C<'static>>;
-    type Output = &'static MuxI2C<'static>;
+impl<I: 'static + i2c::I2CMaster> Component for I2CMuxComponent<I> {
+    type StaticInput = &'static mut MaybeUninit<MuxI2C<'static, I>>;
+    type Output = &'static MuxI2C<'static, I>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus));
@@ -65,13 +62,13 @@ impl Component for I2CMuxComponent {
     }
 }
 
-pub struct I2CComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct I2CComponent<I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     address: u8,
 }
 
-impl I2CComponent {
-    pub fn new(mux: &'static MuxI2C<'static>, address: u8) -> Self {
+impl<I: 'static + i2c::I2CMaster> I2CComponent<I> {
+    pub fn new(mux: &'static MuxI2C<'static, I>, address: u8) -> Self {
         I2CComponent {
             i2c_mux: mux,
             address: address,
@@ -79,9 +76,9 @@ impl I2CComponent {
     }
 }
 
-impl Component for I2CComponent {
-    type StaticInput = &'static mut MaybeUninit<I2CDevice<'static>>;
-    type Output = &'static I2CDevice<'static>;
+impl<I: 'static + i2c::I2CMaster> Component for I2CComponent<I> {
+    type StaticInput = &'static mut MaybeUninit<I2CDevice<'static, I>>;
+    type Output = &'static I2CDevice<'static, I>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let i2c_device = static_buffer.write(I2CDevice::new(self.i2c_mux, self.address));
