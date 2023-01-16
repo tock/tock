@@ -26,7 +26,7 @@ use kernel::process::ProcessPrinter;
 
 #[macro_export]
 macro_rules! process_console_component_static {
-    ($A: ty $(,)?, $COMMAND_HISTORY_LEN: expr) => {{
+    ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
         let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
