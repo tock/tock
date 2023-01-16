@@ -44,8 +44,8 @@ const VALID_COMMANDS_STR: &[u8] =
 /// Escape character for ANSI escape sequences.
 const ESC: u8 = '\x1B' as u8;
 
-/// Null termiantor character
-const TERMINATOR: u8 = '\0' as u8;
+/// End of line character.
+const EOL: u8 = '\0' as u8;
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -152,12 +152,11 @@ impl Command {
     /// Write the buffer with the provided data.
     /// If the provided data's length is smaller than the buffer length,
     /// the left over bytes are not modified due to '\0' termination.
-    pub fn write(&mut self, buf: &[u8; COMMAND_BUF_LEN], terminator_idx: usize) {
-        self.len = if terminator_idx >= COMMAND_BUF_LEN {
-            COMMAND_BUF_LEN
-        } else {
-            terminator_idx
-        };
+    pub fn write(&mut self, buf: &[u8; COMMAND_BUF_LEN]) {
+        self.len = buf
+            .iter()
+            .position(|a| *a == EOL)
+            .unwrap_or(COMMAND_BUF_LEN);
 
         (&mut self.buf).copy_from_slice(buf);
     }
@@ -189,7 +188,7 @@ impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
         self.buf
             .iter()
             .zip(other_buf.iter())
-            .take_while(|(a, b)| **a != TERMINATOR || **b != TERMINATOR)
+            .take_while(|(a, b)| **a != EOL || **b != EOL)
             .all(|(a, b)| *a == *b)
     }
 }
@@ -548,7 +547,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                                     if cmd_arr[0] != command_array {
                                         cmd_arr.rotate_right(1);
-                                        cmd_arr[0].write(&command_array, terminator);
+                                        cmd_arr[0].write(&command_array);
                                     }
                                 });
                             }
@@ -962,7 +961,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 // Backspace, echo and remove last byte
                                 // Note echo is '\b \b' to erase
                                 let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                                command[index - 1] = TERMINATOR;
+                                command[index - 1] = EOL;
                                 self.command_index.set(index - 1);
                             }
                         } else if read_buf[0] == ESC || self.control_seq_in_progress.get() {
@@ -1026,7 +1025,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         }
 
                                         self.command_index.set(next_command_len);
-                                        command[next_command_len] = TERMINATOR;
+                                        command[next_command_len] = EOL;
                                     });
                                 };
                                 self.control_seq_in_progress.set(false);
