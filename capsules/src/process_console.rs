@@ -87,7 +87,7 @@ impl Command {
     /// Fill the buffer with the provided data.
     /// If the provided data's length is smaller than the buffer length,
     /// the left over bytes are not modified due to '\0' termination.
-    pub fn fill(&mut self, buf: &[u8], terminator_idx: usize) {
+    pub fn fill(&mut self, buf: &[u8l COMMND_BUF_LEN], terminator_idx: usize) {
         self.len = if terminator_idx >= COMMAND_BUF_LEN {
             COMMAND_BUF_LEN
         } else {
