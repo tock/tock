@@ -189,7 +189,8 @@ impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
         self.buf
             .iter()
             .zip(other_buf.iter())
-            .all(|(a, b)| *a != TERMINATOR && *b != TERMINATOR && a == b)
+            .take_while(|(a, b)| **a != TERMINATOR || **b != TERMINATOR)
+            .all(|(a, b)| a == b)
     }
 }
 
