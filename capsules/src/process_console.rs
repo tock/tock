@@ -71,49 +71,6 @@ impl Default for WriterState {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct Command {
-    buf: [u8; COMMAND_BUF_LEN],
-    len: usize,
-}
-impl Command {
-    pub fn new() -> Command {
-        Command {
-            buf: [0; COMMAND_BUF_LEN],
-            len: 0,
-        }
-    }
-
-    /// Fill the buffer with the provided data.
-    /// If the provided data's length is smaller than the buffer length,
-    /// the left over bytes are not modified due to '\0' termination.
-    pub fn fill(&mut self, buf: &[u8; COMMAND_BUF_LEN], terminator_idx: usize) {
-        self.len = if terminator_idx >= COMMAND_BUF_LEN {
-            COMMAND_BUF_LEN
-        } else {
-            terminator_idx
-        };
-
-        (&mut self.buf).copy_from_slice(buf);
-    }
-
-    pub fn is_buffer_empty(&mut self) -> bool {
-        self.len == 0
-    }
-
-    pub fn get_byte(&self, byte_idx: usize) -> Option<u8> {
-        if byte_idx >= self.len {
-            return None;
-        }
-
-        Some(self.buf[byte_idx])
-    }
-
-    pub fn same_bytes(&mut self, buf: &[u8; COMMAND_BUF_LEN]) -> bool {
-        self.buf.iter().zip(buf.iter()).all(|(a, b)| a == b)
-    }
-}
-
 /// Data structure to hold addresses about how the kernel is stored in memory on
 /// the chip.
 ///
@@ -179,6 +136,61 @@ pub struct ProcessConsole<
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
     capability: C,
+}
+
+#[derive(Copy, Clone)]
+pub struct Command {
+    buf: [u8; COMMAND_BUF_LEN],
+    len: usize,
+}
+
+impl Command {
+    pub fn new() -> Command {
+        Command {
+            buf: [0; COMMAND_BUF_LEN],
+            len: 0,
+        }
+    }
+
+    /// Fill the buffer with the provided data.
+    /// If the provided data's length is smaller than the buffer length,
+    /// the left over bytes are not modified due to '\0' termination.
+    pub fn fill(&mut self, buf: &[u8; COMMAND_BUF_LEN], terminator_idx: usize) {
+        self.len = if terminator_idx >= COMMAND_BUF_LEN {
+            COMMAND_BUF_LEN
+        } else {
+            terminator_idx
+        };
+
+        (&mut self.buf).copy_from_slice(buf);
+    }
+
+    pub fn is_buffer_empty(&mut self) -> bool {
+        self.len == 0
+    }
+
+    pub fn get_byte(&self, byte_idx: usize) -> Option<u8> {
+        if byte_idx >= self.len {
+            return None;
+        }
+
+        Some(self.buf[byte_idx])
+    }
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Command {
+            buf: [0; COMMAND_BUF_LEN],
+            len: 0,
+        }
+    }
+}
+
+impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
+    fn eq(&self, other_buf: &[u8; COMMAND_BUF_LEN]) -> bool {
+        self.buf.iter().zip(other_buf.iter()).all(|(a, b)| a == b)
+    }
 }
 
 pub struct ConsoleWriter {
@@ -525,14 +537,15 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     Ok(s) => {
                         let clean_str = s.trim();
 
-                        // Try to add a new command to the history buffer
+                        // Check if the command history is enabled by the user
+                        // and check if the command is not full of whitespaces
                         if COMMAND_HISTORY_LEN > 0 {
                             if clean_str.len() > 0 {
                                 self.command_history.map(|cmd_arr| {
                                     let mut command_array = [0; COMMAND_BUF_LEN];
                                     command_array.copy_from_slice(command);
 
-                                    if !cmd_arr[0].same_bytes(&command_array) {
+                                    if cmd_arr[0] != command_array {
                                         for i in (1..COMMAND_HISTORY_LEN).rev() {
                                             cmd_arr[i] = cmd_arr[i - 1];
                                         }
