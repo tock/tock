@@ -41,7 +41,11 @@ pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 const VALID_COMMANDS_STR: &[u8] =
     b"help status list stop start fault boot terminate process kernel panic\r\n";
 
+/// Escape character for ANSI escape sequences.
 const ESC: u8 = '\x1B' as u8;
+
+/// Null termiantor character
+const TERMINATOR: u8 = '\0' as u8;
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -145,17 +149,10 @@ pub struct Command {
 }
 
 impl Command {
-    pub fn new() -> Command {
-        Command {
-            buf: [0; COMMAND_BUF_LEN],
-            len: 0,
-        }
-    }
-
-    /// Fill the buffer with the provided data.
+    /// Write the buffer with the provided data.
     /// If the provided data's length is smaller than the buffer length,
     /// the left over bytes are not modified due to '\0' termination.
-    pub fn fill(&mut self, buf: &[u8; COMMAND_BUF_LEN], terminator_idx: usize) {
+    pub fn write(&mut self, buf: &[u8; COMMAND_BUF_LEN], terminator_idx: usize) {
         self.len = if terminator_idx >= COMMAND_BUF_LEN {
             COMMAND_BUF_LEN
         } else {
@@ -189,7 +186,10 @@ impl Default for Command {
 
 impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
     fn eq(&self, other_buf: &[u8; COMMAND_BUF_LEN]) -> bool {
-        self.buf.iter().zip(other_buf.iter()).all(|(a, b)| a == b)
+        self.buf
+            .iter()
+            .zip(other_buf.iter())
+            .all(|(a, b)| *a != TERMINATOR && *b != TERMINATOR && a == b)
     }
 }
 
@@ -547,7 +547,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                                     if cmd_arr[0] != command_array {
                                         cmd_arr.rotate_right(1);
-                                        cmd_arr[0].fill(&command_array, terminator);
+                                        cmd_arr[0].write(&command_array, terminator);
                                     }
                                 });
                             }
@@ -961,7 +961,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 // Backspace, echo and remove last byte
                                 // Note echo is '\b \b' to erase
                                 let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                                command[index - 1] = '\0' as u8;
+                                command[index - 1] = TERMINATOR;
                                 self.command_index.set(index - 1);
                             }
                         } else if read_buf[0] == ESC || self.control_seq_in_progress.get() {
@@ -1025,7 +1025,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         }
 
                                         self.command_index.set(next_command_len);
-                                        command[next_command_len] = '\0' as u8;
+                                        command[next_command_len] = TERMINATOR;
                                     });
                                 };
                                 self.control_seq_in_progress.set(false);
