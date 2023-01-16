@@ -546,10 +546,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     command_array.copy_from_slice(command);
 
                                     if cmd_arr[0] != command_array {
-                                        for i in (1..COMMAND_HISTORY_LEN).rev() {
-                                            cmd_arr[i] = cmd_arr[i - 1];
-                                        }
-
+                                        cmd_arr.rotate_right(1);
                                         cmd_arr[0].fill(&command_array, terminator);
                                     }
                                 });
