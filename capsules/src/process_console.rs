@@ -94,7 +94,7 @@ impl Command {
             terminator_idx
         };
 
-        self.buf[..self.len].copy_from_slice(&buf[..self.len]);
+        (&self.buf).copy_from_slice(&buf);
     }
 
     pub fn is_buffer_empty(&mut self) -> bool {
