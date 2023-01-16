@@ -26,38 +26,7 @@ use kernel::process::ProcessPrinter;
 
 #[macro_export]
 macro_rules! process_console_component_static {
-    ($A: ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
-        let pconsole = kernel::static_buf!(
-            capsules::process_console::ProcessConsole<
-                { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
-                components::process_console::Capability,
-            >
-        );
-
-        let write_buffer = kernel::static_buf!([u8; capsules::process_console::WRITE_BUF_LEN]);
-        let read_buffer = kernel::static_buf!([u8; capsules::process_console::READ_BUF_LEN]);
-        let queue_buffer = kernel::static_buf!([u8; capsules::process_console::QUEUE_BUF_LEN]);
-        let command_buffer = kernel::static_buf!([u8; capsules::process_console::COMMAND_BUF_LEN]);
-        let command_history_buffer = kernel::static_buf!(
-            [capsules::process_console::Command;
-                capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN]
-        );
-
-        (
-            alarm,
-            uart,
-            write_buffer,
-            read_buffer,
-            queue_buffer,
-            command_buffer,
-            command_history_buffer,
-            pconsole,
-        )
-    };};
-    ($A: ty $(,)?, $COMMAND_HISTORY_LEN: literal) => {{
+    ($A: ty $(,)?, $COMMAND_HISTORY_LEN: expr) => {{
         let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
@@ -86,6 +55,9 @@ macro_rules! process_console_component_static {
             command_history_buffer,
             pconsole,
         )
+    };};
+    ($A: ty $(,)?) => {{
+        $crate::process_console_component_static!($A, { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN })
     };};
 }
 
