@@ -87,14 +87,14 @@ impl Command {
     /// Fill the buffer with the provided data.
     /// If the provided data's length is smaller than the buffer length,
     /// the left over bytes are not modified due to '\0' termination.
-    pub fn fill(&mut self, buf: &[u8l COMMND_BUF_LEN], terminator_idx: usize) {
+    pub fn fill(&mut self, buf: &[u8; COMMAND_BUF_LEN], terminator_idx: usize) {
         self.len = if terminator_idx >= COMMAND_BUF_LEN {
             COMMAND_BUF_LEN
         } else {
             terminator_idx
         };
 
-        (&self.buf).copy_from_slice(&buf);
+        (&mut self.buf).copy_from_slice(buf);
     }
 
     pub fn is_buffer_empty(&mut self) -> bool {
@@ -536,7 +536,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         cmd_arr[i] = cmd_arr[i - 1];
                                     }
 
-                                    cmd_arr[0].fill(command, terminator);
+                                    cmd_arr[0].fill(&command_array, terminator);
                                 }
                             });
                         }
