@@ -964,7 +964,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 command[index - 1] = EOL;
                                 self.command_index.set(index - 1);
                             }
-                        } else if read_buf[0] == ESC || self.control_seq_in_progress.get() {
+                        } else if (COMMAND_HISTORY_LEN > 0)
+                            && (read_buf[0] == ESC || self.control_seq_in_progress.get())
+                        {
                             // Catch the Up and Down arrow keys
                             if read_buf[0] == ESC {
                                 // Signal that a control sequence has started and capture it
