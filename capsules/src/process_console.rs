@@ -186,11 +186,9 @@ impl Default for Command {
 
 impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
     fn eq(&self, other_buf: &[u8; COMMAND_BUF_LEN]) -> bool {
-        self.buf
-            .iter()
-            .zip(other_buf.iter())
-            .take_while(|(a, b)| **a != TERMINATOR || **b != TERMINATOR)
-            .all(|(a, b)| a == b)
+        let mut bytes_iter = self.buf.iter().zip(other_buf.iter());
+        bytes_iter.all(|(a, b)| *a == *b && *a != TERMINATOR);
+        bytes_iter.next().eq(&Some((&TERMINATOR, &TERMINATOR)))
     }
 }
 
