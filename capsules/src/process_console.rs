@@ -526,19 +526,21 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         let clean_str = s.trim();
 
                         // Try to add a new command to the history buffer
-                        if clean_str.len() > 0 && COMMAND_HISTORY_LEN > 0 {
-                            self.command_history.map(|cmd_arr| {
-                                let mut command_array = [0; COMMAND_BUF_LEN];
-                                command_array.copy_from_slice(command);
+                        if COMMAND_HISTORY_LEN > 0 {
+                            if clean_str.len() > 0 {
+                                self.command_history.map(|cmd_arr| {
+                                    let mut command_array = [0; COMMAND_BUF_LEN];
+                                    command_array.copy_from_slice(command);
 
-                                if !cmd_arr[0].same_bytes(&command_array) {
-                                    for i in (1..COMMAND_HISTORY_LEN).rev() {
-                                        cmd_arr[i] = cmd_arr[i - 1];
+                                    if !cmd_arr[0].same_bytes(&command_array) {
+                                        for i in (1..COMMAND_HISTORY_LEN).rev() {
+                                            cmd_arr[i] = cmd_arr[i - 1];
+                                        }
+
+                                        cmd_arr[0].fill(&command_array, terminator);
                                     }
-
-                                    cmd_arr[0].fill(&command_array, terminator);
-                                }
-                            });
+                                });
+                            }
                         }
 
                         if clean_str.starts_with("help") {
