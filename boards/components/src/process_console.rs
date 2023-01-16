@@ -165,7 +165,7 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
             .write([0; capsules::process_console::COMMAND_BUF_LEN]);
         let command_history_buffer = static_buffer
             .6
-            .write([capsules::process_console::Command::new(); COMMAND_HISTORY_LEN]);
+            .write([capsules::process_console::Command::default(); COMMAND_HISTORY_LEN]);
 
         let console = static_buffer.7.write(ProcessConsole::new(
             console_uart,
