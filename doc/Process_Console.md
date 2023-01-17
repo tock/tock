@@ -21,6 +21,7 @@ Process Console
   * [`panic`](#panic)
   * [`kernel`](#kernel)
   * [`process`](#process)
+  * [`commands history`](#commands-history)
 
 <!-- tocstop -->
 
@@ -43,10 +44,11 @@ Setup
     ));
  let _ = _process_console.start();
  ```
-<<<<<<< HEAD
-=======
- Here is how to add a custom size for the command `history` used by the ProcessConsole structure to keep track of the typed commands:
- ```rust
+
+> Note: Using the process console might require allocating more stack to the kernel. This is done by modifying the `STACK_MEMORY` variable from the board's `main.rs`.
+
+ Using Process Console
+ --------------------
 
  With this capsule properly added to a board's `main.rs` and the Tock kernel
  loaded to the board, make sure there is a serial connection to the board.
@@ -85,10 +87,7 @@ tock$
   - [`panic`](#panic) - causes the kernel to run the panic handler
   - [`kernel`](#kernel) - prints the kernel memory map
   - [`process n`](#process) - prints the memory map of process with name n
-<<<<<<< HEAD
-=======
-  - [`up and down arrows`](#up-and-down-arrows) - scroll through the command history
->>>>>>> Copied the ProcessConsole from the upstream adnd added new documentation for the ProcessConsole using custom COMMAND_HISTORY_LEN
+  - [`commands history`](#commands-history) - scrolls through inserted user commands
 
  For the examples below we will have 2 processes on the board: `blink` (which will blink all the LEDs that are 
  connected to the kernel), and `c_hello` (which prints 'Hello World' when the console is started). Also, a micro:bit v2 board was used as support for the commands, so the results may vary on other devices.
@@ -604,3 +603,47 @@ tock$
       0x00040800 ┴─────────────────────────────────────────── H
 
 ```
+
+### `commands history`
+ - You can use the up and down arrows to scroll through the command history and to view the previous commands you have run.
+ - If you inserted more commands than the command history can hold, oldest commands will be overwritten.
+ - You can view the commands in bidirectional order, `up arrow` for oldest commands and `down arrow` for newest.
+ - If the user custom size for the history is set to `0`, the history will be disabled and the rust compiler will be able to optimize the binary file by removing dead code.
+
+  Here is how to add a custom size for the command `history` used by the ProcessConsole structure to keep track of the typed commands, in the `main.rs` of boards:
+ ```rust
+ const CUSTOM_HISTORY_LEN : usize = 30;
+
+ /// ...
+ 
+ pub struct Platform {
+    // other fields
+    
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        { CUSTOM_HISTORY_LEN },
+        // or { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN }
+        // for the deafult behaviour
+        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        components::process_console::Capability,
+    >,
+    
+    // other fields
+}
+
+  /// ...
+
+  let _process_console = components::process_console::ProcessConsoleComponent::new(
+          board_kernel,
+          uart_mux,
+          mux_alarm,
+          process_printer,
+      )
+      .finalize(components::process_console_component_static!(
+          nrf52833::rtc::Rtc,
+          CUSTOM_HISTORY_LEN // or nothing for the default behaviour
+      ));
+
+  /// ...
+ ```
+> Note: In order to disable any functionality for the command history set the `CUSTOM_HISTORY_LEN` as `0`. 
