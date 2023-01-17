@@ -43,10 +43,10 @@ Setup
     ));
  let _ = _process_console.start();
  ```
-> Note: Using the process console might require allocating more stack to the kernel. This is done by modifying the `STACK_MEMORY` variable from the board's `main.rs`.
-
- Using Process Console
- --------------------
+<<<<<<< HEAD
+=======
+ Here is how to add a custom size for the command `history` used by the ProcessConsole structure to keep track of the typed commands:
+ ```rust
 
  With this capsule properly added to a board's `main.rs` and the Tock kernel
  loaded to the board, make sure there is a serial connection to the board.
@@ -85,6 +85,10 @@ tock$
   - [`panic`](#panic) - causes the kernel to run the panic handler
   - [`kernel`](#kernel) - prints the kernel memory map
   - [`process n`](#process) - prints the memory map of process with name n
+<<<<<<< HEAD
+=======
+  - [`up and down arrows`](#up-and-down-arrows) - scroll through the command history
+>>>>>>> Copied the ProcessConsole from the upstream adnd added new documentation for the ProcessConsole using custom COMMAND_HISTORY_LEN
 
  For the examples below we will have 2 processes on the board: `blink` (which will blink all the LEDs that are 
  connected to the kernel), and `c_hello` (which prints 'Hello World' when the console is started). Also, a micro:bit v2 board was used as support for the commands, so the results may vary on other devices.
@@ -600,3 +604,11 @@ tock$
       0x00040800 ┴─────────────────────────────────────────── H
 
 ```
+<<<<<<< HEAD
+=======
+
+ ### `up and down arrows`
+ - You can use the up and down arrows to scroll through the command history and to view the previous commands you have run.
+ - If you inserted more commands than the command history can hold, the oldest commands will be overwritten.
+ - You can view the commands in bidirectional order, `up arrow` for oldest commands and `down arrow` for newest.
+>>>>>>> Copied the ProcessConsole from the upstream adnd added new documentation for the ProcessConsole using custom COMMAND_HISTORY_LEN
