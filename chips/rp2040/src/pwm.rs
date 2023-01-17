@@ -18,7 +18,7 @@ use kernel::debug;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -105,7 +105,7 @@ register_bitfields![u32,
 const NUMBER_CHANNELS: usize = 8;
 
 #[repr(C)]
-struct Ch {
+struct Channel {
     // Control and status register
     csr: ReadWrite<u32, CSR::Register>,
     // Division register
@@ -118,24 +118,25 @@ struct Ch {
     top: ReadWrite<u32, TOP::Register>,
 }
 
-#[repr(C)]
-struct PwmRegisters {
-    // Channel registers
-    // core::mem::variant_count::<ChannenlNumber>() can't be used since it is not stable
-    ch: [Ch; NUMBER_CHANNELS],
-    // Enable register
-    // This register aliases the CSR_EN bits for all channels.
-    // Writing to this register allows multiple channels to be enabled or disabled
-    // or disables simultaneously, so they can run in perfect sync.
-    en: ReadWrite<u32, CH::Register>,
-    // Raw interrupts register
-    intr: WriteOnly<u32, CH::Register>,
-    // Interrupt enable register
-    inte: ReadWrite<u32, CH::Register>,
-    // Interrupt force register
-    intf: ReadWrite<u32, CH::Register>,
-    // Interrupt status after masking & forcing
-    ints: ReadOnly<u32, CH::Register>,
+register_structs! {
+    PwmRegisters {
+        // Channel registers
+        (0x0000 => ch: [Channel; NUMBER_CHANNELS]),
+        // Enable register
+        // This register aliases the CSR_EN bits for all channels.
+        // Writing to this register allows multiple channels to be enabled or disabled
+        // or disables simultaneously, so they can run in perfect sync.
+        (0x00A0 => en: ReadWrite<u32, CH::Register>),
+        // Raw interrupts register
+        (0x00A4 => intr: WriteOnly<u32, CH::Register>),
+        // Interrupt enable register
+        (0x00A8 => inte: ReadWrite<u32, CH::Register>),
+        // Interrupt force register
+        (0x00AC => intf: ReadWrite<u32, CH::Register>),
+        // Interrupt status after masking & forcing
+        (0x00B0 => ints: ReadOnly<u32, CH::Register>),
+        (0x00B4 => @END),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -228,7 +229,7 @@ const CHANNEL_NUMBERS: [ChannelNumber; NUMBER_CHANNELS] = [
 /// channel will see the logical OR of those two GPIO inputs
 impl From<RPGpio> for ChannelNumber {
     fn from(gpio: RPGpio) -> Self {
-        match gpio as u8 >> 1 & 7 {
+        match gpio as u8 >> 1 & 0b111 {
             // Because of the bitwise AND, there are only eight possible values
             0 => ChannelNumber::Ch0,
             1 => ChannelNumber::Ch1,
@@ -466,34 +467,36 @@ impl<'a> Pwm<'a> {
             .modify(CTR::CTR.val(value as u32));
     }
 
+    fn wait_for(count: usize, f: impl Fn() -> bool) -> bool {
+        for _ in 0..count {
+            if f() {
+                return true;
+            }
+        }
+
+        false
+    }
+
     // Increments the value of the counter
     //
     // The counter must be running at less than full speed. The method will return
     // once the increment is complete.
-    fn advance_count(&self, channel_number: ChannelNumber) {
+    fn advance_count(&self, channel_number: ChannelNumber) -> bool {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_ADV::SET);
-        while self.registers.ch[channel_number as usize]
-            .csr
-            .read(CSR::PH_ADV)
-            == 1
-        {}
+        Self::wait_for(100, || self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 0)
     }
 
     // Retards the phase of the counter by 1 count
     //
     // The counter must be running. The method will return once the retardation
     // is complete.
-    fn retard_count(&self, channel_number: ChannelNumber) {
+    fn retard_count(&self, channel_number: ChannelNumber) -> bool {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_RET::SET);
-        while self.registers.ch[channel_number as usize]
-            .csr
-            .read(CSR::PH_RET)
-            == 1
-        {}
+        Self::wait_for(100, || self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 0)
     }
 
     // Enable interrupt on the given PWM channel
@@ -631,20 +634,20 @@ impl<'a> Pwm<'a> {
 
         // Set top to max
         let top = u16::MAX;
-        // Get the corresponding divider value
-        let divider = threshold_freq_hz as f32 / selected_freq_hz as f32;
+        // Get the corresponding integral part of the divider
+        let int = threshold_freq_hz / selected_freq_hz;
         // If the desired frequency is too low, then it can't be achieved using the divider.
         // In this case, notify the caller with an error.
-        if divider >= 256.0f32 {
+        if int >= 256 {
             return Err(());
         }
-        // At this point, the divider is a valid value. Its integral and fractional part
-        // can be computed.
-        let int = divider as u8;
-        let frac = ((divider - int as f32) * 16.0) as u8;
+        // Now that the integral part is valid, the fractional part can be computed as well.
+        // The fractional part is on 4 bits.
+        let frac = ((threshold_freq_hz << 4) / selected_freq_hz - (int << 4)) as u8;
 
         // Return the final result
-        Ok((top, int, frac))
+        // Since int < 256, the cast will not truncate the value.
+        Ok((top, int as u8, frac))
     }
 
     // Starts a PWM pin with the given frequency and duty cycle.
@@ -1066,13 +1069,13 @@ pub mod unit_tests {
         // The counter must run at less than full speed (div_int + div_frac / 16 > 1) to pass
         // advance_count()
         pwm.set_div_mode(channel_number, DivMode::FreeRunning);
-        pwm.advance_count(channel_number);
+        assert_eq!(pwm.advance_count(channel_number), true);
         assert_eq!(pwm.get_counter(channel_number), 2);
         pwm.set_enabled(channel_number, true);
         // No assert for retard count since it is impossible to predict how much the counter
-        // will advance while running. However, the fact that the function returns is a good
-        // indicator that it does its job.
-        pwm.retard_count(channel_number);
+        // will advance while running. However, the fact that the function returns true is a
+        // good indicator that it does its job.
+        assert_eq!(pwm.retard_count(channel_number), true);
         // Disabling PWM to prevent it from generating interrupts signals for next tests
         pwm.set_enabled(channel_number, false);
 
