@@ -12,6 +12,7 @@ pub mod bme280;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
+pub mod can;
 pub mod ccs811;
 pub mod cdc;
 pub mod console;

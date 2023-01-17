@@ -114,6 +114,7 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[SPI Controller](src/spi_controller.rs)**: SPI controller device (SPI
   master)
 - **[SPI Peripheral](src/spi_peripheral.rs)**: SPI peripheral device (SPI slave)
+- **[CAN](src/can.rs)**: CAN communication.
 
 
 ### Helpful Userspace Capsules
