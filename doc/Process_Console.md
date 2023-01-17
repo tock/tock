@@ -604,11 +604,3 @@ tock$
       0x00040800 ┴─────────────────────────────────────────── H
 
 ```
-<<<<<<< HEAD
-=======
-
- ### `up and down arrows`
- - You can use the up and down arrows to scroll through the command history and to view the previous commands you have run.
- - If you inserted more commands than the command history can hold, the oldest commands will be overwritten.
- - You can view the commands in bidirectional order, `up arrow` for oldest commands and `down arrow` for newest.
->>>>>>> Copied the ProcessConsole from the upstream adnd added new documentation for the ProcessConsole using custom COMMAND_HISTORY_LEN
