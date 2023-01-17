@@ -324,8 +324,6 @@ impl<'a> Pwm<'a> {
     /// + This peripheral depends on the chip's clocks.
     /// + Also, if interrupts are required, then an interrupt handler must be set. Otherwise, all
     /// the interrupts will be ignored.
-    ///
-    /// See [Pwm::set_clocks]
     pub fn new() -> Self {
         let pwm = Self {
             registers: PWM_BASE,
