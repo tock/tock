@@ -49,16 +49,19 @@ impl Parse for Register {
 }
 
 struct Peripheral {
+    register_crate: Ident,
     name: Ident,
     registers: Punctuated<Register, Token![,]>,
 }
 
 impl Parse for Peripheral {
     fn parse(input: ParseStream) -> parse::Result<Self> {
+        let register_crate = input.parse()?;
         let name = input.parse()?;
         let registers;
         braced!(registers in input);
         Ok(Self {
+            register_crate,
             name,
             registers: Punctuated::parse_terminated(&registers)?,
         })
@@ -71,10 +74,12 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
         Ok(peripheral) => peripheral,
     };
     let peripheral_name = peripheral.name;
-    let register_names: Vec<_> = peripheral.registers.iter().map(|r| r.name).collect();
+    let register_names: Vec<_> = peripheral.registers.iter().map(|r| r.name.clone()).collect();
+    let register_offsets: Vec<_> = peripheral.registers.iter().map(|r| r.offset.clone()).collect();
+    let register_crate = peripheral.register_crate;
     quote! {
-        struct #peripheral_name {
-            #(#register_names: ),*
+        struct #peripheral_name<Accessor> {
+            #(#register_names: #register_crate::Register<#register_offsets, Accessor>),*
         }
     }
 }

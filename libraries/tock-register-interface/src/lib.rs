@@ -60,7 +60,6 @@
 
 mod new;
 pub use new::*;
-pub use tock_registers_derive::peripheral;
 
 pub mod fields;
 pub mod interfaces;
