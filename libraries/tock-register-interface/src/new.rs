@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 #[macro_export]
 macro_rules! peripheral {
     {$($tokens:tt)*} => {
@@ -13,8 +15,9 @@ pub mod read {
     }
 }
 
-pub struct Register<const REL_ADDR: usize, Accessor> {
+pub struct Register<const REL_ADDR: usize, Peripheral, Accessor> {
     pub accessor: Accessor,
+    _phantom: PhantomData<Peripheral>,
 }
 
 pub trait ValueAt<const REL_ADDR: usize> {

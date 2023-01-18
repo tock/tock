@@ -6,45 +6,18 @@ use syn::{AngleBracketedGenericArguments, braced, GenericArgument, Ident, LitInt
 use syn::parse::{self, Parse, ParseStream};
 use syn::punctuated::Punctuated;
 
-struct Operation {
-    op_trait: TypePath,
-    args: Punctuated<GenericArgument, Token![,]>,
-}
-
-impl Parse for Operation {
+impl Parse for Peripheral {
     fn parse(input: ParseStream) -> parse::Result<Self> {
+        let register_crate = input.parse()?;
+        let name = input.parse()?;
+        let registers;
+        braced!(registers in input);
         Ok(Self {
-            op_trait: input.parse()?,
-            args: match input.peek(Token![<]) {
-                false => Punctuated::new(),
-                true => {
-                    let args: AngleBracketedGenericArguments = input.parse()?;
-                    args.args
-                },
-            },
+            register_crate,
+            name,
+            registers: Punctuated::parse_terminated(&registers)?,
         })
     }
-}
-
-impl Operation {
-    fn impls(&self, peripheral: &Peripheral, register: &Register) -> TokenStream {
-        let args = &self.args;
-        let name = &peripheral.name;
-        let offset = &register.offset;
-        let op_trait = &self.op_trait;
-        let register_crate = &peripheral.register_crate;
-        quote! {
-            impl<Accessor: #op_trait::Access<#offset, #args>> #op_trait::Has<#offset, #args> for #name<Accessor> {
-            }
-        }
-    }
-}
-
-struct Register {
-    offset: LitInt,
-    name: Ident,
-    reg_type: TypePath,
-    operations: Punctuated<Operation, Token![+]>,
 }
 
 impl Parse for Register {
@@ -65,11 +38,18 @@ impl Parse for Register {
     }
 }
 
-impl Register {
-    fn struct_field(&self, register_crate: &Ident) -> TokenStream {
-        let name = &self.name;
-        let offset = &self.offset;
-        quote! { #name: #register_crate::Register<#offset, Accessor> }
+impl Parse for Operation {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        Ok(Self {
+            op_trait: input.parse()?,
+            args: match input.peek(Token![<]) {
+                false => Punctuated::new(),
+                true => {
+                    let args: AngleBracketedGenericArguments = input.parse()?;
+                    args.args
+                },
+            },
+        })
     }
 }
 
@@ -79,18 +59,16 @@ struct Peripheral {
     registers: Punctuated<Register, Token![,]>,
 }
 
-impl Parse for Peripheral {
-    fn parse(input: ParseStream) -> parse::Result<Self> {
-        let register_crate = input.parse()?;
-        let name = input.parse()?;
-        let registers;
-        braced!(registers in input);
-        Ok(Self {
-            register_crate,
-            name,
-            registers: Punctuated::parse_terminated(&registers)?,
-        })
-    }
+struct Register {
+    offset: LitInt,
+    name: Ident,
+    reg_type: TypePath,
+    operations: Punctuated<Operation, Token![+]>,
+}
+
+struct Operation {
+    op_trait: TypePath,
+    args: Punctuated<GenericArgument, Token![,]>,
 }
 
 fn peripheral_impl(input: TokenStream) -> TokenStream {
@@ -98,13 +76,39 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
         Err(error) => return error.into_compile_error(),
         Ok(peripheral) => peripheral,
     };
-	
-    let peripheral_name = peripheral.name;
-    let fields = peripheral.registers.iter().map(|r| r.struct_field(&peripheral.register_crate));
-    quote! {
-        struct #peripheral_name<Accessor> {
+
+    let name = peripheral.name;
+    let fields = peripheral.registers.iter().map(|register| {
+        let name = &register.name;
+        let register_crate = &peripheral.register_crate;
+        let offset = &register.offset;
+        quote! { #name: #register_crate::Register<#offset, Self, Accessor> }
+    });
+    let op_impls = peripheral.registers.iter().map(|register| {
+        let offset = &register.offset;
+        let reg_type = &register.reg_type;
+        let op_impls = register.operations.iter().map(|op| {
+            let op_trait = &op.op_trait;
+            let args = &op.args;
+            quote! {
+                impl<Accessor: #op_trait::Access<#offset, #args>> #op_trait::Has<#offset, #args> for #name<Accessor> {}
+            }
+        });
+        quote! {
+            impl<Accessor: ValueAt<offset, Value = #reg_type>> ValueAt<offset> for #name<Accessor> {
+				
+            }
+            #(#op_impls)* 
+			
+    });
+    let struct_definition = quote! {
+        struct #name<Accessor> {
             #(#fields),*
         }
+        #(#op_impls)*
+    };
+    quote! {
+        #struct_definition
     }
 }
 
