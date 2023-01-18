@@ -2,24 +2,41 @@ extern crate proc_macro;
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{AngleBracketedGenericArguments, braced, Ident, LitInt, parse2, Token, TypePath};
+use syn::{AngleBracketedGenericArguments, braced, GenericArgument, Ident, LitInt, parse2, Token, TypePath};
 use syn::parse::{self, Parse, ParseStream};
 use syn::punctuated::Punctuated;
 
 struct Operation {
     op_trait: TypePath,
-    generics: Option<AngleBracketedGenericArguments>,
+    args: Punctuated<GenericArgument, Token![,]>,
 }
 
 impl Parse for Operation {
     fn parse(input: ParseStream) -> parse::Result<Self> {
         Ok(Self {
             op_trait: input.parse()?,
-            generics: match input.peek(Token![<]) {
-                false => None,
-                true => Some(input.parse()?),
+            args: match input.peek(Token![<]) {
+                false => Punctuated::new(),
+                true => {
+                    let args: AngleBracketedGenericArguments = input.parse()?;
+                    args.args
+                },
             },
         })
+    }
+}
+
+impl Operation {
+    fn impls(&self, peripheral: &Peripheral, register: &Register) -> TokenStream {
+        let args = &self.args;
+        let name = &peripheral.name;
+        let offset = &register.offset;
+        let op_trait = &self.op_trait;
+        let register_crate = &peripheral.register_crate;
+        quote! {
+            impl<Accessor: #op_trait::Access<#offset, #args>> #op_trait::Has<#offset, #args> for #name<Accessor> {
+            }
+        }
     }
 }
 
@@ -48,6 +65,14 @@ impl Parse for Register {
     }
 }
 
+impl Register {
+    fn struct_field(&self, register_crate: &Ident) -> TokenStream {
+        let name = &self.name;
+        let offset = &self.offset;
+        quote! { #name: #register_crate::Register<#offset, Accessor> }
+    }
+}
+
 struct Peripheral {
     register_crate: Ident,
     name: Ident,
@@ -73,13 +98,12 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
         Err(error) => return error.into_compile_error(),
         Ok(peripheral) => peripheral,
     };
+	
     let peripheral_name = peripheral.name;
-    let register_names: Vec<_> = peripheral.registers.iter().map(|r| r.name.clone()).collect();
-    let register_offsets: Vec<_> = peripheral.registers.iter().map(|r| r.offset.clone()).collect();
-    let register_crate = peripheral.register_crate;
+    let fields = peripheral.registers.iter().map(|r| r.struct_field(&peripheral.register_crate));
     quote! {
         struct #peripheral_name<Accessor> {
-            #(#register_names: #register_crate::Register<#register_offsets, Accessor>),*
+            #(#fields),*
         }
     }
 }
