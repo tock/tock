@@ -18,7 +18,9 @@ use kernel::debug;
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly};
+use kernel::utilities::registers::{
+    register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
+};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -483,7 +485,12 @@ impl<'a> Pwm<'a> {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_ADV::SET);
-        Self::wait_for(100, || self.registers.ch[channel_number as usize].csr.read(CSR::PH_ADV) == 0)
+        Self::wait_for(100, || {
+            self.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::PH_ADV)
+                == 0
+        })
     }
 
     // Retards the phase of the counter by 1 count
@@ -494,7 +501,12 @@ impl<'a> Pwm<'a> {
         self.registers.ch[channel_number as usize]
             .csr
             .modify(CSR::PH_RET::SET);
-        Self::wait_for(100, || self.registers.ch[channel_number as usize].csr.read(CSR::PH_RET) == 0)
+        Self::wait_for(100, || {
+            self.registers.ch[channel_number as usize]
+                .csr
+                .read(CSR::PH_RET)
+                == 0
+        })
     }
 
     // Enable interrupt on the given PWM channel
