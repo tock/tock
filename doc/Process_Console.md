@@ -646,4 +646,4 @@ tock$
 
   /// ...
  ```
-> Note: In order to disable any functionality for the command history set the `CUSTOM_HISTORY_LEN` as `0`. 
+> Note: In order to disable any functionality for the command history set the `CUSTOM_HISTORY_LEN` as `0`.
