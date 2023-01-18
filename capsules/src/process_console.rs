@@ -34,7 +34,7 @@ pub const READ_BUF_LEN: usize = 4;
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub const COMMAND_BUF_LEN: usize = 32;
 
-pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
+pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 11;
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
@@ -152,7 +152,7 @@ impl Command {
     /// Write the buffer with the provided data.
     /// If the provided data's length is smaller than the buffer length,
     /// the left over bytes are not modified due to '\0' termination.
-    pub fn write(&mut self, buf: &[u8; COMMAND_BUF_LEN]) {
+    fn write(&mut self, buf: &[u8; COMMAND_BUF_LEN]) {
         self.len = buf
             .iter()
             .position(|a| *a == EOL)
@@ -161,16 +161,14 @@ impl Command {
         (&mut self.buf).copy_from_slice(buf);
     }
 
-    pub fn is_buffer_empty(&mut self) -> bool {
-        self.len == 0
+    fn insert_byte(&mut self, byte: &u8) {
+        self.buf[self.len] = *byte;
+        self.len = self.len + 1;
     }
 
-    pub fn get_byte(&self, byte_idx: usize) -> Option<u8> {
-        if byte_idx >= self.len {
-            return None;
-        }
-
-        Some(self.buf[byte_idx])
+    fn clear(&mut self) {
+        self.buf.iter_mut().for_each(|x| *x = 0);
+        self.len = 0;
     }
 }
 
@@ -539,15 +537,17 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                         // Check if the command history is enabled by the user
                         // and check if the command is not full of whitespaces
-                        if COMMAND_HISTORY_LEN > 0 {
+                        if COMMAND_HISTORY_LEN > 1 {
                             if clean_str.len() > 0 {
                                 self.command_history.map(|cmd_arr| {
+                                    cmd_arr[0].clear();
+
                                     let mut command_array = [0; COMMAND_BUF_LEN];
                                     command_array.copy_from_slice(command);
 
-                                    if cmd_arr[0] != command_array {
+                                    if cmd_arr[1] != command_array {
                                         cmd_arr.rotate_right(1);
-                                        cmd_arr[0].write(&command_array);
+                                        cmd_arr[1].write(&command_array);
                                     }
                                 });
                             }
@@ -939,10 +939,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
-                        if command[0] == 0 {
-                            // Sets the default state when user is typing
-                            self.command_history_index.insert(None);
-                        }
                         let previous_byte = self.previous_byte.get();
                         self.previous_byte.set(read_buf[0]);
                         let index = self.command_index.get() as usize;
@@ -964,7 +960,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 command[index - 1] = EOL;
                                 self.command_index.set(index - 1);
                             }
-                        } else if (COMMAND_HISTORY_LEN > 0)
+                        } else if (COMMAND_HISTORY_LEN > 1)
                             && (read_buf[0] == ESC || self.control_seq_in_progress.get())
                         {
                             // Catch the Up and Down arrow keys
@@ -978,30 +974,28 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     b'A' => {
                                         let i = match self.command_history_index.extract() {
                                             Some(i) => i + 1,
-                                            None => 0,
+                                            None => 1,
                                         };
                                         if i >= COMMAND_HISTORY_LEN {
                                             None
                                         } else {
                                             // Check if any command can be displayed
                                             self.command_history
-                                                .map(|cmd_arr| match cmd_arr[i].is_buffer_empty() {
+                                                .map(|cmd_arr| match cmd_arr[i].len == 0 {
                                                     true => None,
-                                                    _ => Some(i),
+                                                    false => Some(i),
                                                 })
                                                 .unwrap()
                                         }
                                     }
                                     // Down arrow case
-                                    b'B' => {
-                                        if self.command_history_index.is_some()
-                                            && self.command_history_index.extract().unwrap() > 0
-                                        {
-                                            Some(self.command_history_index.extract().unwrap() - 1)
-                                        } else {
-                                            None
-                                        }
-                                    }
+                                    b'B' => match self.command_history_index.extract() {
+                                        Some(i) => match i > 0 {
+                                            true => Some(i - 1),
+                                            false => None,
+                                        },
+                                        None => None,
+                                    },
                                     _ => None,
                                 } {
                                     self.command_history_index.set(index);
@@ -1041,6 +1035,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             command[index] = read_buf[0];
                             self.command_index.set(index + 1);
                             command[index + 1] = 0;
+                            self.command_history.map(|cmd_arr| {
+                                (&mut cmd_arr[0]).insert_byte(&read_buf[0]);
+                            });
                         }
                     });
                 }
