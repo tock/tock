@@ -621,10 +621,14 @@ impl<'a> Pwm<'a> {
     //
     // Return value: Ok(top, int, frac) in case of no error, otherwise Err(())
     fn compute_top_int_frac(&self, selected_freq_hz: usize) -> Result<(u16, u8, u8), ()> {
-        // If the selected frequency is high enough, then there is no need for a divider
-        // Note that unwrap can never fail.
         let max_freq_hz = hil::pwm::Pwm::get_maximum_frequency_hz(self);
         let threshold_freq_hz = max_freq_hz / hil::pwm::Pwm::get_maximum_duty_cycle(self);
+        // If the desired frequency doesn't make sense, return directly an error
+        if selected_freq_hz > max_freq_hz || selected_freq_hz == 0 {
+            return Err(());
+        }
+
+        // If the selected frequency is high enough, then there is no need for a divider
         if selected_freq_hz > threshold_freq_hz {
             return Ok(((max_freq_hz / selected_freq_hz - 1) as u16, 1, 0));
         }
