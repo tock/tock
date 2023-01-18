@@ -1229,9 +1229,7 @@ pub mod unit_tests {
         assert!(pwm
             .compute_top_int_frac(max_freq_hz / max_duty_cycle / 256)
             .is_err());
-        assert!(pwm
-            .compute_top_int_frac(max_freq_hz + 1)
-            .is_err());
+        assert!(pwm.compute_top_int_frac(max_freq_hz + 1).is_err());
 
         let (channel_number, channel_pin) = pwm.gpio_to_pwm(RPGpio::GPIO24);
         assert!(pwm
@@ -1263,18 +1261,10 @@ pub mod unit_tests {
             )
             .is_err());
         assert!(pwm
-            .start_pwm_pin(
-                channel_number,
-                channel_pin,
-                max_freq_hz + 1,
-                max_duty_cycle)
+            .start_pwm_pin(channel_number, channel_pin, max_freq_hz + 1, max_duty_cycle)
             .is_err());
         assert!(pwm
-            .start_pwm_pin(
-                channel_number,
-                channel_pin,
-                max_freq_hz,
-                max_duty_cycle + 1)
+            .start_pwm_pin(channel_number, channel_pin, max_freq_hz, max_duty_cycle + 1)
             .is_err());
         debug!("PWM HIL trait OK")
     }
