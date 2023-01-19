@@ -20,11 +20,10 @@
 //! - Author:  Kevin Baichoo <kbaichoo@cs.stanford.edu>
 //! - Date: July 27, 2016
 
-use crate::deferred_call_tasks::Task;
 use crate::pm;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call2::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -318,8 +317,6 @@ enum RegKey {
     GPFRLO,
 }
 
-static DEFERRED_CALL: DeferredCall<Task> = unsafe { DeferredCall::new(Task::Flashcalw) };
-
 /// There are 18 recognized commands for the flash. These are "bare-bones"
 /// commands and values that are written to the Flash's command register to
 /// inform the flash what to do. Table 14-5.
@@ -417,6 +414,7 @@ pub struct FLASHCALW {
     client: OptionalCell<&'static dyn hil::flash::Client<FLASHCALW>>,
     current_state: Cell<FlashState>,
     buffer: TakeCell<'static, Sam4lPage>,
+    deferred_call: DeferredCall,
 }
 
 // Few constants relating to module configuration.
@@ -444,6 +442,7 @@ impl FLASHCALW {
             client: OptionalCell::empty(),
             current_state: Cell::new(FlashState::Unconfigured),
             buffer: TakeCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -854,7 +853,7 @@ impl FLASHCALW {
         // This is kind of strange, but because read() in this case is
         // synchronous, we still need to schedule as if we had an interrupt so
         // we can allow this function to return and then call the callback.
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }
@@ -898,6 +897,16 @@ impl FLASHCALW {
             .set(FlashState::EraseUnlocking { page: page_num });
         self.lock_page_region(page_num, false);
         Ok(())
+    }
+}
+
+impl DeferredCallClient for FLASHCALW {
+    fn handle_deferred_call(&self) {
+        self.handle_interrupt();
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

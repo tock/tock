@@ -1,12 +1,13 @@
 //! Interrupt mapping and DMA channel setup.
 
-use crate::deferred_call_tasks::Task;
 use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};
-use kernel::deferred_call;
+use kernel::deferred_call2::{self, DeferredCallClient};
 use kernel::platform::chip::{Chip, InterruptService};
+
+type Task = ();
 
 pub struct Sam4l<I: InterruptService<Task> + 'static> {
     mpu: cortexm4::mpu::MPU,
@@ -109,10 +110,7 @@ impl Sam4lDefaultPeripherals {
         }
     }
 
-    // Sam4l was the only chip that partially initialized some drivers in new, I
-    // have moved that initialization to this helper function.
-    // TODO: Delete explanation
-    pub fn setup_dma(&'static self) {
+    pub fn setup_circular_deps(&'static self) {
         use crate::dma;
         self.usart0
             .set_dma(&self.dma_channels[0], &self.dma_channels[1]);
@@ -150,6 +148,12 @@ impl Sam4lDefaultPeripherals {
 
         self.adc.set_dma(&self.dma_channels[13]);
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
+        self.crccu.register();
+        self.flash_controller.register();
+        self.usart0.register();
+        self.usart1.register();
+        self.usart2.register();
+        self.usart3.register();
     }
 }
 impl InterruptService<Task> for Sam4lDefaultPeripherals {
@@ -225,16 +229,8 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         }
         true
     }
-    unsafe fn service_deferred_call(&self, task: Task) -> bool {
-        match task {
-            crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
-            crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart0 => self.usart0.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart1 => self.usart1.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart2 => self.usart2.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart3 => self.usart3.handle_deferred_call(),
-        }
-        true
+    unsafe fn service_deferred_call(&self, _: Task) -> bool {
+        kernel::deferred_call2::DeferredCall::service_next_pending().is_some()
     }
 }
 
@@ -245,11 +241,8 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match self.interrupt_service.service_deferred_call(task) {
-                        true => {}
-                        false => panic!("unhandled deferred call task"),
-                    }
+                if self.interrupt_service.service_deferred_call(()) {
+                    // serviced!
                 } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match self.interrupt_service.service_interrupt(interrupt) {
                         true => {}
@@ -266,7 +259,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() || deferred_call2::DeferredCall::has_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

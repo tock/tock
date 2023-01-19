@@ -2,11 +2,10 @@
 //!
 //! Supports UART and SPI master modes.
 
-use crate::deferred_call_tasks::Task;
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call2::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::spi;
 use kernel::hil::uart;
@@ -285,15 +284,6 @@ const USART_BASE_ADDRS: [StaticRef<UsartRegisters>; 4] = unsafe {
     ]
 };
 
-static DEFERRED_CALLS: [DeferredCall<Task>; 4] = unsafe {
-    [
-        DeferredCall::new(Task::Usart0),
-        DeferredCall::new(Task::Usart1),
-        DeferredCall::new(Task::Usart2),
-        DeferredCall::new(Task::Usart3),
-    ]
-};
-
 pub struct USARTRegManager<'a> {
     registers: &'a UsartRegisters,
     clock: pm::Clock,
@@ -415,17 +405,18 @@ pub struct USART<'a> {
     spi_chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
     pm: &'a pm::PowerManager,
     dc_state: OptionalCell<DeferredCallState>,
+    deferred_call: DeferredCall,
 }
 
 impl<'a> USART<'a> {
-    const fn new(
+    fn new(
         base_addr: StaticRef<UsartRegisters>,
         clock: pm::PBAClock,
         rx_dma_peripheral: dma::DMAPeripheral,
         tx_dma_peripheral: dma::DMAPeripheral,
         pm: &'a pm::PowerManager,
-    ) -> USART<'a> {
-        USART {
+    ) -> Self {
+        Self {
             registers: base_addr,
             clock: pm::Clock::PBA(clock),
 
@@ -449,10 +440,11 @@ impl<'a> USART<'a> {
             spi_chip_select: OptionalCell::empty(),
             pm,
             dc_state: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
     }
 
-    pub const fn new_usart0(pm: &'a pm::PowerManager) -> Self {
+    pub fn new_usart0(pm: &'a pm::PowerManager) -> Self {
         USART::new(
             USART_BASE_ADDRS[0],
             pm::PBAClock::USART0,
@@ -462,7 +454,7 @@ impl<'a> USART<'a> {
         )
     }
 
-    pub const fn new_usart1(pm: &'a pm::PowerManager) -> Self {
+    pub fn new_usart1(pm: &'a pm::PowerManager) -> Self {
         USART::new(
             USART_BASE_ADDRS[1],
             pm::PBAClock::USART1,
@@ -472,7 +464,7 @@ impl<'a> USART<'a> {
         )
     }
 
-    pub const fn new_usart2(pm: &'a pm::PowerManager) -> Self {
+    pub fn new_usart2(pm: &'a pm::PowerManager) -> Self {
         USART::new(
             USART_BASE_ADDRS[2],
             pm::PBAClock::USART2,
@@ -482,7 +474,7 @@ impl<'a> USART<'a> {
         )
     }
 
-    pub const fn new_usart3(pm: &'a pm::PowerManager) -> Self {
+    pub fn new_usart3(pm: &'a pm::PowerManager) -> Self {
         USART::new(
             USART_BASE_ADDRS[3],
             pm::PBAClock::USART3,
@@ -561,34 +553,8 @@ impl<'a> USART<'a> {
             self.dc_state.set(dc_state);
 
             // schedule a deferred call to alert the client of this particular UART
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*USART_BASE_ADDRS[0]) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*USART_BASE_ADDRS[1]) as *const _ {
-                DEFERRED_CALLS[1].set()
-            } else if ptr == &(*USART_BASE_ADDRS[2]) as *const _ {
-                DEFERRED_CALLS[2].set()
-            } else if ptr == &(*USART_BASE_ADDRS[3]) as *const _ {
-                DEFERRED_CALLS[3].set()
-            }
+            self.deferred_call.set();
         }
-    }
-
-    pub fn handle_deferred_call(&self) {
-        self.dc_state.take().map(|mut dc_state| {
-            self.client.map(|usartclient| {
-                if let UsartClient::Uart(Some(rx), _tx) = usartclient {
-                    dc_state.abort_rx_buf.take().map(|buf| {
-                        rx.received_buffer(
-                            buf,
-                            dc_state.abort_rx_len,
-                            dc_state.abort_rx_rcode,
-                            dc_state.abort_rx_error,
-                        )
-                    });
-                }
-            });
-        });
     }
 
     fn abort_tx(&self, usart: &USARTRegManager, rcode: Result<(), ErrorCode>) {
@@ -815,6 +781,29 @@ impl<'a> USART<'a> {
     // for use by panic in io.rs
     pub fn tx_ready(&self, usart: &USARTRegManager) -> bool {
         usart.registers.csr.is_set(ChannelStatus::TXRDY)
+    }
+}
+
+impl DeferredCallClient for USART<'_> {
+    fn handle_deferred_call(&self) {
+        self.dc_state.take().map(|mut dc_state| {
+            self.client.map(|usartclient| {
+                if let UsartClient::Uart(Some(rx), _tx) = usartclient {
+                    dc_state.abort_rx_buf.take().map(|buf| {
+                        rx.received_buffer(
+                            buf,
+                            dc_state.abort_rx_len,
+                            dc_state.abort_rx_rcode,
+                            dc_state.abort_rx_error,
+                        )
+                    });
+                }
+            });
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

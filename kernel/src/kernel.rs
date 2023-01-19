@@ -476,6 +476,8 @@ impl Kernel {
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
+        // Before we begin, verify that deferred calls were soundly setup.
+        crate::deferred_call2::DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }
