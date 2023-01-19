@@ -115,6 +115,7 @@ pub struct ProcessConsole<
     command_history: TakeCell<'static, [Command; COMMAND_HISTORY_LEN]>,
 
     control_seq_in_progress: Cell<bool>,
+    scrolled_in_history: Cell<bool>,
 
     /// Index of the last copied command in the history
     command_history_index: OptionalCell<usize>,
@@ -259,6 +260,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             command_index: Cell::new(0),
 
             control_seq_in_progress: Cell::new(false),
+            scrolled_in_history: Cell::new(false),
             command_history: TakeCell::new(cmd_history_buffer),
             command_history_index: OptionalCell::empty(),
 
@@ -950,7 +952,11 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             {
                                 // Reset the sequence, when \r\n is received
                                 self.previous_byte.set(0);
-                                self.command_history_index.insert(None);
+
+                                if COMMAND_HISTORY_LEN > 1 {
+                                    self.command_history_index.insert(None);
+                                    self.scrolled_in_history.set(false);
+                                }
                             } else {
                                 self.execute.set(true);
                                 let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
@@ -1023,6 +1029,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                             command[i] = byte;
                                         }
 
+                                        self.scrolled_in_history.set(true);
                                         self.command_index.set(next_command_len);
                                         command[next_command_len] = EOL;
                                     });
@@ -1041,7 +1048,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                             if COMMAND_HISTORY_LEN > 1 {
                                 self.command_history.map(|cmd_arr| {
-                                    (&mut cmd_arr[0]).insert_byte(&read_buf[0]);
+                                    if self.scrolled_in_history.get() {
+                                        cmd_arr[0].clear();
+                                        self.scrolled_in_history.set(false);
+                                    }
+
+                                    cmd_arr[0].insert_byte(&read_buf[0]);
                                 });
                             }
                         }
