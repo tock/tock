@@ -34,7 +34,7 @@ pub const READ_BUF_LEN: usize = 4;
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub const COMMAND_BUF_LEN: usize = 32;
 
-pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 11;
+pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
@@ -162,8 +162,10 @@ impl Command {
     }
 
     fn insert_byte(&mut self, byte: &u8) {
-        self.buf[self.len] = *byte;
-        self.len = self.len + 1;
+        if self.len < COMMAND_BUF_LEN {
+            self.buf[self.len] = *byte;
+            self.len = self.len + 1;
+        }
     }
 
     fn clear(&mut self) {
@@ -1035,9 +1037,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             command[index] = read_buf[0];
                             self.command_index.set(index + 1);
                             command[index + 1] = 0;
-                            self.command_history.map(|cmd_arr| {
-                                (&mut cmd_arr[0]).insert_byte(&read_buf[0]);
-                            });
+
+                            if COMMAND_HISTORY_LEN > 1 {
+                                self.command_history.map(|cmd_arr| {
+                                    (&mut cmd_arr[0]).insert_byte(&read_buf[0]);
+                                });
+                            }
                         }
                     });
                 }
