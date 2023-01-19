@@ -950,6 +950,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             {
                                 // Reset the sequence, when \r\n is received
                                 self.previous_byte.set(0);
+                                self.command_history_index.insert(None);
                             } else {
                                 self.execute.set(true);
                                 let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
