@@ -1,40 +1,7 @@
-use core::cell::UnsafeCell;
-use core::intrinsics;
+use crate::utilities::cells::OptionalCell;
+use core::cell::Cell;
 use core::marker::Copy;
 use core::marker::PhantomData;
-use core::marker::Sync;
-
-/// AtomicUsize with no CAS operations that works on targets that have "no atomic
-/// support" according to their specification. This makes it work on thumbv6
-/// platforms.
-///
-/// Borrowed from https://github.com/japaric/heapless/blob/master/src/ring_buffer/mod.rs
-/// See: https://github.com/japaric/heapless/commit/37c8b5b63780ed8811173dc1ec8859cd99efa9ad
-pub(crate) struct AtomicUsize {
-    v: UnsafeCell<usize>,
-}
-
-impl AtomicUsize {
-    pub(crate) const fn new(v: usize) -> AtomicUsize {
-        AtomicUsize {
-            v: UnsafeCell::new(v),
-        }
-    }
-
-    pub(crate) fn load_relaxed(&self) -> usize {
-        unsafe { intrinsics::atomic_load_relaxed(self.v.get()) }
-    }
-
-    pub(crate) fn store_relaxed(&self, val: usize) {
-        unsafe { intrinsics::atomic_store_relaxed(self.v.get(), val) }
-    }
-
-    pub(crate) fn fetch_or_relaxed(&self, val: usize) {
-        unsafe { intrinsics::atomic_store_relaxed(self.v.get(), self.load_relaxed() | val) }
-    }
-}
-
-unsafe impl Sync for AtomicUsize {}
 
 pub trait DeferredCallClient {
     fn handle_deferred_call(&self);
@@ -75,11 +42,15 @@ impl DynDefCallRef<'_> {
     }
 }
 
-// This is a 256 byte array, but at least resides in .bss
-static mut DEFCALLS: [Option<DynDefCallRef<'static>>; 32] = [None; 32];
+const EMPTY: OptionalCell<DynDefCallRef<'static>> = OptionalCell::empty();
 
-static CTR: AtomicUsize = AtomicUsize::new(0);
-static BITMASK: AtomicUsize = AtomicUsize::new(0);
+// All 3 of the below global statics are accessed only in this file, and all accesses
+// are via immutable references. Tock is single threaded, so each will only ever be
+// accessed via an immutable reference from the single kernel thread.
+static mut CTR: Cell<usize> = Cell::new(0);
+static mut BITMASK: Cell<usize> = Cell::new(0);
+// This is a 256 byte array, but at least resides in .bss
+static mut DEFCALLS: [OptionalCell<DynDefCallRef<'static>>; 32] = [EMPTY; 32];
 
 pub struct DeferredCall {
     idx: usize,
@@ -87,50 +58,62 @@ pub struct DeferredCall {
 
 impl DeferredCall {
     pub fn new() -> Self {
-        let idx = CTR.load_relaxed() + 1;
-        CTR.store_relaxed(idx);
+        // SAFETY: All accesses to CTR drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let ctr = unsafe { &CTR };
+        let idx = ctr.get() + 1;
+        ctr.set(idx);
         DeferredCall { idx }
     }
 
     pub fn register<DC: DeferredCallClient>(&self, client: &'static DC) {
         let handler = DynDefCallRef::new(client);
-        unsafe {
-            if self.idx >= DEFCALLS.len() {
-                // This error will be caught by the scheduler at the beginning of the kernel loop,
-                // which is much better than panicking here, before the debug writer is setup.
-                // Also allows a single panic for creating too many deferred calls instead
-                // of NUM_DCS panics (this function is monomorphized).
-                return;
-            }
-            DEFCALLS[self.idx] = Some(handler);
+        // SAFETY: All accesses to DEFCALLS drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let defcalls = unsafe { &DEFCALLS };
+        if self.idx >= defcalls.len() {
+            // This error will be caught by the scheduler at the beginning of the kernel loop,
+            // which is much better than panicking here, before the debug writer is setup.
+            // Also allows a single panic for creating too many deferred calls instead
+            // of NUM_DCS panics (this function is monomorphized).
+            return;
         }
+        defcalls[self.idx].set(handler);
     }
 
     pub fn set(&self) {
-        BITMASK.fetch_or_relaxed(1 << self.idx);
+        // SAFETY: All accesses to BITMASK drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let bitmask = unsafe { &BITMASK };
+        bitmask.set(bitmask.get() | (1 << self.idx));
     }
 
     /// Services and clears the next pending `DeferredCall`, returns which index
     /// was serviced
     pub fn service_next_pending() -> Option<usize> {
-        let val = BITMASK.load_relaxed();
+        // SAFETY: All accesses to BITMASK/DEFCALLS drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let bitmask = unsafe { &BITMASK };
+        let defcalls = unsafe { &DEFCALLS };
+        let val = bitmask.get();
         if val == 0 {
             return None;
         } else {
             let bit = val.trailing_zeros() as usize;
             let new_val = val & !(1 << bit);
-            BITMASK.store_relaxed(new_val);
-            unsafe {
-                DEFCALLS[bit].map(|dc| {
-                    dc.handle_deferred_call();
-                    bit
-                })
-            }
+            bitmask.set(new_val);
+            defcalls[bit].map(|dc| {
+                dc.handle_deferred_call();
+                bit
+            })
         }
     }
 
     pub fn has_tasks() -> bool {
-        BITMASK.load_relaxed() != 0
+        // SAFETY: All accesses to BITMASK drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let bitmask = unsafe { &BITMASK };
+        bitmask.get() != 0
     }
 
     /// This function should be called at the beginning of the kernel loop
@@ -145,13 +128,17 @@ impl DeferredCall {
     /// bytes, so you can remove it if you are confident your setup will not exceed 32 deferred
     /// calls, and that all of your components register their deferred calls.
     pub fn verify_setup() {
-        let num_deferred_calls = CTR.load_relaxed();
-        unsafe {
-            if num_deferred_calls >= DEFCALLS.len()
-                || DEFCALLS.iter().filter(|opt| opt.is_some()).count() != num_deferred_calls
-            {
-                panic!("ERROR: > 32 deferred calls, or a component forgot to register a deferred call.");
-            }
+        // SAFETY: All accesses to CTR/DEFCALLS drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let ctr = unsafe { &CTR };
+        let defcalls = unsafe { &DEFCALLS };
+        let num_deferred_calls = ctr.get();
+        if num_deferred_calls >= defcalls.len()
+            || defcalls.iter().filter(|opt| opt.is_some()).count() != num_deferred_calls
+        {
+            panic!(
+                "ERROR: > 32 deferred calls, or a component forgot to register a deferred call."
+            );
         }
     }
 }
