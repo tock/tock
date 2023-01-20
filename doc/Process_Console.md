@@ -609,6 +609,8 @@ tock$
  - If you inserted more commands than the command history can hold, oldest commands will be overwritten.
  - You can view the commands in bidirectional order, `up arrow` for oldest commands and `down arrow` for newest.
  - If the user custom size for the history is set to `0`, the history will be disabled and the rust compiler will be able to optimize the binary file by removing dead code.
+ - If you are typing a command and accidentally press the `up arrow` key, you can press `down arrow` in order to retrieve the command you were typing.
+ - If you scroll through the history and you want to edit a command and accidentally press the `up` or `down` arrow key, scroll to the bottom of the history and you will get back to the command you were typing.
 
   Here is how to add a custom size for the command `history` used by the ProcessConsole structure to keep track of the typed commands, in the `main.rs` of boards:
  ```rust
@@ -621,7 +623,7 @@ tock$
     
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
-        { CUSTOM_HISTORY_LEN },
+        { COMMAND_HISTORY_LEN },
         // or { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN }
         // for the deafult behaviour
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
@@ -646,4 +648,4 @@ tock$
 
   /// ...
  ```
-> Note: In order to disable any functionality for the command history set the `CUSTOM_HISTORY_LEN` as `0`.
+> Note: In order to disable any functionality for the command history set the `COMMAND_HISTORY_LEN` as `0`, also the history will be disabled for a size of `1`, because the first position from the command history is reserved for accidents by pressing `up` or `down` arrow key.
