@@ -1,7 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022
-// Copyright Google LLC 2022
+// Copyright Tock Contributors 2022.
+// Copyright Google LLC 2022.
 
 //! A partial parser that parses source code files *just well enough* to find
 //! license headers.
@@ -232,8 +232,8 @@ mod tests {
             Whitespace,
             Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
             Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
-            Comment("Copyright Tock Contributors 2022"),
-            Comment("Copyright Google LLC 2022"),
+            Comment("Copyright Tock Contributors 2022."),
+            Comment("Copyright Google LLC 2022."),
             Whitespace,
             Other,
             Other,
@@ -259,8 +259,8 @@ mod tests {
         const EXPECTED: &[LineContents] = &[
             Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
             Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
-            Comment("Copyright Tock Contributors 2022"),
-            Comment("Copyright Google LLC 2022"),
+            Comment("Copyright Tock Contributors 2022."),
+            Comment("Copyright Google LLC 2022."),
             Whitespace,
             Comment("Syntect should not be able to recognize this file's type."),
             Comment("Parser should adapt and automatically strip // and # comment prefixes."),
@@ -276,8 +276,8 @@ mod tests {
         const EXPECTED: &[LineContents] = &[
             Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
             Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
-            Comment("Copyright Tock Contributors 2022"),
-            Comment("Copyright Google LLC 2022"),
+            Comment("Copyright Tock Contributors 2022."),
+            Comment("Copyright Google LLC 2022."),
             Whitespace,
             Comment("Syntect should recognize this file's type by extension."),
             Whitespace,
