@@ -614,7 +614,7 @@ tock$
 
   Here is how to add a custom size for the command `history` used by the ProcessConsole structure to keep track of the typed commands, in the `main.rs` of boards:
  ```rust
- const CUSTOM_HISTORY_LEN : usize = 30;
+ const COMMAND_HISTORY_LEN : usize = 30;
 
  /// ...
  
@@ -623,7 +623,7 @@ tock$
     
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
-        { COMMAND_HISTORY_LEN },
+        COMMAND_HISTORY_LEN,
         // or { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN }
         // for the deafult behaviour
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
@@ -643,7 +643,7 @@ tock$
       )
       .finalize(components::process_console_component_static!(
           nrf52833::rtc::Rtc,
-          CUSTOM_HISTORY_LEN // or nothing for the default behaviour
+          COMMAND_HISTORY_LEN // or nothing for the default behaviour
       ));
 
   /// ...
