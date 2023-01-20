@@ -69,8 +69,10 @@ impl DeferredCall {
         DeferredCall { idx }
     }
 
-    pub fn register<DC: DeferredCallClient>(&self, client: &'static DC) {
-        let handler = DynDefCallRef::new(client);
+    // To reduce monomorphization bloat, the non-generic portion of register is moved into this
+    // function without generic parameters.
+    #[inline(never)]
+    fn register_non_generic(&self, handler: DynDefCallRef<'static>) {
         // SAFETY: All accesses to DEFCALLS drop mutability immediately, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
         let defcalls = unsafe { &DEFCALLS };
@@ -82,6 +84,11 @@ impl DeferredCall {
             return;
         }
         defcalls[self.idx].set(handler);
+    }
+
+    pub fn register<DC: DeferredCallClient>(&self, client: &'static DC) {
+        let handler = DynDefCallRef::new(client);
+        self.register_non_generic(handler);
     }
 
     pub fn set(&self) {
