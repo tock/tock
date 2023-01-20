@@ -157,6 +157,9 @@ allstack stack stack-analysis:
 		do $(MAKE) --no-print-directory -C "boards/$$f" stack-analysis || exit 1;\
 		done
 
+.PHONY: licensecheck
+licensecheck:
+	@cargo run --manifest-path=tools/license-checker/Cargo.toml --release
 
 ## Commands
 .PHONY: clean
@@ -209,7 +212,8 @@ ci-nosetup:
 prepush:\
 	format\
 	ci-job-clippy\
-	ci-job-syntax
+	ci-job-syntax\
+	licensecheck
 	$(call banner,Pre-Push checks all passed!)
 	# Note: Tock runs additional and more intense CI checks on all PRs.
 	# If one of these error, you can run `make ci-job-NAME` to test locally.
@@ -334,7 +338,7 @@ ci-runner-netlify:\
 
 ### ci-runner-github-format jobs:
 .PHONY: ci-job-format
-ci-job-format:
+ci-job-format: licensecheck
 	$(call banner,CI-Job: Format Check)
 	@NOWARNINGS=true TOCK_FORMAT_MODE=diff $(MAKE) format
 
@@ -475,7 +479,7 @@ ci-setup-tools:
 define ci_job_tools
 	$(call banner,CI-Job: Tools)
 	@NOWARNINGS=true RUSTFLAGS="-D warnings" \
-		cargo build --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
+		cargo test --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
 endef
 
 .PHONY: ci-job-tools
