@@ -162,9 +162,9 @@ impl Command {
         (&mut self.buf).copy_from_slice(buf);
     }
 
-    fn insert_byte(&mut self, byte: &u8) {
+    fn insert_byte(&mut self, byte: u8) {
         if self.len < COMMAND_BUF_LEN {
-            self.buf[self.len] = *byte;
+            self.buf[self.len] = byte;
             self.len = self.len + 1;
         }
     }
@@ -1050,10 +1050,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 self.command_history.map(|cmd_arr| {
                                     if self.scrolled_in_history.get() {
                                         cmd_arr[0].clear();
+                                        for i in 0..(self.command_index.get() - 1) {
+                                            cmd_arr[0].insert_byte(command[i]);
+                                        }
                                         self.scrolled_in_history.set(false);
                                     }
 
-                                    cmd_arr[0].insert_byte(&read_buf[0]);
+                                    cmd_arr[0].insert_byte(read_buf[0]);
                                 });
                             }
                         }
