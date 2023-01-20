@@ -33,7 +33,7 @@ pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub const COMMAND_BUF_LEN: usize = 32;
-
+/// Default size for the history command.
 pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
 /// List of valid commands for printing help. Consolidated as these are
@@ -116,6 +116,7 @@ pub struct ProcessConsole<
 
     control_seq_in_progress: Cell<bool>,
     modified_in_history: Cell<bool>,
+    modified_byte: Cell<u8>,
 
     /// Index of the last copied command in the history
     command_history_index: OptionalCell<usize>,
@@ -267,6 +268,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             command_index: Cell::new(0),
 
             control_seq_in_progress: Cell::new(false),
+            modified_byte: Cell::new(EOL),
             modified_in_history: Cell::new(false),
             command_history: TakeCell::new(cmd_history_buffer),
             command_history_index: OptionalCell::empty(),
@@ -978,6 +980,14 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
                                 command[index - 1] = EOL;
                                 self.command_index.set(index - 1);
+
+                                // Remove last byte from the command in order
+                                // not to permit accumulation of the text
+                                if COMMAND_HISTORY_LEN > 1 {
+                                    self.command_history.map(|cmd_arr| {
+                                        (&mut cmd_arr[0]).delete_last_byte();
+                                    });
+                                }
                             }
                         } else if (COMMAND_HISTORY_LEN > 1)
                             && (read_buf[0] == ESC || self.control_seq_in_progress.get())
@@ -986,13 +996,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             if read_buf[0] == ESC {
                                 // Signal that a control sequence has started and capture it
                                 self.control_seq_in_progress.set(true);
-
-                                // Remove the last space from the unfinished command
-                                self.command_history.map(|cmd_arr| {
-                                    if previous_byte == (' ' as u8) {
-                                        cmd_arr[0].delete_last_byte();
-                                    }
-                                });
+                                self.modified_byte.set(previous_byte);
                             } else if read_buf[0] != ('[' as u8) {
                                 // Fetch the index of the last command added to the history
                                 if let Some(index) = match read_buf[0] {
@@ -1009,7 +1013,30 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                             self.command_history
                                                 .map(|cmd_arr| match cmd_arr[i].len == 0 {
                                                     true => None,
-                                                    false => Some(i),
+                                                    false => {
+                                                        // Remove last whitespace byte from the command
+                                                        // or register a new unfinshed command
+                                                        // upon pressing backspace
+                                                        match self.modified_byte.get() {
+                                                            b' ' => {
+                                                                (&mut cmd_arr[0])
+                                                                    .delete_last_byte();
+                                                            }
+                                                            b'\x08' | b'\x7F' => {
+                                                                cmd_arr[0].clear();
+
+                                                                let mut command_array =
+                                                                    [0; COMMAND_BUF_LEN];
+                                                                command_array
+                                                                    .copy_from_slice(command);
+                                                                cmd_arr[0].write(&command_array);
+                                                            }
+                                                            _ => {
+                                                                self.modified_byte.set(EOL);
+                                                            }
+                                                        };
+                                                        Some(i)
+                                                    }
                                                 })
                                                 .unwrap()
                                         }
@@ -1017,7 +1044,31 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     // Down arrow case
                                     b'B' => match self.command_history_index.extract() {
                                         Some(i) => match i > 0 {
-                                            true => Some(i - 1),
+                                            true => {
+                                                // Remove last whitespace byte from the command
+                                                // or register a new unfinshed command
+                                                // upon pressing backspace
+                                                self.command_history.map(|cmd_arr| {
+                                                    match self.modified_byte.get() {
+                                                        b' ' => {
+                                                            (&mut cmd_arr[0]).delete_last_byte();
+                                                        }
+                                                        b'\x08' | b'\x7F' => {
+                                                            cmd_arr[0].clear();
+
+                                                            let mut command_array =
+                                                                [0; COMMAND_BUF_LEN];
+                                                            command_array.copy_from_slice(command);
+                                                            cmd_arr[0].write(&command_array);
+                                                        }
+                                                        _ => {
+                                                            self.modified_byte.set(EOL);
+                                                        }
+                                                    };
+                                                });
+
+                                                Some(i - 1)
+                                            }
                                             false => None,
                                         },
                                         None => None,
@@ -1081,7 +1132,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         if read_buf[0] != (' ' as u8)
                                             || previous_byte != (' ' as u8)
                                         {
-                                            cmd_arr[0].insert_byte(read_buf[0]);
+                                            (&mut cmd_arr[0]).insert_byte(read_buf[0]);
                                         }
                                     }
                                 });
