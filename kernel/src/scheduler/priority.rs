@@ -10,7 +10,7 @@
 //! is running. The only way for a process to longer be the highest priority is
 //! for an interrupt to occur, which will cause the process to stop running.
 
-use crate::dynamic_deferred_call::DynamicDeferredCall;
+use crate::deferred_call::DeferredCall;
 use crate::kernel::{Kernel, StoppedExecutingReason};
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
@@ -55,7 +55,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
         // a system call by this process could make another process ready, if
         // this app is communicating via IPC with a higher priority app.
         !(chip.has_pending_interrupts()
-            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+            || DeferredCall::has_tasks()
             || self
                 .kernel
                 .get_process_iter()

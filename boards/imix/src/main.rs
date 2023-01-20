@@ -21,7 +21,6 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
@@ -374,14 +373,6 @@ pub unsafe fn main() {
             trng: true,
         },
     );
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 6], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
     sha.register();
