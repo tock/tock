@@ -4,7 +4,7 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};
-use kernel::deferred_call2::{self, DeferredCallClient};
+use kernel::deferred_call::{self, DeferredCallClient};
 use kernel::platform::chip::{Chip, InterruptService};
 
 type Task = ();
@@ -230,7 +230,7 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         true
     }
     unsafe fn service_deferred_call(&self, _: Task) -> bool {
-        kernel::deferred_call2::DeferredCall::service_next_pending().is_some()
+        kernel::deferred_call::DeferredCall::service_next_pending().is_some()
     }
 }
 
@@ -259,7 +259,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call2::DeferredCall::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() || deferred_call::DeferredCall::has_tasks() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

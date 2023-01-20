@@ -5,7 +5,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
-use kernel::deferred_call2::{DeferredCall, DeferredCallClient};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::spi;
 use kernel::hil::uart;

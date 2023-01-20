@@ -25,7 +25,7 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::uart;
 
@@ -52,20 +52,14 @@ macro_rules! uart_mux_component_static {
 pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
     uart: &'static dyn uart::Uart<'static>,
     baud_rate: u32,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
     pub fn new(
         uart: &'static dyn uart::Uart<'static>,
         baud_rate: u32,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> UartMuxComponent<RX_BUF_LEN> {
-        UartMuxComponent {
-            uart,
-            baud_rate,
-            deferred_caller,
-        }
+        UartMuxComponent { uart, baud_rate }
     }
 }
 
@@ -78,15 +72,8 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rx_buf = s.1.write([0; RX_BUF_LEN]);
-        let uart_mux = s.0.write(MuxUart::new(
-            self.uart,
-            rx_buf,
-            self.baud_rate,
-            self.deferred_caller,
-        ));
-        uart_mux.initialize_callback_handle(
-            self.deferred_caller.register(uart_mux).unwrap(), // Unwrap fail = no deferred call slot available for uart mux
-        );
+        let uart_mux = s.0.write(MuxUart::new(self.uart, rx_buf, self.baud_rate));
+        uart_mux.register();
 
         uart_mux.initialize();
         hil::uart::Transmit::set_transmit_client(self.uart, uart_mux);

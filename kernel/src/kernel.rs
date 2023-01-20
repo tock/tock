@@ -477,7 +477,7 @@ impl Kernel {
     ) -> ! {
         resources.watchdog().setup();
         // Before we begin, verify that deferred calls were soundly setup.
-        crate::deferred_call2::DeferredCall::verify_setup();
+        crate::deferred_call::DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }

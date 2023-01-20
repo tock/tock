@@ -3,7 +3,10 @@ use core::cell::Cell;
 use core::marker::Copy;
 use core::marker::PhantomData;
 
-pub trait DeferredCallClient {
+// This trait is not intended to be used as a trait object;
+// e.g. you should not create a `&dyn DeferredCallClient`.
+// The `Sized` supertrait prevents this.
+pub trait DeferredCallClient: Sized {
     fn handle_deferred_call(&self);
     fn register(&'static self); // This function should be implemented as
                                 // `self.deferred_call.register(&self);`

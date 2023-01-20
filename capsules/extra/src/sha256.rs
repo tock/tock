@@ -6,9 +6,7 @@
 //! and translating the output into big endian format.
 
 use core::cell::Cell;
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
 use kernel::hil::digest::Client;
 use kernel::hil::digest::Sha256;
@@ -58,13 +56,12 @@ pub struct Sha256Software<'a> {
     output_data: Cell<Option<&'static mut [u8; SHA_256_OUTPUT_LEN_BYTES]>>,
 
     hash_values: Cell<[u32; 8]>,
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
 }
 
 impl<'a> Sha256Software<'a> {
-    pub fn new(call: &'a DynamicDeferredCall) -> Sha256Software<'a> {
-        let s = Sha256Software {
+    pub fn new() -> Self {
+        let s = Self {
             state: Cell::new(State::Idle),
             client: OptionalCell::empty(),
             input_data: OptionalCell::empty(),
@@ -75,15 +72,10 @@ impl<'a> Sha256Software<'a> {
             output_data: Cell::new(None),
             hash_values: Cell::new([0; 8]),
 
-            deferred_caller: call,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
         };
         s.initialize();
         s
-    }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
     }
 
     pub fn busy(&self) -> bool {
@@ -308,16 +300,10 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
             Err((ErrorCode::BUSY, data))
         } else {
             self.state.set(State::Data);
-            if self.handle.is_none() {
-                Err((ErrorCode::FAIL, data))
-            } else {
-                self.handle.map(|handle| {
-                    self.deferred_caller.set(*handle);
-                    self.input_data.set(LeasableBufferDynamic::Immutable(data));
-                    self.compute_sha256();
-                });
-                Ok(())
-            }
+            self.deferred_call.set();
+            self.input_data.set(LeasableBufferDynamic::Immutable(data));
+            self.compute_sha256();
+            Ok(())
         }
     }
 
@@ -329,16 +315,10 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
             Err((ErrorCode::BUSY, data))
         } else {
             self.state.set(State::Data);
-            if self.handle.is_none() {
-                Err((ErrorCode::FAIL, data))
-            } else {
-                self.handle.map(|handle| {
-                    self.deferred_caller.set(*handle);
-                    self.input_data.set(LeasableBufferDynamic::Mutable(data));
-                    self.compute_sha256();
-                });
-                Ok(())
-            }
+            self.deferred_call.set();
+            self.input_data.set(LeasableBufferDynamic::Mutable(data));
+            self.compute_sha256();
+            Ok(())
         }
     }
 
@@ -356,23 +336,17 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
             Err((ErrorCode::BUSY, digest))
         } else {
             self.state.set(State::Hash);
-            if self.handle.is_none() {
-                Err((ErrorCode::FAIL, digest))
-            } else {
-                self.handle.map(|handle| {
-                    self.complete_sha256();
-                    for i in 0..8 {
-                        let val = self.hash_values.get()[i];
-                        digest[4 * i + 3] = (val >> 0 & 0xff) as u8;
-                        digest[4 * i + 2] = (val >> 8 & 0xff) as u8;
-                        digest[4 * i + 1] = (val >> 16 & 0xff) as u8;
-                        digest[4 * i + 0] = (val >> 24 & 0xff) as u8;
-                    }
-                    self.output_data.set(Some(digest));
-                    self.deferred_caller.set(*handle);
-                });
-                Ok(())
+            self.complete_sha256();
+            for i in 0..8 {
+                let val = self.hash_values.get()[i];
+                digest[4 * i + 3] = (val >> 0 & 0xff) as u8;
+                digest[4 * i + 2] = (val >> 8 & 0xff) as u8;
+                digest[4 * i + 1] = (val >> 16 & 0xff) as u8;
+                digest[4 * i + 0] = (val >> 24 & 0xff) as u8;
             }
+            self.output_data.set(Some(digest));
+            self.deferred_call.set();
+            Ok(())
         }
     }
 }
@@ -386,16 +360,10 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
             Err((ErrorCode::BUSY, compare))
         } else {
             self.state.set(State::Verify);
-            if self.handle.is_none() {
-                Err((ErrorCode::FAIL, compare))
-            } else {
-                self.handle.map(|handle| {
-                    self.complete_sha256();
-                    self.output_data.set(Some(compare));
-                    self.deferred_caller.set(*handle);
-                });
-                Ok(())
-            }
+            self.complete_sha256();
+            self.output_data.set(Some(compare));
+            self.deferred_call.set();
+            Ok(())
         }
     }
 }
@@ -406,8 +374,8 @@ impl<'a> Digest<'a, 32> for Sha256Software<'a> {
     }
 }
 
-impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for Sha256Software<'a> {
+    fn handle_deferred_call(&self) {
         let prior = self.state.get();
         self.state.set(State::Idle);
         match prior {
@@ -494,6 +462,10 @@ impl<'a> DynamicDeferredCallClient for Sha256Software<'a> {
                 });
             }
         }
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

@@ -6,9 +6,7 @@
 use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 
@@ -20,8 +18,7 @@ pub struct MuxI2C<'a> {
     enabled: Cell<usize>,
     i2c_inflight: OptionalCell<&'a I2CDevice<'a>>,
     smbus_inflight: OptionalCell<&'a SMBusDevice<'a>>,
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
 }
 
 impl I2CHwMasterClient for MuxI2C<'_> {
@@ -40,26 +37,17 @@ impl I2CHwMasterClient for MuxI2C<'_> {
 }
 
 impl<'a> MuxI2C<'a> {
-    pub const fn new(
-        i2c: &'a dyn i2c::I2CMaster,
-        smbus: Option<&'a dyn i2c::SMBusMaster>,
-        deferred_caller: &'a DynamicDeferredCall,
-    ) -> MuxI2C<'a> {
-        MuxI2C {
-            i2c: i2c,
+    pub fn new(i2c: &'a dyn i2c::I2CMaster, smbus: Option<&'a dyn i2c::SMBusMaster>) -> Self {
+        Self {
+            i2c,
             smbus,
             i2c_devices: List::new(),
             smbus_devices: List::new(),
             enabled: Cell::new(0),
             i2c_inflight: OptionalCell::empty(),
             smbus_inflight: OptionalCell::empty(),
-            deferred_caller: deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
-    }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
     }
 
     fn enable(&self) {
@@ -189,13 +177,17 @@ impl<'a> MuxI2C<'a> {
     ///
     /// https://github.com/tock/tock/issues/1496
     fn do_next_op_async(&self) {
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
     }
 }
 
-impl<'a> DynamicDeferredCallClient for MuxI2C<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl DeferredCallClient for MuxI2C<'_> {
+    fn handle_deferred_call(&self) {
         self.do_next_op();
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

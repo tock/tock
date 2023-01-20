@@ -45,9 +45,7 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -61,8 +59,7 @@ pub struct MuxUart<'a> {
     inflight: OptionalCell<&'a UartDevice<'a>>,
     buffer: TakeCell<'static, [u8]>,
     completing_read: Cell<bool>,
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
 }
 
 impl<'a> uart::TransmitClient for MuxUart<'a> {
@@ -189,21 +186,15 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(
-        uart: &'a dyn uart::Uart<'a>,
-        buffer: &'static mut [u8],
-        speed: u32,
-        deferred_caller: &'a DynamicDeferredCall,
-    ) -> MuxUart<'a> {
+    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
         MuxUart {
-            uart: uart,
-            speed: speed,
+            uart,
+            speed,
             devices: List::new(),
             inflight: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
             completing_read: Cell::new(false),
-            deferred_caller: deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -215,10 +206,6 @@ impl<'a> MuxUart<'a> {
             parity: uart::Parity::None,
             hw_flow_control: false,
         });
-    }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
     }
 
     fn do_next_op(&self) {
@@ -299,13 +286,17 @@ impl<'a> MuxUart<'a> {
     ///
     /// https://github.com/tock/tock/issues/1496
     fn do_next_op_async(&self) {
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
     }
 }
 
-impl<'a> DynamicDeferredCallClient for MuxUart<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl DeferredCallClient for MuxUart<'_> {
+    fn handle_deferred_call(&self) {
         self.do_next_op();
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

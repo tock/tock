@@ -14,9 +14,7 @@ use super::descriptors::InterfaceDescriptor;
 use super::descriptors::TransferDirection;
 use super::usbc_client_ctrl::ClientCtrl;
 
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::hil::uart;
@@ -153,10 +151,8 @@ pub struct CdcAcm<'a, U: 'a, A: 'a + Alarm<'a>> {
     /// delivered over the console).
     boot_period: Cell<bool>,
 
-    /// Deferred Caller
-    deferred_caller: &'a DynamicDeferredCall,
-    /// Deferred Call Handle
-    handle: OptionalCell<DeferredCallHandle>,
+    /// Deferred Call
+    deferred_call: DeferredCall,
     /// Flag to mark we are waiting on a deferred call for dropping a TX. This
     /// can happen if an upper layer told us to transmit a buffer, but there is
     /// no host connected and therefore we cannot actually transmit. However,
@@ -188,7 +184,6 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
         product_id: u16,
         strings: &'static [&'static str; 3],
         timeout_alarm: &'a A,
-        deferred_caller: &'a DynamicDeferredCall,
         host_initiated_function: Option<&'a (dyn Fn() + 'a)>,
     ) -> Self {
         let interfaces: &mut [InterfaceDescriptor] = &mut [
@@ -308,16 +303,11 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
             rx_client: OptionalCell::empty(),
             timeout_alarm,
             boot_period: Cell::new(true),
-            deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             deferred_call_pending_droptx: Cell::new(false),
             deferred_call_pending_abortrx: Cell::new(false),
             host_initiated_function,
         }
-    }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
     }
 
     #[inline]
@@ -704,7 +694,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Transmit<'a>
                 // indicate success, but we will not actually queue this message -- just schedule
                 // a deferred callback to return the buffer immediately.
                 self.deferred_call_pending_droptx.set(true);
-                self.handle.map(|handle| self.deferred_caller.set(*handle));
+                self.deferred_call.set();
                 Ok(())
             }
         }
@@ -750,7 +740,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Receive<'a> fo
             // If we do have a receive pending then we need to start a deferred
             // call to set the callback and return `BUSY`.
             self.deferred_call_pending_abortrx.set(true);
-            self.handle.map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
             Err(ErrorCode::BUSY)
         }
     }
@@ -783,10 +773,10 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> AlarmClient for CdcA
     }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallClient
+impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DeferredCallClient
     for CdcAcm<'a, U, A>
 {
-    fn call(&self, _handle: DeferredCallHandle) {
+    fn handle_deferred_call(&self) {
         if self.deferred_call_pending_droptx.replace(false) {
             self.indicate_tx_success()
         }
@@ -809,5 +799,9 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> DynamicDeferredCallC
                 });
             });
         }
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }

@@ -20,6 +20,7 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 //use capsules_core::virtualizers::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
@@ -382,11 +383,8 @@ pub unsafe fn main() {
     );
     DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let sha = static_init!(
-        Sha256Software<'static>,
-        Sha256Software::new(dynamic_deferred_caller)
-    );
-    sha.initialize_callback_handle(dynamic_deferred_caller.register(sha).unwrap());
+    let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
+    sha.register();
 
     let checker = static_init!(
         AppCheckerSha256,
@@ -403,7 +401,7 @@ pub unsafe fn main() {
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = UartMuxComponent::new(&peripherals.usart3, 115200, dynamic_deferred_caller)
+    let uart_mux = UartMuxComponent::new(&peripherals.usart3, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // # TIMER
@@ -439,10 +437,7 @@ pub unsafe fn main() {
     .finalize(components::nrf51822_component_static!());
 
     // # I2C and I2C Sensors
-    let mux_i2c = static_init!(
-        MuxI2C<'static>,
-        MuxI2C::new(&peripherals.i2c2, None, dynamic_deferred_caller)
-    );
+    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&peripherals.i2c2, None));
     peripherals.i2c2.set_master_client(mux_i2c);
 
     let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm)
@@ -479,7 +474,7 @@ pub unsafe fn main() {
     .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
 
     let spi_syscalls = SpiSyscallComponent::new(
@@ -612,12 +607,10 @@ pub unsafe fn main() {
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, sam4l::aes::Aes>,
-        MuxAES128CCM::new(&peripherals.aes, dynamic_deferred_caller)
+        MuxAES128CCM::new(&peripherals.aes)
     );
+    aes_mux.register();
     peripherals.aes.set_client(aes_mux);
-    aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-    );
 
     // Can this initialize be pushed earlier, or into component? -pal
     let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
@@ -748,17 +741,15 @@ pub unsafe fn main() {
     //
     //test::virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
     //test::rng_test::run_entropy32(&peripherals.trng);
-    //test::virtual_aes_ccm_test::run(&peripherals.aes, dynamic_deferred_caller);
+    //test::virtual_aes_ccm_test::run(&peripherals.aes);
     //test::aes_test::run_aes128_ctr(&peripherals.aes);
     //test::aes_test::run_aes128_cbc(&peripherals.aes);
     //test::log_test::run(
     //    mux_alarm,
-    //    dynamic_deferred_caller,
     //    &peripherals.flash_controller,
     //);
     //test::linear_log_test::run(
     //    mux_alarm,
-    //    dynamic_deferred_caller,
     //    &peripherals.flash_controller,
     //);
     //test::icmp_lowpan_test::run(mux_mac, mux_alarm);
@@ -785,7 +776,7 @@ pub unsafe fn main() {
     );*/
     //virtual_alarm_timer.set_alarm_client(mux_timer);
 
-    //test::sha256_test::run_sha256(dynamic_deferred_caller);
+    //test::sha256_test::run_sha256();
 
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
     .finalize(components::multi_alarm_test_component_buf!(sam4l::ast::Ast))

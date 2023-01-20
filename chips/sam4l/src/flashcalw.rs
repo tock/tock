@@ -23,7 +23,7 @@
 use crate::pm;
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::deferred_call2::{DeferredCall, DeferredCallClient};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
