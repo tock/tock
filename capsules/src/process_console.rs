@@ -115,7 +115,7 @@ pub struct ProcessConsole<
     command_history: TakeCell<'static, [Command; COMMAND_HISTORY_LEN]>,
 
     control_seq_in_progress: Cell<bool>,
-    scrolled_in_history: Cell<bool>,
+    modified_in_history: Cell<bool>,
 
     /// Index of the last copied command in the history
     command_history_index: OptionalCell<usize>,
@@ -169,8 +169,15 @@ impl Command {
         }
     }
 
+    fn delete_last_byte(&mut self) {
+        if self.len > 0 {
+            self.len -= 1;
+            self.buf[self.len] = EOL;
+        }
+    }
+
     fn clear(&mut self) {
-        self.buf.iter_mut().for_each(|x| *x = 0);
+        self.buf.iter_mut().for_each(|x| *x = EOL);
         self.len = 0;
     }
 }
@@ -178,7 +185,7 @@ impl Command {
 impl Default for Command {
     fn default() -> Self {
         Command {
-            buf: [0; COMMAND_BUF_LEN],
+            buf: [EOL; COMMAND_BUF_LEN],
             len: 0,
         }
     }
@@ -260,7 +267,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             command_index: Cell::new(0),
 
             control_seq_in_progress: Cell::new(false),
-            scrolled_in_history: Cell::new(false),
+            modified_in_history: Cell::new(false),
             command_history: TakeCell::new(cmd_history_buffer),
             command_history_index: OptionalCell::empty(),
 
@@ -544,8 +551,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         if COMMAND_HISTORY_LEN > 1 {
                             if clean_str.len() > 0 {
                                 self.command_history.map(|cmd_arr| {
-                                    cmd_arr[0].clear();
-
                                     let mut command_array = [0; COMMAND_BUF_LEN];
                                     command_array.copy_from_slice(command);
 
@@ -955,7 +960,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                                 if COMMAND_HISTORY_LEN > 1 {
                                     self.command_history_index.insert(None);
-                                    self.scrolled_in_history.set(false);
+                                    self.modified_in_history.set(false);
+
+                                    // Clear the unfinished command if the \r\n is received
+                                    self.command_history.map(|cmd_arr| {
+                                        cmd_arr[0].clear();
+                                    });
                                 }
                             } else {
                                 self.execute.set(true);
@@ -976,6 +986,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             if read_buf[0] == ESC {
                                 // Signal that a control sequence has started and capture it
                                 self.control_seq_in_progress.set(true);
+
+                                // Remove the last space from the unfinished command
+                                self.command_history.map(|cmd_arr| {
+                                    if previous_byte == (' ' as u8) {
+                                        cmd_arr[0].delete_last_byte();
+                                    }
+                                });
                             } else if read_buf[0] != ('[' as u8) {
                                 // Fetch the index of the last command added to the history
                                 if let Some(index) = match read_buf[0] {
@@ -1029,7 +1046,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                             command[i] = byte;
                                         }
 
-                                        self.scrolled_in_history.set(true);
+                                        self.modified_in_history.set(true);
                                         self.command_index.set(next_command_len);
                                         command[next_command_len] = EOL;
                                     });
@@ -1048,15 +1065,25 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                             if COMMAND_HISTORY_LEN > 1 {
                                 self.command_history.map(|cmd_arr| {
-                                    if self.scrolled_in_history.get() {
-                                        cmd_arr[0].clear();
-                                        for i in 0..(self.command_index.get() - 1) {
-                                            cmd_arr[0].insert_byte(command[i]);
-                                        }
-                                        self.scrolled_in_history.set(false);
-                                    }
+                                    if self.modified_in_history.get() {
+                                        // Copy the last command into the unfinished command
 
-                                    cmd_arr[0].insert_byte(read_buf[0]);
+                                        cmd_arr[0].clear();
+
+                                        let mut command_array = [0; COMMAND_BUF_LEN];
+                                        command_array.copy_from_slice(command);
+                                        cmd_arr[0].write(&command_array);
+
+                                        self.modified_in_history.set(false);
+                                    } else {
+                                        // Do not save unnecessary white spaces
+                                        // between commands
+                                        if read_buf[0] != (' ' as u8)
+                                            || previous_byte != (' ' as u8)
+                                        {
+                                            cmd_arr[0].insert_byte(read_buf[0]);
+                                        }
+                                    }
                                 });
                             }
                         }
