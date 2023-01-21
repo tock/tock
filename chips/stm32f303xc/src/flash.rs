@@ -11,7 +11,7 @@
 
 use core::cell::Cell;
 use core::ops::{Index, IndexMut};
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -21,8 +21,6 @@ use kernel::utilities::registers::register_bitfields;
 use kernel::utilities::registers::{ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-
-use crate::deferred_call_tasks::DeferredCallTask;
 
 const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x40022000 as *const FlashRegisters) };
@@ -207,9 +205,6 @@ register_bitfields! [u32,
     ]
 ];
 
-static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
-    unsafe { DeferredCall::new(DeferredCallTask::Flash) };
-
 const PAGE_SIZE: usize = 2048;
 
 /// Address of the first flash page.
@@ -288,6 +283,7 @@ pub struct Flash {
     state: Cell<FlashState>,
     write_counter: Cell<usize>,
     page_number: Cell<usize>,
+    deferred_call: DeferredCall,
 }
 
 impl Flash {
@@ -299,6 +295,7 @@ impl Flash {
             state: Cell::new(FlashState::Ready),
             write_counter: Cell::new(0),
             page_number: Cell::new(0),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -556,7 +553,7 @@ impl Flash {
 
         self.buffer.replace(buffer);
         self.state.set(FlashState::Read);
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }
@@ -601,6 +598,16 @@ impl Flash {
         self.registers.cr.modify(Control::STRT::SET);
 
         Ok(())
+    }
+}
+
+impl DeferredCallClient for Flash {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        self.handle_interrupt();
     }
 }
 

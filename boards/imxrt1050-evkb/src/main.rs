@@ -11,7 +11,6 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -256,14 +255,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
 
@@ -313,12 +304,8 @@ pub unsafe fn main() {
     // Enable clock
     peripherals.lpuart1.enable_clock();
 
-    let lpuart_mux = components::console::UartMuxComponent::new(
-        &peripherals.lpuart1,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let lpuart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart1, 115200)
+        .finalize(components::uart_mux_component_static!());
     io::WRITER.set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
@@ -444,9 +431,8 @@ pub unsafe fn main() {
         .set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
     use imxrt1050::gpio::PinId;
-    let mux_i2c =
-        components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None)
+        .finalize(components::i2c_mux_component_static!());
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(

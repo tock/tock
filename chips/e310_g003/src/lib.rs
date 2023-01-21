@@ -4,7 +4,7 @@
 #![crate_name = "e310_g003"]
 #![crate_type = "rlib"]
 
-pub use e310x::{chip, clint, deferred_call_tasks, gpio, plic, prci, pwm, rtc, uart, watchdog};
+pub use e310x::{chip, clint, gpio, plic, prci, pwm, rtc, uart, watchdog};
 
 pub mod interrupt_service;
 mod interrupts;

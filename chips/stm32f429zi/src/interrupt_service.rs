@@ -1,5 +1,4 @@
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
-use stm32f4xx::deferred_calls::DeferredCallTask;
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
@@ -23,14 +22,13 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
             can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
         }
     }
-    // Necessary for setting up circular dependencies
-    pub fn init(&'a self) {
+    // Necessary for setting up circular dependencies and registering deferred calls
+    pub fn init(&'static self) {
         self.stm32f4.setup_circular_deps();
+        kernel::deferred_call::DeferredCallClient::register(&self.can1);
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
-    for Stm32f429ziDefaultPeripherals<'a>
-{
+impl<'a> kernel::platform::chip::InterruptService for Stm32f429ziDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f429zi specific interrupts here
@@ -55,16 +53,6 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
                 true
             }
             _ => self.stm32f4.service_interrupt(interrupt),
-        }
-    }
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            // handle the Can deferred call task
-            DeferredCallTask::Can => {
-                self.can1.handle_deferred_task();
-                true
-            }
-            _ => self.stm32f4.service_deferred_call(task),
         }
     }
 }

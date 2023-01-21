@@ -8,7 +8,6 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
@@ -158,18 +157,6 @@ pub unsafe fn main() {
     // Create a board kernel instance
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    // Some capsules require a callback from a different stack
-    // frame. The dynamic deferred call infrastructure can be used to
-    // request such a callback (issued from the scheduler) without
-    // requiring to wire these capsule up in the chip crates.
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
     let peripherals = static_init!(
@@ -180,12 +167,8 @@ pub unsafe fn main() {
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
@@ -273,12 +256,8 @@ pub unsafe fn main() {
             queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
 
             // VirtIO EntropySource device driver instantiation
-            let rng = static_init!(VirtIORng, VirtIORng::new(queue, dynamic_deferred_caller));
-            rng.set_deferred_call_handle(
-                dynamic_deferred_caller
-                    .register(rng)
-                    .expect("no deferred call slot available for VirtIO RNG"),
-            );
+            let rng = static_init!(VirtIORng, VirtIORng::new(queue));
+            kernel::deferred_call::DeferredCallClient::register(rng);
             queue.set_client(rng);
 
             // Register the queues and driver with the transport, so interrupts

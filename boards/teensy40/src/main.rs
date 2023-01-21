@@ -15,7 +15,6 @@ use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -257,20 +256,9 @@ pub unsafe fn main() {
     // Start loading the kernel
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     // TODO how many of these should there be...?
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.lpuart2,
-        115_200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
+        .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());

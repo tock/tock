@@ -1,5 +1,4 @@
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
-use stm32f4xx::deferred_calls::DeferredCallTask;
 
 use crate::{stm32f412g_nvic, trng_registers};
 
@@ -21,14 +20,12 @@ impl<'a> Stm32f412gDefaultPeripherals<'a> {
             trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
         }
     }
-    // Necessary for setting up circular dependencies
-    pub fn init(&'a self) {
+    // Necessary for setting up circular dependencies & registering deferred calls
+    pub fn init(&'static self) {
         self.stm32f4.setup_circular_deps();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
-    for Stm32f412gDefaultPeripherals<'a>
-{
+impl<'a> kernel::platform::chip::InterruptService for Stm32f412gDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f412g specific interrupts here
@@ -38,8 +35,5 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
             }
             _ => self.stm32f4.service_interrupt(interrupt),
         }
-    }
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        self.stm32f4.service_deferred_call(task)
     }
 }

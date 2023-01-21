@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -7,8 +7,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-
-use crate::deferred_calls::DeferredCallTask;
 
 use crate::dma;
 use crate::rcc;
@@ -147,14 +145,6 @@ register_bitfields![u32,
     ]
 ];
 
-static DEFERRED_CALLS: [DeferredCall<DeferredCallTask>; 3] = unsafe {
-    [
-        DeferredCall::new(DeferredCallTask::Usart1),
-        DeferredCall::new(DeferredCallTask::Usart2),
-        DeferredCall::new(DeferredCallTask::Usart3),
-    ]
-};
-
 // See Table 13. STM32F427xx and STM32F429xx register boundary addresses
 // of the STM32F429zi datasheet
 pub const USART1_BASE: StaticRef<UsartRegisters> =
@@ -209,6 +199,8 @@ pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
 
     partial_rx_buffer: TakeCell<'static, [u8]>,
     partial_rx_len: Cell<usize>,
+
+    deferred_call: DeferredCall,
 }
 
 // for use by `set_dma`
@@ -285,6 +277,8 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
             partial_rx_buffer: TakeCell::empty(),
             partial_rx_len: Cell::new(0),
+
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -303,28 +297,6 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     pub fn set_dma(&self, tx_dma: TxDMA<'a, DMA>, rx_dma: RxDMA<'a, DMA>) {
         self.tx_dma.set(tx_dma.0);
         self.rx_dma.set(rx_dma.0);
-    }
-
-    pub fn handle_deferred_task(&self) {
-        if let USARTStateTX::Aborted(rcode) = self.usart_tx_state.get() {
-            // alert client
-            self.tx_client.map(|client| {
-                self.partial_tx_buffer.take().map(|buf| {
-                    client.transmitted_buffer(buf, self.partial_tx_len.get(), rcode);
-                });
-            });
-            self.usart_tx_state.set(USARTStateTX::Idle);
-        }
-
-        if let USARTStateRX::Aborted(rcode, error) = self.usart_rx_state.get() {
-            // alert client
-            self.rx_client.map(|client| {
-                self.partial_rx_buffer.take().map(|buf| {
-                    client.received_buffer(buf, self.partial_rx_len.get(), rcode, error);
-                });
-            });
-            self.usart_rx_state.set(USARTStateRX::Idle);
-        }
     }
 
     // According to section 25.4.13, we need to make sure that USART TC flag is
@@ -401,14 +373,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
             self.usart_tx_state.set(USARTStateTX::Aborted(rcode));
 
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*USART1_BASE) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*USART2_BASE) as *const _ {
-                DEFERRED_CALLS[1].set()
-            } else if ptr == &(*USART3_BASE) as *const _ {
-                DEFERRED_CALLS[2].set()
-            }
+            self.deferred_call.set();
         } else {
             self.usart_tx_state.set(USARTStateTX::Idle);
         }
@@ -434,14 +399,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
 
             self.usart_rx_state.set(USARTStateRX::Aborted(rcode, error));
 
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*USART1_BASE) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*USART2_BASE) as *const _ {
-                DEFERRED_CALLS[1].set()
-            } else if ptr == &(*USART3_BASE) as *const _ {
-                DEFERRED_CALLS[2].set()
-            }
+            self.deferred_call.set();
         } else {
             self.usart_rx_state.set(USARTStateRX::Idle);
         }
@@ -483,6 +441,34 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
                     });
                 });
             }
+        }
+    }
+}
+
+impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        if let USARTStateTX::Aborted(rcode) = self.usart_tx_state.get() {
+            // alert client
+            self.tx_client.map(|client| {
+                self.partial_tx_buffer.take().map(|buf| {
+                    client.transmitted_buffer(buf, self.partial_tx_len.get(), rcode);
+                });
+            });
+            self.usart_tx_state.set(USARTStateTX::Idle);
+        }
+
+        if let USARTStateRX::Aborted(rcode, error) = self.usart_rx_state.get() {
+            // alert client
+            self.rx_client.map(|client| {
+                self.partial_rx_buffer.take().map(|buf| {
+                    client.received_buffer(buf, self.partial_rx_len.get(), rcode, error);
+                });
+            });
+            self.usart_rx_state.set(USARTStateRX::Idle);
         }
     }
 }

@@ -267,31 +267,25 @@ impl Compress for AppCheckerSha256 {
 /// exists to test that the Tock boot sequence correctly handles
 /// ID collisions and version numbers.
 pub struct AppCheckerRsaSimulated<'a> {
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn Client<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
 
 impl<'a> AppCheckerRsaSimulated<'a> {
-    pub fn new(call: &'a DynamicDeferredCall) -> AppCheckerRsaSimulated<'a> {
-        AppCheckerRsaSimulated {
-            deferred_caller: call,
-            handle: OptionalCell::empty(),
+    pub fn new() -> AppCheckerRsaSimulated<'a> {
+        Self {
+            deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
         }
     }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
 }
 
-impl<'a> DynamicDeferredCallClient for AppCheckerRsaSimulated<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
+    fn handle_deferred_call(&self) {
         // This checker does not actually verify the RSA signature; it
         // assumes the signature is valid and so accepts any RSA
         // signature. This checker is intended for testing kernel
@@ -311,6 +305,10 @@ impl<'a> DynamicDeferredCallClient for AppCheckerRsaSimulated<'a> {
             c.check_done(result, cred, binary)
         });
     }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
 }
 
 impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
@@ -323,17 +321,14 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        self.handle
-            .map_or(Err((ErrorCode::FAIL, credentials, binary)), |handle| {
-                if self.credentials.is_none() {
-                    self.credentials.replace(credentials);
-                    self.binary.replace(binary);
-                    self.deferred_caller.set(*handle);
-                    Ok(())
-                } else {
-                    Err((ErrorCode::BUSY, credentials, binary))
-                }
-            })
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
     }
 
     fn set_client(&self, client: &'a dyn Client<'a>) {

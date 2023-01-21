@@ -18,7 +18,7 @@ static mut INTERRUPT_CONTROLLER: VexRiscvInterruptController = VexRiscvInterrupt
 // The VexRiscv "Secure" variant of
 // [pythondata-cpu-vexriscv](https://github.com/litex-hub/pythondata-cpu-vexriscv)
 // has 16 PMP slots
-pub struct LiteXVexRiscv<I: 'static + InterruptService<()>> {
+pub struct LiteXVexRiscv<I: 'static + InterruptService> {
     soc_identifier: &'static str,
     userspace_kernel_boundary: SysCall,
     interrupt_controller: &'static VexRiscvInterruptController,
@@ -26,7 +26,7 @@ pub struct LiteXVexRiscv<I: 'static + InterruptService<()>> {
     interrupt_service: &'static I,
 }
 
-impl<I: 'static + InterruptService<()>> LiteXVexRiscv<I> {
+impl<I: 'static + InterruptService> LiteXVexRiscv<I> {
     pub unsafe fn new(soc_identifier: &'static str, interrupt_service: &'static I) -> Self {
         Self {
             soc_identifier,
@@ -51,7 +51,7 @@ impl<I: 'static + InterruptService<()>> LiteXVexRiscv<I> {
     }
 }
 
-impl<I: 'static + InterruptService<()>> kernel::platform::chip::Chip for LiteXVexRiscv<I> {
+impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRiscv<I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
 

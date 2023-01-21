@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::uart::ReceiveClient;
 use kernel::hil::uart::{
@@ -12,7 +12,6 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::clocks;
-use crate::deferred_call_tasks::DeferredCallTask;
 
 register_structs! {
     /// controls serial port
@@ -355,13 +354,6 @@ register_bitfields! [u32,
     ]
 ];
 
-static DEFERRED_CALLS: [DeferredCall<DeferredCallTask>; 2] = unsafe {
-    [
-        DeferredCall::new(DeferredCallTask::Uart0),
-        DeferredCall::new(DeferredCallTask::Uart1),
-    ]
-};
-
 #[derive(Copy, Clone, PartialEq)]
 enum UARTStateTX {
     Idle,
@@ -398,6 +390,8 @@ pub struct Uart<'a> {
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     rx_status: Cell<UARTStateRX>,
+
+    deferred_call: DeferredCall,
 }
 
 impl<'a> Uart<'a> {
@@ -418,6 +412,8 @@ impl<'a> Uart<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
+
+            deferred_call: DeferredCall::new(),
         }
     }
     pub fn new_uart1() -> Self {
@@ -436,6 +432,8 @@ impl<'a> Uart<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
+
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -538,7 +536,35 @@ impl<'a> Uart<'a> {
         }
     }
 
-    pub fn handle_deferred_call(&self) {
+    fn fill_fifo(&self) {
+        while self.uart_is_writable() && self.tx_position.get() < self.tx_len.get() {
+            self.tx_buffer.map(|buf| {
+                self.registers
+                    .uartdr
+                    .set(buf[self.tx_position.get()].into());
+                self.tx_position.replace(self.tx_position.get() + 1);
+            });
+        }
+    }
+
+    pub fn is_configured(&self) -> bool {
+        if self.registers.uartcr.is_set(UARTCR::UARTEN)
+            && (self.registers.uartcr.is_set(UARTCR::RXE)
+                || self.registers.uartcr.is_set(UARTCR::TXE))
+        {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl DeferredCallClient for Uart<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self)
+    }
+
+    fn handle_deferred_call(&self) {
         if self.tx_status.get() == UARTStateTX::AbortRequested {
             // alert client
             self.tx_client.map(|client| {
@@ -562,28 +588,6 @@ impl<'a> Uart<'a> {
                 });
             });
             self.rx_status.set(UARTStateRX::Idle);
-        }
-    }
-
-    fn fill_fifo(&self) {
-        while self.uart_is_writable() && self.tx_position.get() < self.tx_len.get() {
-            self.tx_buffer.map(|buf| {
-                self.registers
-                    .uartdr
-                    .set(buf[self.tx_position.get()].into());
-                self.tx_position.replace(self.tx_position.get() + 1);
-            });
-        }
-    }
-
-    pub fn is_configured(&self) -> bool {
-        if self.registers.uartcr.is_set(UARTCR::UARTEN)
-            && (self.registers.uartcr.is_set(UARTCR::RXE)
-                || self.registers.uartcr.is_set(UARTCR::TXE))
-        {
-            true
-        } else {
-            false
         }
     }
 }
@@ -710,12 +714,7 @@ impl<'a> Transmit<'a> for Uart<'a> {
             self.disable_transmit_interrupt();
             self.tx_status.set(UARTStateTX::AbortRequested);
 
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*UART0_BASE) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*UART1_BASE) as *const _ {
-                DEFERRED_CALLS[1].set()
-            }
+            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {
@@ -759,12 +758,7 @@ impl<'a> Receive<'a> for Uart<'a> {
             self.disable_receive_interrupt();
             self.rx_status.set(UARTStateRX::AbortRequested);
 
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*UART0_BASE) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*UART1_BASE) as *const _ {
-                DEFERRED_CALLS[1].set()
-            }
+            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {

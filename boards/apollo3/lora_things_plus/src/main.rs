@@ -42,8 +42,6 @@ use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
-use kernel::dynamic_deferred_call::DynamicDeferredCallClientState;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
@@ -208,14 +206,6 @@ unsafe fn setup() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     // Power up components
@@ -249,12 +239,8 @@ unsafe fn setup() -> (
     kernel::debug::assign_gpios(Some(&peripherals.gpio_port[26]), None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -329,9 +315,8 @@ unsafe fn setup() -> (
     let _ = &peripherals.iom0.set_master_client(i2c_master);
     let _ = &peripherals.iom0.enable();
 
-    let mux_i2c =
-        components::i2c::I2CMuxComponent::new(&peripherals.iom0, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None)
+        .finalize(components::i2c_mux_component_static!());
 
     let bme280 =
         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
@@ -349,8 +334,8 @@ unsafe fn setup() -> (
     .finalize(components::humidity_component_static!());
     BME280 = Some(bme280);
 
-    let ccs811 = Ccs811Component::new(mux_i2c, 0x5B, dynamic_deferred_caller)
-        .finalize(components::ccs811_component_static!());
+    let ccs811 =
+        Ccs811Component::new(mux_i2c, 0x5B).finalize(components::ccs811_component_static!());
     let air_quality = components::air_quality::AirQualityComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -360,10 +345,9 @@ unsafe fn setup() -> (
     CCS811 = Some(ccs811);
 
     // Init the broken out SPI controller
-    let external_mux_spi =
-        components::spi::SpiMuxComponent::new(&peripherals.iom2, dynamic_deferred_caller).finalize(
-            components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
-        );
+    let external_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom2).finalize(
+        components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
+    );
 
     let external_spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
@@ -376,10 +360,9 @@ unsafe fn setup() -> (
     ));
 
     // Init the internal SX1262 SPI controller
-    let _sx1262_mux_spi =
-        components::spi::SpiMuxComponent::new(&peripherals.iom3, dynamic_deferred_caller).finalize(
-            components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
-        );
+    let _sx1262_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom3).finalize(
+        components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
+    );
 
     // Setup BLE
     mcu_ctrl.enable_ble();

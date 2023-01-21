@@ -1,8 +1,6 @@
 use core::cell::Cell;
 
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::rng::{Client as RngClient, Continue as RngCont, Rng};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -14,28 +12,19 @@ pub struct VirtIORng<'a, 'b> {
     virtqueue: &'a SplitVirtqueue<'a, 'b, 1>,
     buffer_capacity: Cell<usize>,
     callback_pending: Cell<bool>,
-    deferred_caller: &'a DynamicDeferredCall,
-    deferred_call_handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn RngClient>,
 }
 
 impl<'a, 'b> VirtIORng<'a, 'b> {
-    pub fn new(
-        virtqueue: &'a SplitVirtqueue<'a, 'b, 1>,
-        deferred_caller: &'a DynamicDeferredCall,
-    ) -> VirtIORng<'a, 'b> {
+    pub fn new(virtqueue: &'a SplitVirtqueue<'a, 'b, 1>) -> VirtIORng<'a, 'b> {
         VirtIORng {
             virtqueue,
             buffer_capacity: Cell::new(0),
             callback_pending: Cell::new(false),
-            deferred_caller,
-            deferred_call_handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),
         }
-    }
-
-    pub fn set_deferred_call_handle(&self, handle: DeferredCallHandle) {
-        self.deferred_call_handle.set(handle);
     }
 
     pub fn provide_buffer(&self, buf: &'b mut [u8]) -> Result<usize, (&'b mut [u8], ErrorCode)> {
@@ -144,14 +133,11 @@ impl<'a, 'b> Rng<'a> for VirtIORng<'a, 'b> {
             self.callback_pending.set(true);
             self.virtqueue.enable_used_callbacks();
             Ok(())
-        } else if self.deferred_call_handle.is_none() {
-            Err(ErrorCode::FAIL)
         } else {
             // There is a buffer in the virtqueue, get it and return
             // it to a client in a deferred call
             self.callback_pending.set(true);
-            self.deferred_call_handle
-                .map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
             Ok(())
         }
     }
@@ -185,8 +171,12 @@ impl<'a, 'b> SplitVirtqueueClient<'b> for VirtIORng<'a, 'b> {
     }
 }
 
-impl<'a, 'b> DynamicDeferredCallClient for VirtIORng<'a, 'b> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a, 'b> DeferredCallClient for VirtIORng<'a, 'b> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
         // Try to extract a descriptor chain
         if let Some((mut chain, bytes_used)) = self.virtqueue.pop_used_buffer_chain() {
             self.buffer_chain_callback(&mut chain, bytes_used)
