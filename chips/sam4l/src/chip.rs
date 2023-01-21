@@ -4,19 +4,17 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};
-use kernel::deferred_call::{self, DeferredCallClient};
+use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::{Chip, InterruptService};
 
-type Task = ();
-
-pub struct Sam4l<I: InterruptService<Task> + 'static> {
+pub struct Sam4l<I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
 }
 
-impl<I: InterruptService<Task> + 'static> Sam4l<I> {
+impl<I: InterruptService + 'static> Sam4l<I> {
     pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -148,6 +146,8 @@ impl Sam4lDefaultPeripherals {
 
         self.adc.set_dma(&self.dma_channels[13]);
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
+
+        // REGISTER ALL PERIPHERALS WITH DEFERRED CALLS
         self.crccu.register();
         self.flash_controller.register();
         self.usart0.register();
@@ -156,7 +156,7 @@ impl Sam4lDefaultPeripherals {
         self.usart3.register();
     }
 }
-impl InterruptService<Task> for Sam4lDefaultPeripherals {
+impl InterruptService for Sam4lDefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -229,21 +229,16 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         }
         true
     }
-    unsafe fn service_deferred_call(&self, _: Task) -> bool {
-        kernel::deferred_call::DeferredCall::service_next_pending().is_some()
-    }
 }
 
-impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
+impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if self.interrupt_service.service_deferred_call(()) {
-                    // serviced!
-                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match self.interrupt_service.service_interrupt(interrupt) {
                         true => {}
                         false => panic!("unhandled interrupt"),
@@ -259,7 +254,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::DeferredCall::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

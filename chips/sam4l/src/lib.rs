@@ -6,8 +6,6 @@
 #![crate_type = "rlib"]
 #![no_std]
 
-pub mod deferred_call_tasks;
-
 pub mod acifc;
 pub mod adc;
 pub mod aes;
