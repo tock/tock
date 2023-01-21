@@ -24,7 +24,9 @@
 //! at the beginning of the kernel loop.
 //!
 //! ```rust
-//! use crate::deferred_call::{DeferredCall, DeferredCallClient};
+//! use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+//! use kernel::static_init;
+//!
 //! struct SomeCapsule {
 //!     deferred_call: DeferredCall
 //! }
