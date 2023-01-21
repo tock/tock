@@ -172,7 +172,7 @@ impl DeferredCall {
         let defcalls = unsafe { &DEFCALLS };
         let val = bitmask.get();
         if val == 0 {
-            return None;
+            None
         } else {
             let bit = val.trailing_zeros() as usize;
             let new_val = val & !(1 << bit);
