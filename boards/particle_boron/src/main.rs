@@ -13,7 +13,7 @@ use capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
@@ -364,18 +364,6 @@ pub unsafe fn main() {
     .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
-    // Deferred Call (Dynamic) Setup
-    //--------------------------------------------------------------------------
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
-    //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
@@ -403,7 +391,6 @@ pub unsafe fn main() {
         0x0202, // Custom
         strings,
         mux_alarm,
-        dynamic_deferred_caller,
         None,
     )
     .finalize(components::cdc_acm_component_static!(
@@ -418,7 +405,7 @@ pub unsafe fn main() {
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -460,12 +447,10 @@ pub unsafe fn main() {
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
+        MuxAES128CCM::new(&base_peripherals.ecb,)
     );
     base_peripherals.ecb.set_client(aes_mux);
-    aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-    );
+    aes_mux.register();
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
@@ -474,7 +459,6 @@ pub unsafe fn main() {
         aes_mux,
         PAN_ID,
         SRC_MAC,
-        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,

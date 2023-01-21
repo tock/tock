@@ -1,17 +1,16 @@
-use crate::deferred_call_tasks::DeferredCallTask;
 use core::fmt::Write;
 use cortexm4::{self, nvic, CortexM4, CortexMVariant};
-use kernel::deferred_call;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::time::Alarm;
 use kernel::platform::chip::InterruptService;
 
-pub struct NRF52<'a, I: InterruptService<DeferredCallTask> + 'a> {
+pub struct NRF52<'a, I: InterruptService + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     interrupt_service: &'a I,
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> NRF52<'a, I> {
+impl<'a, I: InterruptService + 'a> NRF52<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -76,14 +75,14 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         }
     }
     // Necessary for setting up circular dependencies
-    pub fn init(&'a self) {
+    pub fn init(&'static self) {
         self.ieee802154_radio.set_timer_ref(&self.timer0);
         self.timer0.set_alarm_client(&self.ieee802154_radio);
+        // REGISTER PERIPHERALS WITH DEFERRED CALLS
+        self.nvmc.register();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
-    for Nrf52DefaultPeripherals<'a>
-{
+impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
@@ -143,15 +142,9 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
         }
         true
     }
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            DeferredCallTask::Nvmc => self.nvmc.handle_interrupt(),
-        }
-        true
-    }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 
@@ -166,11 +159,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    if !self.interrupt_service.service_deferred_call(task) {
-                        panic!("unhandled deferred call task");
-                    }
-                } else if let Some(interrupt) = nvic::next_pending() {
+                if let Some(interrupt) = nvic::next_pending() {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
@@ -185,7 +174,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { nvic::has_pending() }
     }
 
     fn sleep(&self) {

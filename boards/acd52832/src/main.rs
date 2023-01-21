@@ -9,7 +9,7 @@
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::adc::Adc;
 use kernel::hil::buzzer::Buzzer;
@@ -193,14 +193,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
     base_peripherals.nvmc.erase_uicr();
@@ -341,7 +333,7 @@ pub unsafe fn main() {
     //
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(rtt, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(rtt, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
@@ -362,12 +354,9 @@ pub unsafe fn main() {
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(
-            &base_peripherals.twi0,
-            None,
-            dynamic_deferred_caller
-        )
+        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None,)
     );
+    i2c_mux.register();
     base_peripherals.twi0.configure(
         nrf52832::pinmux::Pinmux::new(21),
         nrf52832::pinmux::Pinmux::new(20),

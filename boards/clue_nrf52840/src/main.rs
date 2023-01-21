@@ -12,7 +12,7 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::buzzer::Buzzer;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
@@ -384,18 +384,6 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // Deferred Call (Dynamic) Setup
-    //--------------------------------------------------------------------------
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 5], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
-    //--------------------------------------------------------------------------
     // ALARM & TIMER
     //--------------------------------------------------------------------------
 
@@ -504,7 +492,6 @@ pub unsafe fn main() {
         0x8071,
         strings,
         mux_alarm,
-        dynamic_deferred_caller,
         Some(&baud_rate_reset_bootloader_enter),
     )
     .finalize(components::cdc_acm_component_static!(
@@ -514,7 +501,7 @@ pub unsafe fn main() {
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
@@ -600,12 +587,9 @@ pub unsafe fn main() {
 
     let sensors_i2c_bus = static_init!(
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(
-            &base_peripherals.twi1,
-            None,
-            dynamic_deferred_caller
-        )
+        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
+    sensors_i2c_bus.register();
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
@@ -652,9 +636,8 @@ pub unsafe fn main() {
     // TFT
     //--------------------------------------------------------------------------
 
-    let spi_mux =
-        components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+    let spi_mux = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
 
     base_peripherals.spim0.configure(
         nrf52840::pinmux::Pinmux::new(ST7789H2_MOSI as u32),
@@ -720,12 +703,10 @@ pub unsafe fn main() {
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
+        MuxAES128CCM::new(&base_peripherals.ecb,)
     );
+    aes_mux.register();
     base_peripherals.ecb.set_client(aes_mux);
-    aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-    );
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
 
@@ -738,7 +719,6 @@ pub unsafe fn main() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
-        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,

@@ -22,7 +22,6 @@
 //! ```
 //! test::log_test::run(
 //!     mux_alarm,
-//!     dynamic_deferred_caller,
 //!     &nrf52840_peripherals.nrf52.nvmc,
 //! );
 //! ```
@@ -33,7 +32,7 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
 use kernel::debug;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt, InterruptEdge};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
@@ -51,11 +50,7 @@ use nrf52840::{
 // Allocate 16 KiB volume for log storage (the nano33ble page size is 4 KiB).
 storage_volume!(TEST_LOG, 16);
 
-pub unsafe fn run(
-    mux_alarm: &'static MuxAlarm<'static, Rtc>,
-    deferred_caller: &'static DynamicDeferredCall,
-    flash_controller: &'static Nvmc,
-) {
+pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: &'static Nvmc) {
     // Set up flash controller.
     flash_controller.configure_writeable();
     flash_controller.configure_eraseable();
@@ -64,20 +59,10 @@ pub unsafe fn run(
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
         Log,
-        log::Log::new(
-            &TEST_LOG,
-            &flash_controller,
-            pagebuffer,
-            deferred_caller,
-            true
-        )
+        log::Log::new(&TEST_LOG, &flash_controller, pagebuffer, true)
     );
     flash::HasClient::set_client(flash_controller, log);
-    log.initialize_callback_handle(
-        deferred_caller
-            .register(log)
-            .expect("no deferred call slot available for log storage"),
-    );
+    log.register();
 
     let alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
