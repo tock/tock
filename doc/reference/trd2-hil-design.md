@@ -256,8 +256,7 @@ impl Random for CachingRNG {
     self.busy.set(true);
     if self.cached_words.get() > 0 {
       // This tells the scheduler to issue a deferred procedure call,
-      // passing the "handle" the scheduler uses to keep track of it.
-      self.handle.map(|handle| self.deferred_call.set(*handle));
+      self.deferred_call.set();
     } else {
       self.request_more_randomness();
     }
@@ -265,10 +264,15 @@ impl Random for CachingRNG {
   ...
 }
 
-impl<'a> DynamicDeferredCallClient for CachingRNG<'a> {
-  fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for CachingRNG<'a> {
+  fn handle_deferred_call(&self) {
     let rbits = self.pop_cached_word();
     self.client.random_ready(rbits, Ok(()));
+  }
+
+  // This function must be called during board initialization.
+  fn register(&'static self) {
+      self.deferred_call.register(self);
   }
 }
 ```
