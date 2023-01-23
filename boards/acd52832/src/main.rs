@@ -9,7 +9,6 @@
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::adc::Adc;
 use kernel::hil::buzzer::Buzzer;
@@ -356,7 +355,7 @@ pub unsafe fn main() {
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None,)
     );
-    i2c_mux.register();
+    kernel::deferred_call::DeferredCallClient::register(i2c_mux);
     base_peripherals.twi0.configure(
         nrf52832::pinmux::Pinmux::new(21),
         nrf52832::pinmux::Pinmux::new(20),

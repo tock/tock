@@ -12,7 +12,6 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::buzzer::Buzzer;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
@@ -589,7 +588,7 @@ pub unsafe fn main() {
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
-    sensors_i2c_bus.register();
+    kernel::deferred_call::DeferredCallClient::register(sensors_i2c_bus);
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
@@ -705,7 +704,7 @@ pub unsafe fn main() {
         MuxAES128CCM<'static, nrf52840::aes::AesECB>,
         MuxAES128CCM::new(&base_peripherals.ecb,)
     );
-    aes_mux.register();
+    kernel::deferred_call::DeferredCallClient::register(aes_mux);
     base_peripherals.ecb.set_client(aes_mux);
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();

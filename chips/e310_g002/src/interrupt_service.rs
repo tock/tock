@@ -12,6 +12,10 @@ impl<'a> E310G002DefaultPeripherals<'a> {
             e310x: E310xDefaultPeripherals::new(clock_frequency),
         }
     }
+
+    pub fn init(&'static self) {
+        self.e310x.init();
+    }
 }
 impl<'a> kernel::platform::chip::InterruptService for E310G002DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {

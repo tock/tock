@@ -196,6 +196,7 @@ pub unsafe fn main() {
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
     let peripherals = create_peripherals(344_000_000);
+    peripherals.init();
 
     peripherals.e310x.watchdog.disable();
     peripherals.e310x.rtc.disable();
