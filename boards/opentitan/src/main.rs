@@ -515,6 +515,7 @@ unsafe fn setup() -> (
         capsules_extra::sip_hash::SipHasher24,
         capsules_extra::sip_hash::SipHasher24::new()
     );
+    kernel::deferred_call::DeferredCallClient::register(sip_hash);
     SIPHASH = Some(sip_hash);
 
     // TicKV
