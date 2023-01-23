@@ -33,7 +33,6 @@ use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDev
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
@@ -139,7 +138,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_spi = static_buffer.write(MuxSpiMaster::new(self.spi));
-        mux_spi.register();
+        kernel::deferred_call::DeferredCallClient::register(mux_spi);
 
         self.spi.set_client(mux_spi);
 

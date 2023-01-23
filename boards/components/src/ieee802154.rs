@@ -232,7 +232,7 @@ impl<
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 radio_buffer,
             ));
-        radio_driver.register();
+        kernel::deferred_call::DeferredCallClient::register(radio_driver);
 
         mac_device.set_key_procedure(radio_driver);
         mac_device.set_device_procedure(radio_driver);
