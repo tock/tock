@@ -25,7 +25,6 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::uart;
 
@@ -73,7 +72,7 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rx_buf = s.1.write([0; RX_BUF_LEN]);
         let uart_mux = s.0.write(MuxUart::new(self.uart, rx_buf, self.baud_rate));
-        uart_mux.register();
+        kernel::deferred_call::DeferredCallClient::register(uart_mux);
 
         uart_mux.initialize();
         hil::uart::Transmit::set_transmit_client(self.uart, uart_mux);

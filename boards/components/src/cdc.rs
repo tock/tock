@@ -24,7 +24,6 @@ use core::mem::MaybeUninit;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::time::Alarm;
 
@@ -109,7 +108,7 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
             cdc_alarm,
             self.host_initiated_function,
         ));
-        cdc.register();
+        kernel::deferred_call::DeferredCallClient::register(cdc);
         self.usb.set_client(cdc);
         cdc_alarm.set_alarm_client(cdc);
 

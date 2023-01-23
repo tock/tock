@@ -20,7 +20,6 @@
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::i2c;
 
 // Setup static space for the objects.
@@ -58,7 +57,7 @@ impl Component for I2CMuxComponent {
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus));
-        mux_i2c.register();
+        kernel::deferred_call::DeferredCallClient::register(mux_i2c);
 
         self.i2c.set_master_client(mux_i2c);
 

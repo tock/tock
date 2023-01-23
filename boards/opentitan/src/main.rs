@@ -634,6 +634,7 @@ unsafe fn setup() -> (
         virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         virtual_aes_ccm::MuxAES128CCM::new(&peripherals.aes)
     );
+    kernel::deferred_call::DeferredCallClient::register(ccm_mux);
     peripherals.aes.set_client(ccm_mux);
 
     let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);

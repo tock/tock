@@ -4,7 +4,6 @@ use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::chip::{Chip, InterruptService};
 
 pub struct Sam4l<I: InterruptService + 'static> {
@@ -148,12 +147,12 @@ impl Sam4lDefaultPeripherals {
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
 
         // REGISTER ALL PERIPHERALS WITH DEFERRED CALLS
-        self.crccu.register();
-        self.flash_controller.register();
-        self.usart0.register();
-        self.usart1.register();
-        self.usart2.register();
-        self.usart3.register();
+        kernel::deferred_call::DeferredCallClient::register(&self.crccu);
+        kernel::deferred_call::DeferredCallClient::register(&self.flash_controller);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart0);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart1);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart2);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart3);
     }
 }
 impl InterruptService for Sam4lDefaultPeripherals {

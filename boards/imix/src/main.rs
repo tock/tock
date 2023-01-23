@@ -375,7 +375,7 @@ pub unsafe fn main() {
     );
 
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
-    sha.register();
+    kernel::deferred_call::DeferredCallClient::register(sha);
 
     let checker = static_init!(
         AppCheckerSha256,
@@ -429,6 +429,7 @@ pub unsafe fn main() {
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&peripherals.i2c2, None));
+    kernel::deferred_call::DeferredCallClient::register(mux_i2c);
     peripherals.i2c2.set_master_client(mux_i2c);
 
     let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm)
