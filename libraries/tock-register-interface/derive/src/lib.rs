@@ -78,15 +78,24 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
         Ok(peripheral) => peripheral,
     };
 
-    let mut accessor_where: Vec<TokenStream> = vec![];
+    let mut accessor_where = vec![];
+    let mut fields = vec![];
     let name = &peripheral.name;
     let mut ops = HashSet::new();
     let register_crate = &peripheral.register_crate;
+    let mut struct_impls = vec![];
     for register in peripheral.registers {
+        let name = register.name;
         let offset = register.offset;
         let reg_type = register.reg_type;
         accessor_where.push(quote! {
             #register_crate::ValueAt<#offset, Value = #reg_type>
+        });
+        fields.push(quote! { #name: #register_crate::Register<#offset, Self, A> });
+        struct_impls.push(quote! {
+            impl<A> #register_crate::ValueAt<#offset> for Registers<A> {
+                type Value = #reg_type;
+            }
         });
         for operation in register.operations {
             let op_trait = operation.op_trait;
@@ -94,8 +103,14 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
             accessor_where.push(quote! {
                 #op_trait::At<#offset, #args>
             });
+            struct_impls.push(quote! {
+                impl<A> #op_trait::Has<#offset, #args> for Registers<A> {}
+            });
             ops.insert(op_trait);
         }
+    }
+    if fields.is_empty() {
+        fields.push(quote!{ _accessor: A });
     }
     let mut ops: Vec<_> = ops.iter().map(|op| (op, op.to_token_stream().to_string())).collect();
     ops.sort_unstable_by(|(_, lhs), (_, rhs)| lhs.cmp(rhs));
@@ -106,6 +121,12 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
 
             trait Accessor: #(#accessor_where)+* {}
             impl<A: #(#accessor_where)+*> Accessor for A {}
+
+            struct Registers<A> {
+                #(#fields),*
+            }
+
+            #(#struct_impls)*
         }
     }
 }
