@@ -1,7 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
+use std::collections::HashSet;
 use syn::{AngleBracketedGenericArguments, braced, GenericArgument, Ident, LitInt, parse2, Token, TypePath};
 use syn::parse::{self, Parse, ParseStream};
 use syn::punctuated::Punctuated;
@@ -67,7 +68,7 @@ struct Register {
 }
 
 struct Operation {
-    op_trait: TypePath,
+    op_trait: Ident,
     args: Punctuated<GenericArgument, Token![,]>,
 }
 
@@ -77,38 +78,35 @@ fn peripheral_impl(input: TokenStream) -> TokenStream {
         Ok(peripheral) => peripheral,
     };
 
-    let name = peripheral.name;
-    let fields = peripheral.registers.iter().map(|register| {
-        let name = &register.name;
-        let register_crate = &peripheral.register_crate;
-        let offset = &register.offset;
-        quote! { #name: #register_crate::Register<#offset, Self, Accessor> }
-    });
-    let op_impls = peripheral.registers.iter().map(|register| {
-        let offset = &register.offset;
-        let reg_type = &register.reg_type;
-        let op_impls = register.operations.iter().map(|op| {
-            let op_trait = &op.op_trait;
-            let args = &op.args;
-            quote! {
-                impl<Accessor: #op_trait::Access<#offset, #args>> #op_trait::Has<#offset, #args> for #name<Accessor> {}
-            }
+    let mut accessor_where: Vec<TokenStream> = vec![];
+    let name = &peripheral.name;
+    let mut ops = HashSet::new();
+    let register_crate = &peripheral.register_crate;
+    for register in peripheral.registers {
+        let offset = register.offset;
+        let reg_type = register.reg_type;
+        accessor_where.push(quote! {
+            #register_crate::ValueAt<#offset, Value = #reg_type>
         });
-        quote! {
-            impl<Accessor: ValueAt<offset, Value = #reg_type>> ValueAt<offset> for #name<Accessor> {
-				
-            }
-            #(#op_impls)* 
-			
-    });
-    let struct_definition = quote! {
-        struct #name<Accessor> {
-            #(#fields),*
+        for operation in register.operations {
+            let op_trait = operation.op_trait;
+            let args = operation.args;
+            accessor_where.push(quote! {
+                #op_trait::At<#offset, #args>
+            });
+            ops.insert(op_trait);
         }
-        #(#op_impls)*
-    };
+    }
+    let mut ops: Vec<_> = ops.iter().map(|op| (op, op.to_token_stream().to_string())).collect();
+    ops.sort_unstable_by(|(_, lhs), (_, rhs)| lhs.cmp(rhs));
+    let ops: Vec<_> = ops.iter().map(|(op, _)| op).collect();
     quote! {
-        #struct_definition
+        mod #name {
+            use super::{#(#ops),*};
+
+            trait Accessor: #(#accessor_where)+* {}
+            impl<A: #(#accessor_where)+*> Accessor for A {}
+        }
     }
 }
 

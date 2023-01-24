@@ -9,7 +9,7 @@ macro_rules! peripheral {
 
 pub mod read {
     use crate::*;
-    pub trait Access<const REL_ADDR: usize>: ValueAt<REL_ADDR> {
+    pub trait At<const REL_ADDR: usize>: ValueAt<REL_ADDR> {
     }
     pub trait Has<const REL_ADDR: usize>: ValueAt<REL_ADDR> {
     }
