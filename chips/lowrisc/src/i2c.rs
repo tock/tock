@@ -396,8 +396,8 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -444,7 +444,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -481,7 +481,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 

@@ -60,8 +60,8 @@ impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
         kernel_data: &GrantKernelData,
         command: Cmd,
         addr: u8,
-        wlen: u8,
-        rlen: u8,
+        wlen: usize,
+        rlen: usize,
     ) -> Result<(), ErrorCode> {
         kernel_data
             .get_readwrite_processbuffer(rw_allow::BUFFER)
@@ -145,7 +145,7 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
                     .enter(processid, |_, kernel_data| {
                         let addr = arg1 as u8;
                         let write_len = arg2;
-                        self.operation(processid, kernel_data, Cmd::Write, addr, write_len as u8, 0)
+                        self.operation(processid, kernel_data, Cmd::Write, addr, write_len, 0)
                             .into()
                     })
                     .unwrap_or_else(|err| err.into()),
@@ -154,7 +154,7 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
                     .enter(processid, |_, kernel_data| {
                         let addr = arg1 as u8;
                         let read_len = arg2;
-                        self.operation(processid, kernel_data, Cmd::Read, addr, 0, read_len as u8)
+                        self.operation(processid, kernel_data, Cmd::Read, addr, 0, read_len)
                             .into()
                     })
                     .unwrap_or_else(|err| err.into()),
@@ -169,8 +169,8 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
                                 kernel_data,
                                 Cmd::WriteRead,
                                 addr,
-                                write_len as u8,
-                                read_len as u8,
+                                write_len,
+                                read_len,
                             )
                             .into()
                         })
