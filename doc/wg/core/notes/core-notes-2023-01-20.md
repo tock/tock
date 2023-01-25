@@ -8,7 +8,6 @@ Attendees:
  - Jett Rink
  - Alyssa Haroldsen
  - Vadim Sukhomlinov
- - Johnathan Van Why
  - Brad Campbell
 
 ## Updates
