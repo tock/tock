@@ -556,6 +556,7 @@ pub unsafe fn main() {
         peripherals.sysinfo.get_revision(),
         platform_type
     );
+
     debug!("Initialization complete. Enter main loop");
 
     // These symbols are defined in the linker script.

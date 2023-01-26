@@ -11,6 +11,7 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::{RPGpio, RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
+use crate::pwm;
 use crate::resets::Resets;
 use crate::spi;
 use crate::sysinfo;
@@ -119,46 +120,49 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
 }
 
 pub struct Rp2040DefaultPeripherals<'a> {
+    pub adc: adc::Adc,
+    pub clocks: Clocks,
+    pub i2c0: i2c::I2c<'a>,
+    pub pins: RPPins<'a>,
+    pub pwm: pwm::Pwm<'a>,
     pub resets: Resets,
     pub sio: SIO,
-    pub clocks: Clocks,
-    pub xosc: Xosc,
-    pub timer: RPTimer<'a>,
-    pub watchdog: Watchdog,
-    pub pins: RPPins<'a>,
-    pub uart0: Uart<'a>,
-    pub uart1: Uart<'a>,
-    pub adc: adc::Adc,
     pub spi0: spi::Spi<'a>,
     pub sysinfo: sysinfo::SysInfo,
-    pub i2c0: i2c::I2c<'a>,
+    pub timer: RPTimer<'a>,
+    pub uart0: Uart<'a>,
+    pub uart1: Uart<'a>,
     pub usb: usb::UsbCtrl<'a>,
+    pub watchdog: Watchdog,
+    pub xosc: Xosc,
 }
 
 impl<'a> Rp2040DefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
+            adc: adc::Adc::new(),
+            clocks: Clocks::new(),
+            i2c0: i2c::I2c::new_i2c0(),
+            pins: RPPins::new(),
+            pwm: pwm::Pwm::new(),
             resets: Resets::new(),
             sio: SIO::new(),
-            clocks: Clocks::new(),
-            xosc: Xosc::new(),
-            timer: RPTimer::new(),
-            watchdog: Watchdog::new(),
-            pins: RPPins::new(),
-            uart0: Uart::new_uart0(),
-            uart1: Uart::new_uart1(),
-            adc: adc::Adc::new(),
             spi0: spi::Spi::new_spi0(),
             sysinfo: sysinfo::SysInfo::new(),
-            i2c0: i2c::I2c::new_i2c0(),
+            timer: RPTimer::new(),
+            uart0: Uart::new_uart0(),
+            uart1: Uart::new_uart1(),
             usb: usb::UsbCtrl::new(),
+            watchdog: Watchdog::new(),
+            xosc: Xosc::new(),
         }
     }
 
     pub fn resolve_dependencies(&'a self) {
+        self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
+        self.pwm.set_clocks(&self.clocks);
         self.spi0.set_clocks(&self.clocks);
         self.uart0.set_clocks(&self.clocks);
-        self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
         self.usb.set_gpio(self.pins.get_pin(RPGpio::GPIO15));
     }
 }
@@ -200,6 +204,13 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
             }
             interrupts::I2C0_IRQ => {
                 self.i2c0.handle_interrupt();
+                true
+            }
+            interrupts::PWM_IRQ_WRAP => {
+                // As the PWM HIL doesn't provide any support for interrupts, they are
+                // simply ignored.
+                //
+                // Note that PWM interrupts are raised only during unit tests.
                 true
             }
             _ => false,
