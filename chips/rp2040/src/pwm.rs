@@ -11,8 +11,8 @@
 //!
 //! # Examples
 //!
-//! The integration tests for Raspberry Pi Pico provide some examples using the driver
-//! both natively or through HIL. See boards/raspberry_pi_pico/src/test/pwm.rs
+//! The integration tests for Raspberry Pi Pico provide some examples using the driver.
+//! See boards/raspberry_pi_pico/src/test/pwm.rs
 
 use kernel::debug;
 use kernel::hil;
@@ -679,9 +679,13 @@ impl<'a> Pwm<'a> {
             Err(_) => return Result::from(ErrorCode::INVAL),
         };
 
+        let max_duty_cycle = hil::pwm::Pwm::get_maximum_duty_cycle(self);
+        // Return an error if the selected duty cycle is higher than the maximum value
+        if duty_cycle > max_duty_cycle {
+            return Err(ErrorCode::INVAL);
+        }
         // If top value is equal to u16::MAX, then it is impossible to
         // have a 100% duty cycle, so an error will be returned.
-        let max_duty_cycle = hil::pwm::Pwm::get_maximum_duty_cycle(self);
         let compare_value = if duty_cycle == max_duty_cycle {
             if top == u16::MAX {
                 return Result::from(ErrorCode::INVAL);
@@ -739,11 +743,9 @@ impl hil::pwm::Pwm for Pwm<'_> {
     ///
     /// This method may fail in one of the following situations:
     ///
+    /// + selected frequency and duty cycle higher than the maximum possible values
     /// + 100% duty cycle demand for low frequencies (close to or below threshold_freq)
     /// + very low frequencies
-    ///
-    /// Also, it is in the caller's responsability to ensure that both frequency_hz and duty_cycle
-    /// are lower than their maximum values. Failing in doing so results in undefined behaviour.
     ///
     /// ## Safety
     ///
@@ -1227,6 +1229,7 @@ pub mod unit_tests {
         assert!(pwm
             .compute_top_int_frac(max_freq_hz / max_duty_cycle / 256)
             .is_err());
+        assert!(pwm.compute_top_int_frac(max_freq_hz + 1).is_err());
 
         let (channel_number, channel_pin) = pwm.gpio_to_pwm(RPGpio::GPIO24);
         assert!(pwm
@@ -1256,6 +1259,12 @@ pub mod unit_tests {
                 max_freq_hz / max_duty_cycle,
                 max_duty_cycle
             )
+            .is_err());
+        assert!(pwm
+            .start_pwm_pin(channel_number, channel_pin, max_freq_hz + 1, max_duty_cycle)
+            .is_err());
+        assert!(pwm
+            .start_pwm_pin(channel_number, channel_pin, max_freq_hz, max_duty_cycle + 1)
             .is_err());
         debug!("PWM HIL trait OK")
     }
