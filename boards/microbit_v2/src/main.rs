@@ -115,6 +115,7 @@ pub struct MicroBit {
             capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
         >,
     >,
+    pwm: &'static capsules::pwm::Pwm<'static, 1>,
     app_flash: &'static capsules::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules::sound_pressure::SoundPressureSensor<'static>,
 
@@ -140,6 +141,7 @@ impl SyscallDriverLookup for MicroBit {
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer_driver)),
+            capsules::pwm::DRIVER_NUM => f(Some(self.pwm)),
             capsules::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             capsules::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
@@ -251,7 +253,8 @@ pub unsafe fn main() {
             // 0 => &nrf52833_peripherals.gpio_port[GPIO_P0],
             // 1 => &nrf52833_peripherals.gpio_port[_GPIO_P1],
             // 2 => &nrf52833_peripherals.gpio_port[_GPIO_P2],
-            8 => &nrf52833_peripherals.gpio_port[GPIO_P8],
+            // Used as PWM, comment them out in the PWM section to use them as GPIO
+            //8 => &nrf52833_peripherals.gpio_port[GPIO_P8],
             9 => &nrf52833_peripherals.gpio_port[GPIO_P9],
             16 => &nrf52833_peripherals.gpio_port[GPIO_P16],
         ),
@@ -322,12 +325,11 @@ pub unsafe fn main() {
     use kernel::hil::buzzer::Buzzer;
     use kernel::hil::time::Alarm;
 
-    let mux_pwm = static_init!(
-        capsules::virtual_pwm::MuxPwm<'static, nrf52833::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
-    );
+    let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
+        .finalize(components::pwm_mux_component_static!(nrf52833::pwm::Pwm));
+
     let virtual_pwm_buzzer = static_init!(
-        capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>, //<
+        capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
         capsules::virtual_pwm::PwmPinUser::new(
             mux_pwm,
             nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
@@ -376,6 +378,17 @@ pub unsafe fn main() {
     pwm_buzzer.set_client(buzzer_driver);
 
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
+
+    let pwm = components::pwm::PwmVirtualComponent::new(board_kernel, capsules::pwm::DRIVER_NUM)
+        .finalize(components::pwm_syscall_component_helper!(
+            components::pwm::PwmPinComponent::new(
+                &mux_pwm,
+                nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32)
+            )
+            .finalize(components::pwm_pin_user_component_static!(
+                nrf52833::pwm::Pwm
+            ))
+        ));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -691,6 +704,7 @@ pub unsafe fn main() {
         lsm303agr,
         ninedof,
         buzzer_driver,
+        pwm,
         sound_pressure,
         adc: adc_syscall,
         alarm,
