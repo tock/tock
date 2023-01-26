@@ -13,6 +13,10 @@ pub enum DeferredCallTask {
     Usart1 = 1,
     Usart2 = 2,
     Usart3 = 3,
+    // The CAN peripheral is not present on all STM32F4 devices.
+    // The CAN specific deferred call will be handled by the board's
+    // specific InterruptService implementation.
+    Can = 4,
 }
 
 impl TryFrom<usize> for DeferredCallTask {
@@ -24,6 +28,7 @@ impl TryFrom<usize> for DeferredCallTask {
             1 => Ok(DeferredCallTask::Usart1),
             2 => Ok(DeferredCallTask::Usart2),
             3 => Ok(DeferredCallTask::Usart3),
+            4 => Ok(DeferredCallTask::Can),
             _ => Err(()),
         }
     }

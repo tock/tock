@@ -137,6 +137,10 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f4xxDefaultPeripherals<'a> 
             DeferredCallTask::Usart1 => self.usart1.handle_deferred_task(),
             DeferredCallTask::Usart2 => self.usart2.handle_deferred_task(),
             DeferredCallTask::Usart3 => self.usart3.handle_deferred_task(),
+            _ => {
+                // this should have been handled by the specific chip crate
+                return false;
+            }
         }
         true
     }

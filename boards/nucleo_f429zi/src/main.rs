@@ -65,6 +65,7 @@ struct NucleoF429ZI {
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    can: &'static capsules::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -83,6 +84,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules::can::DRIVER_NUM => f(Some(self.can)),
             _ => f(None),
         }
     }
@@ -238,10 +240,26 @@ unsafe fn set_pin_primary_functions(
     gpio_ports.get_pin(PinId::PC02).map(|pin| {
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
+
+    gpio_ports.get_pin(PinId::PD00).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF9 is CAN_RX
+        pin.set_alternate_function(AlternateFunction::AF9);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
+    });
+    gpio_ports.get_pin(PinId::PD01).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF9 is CAN_TX
+        pin.set_alternate_function(AlternateFunction::AF9);
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::trng::Trng) {
+unsafe fn setup_peripherals(
+    tim2: &stm32f429zi::tim2::Tim2,
+    trng: &stm32f429zi::trng::Trng,
+    can1: &'static stm32f429zi::can::Can,
+) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
 
@@ -252,6 +270,9 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::
 
     // RNG
     trng.enable_clock();
+
+    // CAN
+    can1.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -296,7 +317,7 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2, &peripherals.trng);
+    setup_peripherals(&base_peripherals.tim2, &peripherals.trng, &peripherals.can1);
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -561,6 +582,16 @@ pub unsafe fn main() {
     )
     .finalize(components::rng_component_static!());
 
+    // CAN
+    let can = components::can::CanComponent::new(
+        board_kernel,
+        capsules::can::DRIVER_NUM,
+        &peripherals.can1,
+    )
+    .finalize(components::can_component_static!(
+        stm32f429zi::can::Can<'static>
+    ));
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -593,6 +624,7 @@ pub unsafe fn main() {
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
+        can: can,
     };
 
     // // Optional kernel tests

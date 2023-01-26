@@ -22,6 +22,7 @@ pub mod bus;
 pub mod button;
 pub mod buzzer_driver;
 pub mod buzzer_pwm;
+pub mod can;
 pub mod ccs811;
 pub mod console;
 pub mod crc;
