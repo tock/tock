@@ -648,4 +648,4 @@ tock$
 
   /// ...
  ```
-> Note: In order to disable any functionality for the command history set the `COMMAND_HISTORY_LEN` as `0`, also the history will be disabled for a size of `1`, because the first position from the command history is reserved for accidents by pressing `up` or `down` arrow key.
+> Note: In order to disable any functionality for the command history set the `COMMAND_HISTORY_LEN` to `0` or `1` (the history will be disabled for a size of `1`, because the first position from the command history is reserved for accidents by pressing `up` or `down` arrow key.
