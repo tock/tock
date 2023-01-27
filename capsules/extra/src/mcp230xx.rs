@@ -127,8 +127,8 @@ enum PinState {
     Low = 0x00,
 }
 
-pub struct MCP230xx<'a> {
-    i2c: &'a dyn hil::i2c::I2CDevice,
+pub struct MCP230xx<'a, I: hil::i2c::I2CDevice> {
+    i2c: &'a I,
     state: Cell<State>,
     bank_size: u8,       // How many GPIO pins per bank (likely 8)
     number_of_banks: u8, // How many GPIO banks this extender has (likely 1 or 2)
@@ -140,15 +140,15 @@ pub struct MCP230xx<'a> {
     client: OptionalCell<&'static dyn gpio_async::Client>,
 }
 
-impl<'a> MCP230xx<'a> {
+impl<'a, I: hil::i2c::I2CDevice> MCP230xx<'a, I> {
     pub fn new(
-        i2c: &'a dyn hil::i2c::I2CDevice,
+        i2c: &'a I,
         interrupt_pin_a: Option<&'a dyn gpio::InterruptValuePin<'a>>,
         interrupt_pin_b: Option<&'a dyn gpio::InterruptValuePin<'a>>,
         buffer: &'static mut [u8],
         bank_size: u8,
         number_of_banks: u8,
-    ) -> MCP230xx<'a> {
+    ) -> MCP230xx<'a, I> {
         MCP230xx {
             i2c: i2c,
             state: Cell::new(State::Idle),
@@ -388,7 +388,7 @@ impl<'a> MCP230xx<'a> {
     }
 }
 
-impl hil::i2c::I2CClient for MCP230xx<'_> {
+impl<I: hil::i2c::I2CDevice> hil::i2c::I2CClient for MCP230xx<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
         match self.state.get() {
             State::SelectIoDir(pin_number, direction) => {
@@ -550,7 +550,7 @@ impl hil::i2c::I2CClient for MCP230xx<'_> {
     }
 }
 
-impl gpio::ClientWithValue for MCP230xx<'_> {
+impl<I: hil::i2c::I2CDevice> gpio::ClientWithValue for MCP230xx<'_, I> {
     fn fired(&self, value: u32) {
         if value < 2 {
             return; // Error, value specifies which pin A=0, B=1
@@ -570,7 +570,7 @@ impl gpio::ClientWithValue for MCP230xx<'_> {
     }
 }
 
-impl gpio_async::Port for MCP230xx<'_> {
+impl<I: hil::i2c::I2CDevice> gpio_async::Port for MCP230xx<'_, I> {
     fn disable(&self, pin: usize) -> Result<(), ErrorCode> {
         // Best we can do is make this an input.
         self.set_direction(pin as u8, Direction::Input)

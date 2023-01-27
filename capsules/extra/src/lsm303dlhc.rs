@@ -134,10 +134,10 @@ enum State {
     ReadMagnetometerXYZ,
 }
 
-pub struct Lsm303dlhcI2C<'a> {
+pub struct Lsm303dlhcI2C<'a, I: i2c::I2CDevice> {
     config_in_progress: Cell<bool>,
-    i2c_accelerometer: &'a dyn i2c::I2CDevice,
-    i2c_magnetometer: &'a dyn i2c::I2CDevice,
+    i2c_accelerometer: &'a I,
+    i2c_magnetometer: &'a I,
     state: Cell<State>,
     accel_scale: Cell<Lsm303Scale>,
     mag_range: Cell<Lsm303Range>,
@@ -156,13 +156,13 @@ pub struct Lsm303dlhcI2C<'a> {
 #[derive(Default)]
 pub struct App {}
 
-impl<'a> Lsm303dlhcI2C<'a> {
+impl<'a, I: i2c::I2CDevice> Lsm303dlhcI2C<'a, I> {
     pub fn new(
-        i2c_accelerometer: &'a dyn i2c::I2CDevice,
-        i2c_magnetometer: &'a dyn i2c::I2CDevice,
+        i2c_accelerometer: &'a I,
+        i2c_magnetometer: &'a I,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Lsm303dlhcI2C<'a> {
+    ) -> Lsm303dlhcI2C<'a, I> {
         // setup and return struct
         Lsm303dlhcI2C {
             config_in_progress: Cell::new(false),
@@ -394,7 +394,7 @@ impl<'a> Lsm303dlhcI2C<'a> {
     }
 }
 
-impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
@@ -637,7 +637,7 @@ impl i2c::I2CClient for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl SyscallDriver for Lsm303dlhcI2C<'_> {
+impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
     fn command(
         &self,
         command_num: usize,
@@ -753,7 +753,7 @@ impl SyscallDriver for Lsm303dlhcI2C<'_> {
     }
 }
 
-impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
+impl<'a, I: i2c::I2CDevice> sensors::NineDof<'a> for Lsm303dlhcI2C<'a, I> {
     fn set_client(&self, nine_dof_client: &'a dyn sensors::NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -767,7 +767,7 @@ impl<'a> sensors::NineDof<'a> for Lsm303dlhcI2C<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a> {
+impl<'a, I: i2c::I2CDevice> sensors::TemperatureDriver<'a> for Lsm303dlhcI2C<'a, I> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

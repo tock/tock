@@ -48,34 +48,44 @@ macro_rules! bmp280_component_static {
     };};
 }
 
-pub struct Bmp280Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> {
+pub struct Bmp280Component<
+    A: 'static + Alarm<'static>,
+    I: 'static + i2c::I2CMaster,
+    J: 'static + i2c::I2CDevice,
+> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     alarm_mux: &'static MuxAlarm<'static, A>,
+    i2c_device: PhantomData<J>,
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> Bmp280Component<A, I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice>
+    Bmp280Component<A, I, J>
+{
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         alarm_mux: &'static MuxAlarm<'static, A>,
-    ) -> Bmp280Component<A, I> {
+    ) -> Bmp280Component<A, I, J> {
         Bmp280Component {
             i2c_mux,
             i2c_address,
             alarm_mux,
+            i2c_device: PhantomData,
         }
     }
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> Component for Bmp280Component<A, I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice>
+    Component for Bmp280Component<A, I, J>
+{
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<[u8; capsules_extra::bmp280::BUFFER_SIZE]>,
-        &'static mut MaybeUninit<Bmp280<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<Bmp280<'static, VirtualMuxAlarm<'static, A>, J>>,
     );
-    type Output = &'static Bmp280<'static, VirtualMuxAlarm<'static, A>>;
+    type Output = &'static Bmp280<'static, VirtualMuxAlarm<'static, A>, J>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let bmp280_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));

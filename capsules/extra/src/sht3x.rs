@@ -67,8 +67,8 @@ fn crc8(data: &[u8]) -> u8 {
     crc
 }
 
-pub struct SHT3x<'a, A: Alarm<'a>> {
-    i2c: &'a dyn i2c::I2CDevice,
+pub struct SHT3x<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
+    i2c: &'a I,
     humidity_client: OptionalCell<&'a dyn kernel::hil::sensors::HumidityClient>,
     temperature_client: OptionalCell<&'a dyn kernel::hil::sensors::TemperatureClient>,
     state: Cell<State>,
@@ -78,12 +78,8 @@ pub struct SHT3x<'a, A: Alarm<'a>> {
     alarm: &'a A,
 }
 
-impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
-    pub fn new(
-        i2c: &'a dyn i2c::I2CDevice,
-        buffer: &'static mut [u8],
-        alarm: &'a A,
-    ) -> SHT3x<'a, A> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT3x<'a, A, I> {
+    pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> SHT3x<'a, A, I> {
         SHT3x {
             i2c: i2c,
             humidity_client: OptionalCell::empty(),
@@ -143,7 +139,7 @@ impl<'a, A: Alarm<'a>> SHT3x<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> time::AlarmClient for SHT3x<'a, A> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> time::AlarmClient for SHT3x<'a, A, I> {
     fn alarm(&self) {
         let state = self.state.get();
         match state {
@@ -164,7 +160,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for SHT3x<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SHT3x<'a, A, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match status {
             Ok(()) => {
@@ -225,7 +221,9 @@ impl<'a, A: Alarm<'a>> i2c::I2CClient for SHT3x<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SHT3x<'a, A> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> kernel::hil::sensors::HumidityDriver<'a>
+    for SHT3x<'a, A, I>
+{
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::HumidityClient) {
         self.humidity_client.set(client);
     }
@@ -235,7 +233,9 @@ impl<'a, A: Alarm<'a>> kernel::hil::sensors::HumidityDriver<'a> for SHT3x<'a, A>
     }
 }
 
-impl<'a, A: Alarm<'a>> kernel::hil::sensors::TemperatureDriver<'a> for SHT3x<'a, A> {
+impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> kernel::hil::sensors::TemperatureDriver<'a>
+    for SHT3x<'a, A, I>
+{
     fn set_client(&self, client: &'a dyn kernel::hil::sensors::TemperatureClient) {
         self.temperature_client.set(client);
     }

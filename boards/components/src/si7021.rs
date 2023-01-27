@@ -13,6 +13,7 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
+use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -43,13 +44,23 @@ macro_rules! si7021_component_static {
     };};
 }
 
-pub struct SI7021Component<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> {
+pub struct SI7021Component<
+    A: 'static + time::Alarm<'static>,
+    I: 'static + i2c::I2CMaster,
+    J: 'static + i2c::I2CDevice,
+> {
     i2c_mux: &'static MuxI2C<'static, I>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     i2c_address: u8,
+    i2c_device: PhantomData<J>,
 }
 
-impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> SI7021Component<A, I> {
+impl<
+        A: 'static + time::Alarm<'static>,
+        I: 'static + i2c::I2CMaster,
+        J: 'static + i2c::I2CDevice,
+    > SI7021Component<A, I, J>
+{
     pub fn new(
         i2c: &'static MuxI2C<'static, I>,
         alarm: &'static MuxAlarm<'static, A>,
@@ -59,20 +70,24 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> SI7021Compo
             i2c_mux: i2c,
             alarm_mux: alarm,
             i2c_address: i2c_address,
+            i2c_device: PhantomData,
         }
     }
 }
 
-impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> Component
-    for SI7021Component<A, I>
+impl<
+        A: 'static + time::Alarm<'static>,
+        I: 'static + i2c::I2CMaster,
+        J: 'static + i2c::I2CDevice,
+    > Component for SI7021Component<A, I, J>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<SI7021<'static, VirtualMuxAlarm<'static, A>, J>>,
         &'static mut MaybeUninit<[u8; 14]>,
     );
-    type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, A>>;
+    type Output = &'static SI7021<'static, VirtualMuxAlarm<'static, A>, J>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let si7021_i2c = static_buffer

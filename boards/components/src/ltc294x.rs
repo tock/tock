@@ -39,13 +39,14 @@ macro_rules! ltc294x_driver_component_static {
     };};
 }
 
-pub struct Ltc294xComponent<I: 'static + i2c::I2CMaster> {
+pub struct Ltc294xComponent<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: Option<&'static dyn gpio::InterruptPin<'static>>,
+    i2c_device: PhantomData<J>,
 }
 
-impl<I: 'static + i2c::I2CMaster> Ltc294xComponent<I> {
+impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Ltc294xComponent<I, J> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -55,17 +56,20 @@ impl<I: 'static + i2c::I2CMaster> Ltc294xComponent<I> {
             i2c_mux,
             i2c_address,
             interrupt_pin,
+            i2c_device: PhantomData,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Ltc294xComponent<I> {
+impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Component
+    for Ltc294xComponent<I, J>
+{
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<LTC294X<'static>>,
+        &'static mut MaybeUninit<LTC294X<'static, J>>,
         &'static mut MaybeUninit<[u8; capsules_extra::ltc294x::BUF_LEN]>,
     );
-    type Output = &'static LTC294X<'static>;
+    type Output = &'static LTC294X<'static, J>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let ltc294x_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
@@ -83,15 +87,15 @@ impl<I: 'static + i2c::I2CMaster> Component for Ltc294xComponent<I> {
     }
 }
 
-pub struct Ltc294xDriverComponent {
-    ltc294x: &'static LTC294X<'static>,
+pub struct Ltc294xDriverComponent<J: 'static + i2c::I2CDevice> {
+    ltc294x: &'static LTC294X<'static, J>,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl Ltc294xDriverComponent {
+impl<J: 'static + i2c::I2CDevice> Ltc294xDriverComponent<J> {
     pub fn new(
-        ltc294x: &'static LTC294X<'static>,
+        ltc294x: &'static LTC294X<'static, J>,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
     ) -> Self {
@@ -103,9 +107,9 @@ impl Ltc294xDriverComponent {
     }
 }
 
-impl Component for Ltc294xDriverComponent {
-    type StaticInput = &'static mut MaybeUninit<LTC294XDriver<'static>>;
-    type Output = &'static LTC294XDriver<'static>;
+impl<J: 'static + i2c::I2CDevice> Component for Ltc294xDriverComponent<J> {
+    type StaticInput = &'static mut MaybeUninit<LTC294XDriver<'static, J>>;
+    type Output = &'static LTC294XDriver<'static, J>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

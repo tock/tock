@@ -41,34 +41,44 @@ macro_rules! sht3x_component_static {
     };};
 }
 
-pub struct SHT3xComponent<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> {
+pub struct SHT3xComponent<
+    A: 'static + Alarm<'static>,
+    I: 'static + i2c::I2CMaster,
+    J: 'static + i2c::I2CDevice,
+> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     alarm_mux: &'static MuxAlarm<'static, A>,
+    i2c_device: PhantomData<J>,
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> SHT3xComponent<A, I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice>
+    SHT3xComponent<A, I, J>
+{
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         alarm_mux: &'static MuxAlarm<'static, A>,
-    ) -> SHT3xComponent<A, I> {
+    ) -> SHT3xComponent<A, I, J> {
         SHT3xComponent {
             i2c_mux,
             i2c_address,
             alarm_mux,
+            i2c_device: PhantomData,
         }
     }
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> Component for SHT3xComponent<A, I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice>
+    Component for SHT3xComponent<A, I, J>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<SHT3x<'static, VirtualMuxAlarm<'static, A>>>,
+        &'static mut MaybeUninit<SHT3x<'static, VirtualMuxAlarm<'static, A>, J>>,
         &'static mut MaybeUninit<[u8; 6]>,
     );
-    type Output = &'static SHT3x<'static, VirtualMuxAlarm<'static, A>>;
+    type Output = &'static SHT3x<'static, VirtualMuxAlarm<'static, A>, J>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let sht3x_i2c = static_buffer

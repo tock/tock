@@ -33,34 +33,36 @@ macro_rules! ft6x06_component_static {
     };};
 }
 
-pub struct Ft6x06Component<I: 'static + i2c::I2CMaster> {
+pub struct Ft6x06Component<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
+    i2c_device: PhantomData<J>,
 }
 
-impl<I: 'static + i2c::I2CMaster> Ft6x06Component<I> {
+impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Ft6x06Component<I, J> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         pin: &'static dyn gpio::InterruptPin,
-    ) -> Ft6x06Component<I> {
+    ) -> Ft6x06Component<I, J> {
         Ft6x06Component {
             i2c_mux,
             i2c_address,
             interrupt_pin: pin,
+            i2c_device: PhantomData,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Ft6x06Component<I> {
+impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Component for Ft6x06Component<I, J> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<Ft6x06<'static>>,
+        &'static mut MaybeUninit<Ft6x06<'static, J>>,
         &'static mut MaybeUninit<[u8; 17]>,
         &'static mut MaybeUninit<[kernel::hil::touch::TouchEvent; 2]>,
     );
-    type Output = &'static Ft6x06<'static>;
+    type Output = &'static Ft6x06<'static, J>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let ft6x06_i2c = static_buffer
