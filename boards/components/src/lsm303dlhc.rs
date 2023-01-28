@@ -40,23 +40,22 @@ macro_rules! lsm303dlhc_component_static {
     };};
 }
 
-pub struct Lsm303dlhcI2CComponent<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> {
+pub struct Lsm303dlhcI2CComponent<I: 'static + i2c::I2CMaster> {
     i2c_mux: &'static MuxI2C<'static, I>,
     accelerometer_i2c_address: u8,
     magnetometer_i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    i2c_device: PhantomData<J>,
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Lsm303dlhcI2CComponent<I, J> {
+impl<I: 'static + i2c::I2CMaster> Lsm303dlhcI2CComponent<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         accelerometer_i2c_address: Option<u8>,
         magnetometer_i2c_address: Option<u8>,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> Lsm303dlhcI2CComponent<I, J> {
+    ) -> Lsm303dlhcI2CComponent<I> {
         Lsm303dlhcI2CComponent {
             i2c_mux,
             accelerometer_i2c_address: accelerometer_i2c_address
@@ -65,21 +64,18 @@ impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Lsm303dlhcI2CComp
                 .unwrap_or(lsm303xx::MAGNETOMETER_BASE_ADDRESS),
             board_kernel,
             driver_num,
-            i2c_device: PhantomData,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Component
-    for Lsm303dlhcI2CComponent<I, J>
-{
+impl<I: 'static + i2c::I2CMaster> Component for Lsm303dlhcI2CComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 8]>,
-        &'static mut MaybeUninit<Lsm303dlhcI2C<'static, J>>,
+        &'static mut MaybeUninit<Lsm303dlhcI2C<'static, I2CDevice<'static, I>>>,
     );
-    type Output = &'static Lsm303dlhcI2C<'static, J>;
+    type Output = &'static Lsm303dlhcI2C<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap =

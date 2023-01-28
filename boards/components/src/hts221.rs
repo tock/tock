@@ -28,29 +28,27 @@ macro_rules! hts221_component_static {
     };};
 }
 
-pub struct Hts221Component<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> {
+pub struct Hts221Component<I: 'static + i2c::I2CMaster> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
-    i2c_device: PhantomData<J>,
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Hts221Component<I, J> {
+impl<I: 'static + i2c::I2CMaster> Hts221Component<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Hts221Component {
             i2c_mux: i2c,
             i2c_address: i2c_address,
-            i2c_device: PhantomData,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Component for Hts221Component<I, J> {
+impl<I: 'static + i2c::I2CMaster> Component for Hts221Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 17]>,
-        &'static mut MaybeUninit<Hts221<'static, J>>,
+        &'static mut MaybeUninit<Hts221<'static, I2CDevice<'static, I>>>,
     );
-    type Output = &'static Hts221<'static, J>;
+    type Output = &'static Hts221<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let hts221_i2c = static_buffer

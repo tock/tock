@@ -19,14 +19,13 @@ macro_rules! apds9960_component_static {
     };};
 }
 
-pub struct Apds9960Component<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> {
+pub struct Apds9960Component<I: 'static + i2c::I2CMaster> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
-    i2c_device: PhantomData<J>,
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Apds9960Component<I, J> {
+impl<I: 'static + i2c::I2CMaster> Apds9960Component<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -36,20 +35,17 @@ impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Apds9960Component
             i2c_mux,
             i2c_address,
             interrupt_pin,
-            i2c_device: PhantomData,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Component
-    for Apds9960Component<I, J>
-{
+impl<I: 'static + i2c::I2CMaster> Component for Apds9960Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<APDS9960<'static, J>>,
+        &'static mut MaybeUninit<APDS9960<'static, I2CDevice<'static, I>>>,
         &'static mut MaybeUninit<[u8; capsules_extra::apds9960::BUF_LEN]>,
     );
-    type Output = &'static APDS9960<'static, J>;
+    type Output = &'static APDS9960<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let apds9960_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));

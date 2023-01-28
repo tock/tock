@@ -21,16 +21,15 @@ macro_rules! lps25hb_component_static {
     };};
 }
 
-pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> {
+pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    i2c_device: PhantomData<J>,
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Lps25hbComponent<I, J> {
+impl<I: 'static + i2c::I2CMaster> Lps25hbComponent<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -44,20 +43,17 @@ impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Lps25hbComponent<
             interrupt_pin,
             board_kernel,
             driver_num,
-            i2c_device: PhantomData,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster, J: 'static + i2c::I2CDevice> Component
-    for Lps25hbComponent<I, J>
-{
+impl<I: 'static + i2c::I2CMaster> Component for Lps25hbComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<LPS25HB<'static, J>>,
+        &'static mut MaybeUninit<LPS25HB<'static, I2CDevice<'static, I>>>,
         &'static mut MaybeUninit<[u8; capsules_extra::lps25hb::BUF_LEN]>,
     );
-    type Output = &'static LPS25HB<'static, J>;
+    type Output = &'static LPS25HB<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
