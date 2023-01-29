@@ -114,7 +114,10 @@ pub struct MicroBit {
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     rng: &'static capsules_core::rng::RngDriver<'static>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<'static, nrf52::i2c::TWI>,
+    lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<nrf52833::i2c::TWI>,
+    >,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
@@ -464,7 +467,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_component_static!(nrf52833::lsm303agr));
+    .finalize(components::lsm303agr_component_static!(nrf52833::i2c::TWI));
 
     if let Err(error) = lsm303agr.configure(
         capsules_extra::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,

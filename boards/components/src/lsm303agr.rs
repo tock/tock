@@ -34,10 +34,15 @@ macro_rules! lsm303agr_component_static {
     ($I:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; 8]);
         let accelerometer_i2c =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<I>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let magnetometer_i2c =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<I>);
-        let lsm303agr = kernel::static_buf!(capsules_extra::lsm303agr::Lsm303agrI2C<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
+        let lsm303agr = kernel::static_buf!(
+            capsules_extra::lsm303agr::Lsm303agrI2C<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
 
         (accelerometer_i2c, magnetometer_i2c, buffer, lsm303agr)
     };};
