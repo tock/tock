@@ -136,6 +136,9 @@ pub unsafe fn main() {
         E310G002DefaultPeripherals::new(16_000_000)
     );
 
+    // Setup any recursive dependencies and register deferred calls:
+    peripherals.init();
+
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);

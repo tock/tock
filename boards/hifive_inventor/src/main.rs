@@ -129,6 +129,9 @@ pub unsafe fn main() {
         E310G003DefaultPeripherals::new(16_000_000)
     );
 
+    // Setup any recursive dependencies and register deferred calls:
+    peripherals.init();
+
     peripherals
         .e310x
         .prci
