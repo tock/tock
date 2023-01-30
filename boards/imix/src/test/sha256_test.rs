@@ -18,7 +18,6 @@
 
 use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::sha256::TestSha256;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::static_init;
 
 pub unsafe fn run_sha256() {
@@ -44,7 +43,7 @@ pub static mut LHASH: [u8; 32] = [
 
 unsafe fn static_init_test_sha256() -> &'static TestSha256 {
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
-    sha.register();
+    kernel::deferred_call::DeferredCallClient::register(sha);
     let bytes = b"hello ";
     for i in 0..12 {
         for j in 0..6 {

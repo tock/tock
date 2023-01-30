@@ -1,6 +1,5 @@
 use core::fmt::Write;
 use cortexm4::{self, nvic, CortexM4, CortexMVariant};
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::time::Alarm;
 use kernel::platform::chip::InterruptService;
 
@@ -78,8 +77,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
     pub fn init(&'static self) {
         self.ieee802154_radio.set_timer_ref(&self.timer0);
         self.timer0.set_alarm_client(&self.ieee802154_radio);
-        // REGISTER PERIPHERALS WITH DEFERRED CALLS
-        self.nvmc.register();
+        kernel::deferred_call::DeferredCallClient::register(&self.nvmc);
     }
 }
 impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a> {

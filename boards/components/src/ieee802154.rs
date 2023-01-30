@@ -36,7 +36,6 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
@@ -69,7 +68,7 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let aes_mux = static_buffer.write(MuxAES128CCM::new(self.aes));
-        aes_mux.register();
+        kernel::deferred_call::DeferredCallClient::register(aes_mux);
         self.aes.set_client(aes_mux);
 
         aes_mux

@@ -22,7 +22,6 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
 use kernel::debug_verbose;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -50,7 +49,7 @@ pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: 
         log::Log::new(&LINEAR_TEST_LOG, &flash_controller, pagebuffer, false)
     );
     flash::HasClient::set_client(flash_controller, log);
-    log.register();
+    kernel::deferred_call::DeferredCallClient::register(log);
 
     let alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,
