@@ -198,6 +198,10 @@ where
         );
         spi_device.set_client(lpm013m126);
         lpm013m126_alarm.set_alarm_client(lpm013m126);
+        // Because this capsule uses multiple deferred calls internally, this
+        // takes care of registering the deferred calls as well. Thus there is
+        // no need to explicitly call
+        // `kernel::deferred_call::DeferredCallClient::register`.
         lpm013m126.setup().unwrap();
         lpm013m126
     }

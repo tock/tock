@@ -16,7 +16,8 @@ impl<'a> Stm32f446reDefaultPeripherals<'a> {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
         }
     }
-    // Necessary for setting up circular dependencies
+    // Necessary for setting up circular dependencies & registering deferred
+    // calls
     pub fn init(&'static self) {
         self.stm32f4.setup_circular_deps();
     }

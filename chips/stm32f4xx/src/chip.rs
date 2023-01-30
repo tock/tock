@@ -72,8 +72,8 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
     pub fn setup_circular_deps(&'static self) {
         self.gpio_ports.setup_circular_deps();
 
-        // Attention: Boards with a CAN bus present also need to
-        // register its deferred call.
+        // Note: Boards with a CAN bus present also need to register its
+        // deferred call.
         kernel::deferred_call::DeferredCallClient::register(&self.usart1);
         kernel::deferred_call::DeferredCallClient::register(&self.usart2);
         kernel::deferred_call::DeferredCallClient::register(&self.usart3);
