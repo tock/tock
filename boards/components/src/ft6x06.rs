@@ -27,7 +27,12 @@ macro_rules! ft6x06_component_static {
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let buffer = kernel::static_buf!([u8; 17]);
         let events_buffer = kernel::static_buf!([kernel::hil::touch::TouchEvent; 2]);
-        let ft6x06 = kernel::static_buf!(capsules_extra::ft6x06::Ft6x06<'static>);
+        let ft6x06 = kernel::static_buf!(
+            capsules_extra::ft6x06::Ft6x06<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
 
         (i2c_device, ft6x06, buffer, events_buffer)
     };};

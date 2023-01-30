@@ -11,10 +11,15 @@ use kernel::hil::i2c;
 
 #[macro_export]
 macro_rules! lps25hb_component_static {
-    () => {{
+    ($I:ty $(,)?) => {{
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
-        let lps25hb = kernel::static_buf!(capsules_extra::lps25hb::LPS25HB<'static>);
+        let lps25hb = kernel::static_buf!(
+            capsules_extra::lps25hb::LPS25HB<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>,
+            >
+        );
         let buffer = kernel::static_buf!([u8; capsules_extra::lps25hb::BUF_LEN]);
 
         (i2c_device, lps25hb, buffer)

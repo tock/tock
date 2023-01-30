@@ -25,7 +25,7 @@ use kernel::hil::time::{self, Alarm};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! si7021_component_static {
-    ($A:ty $(,)?, $I:ty $(,)?) => {{
+    ($A:ty, $I:ty $(,)? ) => {{
         let alarm = kernel::static_buf!(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
@@ -35,6 +35,7 @@ macro_rules! si7021_component_static {
             capsules_extra::si7021::SI7021<
                 'static,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>,
             >
         );
         let buffer = kernel::static_buf!([u8; 14]);

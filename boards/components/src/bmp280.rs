@@ -41,7 +41,11 @@ macro_rules! bmp280_component_static {
         );
         let buffer = kernel::static_buf!([u8; capsules_extra::bmp280::BUFFER_SIZE]);
         let bmp280 = kernel::static_buf!(
-            capsules_extra::bmp280::Bmp280<'static, VirtualMuxAlarm<'static, $A>>
+            capsules_extra::bmp280::Bmp280<
+                'static,
+                VirtualMuxAlarm<'static, $A>,
+                I2CDevice<'static, $I>,
+            >
         );
 
         (i2c_device, alarm, buffer, bmp280)

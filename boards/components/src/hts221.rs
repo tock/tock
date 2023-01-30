@@ -22,7 +22,12 @@ macro_rules! hts221_component_static {
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let buffer = kernel::static_buf!([u8; 17]);
-        let hts221 = kernel::static_buf!(capsules_extra::hts221::Hts221<'static>);
+        let hts221 = kernel::static_buf!(
+            capsules_extra::hts221::Hts221<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
 
         (i2c_device, buffer, hts221)
     };};

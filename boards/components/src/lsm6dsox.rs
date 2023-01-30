@@ -39,7 +39,12 @@ macro_rules! lsm6ds_i2c_component_static {
         let buffer = kernel::static_buf!([u8; 8]);
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
-        let lsm6dsoxtr = kernel::static_buf!(capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
+        let lsm6dsoxtr = kernel::static_buf!(
+            capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>,
+            >
+        );
 
         (i2c_device, buffer, lsm6dsoxtr)
     };};

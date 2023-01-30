@@ -12,7 +12,12 @@ macro_rules! apds9960_component_static {
     ($I:ty $(,)?) => {{
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
-        let apds9960 = kernel::static_buf!(capsules_extra::apds9960::APDS9960<'static>);
+        let apds9960 = kernel::static_buf!(
+            capsules_extra::apds9960::APDS9960<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
         let buffer = kernel::static_buf!([u8; capsules_extra::apds9960::BUF_LEN]);
 
         (i2c_device, apds9960, buffer)

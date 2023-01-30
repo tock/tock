@@ -23,7 +23,7 @@ use kernel::hil::time::Alarm;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! sht3x_component_static {
-    ($A:ty $(,)?, $I:ty $(,)?) => {{
+    ($A:ty, $I:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; 6]);
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
@@ -34,6 +34,7 @@ macro_rules! sht3x_component_static {
             capsules_extra::sht3x::SHT3x<
                 'static,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>,
             >
         );
 
