@@ -150,7 +150,7 @@ impl<'a> I2cWrapper<'a> {
         buffer[0] = addr as u8;
         buffer[1..][..COUNT].copy_from_slice(&data);
         self.i2c.enable();
-        self.i2c.write(buffer, COUNT as u8 + 1)
+        self.i2c.write(buffer, COUNT + 1)
     }
 
     /// Requests a read into buffer.
@@ -159,7 +159,7 @@ impl<'a> I2cWrapper<'a> {
         &self,
         buffer: &'static mut [u8],
         addr: Register,
-        count: u8,
+        count: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         buffer[0] = addr as u8;
         self.i2c.enable();
@@ -304,7 +304,7 @@ impl<'a, A: Alarm<'a>> Bmp280<'a, A> {
 enum I2cOperation {
     Read {
         addr: Register,
-        count: u8,
+        count: usize,
         fail_state: State,
     },
     Write {

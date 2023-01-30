@@ -25,9 +25,9 @@ enum OperatingMode {
 pub struct I2c<'a> {
     registers: StaticRef<UsciBRegisters>,
     mode: Cell<OperatingMode>,
-    read_len: Cell<u8>,
-    write_len: Cell<u8>,
-    buf_idx: Cell<u8>,
+    read_len: Cell<usize>,
+    write_len: Cell<usize>,
+    buf_idx: Cell<usize>,
     buffer: TakeCell<'static, [u8]>,
     master_client: OptionalCell<&'a dyn i2c::I2CHwMasterClient>,
 }
@@ -120,7 +120,7 @@ impl<'a> I2c<'a> {
         self.registers.ie.modify(usci::UCBxIE::UCTXIE0::CLEAR);
     }
 
-    fn set_byte_counter(&self, val: u8) {
+    fn set_byte_counter(&self, val: usize) {
         self.registers.tbcnt.set(val as u16);
     }
 
@@ -290,7 +290,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
@@ -328,7 +328,7 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated
@@ -363,8 +363,8 @@ impl<'a> i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.mode.get() != OperatingMode::Idle {
             // Module is busy or not activated

@@ -202,9 +202,9 @@ impl<'a> DynamicDeferredCallClient for MuxI2C<'a> {
 #[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
-    Write(u8),
-    Read(u8),
-    WriteRead(u8, u8),
+    Write(usize),
+    Read(usize),
+    WriteRead(usize, usize),
     CommandComplete(Result<(), Error>),
 }
 
@@ -269,8 +269,8 @@ impl i2c::I2CDevice for I2CDevice<'_> {
     fn write_read(
         &self,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(data);
@@ -282,7 +282,7 @@ impl i2c::I2CDevice for I2CDevice<'_> {
         }
     }
 
-    fn write(&self, data: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])> {
+    fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(data);
             self.operation.set(Op::Write(len));
@@ -293,7 +293,11 @@ impl i2c::I2CDevice for I2CDevice<'_> {
         }
     }
 
-    fn read(&self, buffer: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])> {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(buffer);
             self.operation.set(Op::Read(len));
@@ -370,8 +374,8 @@ impl<'a> i2c::I2CDevice for SMBusDevice<'a> {
     fn write_read(
         &self,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(data);
@@ -383,7 +387,7 @@ impl<'a> i2c::I2CDevice for SMBusDevice<'a> {
         }
     }
 
-    fn write(&self, data: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])> {
+    fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(data);
             self.operation.set(Op::Write(len));
@@ -394,7 +398,11 @@ impl<'a> i2c::I2CDevice for SMBusDevice<'a> {
         }
     }
 
-    fn read(&self, buffer: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])> {
+    fn read(
+        &self,
+        buffer: &'static mut [u8],
+        len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(buffer);
             self.operation.set(Op::Read(len));
@@ -410,8 +418,8 @@ impl<'a> i2c::SMBusDevice for SMBusDevice<'a> {
     fn smbus_write_read(
         &self,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(data);
@@ -426,7 +434,7 @@ impl<'a> i2c::SMBusDevice for SMBusDevice<'a> {
     fn smbus_write(
         &self,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(data);
@@ -441,7 +449,7 @@ impl<'a> i2c::SMBusDevice for SMBusDevice<'a> {
     fn smbus_read(
         &self,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.operation.get() == Op::Idle {
             self.buffer.replace(buffer);

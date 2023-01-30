@@ -308,7 +308,7 @@ impl<'a> MCP230xx<'a> {
             // we also want to set.
             buffer[i] = 0b00000010; // Make MCP230xx interrupt pin active high.
                                     // TODO verify errors
-            let _ = self.i2c.write(buffer, (i + 1) as u8);
+            let _ = self.i2c.write(buffer, i + 1);
             self.state.set(State::EnableInterruptSettings(pin_number));
 
             Ok(())

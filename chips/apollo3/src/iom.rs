@@ -690,8 +690,8 @@ impl<'a> Iom<'_> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
         let mut offsetlo = 0;
@@ -755,7 +755,7 @@ impl<'a> Iom<'_> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -801,7 +801,7 @@ impl<'a> Iom<'_> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -898,8 +898,8 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
@@ -914,7 +914,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
@@ -929,7 +929,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, buffer));
@@ -946,8 +946,8 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -974,7 +974,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -1001,7 +1001,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
