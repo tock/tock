@@ -120,7 +120,6 @@ pub struct Aes<'a> {
     dest: TakeCell<'static, [u8]>,
     mode: Cell<Mode>,
 
-    deferred_call_scheduled: Cell<bool>,
     deferred_call: DeferredCall,
 }
 
@@ -132,7 +131,6 @@ impl<'a> Aes<'a> {
             source: TakeCell::empty(),
             dest: TakeCell::empty(),
             mode: Cell::new(Mode::IDLE),
-            deferred_call_scheduled: Cell::new(false),
             deferred_call: DeferredCall::new(),
         }
     }
@@ -406,7 +404,7 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             }
         }
 
-        if self.deferred_call_scheduled.get() {
+        if self.deferred_call.is_pending() {
             return Some((
                 Err(ErrorCode::BUSY),
                 self.source.take(),
@@ -428,7 +426,6 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
 
         if ret.is_ok() {
             // Schedule a deferred call
-            self.deferred_call_scheduled.set(true);
             self.deferred_call.set();
             None
         } else {
@@ -512,13 +509,8 @@ impl<'a> DeferredCallClient for Aes<'_> {
     }
 
     fn handle_deferred_call(&self) {
-        // Are we currently in a TX or RX transaction?
-        if self.deferred_call_scheduled.get() {
-            self.deferred_call_scheduled.set(false);
-
-            self.client.map(|client| {
-                client.crypt_done(self.source.take(), self.dest.take().unwrap());
-            });
-        }
+        self.client.map(|client| {
+            client.crypt_done(self.source.take(), self.dest.take().unwrap());
+        });
     }
 }

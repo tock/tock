@@ -165,6 +165,14 @@ impl DeferredCall {
         bitmask.set(bitmask.get() | (1 << self.idx));
     }
 
+    /// Check if a deferred callback has been set and not yet serviced on this deferred call.
+    pub fn is_pending(&self) -> bool {
+        // SAFETY: All accesses to BITMASK drop mutability immediately, and the Tock kernel is
+        // single-threaded so all accesses will occur from this thread.
+        let bitmask = unsafe { &BITMASK };
+        bitmask.get() & (1 << self.idx) == 1
+    }
+
     /// Services and clears the next pending `DeferredCall`, returns which index
     /// was serviced
     pub fn service_next_pending() -> Option<usize> {
