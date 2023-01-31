@@ -127,7 +127,7 @@ pub unsafe fn main() {
 
     let peripherals = static_init!(
         E310G003DefaultPeripherals,
-        E310G003DefaultPeripherals::new()
+        E310G003DefaultPeripherals::new(16_000_000)
     );
 
     peripherals

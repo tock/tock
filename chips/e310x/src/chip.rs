@@ -41,10 +41,18 @@ pub struct E310xDefaultPeripherals<'a> {
 }
 
 impl<'a> E310xDefaultPeripherals<'a> {
-    pub fn new() -> Self {
+    pub fn new(clock_frequency: u32) -> Self {
         Self {
-            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 16_000_000, &DEFERRED_CALLS[0]),
-            uart1: sifive::uart::Uart::new(crate::uart::UART1_BASE, 16_000_000, &DEFERRED_CALLS[1]),
+            uart0: sifive::uart::Uart::new(
+                crate::uart::UART0_BASE,
+                clock_frequency,
+                &DEFERRED_CALLS[0],
+            ),
+            uart1: sifive::uart::Uart::new(
+                crate::uart::UART1_BASE,
+                clock_frequency,
+                &DEFERRED_CALLS[1],
+            ),
             gpio_port: crate::gpio::Port::new(),
             prci: sifive::prci::Prci::new(crate::prci::PRCI_BASE),
             pwm0: sifive::pwm::Pwm::new(crate::pwm::PWM0_BASE),
