@@ -363,7 +363,7 @@ pub unsafe fn main() {
     .finalize(components::temperature_component_static!());
 
     let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     sensors_i2c_bus.register();
@@ -380,7 +380,8 @@ pub unsafe fn main() {
         mux_alarm,
     )
     .finalize(components::bmp280_component_static!(
-        nrf52840::rtc::Rtc<'static>
+        nrf52840::rtc::Rtc<'static>,
+        nrf52840::i2c::TWI
     ));
 
     let temperature = components::temperature::TemperatureComponent::new(

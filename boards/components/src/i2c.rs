@@ -20,7 +20,7 @@
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::hil::i2c;
+use kernel::hil::i2c::{self, NoSMBus};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -37,20 +37,22 @@ macro_rules! i2c_component_static {
     };};
 }
 
-pub struct I2CMuxComponent<I: 'static + i2c::I2CMaster> {
+pub struct I2CMuxComponent<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster = NoSMBus> {
     i2c: &'static I,
-    smbus: Option<&'static dyn i2c::SMBusMaster>,
+    smbus: Option<&'static S>,
 }
 
-impl<I: 'static + i2c::I2CMaster> I2CMuxComponent<I> {
-    pub fn new(i2c: &'static I, smbus: Option<&'static dyn i2c::SMBusMaster>) -> Self {
+impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> I2CMuxComponent<I, S> {
+    pub fn new(i2c: &'static I, smbus: Option<&'static S>) -> Self {
         I2CMuxComponent { i2c, smbus }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for I2CMuxComponent<I> {
-    type StaticInput = &'static mut MaybeUninit<MuxI2C<'static, I>>;
-    type Output = &'static MuxI2C<'static, I>;
+impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> Component
+    for I2CMuxComponent<I, S>
+{
+    type StaticInput = &'static mut MaybeUninit<MuxI2C<'static, I, S>>;
+    type Output = &'static MuxI2C<'static, I, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus));

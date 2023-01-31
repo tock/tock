@@ -288,3 +288,66 @@ pub trait I2CClient {
     /// successfully or if an error occured.
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>);
 }
+
+pub struct NoSMBus;
+
+impl I2CMaster for NoSMBus {
+    fn set_master_client(&self, _master_client: &'static dyn I2CHwMasterClient) {}
+    fn enable(&self) {}
+    fn disable(&self) {}
+    fn write_read(
+        &self,
+        _addr: u8,
+        data: &'static mut [u8],
+        _write_len: usize,
+        _read_len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
+        Err((Error::NotSupported, data))
+    }
+    fn write(
+        &self,
+        _addr: u8,
+        data: &'static mut [u8],
+        _len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
+        Err((Error::NotSupported, data))
+    }
+    fn read(
+        &self,
+        _addr: u8,
+        buffer: &'static mut [u8],
+        _len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
+        Err((Error::NotSupported, buffer))
+    }
+}
+
+impl SMBusMaster for NoSMBus {
+    fn smbus_write_read(
+        &self,
+        _addr: u8,
+        data: &'static mut [u8],
+        _write_len: usize,
+        _read_len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
+        Err((Error::NotSupported, data))
+    }
+
+    fn smbus_write(
+        &self,
+        _addr: u8,
+        data: &'static mut [u8],
+        _len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
+        Err((Error::NotSupported, data))
+    }
+
+    fn smbus_read(
+        &self,
+        _addr: u8,
+        buffer: &'static mut [u8],
+        _len: usize,
+    ) -> Result<(), (Error, &'static mut [u8])> {
+        Err((Error::NotSupported, buffer))
+    }
+}

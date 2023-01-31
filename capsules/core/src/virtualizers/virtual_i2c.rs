@@ -7,12 +7,12 @@ use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
+use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient, NoSMBus};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 
-pub struct MuxI2C<'a, I: i2c::I2CMaster> {
+pub struct MuxI2C<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
     i2c: &'a I,
-    smbus: Option<&'a dyn i2c::SMBusMaster>,
+    smbus: Option<&'a S>,
     i2c_devices: List<'a, I2CDevice<'a, I>>,
     smbus_devices: List<'a, SMBusDevice<'a, I>>,
     enabled: Cell<usize>,
@@ -21,7 +21,7 @@ pub struct MuxI2C<'a, I: i2c::I2CMaster> {
     deferred_call: DeferredCall,
 }
 
-impl<I: i2c::I2CMaster> I2CHwMasterClient for MuxI2C<'_, I> {
+impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CHwMasterClient for MuxI2C<'_, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         if self.i2c_inflight.is_some() {
             self.i2c_inflight.take().map(move |device| {
@@ -36,8 +36,8 @@ impl<I: i2c::I2CMaster> I2CHwMasterClient for MuxI2C<'_, I> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster> MuxI2C<'a, I> {
-    pub fn new(i2c: &'a I, smbus: Option<&'a dyn i2c::SMBusMaster>) -> Self {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> MuxI2C<'a, I, S> {
+    pub fn new(i2c: &'a I, smbus: Option<&'a S>) -> Self {
         Self {
             i2c,
             smbus,
@@ -181,7 +181,7 @@ impl<'a, I: i2c::I2CMaster> MuxI2C<'a, I> {
     }
 }
 
-impl<I: i2c::I2CMaster> DeferredCallClient for MuxI2C<'_, I> {
+impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> DeferredCallClient for MuxI2C<'_, I, S> {
     fn handle_deferred_call(&self) {
         self.do_next_op();
     }
