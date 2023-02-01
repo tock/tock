@@ -171,9 +171,9 @@ impl Command {
     }
 
     fn delete_last_byte(&mut self) {
-        if self.len > 0 {
-            self.len -= 1;
-            self.buf[self.len] = EOL;
+        if let Some(buf_byte) = self.buf.get_mut(self.len - 1) {
+            *buf_byte = EOL;
+            self.len = self.len - 1;
         }
     }
 
