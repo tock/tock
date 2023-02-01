@@ -164,8 +164,8 @@ impl Command {
     }
 
     fn insert_byte(&mut self, byte: u8) {
-        if self.len < COMMAND_BUF_LEN {
-            self.buf[self.len] = byte;
+        if let Some(buf_byte) = self.buf.get_mut(self.len) {
+            *buf_byte = byte;
             self.len = self.len + 1;
         }
     }
