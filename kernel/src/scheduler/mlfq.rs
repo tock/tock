@@ -91,12 +91,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 
     fn redeem_all_procs(&self) {
-        let mut first = true;
-        for queue in self.processes.iter() {
-            if first {
-                continue;
-            }
-            first = false;
+        for queue in self.processes.iter().skip(1) {
             match queue.pop_head() {
                 Some(proc) => self.processes[0].push_tail(proc),
                 None => continue,
