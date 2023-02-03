@@ -13,11 +13,11 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 pub struct MuxI2C<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
     i2c: &'a I,
     smbus: Option<&'a S>,
-    i2c_devices: List<'a, I2CDevice<'a, I>>,
-    smbus_devices: List<'a, SMBusDevice<'a, I>>,
+    i2c_devices: List<'a, I2CDevice<'a, I, S>>,
+    smbus_devices: List<'a, SMBusDevice<'a, I, S>>,
     enabled: Cell<usize>,
-    i2c_inflight: OptionalCell<&'a I2CDevice<'a, I>>,
-    smbus_inflight: OptionalCell<&'a SMBusDevice<'a, I>>,
+    i2c_inflight: OptionalCell<&'a I2CDevice<'a, I, S>>,
+    smbus_inflight: OptionalCell<&'a SMBusDevice<'a, I, S>>,
     deferred_call: DeferredCall,
 }
 
@@ -200,18 +200,18 @@ enum Op {
     CommandComplete(Result<(), Error>),
 }
 
-pub struct I2CDevice<'a, I: i2c::I2CMaster> {
-    mux: &'a MuxI2C<'a, I>,
+pub struct I2CDevice<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
+    mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, I2CDevice<'a, I>>,
+    next: ListLink<'a, I2CDevice<'a, I, S>>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl<'a, I: i2c::I2CMaster> I2CDevice<'a, I> {
-    pub fn new(mux: &'a MuxI2C<'a, I>, addr: u8) -> I2CDevice<'a, I> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CDevice<'a, I, S> {
+    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> I2CDevice<'a, I, S> {
         I2CDevice {
             mux: mux,
             addr: addr,
@@ -229,7 +229,7 @@ impl<'a, I: i2c::I2CMaster> I2CDevice<'a, I> {
     }
 }
 
-impl<I: i2c::I2CMaster> I2CClient for I2CDevice<'_, I> {
+impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CClient for I2CDevice<'_, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         self.client.map(move |client| {
             client.command_complete(buffer, status);
@@ -237,8 +237,10 @@ impl<I: i2c::I2CMaster> I2CClient for I2CDevice<'_, I> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster> ListNode<'a, I2CDevice<'a, I>> for I2CDevice<'a, I> {
-    fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a, I>> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> ListNode<'a, I2CDevice<'a, I, S>>
+    for I2CDevice<'a, I, S>
+{
+    fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a, I, S>> {
         &self.next
     }
 }
@@ -301,18 +303,18 @@ impl<I: i2c::I2CMaster> i2c::I2CDevice for I2CDevice<'_, I> {
     }
 }
 
-pub struct SMBusDevice<'a, I: i2c::I2CMaster> {
-    mux: &'a MuxI2C<'a, I>,
+pub struct SMBusDevice<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> {
+    mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, SMBusDevice<'a, I>>,
+    next: ListLink<'a, SMBusDevice<'a, I, S>>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl<'a, I: i2c::I2CMaster> SMBusDevice<'a, I> {
-    pub fn new(mux: &'a MuxI2C<'a, I>, addr: u8) -> SMBusDevice<'a, I> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> SMBusDevice<'a, I, S> {
+    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> SMBusDevice<'a, I, S> {
         if mux.smbus.is_none() {
             panic!("There is no SMBus to attach to");
         }
@@ -334,7 +336,7 @@ impl<'a, I: i2c::I2CMaster> SMBusDevice<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster> I2CClient for SMBusDevice<'a, I> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CClient for SMBusDevice<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         self.client.map(move |client| {
             client.command_complete(buffer, status);
@@ -342,13 +344,15 @@ impl<'a, I: i2c::I2CMaster> I2CClient for SMBusDevice<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster> ListNode<'a, SMBusDevice<'a, I>> for SMBusDevice<'a, I> {
-    fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a, I>> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> ListNode<'a, SMBusDevice<'a, I, S>>
+    for SMBusDevice<'a, I, S>
+{
+    fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a, I, S>> {
         &self.next
     }
 }
 
-impl<'a, I: i2c::I2CMaster> i2c::I2CDevice for SMBusDevice<'a, I> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> i2c::I2CDevice for SMBusDevice<'a, I, S> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -406,7 +410,7 @@ impl<'a, I: i2c::I2CMaster> i2c::I2CDevice for SMBusDevice<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster> i2c::SMBusDevice for SMBusDevice<'a, I> {
+impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> i2c::SMBusDevice for SMBusDevice<'a, I, S> {
     fn smbus_write_read(
         &self,
         data: &'static mut [u8],
