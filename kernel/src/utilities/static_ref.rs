@@ -37,7 +37,7 @@ impl<T> Copy for StaticRef<T> {}
 
 impl<T> Deref for StaticRef<T> {
     type Target = T;
-    fn deref(&self) -> &'static T {
+    fn deref(&self) -> &T {
         unsafe { &*self.ptr }
     }
 }
