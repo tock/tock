@@ -177,7 +177,7 @@ pub trait I2CSlave {
 /// Master and Slave modes.
 pub trait I2CMasterSlave: I2CMaster + I2CSlave {}
 // Provide blanket implementations for trait group
-impl<T: I2CMaster + I2CSlave> I2CMasterSlave for T {}
+// impl<T: I2CMaster + I2CSlave> I2CMasterSlave for T {}
 
 /// Client interface for capsules that use I2CMaster devices.
 pub trait I2CHwMasterClient {

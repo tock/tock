@@ -476,7 +476,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     base_peripherals.twi0.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
@@ -490,7 +490,7 @@ pub unsafe fn main() {
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!());
+    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -499,7 +499,7 @@ pub unsafe fn main() {
     .finalize(components::proximity_component_static!());
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
-        .finalize(components::hts221_component_static!());
+        .finalize(components::hts221_component_static!(nrf52840::i2c::TWI));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,

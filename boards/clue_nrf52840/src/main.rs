@@ -585,7 +585,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(sensors_i2c_bus);

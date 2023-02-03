@@ -37,7 +37,7 @@ use kernel::hil::time::{self, Alarm};
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! isl29035_component_static {
-    ($A:ty, $I:ty $(,)? $(,)?) => {{
+    ($A:ty, $I:ty $(,)?) => {{
         let alarm = kernel::static_buf!(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );

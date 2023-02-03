@@ -74,7 +74,13 @@ struct STM32F3Discovery {
     button: &'static capsules_core::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     l3gd20: &'static capsules_extra::l3gd20::L3gd20Spi<'static>,
-    lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<'static>,
+    lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<
+            'static,
+            stm32f303xc::i2c::I2C<'static>,
+        >,
+    >,
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,

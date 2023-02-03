@@ -331,7 +331,7 @@ pub unsafe fn main() {
     .finalize(components::nrf51822_component_static!());
 
     let sensors_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None)
-        .finalize(components::i2c_mux_component_static!(sam4l::i2c::I2CHws));
+        .finalize(components::i2c_mux_component_static!(sam4l::i2c::I2CHw));
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40).finalize(

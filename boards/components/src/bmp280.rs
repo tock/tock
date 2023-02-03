@@ -44,7 +44,7 @@ macro_rules! bmp280_component_static {
             capsules_extra::bmp280::Bmp280<
                 'static,
                 VirtualMuxAlarm<'static, $A>,
-                I2CDevice<'static, $I>,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>,
             >
         );
 
