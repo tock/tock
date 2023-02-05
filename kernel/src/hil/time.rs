@@ -18,7 +18,7 @@ use core::fmt;
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
 
-pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
+pub trait Ticks: Clone + Copy + From<u32> + From<u64> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
@@ -30,6 +30,10 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// helper since Tock uses `u32` pervasively and most platforms
     /// are 32 bits.
     fn into_u32(self) -> u32;
+
+    /// Converts the type into a `u64`, filling the higher bits
+    /// with 0 if it is smaller than `u64`.
+    fn into_u64(self) -> u64;
 
     /// Add two values, wrapping around on overflow using standard
     /// unsigned arithmetic.
@@ -392,6 +396,12 @@ impl From<u32> for Ticks32 {
     }
 }
 
+impl From<u64> for Ticks32 {
+    fn from(val: u64) -> Self {
+        Ticks32(val as u32)
+    }
+}
+
 impl Ticks for Ticks32 {
     fn into_usize(self) -> usize {
         self.0 as usize
@@ -399,6 +409,10 @@ impl Ticks for Ticks32 {
 
     fn into_u32(self) -> u32 {
         self.0
+    }
+
+    fn into_u64(self) -> u64 {
+        self.0 as u64
     }
 
     fn wrapping_add(self, other: Self) -> Self {
@@ -473,6 +487,12 @@ impl From<u32> for Ticks24 {
     }
 }
 
+impl From<u64> for Ticks24 {
+    fn from(val: u64) -> Self {
+        Ticks24(val as u32)
+    }
+}
+
 impl Ticks for Ticks24 {
     fn into_usize(self) -> usize {
         self.0 as usize
@@ -480,6 +500,10 @@ impl Ticks for Ticks24 {
 
     fn into_u32(self) -> u32 {
         self.0
+    }
+
+    fn into_u64(self) -> u64 {
+        self.0 as u64
     }
 
     fn wrapping_add(self, other: Self) -> Self {
@@ -560,6 +584,12 @@ impl From<u32> for Ticks16 {
     }
 }
 
+impl From<u64> for Ticks16 {
+    fn from(val: u64) -> Self {
+        Ticks16((val & 0xffff) as u16)
+    }
+}
+
 impl Ticks16 {
     pub fn into_u16(self) -> u16 {
         self.0
@@ -573,6 +603,10 @@ impl Ticks for Ticks16 {
 
     fn into_u32(self) -> u32 {
         self.0 as u32
+    }
+
+    fn into_u64(self) -> u64 {
+        self.0 as u64
     }
 
     fn wrapping_add(self, other: Self) -> Self {
@@ -641,12 +675,6 @@ impl Eq for Ticks16 {}
 #[derive(Clone, Copy, Debug)]
 pub struct Ticks64(u64);
 
-impl Ticks64 {
-    pub fn into_u64(self) -> u64 {
-        self.0
-    }
-}
-
 impl From<u32> for Ticks64 {
     fn from(val: u32) -> Self {
         Ticks64(val as u64)
@@ -666,6 +694,10 @@ impl Ticks for Ticks64 {
 
     fn into_u32(self) -> u32 {
         self.0 as u32
+    }
+
+    fn into_u64(self) -> u64 {
+        self.0 as u64
     }
 
     fn wrapping_add(self, other: Self) -> Self {

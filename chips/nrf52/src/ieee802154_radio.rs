@@ -808,7 +808,7 @@ impl<'p> Radio<'p> {
                 self.timer0
                     .unwrap_or_panic() // Unwrap fail = Missing timer reference for CSMA
                     .set_alarm(
-                        kernel::hil::time::Ticks32::from(0),
+                        kernel::hil::time::Ticks32::from(0u32),
                         kernel::hil::time::Ticks32::from(
                             backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
                         ),

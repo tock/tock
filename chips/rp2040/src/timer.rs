@@ -275,6 +275,6 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(50)
+        Self::Ticks::from(50u32)
     }
 }
