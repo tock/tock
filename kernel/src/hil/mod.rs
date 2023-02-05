@@ -8,6 +8,7 @@ pub mod buzzer;
 pub mod can;
 pub mod crc;
 pub mod dac;
+pub mod debug;
 pub mod digest;
 pub mod eic;
 pub mod entropy;
