@@ -51,7 +51,7 @@ impl<'a> MLFQProcessNode<'a> {
 }
 
 impl<'a> ListNode<'a, MLFQProcessNode<'a>> for MLFQProcessNode<'a> {
-    fn next(&'a self) -> &'static ListLink<'a, MLFQProcessNode<'a>> {
+    fn next(&'a self) -> &'a ListLink<'a, MLFQProcessNode<'a>> {
         &self.next
     }
 }
