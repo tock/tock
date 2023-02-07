@@ -7,7 +7,7 @@ PLATFORM = qemu_rv32_virt
 include ../Makefile.common
 
 QEMU_CMD             := qemu-system-riscv32
-WORKING_QEMU_VERSION := 7.0.0
+WORKING_QEMU_VERSION := 7.2.0
 
 # Whether a VirtIO network device shall be attached to the QEMU
 # machine, and which backend should be used. The following options are
@@ -21,6 +21,11 @@ WORKING_QEMU_VERSION := 7.0.0
 #   sockets. This option also accepts an optional NETDEV_SLIRP_ARGS
 #   which is appended to the provided string.
 #
+#   To forward TCP port 1234 on the emulated Tock device (having IP
+#   192.168.1.50) to the host port 5678, set the following variable:
+#
+#       NETDEV_SLIRP_ARGS=hostfwd=tcp::5678-192.168.1.50:1234
+#
 # - NETDEV: TAP
 #
 #   Creates a TAP network interface to act as a layer-2 Ethernet
@@ -29,16 +34,16 @@ WORKING_QEMU_VERSION := 7.0.0
 #   host. Use SUDO-TAP instead to run QEMU through `sudo`.
 NETDEV            ?= NONE
 ifneq ($(NETDEV_SLIRP_ARGS),)
-  NETDEV_SLIRP_ARGS := ,$(NETDEV_SLIRP_ARGS)
+  NETDEV_SLIRP_ARGS_INT := ,$(NETDEV_SLIRP_ARGS)
 else
-  NETDEV_SLIRP_ARGS :=
+  NETDEV_SLIRP_ARGS_INT :=
 endif
 
 ifeq ($(NETDEV),NONE)
   QEMU_NETDEV_CMDLINE = ""
 else ifeq ($(NETDEV),SLIRP)
   QEMU_NETDEV_CMDLINE = \
-    -netdev user,id=n0,net=192.168.1.0/24,dhcpstart=192.168.1.255$(NETDEV_SLIRP_ARGS) \
+    -netdev user,id=n0,net=192.168.1.0/24,dhcpstart=192.168.1.255$(NETDEV_SLIRP_ARGS_INT) \
     -device virtio-net-device,netdev=n0
 else ifneq (,$(filter $(NETDEV),TAP SUDO-TAP))
   QEMU_NETDEV_CMDLINE = \
@@ -63,31 +68,29 @@ QEMU_BASE_CMDLINE := \
     $(QEMU_NETDEV_CMDLINE) \
     -nographic
 
-# Some helpful instructions & information. Requires that a qemu-riscv32-system
-# binary is in the user's PATH. The tested & verified QEMU version is printed
-# along with the one used. No actual version check is performed given the
-# simulation might work with different version, though should at leat work on
-# the tested one.
-.PHONY: qemu-usage-instructions
-qemu-usage-instructions:
-	@echo
-	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)" \
-	  "(tested: $(WORKING_QEMU_VERSION)) with\n" \
-          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
-	@test "\"$(APP)\" != \"\"" && echo -e "  - app $(APP)"
-	@echo "To exit type C-a x"
-	@echo
-
 # Run the kernel inside a qemu-riscv32-system "virt" machine type simulation
 .PHONY: run
-run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf qemu-usage-instructions
+run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	@echo
+	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)"\
+	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
+	@echo "To exit type C-a x"
+	@echo
 	$(QEMU_BASE_CMDLINE) \
 	  -bios $<
 
 # Same as `run`, but load an application specified by $(APP) into the respective
 # memory location.
 .PHONY: run-app
-run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf qemu-usage-instructions
+run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+	@echo
+	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)"\
+	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+          " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf\n"\
+	  " - app $(APP)"
+	@echo "To exit type C-a x"
+	@echo
 	$(QEMU_BASE_CMDLINE) \
 	  -bios $< \
 	  -device loader,file=$(APP),addr=0x80100000
