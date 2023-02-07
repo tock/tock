@@ -123,6 +123,7 @@ pub struct Platform {
     console: &'static capsules::console::Console<'static>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,

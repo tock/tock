@@ -9,6 +9,7 @@ use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::ProcessId;
 
@@ -32,11 +33,19 @@ pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
 pub const COMMAND_BUF_LEN: usize = 32;
+/// Default size for the history command.
+pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
     b"help status list stop start fault boot terminate process kernel panic\r\n";
+
+/// Escape character for ANSI escape sequences.
+const ESC: u8 = '\x1B' as u8;
+
+/// End of line character.
+const EOL: u8 = '\0' as u8;
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -83,7 +92,12 @@ pub struct KernelAddresses {
     pub bss_end: *const u8,
 }
 
-pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
+pub struct ProcessConsole<
+    'a,
+    const COMMAND_HISTORY_LEN: usize,
+    A: Alarm<'a>,
+    C: ProcessManagementCapability,
+> {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
     process_printer: &'a dyn ProcessPrinter,
@@ -96,6 +110,16 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
+
+    /// Keep a history of inserted commands
+    command_history: TakeCell<'static, [Command; COMMAND_HISTORY_LEN]>,
+
+    control_seq_in_progress: Cell<bool>,
+    modified_in_history: Cell<bool>,
+    modified_byte: Cell<u8>,
+
+    /// Index of the last copied command in the history
+    command_history_index: OptionalCell<usize>,
 
     /// Keep the previously read byte to consider \r\n sequences
     /// as a single \n.
@@ -118,6 +142,64 @@ pub struct ProcessConsole<'a, A: Alarm<'a>, C: ProcessManagementCapability> {
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
     capability: C,
+}
+
+#[derive(Copy, Clone)]
+pub struct Command {
+    buf: [u8; COMMAND_BUF_LEN],
+    len: usize,
+}
+
+impl Command {
+    /// Write the buffer with the provided data.
+    /// If the provided data's length is smaller than the buffer length,
+    /// the left over bytes are not modified due to '\0' termination.
+    fn write(&mut self, buf: &[u8; COMMAND_BUF_LEN]) {
+        self.len = buf
+            .iter()
+            .position(|a| *a == EOL)
+            .unwrap_or(COMMAND_BUF_LEN);
+
+        (&mut self.buf).copy_from_slice(buf);
+    }
+
+    fn insert_byte(&mut self, byte: u8) {
+        if let Some(buf_byte) = self.buf.get_mut(self.len) {
+            *buf_byte = byte;
+            self.len = self.len + 1;
+        }
+    }
+
+    fn delete_last_byte(&mut self) {
+        if let Some(buf_byte) = self.buf.get_mut(self.len - 1) {
+            *buf_byte = EOL;
+            self.len = self.len - 1;
+        }
+    }
+
+    fn clear(&mut self) {
+        self.buf.iter_mut().for_each(|x| *x = EOL);
+        self.len = 0;
+    }
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Command {
+            buf: [EOL; COMMAND_BUF_LEN],
+            len: 0,
+        }
+    }
+}
+
+impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
+    fn eq(&self, other_buf: &[u8; COMMAND_BUF_LEN]) -> bool {
+        self.buf
+            .iter()
+            .zip(other_buf.iter())
+            .take_while(|(a, b)| **a != EOL || **b != EOL)
+            .all(|(a, b)| *a == *b)
+    }
 }
 
 pub struct ConsoleWriter {
@@ -155,7 +237,9 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> {
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
+    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+{
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         alarm: &'a A,
@@ -164,10 +248,11 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
+        cmd_history_buffer: &'static mut [Command; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         capability: C,
-    ) -> ProcessConsole<'a, A, C> {
+    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
             uart: uart,
             alarm: alarm,
@@ -181,6 +266,12 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
+
+            control_seq_in_progress: Cell::new(false),
+            modified_byte: Cell::new(EOL),
+            modified_in_history: Cell::new(false),
+            command_history: TakeCell::new(cmd_history_buffer),
+            command_history_index: OptionalCell::empty(),
 
             previous_byte: Cell::new(0),
 
@@ -456,6 +547,22 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
                 match cmd_str {
                     Ok(s) => {
                         let clean_str = s.trim();
+
+                        // Check if the command history is enabled by the user
+                        // and check if the command is not full of whitespaces
+                        if COMMAND_HISTORY_LEN > 1 {
+                            if clean_str.len() > 0 {
+                                self.command_history.map(|cmd_arr| {
+                                    let mut command_array = [0; COMMAND_BUF_LEN];
+                                    command_array.copy_from_slice(command);
+
+                                    if cmd_arr[1] != command_array {
+                                        cmd_arr.rotate_right(1);
+                                        cmd_arr[1].write(&command_array);
+                                    }
+                                });
+                            }
+                        }
 
                         if clean_str.starts_with("help") {
                             let _ = self.write_bytes(b"Welcome to the process console.\r\n");
@@ -780,7 +887,9 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> ProcessConsole<'a, A, C> 
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient for ProcessConsole<'a, A, C> {
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+{
     fn alarm(&self) {
         self.prompt();
         self.rx_buffer.take().map(|buffer| {
@@ -790,8 +899,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient for ProcessCo
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::TransmitClient
-    for ProcessConsole<'a, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
+    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn transmitted_buffer(
         &self,
@@ -826,8 +935,8 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::TransmitClient
     }
 }
 
-impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
-    for ProcessConsole<'a, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
+    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn received_buffer(
         &self,
@@ -848,9 +957,18 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                             if (previous_byte == ('\n' as u8) || previous_byte == ('\r' as u8))
                                 && previous_byte != read_buf[0]
                             {
-                                // ignore the \n or \r as it is the second byte of a \r\n sequence
-                                // reset the sequence
+                                // Reset the sequence, when \r\n is received
                                 self.previous_byte.set(0);
+
+                                if COMMAND_HISTORY_LEN > 1 {
+                                    self.command_history_index.insert(None);
+                                    self.modified_in_history.set(false);
+
+                                    // Clear the unfinished command if the \r\n is received
+                                    self.command_history.map(|cmd_arr| {
+                                        cmd_arr[0].clear();
+                                    });
+                                }
                             } else {
                                 self.execute.set(true);
                                 let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
@@ -860,8 +978,131 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                                 // Backspace, echo and remove last byte
                                 // Note echo is '\b \b' to erase
                                 let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                                command[index - 1] = '\0' as u8;
+                                command[index - 1] = EOL;
                                 self.command_index.set(index - 1);
+
+                                // Remove last byte from the command in order
+                                // not to permit accumulation of the text
+                                if COMMAND_HISTORY_LEN > 1 {
+                                    self.command_history.map(|cmd_arr| {
+                                        (&mut cmd_arr[0]).delete_last_byte();
+                                    });
+                                }
+                            }
+                        } else if (COMMAND_HISTORY_LEN > 1)
+                            && (read_buf[0] == ESC || self.control_seq_in_progress.get())
+                        {
+                            // Catch the Up and Down arrow keys
+                            if read_buf[0] == ESC {
+                                // Signal that a control sequence has started and capture it
+                                self.control_seq_in_progress.set(true);
+                                self.modified_byte.set(previous_byte);
+                            } else if read_buf[0] != ('[' as u8) {
+                                // Fetch the index of the last command added to the history
+                                if let Some(index) = match read_buf[0] {
+                                    // Up arrow case
+                                    b'A' => {
+                                        let i = match self.command_history_index.extract() {
+                                            Some(i) => i + 1,
+                                            None => 1,
+                                        };
+                                        if i >= COMMAND_HISTORY_LEN {
+                                            None
+                                        } else {
+                                            // Check if any command can be displayed
+                                            self.command_history
+                                                .map(|cmd_arr| match cmd_arr[i].len == 0 {
+                                                    true => None,
+                                                    false => {
+                                                        // Remove last whitespace byte from the command
+                                                        // or register a new unfinshed command
+                                                        // upon pressing backspace
+                                                        match self.modified_byte.get() {
+                                                            b' ' => {
+                                                                (&mut cmd_arr[0])
+                                                                    .delete_last_byte();
+                                                            }
+                                                            b'\x08' | b'\x7F' => {
+                                                                cmd_arr[0].clear();
+
+                                                                let mut command_array =
+                                                                    [0; COMMAND_BUF_LEN];
+                                                                command_array
+                                                                    .copy_from_slice(command);
+                                                                cmd_arr[0].write(&command_array);
+                                                            }
+                                                            _ => {
+                                                                self.modified_byte.set(EOL);
+                                                            }
+                                                        };
+                                                        Some(i)
+                                                    }
+                                                })
+                                                .unwrap()
+                                        }
+                                    }
+                                    // Down arrow case
+                                    b'B' => match self.command_history_index.extract() {
+                                        Some(i) => match i > 0 {
+                                            true => {
+                                                // Remove last whitespace byte from the command
+                                                // or register a new unfinshed command
+                                                // upon pressing backspace
+                                                self.command_history.map(|cmd_arr| {
+                                                    match self.modified_byte.get() {
+                                                        b' ' => {
+                                                            (&mut cmd_arr[0]).delete_last_byte();
+                                                        }
+                                                        b'\x08' | b'\x7F' => {
+                                                            cmd_arr[0].clear();
+
+                                                            let mut command_array =
+                                                                [0; COMMAND_BUF_LEN];
+                                                            command_array.copy_from_slice(command);
+                                                            cmd_arr[0].write(&command_array);
+                                                        }
+                                                        _ => {
+                                                            self.modified_byte.set(EOL);
+                                                        }
+                                                    };
+                                                });
+
+                                                Some(i - 1)
+                                            }
+                                            false => None,
+                                        },
+                                        None => None,
+                                    },
+                                    _ => None,
+                                } {
+                                    self.command_history_index.set(index);
+                                    self.command_history.map(|cmd_arr| {
+                                        let next_command = cmd_arr[index];
+                                        let prev_command_len = self.command_index.get();
+                                        let next_command_len = next_command.len;
+
+                                        // Clear the displayed command
+                                        for _ in 0..prev_command_len {
+                                            let _ = self.write_bytes(&[
+                                                '\x08' as u8,
+                                                ' ' as u8,
+                                                '\x08' as u8,
+                                            ]);
+                                        }
+
+                                        // Display the new command
+                                        for i in 0..next_command_len {
+                                            let byte = next_command.buf[i];
+                                            let _ = self.write_byte(byte);
+                                            command[i] = byte;
+                                        }
+
+                                        self.modified_in_history.set(true);
+                                        self.command_index.set(next_command_len);
+                                        command[next_command_len] = EOL;
+                                    });
+                                };
+                                self.control_seq_in_progress.set(false);
                             }
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
                             // For some reason, sometimes reads return > 127 but no error,
@@ -872,6 +1113,30 @@ impl<'a, A: Alarm<'a>, C: ProcessManagementCapability> uart::ReceiveClient
                             command[index] = read_buf[0];
                             self.command_index.set(index + 1);
                             command[index + 1] = 0;
+
+                            if COMMAND_HISTORY_LEN > 1 {
+                                self.command_history.map(|cmd_arr| {
+                                    if self.modified_in_history.get() {
+                                        // Copy the last command into the unfinished command
+
+                                        cmd_arr[0].clear();
+
+                                        let mut command_array = [0; COMMAND_BUF_LEN];
+                                        command_array.copy_from_slice(command);
+                                        cmd_arr[0].write(&command_array);
+
+                                        self.modified_in_history.set(false);
+                                    } else {
+                                        // Do not save unnecessary white spaces
+                                        // between commands
+                                        if read_buf[0] != (' ' as u8)
+                                            || previous_byte != (' ' as u8)
+                                        {
+                                            (&mut cmd_arr[0]).insert_byte(read_buf[0]);
+                                        }
+                                    }
+                                });
+                            }
                         }
                     });
                 }

@@ -165,6 +165,7 @@ pub struct Platform {
     button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,

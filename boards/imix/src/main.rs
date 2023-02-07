@@ -108,6 +108,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 struct Imix {
     pconsole: &'static capsules::process_console::ProcessConsole<
         'static,
+        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
         components::process_console::Capability,
     >,
