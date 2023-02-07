@@ -255,7 +255,7 @@ unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> (
+unsafe fn create_peripherals() -> (
     &'static mut Stm32f446reDefaultPeripherals<'static>,
     &'static stm32f446re::syscfg::Syscfg<'static>,
     &'static stm32f446re::dma::Dma1<'static>,
@@ -287,7 +287,7 @@ unsafe fn get_peripherals() -> (
 pub unsafe fn main() {
     stm32f446re::init();
 
-    let (peripherals, syscfg, dma1) = get_peripherals();
+    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 

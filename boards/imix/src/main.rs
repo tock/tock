@@ -304,7 +304,7 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals(
+unsafe fn create_peripherals(
     pm: &'static sam4l::pm::PowerManager,
 ) -> &'static Sam4lDefaultPeripherals {
     static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
@@ -317,7 +317,7 @@ unsafe fn get_peripherals(
 pub unsafe fn main() {
     sam4l::init();
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
-    let peripherals = get_peripherals(pm);
+    let peripherals = create_peripherals(pm);
 
     pm.setup_system_clock(
         sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {

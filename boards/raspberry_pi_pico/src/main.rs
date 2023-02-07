@@ -250,7 +250,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
+unsafe fn create_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
     static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new())
 }
 
@@ -260,7 +260,7 @@ pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.resolve_dependencies();
 
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
