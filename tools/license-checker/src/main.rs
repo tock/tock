@@ -137,6 +137,7 @@ fn check_file(cache: &Cache, path: &Path) -> Vec<ErrorInfo> {
             (NeedCopyright, Comment(comment)) if is_copyright(comment) => (WaitForEnd, None),
             (NeedCopyright, _) => (Done, Some(MissingCopyright)),
             (WaitForEnd, Comment(comment)) if is_copyright(comment) => (WaitForEnd, None),
+            (WaitForEnd, Comment("")) => (Done, None),
             (WaitForEnd, Whitespace) => (Done, None),
             (WaitForEnd, _) => (Done, Some(MissingBlank)),
             (Done, _) => unreachable!("Loop didn't end at EOF"),
@@ -196,6 +197,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_trailing_comment() {
+        assert_eq!(
+            check_file(&Cache::default(), Path::new("testdata/blank_is_comment.rs")),
+            []
+        );
+    }
 
     #[test]
     fn many_errors() {
