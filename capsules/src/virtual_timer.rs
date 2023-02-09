@@ -43,7 +43,7 @@ impl<'a, A: Alarm<'a>> ListNode<'a, VirtualTimer<'a, A>> for VirtualTimer<'a, A>
 impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
     /// After calling new, always call setup()
     pub fn new(mux_timer: &'a MuxTimer<'a, A>) -> VirtualTimer<'a, A> {
-        let zero = A::Ticks::from(0);
+        let zero = A::Ticks::from(0u32);
         let v = VirtualTimer {
             mux: mux_timer,
             when: Cell::new(zero),
