@@ -424,30 +424,13 @@ variables in the kernel implemementation might be different. The exact
 Tock process state machine and names of its states is outside the
 scope of this document.
 
-One a Tock system is running, management interfaces may change the set
+Once a Tock system is running, management interfaces may change the set
 of running processes from those which the boot sequence
 selected. E.g., the process console might terminate a process so that
 it can run a different process with the same Short ID and a lower
 Userspace Binary version number (rollback). The kernel maintains that
 a running process has a unique Application Identifier and a unique
 Short ID among running processes.
-
-Note that the algorithm above can lead to transitive blocking, such
-that a process at boot is blocked from running even if the process
-that blocks it does not run. For example, suppose there are three
-processes: A, B and C.
-
-  - A has a version number of 1, an Application ID of X and a Short ID of 6
-  - B has a version number of 2, an Application ID of Y and a Short ID of 6
-  - C has a version number of 3, an APplication ID of Y and a Short ID of 7
-
-Following the above logic, A cannot run because it shares a Short ID
-with A and has a lower version number. At the same time, B cannot run
-because it has a lower version number than C and the same Application
-ID. C can run.  While A cannot run at the same time as B, it can run
-at the same time as C. At boot, however, A will not be started. Once
-the kernel has booted, however, A could be started by a management
-interface.
 
 
 5 Credentials and Version in Tock Binary Format Objects
