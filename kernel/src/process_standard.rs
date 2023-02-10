@@ -466,8 +466,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // because this state means the process is ready to run and
         // will be started in a future core scheduler loop; terminate
         // allows the kernel to prevent this before it starts running.
-        if self.is_running() == false 
-            && self.get_state() != State::Faulted 
+        if self.is_running() == false
+            && self.get_state() != State::Faulted
             && self.get_state() != State::CredentialsApproved
         {
             return;
