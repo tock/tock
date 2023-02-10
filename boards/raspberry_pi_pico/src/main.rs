@@ -22,6 +22,7 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
@@ -49,6 +50,15 @@ mod flash_bootloader;
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+// Function for the CDC/USB stack used to ask the MCU to reset into
+// tockbootloader.
+fn baud_rate_reset_bootloader_enter() {
+    // unsafe {
+    // cortexm0::scb::reset();
+    // }
+    // TODO reset into bootloader
+}
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -240,7 +250,7 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
+unsafe fn create_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
     static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new())
 }
 
@@ -250,11 +260,8 @@ pub unsafe fn main() {
     // Loads relocations and clears BSS
     rp2040::init();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.resolve_dependencies();
-
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
 
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
     peripherals.resets.reset_all_except(&[
@@ -312,7 +319,7 @@ pub unsafe fn main() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -329,14 +336,48 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
+    // CDC
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Raspberry Pi",      // Manufacturer
+            "Pico - TockOS",     // Product
+            "00000000000000000", // Serial number
+        ]
+    );
+
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &peripherals.usb,
+        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        64,
+        0x0,
+        0x1,
+        strings,
+        mux_alarm,
+        dynamic_deferred_caller,
+        Some(&baud_rate_reset_bootloader_enter),
+    )
+    .finalize(components::cdc_acm_component_static!(
+        rp2040::usb::UsbCtrl,
+        rp2040::timer::RPTimer
+    ));
+
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+        .finalize(components::uart_mux_component_static!());
+
+    // Uncomment this to use UART as an output
+    // let uart_mux2 = components::console::UartMuxComponent::new(
+    //     &peripherals.uart0,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(components::uart_mux_component_static!());
+
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -348,6 +389,9 @@ pub unsafe fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
+
+    cdc.enable();
+    cdc.attach();
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -512,6 +556,7 @@ pub unsafe fn main() {
         peripherals.sysinfo.get_revision(),
         platform_type
     );
+
     debug!("Initialization complete. Enter main loop");
 
     // These symbols are defined in the linker script.

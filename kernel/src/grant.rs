@@ -132,7 +132,7 @@ use core::ptr::{write, NonNull};
 use core::slice;
 
 use crate::kernel::Kernel;
-use crate::process::{Error, Process, ProcessCustomGrantIdentifer, ProcessId};
+use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
@@ -1449,7 +1449,7 @@ pub struct CustomGrant<T> {
     /// Here, this is an opaque reference that Process uses to access the
     /// custom grant allocation. This setup ensures that Process owns the grant
     /// memory.
-    identifier: ProcessCustomGrantIdentifer,
+    identifier: ProcessCustomGrantIdentifier,
 
     /// Identifier for the process where this custom grant is allocated.
     processid: ProcessId,
@@ -1460,7 +1460,7 @@ pub struct CustomGrant<T> {
 
 impl<T> CustomGrant<T> {
     /// Creates a new `CustomGrant`.
-    fn new(identifier: ProcessCustomGrantIdentifer, processid: ProcessId) -> Self {
+    fn new(identifier: ProcessCustomGrantIdentifier, processid: ProcessId) -> Self {
         CustomGrant {
             identifier,
             processid,
@@ -1589,8 +1589,8 @@ impl GrantRegionAllocator {
     ///
     /// The caller must initialize the memory.
     ///
-    /// Also returns a ProcessCustomGrantIdentifer to access the memory later.
-    fn alloc_raw<T>(&mut self) -> Result<(ProcessCustomGrantIdentifer, NonNull<T>), Error> {
+    /// Also returns a ProcessCustomGrantIdentifier to access the memory later.
+    fn alloc_raw<T>(&mut self) -> Result<(ProcessCustomGrantIdentifier, NonNull<T>), Error> {
         self.alloc_n_raw::<T>(1)
     }
 
@@ -1599,11 +1599,11 @@ impl GrantRegionAllocator {
     /// The caller is responsible for initializing the returned memory.
     ///
     /// Returns memory appropriate for storing `num_items` contiguous instances
-    /// of `T` and a ProcessCustomGrantIdentifer to access the memory later.
+    /// of `T` and a ProcessCustomGrantIdentifier to access the memory later.
     fn alloc_n_raw<T>(
         &mut self,
         num_items: usize,
-    ) -> Result<(ProcessCustomGrantIdentifer, NonNull<T>), Error> {
+    ) -> Result<(ProcessCustomGrantIdentifier, NonNull<T>), Error> {
         let (custom_grant_identifier, raw_ptr) =
             self.alloc_n_raw_inner(num_items, size_of::<T>(), align_of::<T>())?;
         let typed_ptr = NonNull::cast::<T>(raw_ptr);
@@ -1617,7 +1617,7 @@ impl GrantRegionAllocator {
         num_items: usize,
         single_alloc_size: usize,
         alloc_align: usize,
-    ) -> Result<(ProcessCustomGrantIdentifer, NonNull<u8>), Error> {
+    ) -> Result<(ProcessCustomGrantIdentifier, NonNull<u8>), Error> {
         let alloc_size = single_alloc_size
             .checked_mul(num_items)
             .ok_or(Error::OutOfMemory)?;

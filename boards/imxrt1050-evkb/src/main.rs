@@ -223,7 +223,7 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
+unsafe fn create_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
@@ -240,7 +240,7 @@ unsafe fn get_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPer
 pub unsafe fn main() {
     imxrt1050::init();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();

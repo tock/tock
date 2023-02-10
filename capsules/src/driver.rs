@@ -18,6 +18,7 @@ pub enum NUM {
     AnalogComparator      = 0x00007,
     LowLevelDebug         = 0x00008,
     ReadOnlyState         = 0x00009,
+    Pwm                   = 0x00010,
 
     // Kernel
     Ipc                   = 0x10000,
@@ -28,6 +29,7 @@ pub enum NUM {
     I2cMaster             = 0x20003,
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
+    Can                   = 0x20007,
 
     // Radio
     BleAdvertising        = 0x30000,

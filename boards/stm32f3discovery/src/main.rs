@@ -348,7 +348,7 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> (
+unsafe fn create_peripherals() -> (
     &'static mut Stm32f3xxDefaultPeripherals<'static>,
     &'static stm32f303xc::syscfg::Syscfg<'static>,
     &'static stm32f303xc::rcc::Rcc,
@@ -380,7 +380,7 @@ unsafe fn get_peripherals() -> (
 pub unsafe fn main() {
     stm32f303xc::init();
 
-    let (peripherals, syscfg, _rcc) = get_peripherals();
+    let (peripherals, syscfg, _rcc) = create_peripherals();
     peripherals.setup_circular_deps();
 
     set_pin_primary_functions(

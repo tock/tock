@@ -133,7 +133,7 @@ mod dma_config {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
+unsafe fn create_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1060::chip::Imxrt10xxDefaultPeripherals,
@@ -185,7 +185,7 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 pub unsafe fn main() {
     imxrt1060::init();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.ccm.set_low_power_mode();
 
     peripherals.dcdc.clock().enable();

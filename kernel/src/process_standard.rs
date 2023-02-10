@@ -19,7 +19,7 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
-use crate::process::{FaultAction, ProcessCustomGrantIdentifer, ProcessId};
+use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortID};
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
@@ -878,7 +878,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         size: usize,
         align: usize,
-    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)> {
+    ) -> Option<(ProcessCustomGrantIdentifier, NonNull<u8>)> {
         // Do not modify an inactive process.
         if !self.is_running() {
             return None;
@@ -940,7 +940,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn enter_custom_grant(
         &self,
-        identifier: ProcessCustomGrantIdentifer,
+        identifier: ProcessCustomGrantIdentifier,
     ) -> Result<*mut u8, Error> {
         // Do not try to access the grant region of inactive process.
         if !self.is_running() {
@@ -1283,8 +1283,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // Fixed addresses, can just run `make lst`.
                 let _ = writer.write_fmt(format_args!(
                     "\
-                    \r\nTo debug, run `make lst` in the app's folder\
-                    \r\nand open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
+                    \r\nTo debug libtock-c apps, run `make lst` in the app's\
+                    \r\nfolder and open the arch.{:#x}.{:#x}.lst file.\r\n\r\n",
                     debug.fixed_address_flash.unwrap_or(0),
                     debug.fixed_address_ram.unwrap_or(0)
                 ));
@@ -1296,8 +1296,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
                 let _ = writer.write_fmt(format_args!(
                     "\
-                    \r\nTo debug, run `make debug RAM_START={:#x} FLASH_INIT={:#x}`\
-                    \r\nin the app's folder and open the .lst file.\r\n\r\n",
+                    \r\nTo debug libtock-c apps, run `make debug RAM_START={:#x}`\
+                    \r\nFLASH_INIT={:#x} in the app's folder and open the .lst file.\r\n\r\n",
                     sram_start, flash_init_fn
                 ));
             }
@@ -2032,20 +2032,20 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     ///
     /// We create this identifier by calculating the number of bytes between
     /// where the custom grant starts and the end of the process memory.
-    fn create_custom_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessCustomGrantIdentifer {
+    fn create_custom_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessCustomGrantIdentifier {
         let custom_grant_address = ptr.as_ptr() as usize;
         let process_memory_end = self.mem_end() as usize;
 
-        ProcessCustomGrantIdentifer {
+        ProcessCustomGrantIdentifier {
             offset: process_memory_end - custom_grant_address,
         }
     }
 
-    /// Use a ProcessCustomGrantIdentifer to find the address of the custom
+    /// Use a ProcessCustomGrantIdentifier to find the address of the custom
     /// grant.
     ///
     /// This reverses `create_custom_grant_identifier()`.
-    fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifer) -> usize {
+    fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifier) -> usize {
         let process_memory_end = self.mem_end() as usize;
 
         // Subtract the offset in the identifier from the end of the process

@@ -70,7 +70,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 pub struct AdcVirtualized<'a> {
     drivers: &'a [&'a dyn hil::adc::AdcChannel],
     apps: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    current_app: OptionalCell<ProcessId>,
+    current_process: OptionalCell<ProcessId>,
 }
 
 /// ADC syscall driver, used by applications to interact with ADC.
@@ -641,7 +641,7 @@ impl<'a> AdcVirtualized<'a> {
         AdcVirtualized {
             drivers: drivers,
             apps: grant,
-            current_app: OptionalCell::empty(),
+            current_process: OptionalCell::empty(),
         }
     }
 
@@ -653,16 +653,18 @@ impl<'a> AdcVirtualized<'a> {
         processid: ProcessId,
     ) -> Result<(), ErrorCode> {
         if channel < self.drivers.len() {
-            self.apps
-                .enter(processid, |app, _| {
-                    if self.current_app.is_none() {
-                        self.current_app.set(processid);
-                        let value = self.call_driver(command, channel);
-                        if value != Ok(()) {
-                            self.current_app.clear();
-                        }
-                        value
-                    } else {
+            if self.current_process.is_none() {
+                self.current_process.set(processid);
+                let r = self.call_driver(command, channel);
+                if r != Ok(()) {
+                    self.current_process.clear();
+                }
+                self.run_next_command();
+                Ok(())
+            } else {
+                match self
+                    .apps
+                    .enter(processid, |app, _| {
                         if app.pending_command == true {
                             Err(ErrorCode::BUSY)
                         } else {
@@ -671,11 +673,47 @@ impl<'a> AdcVirtualized<'a> {
                             app.channel = channel;
                             Ok(())
                         }
-                    }
-                })
-                .unwrap_or_else(|err| err.into())
+                    })
+                    .map_err(ErrorCode::from)
+                {
+                    Err(e) => Err(e),
+                    Ok(_) => Ok(()),
+                }
+            }
         } else {
             Err(ErrorCode::NODEVICE)
+        }
+    }
+
+    /// Run next command in queue, when available
+    fn run_next_command(&self) {
+        let mut command = Operation::OneSample;
+        let mut channel = 0;
+        for app in self.apps.iter() {
+            let processid = app.processid();
+            let start_command = app.enter(|app, _| {
+                if app.pending_command {
+                    app.pending_command = false;
+                    app.command.take().map(|c| {
+                        command = c;
+                    });
+                    channel = app.channel;
+                    self.current_process.set(processid);
+                    true
+                } else {
+                    false
+                }
+            });
+            if start_command {
+                match self.call_driver(command, channel) {
+                    Err(_) => {
+                        self.current_process.clear();
+                    }
+                    Ok(()) => {
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -1284,7 +1322,7 @@ impl SyscallDriver for AdcVirtualized<'_> {
 
 impl<'a> hil::adc::Client for AdcVirtualized<'a> {
     fn sample_ready(&self, sample: u16) {
-        self.current_app.take().map(|processid| {
+        self.current_process.take().map(|processid| {
             let _ = self.apps.enter(processid, |app, upcalls| {
                 app.pending_command = false;
                 let channel = app.channel;
@@ -1296,5 +1334,6 @@ impl<'a> hil::adc::Client for AdcVirtualized<'a> {
                     .ok();
             });
         });
+        self.run_next_command();
     }
 }

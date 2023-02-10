@@ -558,11 +558,11 @@ pub struct I2CHw {
     slave_enabled: Cell<bool>,
     my_slave_address: Cell<u8>,
     slave_read_buffer: TakeCell<'static, [u8]>,
-    slave_read_buffer_len: Cell<u8>,
-    slave_read_buffer_index: Cell<u8>,
+    slave_read_buffer_len: Cell<usize>,
+    slave_read_buffer_index: Cell<usize>,
     slave_write_buffer: TakeCell<'static, [u8]>,
-    slave_write_buffer_len: Cell<u8>,
-    slave_write_buffer_index: Cell<u8>,
+    slave_write_buffer_len: Cell<usize>,
+    slave_write_buffer_index: Cell<usize>,
     pm: &'static pm::PowerManager,
 }
 
@@ -879,7 +879,7 @@ impl I2CHw {
         chip: u8,
         flags: FieldValue<u32, Command::Register>,
         direction: FieldValue<u32, Command::Register>,
-        len: u8,
+        len: usize,
     ) {
         // disable before configuring
         twim.registers.cr.write(Control::MDIS::SET);
@@ -909,7 +909,7 @@ impl I2CHw {
         chip: u8,
         flags: FieldValue<u32, Command::Register>,
         direction: FieldValue<u32, Command::Register>,
-        len: u8,
+        len: usize,
     ) {
         // disable before configuring
         twim.registers.cr.write(Control::MDIS::SET);
@@ -936,7 +936,7 @@ impl I2CHw {
         chip: u8,
         flags: FieldValue<u32, Command::Register>,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
         if self.dma.is_some() {
@@ -958,7 +958,7 @@ impl I2CHw {
         chip: u8,
         flags: FieldValue<u32, Command::Register>,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
         if self.dma.is_some() {
@@ -979,8 +979,8 @@ impl I2CHw {
         &self,
         chip: u8,
         data: &'static mut [u8],
-        split: u8,
-        read_len: u8,
+        split: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let twim = &TWIMRegisterManager::new(&self);
         if self.dma.is_some() {
@@ -1135,7 +1135,7 @@ impl I2CHw {
                             self.slave_read_buffer.take().map(|buffer| {
                                 client.command_complete(
                                     buffer,
-                                    nbytes as u8,
+                                    nbytes as usize,
                                     hil::i2c::SlaveTransmissionType::Read,
                                 );
                             });
@@ -1161,7 +1161,7 @@ impl I2CHw {
                             self.slave_write_buffer.take().map(|buffer| {
                                 client.command_complete(
                                     buffer,
-                                    nbytes as u8,
+                                    nbytes as usize,
                                     hil::i2c::SlaveTransmissionType::Write,
                                 );
                             });
@@ -1241,7 +1241,7 @@ impl I2CHw {
     fn slave_write_receive(
         &self,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.slave_enabled.get() {
             if self.slave_mmio_address.is_some() {
@@ -1271,7 +1271,7 @@ impl I2CHw {
     fn slave_read_send(
         &self,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.slave_enabled.get() {
             if self.slave_mmio_address.is_some() {
@@ -1388,7 +1388,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::write(
             self,
@@ -1403,7 +1403,7 @@ impl hil::i2c::I2CMaster for I2CHw {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::read(
             self,
@@ -1418,8 +1418,8 @@ impl hil::i2c::I2CMaster for I2CHw {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         I2CHw::write_read(self, addr, data, write_len, read_len)
     }
@@ -1483,7 +1483,7 @@ impl hil::i2c::I2CSlave for I2CHw {
     fn write_receive(
         &self,
         data: &'static mut [u8],
-        max_len: u8,
+        max_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.slave_write_receive(data, max_len)
     }
@@ -1491,7 +1491,7 @@ impl hil::i2c::I2CSlave for I2CHw {
     fn read_send(
         &self,
         data: &'static mut [u8],
-        max_len: u8,
+        max_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.slave_read_send(data, max_len)
     }

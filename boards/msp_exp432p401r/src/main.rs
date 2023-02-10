@@ -187,7 +187,7 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
+unsafe fn create_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
     static_init!(
         msp432::chip::Msp432DefaultPeripherals,
         msp432::chip::Msp432DefaultPeripherals::new()
@@ -201,7 +201,7 @@ unsafe fn get_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeriphera
 pub unsafe fn main() {
     startup_intilialisation();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.init();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)

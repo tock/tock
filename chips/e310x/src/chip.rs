@@ -14,14 +14,17 @@ use crate::deferred_call_tasks::DeferredCallTask;
 use crate::plic::PLIC;
 use crate::uart::DEFERRED_CALLS;
 use kernel::deferred_call;
+use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use sifive::plic::Plic;
+
+pub type E310xClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
 pub struct E310x<'a, I: InterruptService<DeferredCallTask> + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP<4>,
     plic: &'a Plic,
-    timer: &'a sifive::clint::Clint<'a>,
+    timer: &'a E310xClint<'a>,
     plic_interrupt_service: &'a I,
 }
 
@@ -38,10 +41,18 @@ pub struct E310xDefaultPeripherals<'a> {
 }
 
 impl<'a> E310xDefaultPeripherals<'a> {
-    pub fn new() -> Self {
+    pub fn new(clock_frequency: u32) -> Self {
         Self {
-            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 16_000_000, &DEFERRED_CALLS[0]),
-            uart1: sifive::uart::Uart::new(crate::uart::UART1_BASE, 16_000_000, &DEFERRED_CALLS[1]),
+            uart0: sifive::uart::Uart::new(
+                crate::uart::UART0_BASE,
+                clock_frequency,
+                &DEFERRED_CALLS[0],
+            ),
+            uart1: sifive::uart::Uart::new(
+                crate::uart::UART1_BASE,
+                clock_frequency,
+                &DEFERRED_CALLS[1],
+            ),
             gpio_port: crate::gpio::Port::new(),
             prci: sifive::prci::Prci::new(crate::prci::PRCI_BASE),
             pwm0: sifive::pwm::Pwm::new(crate::pwm::PWM0_BASE),
@@ -68,7 +79,7 @@ impl<'a> InterruptService<DeferredCallTask> for E310xDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService<DeferredCallTask> + 'a> E310x<'a, I> {
-    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a sifive::clint::Clint<'a>) -> Self {
+    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a E310xClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMP::new(),

@@ -444,6 +444,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     let res;
     asm!(
     "
+      .balign 16
       .option push
       .option norelax
       .option norvc

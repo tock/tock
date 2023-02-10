@@ -288,7 +288,7 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
+    pub(crate) fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
 

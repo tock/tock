@@ -315,7 +315,7 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
             debug!("write len {}", len);
             self.len.set(len);
             self.status.set(BusStatus::Write);
-            match self.i2c.write(buffer, (len * bytes) as u8) {
+            match self.i2c.write(buffer, len * bytes) {
                 Ok(()) => Ok(()),
                 Err((error, buffer)) => Err((error.into(), buffer)),
             }
@@ -336,7 +336,7 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
         if len & bytes < 255 && buffer.len() >= len * bytes {
             self.len.set(len);
             self.status.set(BusStatus::Read);
-            match self.i2c.read(buffer, (len * bytes) as u8) {
+            match self.i2c.read(buffer, len * bytes) {
                 Ok(()) => Ok(()),
                 Err((error, buffer)) => Err((error.into(), buffer)),
             }

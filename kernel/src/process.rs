@@ -264,7 +264,7 @@ pub trait Process {
     /// Identifier Policy. Transitioning a process to
     /// `CredentialsApproved` has security implications because it
     /// means this application binary is permitted to run on the
-    /// system. This method therfore requires a Capability.
+    /// system. This method therefore requires a Capability.
     fn mark_credentials_pass(
         &self,
         credentials: Option<TbfFooterV2Credentials>,
@@ -573,7 +573,7 @@ pub trait Process {
         &self,
         size: usize,
         align: usize,
-    ) -> Option<(ProcessCustomGrantIdentifer, NonNull<u8>)>;
+    ) -> Option<(ProcessCustomGrantIdentifier, NonNull<u8>)>;
 
     /// Enter the grant based on `grant_num` for this process.
     ///
@@ -593,8 +593,10 @@ pub trait Process {
     ///
     /// This returns an error if the custom grant is no longer accessible, or
     /// if the process is inactive.
-    fn enter_custom_grant(&self, identifier: ProcessCustomGrantIdentifer)
-        -> Result<*mut u8, Error>;
+    fn enter_custom_grant(
+        &self,
+        identifier: ProcessCustomGrantIdentifier,
+    ) -> Result<*mut u8, Error>;
 
     /// Opposite of `enter_grant()`. Used to signal that the grant is no longer
     /// entered.
@@ -723,7 +725,7 @@ pub trait Process {
 /// The fields of this struct are private so only Process can create this
 /// identifier.
 #[derive(Copy, Clone)]
-pub struct ProcessCustomGrantIdentifer {
+pub struct ProcessCustomGrantIdentifier {
     pub(crate) offset: usize,
 }
 

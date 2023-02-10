@@ -8,9 +8,9 @@ pub struct E310G003DefaultPeripherals<'a> {
 }
 
 impl<'a> E310G003DefaultPeripherals<'a> {
-    pub unsafe fn new() -> Self {
+    pub unsafe fn new(clock_frequency: u32) -> Self {
         Self {
-            e310x: E310xDefaultPeripherals::new(),
+            e310x: E310xDefaultPeripherals::new(clock_frequency),
         }
     }
 }

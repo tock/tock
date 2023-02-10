@@ -189,7 +189,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
-        length: u8,
+        length: usize,
         transmission_type: hil::i2c::SlaveTransmissionType,
     ) {
         // Need to know if read or write
@@ -330,10 +330,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     hil::i2c::I2CMaster::enable(self.i2c);
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CMaster::write(
-                                        self.i2c,
-                                        address,
-                                        kernel_tx,
-                                        write_len as u8,
+                                        self.i2c, address, kernel_tx, write_len,
                                     );
                                 });
                                 0
@@ -375,10 +372,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     hil::i2c::I2CMaster::enable(self.i2c);
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CMaster::read(
-                                        self.i2c,
-                                        address,
-                                        kernel_tx,
-                                        read_len as u8,
+                                        self.i2c, address, kernel_tx, read_len,
                                     );
                                 });
                                 0
@@ -435,9 +429,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
 
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CSlave::read_send(
-                                        self.i2c,
-                                        kernel_tx,
-                                        read_len as u8,
+                                        self.i2c, kernel_tx, read_len,
                                     );
                                 });
                                 0
@@ -500,11 +492,7 @@ impl SyscallDriver for I2CMasterSlaveDriver<'_> {
                                     hil::i2c::I2CMaster::enable(self.i2c);
                                     // TODO verify errors
                                     let _ = hil::i2c::I2CMaster::write_read(
-                                        self.i2c,
-                                        address,
-                                        kernel_tx,
-                                        write_len as u8,
-                                        read_len as u8,
+                                        self.i2c, address, kernel_tx, write_len, read_len,
                                     );
                                 });
                             })

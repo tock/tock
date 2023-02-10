@@ -107,7 +107,7 @@ impl<'a> PCA9544A<'a> {
                 }
 
                 // TODO verify errors
-                let _ = self.i2c.write(buffer, index as u8);
+                let _ = self.i2c.write(buffer, index);
                 self.state.set(State::Done);
 
                 CommandReturn::success()

@@ -5,6 +5,7 @@ pub mod analog_comparator;
 pub mod ble_advertising;
 pub mod bus8080;
 pub mod buzzer;
+pub mod can;
 pub mod crc;
 pub mod dac;
 pub mod digest;
