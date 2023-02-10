@@ -45,20 +45,20 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LedDriver<
+    led: &'static core_capsules::led::LedDriver<
         'static,
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
         3,
     >,
-    console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
-    gpio: &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static core_capsules::console::Console<'static>,
+    button: &'static core_capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
+    gpio: &'static core_capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
+        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
+    adc: &'static core_capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -109,13 +109,13 @@ impl SyscallDriverLookup for MspExp432P401R {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            core_capsules::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -242,7 +242,7 @@ pub unsafe fn main() {
     // Setup buttons
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        core_capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             msp432::gpio::IntPin,
             (
@@ -276,7 +276,7 @@ pub unsafe fn main() {
     // Setup user-GPIOs
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             msp432::gpio::IntPin<'static>,
             // Left outer connector, top to bottom
@@ -347,7 +347,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -362,7 +362,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        core_capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(msp432::timer::TimerA));
@@ -403,7 +403,7 @@ pub unsafe fn main() {
         &peripherals.adc,
         adc_channels,
         board_kernel,
-        capsules::adc::DRIVER_NUM,
+        core_capsules::adc::DRIVER_NUM,
     )
     .finalize(components::adc_dedicated_component_static!(
         msp432::adc::Adc

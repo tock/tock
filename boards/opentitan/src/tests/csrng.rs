@@ -2,7 +2,7 @@
 
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
-use capsules::test::rng::TestEntropy32;
+use core_capsules::test::rng::TestEntropy32;
 use kernel::debug;
 use kernel::hil::entropy::Entropy32;
 use kernel::static_init;

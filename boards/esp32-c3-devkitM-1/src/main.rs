@@ -9,7 +9,7 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -67,9 +67,9 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct Esp32C3Board {
-    gpio: &'static capsules::gpio::GPIO<'static, esp32::gpio::GpioPin<'static>>,
-    console: &'static capsules::console::Console<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    gpio: &'static core_capsules::gpio::GPIO<'static, esp32::gpio::GpioPin<'static>>,
+    console: &'static core_capsules::console::Console<'static>,
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, esp32_c3::timg::TimG<'static>>,
     >,
@@ -84,9 +84,9 @@ impl SyscallDriverLookup for Esp32C3Board {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -180,7 +180,7 @@ unsafe fn setup() -> (
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             esp32::gpio::GpioPin,
             0 => &peripherals.gpio[0],
@@ -214,10 +214,10 @@ unsafe fn setup() -> (
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32_c3::timg::TimG>>,
-        capsules::alarm::AlarmDriver::new(
+        core_capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, esp32_c3::timg::TimG>>,
+        core_capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(core_capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -245,7 +245,7 @@ unsafe fn setup() -> (
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());

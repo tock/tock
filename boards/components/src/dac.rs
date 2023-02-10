@@ -7,15 +7,15 @@
 //!      .finalize(components::dac_component_static!());
 //! ```
 
-use capsules::dac::Dac;
 use core::mem::MaybeUninit;
+use extra_capsules::dac::Dac;
 use kernel::component::Component;
 use kernel::hil;
 
 #[macro_export]
 macro_rules! dac_component_static {
     () => {{
-        kernel::static_buf!(capsules::dac::Dac<'static>)
+        kernel::static_buf!(extra_capsules::dac::Dac<'static>)
     };};
 }
 

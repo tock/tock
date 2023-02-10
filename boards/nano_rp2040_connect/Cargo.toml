@@ -7,9 +7,10 @@ edition.workspace = true
 
 [dependencies]
 cortexm0p = { path = "../../arch/cortex-m0p" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 rp2040 = { path = "../../chips/rp2040" }
 components = { path = "../components" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 
+core-capsules = { path = "../../capsules/core" }
+extra-capsules = { path = "../../capsules/extra" }

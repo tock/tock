@@ -2,7 +2,7 @@
 
 use crate::tests::run_kernel_op;
 use crate::SHA256SOFT;
-use capsules::test::sha256::TestSha256;
+use extra_capsules::test::sha256::TestSha256;
 use kernel::debug;
 use kernel::static_init;
 

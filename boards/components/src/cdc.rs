@@ -13,7 +13,7 @@
 //! ];
 //! let cdc_acm = components::cdc::CdcAcmComponent::new(
 //!     &nrf52::usbd::USBD,
-//!     capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840,
+//!     extra_capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840,
 //!     0x2341,
 //!     0x005a,
 //!     STRINGS)
@@ -22,7 +22,7 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
@@ -32,12 +32,12 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! cdc_acm_component_static {
     ($U:ty, $A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let cdc = kernel::static_buf!(
-            capsules::usb::cdc::CdcAcm<
+            extra_capsules::usb::cdc::CdcAcm<
                 'static,
                 $U,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 
@@ -91,16 +91,17 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<
-            capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>,
+            extra_capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>,
         >,
     );
-    type Output = &'static capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>;
+    type Output =
+        &'static extra_capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let cdc_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         cdc_alarm.setup();
 
-        let cdc = s.1.write(capsules::usb::cdc::CdcAcm::new(
+        let cdc = s.1.write(extra_capsules::usb::cdc::CdcAcm::new(
             self.usb,
             self.max_ctrl_packet_size,
             self.vendor_id,

@@ -44,8 +44,8 @@
 //! ).finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
 //! ```
 
-use capsules::gpio::GPIO;
 use core::mem::MaybeUninit;
+use core_capsules::gpio::GPIO;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -111,7 +111,7 @@ macro_rules! gpio_component_helper {
 #[macro_export]
 macro_rules! gpio_component_static {
     ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules::gpio::GPIO<'static, $Pin>)
+        kernel::static_buf!(core_capsules::gpio::GPIO<'static, $Pin>)
     };};
 }
 

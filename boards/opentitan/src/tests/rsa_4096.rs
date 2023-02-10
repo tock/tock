@@ -1,8 +1,8 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use crate::RSA_HARDWARE;
-use capsules::public_key_crypto::rsa_keys::RSA4096Keys;
 use core::cell::Cell;
+use extra_capsules::public_key_crypto::rsa_keys::RSA4096Keys;
 use kernel::hil::public_key_crypto::keys::{PubKey, PubPrivKey, RsaKey, RsaPrivKey};
 use kernel::hil::public_key_crypto::rsa_math::{Client, RsaCryptoBase};
 use kernel::static_init;

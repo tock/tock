@@ -11,9 +11,9 @@
 //!     ));
 //! ```
 
-use capsules::app_flash_driver::AppFlash;
-use capsules::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
+use extra_capsules::app_flash_driver::AppFlash;
+use extra_capsules::nonvolatile_to_pages::NonvolatileToPages;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -25,9 +25,10 @@ macro_rules! app_flash_component_static {
     ($F:ty, $buffer_size: literal) => {{
         let buffer = kernel::static_buf!([u8; $buffer_size]);
         let page_buffer = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
-        let nv_to_page =
-            kernel::static_buf!(capsules::nonvolatile_to_pages::NonvolatileToPages<'static, $F>);
-        let app_flash = kernel::static_buf!(capsules::app_flash_driver::AppFlash<'static>);
+        let nv_to_page = kernel::static_buf!(
+            extra_capsules::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
+        );
+        let app_flash = kernel::static_buf!(extra_capsules::app_flash_driver::AppFlash<'static>);
         (buffer, page_buffer, nv_to_page, app_flash)
     };};
 }
@@ -92,7 +93,7 @@ impl<
 
         let app_flash = static_buffer
             .3
-            .write(capsules::app_flash_driver::AppFlash::new(
+            .write(extra_capsules::app_flash_driver::AppFlash::new(
                 nv_to_page,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 buffer,

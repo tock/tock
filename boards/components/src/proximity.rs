@@ -3,12 +3,12 @@
 //! Usage
 //! -----
 //! ```rust
-//! let proximity = ProximityComponent::new(apds9960, board_kernel, capsules::proximity::DRIVER_NUM)
+//! let proximity = ProximityComponent::new(apds9960, board_kernel, extra_capsules::proximity::DRIVER_NUM)
 //!     .finalize(components::proximity_component_static!());
 //! ```
 
-use capsules::proximity::ProximitySensor;
 use core::mem::MaybeUninit;
+use extra_capsules::proximity::ProximitySensor;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -17,7 +17,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! proximity_component_static {
     () => {{
-        kernel::static_buf!(capsules::proximity::ProximitySensor<'static>)
+        kernel::static_buf!(extra_capsules::proximity::ProximitySensor<'static>)
     };};
 }
 

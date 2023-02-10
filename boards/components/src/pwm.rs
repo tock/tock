@@ -1,6 +1,6 @@
-use capsules::pwm::Pwm;
-use capsules::virtual_pwm::{MuxPwm, PwmPinUser};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_pwm::{MuxPwm, PwmPinUser};
+use extra_capsules::pwm::Pwm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -9,14 +9,14 @@ use kernel::hil::pwm;
 #[macro_export]
 macro_rules! pwm_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_pwm::MuxPwm<'static, $A>)
+        kernel::static_buf!(core_capsules::virtual_pwm::MuxPwm<'static, $A>)
     };};
 }
 
 #[macro_export]
 macro_rules! pwm_pin_user_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_pwm::PwmPinUser<'static, $A>)
+        kernel::static_buf!(core_capsules::virtual_pwm::PwmPinUser<'static, $A>)
     };};
 }
 
@@ -33,7 +33,7 @@ macro_rules! pwm_syscall_component_helper {
                 $($P,)*
             ]
         );
-        let pwm = kernel::static_buf!(capsules::pwm::Pwm<'static, NUM_DRIVERS>);
+        let pwm = kernel::static_buf!(extra_capsules::pwm::Pwm<'static, NUM_DRIVERS>);
         (pwm, drivers)
     };};
 }
@@ -108,7 +108,7 @@ impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
         &'static mut MaybeUninit<Pwm<'static, NUM_PINS>>,
         &'static [&'static dyn kernel::hil::pwm::PwmPin; NUM_PINS],
     );
-    type Output = &'static capsules::pwm::Pwm<'static, NUM_PINS>;
+    type Output = &'static extra_capsules::pwm::Pwm<'static, NUM_PINS>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -116,7 +116,7 @@ impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
 
         let pwm = static_buffer
             .0
-            .write(capsules::pwm::Pwm::new(static_buffer.1, grant_adc));
+            .write(extra_capsules::pwm::Pwm::new(static_buffer.1, grant_adc));
 
         pwm
     }

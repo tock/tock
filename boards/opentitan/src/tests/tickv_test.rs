@@ -2,9 +2,9 @@
 
 use crate::tests::run_kernel_op;
 use crate::{SIPHASH, TICKV};
-use capsules::test::kv_system::KVSystemTest;
-use capsules::tickv::{TicKVKeyType, TicKVStore};
-use capsules::virtual_flash::FlashUser;
+use core_capsules::virtual_flash::FlashUser;
+use extra_capsules::test::kv_system::KVSystemTest;
+use extra_capsules::tickv::{TicKVKeyType, TicKVStore};
 use kernel::debug;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::kv_system::KVSystem;
@@ -35,7 +35,7 @@ fn tickv_append_key() {
                 TicKVStore<
                     'static,
                     FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
-                    capsules::sip_hash::SipHasher24,
+                    extra_capsules::sip_hash::SipHasher24,
                 >,
                 TicKVKeyType,
             >,

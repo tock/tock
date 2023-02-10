@@ -7,8 +7,8 @@
 //!     .finalize(components::temperature_component_static!());
 //! ```
 
-use capsules::temperature::TemperatureSensor;
 use core::mem::MaybeUninit;
+use extra_capsules::temperature::TemperatureSensor;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -17,7 +17,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! temperature_component_static {
     () => {{
-        kernel::static_buf!(capsules::temperature::TemperatureSensor<'static>)
+        kernel::static_buf!(extra_capsules::temperature::TemperatureSensor<'static>)
     };};
 }
 

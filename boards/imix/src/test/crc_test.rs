@@ -17,7 +17,7 @@
 //! taken from
 //! <https://reveng.sourceforge.io/crc-catalogue/17plus.htm>
 
-use capsules::test::crc::TestCrc;
+use extra_capsules::test::crc::TestCrc;
 use kernel::hil::crc::Crc;
 use kernel::static_init;
 use sam4l::crccu::Crccu;

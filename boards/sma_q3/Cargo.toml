@@ -11,8 +11,10 @@ edition.workspace = true
 [dependencies]
 components = { path = "../components" }
 cortexm4 = { path = "../../arch/cortex-m4" }
-capsules = { path = "../../capsules" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
 nrf52840 = { path = "../../chips/nrf52840" }
 nrf52_components = { path = "../nordic/nrf52_components" }
+
+core-capsules = { path = "../../capsules/core" }
+extra-capsules = { path = "../../capsules/extra" }

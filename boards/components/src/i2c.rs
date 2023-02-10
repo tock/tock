@@ -17,8 +17,8 @@
 
 // Author: Alexandru Radovici <msg4alex@gmail.com>
 
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::i2c;
@@ -27,14 +27,14 @@ use kernel::hil::i2c;
 #[macro_export]
 macro_rules! i2c_mux_component_static {
     () => {{
-        kernel::static_buf!(capsules::virtual_i2c::MuxI2C<'static>)
+        kernel::static_buf!(core_capsules::virtual_i2c::MuxI2C<'static>)
     };};
 }
 
 #[macro_export]
 macro_rules! i2c_component_static {
     () => {{
-        kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>)
+        kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>)
     };};
 }
 

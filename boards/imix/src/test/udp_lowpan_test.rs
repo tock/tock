@@ -117,17 +117,17 @@
 
 use super::super::imix_components::test::mock_udp::MockUDPComponent;
 use crate::mock_udp_component_static;
-use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::network_capabilities::{
+use core::cell::Cell;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use extra_capsules::net::ipv6::ip_utils::IPAddr;
+use extra_capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use extra_capsules::net::network_capabilities::{
     AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
 };
-use capsules::net::udp::udp_port_table::UdpPortManager;
-use capsules::net::udp::udp_recv::MuxUdpReceiver;
-use capsules::net::udp::udp_send::MuxUdpSender;
-use capsules::test::udp::MockUdp;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core::cell::Cell;
+use extra_capsules::net::udp::udp_port_table::UdpPortManager;
+use extra_capsules::net::udp::udp_recv::MuxUdpReceiver;
+use extra_capsules::net::udp::udp_send::MuxUdpSender;
+use extra_capsules::test::udp::MockUdp;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -172,7 +172,7 @@ pub unsafe fn initialize_all(
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
-    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    core_capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
     let create_cap = create_capability!(NetworkCapabilityCreationCapability);
     let net_cap = static_init!(

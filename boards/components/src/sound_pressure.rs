@@ -7,8 +7,8 @@
 //!     .finalize(sound_pressure_component_static!());
 //! ```
 
-use capsules::sound_pressure::SoundPressureSensor;
 use core::mem::MaybeUninit;
+use extra_capsules::sound_pressure::SoundPressureSensor;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -17,7 +17,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! sound_pressure_component_static {
     () => {{
-        kernel::static_buf!(capsules::sound_pressure::SoundPressureSensor<'static>)
+        kernel::static_buf!(extra_capsules::sound_pressure::SoundPressureSensor<'static>)
     };};
 }
 

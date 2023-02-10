@@ -18,16 +18,16 @@
 //!    ));
 //! ```
 
-use capsules::virtual_digest::MuxDigest;
-use capsules::virtual_digest::VirtualMuxDigest;
 use core::mem::MaybeUninit;
+use core_capsules::virtual_digest::MuxDigest;
+use core_capsules::virtual_digest::VirtualMuxDigest;
 use kernel::component::Component;
 use kernel::hil::digest;
 
 #[macro_export]
 macro_rules! digest_mux_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_digest::MuxDigest<'static, $A, $L>)
+        kernel::static_buf!(core_capsules::virtual_digest::MuxDigest<'static, $A, $L>)
     };};
 }
 
@@ -35,7 +35,7 @@ macro_rules! digest_mux_component_static {
 macro_rules! digest_component_static {
     ($A:ty, $L:expr $(,)?) => {{
         let virtual_mux =
-            kernel::static_buf!(capsules::virtual_digest::VirtualMuxDigest<'static, $A, $L>);
+            kernel::static_buf!(core_capsules::virtual_digest::VirtualMuxDigest<'static, $A, $L>);
         let key_buffer = kernel::static_buf!([u8; $L]);
 
         (virtual_mux, key_buffer)

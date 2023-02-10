@@ -8,7 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -110,10 +110,10 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 static mut CDC_REF_FOR_PANIC: Option<
-    &'static capsules::usb::cdc::CdcAcm<
+    &'static extra_capsules::usb::cdc::CdcAcm<
         'static,
         nrf52::usbd::Usbd,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
@@ -147,39 +147,39 @@ fn reset() -> ! {
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    console: &'static capsules::console::Console<'static>,
-    proximity: &'static capsules::proximity::ProximitySensor<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<
+    ieee802154_radio: &'static extra_capsules::ieee802154::RadioDriver<'static>,
+    console: &'static core_capsules::console::Console<'static>,
+    proximity: &'static extra_capsules::proximity::ProximitySensor<'static>,
+    gpio: &'static core_capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: &'static core_capsules::led::LedDriver<
         'static,
         LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
         2,
     >,
-    button: &'static capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    screen: &'static capsules::screen::Screen<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
+    button: &'static core_capsules::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
+    screen: &'static extra_capsules::screen::Screen<'static>,
+    rng: &'static core_capsules::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
-    buzzer: &'static capsules::buzzer_driver::Buzzer<
+    buzzer: &'static extra_capsules::buzzer_driver::Buzzer<
         'static,
-        capsules::buzzer_pwm::PwmBuzzer<
+        extra_capsules::buzzer_pwm::PwmBuzzer<
             'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-            capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+            core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
         >,
     >,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
+    adc: &'static core_capsules::adc::AdcVirtualized<'static>,
+    temperature: &'static extra_capsules::temperature::TemperatureSensor<'static>,
+    humidity: &'static extra_capsules::humidity::HumiditySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -190,21 +190,21 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            extra_capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
+            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
+            core_capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            extra_capsules::screen::DRIVER_NUM => f(Some(self.screen)),
+            core_capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            extra_capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            extra_capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            extra_capsules::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            extra_capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
         }
     }
@@ -310,7 +310,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             // uncomment the following to use pins D0, D1, D2, D3 and D4 as gpio
@@ -355,7 +355,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        core_capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -397,7 +397,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        core_capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
@@ -407,12 +407,12 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let mux_pwm = static_init!(
-        capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
-        capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
+        core_capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
+        core_capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
-        capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
-        capsules::virtual_pwm::PwmPinUser::new(
+        core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        core_capsules::virtual_pwm::PwmPinUser::new(
             mux_pwm,
             nrf52840::pinmux::Pinmux::new(SPEAKER_PIN as u32)
         )
@@ -420,38 +420,38 @@ pub unsafe fn main() {
     virtual_pwm_buzzer.add_to_mux();
 
     let virtual_alarm_buzzer = static_init!(
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-        capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        core_capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_buzzer.setup();
 
     let pwm_buzzer = static_init!(
-        capsules::buzzer_pwm::PwmBuzzer<
+        extra_capsules::buzzer_pwm::PwmBuzzer<
             'static,
-            capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-            capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+            core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
         >,
-        capsules::buzzer_pwm::PwmBuzzer::new(
+        extra_capsules::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
             virtual_alarm_buzzer,
-            capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
+            extra_capsules::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
         )
     );
 
     let buzzer = static_init!(
-        capsules::buzzer_driver::Buzzer<
+        extra_capsules::buzzer_driver::Buzzer<
             'static,
-            capsules::buzzer_pwm::PwmBuzzer<
+            extra_capsules::buzzer_pwm::PwmBuzzer<
                 'static,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-                capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
             >,
         >,
-        capsules::buzzer_driver::Buzzer::new(
+        extra_capsules::buzzer_driver::Buzzer::new(
             pwm_buzzer,
-            capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+            extra_capsules::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
             board_kernel.create_grant(
-                capsules::buzzer_driver::DRIVER_NUM,
+                extra_capsules::buzzer_driver::DRIVER_NUM,
                 &memory_allocation_capability
             )
         )
@@ -484,7 +484,7 @@ pub unsafe fn main() {
 
     let cdc = components::cdc::CdcAcmComponent::new(
         &nrf52840_peripherals.usbd,
-        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+        extra_capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
         0x239a,
         0x8071,
         strings,
@@ -505,7 +505,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -519,7 +519,7 @@ pub unsafe fn main() {
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
+        core_capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(components::rng_component_static!());
@@ -533,7 +533,7 @@ pub unsafe fn main() {
         .finalize(components::adc_mux_component_static!(nrf52840::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, core_capsules::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 // A0
                 components::adc::AdcComponent::new(
@@ -584,8 +584,12 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = static_init!(
-        capsules::virtual_i2c::MuxI2C<'static>,
-        capsules::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None, dynamic_deferred_caller)
+        core_capsules::virtual_i2c::MuxI2C<'static>,
+        core_capsules::virtual_i2c::MuxI2C::new(
+            &base_peripherals.twi1,
+            None,
+            dynamic_deferred_caller
+        )
     );
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
@@ -602,13 +606,13 @@ pub unsafe fn main() {
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
-        capsules::proximity::DRIVER_NUM,
+        extra_capsules::proximity::DRIVER_NUM,
     )
     .finalize(components::proximity_component_static!());
 
     let sht3x = components::sht3x::SHT3xComponent::new(
         sensors_i2c_bus,
-        capsules::sht3x::BASE_ADDR,
+        extra_capsules::sht3x::BASE_ADDR,
         mux_alarm,
     )
     .finalize(components::sht3x_component_static!(
@@ -617,14 +621,14 @@ pub unsafe fn main() {
 
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM,
+        extra_capsules::temperature::DRIVER_NUM,
         sht3x,
     )
     .finalize(components::temperature_component_static!());
 
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
-        capsules::humidity::DRIVER_NUM,
+        extra_capsules::humidity::DRIVER_NUM,
         sht3x,
     )
     .finalize(components::humidity_component_static!());
@@ -657,13 +661,13 @@ pub unsafe fn main() {
         bus,
         Some(&nrf52840_peripherals.gpio_port[ST7789H2_DC]),
         Some(&nrf52840_peripherals.gpio_port[ST7789H2_RESET]),
-        &capsules::st77xx::ST7789H2,
+        &extra_capsules::st77xx::ST7789H2,
     )
     .finalize(components::st77xx_component_static!(
         // bus type
-        capsules::bus::SpiMasterBus<
+        extra_capsules::bus::SpiMasterBus<
             'static,
-            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
         >,
         // timer type
         nrf52840::rtc::Rtc,
@@ -675,7 +679,7 @@ pub unsafe fn main() {
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules::screen::DRIVER_NUM,
+        extra_capsules::screen::DRIVER_NUM,
         tft,
         Some(tft),
     )
@@ -687,7 +691,7 @@ pub unsafe fn main() {
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM,
+        extra_capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -711,7 +715,7 @@ pub unsafe fn main() {
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        capsules::ieee802154::DRIVER_NUM,
+        extra_capsules::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,

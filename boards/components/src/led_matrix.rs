@@ -39,7 +39,7 @@
 //! ```rust
 //! let led = components::led_matrix_led!(
 //!     nrf52::gpio::GPIOPin<'static>,
-//!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 //!     led,
 //!     1,
 //!     2
@@ -52,7 +52,7 @@
 //! ```rust
 //! let leds = components::led_matrix_leds!(
 //!     nrf52::gpio::GPIOPin<'static>,
-//!     capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 //!     led,
 //!     (0, 0),
 //!     (1, 0),
@@ -65,9 +65,9 @@
 //! ```
 //!
 
-use capsules::led_matrix::LedMatrixDriver;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use extra_capsules::led_matrix::LedMatrixDriver;
 use kernel::component::Component;
 use kernel::hil::gpio::{ActivationMode, Pin};
 use kernel::hil::time::Alarm;
@@ -76,12 +76,12 @@ use kernel::hil::time::Alarm;
 macro_rules! led_matrix_component_static {
     ($Pin:ty, $A: ty, $num_cols: literal, $num_rows: literal $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $num_cols * $num_rows / 8 + 1]);
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let led = kernel::static_buf!(
-            capsules::led_matrix::LedMatrixDriver<
+            extra_capsules::led_matrix::LedMatrixDriver<
                 'static,
                 $Pin,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 
@@ -113,7 +113,7 @@ macro_rules! led_line_component_static {
 #[macro_export]
 macro_rules! led_matrix_led {
     ($Pin:ty, $A: ty, $led_matrix: expr, $col: expr, $row: expr) => {{
-        use capsules::led_matrix::LedMatrixLed;
+        use extra_capsules::led_matrix::LedMatrixLed;
         static_init!(
             LedMatrixLed<'static, $Pin, $A>,
             LedMatrixLed::new($led_matrix, $col, $row)
@@ -124,7 +124,7 @@ macro_rules! led_matrix_led {
 #[macro_export]
 macro_rules! led_matrix_leds {
     ($Pin:ty, $A: ty, $led_matrix: expr, $(($col: expr, $row: expr)),+) => {{
-        use capsules::led_matrix::LedMatrixLed;
+        use extra_capsules::led_matrix::LedMatrixLed;
         use kernel::count_expressions;
 
         const NUM_LEDS: usize = count_expressions!($(($col, $row)),+);

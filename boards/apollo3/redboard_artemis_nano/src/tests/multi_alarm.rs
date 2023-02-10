@@ -4,7 +4,7 @@
 //!    multi_alarm_test::run_alarm(alarm_mux);
 //! ```
 //! to the OpenTitan boot sequence, where `alarm_mux` is a
-//! `capsules::virtual_alarm::MuxAlarm`. The test sets up 3
+//! `core_capsules::virtual_alarm::MuxAlarm`. The test sets up 3
 //! different virtualized alarms of random durations and prints
 //! out when they fire. The durations are uniformly random with
 //! one caveat, that 1 in 11 is of duration 0; this is to test
@@ -14,8 +14,8 @@
 use crate::tests::run_kernel_op;
 use crate::ALARM;
 use apollo3::stimer::STimer;
-use capsules::test::random_alarm::TestRandomAlarm;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::test::random_alarm::TestRandomAlarm;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;

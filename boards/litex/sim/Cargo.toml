@@ -8,6 +8,8 @@ edition.workspace = true
 [dependencies]
 components = { path = "../../components" }
 rv32i = { path = "../../../arch/rv32i" }
-capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 litex_vexriscv = { path = "../../../chips/litex_vexriscv" }
+
+core-capsules = { path = "../../../capsules/core" }
+extra-capsules = { path = "../../../capsules/extra" }

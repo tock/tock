@@ -8,15 +8,15 @@
 //!    .finalize(components::mlx90614_component_static!());
 //!
 //! let temp = static_init!(
-//!        capsules::temperature::TemperatureSensor<'static>,
-//!        capsules::temperature::TemperatureSensor::new(mlx90614,
+//!        extra_capsules::temperature::TemperatureSensor<'static>,
+//!        extra_capsules::temperature::TemperatureSensor::new(mlx90614,
 //!                                                 grant_temperature));
 //! kernel::hil::sensors::TemperatureDriver::set_client(mlx90614, temp);
 //! ```
 
-use capsules::mlx90614::Mlx90614SMBus;
-use capsules::virtual_i2c::{MuxI2C, SMBusDevice};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_i2c::{MuxI2C, SMBusDevice};
+use extra_capsules::mlx90614::Mlx90614SMBus;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -25,9 +25,9 @@ use kernel::create_capability;
 #[macro_export]
 macro_rules! mlx90614_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::SMBusDevice);
+        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::SMBusDevice);
         let buffer = kernel::static_buf!([u8; 14]);
-        let mlx90614 = kernel::static_buf!(capsules::mlx90614::Mlx90614SMBus<'static>);
+        let mlx90614 = kernel::static_buf!(extra_capsules::mlx90614::Mlx90614SMBus<'static>);
 
         (i2c_device, buffer, mlx90614)
     };};

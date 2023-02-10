@@ -11,9 +11,9 @@
 //! ));
 //! ```
 
-use capsules::led::LedDriver;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
+use core_capsules::led::LedDriver;
 use kernel::component::Component;
 use kernel::hil::led::Led;
 
@@ -35,7 +35,7 @@ macro_rules! led_component_static {
             ]
         );
 
-        let led = kernel::static_buf!( capsules::led::LedDriver<'static, $Led, NUM_LEDS>);
+        let led = kernel::static_buf!( core_capsules::led::LedDriver<'static, $Led, NUM_LEDS>);
         (led, arr)
     };};
 }

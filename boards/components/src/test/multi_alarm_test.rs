@@ -1,15 +1,15 @@
 use core::mem::MaybeUninit;
 
-use capsules::test::random_alarm::TestRandomAlarm;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::test::random_alarm::TestRandomAlarm;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time::{self, Alarm};
 
 #[macro_export]
 macro_rules! multi_alarm_test_component_buf {
     ($A:ty $(,)?) => {{
-        use capsules::test::random_alarm::TestRandomAlarm;
-        use capsules::virtual_alarm::VirtualMuxAlarm;
+        use core_capsules::test::random_alarm::TestRandomAlarm;
+        use core_capsules::virtual_alarm::VirtualMuxAlarm;
 
         let buf00 = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
         let buf01 = kernel::static_buf!(TestRandomAlarm<'static, VirtualMuxAlarm<'static, $A>>);

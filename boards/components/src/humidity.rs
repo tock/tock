@@ -7,8 +7,8 @@
 //!     .finalize(components::humidity_component_static!());
 //! ```
 
-use capsules::humidity::HumiditySensor;
 use core::mem::MaybeUninit;
+use extra_capsules::humidity::HumiditySensor;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -17,7 +17,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! humidity_component_static {
     () => {{
-        kernel::static_buf!(capsules::humidity::HumiditySensor<'static>)
+        kernel::static_buf!(extra_capsules::humidity::HumiditySensor<'static>)
     };};
 }
 

@@ -6,27 +6,27 @@
 //! ```rust
 //! let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
 //!     mux_i2c,
-//!     capsules::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
+//!     extra_capsules::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
 //!     board_kernel,
-//!     capsules::lsm6dsoxtr::DRIVER_NUM,
+//!     extra_capsules::lsm6dsoxtr::DRIVER_NUM,
 //! )
 //! .finalize(components::lsm6ds_i2c_component_static!());
 //!
 //! let _ = lsm6dsoxtr
 //!          .configure(
-//!              capsules::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
-//!              capsules::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
-//!              capsules::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
-//!              capsules::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
+//!              extra_capsules::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
+//!              extra_capsules::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
+//!              extra_capsules::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
+//!              extra_capsules::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
 //!              true,
 //!          )
 //!          .map_err(|e| panic!("ERROR Failed LSM6DSOXTR sensor configuration ({:?})", e));
 //! ```
 //! Author: Cristiana Andrei <cristiana.andrei@stud.fils.upb.ro>
 
-use capsules::lsm6dsoxtr::Lsm6dsoxtrI2C;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use extra_capsules::lsm6dsoxtr::Lsm6dsoxtrI2C;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -36,8 +36,8 @@ use kernel::create_capability;
 macro_rules! lsm6ds_i2c_component_static {
     () => {{
         let buffer = kernel::static_buf!([u8; 8]);
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
-        let lsm6dsoxtr = kernel::static_buf!(capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let lsm6dsoxtr = kernel::static_buf!(extra_capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
 
         (i2c_device, buffer, lsm6dsoxtr)
     };};

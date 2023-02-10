@@ -8,7 +8,9 @@ edition.workspace = true
 [dependencies]
 components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 e310_g002 = { path = "../../chips/e310_g002" }
 sifive = { path = "../../chips/sifive" }
+
+core-capsules = { path = "../../capsules/core" }
+extra-capsules = { path = "../../capsules/extra" }

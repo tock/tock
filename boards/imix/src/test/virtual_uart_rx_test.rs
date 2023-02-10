@@ -4,7 +4,7 @@
 //!    virtual_uart_rx_test::run_virtual_uart_receive(uart_mux);
 //! ```
 //! to the imix boot sequence, where `uart_mux` is a
-//! `capsules::virtual_uart::MuxUart`.  There is a 3-byte and a 7-byte
+//! `core_capsules::virtual_uart::MuxUart`.  There is a 3-byte and a 7-byte
 //! read running in parallel. Test that they are both working by typing
 //! and seeing that they both get all characters. If you repeatedly
 //! type 'a', for example (0x61), you should see something like:
@@ -44,8 +44,8 @@
 //! 61
 //! ```
 
-use capsules::test::virtual_uart::TestVirtualUartReceive;
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use core_capsules::test::virtual_uart::TestVirtualUartReceive;
+use core_capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::debug;
 use kernel::hil::uart::Receive;
 use kernel::static_init;

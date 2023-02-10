@@ -1,8 +1,8 @@
 //! Component for the built-in STM temperature sensor.
 
-use capsules::temperature_stm::TemperatureSTM;
-use capsules::virtual_adc::AdcDevice;
 use core::mem::MaybeUninit;
+use core_capsules::virtual_adc::AdcDevice;
+use extra_capsules::temperature_stm::TemperatureSTM;
 use kernel::component::Component;
 use kernel::hil::adc;
 use kernel::hil::adc::AdcChannel;
@@ -12,14 +12,14 @@ macro_rules! temperature_stm_adc_component_static {
     ($A:ty $(,)?) => {{
         let adc_device = components::adc_component_static!($A);
         let temperature_stm =
-            kernel::static_buf!(capsules::temperature_stm::TemperatureSTM<'static>);
+            kernel::static_buf!(extra_capsules::temperature_stm::TemperatureSTM<'static>);
 
         (adc_device, temperature_stm)
     };};
 }
 
 pub struct TemperatureSTMComponent<A: 'static + adc::Adc> {
-    adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     slope: f32,
     v_25: f32,
@@ -27,7 +27,7 @@ pub struct TemperatureSTMComponent<A: 'static + adc::Adc> {
 
 impl<A: 'static + adc::Adc> TemperatureSTMComponent<A> {
     pub fn new(
-        adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         slope: f32,
         v_25: f32,

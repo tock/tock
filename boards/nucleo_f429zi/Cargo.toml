@@ -8,6 +8,8 @@ edition.workspace = true
 [dependencies]
 components = { path = "../components" }
 cortexm4 = { path = "../../arch/cortex-m4" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 stm32f429zi = { path = "../../chips/stm32f429zi" }
+
+core-capsules = { path = "../../capsules/core" }
+extra-capsules = { path = "../../capsules/extra" }

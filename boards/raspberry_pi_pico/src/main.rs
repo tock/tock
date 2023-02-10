@@ -11,10 +11,10 @@
 
 use core::arch::asm;
 
-use capsules::i2c_master::I2CMasterDriver;
-use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
+use core_capsules::i2c_master::I2CMasterDriver;
+use core_capsules::virtual_alarm::VirtualMuxAlarm;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
@@ -82,16 +82,16 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    console: &'static capsules::console::Console<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static core_capsules::console::Console<'static>,
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
-    gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    i2c: &'static capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
+    gpio: &'static core_capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
+    led: &'static core_capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
+    adc: &'static core_capsules::adc::AdcVirtualized<'static>,
+    temperature: &'static extra_capsules::temperature::TemperatureSensor<'static>,
+    i2c: &'static core_capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -103,14 +103,14 @@ impl SyscallDriverLookup for RaspberryPiPico {
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+            core_capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            core_capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             _ => f(None),
         }
     }
@@ -336,7 +336,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        core_capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(RPTimer));
@@ -353,7 +353,7 @@ pub unsafe fn main() {
 
     let cdc = components::cdc::CdcAcmComponent::new(
         &peripherals.usb,
-        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        //extra_capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
         64,
         peripherals.sysinfo.get_manufacturer_rp2040() as u16,
         peripherals.sysinfo.get_part() as u16,
@@ -383,7 +383,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -396,7 +396,7 @@ pub unsafe fn main() {
 
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             RPGpioPin,
             // Used for serial communication. Comment them in if you don't use serial.
@@ -460,11 +460,11 @@ pub unsafe fn main() {
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
+        board_kernel.create_grant(extra_capsules::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+        extra_capsules::temperature::TemperatureSensor<'static>,
+        extra_capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
@@ -481,7 +481,7 @@ pub unsafe fn main() {
         .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, core_capsules::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,
@@ -517,9 +517,9 @@ pub unsafe fn main() {
         I2CMasterDriver<I2c>,
         I2CMasterDriver::new(
             i2c0,
-            &mut capsules::i2c_master::BUF,
+            &mut core_capsules::i2c_master::BUF,
             board_kernel.create_grant(
-                capsules::i2c_master::DRIVER_NUM,
+                core_capsules::i2c_master::DRIVER_NUM,
                 &memory_allocation_capability
             ),
         )

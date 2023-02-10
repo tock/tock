@@ -4,8 +4,8 @@
 //!    test::virtual_rng_test::run(&base_peripherals.trng);
 //! ```
 
-use capsules::rng;
-use capsules::test::virtual_rng::TestRng;
+use core_capsules::rng;
+use core_capsules::test::virtual_rng::TestRng;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use kernel::{debug, static_init};
@@ -19,22 +19,22 @@ pub unsafe fn run(trng: &'static dyn Entropy32<'static>) {
 
     // Create virtual rng mux device
     let mux = static_init!(
-        capsules::virtual_rng::MuxRngMaster<'static>,
-        capsules::virtual_rng::MuxRngMaster::new(rng_obj)
+        core_capsules::virtual_rng::MuxRngMaster<'static>,
+        core_capsules::virtual_rng::MuxRngMaster::new(rng_obj)
     );
 
     // Create all devices for the virtual rng
     let device1 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
-        capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
+        core_capsules::virtual_rng::VirtualRngMasterDevice<'static>,
+        core_capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
     let device2 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
-        capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
+        core_capsules::virtual_rng::VirtualRngMasterDevice<'static>,
+        core_capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
     let device3 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
-        capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
+        core_capsules::virtual_rng::VirtualRngMasterDevice<'static>,
+        core_capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
 
     // Create independent tests for each device

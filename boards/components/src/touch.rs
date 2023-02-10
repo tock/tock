@@ -30,8 +30,8 @@
 //!     components::touch::MultiTouchComponent::new(board_kernel, ts, Some(ts), Some(screen))
 //!         .finalize(components::touch_component_static!());
 //! ```
-use capsules::touch::Touch;
 use core::mem::MaybeUninit;
+use extra_capsules::touch::Touch;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -39,7 +39,7 @@ use kernel::create_capability;
 #[macro_export]
 macro_rules! touch_component_static {
     () => {{
-        kernel::static_buf!(capsules::touch::Touch<'static>)
+        kernel::static_buf!(extra_capsules::touch::Touch<'static>)
     };};
 }
 
@@ -71,13 +71,13 @@ impl TouchComponent {
 
 impl Component for TouchComponent {
     type StaticInput = &'static mut MaybeUninit<Touch<'static>>;
-    type Output = &'static capsules::touch::Touch<'static>;
+    type Output = &'static extra_capsules::touch::Touch<'static>;
 
     fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let touch = static_input.write(capsules::touch::Touch::new(
+        let touch = static_input.write(extra_capsules::touch::Touch::new(
             Some(self.touch),
             None,
             self.screen,
@@ -121,13 +121,13 @@ impl MultiTouchComponent {
 
 impl Component for MultiTouchComponent {
     type StaticInput = &'static mut MaybeUninit<Touch<'static>>;
-    type Output = &'static capsules::touch::Touch<'static>;
+    type Output = &'static extra_capsules::touch::Touch<'static>;
 
     fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let touch = static_input.write(capsules::touch::Touch::new(
+        let touch = static_input.write(extra_capsules::touch::Touch::new(
             None,
             Some(self.multi_touch),
             self.screen,

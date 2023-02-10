@@ -6,8 +6,8 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
+use core_capsules::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
@@ -69,20 +69,20 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Imxrt1050EVKB {
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt1<'static>>,
     >,
-    button: &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
+    button: &'static core_capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
+    console: &'static core_capsules::console::Console<'static>,
+    gpio: &'static core_capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static capsules::led::LedDriver<
+    led: &'static core_capsules::led::LedDriver<
         'static,
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         1,
     >,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    ninedof: &'static extra_capsules::ninedof::NineDof<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm7::systick::SysTick,
@@ -95,13 +95,13 @@ impl SyscallDriverLookup for Imxrt1050EVKB {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
+            extra_capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
         }
     }
@@ -331,7 +331,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         lpuart_mux,
     )
     .finalize(components::console_component_static!());
@@ -350,7 +350,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        core_capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             imxrt1050::gpio::Pin,
             (
@@ -370,7 +370,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        core_capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(imxrt1050::gpt::Gpt1));
@@ -379,7 +379,7 @@ pub unsafe fn main() {
     // For now we expose only two pins
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             imxrt1050::gpio::Pin<'static>,
             // The User Led
@@ -457,9 +457,11 @@ pub unsafe fn main() {
     .finalize(components::fxos8700_component_static!());
 
     // Ninedof
-    let ninedof =
-        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_static!(fxos8700));
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        extra_capsules::ninedof::DRIVER_NUM,
+    )
+    .finalize(components::ninedof_component_static!(fxos8700));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));

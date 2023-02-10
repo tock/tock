@@ -9,7 +9,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -48,17 +48,17 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct RedV {
-    led: &'static capsules::led::LedDriver<
+    led: &'static core_capsules::led::LedDriver<
         'static,
         LedLow<'static, sifive::gpio::GpioPin<'static>>,
         1,
     >,
-    console: &'static capsules::console::Console<'static>,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+    console: &'static core_capsules::console::Console<'static>,
+    lldb: &'static core_capsules::low_level_debug::LowLevelDebug<
         'static,
-        capsules::virtual_uart::UartDevice<'static>,
+        core_capsules::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
     >,
@@ -75,10 +75,10 @@ impl SyscallDriverLookup for RedV {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -218,13 +218,13 @@ pub unsafe fn main() {
     systick_virtual_alarm.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
+        core_capsules::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<'static, e310_g002::chip::E310xClint>,
         >,
-        capsules::alarm::AlarmDriver::new(
+        core_capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(core_capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -263,7 +263,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -273,7 +273,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM,
+        core_capsules::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());

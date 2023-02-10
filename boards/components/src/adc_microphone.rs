@@ -26,9 +26,9 @@
 //! ));
 //! ```
 
-use capsules::adc_microphone::AdcMicrophone;
-use capsules::virtual_adc::AdcDevice;
 use core::mem::MaybeUninit;
+use core_capsules::virtual_adc::AdcDevice;
+use extra_capsules::adc_microphone::AdcMicrophone;
 use kernel::component::Component;
 use kernel::hil::adc::{self, AdcChannel};
 use kernel::hil::gpio;
@@ -39,7 +39,7 @@ macro_rules! adc_microphone_component_static {
         let adc_device = components::adc_component_static!($A);
         let buffer = kernel::static_buf!([u16; $LEN]);
         let adc_microphone =
-            kernel::static_buf!(capsules::adc_microphone::AdcMicrophone<'static, $P>);
+            kernel::static_buf!(extra_capsules::adc_microphone::AdcMicrophone<'static, $P>);
 
         (adc_device, buffer, adc_microphone)
     };};
@@ -50,7 +50,7 @@ pub struct AdcMicrophoneComponent<
     P: 'static + gpio::Pin,
     const BUF_LEN: usize,
 > {
-    adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     pin: Option<&'static P>,
 }
@@ -59,7 +59,7 @@ impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize>
     AdcMicrophoneComponent<A, P, BUF_LEN>
 {
     pub fn new(
-        adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         pin: Option<&'static P>,
     ) -> AdcMicrophoneComponent<A, P, BUF_LEN> {

@@ -69,11 +69,11 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
-use capsules::net::ieee802154::MacAddress;
-use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::virtual_aes_ccm::MuxAES128CCM;
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
+use core_capsules::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use extra_capsules::net::ieee802154::MacAddress;
+use extra_capsules::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
@@ -123,8 +123,8 @@ const I2C_SCL_PIN: Pin = Pin::P0_27;
 
 // Constants related to the configuration of the 15.4 network stack
 const PAN_ID: u16 = 0xABCD;
-const DST_MAC_ADDR: capsules::net::ieee802154::MacAddress =
-    capsules::net::ieee802154::MacAddress::Short(49138);
+const DST_MAC_ADDR: extra_capsules::net::ieee802154::MacAddress =
+    extra_capsules::net::ieee802154::MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
@@ -166,43 +166,45 @@ fn reset() -> ! {
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
         'static,
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules::process_console::ProcessConsole<
+    ieee802154_radio: &'static extra_capsules::ieee802154::RadioDriver<'static>,
+    button: &'static core_capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
+    pconsole: &'static core_capsules::process_console::ProcessConsole<
         'static,
-        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        { core_capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<
+    console: &'static core_capsules::console::Console<'static>,
+    gpio: &'static core_capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
+    led: &'static core_capsules::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    rng: &'static core_capsules::rng::RngDriver<'static>,
+    temp: &'static extra_capsules::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+    analog_comparator: &'static extra_capsules::analog_comparator::AnalogComparator<
         'static,
         nrf52840::acomp::Comparator<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    i2c_master_slave: &'static capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
-    spi_controller: &'static capsules::spi_controller::Spi<
+    nonvolatile_storage:
+        &'static extra_capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    udp_driver: &'static extra_capsules::net::udp::UDPDriver<'static>,
+    i2c_master_slave:
+        &'static core_capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
+    spi_controller: &'static core_capsules::spi_controller::Spi<
         'static,
-        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+        core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -214,21 +216,23 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
-            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
+            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
+            core_capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            extra_capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            extra_capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            extra_capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            extra_capsules::nonvolatile_storage_driver::DRIVER_NUM => {
+                f(Some(self.nonvolatile_storage))
+            }
+            extra_capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            core_capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
+            core_capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             _ => f(None),
         }
     }
@@ -316,7 +320,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
@@ -339,7 +343,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        core_capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
@@ -410,7 +414,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        core_capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
@@ -455,7 +459,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -465,7 +469,7 @@ pub unsafe fn main() {
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM,
+        extra_capsules::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -488,7 +492,7 @@ pub unsafe fn main() {
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        capsules::ieee802154::DRIVER_NUM,
+        extra_capsules::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
@@ -511,7 +515,7 @@ pub unsafe fn main() {
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
                 0x1e, 0x1f,
             ]),
-            IPAddr::generate_from_mac(capsules::net::ieee802154::MacAddress::Short(
+            IPAddr::generate_from_mac(extra_capsules::net::ieee802154::MacAddress::Short(
                 serial_num_bottom_16
             )),
         ]
@@ -531,7 +535,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
-        capsules::net::udp::driver::DRIVER_NUM,
+        extra_capsules::net::udp::driver::DRIVER_NUM,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -541,14 +545,14 @@ pub unsafe fn main() {
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM,
+        extra_capsules::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
     .finalize(components::temperature_component_static!());
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
+        core_capsules::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(components::rng_component_static!());
@@ -562,7 +566,7 @@ pub unsafe fn main() {
         board_kernel,
         mux_spi,
         &gpio_port[SPI_CS],
-        capsules::spi_controller::DRIVER_NUM,
+        core_capsules::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
         nrf52840::spi::SPIM
@@ -589,7 +593,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        capsules::nonvolatile_storage_driver::DRIVER_NUM,
+        extra_capsules::nonvolatile_storage_driver::DRIVER_NUM,
         mx25r6435f,
         0x60000,   // Start address for userspace accessible region
         0x3FA0000, // Length of userspace accessible region
@@ -597,9 +601,9 @@ pub unsafe fn main() {
         0x60000,   // Length of kernel region
     )
     .finalize(components::nonvolatile_storage_component_static!(
-        capsules::mx25r6435f::MX25R6435F<
+        extra_capsules::mx25r6435f::MX25R6435F<
             'static,
-            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
             nrf52840::gpio::GPIOPin,
             VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
         >
@@ -617,7 +621,7 @@ pub unsafe fn main() {
             i2c_slave_buffer1,
             i2c_slave_buffer2,
             board_kernel.create_grant(
-                capsules::i2c_master_slave_driver::DRIVER_NUM,
+                core_capsules::i2c_master_slave_driver::DRIVER_NUM,
                 &memory_allocation_capability
             ),
         )
@@ -639,7 +643,7 @@ pub unsafe fn main() {
             &nrf52840::acomp::CHANNEL_AC0
         ),
         board_kernel,
-        capsules::analog_comparator::DRIVER_NUM,
+        extra_capsules::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::analog_comparator_component_static!(
         nrf52840::acomp::Comparator

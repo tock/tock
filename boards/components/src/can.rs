@@ -15,7 +15,7 @@
 //! ```rust
 //! let can = components::can::CanComponent::new(
 //!     board_kernel,
-//!     capsules::can::DRIVER_NUM,
+//!     extra_capsules::can::DRIVER_NUM,
 //!     &peripherals.can1
 //! ).finalize(components::can_component_static!(
 //!     stm32f429zi::can::Can<'static>
@@ -23,8 +23,8 @@
 //! ```
 //!
 
-use capsules::can::CanCapsule;
 use core::mem::MaybeUninit;
+use extra_capsules::can::CanCapsule;
 use kernel::component::Component;
 use kernel::hil::can;
 use kernel::{capabilities, create_capability};
@@ -32,14 +32,14 @@ use kernel::{capabilities, create_capability};
 #[macro_export]
 macro_rules! can_component_static {
     ($C:ty $(,)?) => {{
-        use capsules::can::CanCapsule;
         use core::mem::MaybeUninit;
+        use extra_capsules::can::CanCapsule;
         use kernel::hil::can;
         use kernel::static_buf;
 
         let CAN_TX_BUF = static_buf!([u8; can::STANDARD_CAN_PACKET_SIZE]);
         let CAN_RX_BUF = static_buf!([u8; can::STANDARD_CAN_PACKET_SIZE]);
-        let can = static_buf!(capsules::can::CanCapsule<'static, $C>);
+        let can = static_buf!(extra_capsules::can::CanCapsule<'static, $C>);
         (can, CAN_TX_BUF, CAN_RX_BUF)
     };};
 }
@@ -76,7 +76,7 @@ impl<A: 'static + can::Can> Component for CanComponent<A> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant_can = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let can = static_buffer.0.write(capsules::can::CanCapsule::new(
+        let can = static_buffer.0.write(extra_capsules::can::CanCapsule::new(
             self.can,
             grant_can,
             static_buffer.1.write([0; can::STANDARD_CAN_PACKET_SIZE]),

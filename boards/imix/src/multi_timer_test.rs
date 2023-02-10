@@ -12,8 +12,8 @@ use kernel::debug;
 use kernel::hil::time::Timer;
 use kernel::static_init;
 
-use capsules::test::random_timer::TestRandomTimer;
-use capsules::virtual_timer::{MuxTimer, VirtualTimer};
+use core_capsules::test::random_timer::TestRandomTimer;
+use core_capsules::virtual_timer::{MuxTimer, VirtualTimer};
 use sam4l::ast::Ast;
 
 pub unsafe fn run_multi_timer(mux: &'static MuxTimer<'static, Ast<'static>>) {

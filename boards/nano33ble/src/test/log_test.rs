@@ -29,9 +29,9 @@
 //! and use the `USER` and `RESET` buttons to manually erase the log and reboot the nano33ble,
 //! respectively.
 
-use capsules::log;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use extra_capsules::log;
 use kernel::debug;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::flash;

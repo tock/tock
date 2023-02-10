@@ -7,30 +7,30 @@
 //!         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
 //!     let temperature = components::temperature::TemperatureComponent::new(
 //!         board_kernel,
-//!         capsules::temperature::DRIVER_NUM,
+//!         extra_capsules::temperature::DRIVER_NUM,
 //!         bme280,
 //!     )
 //!     .finalize(components::temperature_component_static!());
 //!     let humidity = components::humidity::HumidityComponent::new(
 //!         board_kernel,
-//!         capsules::humidity::DRIVER_NUM,
+//!         extra_capsules::humidity::DRIVER_NUM,
 //!         bme280,
 //!     )
 //!     .finalize(components::humidity_component_static!());
 //! ```
 
-use capsules::bme280::Bme280;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use extra_capsules::bme280::Bme280;
 use kernel::component::Component;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! bme280_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
         let i2c_buffer = kernel::static_buf!([u8; 26]);
-        let bme280 = kernel::static_buf!(capsules::bme280::Bme280<'static>);
+        let bme280 = kernel::static_buf!(extra_capsules::bme280::Bme280<'static>);
 
         (i2c_device, i2c_buffer, bme280)
     };};

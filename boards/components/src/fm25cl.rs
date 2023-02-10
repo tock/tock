@@ -9,9 +9,9 @@
 //!     .finalize(components::fm25cl_component_static!(stm32f429zi::spi::Spi));
 //! ```
 
-use capsules::fm25cl::FM25CL;
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use extra_capsules::fm25cl::FM25CL;
 use kernel::component::Component;
 use kernel::hil::spi;
 use kernel::hil::spi::SpiMasterDevice;
@@ -19,14 +19,15 @@ use kernel::hil::spi::SpiMasterDevice;
 #[macro_export]
 macro_rules! fm25cl_component_static {
     ($S:ty $(,)?) => {{
-        let txbuffer = kernel::static_buf!([u8; capsules::fm25cl::BUF_LEN]);
-        let rxbuffer = kernel::static_buf!([u8; capsules::fm25cl::BUF_LEN]);
+        let txbuffer = kernel::static_buf!([u8; extra_capsules::fm25cl::BUF_LEN]);
+        let rxbuffer = kernel::static_buf!([u8; extra_capsules::fm25cl::BUF_LEN]);
 
-        let spi = kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let spi =
+            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
         let fm25cl = kernel::static_buf!(
-            capsules::fm25cl::FM25CL<
+            extra_capsules::fm25cl::FM25CL<
                 'static,
-                capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         );
 
@@ -55,8 +56,8 @@ impl<S: 'static + spi::SpiMaster> Component for Fm25clComponent<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<FM25CL<'static, VirtualSpiMasterDevice<'static, S>>>,
-        &'static mut MaybeUninit<[u8; capsules::fm25cl::BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::fm25cl::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; extra_capsules::fm25cl::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; extra_capsules::fm25cl::BUF_LEN]>,
     );
     type Output = &'static FM25CL<'static, VirtualSpiMasterDevice<'static, S>>;
 
@@ -66,8 +67,8 @@ impl<S: 'static + spi::SpiMaster> Component for Fm25clComponent<S> {
             .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
         spi_device.setup();
 
-        let txbuffer = static_buffer.2.write([0; capsules::fm25cl::BUF_LEN]);
-        let rxbuffer = static_buffer.3.write([0; capsules::fm25cl::BUF_LEN]);
+        let txbuffer = static_buffer.2.write([0; extra_capsules::fm25cl::BUF_LEN]);
+        let rxbuffer = static_buffer.3.write([0; extra_capsules::fm25cl::BUF_LEN]);
 
         let fm25cl = static_buffer
             .1

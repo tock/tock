@@ -10,22 +10,22 @@
 //! test::icmp_lowpan_test::run(mux_mac, mux_alarm);
 //! ```
 
-use capsules::ieee802154::device::MacDevice;
-use capsules::net::icmpv6::icmpv6_send::{ICMP6SendStruct, ICMP6Sender};
-use capsules::net::icmpv6::{ICMP6Header, ICMP6Type};
-use capsules::net::ieee802154::MacAddress;
-use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
-use capsules::net::ipv6::{IP6Packet, IPPayload, TransportHeader};
-use capsules::net::network_capabilities::{
+use extra_capsules::ieee802154::device::MacDevice;
+use extra_capsules::net::icmpv6::icmpv6_send::{ICMP6SendStruct, ICMP6Sender};
+use extra_capsules::net::icmpv6::{ICMP6Header, ICMP6Type};
+use extra_capsules::net::ieee802154::MacAddress;
+use extra_capsules::net::ipv6::ip_utils::IPAddr;
+use extra_capsules::net::ipv6::ipv6_send::{IP6SendStruct, IP6Sender};
+use extra_capsules::net::ipv6::{IP6Packet, IPPayload, TransportHeader};
+use extra_capsules::net::network_capabilities::{
     AddrRange, IpVisibilityCapability, NetworkCapability, PortRange,
 };
-use capsules::net::sixlowpan::sixlowpan_compression;
-use capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
+use extra_capsules::net::sixlowpan::sixlowpan_compression;
+use extra_capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState, TxState};
 use kernel::ErrorCode;
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;
@@ -64,7 +64,7 @@ pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
 }
 
 pub unsafe fn run(
-    mux_mac: &'static capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    mux_mac: &'static extra_capsules::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) {
     let create_cap = create_capability!(NetworkCapabilityCreationCapability);
@@ -77,8 +77,8 @@ pub unsafe fn run(
         IpVisibilityCapability::new(&create_cap)
     );
     let radio_mac = static_init!(
-        capsules::ieee802154::virtual_mac::MacUser<'static>,
-        capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+        extra_capsules::ieee802154::virtual_mac::MacUser<'static>,
+        extra_capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
     let ipsender_virtual_alarm = static_init!(
@@ -163,7 +163,7 @@ pub unsafe fn run(
     icmp_lowpan_test.start();
 }
 
-impl<'a, A: time::Alarm<'a>> capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
+impl<'a, A: time::Alarm<'a>> extra_capsules::net::icmpv6::icmpv6_send::ICMP6SendClient
     for LowpanICMPTest<'a, A>
 {
     fn send_done(&self, result: Result<(), ErrorCode>) {

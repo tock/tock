@@ -28,8 +28,8 @@
 //! with `FloatingState::PullDown`. `FloatingState::None` will be used when the
 //! board provides external pull-up/pull-down resistors.
 
-use capsules::button::Button;
 use core::mem::MaybeUninit;
+use core_capsules::button::Button;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -76,7 +76,7 @@ macro_rules! button_component_helper {
 #[macro_export]
 macro_rules! button_component_static {
     ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules::button::Button<'static, $Pin>)
+        kernel::static_buf!(core_capsules::button::Button<'static, $Pin>)
     };};
 }
 
@@ -114,7 +114,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let button = static_buffer.write(capsules::button::Button::new(
+        let button = static_buffer.write(core_capsules::button::Button::new(
             self.button_pins,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
         ));

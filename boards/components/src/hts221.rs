@@ -9,18 +9,18 @@
 //! let humidity = components::humidity::HumidityComponent::new(board_kernel, hts221).finalize(());
 //! ```
 
-use capsules::hts221::Hts221;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use extra_capsules::hts221::Hts221;
 use kernel::component::Component;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! hts221_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; 17]);
-        let hts221 = kernel::static_buf!(capsules::hts221::Hts221<'static>);
+        let hts221 = kernel::static_buf!(extra_capsules::hts221::Hts221<'static>);
 
         (i2c_device, buffer, hts221)
     };};

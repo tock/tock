@@ -13,9 +13,9 @@ use core::arch::asm;
 
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
+use core_capsules::virtual_alarm::VirtualMuxAlarm;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
@@ -79,18 +79,18 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 /// Supported drivers by the platform
 pub struct PicoExplorerBase {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    console: &'static capsules::console::Console<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static core_capsules::console::Console<'static>,
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
-    gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
+    gpio: &'static core_capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
+    led: &'static core_capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
+    adc: &'static core_capsules::adc::AdcVirtualized<'static>,
+    temperature: &'static extra_capsules::temperature::TemperatureSensor<'static>,
 
-    button: &'static capsules::button::Button<'static, RPGpioPin<'static>>,
-    screen: &'static capsules::screen::Screen<'static>,
+    button: &'static core_capsules::button::Button<'static, RPGpioPin<'static>>,
+    screen: &'static extra_capsules::screen::Screen<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -102,16 +102,16 @@ impl SyscallDriverLookup for PicoExplorerBase {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            core_capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
 
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::screen::DRIVER_NUM => f(Some(self.screen)),
+            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
+            extra_capsules::screen::DRIVER_NUM => f(Some(self.screen)),
 
             _ => f(None),
         }
@@ -341,7 +341,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        core_capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(RPTimer));
@@ -388,7 +388,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -401,7 +401,7 @@ pub unsafe fn main() {
 
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        core_capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             RPGpioPin,
             // Used for serial communication. Comment them in if you don't use serial.
@@ -444,11 +444,11 @@ pub unsafe fn main() {
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
+        board_kernel.create_grant(extra_capsules::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+        extra_capsules::temperature::TemperatureSensor<'static>,
+        extra_capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
@@ -476,13 +476,13 @@ pub unsafe fn main() {
         bus,
         Some(peripherals.pins.get_pin(RPGpio::GPIO16)),
         None,
-        &capsules::st77xx::ST7789H2,
+        &extra_capsules::st77xx::ST7789H2,
     )
     .finalize(components::st77xx_component_static!(
         // bus type
-        capsules::bus::SpiMasterBus<
+        extra_capsules::bus::SpiMasterBus<
             'static,
-            capsules::virtual_spi::VirtualSpiMasterDevice<'static, Spi>,
+            core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, Spi>,
         >,
         // timer type
         RPTimer,
@@ -494,7 +494,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        core_capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             RPGpioPin,
             (
@@ -523,7 +523,7 @@ pub unsafe fn main() {
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules::screen::DRIVER_NUM,
+        extra_capsules::screen::DRIVER_NUM,
         tft,
         Some(tft),
     )
@@ -539,7 +539,7 @@ pub unsafe fn main() {
         .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, core_capsules::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,

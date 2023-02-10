@@ -1,4 +1,4 @@
-use capsules::test::aes::TestAes128Ctr;
+use extra_capsules::test::aes::TestAes128Ctr;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 use nrf52832::aes::AesECB;

@@ -8,7 +8,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -45,8 +45,8 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct SweRVolf {
-    console: &'static capsules::console::Console<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static core_capsules::console::Console<'static>,
+    alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon<'static>>,
     >,
@@ -61,8 +61,8 @@ impl SyscallDriverLookup for SweRVolf {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -165,13 +165,13 @@ pub unsafe fn main() {
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
+        core_capsules::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
         >,
-        capsules::alarm::AlarmDriver::new(
+        core_capsules::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(core_capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -205,7 +205,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        core_capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());

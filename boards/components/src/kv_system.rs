@@ -5,39 +5,39 @@
 //! ```rust
 //!    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
 //!        components::kv_store_mux_component_static!(
-//!            capsules::tickv::TicKVStore<
-//!                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+//!            extra_capsules::tickv::TicKVStore<
+//!                core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!            >,
-//!            capsules::tickv::TicKVKeyType,
+//!            extra_capsules::tickv::TicKVKeyType,
 //!        ),
 //!    );
 //!
 //!    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
 //!        components::kv_store_component_static!(
-//!            capsules::tickv::TicKVStore<
-//!                capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+//!            extra_capsules::tickv::TicKVStore<
+//!                core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!            >,
-//!            capsules::tickv::TicKVKeyType,
+//!            extra_capsules::tickv::TicKVKeyType,
 //!        ),
 //!    );
 //!
 //!    let kv_driver = components::kv_system::KVDriverComponent::new(
 //!        kv_store,
 //!        board_kernel,
-//!        capsules::kv_driver::DRIVER_NUM,
+//!        extra_capsules::kv_driver::DRIVER_NUM,
 //!    )
 //!    .finalize(components::kv_driver_component_static!(
-//!        // capsules::kv_store::KVStore<
-//!        capsules::tickv::TicKVStore<
-//!            capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+//!        // extra_capsules::kv_store::KVStore<
+//!        extra_capsules::tickv::TicKVStore<
+//!            core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!        >,
-//!        capsules::tickv::TicKVKeyType,
+//!        extra_capsules::tickv::TicKVKeyType,
 //!    ));
 //! ```
 
-use capsules::kv_driver::KVSystemDriver;
-use capsules::kv_store::{KVStore, MuxKVStore};
 use core::mem::MaybeUninit;
+use extra_capsules::kv_driver::KVSystemDriver;
+use extra_capsules::kv_store::{KVStore, MuxKVStore};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -47,7 +47,7 @@ use kernel::hil::kv_system::{KVSystem, KeyType};
 #[macro_export]
 macro_rules! kv_store_mux_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        kernel::static_buf!(capsules::kv_store::MuxKVStore<'static, $K, $T>)
+        kernel::static_buf!(extra_capsules::kv_store::MuxKVStore<'static, $K, $T>)
     };};
 }
 
@@ -81,7 +81,7 @@ impl<K: 'static + KVSystem<'static> + KVSystem<'static, K = T>, T: 'static + Key
 #[macro_export]
 macro_rules! kv_store_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        let kv_store = kernel::static_buf!(capsules::kv_store::KVStore<'static, $K, $T>);
+        let kv_store = kernel::static_buf!(extra_capsules::kv_store::KVStore<'static, $K, $T>);
         let key = kernel::static_buf!($T);
         let buffer = kernel::static_buf!([u8; 9]);
 
@@ -122,7 +122,7 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType + Default> Comp
 #[macro_export]
 macro_rules! kv_driver_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        let kv = kernel::static_buf!(capsules::kv_driver::KVSystemDriver<'static, $K, $T>);
+        let kv = kernel::static_buf!(extra_capsules::kv_driver::KVSystemDriver<'static, $K, $T>);
         let data_buffer = kernel::static_buf!([u8; 32]);
         let dest_buffer = kernel::static_buf!([u8; 48]);
 

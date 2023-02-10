@@ -16,9 +16,9 @@
 // Author: Amit Levy <amit@amitlevy.com>
 // Last modified: 12/04/2019
 
-use capsules::low_level_debug::LowLevelDebug;
-use capsules::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
+use core_capsules::low_level_debug::LowLevelDebug;
+use core_capsules::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -27,12 +27,12 @@ use kernel::hil;
 #[macro_export]
 macro_rules! low_level_debug_component_static {
     () => {{
-        let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice<'static>);
-        let buffer = kernel::static_buf!([u8; capsules::low_level_debug::BUF_LEN]);
+        let uart = kernel::static_buf!(core_capsules::virtual_uart::UartDevice<'static>);
+        let buffer = kernel::static_buf!([u8; core_capsules::low_level_debug::BUF_LEN]);
         let lldb = kernel::static_buf!(
-            capsules::low_level_debug::LowLevelDebug<
+            core_capsules::low_level_debug::LowLevelDebug<
                 'static,
-                capsules::virtual_uart::UartDevice<'static>,
+                core_capsules::virtual_uart::UartDevice<'static>,
             >
         );
 
@@ -63,7 +63,7 @@ impl LowLevelDebugComponent {
 impl Component for LowLevelDebugComponent {
     type StaticInput = (
         &'static mut MaybeUninit<UartDevice<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::low_level_debug::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; core_capsules::low_level_debug::BUF_LEN]>,
         &'static mut MaybeUninit<LowLevelDebug<'static, UartDevice<'static>>>,
     );
     type Output = &'static LowLevelDebug<'static, UartDevice<'static>>;
@@ -74,7 +74,7 @@ impl Component for LowLevelDebugComponent {
         let lldb_uart = s.0.write(UartDevice::new(self.uart_mux, true));
         lldb_uart.setup();
 
-        let buffer = s.1.write([0; capsules::low_level_debug::BUF_LEN]);
+        let buffer = s.1.write([0; core_capsules::low_level_debug::BUF_LEN]);
 
         let lldb = s.2.write(LowLevelDebug::new(
             buffer,

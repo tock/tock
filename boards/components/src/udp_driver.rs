@@ -17,18 +17,18 @@
 //!     .finalize(components::udp_driver_component_static!());
 //! ```
 
-use capsules;
-use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::network_capabilities::{
+use core::mem::MaybeUninit;
+use core_capsules;
+use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use extra_capsules::net::ipv6::ip_utils::IPAddr;
+use extra_capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use extra_capsules::net::network_capabilities::{
     AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
 };
-use capsules::net::udp::udp_port_table::UdpPortManager;
-use capsules::net::udp::udp_recv::MuxUdpReceiver;
-use capsules::net::udp::udp_recv::UDPReceiver;
-use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
-use capsules::virtual_alarm::VirtualMuxAlarm;
-use core::mem::MaybeUninit;
+use extra_capsules::net::udp::udp_port_table::UdpPortManager;
+use extra_capsules::net::udp::udp_recv::MuxUdpReceiver;
+use extra_capsules::net::udp::udp_recv::UDPReceiver;
+use extra_capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use kernel;
 use kernel::capabilities;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
@@ -45,20 +45,22 @@ macro_rules! udp_driver_component_static {
         use components::udp_mux::MAX_PAYLOAD_LEN;
 
         let udp_send = kernel::static_buf!(
-            capsules::net::udp::udp_send::UDPSendStruct<
+            extra_capsules::net::udp::udp_send::UDPSendStruct<
                 'static,
-                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                extra_capsules::net::ipv6::ipv6_send::IP6SendStruct<
                     'static,
-                    capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                    core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 >,
             >
         );
         let udp_vis_cap =
-            kernel::static_buf!(capsules::net::network_capabilities::UdpVisibilityCapability);
-        let net_cap = kernel::static_buf!(capsules::net::network_capabilities::NetworkCapability);
-        let udp_driver = kernel::static_buf!(capsules::net::udp::UDPDriver<'static>);
+            kernel::static_buf!(extra_capsules::net::network_capabilities::UdpVisibilityCapability);
+        let net_cap =
+            kernel::static_buf!(extra_capsules::net::network_capabilities::NetworkCapability);
+        let udp_driver = kernel::static_buf!(extra_capsules::net::udp::UDPDriver<'static>);
         let buffer = kernel::static_buf!([u8; MAX_PAYLOAD_LEN]);
-        let udp_recv = kernel::static_buf!(capsules::net::udp::udp_recv::UDPReceiver<'static>);
+        let udp_recv =
+            kernel::static_buf!(extra_capsules::net::udp::udp_recv::UDPReceiver<'static>);
 
         (udp_send, udp_vis_cap, net_cap, udp_driver, buffer, udp_recv)
     };};
@@ -102,16 +104,21 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
         &'static mut MaybeUninit<
             UDPSendStruct<
                 'static,
-                capsules::net::ipv6::ipv6_send::IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>,
+                extra_capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                    'static,
+                    VirtualMuxAlarm<'static, A>,
+                >,
             >,
         >,
-        &'static mut MaybeUninit<capsules::net::network_capabilities::UdpVisibilityCapability>,
-        &'static mut MaybeUninit<capsules::net::network_capabilities::NetworkCapability>,
-        &'static mut MaybeUninit<capsules::net::udp::UDPDriver<'static>>,
+        &'static mut MaybeUninit<
+            extra_capsules::net::network_capabilities::UdpVisibilityCapability,
+        >,
+        &'static mut MaybeUninit<extra_capsules::net::network_capabilities::NetworkCapability>,
+        &'static mut MaybeUninit<extra_capsules::net::udp::UDPDriver<'static>>,
         &'static mut MaybeUninit<[u8; MAX_PAYLOAD_LEN]>,
         &'static mut MaybeUninit<UDPReceiver<'static>>,
     );
-    type Output = &'static capsules::net::udp::UDPDriver<'static>;
+    type Output = &'static extra_capsules::net::udp::UDPDriver<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -135,7 +142,7 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
 
         let buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
 
-        let udp_driver = s.3.write(capsules::net::udp::UDPDriver::new(
+        let udp_driver = s.3.write(extra_capsules::net::udp::UDPDriver::new(
             udp_send,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.interface_list,

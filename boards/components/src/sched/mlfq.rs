@@ -7,7 +7,7 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time;
 use kernel::process::Process;
@@ -16,11 +16,11 @@ use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
 #[macro_export]
 macro_rules! mlfq_component_static {
     ($A:ty, $N:expr $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let mlfq_sched = kernel::static_buf!(
             kernel::scheduler::mlfq::MLFQSched<
                 'static,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
         let mlfq_node = kernel::static_buf!(

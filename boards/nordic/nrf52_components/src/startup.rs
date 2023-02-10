@@ -3,10 +3,10 @@
 //! and UartChannelComponent, as well as two helper structs for
 //! intializing Uart on Nordic boards.
 
-use capsules::segger_rtt::SeggerRtt;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use components;
 use core::mem::MaybeUninit;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use extra_capsules::segger_rtt::SeggerRtt;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;

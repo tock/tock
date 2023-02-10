@@ -17,9 +17,9 @@
 //! .finalize(components::rf233_component_static!(sam4l::spi::SpiHw));
 //! ```
 
-use capsules::rf233::RF233;
-use capsules::virtual_spi::VirtualSpiMasterDevice;
 use core::mem::MaybeUninit;
+use core_capsules::virtual_spi::VirtualSpiMasterDevice;
+use extra_capsules::rf233::RF233;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
@@ -29,9 +29,9 @@ use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
 macro_rules! rf233_component_static {
     ($S:ty $(,)?) => {{
         kernel::static_buf!(
-            capsules::rf233::RF233<
+            extra_capsules::rf233::RF233<
                 'static,
-                capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         )
     };};

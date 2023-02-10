@@ -8,11 +8,14 @@ edition.workspace = true
 [dependencies]
 components = { path = "../../components" }
 rv32i = { path = "../../../arch/rv32i" }
-capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 earlgrey = { path = "../../../chips/earlgrey" }
 lowrisc = { path = "../../../chips/lowrisc" }
 tock-tbf = { path = "../../../libraries/tock-tbf" }
+
+core-capsules = { path = "../../../capsules/core" }
+extra-capsules = { path = "../../../capsules/extra" }
+
 
 [features]
 default = ["fpga_cw310"]

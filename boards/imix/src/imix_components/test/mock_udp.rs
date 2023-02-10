@@ -4,13 +4,13 @@
 
 #![allow(dead_code)] // Components are intended to be conditionally included
 
-use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
-use capsules::net::udp::udp_port_table::UdpPortManager;
-use capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
-use capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::mem::MaybeUninit;
+use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use extra_capsules::net::ipv6::ipv6_send::IP6SendStruct;
+use extra_capsules::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
+use extra_capsules::net::udp::udp_port_table::UdpPortManager;
+use extra_capsules::net::udp::udp_recv::{MuxUdpReceiver, UDPReceiver};
+use extra_capsules::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
 use kernel::utilities::cells::TakeCell;
@@ -19,13 +19,13 @@ use kernel::utilities::cells::TakeCell;
 /// Macro for constructing a mock UDP capsule for tests.
 macro_rules! mock_udp_component_static {
     () => {{
-        use capsules::net::udp::udp_recv::UDPReceiver;
-        use capsules::net::udp::udp_send::UDPSendStruct;
-        use capsules::virtual_alarm::VirtualMuxAlarm;
+        use core_capsules::virtual_alarm::VirtualMuxAlarm;
+        use extra_capsules::net::udp::udp_recv::UDPReceiver;
+        use extra_capsules::net::udp::udp_send::UDPSendStruct;
         let udp_send = kernel::static_buf!(
             UDPSendStruct<
                 'static,
-                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                extra_capsules::net::ipv6::ipv6_send::IP6SendStruct<
                     'static,
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
@@ -36,7 +36,7 @@ macro_rules! mock_udp_component_static {
         let udp_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, sam4l::ast::Ast>,);
 
         let mock_udp = kernel::static_buf!(
-            capsules::test::udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
+            extra_capsules::test::udp::MockUdp<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast>>,
         );
         (udp_send, udp_recv, udp_alarm, mock_udp)
     }};
@@ -91,7 +91,7 @@ impl Component for MockUDPComponent {
         &'static mut MaybeUninit<
             UDPSendStruct<
                 'static,
-                capsules::net::ipv6::ipv6_send::IP6SendStruct<
+                extra_capsules::net::ipv6::ipv6_send::IP6SendStruct<
                     'static,
                     VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
                 >,
@@ -100,13 +100,13 @@ impl Component for MockUDPComponent {
         &'static mut MaybeUninit<UDPReceiver<'static>>,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
         &'static mut MaybeUninit<
-            capsules::test::udp::MockUdp<
+            extra_capsules::test::udp::MockUdp<
                 'static,
                 VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
             >,
         >,
     );
-    type Output = &'static capsules::test::udp::MockUdp<
+    type Output = &'static extra_capsules::test::udp::MockUdp<
         'static,
         VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >;
@@ -121,7 +121,7 @@ impl Component for MockUDPComponent {
         let udp_alarm = s.2.write(VirtualMuxAlarm::new(self.alarm_mux));
         udp_alarm.setup();
 
-        let mock_udp = s.3.write(capsules::test::udp::MockUdp::new(
+        let mock_udp = s.3.write(extra_capsules::test::udp::MockUdp::new(
             self.id,
             udp_alarm,
             udp_send,
