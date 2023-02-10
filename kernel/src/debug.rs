@@ -70,21 +70,24 @@ use crate::ErrorCode;
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
 /// available).
 ///
-/// Also, in our use cases, writes are infaillible, so the write function just doesn't return
+/// Also, in our use cases, writes are infaillible, so the write function cannot return an Error,
+/// however it might not be able to write everything, so it returns  the number of bytes written
 /// anything.
 ///
 /// See also the tracking issue: <https://github.com/rust-lang/rfcs/issues/2262>
 pub trait IoWrite {
-    fn write(&mut self, buf: &[u8]);
+    fn write(&mut self, buf: &[u8]) -> usize;
 
-    fn write_ring_buffer<'a>(&mut self, buf: &RingBuffer<'a, u8>) {
+    fn write_ring_buffer<'a>(&mut self, buf: &RingBuffer<'a, u8>) -> usize {
         let (left, right) = buf.as_slices();
+        let mut total = 0;
         if let Some(slice) = left {
-            self.write(slice);
+            total += self.write(slice);
         }
         if let Some(slice) = right {
-            self.write(slice);
+            total += self.write(slice);
         }
+        total
     }
 }
 
@@ -509,10 +512,10 @@ impl DebugWriterWrapper {
 }
 
 impl IoWrite for DebugWriterWrapper {
-    fn write(&mut self, bytes: &[u8]) {
+    fn write(&mut self, bytes: &[u8]) -> usize {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw.map(|dw| {
-            dw.internal_buffer.map(|ring_buffer| {
+        self.dw.map_or(0, |dw| {
+            dw.internal_buffer.map_or(0, |ring_buffer| {
                 let available_len_for_msg =
                     ring_buffer.available_len().saturating_sub(FULL_MSG.len());
 
@@ -520,6 +523,7 @@ impl IoWrite for DebugWriterWrapper {
                     for &b in bytes {
                         ring_buffer.enqueue(b);
                     }
+                    bytes.len()
                 } else {
                     for &b in &bytes[..available_len_for_msg] {
                         ring_buffer.enqueue(b);
@@ -529,9 +533,10 @@ impl IoWrite for DebugWriterWrapper {
                     for &b in FULL_MSG {
                         ring_buffer.enqueue(b);
                     }
+                    available_len_for_msg
                 }
-            });
-        });
+            })
+        })
     }
 }
 
@@ -557,14 +562,20 @@ pub fn debug_println(args: Arguments) {
     writer.publish_bytes();
 }
 
-pub fn debug_slice(slice: &ReadableProcessSlice) {
+pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
     let writer = unsafe { get_debug_writer() };
-
+    let mut total = 0;
     for b in slice.iter() {
         let buf: [u8; 1] = [b.get(); 1];
-        let _ = writer.write(&buf);
+        let count = writer.write(&buf);
+        if count > 0 {
+            total = total + count;
+        } else {
+            break;
+        }
     }
     writer.publish_bytes();
+    total
 }
 
 fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
@@ -609,7 +620,7 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! debug_process_slice {
     ($msg:expr $(,)?) => {{
-        $crate::debug::debug_slice($msg);
+        $crate::debug::debug_slice($msg)
     }};
 }
 
@@ -669,7 +680,7 @@ macro_rules! debug_expr {
 }
 
 pub trait Debug {
-    fn write(&self, buf: &'static mut [u8], len: usize);
+    fn write(&self, buf: &'static mut [u8], len: usize) -> usize;
 }
 
 #[cfg(debug = "true")]

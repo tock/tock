@@ -128,17 +128,17 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
             app.pending_write = true;
         } else {
             // No prior print, send some text.
-            self.send(app, kernel_data);
+            app.write_len = self.send(app, kernel_data).map_or(0, |bytes| 0);
         }
         Ok(())
     }
 
     /// Internal helper function for sending data.
-    fn send(&self, app: &mut App, kernel_data: &GrantKernelData) {
+    fn send(&self, app: &mut App, kernel_data: &GrantKernelData) -> Result<usize, kernel::process::Error> {
         // We can ignore the Result because if the call fails, it means
         // the process has terminated, so issuing a callback doesn't matter.
         // If the call fails, just use the alarm to try the next client.
-        let _res = kernel_data
+        let res = kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
             .and_then(|write| {
                 write.enter(|data| {
@@ -151,13 +151,12 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
                     app.writing = true;
                     self.tx_in_progress.set(true);
                     if remaining_data.len() > 0 {
-                        debug_process_slice!(remaining_data);
+                        debug_process_slice!(remaining_data)
                     } else {
-                        // We have a zero-length slice: send something else
+                        0
                     }
                 })
             });
-
         // We're writing, so start a timer to send more and
         // block subsequent writes. Detect there are other
         // processes with things to write by looking at the
@@ -166,6 +165,7 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
         // grabbed this process+1 and has something to send.
         self.alarm
             .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
+        res
     }
 }
 
@@ -192,13 +192,17 @@ impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
         let mut seqno = self.tx_counter.get();
 
         // Find the process that has an outstanding write with the
-        // lowest sequence number.
+        // earliest sequence number, handling wraparound.
         for cntr in self.apps.iter() {
             let appid = cntr.processid();
             cntr.enter(|app, _| {
                 if app.pending_write {
-                    // This means app.tx_counter is smaller than seqno, as long as
-                    // there aren't usize/2 processes.
+                    // Checks wither app.tx_counter is earlier than
+                    // seqno, with the constrain that there are <
+                    // usize/2 processes. wrapping_sub allows this to
+                    // handle wraparound E.g., in 8-bit arithmetic
+                    // 0x02 - 0xff = 0x03 and so 0xff is "earlier"
+                    // than 0x02. -pal
                     if seqno.wrapping_sub(app.tx_counter) < usize::MAX / 2 {
                         seqno = app.tx_counter;
                         next_writer = Some(appid);
@@ -210,7 +214,8 @@ impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
         next_writer.map(|pid| {
             self.apps.enter(pid, |app, kernel_data| {
                 app.pending_write = false;
-                self.send(app, kernel_data);
+                let res = self.send(app, kernel_data);
+                app.write_len = res.map_or(0, |bytes| bytes);
             })
         });
     }
@@ -221,7 +226,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for PrintLog<'a, A> {
     ///
     /// ### `allow_num`
     ///
-    /// - `0`: Readonly buffer for write buffer
+    /// - `0`: Readonly buffer for write bufferu
 
     // Setup callbacks.
     //
