@@ -397,10 +397,11 @@ pub unsafe fn main() {
     let alarm = AlarmDriverComponent::new(board_kernel, capsules::alarm::DRIVER_NUM, mux_alarm)
         .finalize(components::alarm_component_static!(sam4l::ast::Ast));
 
-    let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm, process_printer)
-        .finalize(components::process_console_component_static!(
-            sam4l::ast::Ast
-        ));
+    let pconsole =
+        ProcessConsoleComponent::new(board_kernel, uart_mux, mux_alarm, process_printer, None)
+            .finalize(components::process_console_component_static!(
+                sam4l::ast::Ast
+            ));
     let console = ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux)
         .finalize(components::console_component_static!());
     DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());

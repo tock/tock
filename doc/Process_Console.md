@@ -8,20 +8,21 @@ Process Console
 
 <!-- toc -->
 
-- [Setup](#setup)
-- [Using Process Console](#using-process-console)
-- [Commands](#commands)
-  * [`help`](#help)
-  * [`list`](#list)
-    + [`list` Command Fields](#list-command-fields)
-  * [`status`](#status)
-  * [`start` and `stop`](#start-and-stop)
-  * [`terminate` and `boot`](#terminate-and-boot)
-  * [`fault`](#fault)
-  * [`panic`](#panic)
-  * [`kernel`](#kernel)
-  * [`process`](#process)
-  * [`commands history`](#commands-history)
+- [Process Console](#process-console)
+  - [Setup](#setup)
+  - [Using Process Console](#using-process-console)
+  - [Commands](#commands)
+    - [`help`](#help)
+    - [`list`](#list)
+      - [`list` Command Fields](#list-command-fields)
+    - [`status`](#status)
+    - [`start` and `stop`](#start-and-stop)
+    - [`terminate` and `boot`](#terminate-and-boot)
+    - [`fault`](#fault)
+    - [`panic`](#panic)
+    - [`kernel`](#kernel)
+    - [`process`](#process)
+    - [`commands history`](#commands-history)
 
 <!-- tocstop -->
 
@@ -38,6 +39,7 @@ Setup
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(&reboot_function),
     )
     .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
@@ -640,6 +642,7 @@ tock$
           uart_mux,
           mux_alarm,
           process_printer,
+          Some(&reboot_function),
       )
       .finalize(components::process_console_component_static!(
           nrf52833::rtc::Rtc,

@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //! ```rust
-//! let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, alarm_mux, process_printer)
+//! let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, alarm_mux, process_printer, Some(&reboot_function))
 //!     .finalize(process_console_component_static!());
 //! ```
 
@@ -66,6 +66,7 @@ pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static 
     uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     process_printer: &'static dyn ProcessPrinter,
+    reboot_function: Option<&'static (dyn Fn() + 'static)>,
 }
 
 impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
@@ -76,12 +77,14 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
         uart_mux: &'static MuxUart,
         alarm_mux: &'static MuxAlarm<'static, A>,
         process_printer: &'static dyn ProcessPrinter,
+        reboot_function: Option<&'static (dyn Fn() + 'static)>,
     ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A> {
         ProcessConsoleComponent {
             board_kernel,
             uart_mux,
             alarm_mux,
             process_printer,
+            reboot_function,
         }
     }
 }
@@ -178,6 +181,7 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
             command_history_buffer,
             self.board_kernel,
             kernel_addresses,
+            self.reboot_function,
             Capability,
         ));
         hil::uart::Transmit::set_transmit_client(console_uart, console);

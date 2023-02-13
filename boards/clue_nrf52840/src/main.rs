@@ -135,6 +135,13 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+// Function for the process console to use to reboot the board
+fn reboot() {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+}
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
@@ -722,6 +729,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(&reboot),
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc

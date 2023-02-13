@@ -497,6 +497,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();

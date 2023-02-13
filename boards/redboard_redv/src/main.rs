@@ -244,6 +244,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(
         e310_g002::chip::E310xClint
