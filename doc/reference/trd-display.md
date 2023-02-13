@@ -30,37 +30,39 @@ The Display HIL defines three main items that are present in all the displays:
   2. The `TextBuffer` that handles text data that is being displayed, used for text
   3. The `Screen` that handles the parameters of the actual display hardware
 
-The separation between framebuffer, textbuffer and screen has been made as they may function
-as independant systems. For instance, the framebuffer could be used either for a
-screen or fopr a virtual framebuffer, while the screen could be used either for
+The separation between frame buffer, text buffer and screen has been made as they may function
+as independent systems. For instance, the frame buffer could be used either for a
+screen or for a virtual frame buffer, while the screen could be used either for
 graphic screens or text screens.
 
 The Display HIL is in the kernel crate, in module `hil::display`. It provides seven main
 traits:
 
   * `kernel::hil::display::FrameBuffer`: provides an abstraction of
-    the a framebuffer.
+    the a frame buffer.
   * `kernel::hil::display::FrameBufferSetup`: provides an abstraction
-  of a framebuffer that the configuration of several parameters such as
+  of a frame buffer that the configuration of several parameters such as
   resolution, color mode, etc.
   * `kernel::hil::display::TextBuffer`: provides an abstraction of
-    the a textbuffer.
+    the a text buffer.
   * `kernel::hil::display::Screen`: provides an abstraction of an actual
-  screen device and deals with functionallity like power, color inversion
+  screen device and deals with functionality like power, color inversion
   and brightness.
   * `kernel::hil::display::Display`: combines the `FrameBuffer` and 
   the `Screen` trait.
   * `kernel::hil::display::DisplayAdvanced`: combines the `Display` and 
   the `FrameBufferSetup` trait.
 
-The Display HIL povides ... client traits:
-  * `kernel::hil::display::FrameBufferClient`: provides an abstraction of
-    the a framebuffer.
-  * `kernel::hil::display::FrameBufferSetup`: provides an abstraction
-  of a framebuffer that the configuration of several parameters such as
-  resolution, color mode, etc.
+The Display HIL provides three client traits:
+  * `kernel::hil::display::FrameBufferClient`
+  * `kernel::hil::display::TextBufferClient`
+  * `kernel::hil::display::ScreenClient`
 
 This document describes these traits and their semantics.
+
+2 Text Formats
+
+3 Graphic Formats
 
 2 `FrameBuffer` and `FrameBufferClient` traits
 ===============================
@@ -176,10 +178,10 @@ This section describes the standard Tock capsules for displays.
 =================================
 ```
 Alexandru Radovici
-Wyliodrin SRL
+OxidOS Automotive SRL
 Bucharest, 061103
 Romania
-alexandru.radovici@wyliodrin.com
+alexandru.radovici@oxidos.io
 
 Dorota Czaplejewicz <gihu.dcz@porcupinefactory.org>
 ```

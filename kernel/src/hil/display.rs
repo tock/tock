@@ -1,10 +1,18 @@
-//! Interface for screens and displays.
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2023
+// Copyright OxidOS Automotive SRL 2023
+//
+// Author: Alexandru Radovici <alexandru.radovici@oxidos.io>
+
+//! Interface for text and graphics displays.
 use crate::ErrorCode;
 use core::ops::Add;
 use core::ops::Sub;
 
 pub const MAX_BRIGHTNESS: u16 = 65536;
 
+/// Defines the rotation of a display
 #[derive(Copy, Clone, PartialEq)]
 pub enum Rotation {
     Normal,
@@ -61,21 +69,27 @@ impl Sub for Rotation {
     }
 }
 
+/// Defines the pixel encoding format used for
+/// graphical displays.
 #[derive(Copy, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 #[non_exhaustive]
 pub enum PixelFormat {
     /// Pixels encoded as 1-bit, used for monochromatic displays
     Mono,
-    /// Pixels encoded as 2-bit red channel, 3-bit green channel, 3-bit blue channel.
+    /// Pixels encoded as 2-bit red channel, 3-bit green channel,
+    /// 3-bit blue channel.
     RGB_233,
-    /// Pixels encoded as 5-bit red channel, 6-bit green channel, 5-bit blue channel.
+    /// Pixels encoded as 5-bit red channel, 6-bit green channel,
+    /// 5-bit blue channel.
     RGB_565,
-    /// Pixels encoded as 8-bit red channel, 8-bit green channel, 8-bit blue channel.
+    /// Pixels encoded as 8-bit red channel, 8-bit green channel,
+    /// 8-bit blue channel.
     RGB_888,
-    /// Pixels encoded as 8-bit alpha channel, 8-bit red channel, 8-bit green channel, 8-bit blue channel.
+    /// Pixels encoded as 8-bit alpha channel, 8-bit red channel,
+    /// 8-bit green channel, 8-bit blue channel.
     ARGB_8888,
-    // other pixel formats may be defined.
+    // other pixel formats may be defined due to #[non_exhaustive].
 }
 
 impl PixelFormat {
@@ -90,6 +104,8 @@ impl PixelFormat {
     }
 }
 
+/// Defines the character encoding format used for
+/// text displays.
 #[derive(Copy, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 #[non_exhaustive]
@@ -106,17 +122,22 @@ pub enum CharacterFormat {
     /// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
     /// B - blink
     VGA,
+    // other character formats may be defined due to #[non_exhaustive].
 }
 
+/// Defines the resolution (width x height in pixels) and
+/// the pixel encoding format for a graphical display.
 #[derive(Copy, Clone, PartialEq)]
 pub struct GraphicsMode {
     pub frame: GraphicsFrame,
     pub pixel_format: PixelFormat,
 }
 
+/// Defines the resolution (columns x lines of characters) and
+/// the character encoding format for a text display.
 #[derive(Copy, Clone, PartialEq)]
 pub struct TextMode {
-    pub frame: TextFrame,
+    pub frame: CharacterFrame,
     pub character_format: CharacterFormat,
 }
 
@@ -133,11 +154,21 @@ pub struct GraphicsFrame {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub struct TextFrame {
+pub struct CharacterFrame {
     columns: usize,
     lines: usize,
 }
 
+/// Defines the minimum tile that a graphical display
+/// can receive when the frame buffer is updated.
+///
+/// Depending in the display's hardware wiring, some displays
+/// are not able to update their internal frame buffer pixel
+/// by pixel. For instance, monochrome displays using a
+/// 1 bit per pixel encoding require a minimum of 8 pixels,
+/// represented by one byte, to display.
+///
+/// The alignment
 #[derive(Copy, Clone, PartialEq)]
 pub struct Tile {
     pub align: Align,
@@ -150,40 +181,44 @@ pub struct Point {
     pub y: usize,
 }
 
-/* TextBuffer */
+/// Trait for interacting with a text buffer that is displayed on
+/// a character (text) display.
+///
+/// This trait includes the text and the text formatting, like color,
+/// background color and any other display specific formatting.
 pub trait TextBuffer<'a> {
     fn set_client(&self, client: Option<&'a dyn TextBufferClient>);
 
-    /// Returns a tuple (width, height) with the resolution of the
-    /// screen that is being used. This function is synchronous as the
-    /// resolution is known by the driver at any moment.
+    /// Returns the text buffer's mode that includes the size (in characters)
+    /// of the screen and the character encoding format used.
     ///
-    /// The resolution is constant.
+    /// The text mode is constant as the driver should know the displays's mode.
     fn get_mode(&self) -> TextMode;
 
-    /// Sends a write command to the driver, and the buffer to write from
-    /// and the len are sent as arguments. When the `write` operation is
-    /// finished, the driver will call the `write_complete()` callback.
+    /// Sends a write command to the driver.
+    ///
+    /// The buffer to write from and the length are sent as arguments.
+    /// When the `print` operation is finished, the driver will call
+    /// the `write_complete()` callback.
     ///
     /// Return values:
     /// - `Ok(())`: The write command is valid and will be sent to the driver.
     /// - `BUSY`: The driver is busy with another command.
-    fn print(
+    fn write(
         &self,
         buffer: &'static mut [u8],
         len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
 
-    /// Sends to the driver a command to set the cursor at a given position
-    /// (x_position, y_position). When finished, the driver will call the
-    /// `command_complete()` callback.
+    /// Sends to the driver a command to set the cursor at a given position.
+    /// When finished, the driver will call the `command_complete()` callback.
     ///
     /// Return values:
     /// - `Ok(())`: The command is valid and will be sent to the driver.
     /// - `BUSY`: Another command is in progress.
     fn set_cursor_position(&self, position: Point) -> Result<(), ErrorCode>;
 
-    /// Sends to the driver a command to show the cursor. When finished,
+    /// Sends to the driver a command to show or hide the cursor. When finished,
     /// the driver will call the `command_complete()` callback.
     ///
     /// Return values:
@@ -191,8 +226,9 @@ pub trait TextBuffer<'a> {
     /// - `BUSY`: Another command is in progress.
     fn set_show_cursor(&self, show: bool) -> Result<(), ErrorCode>;
 
-    /// Sends to the driver a command to turn on the blinking cursor. When finished,
-    /// the driver will call the `command_complete()` callback.
+    /// Sends to the driver a command to turn on the blinking
+    /// cursor. When finished the driver will
+    /// call the `command_complete()` callback.
     ///
     /// Return values:
     /// - `Ok(())`: The command is valid and will be sent to the driver.
@@ -217,23 +253,27 @@ pub trait TextBufferClient {
     fn write_complete(&self, buffer: &'static mut [u8], len: usize, r: Result<(), ErrorCode>);
 }
 
-/* FrameBuffer */
-
+/// Trait for interacting with a frame buffer that is displayed on
+/// a graphical (pixels) display.
 pub trait FrameBuffer<'a> {
-    /// Returns a tuple (width, height) with the current resolution (in pixels)
-    /// This function is synchronous as the driver should know this value without
-    /// requesting it from the screen.
+    /// Returns the frame buffer's mode that includes the size (in pixels)
+    /// of the screen and the pixel encoding format used.
     ///
-    /// note that width and height may change due to rotation
+    /// The graphics mode is constant as the driver should know the displays's mode.
     fn get_mode(&self) -> GraphicsMode;
 
-    /// Returns the format of minimum tile (in bytes) that can be written to the framebuffer.
+    /// Returns the format of minimum tile (in pixels) that can be written to the frame buffer.
     ///
-    /// Due to hardware constraints, framebuffer writes have to be rounded up to a tile size.
-    /// This means that the size of the write buffer has to be a multiple of the tile. An
-    /// example use case is a framebuffer that has the minimum write unit a full line on
-    /// the display. This means that clients can only write entier lines to the framebuffer
-    /// as opossed to single pixels.
+    /// Due to hardware constraints, some frame buffers require that writes be rounded
+    /// up to a tile size. This means that the size of the write buffer and write frame have
+    /// to be a multiple of the tile. An example use case is a frame buffer that has the minimum
+    /// write unit a full line on the display. This means that clients can only write entire lines
+    /// to the frame buffer as opposed to single pixels.
+    ///
+    /// The tile's size must be aligned to a byte boundary. For instance, a tile size of
+    /// 3x3 pixels with a MONO encoding is not value, as this would translate to a 3x3 bits.
+    /// A tile of 1x8 pixels using MONO encoding is be valid, as it is aligned to a byte
+    /// boundary.
     fn get_tile_format(&self) -> Tile;
 
     /// Sets the video memory frame.
@@ -247,7 +287,7 @@ pub trait FrameBuffer<'a> {
     fn set_write_frame(&self, origin: Point, size: GraphicsFrame) -> Result<(), ErrorCode>;
 
     /// Returns the required buffer padding in the format of
-    /// a tuble (free bytes before, free bytes after).
+    /// a tuple (free bytes before, free bytes after).
     ///
     /// The supplied buffer has to be
     /// +----------------------+------------+---------------------+
@@ -255,7 +295,7 @@ pub trait FrameBuffer<'a> {
     /// +----------------------+------------+---------------------+
     ///
     /// Some displays,like the SSD1306, require some command bytes placed before
-    /// and after the actual framebuffer data. Withoutn this padding, the display
+    /// and after the actual frame buffer data. Without this padding, the display
     /// driver would have to keep another buffer and additional data copy.
     ///
     /// The HIL's user has to fill in data only in between the padding
@@ -265,6 +305,18 @@ pub trait FrameBuffer<'a> {
 
     /// Sends a write command to write data in the selected video memory frame.
     /// When finished, the driver will call the `write_complete()` callback.
+    ///
+    /// Writing pixel data is performed left to right, from top to bottom.
+    /// The first pixel in the buffer will be displayed in the upper left corner
+    /// of the selected write frame. The second pixel is displayed to the first
+    /// pixel's right. The next pixel after the last pixel in the first line
+    /// is displayed on the first position of the second line.
+    ///
+    /// Displays might not use this natively, so the display driver has to make sure
+    /// that this constraint is followed. For instance, there are monochrome displays
+    /// that can only write to their memory 8 vertical pixels at a time. It is their
+    /// driver's responsibility to define a tile of 8x8 pixels and transpose the
+    /// received pixels from the buffer.
     ///
     /// Return values:
     /// - `Ok(())`: Write is valid and will be sent to the screen.
@@ -277,16 +329,19 @@ pub trait FrameBuffer<'a> {
         reset_position: bool,
     ) -> Result<(), ErrorCode>;
 
-    /// Flush the framebuffer changes to the hardware device.
+    /// Flush the frame buffer changes to the hardware device.
     ///
-    /// Some framebuffers keep in a temporary memory the changes and require a flush command
+    /// Some frame buffers keep in a temporary memory the changes and require a flush command
     /// to send the changes to the hardware.
+    ///
+    /// The display client driver should never assume that the display
+    /// does not need to be flushed.
     ///
     /// Return values:
     /// - `Ok(())`: Flush is in progress and the client will receive
     ///    a call to `command_complete`.
     /// - `ENOSUPPORT`: Flush has been done synchronous or there is no
-    ///    no need to flush the framebuffer.
+    ///    no need to flush the frame buffer.
     /// - `BUSY`: Another write or flush is in progress.
     fn flush(&self) -> Result<(), ErrorCode>;
 
@@ -295,43 +350,47 @@ pub trait FrameBuffer<'a> {
 }
 
 pub trait FrameBufferClient {
-    /// The framebuffer will call this function to notify that the write command has finished.
+    /// The frame buffer will call this function to notify that the write command has finished.
     /// This is different from `command_complete` as it has to pass back the write buffer
     fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>);
 
-    /// The framebuffer will call this function to notify that a command (except `write` and
+    /// The frame buffer will call this function to notify that a command (except `write` and
     /// `write_continue`) has finished.
     fn command_complete(&self, r: Result<(), ErrorCode>);
 }
 
 pub trait FrameBufferSetup<'a>: FrameBuffer<'a> {
-    /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
+    /// Sets the display mode. Returns ENOSUPPORT if the mode is
     /// not supported. The function should return Ok(()) if the request is registered
-    /// and will be sent to the screen.
+    /// and will be sent to the display.
     /// Upon Ok(()), the caller has to wait for the `command_complete` callback function
     /// that will return the actual Result<(), ErrorCode> after setting the resolution.
     fn set_mode(&self, mode: GraphicsMode) -> Result<(), ErrorCode>;
 
-    /// Returns the number of the resolutions supported.
-    /// should return at least one (the current resolution)
-    /// This function is synchronous as the driver should know this value without
-    /// requesting it from the screen (most screens do not support such a request,
-    /// resolutions are described in the data sheet).
+    /// Returns the number of modes supported.
     ///
-    /// If the screen supports such a feature, the driver should request this information
+    /// This should return at least one (the current mode).
+    /// This function is synchronous as the driver should know this value without
+    /// requesting it from the display (most displays do not support such a request,
+    /// modes are described in the data sheet).
+    ///
+    /// If the display supports such a feature, the driver should request this information
     /// from the screen upfront.
     fn get_num_supported_modes(&self) -> usize;
 
     /// Can be called with an index from 0 .. count-1 and will
-    /// a tuple (width, height) with the current resolution (in pixels).
-    /// note that width and height may change due to rotation
+    /// a [`GraphicsMode`] with the current mode.
+    ///
+    /// Note that the width and height may change due to rotation.
     ///
     /// This function is synchronous as the driver should know this value without
-    /// requesting it from the screen.
+    /// requesting it from the display.
     fn get_supported_mode(&self, index: usize) -> Option<GraphicsMode>;
 }
 
-/* Screen */
+/// Trait for interacting with the physical screen.
+///
+/// This trait applies to text and graphic displays.
 pub trait Screen<'a> {
     /// Returns the current rotation.
     /// This function is synchronous as the driver should know this value without
@@ -375,7 +434,7 @@ pub trait Screen<'a> {
     /// - 1..MAX_BRIGHTNESS - on, set brightness to the given level
     ///
     /// The display should interpret the brightness value as *lightness*
-    /// (each increment should change preceived brightness the same).
+    /// (each increment should change perceived brightness the same).
     /// 1 shall be the minimum supported brightness,
     /// `MAX_BRIGHTNESS` and greater represent the maximum.
     /// Values in between should approximate the intermediate values;
@@ -391,23 +450,21 @@ pub trait ScreenClient {
     fn command_complete(&self, r: Result<(), ErrorCode>);
 }
 
-/* Text Display */
-
+/// Trait that allows the interaction with a text display
 pub trait TextDisplay<'a>: TextBuffer<'a> + Screen<'a> {}
 
 // Provide blanket implementation for trait group
 impl<'a, T: Screen<'a> + TextBuffer<'a>> TextDisplay<'a> for T {}
 
-/* Graphic Display */
-
+/// Trait that allows the interaction with a graphic display
 pub trait GraphicDisplay<'a>: Screen<'a> + FrameBuffer<'a> {}
 
 // Provide blanket implementations for trait group
 impl<'a, T: Screen<'a> + FrameBuffer<'a>> GraphicDisplay<'a> for T {}
 
-/* Display Advanced */
-
-pub trait FullGraphicDisplay<'a>: GraphicDisplay<'a> + FrameBufferSetup<'a> {}
+/// Trait that allows the interaction with an advanced graphic display
+/// that allow multiple working modes.
+pub trait GraphicDisplayAdvanced<'a>: GraphicDisplay<'a> + FrameBufferSetup<'a> {}
 
 // Provide blanket implementations for trait group
-impl<'a, T: GraphicDisplay<'a> + FrameBufferSetup<'a>> FullGraphicDisplay<'a> for T {}
+impl<'a, T: GraphicDisplay<'a> + FrameBufferSetup<'a>> GraphicDisplayAdvanced<'a> for T {}
