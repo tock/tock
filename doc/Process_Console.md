@@ -8,22 +8,21 @@ Process Console
 
 <!-- toc -->
 
-- [Process Console](#process-console)
-  - [Setup](#setup)
-  - [Using Process Console](#using-process-console)
-  - [Commands](#commands)
-    - [`help`](#help)
-    - [`list`](#list)
-      - [`list` Command Fields](#list-command-fields)
-    - [`status`](#status)
-    - [`start` and `stop`](#start-and-stop)
-    - [`terminate` and `boot`](#terminate-and-boot)
-    - [`fault`](#fault)
-    - [`panic`](#panic)
-    - [`reboot`](#reboot)
-    - [`kernel`](#kernel)
-    - [`process`](#process)
-    - [`commands history`](#commands-history)
+- [Setup](#setup)
+- [Using Process Console](#using-process-console)
+- [Commands](#commands)
+  * [`help`](#help)
+  * [`list`](#list)
+    + [`list` Command Fields](#list-command-fields)
+  * [`status`](#status)
+  * [`start` and `stop`](#start-and-stop)
+  * [`terminate` and `boot`](#terminate-and-boot)
+  * [`fault`](#fault)
+  * [`panic`](#panic)
+  * [`reboot`](#reboot)
+  * [`kernel`](#kernel)
+  * [`process`](#process)
+  * [`commands history`](#commands-history)
 
 <!-- tocstop -->
 
