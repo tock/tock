@@ -291,9 +291,6 @@ pub unsafe fn main() {
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
-
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
         peripherals
