@@ -37,6 +37,7 @@ use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
+use rp2040::watchdog::Watchdog;
 
 mod io;
 
@@ -45,7 +46,13 @@ mod flash_bootloader;
 /// Allocate memory for the stack
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
+
+// Function for the process console to reboot the Raspberry Pi Pico.
+fn reboot_function() {
+    let watchdog = Watchdog::new();
+    watchdog.reboot();
+}
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -509,7 +516,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        None,
+        Some(&reboot_function),
     )
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();
