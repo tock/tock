@@ -19,6 +19,7 @@ use kernel::component::Component;
 use kernel::debug;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
+use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
@@ -250,9 +251,6 @@ pub unsafe fn main() {
     let peripherals = create_peripherals();
     peripherals.resolve_dependencies();
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
-
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
     peripherals.resets.reset_all_except(&[
         Peripheral::IOQSpi,
@@ -281,11 +279,15 @@ pub unsafe fn main() {
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
+
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
         peripherals
@@ -326,14 +328,44 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
+    // CDC
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Arduino",                      // Manufacturer
+            "Nano RP2040 Connect - TockOS", // Product
+            "00000000000000000",            // Serial number
+        ]
+    );
+
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &peripherals.usb,
+        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        64,
+        0x0,
+        0x1,
+        strings,
+        mux_alarm,
+        dynamic_deferred_caller,
+        None,
+    )
+    .finalize(components::cdc_acm_component_static!(
+        rp2040::usb::UsbCtrl,
+        rp2040::timer::RPTimer
+    ));
+
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+        .finalize(components::uart_mux_component_static!());
+
+    // Uncomment this to use UART as an output
+    // let uart_mux2 = components::console::UartMuxComponent::new(
+    //     &peripherals.uart0,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -345,6 +377,9 @@ pub unsafe fn main() {
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
+
+    cdc.enable();
+    cdc.attach();
 
     let gpio = GpioComponent::new(
         board_kernel,

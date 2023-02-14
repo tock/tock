@@ -284,6 +284,9 @@ pub unsafe fn main() {
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);

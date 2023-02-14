@@ -282,6 +282,9 @@ pub unsafe fn main() {
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
@@ -359,7 +362,6 @@ pub unsafe fn main() {
 
     // UART
     // Create a shared UART channel for kernel debug.
-
     let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
         .finalize(components::uart_mux_component_static!());
 
@@ -370,9 +372,6 @@ pub unsafe fn main() {
     //     dynamic_deferred_caller,
     // )
     // .finalize(components::uart_mux_component_static!());
-
-    // Set the UART used for panic (needed only if UART is used for the console)
-    // io::WRITER.set_uart(&peripherals.uart0);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
