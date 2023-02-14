@@ -5,6 +5,7 @@ use kernel::debug::{self, IoWrite};
 use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
+
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::uart::Uart;
 
@@ -20,6 +21,25 @@ pub struct Writer {
 impl Writer {
     pub fn set_uart(&self, uart: &'static Uart) {
         self.uart.set(uart);
+    }
+
+    fn configure_uart<'a>(&self, uart: &'a Uart) {
+        if !uart.is_configured() {
+            let parameters = Parameters {
+                baud_rate: 115200,
+                width: Width::Eight,
+                parity: Parity::None,
+                stop_bits: StopBits::One,
+                hw_flow_control: false,
+            };
+            //configure parameters of uart for sending bytes
+            let _ = uart.configure(parameters);
+            //set RX and TX pins in UART mode
+            let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
+            let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
+            gpio_rx.set_function(GpioFunction::UART);
+            gpio_tx.set_function(GpioFunction::UART);
+        }
     }
 
     fn write_to_uart<'a>(&self, uart: &'a Uart, buf: &[u8]) {
@@ -45,29 +65,12 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) {
         self.uart.map_or_else(
             || {
-                // If no UART is configured for panic print, use UART0
-                let uart0 = &Uart::new_uart0();
-
-                if !uart0.is_configured() {
-                    let parameters = Parameters {
-                        baud_rate: 115200,
-                        width: Width::Eight,
-                        parity: Parity::None,
-                        stop_bits: StopBits::One,
-                        hw_flow_control: false,
-                    };
-                    //configure parameters of uart for sending bytes
-                    let _result = uart0.configure(parameters);
-                    //set RX and TX pins in UART mode
-                    let gpio_tx = RPGpioPin::new(RPGpio::GPIO0);
-                    let gpio_rx = RPGpioPin::new(RPGpio::GPIO1);
-                    gpio_rx.set_function(GpioFunction::UART);
-                    gpio_tx.set_function(GpioFunction::UART);
-                }
-
-                self.write_to_uart(uart0, buf);
+                let uart = Uart::new_uart0();
+                self.configure_uart(&uart);
+                self.write_to_uart(&uart, buf);
             },
             |uart| {
+                self.configure_uart(uart);
                 self.write_to_uart(uart, buf);
             },
         );

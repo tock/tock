@@ -51,15 +51,6 @@ mod flash_bootloader;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// Function for the CDC/USB stack used to ask the MCU to reset into
-// tockbootloader.
-fn baud_rate_reset_bootloader_enter() {
-    // unsafe {
-    // cortexm0::scb::reset();
-    // }
-    // TODO reset into bootloader
-}
-
 // Manually setting the boot header section that contains the FCB header
 #[used]
 #[link_section = ".flash_bootloader"]
@@ -296,6 +287,10 @@ pub unsafe fn main() {
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
+
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
         peripherals
@@ -350,12 +345,12 @@ pub unsafe fn main() {
         &peripherals.usb,
         //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
         64,
-        0x0,
-        0x1,
+        peripherals.sysinfo.get_manufacturer_rp2040() as u16,
+        peripherals.sysinfo.get_part() as u16,
         strings,
         mux_alarm,
         dynamic_deferred_caller,
-        Some(&baud_rate_reset_bootloader_enter),
+        None,
     )
     .finalize(components::cdc_acm_component_static!(
         rp2040::usb::UsbCtrl,
@@ -376,8 +371,8 @@ pub unsafe fn main() {
     // )
     // .finalize(components::uart_mux_component_static!());
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
+    // Set the UART used for panic (needed only if UART is used for the console)
+    // io::WRITER.set_uart(&peripherals.uart0);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
