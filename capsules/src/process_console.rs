@@ -39,7 +39,7 @@ pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
-    b"help status list stop start fault boot terminate process kernel reboot panic\r\n";
+    b"help status list stop start fault boot terminate process kernel reset panic\r\n";
 
 /// Escape character for ANSI escape sequences.
 const ESC: u8 = '\x1B' as u8;
@@ -139,8 +139,8 @@ pub struct ProcessConsole<
     /// Memory addresses of where the kernel is placed in memory on chip.
     kernel_addresses: KernelAddresses,
 
-    /// Function used to reboot the device in bootloader mode
-    reboot_function: Option<&'a (dyn Fn() + 'a)>,
+    /// Function used to reset the device in bootloader mode
+    reset_function: Option<&'a (dyn Fn() + 'a)>,
 
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
@@ -254,7 +254,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         cmd_history_buffer: &'static mut [Command; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
-        reboot_function: Option<&'a (dyn Fn() + 'a)>,
+        reset_function: Option<&'a (dyn Fn() + 'a)>,
         capability: C,
     ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
@@ -283,7 +283,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             execute: Cell::new(false),
             kernel: kernel,
             kernel_addresses: kernel_addresses,
-            reboot_function: reboot_function,
+            reset_function: reset_function,
             capability: capability,
         }
     }
@@ -772,9 +772,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             self.writer_state.replace(WriterState::KernelStart);
                         }
                         if clean_str.starts_with("reset") {
-                            self.reboot_function.map_or_else(
+                            self.reset_function.map_or_else(
                                 || {
-                                    let _ = self.write_bytes(b"Reboot function is not implemented");
+                                    let _ = self.write_bytes(b"Reset function is not implemented");
                                 },
                                 |f| {
                                     f();
