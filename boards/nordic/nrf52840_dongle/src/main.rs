@@ -71,6 +71,13 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+// Function for the process console to use to reboot the board
+fn reset() {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+}
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
@@ -328,7 +335,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        None,
+        Some(&reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc<'static>

@@ -45,6 +45,13 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+// Function for the process console to use to reboot the board
+fn reset() {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+}
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
@@ -307,7 +314,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        None,
+        Some(&reset),
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>

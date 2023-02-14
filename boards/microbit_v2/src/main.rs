@@ -78,6 +78,13 @@ pub static mut STACK_MEMORY: [u8; 0x1100] = [0; 0x1100];
 // debug mode requires more stack space
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+// Function for the process console to use to reboot the board
+fn reset() {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+}
+
 /// Supported drivers by the platform
 pub struct MicroBit {
     ble_radio: &'static capsules::ble_advertising_driver::BLE<
@@ -672,7 +679,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        None,
+        Some(&reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
