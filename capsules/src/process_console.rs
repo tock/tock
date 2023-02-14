@@ -140,7 +140,7 @@ pub struct ProcessConsole<
     kernel_addresses: KernelAddresses,
 
     /// Function used to reset the device in bootloader mode
-    reset_function: Option<&'a (dyn Fn() + 'a)>,
+    reset_function: Option<fn() -> !>,
 
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
@@ -254,7 +254,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         cmd_history_buffer: &'static mut [Command; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
-        reset_function: Option<&'a (dyn Fn() + 'a)>,
+        reset_function: Option<fn() -> !>,
         capability: C,
     ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {

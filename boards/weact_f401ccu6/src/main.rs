@@ -43,9 +43,12 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 // Function for the process console to use to reboot the board
-fn reset() {
+fn reset() -> ! {
     unsafe {
         cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
     }
 }
 
@@ -445,7 +448,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(&reset),
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         stm32f401cc::tim2::Tim2

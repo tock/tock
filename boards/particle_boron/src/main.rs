@@ -92,9 +92,12 @@ static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 // Function for the process console to use to reboot the board
-fn reset() {
+fn reset() -> ! {
     unsafe {
         cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
     }
 }
 
@@ -419,7 +422,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(&reset),
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>

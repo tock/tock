@@ -41,7 +41,6 @@ use rp2040::i2c::I2c;
 use rp2040::resets::Peripheral;
 use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
-use rp2040::watchdog::Watchdog;
 
 mod io;
 
@@ -53,9 +52,13 @@ mod flash_bootloader;
 pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 
 // Function for the process console to reboot the Raspberry Pi Pico.
-fn reboot_function() {
-    let watchdog = Watchdog::new();
-    watchdog.reboot();
+fn reset_function() -> ! {
+    unsafe {
+        cortexm0p::scb::reset();
+    }
+    loop {
+        cortexm0p::support::nop();
+    }
 }
 
 // Function for the CDC/USB stack used to ask the MCU to reset into
@@ -504,7 +507,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(&reboot_function),
+        Some(reset_function),
     )
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();

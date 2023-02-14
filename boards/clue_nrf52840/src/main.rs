@@ -136,9 +136,12 @@ fn baud_rate_reset_bootloader_enter() {
 }
 
 // Function for the process console to use to reboot the board
-fn reset() {
+fn reset() -> ! {
     unsafe {
         cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
     }
 }
 
@@ -729,7 +732,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(&reset),
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc

@@ -39,7 +39,7 @@ Setup
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(&reboot_function),
+        Some(reset_function),
     )
     .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
@@ -651,7 +651,7 @@ tock$
           uart_mux,
           mux_alarm,
           process_printer,
-          Some(&reboot_function),
+          Some(reset_function),
       )
       .finalize(components::process_console_component_static!(
           nrf52833::rtc::Rtc,
