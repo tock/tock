@@ -1,68 +1,180 @@
 `tock_registers::peripheral!` Macro and Trait Interface Design
 ==============================================================
 
-## An oversimplified explanation
+## Separating operations from the `tock_registers` crate
 
-`peripheral!` turns a register definition like:
+`register_structs!` requires callers to specify a type for each register that
+indicates which operations the registers can support. Examples include
+`ReadOnly`, `WriteOnly`, `ReadWrite`, and `ReadWriteRiscvCsr`. Most of these
+happen to be implemented in `tock_registers`, but that's not true of all. In
+general, the crate that specifies operations depends on `tock_registers`, and
+a generic view of the dependency tree looks like:
+
+```
+    +--------+
+    | Driver |
+    +--------+
+         |
+         V
++------------------+
+| Operations crate |
+| (e.g. riscv-csr) |
++------------------+
+         |
+         V
+ +----------------+
+ | tock_registers |
+ +----------------+
+```
+
+For the purposes of this document, we'll assume that the read and write
+operations are defined outside the `tock_registers` crate, in their own crate.
+In practice, they'll be defined inside `tock_registers`, but other operations
+(such as `ReadWriteRiscvCsr`) will remain in external crates.
+
+Note that I referred to `read` and `write` as separate operations: the fact they
+are grouped together in a single type is an artifact of `register_structs!`'
+implementation. `peripheral!` treats each register as having a list of supported
+operations. This results in a dependency tree with multiple operations crates:
+
+```
+   +--------+
+   | Driver |
+   +--------+
+     |    |
+     V    V
++------+ +-------+
+| read | | write |
++------+ +-------+
+    |        |
+    V        V
++----------------+
+| tock_registers |
++----------------+
+```
+
+## Adding unit test support to the diagram
+
+One of the features we want to support in `peripheral!` is unit testing: it
+should be possible to use the generated struct with a fake or mock peripheral
+rather than the real hardware peripheral. This means that `peripheral!` cares
+about an even larger view of the dependency graph:
+
+```
++-------------+ +-----------+
+| Real Kernel | | Unit test |
++-------------+ +-----------+
+            |    |
+            V    V
+          +--------+
+          | Driver |
+          +--------+
+            |    |
+            V    V
+       +------+ +-------+
+       | read | | write |
+       +------+ +-------+
+           |        |
+           V        V
+       +----------------+
+       | tock_registers |
+       +----------------+
+```
+
+## High level: what should `peripheral!` generate?
+
+Given the following peripheral definition:
 
 ```rust
 peripheral! {
-    pub foo {
+    foo {
         0x00 => ctrl: u32 { read + write }
         0x04 => received: u8 { read }
     }
 }
 ```
 
-into a module, which contains an `Accessor` trait and a `Registers` struct:
+we want to generate at least a trait and a struct:
 
 ```rust
-pub mod foo {
-    trait Accessor: /* To be explained */ {}
+mod foo {
+    // An Accessor provides access to the hardware, whether real or fake.
+    pub trait Accessor: /* AAAA */ { /* BBBB */ }
 
-    struct Registers<A: Accessor> {
-        pub ctrl: tock_registers::Register<0x00, Self, A>,
-        pub received: tock_registers::Register<0x04, Self, A>,
-    }
-
-    /* Plus trait impls that I will explain later */
-}
-```
-
-## What is this `Accessor` trait?
-
-`Accessor` exists to facilitate unit testing. An `Accessor` provides access to a
-peripheral: either the real peripheral (e.g. via MMIO access) or a mock/fake
-version. Operations performed on the members of `foo::Registers` forward to the
-accessor; if you call `foo.ctrl.get()`, it will invoke a method on an instance
-of `A`.
-
-## Where is this `A` instance?
-
-Each `tock_registers::Register` instance needs access to an instance of `A`, so
-they must contain it:
-
-```rust
-// In tock_registers
-pub struct Registers<const REL_ADDR: usize, Peripheral, Accessor> {
-    pub accessor: A,
-    /* ... */
-}
-```
-
-Now the implementation of `foo.ctrl.get()` can call the accessor:
-
-```rust
-impl<Peripheral, A: ...> /*Mystery trait*/ for Register<..., Peripheral, A> {
-    fn get(&self) -> ... {
-        self.accessor.get::<...>()
+    pub struct Registers<A: Accessor> {
+        ctrl: /* CCCC */,
+        received: /* CCCC */,
     }
 }
 ```
 
-## What is this mystery trait?
+Obviously there are some missing pieces in the above, which I will be
+discussing later.
 
-`Register` is defined inside `tock_registers`, but some of the operations are
-not. For example, RISC-V CSR traits are defined in the `riscv-csr` crate, which
-depends on `tock_registers`. Therefore, the methods on `Register` cannot be
-inherent impls. Instead, the 
+## What implements `Accessor`?
+
+As mentioned before, we want to provide both real and mock versions of the
+hardware. But what crate can define the corresponding types? The dependency
+graph gives us some clues:
+
+```
++-------------+ +-----------+
+| Real Kernel | | Unit test |
++-------------+ +-----------+
+            |    |
+            V    V
+          +--------+
+          | Driver |
+          +--------+
+            |    |
+=============================
+            V    V
+       +------+ +-------+
+       | read | | write |
+       +------+ +-------+
+           |        |
+           V        V
+       +----------------+
+       | tock_registers |
+       +----------------+
+```
+
+The `====` line divides client code (code using the `tock_registers` ecosystem)
+from the `tock_registers` ecosystem. Real and mock implementations must be
+provided by the crates below the line, otherwise they will be duplicated for
+every driver.
+
+Also, `read` and `write` cannot provide the `Accessor` impls, as the unit tests
+can only provide one type for `A`, and that type needs to support *all*
+operations.
+
+The answer is to provide the types in `tock_registers`:
+
+```rust
+// An Accessor implementation for working with real hardware. Implements
+// Accessor for every peripheral generated by the peripherals! macro.
+// Note: This must be a zero-sized type, as it may exist in an MMIO region.
+pub struct Real;
+
+// A mock version of all hardware. This implements Accessor for every peripheral
+// generated by the peripherals! macro.
+pub struct Mock {
+    // Fields are an implementation detail
+}
+```
+
+## Wait, but how can `Real` and `Mock` implement `Accessor`?
+
+The dependency direction is 
+
+```rust
+mod foo {
+    // An Accessor provides access to the hardware, whether real or fake.
+    pub trait Accessor: /* AAAA */ { /* BBBB */ }
+
+    pub struct Registers<A: Accessor> {
+        ctrl: /* CCCC */,
+        received: /* CCCC */,
+    }
+}
+```
