@@ -19,7 +19,7 @@ Process Console
   * [`terminate` and `boot`](#terminate-and-boot)
   * [`fault`](#fault)
   * [`panic`](#panic)
-  * [`reboot`](#reboot)
+  * [`reset`](#reset)
   * [`kernel`](#kernel)
   * [`process`](#process)
   * [`commands history`](#commands-history)
@@ -87,7 +87,7 @@ tock$
   - [`boot n`](#terminate-and-boot) - tries to restart a Terminated process with name n
   - [`fault n`](#fault) - forces the process with name n into a fault state
   - [`panic`](#panic) - causes the kernel to run the panic handler
-  - [`reboot`](#reboot) - causes the board to reboot
+  - [`reset`](#reset) - causes the board to reset
   - [`kernel`](#kernel) - prints the kernel memory map
   - [`process n`](#process) - prints the memory map of process with name n
   - [`commands history`](#commands-history) - scrolls through inserted user commands
@@ -544,11 +544,11 @@ tock$
     in the app's folder and open the .lst file.
 ```
 
-### `reboot`
-  - You can also reboot the board with the `panic` command:
+### `reset`
+  - You can also reset the board with the `reset` command:
 
 ```text
-    tock$ reboot
+    tock$ reset
 ```
 
 ### `kernel`

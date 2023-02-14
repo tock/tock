@@ -771,7 +771,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             // start state.
                             self.writer_state.replace(WriterState::KernelStart);
                         }
-                        if clean_str.starts_with("reboot") {
+                        if clean_str.starts_with("reset") {
                             self.reboot_function.map_or_else(
                                 || {
                                     let _ = self.write_bytes(b"Reboot function is not implemented");
