@@ -63,6 +63,12 @@ impl<'a, T> Drop for MapCellRef<'a, T> {
     }
 }
 
+/// Single panic location for MapCell::replace() failures
+#[inline(never)]
+fn replace_panic() -> ! {
+    panic!("MapCell::replace() on borrowed MapCell");
+}
+
 /// A mutable memory location that enforces borrow rules at runtime without
 /// possible panics.
 ///
@@ -187,7 +193,10 @@ impl<T> MapCell<T> {
 
     /// Same as try_replace but panics if the cell is already borrowed
     pub fn replace(&self, val: T) -> Option<T> {
-        self.try_replace(val).unwrap()
+        match self.try_replace(val) {
+            Err(_) => replace_panic(),
+            Ok(v) => v,
+        }
     }
 
     /// Try borrow a mutable reference to the data contained in this cell
