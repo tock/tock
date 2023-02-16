@@ -20,6 +20,7 @@ use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::led::LedHigh;
+use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
@@ -265,9 +266,6 @@ pub unsafe fn main() {
     let peripherals = create_peripherals();
     peripherals.resolve_dependencies();
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
-
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
     peripherals.resets.reset_all_except(&[
         Peripheral::IOQSpi,
@@ -296,11 +294,18 @@ pub unsafe fn main() {
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
     gpio_rx.set_function(GpioFunction::UART);
     gpio_tx.set_function(GpioFunction::UART);
+
+    // Set the UART used for panic
+    io::WRITER.set_uart(&peripherals.uart0);
+
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
         peripherals
@@ -324,7 +329,7 @@ pub unsafe fn main() {
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
     let dynamic_deferred_caller = static_init!(
         DynamicDeferredCall,
         DynamicDeferredCall::new(dynamic_deferred_call_clients)
@@ -341,14 +346,44 @@ pub unsafe fn main() {
     )
     .finalize(components::alarm_component_static!(RPTimer));
 
+    // CDC
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Raspberry Pi",                // Manufacturer
+            "pico explorer base - TockOS", // Product
+            "00000000000000000",           // Serial number
+        ]
+    );
+
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &peripherals.usb,
+        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        64,
+        peripherals.sysinfo.get_manufacturer_rp2040(),
+        peripherals.sysinfo.get_part(),
+        strings,
+        mux_alarm,
+        dynamic_deferred_caller,
+        None,
+    )
+    .finalize(components::cdc_acm_component_static!(
+        rp2040::usb::UsbCtrl,
+        rp2040::timer::RPTimer
+    ));
+
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+        .finalize(components::uart_mux_component_static!());
+
+    // Uncomment this to use UART as an output
+    // let uart_mux = components::console::UartMuxComponent::new(
+    //     &peripherals.uart0,
+    //     115200,
+    //     dynamic_deferred_caller,
+    // )
+    // .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -361,22 +396,23 @@ pub unsafe fn main() {
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
+    cdc.enable();
+    cdc.attach();
+
     let gpio = GpioComponent::new(
         board_kernel,
         capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             RPGpioPin,
             // Used for serial communication. Comment them in if you don't use serial.
+            // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
+            // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
             2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
             3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
             4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
             5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
             6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
             7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
-            8 => &peripherals.pins.get_pin(RPGpio::GPIO8),
-            9 => &peripherals.pins.get_pin(RPGpio::GPIO9),
-            10 => &peripherals.pins.get_pin(RPGpio::GPIO10),
-            11 => &peripherals.pins.get_pin(RPGpio::GPIO11),
             20 => &peripherals.pins.get_pin(RPGpio::GPIO20),
             21 => &peripherals.pins.get_pin(RPGpio::GPIO21),
             22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
