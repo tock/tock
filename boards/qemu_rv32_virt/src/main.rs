@@ -429,6 +429,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(
         qemu_rv32_virt_chip::chip::QemuRv32VirtClint

@@ -39,7 +39,7 @@ pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
-    b"help status list stop start fault boot terminate process kernel panic\r\n";
+    b"help status list stop start fault boot terminate process kernel reset panic\r\n";
 
 /// Escape character for ANSI escape sequences.
 const ESC: u8 = '\x1B' as u8;
@@ -138,6 +138,9 @@ pub struct ProcessConsole<
 
     /// Memory addresses of where the kernel is placed in memory on chip.
     kernel_addresses: KernelAddresses,
+
+    /// Function used to reset the device in bootloader mode
+    reset_function: Option<fn() -> !>,
 
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
@@ -251,6 +254,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         cmd_history_buffer: &'static mut [Command; COMMAND_HISTORY_LEN],
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
+        reset_function: Option<fn() -> !>,
         capability: C,
     ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
@@ -279,6 +283,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             execute: Cell::new(false),
             kernel: kernel,
             kernel_addresses: kernel_addresses,
+            reset_function: reset_function,
             capability: capability,
         }
     }
@@ -765,6 +770,16 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             // Prints kernel memory by moving the writer to the
                             // start state.
                             self.writer_state.replace(WriterState::KernelStart);
+                        }
+                        if clean_str.starts_with("reset") {
+                            self.reset_function.map_or_else(
+                                || {
+                                    let _ = self.write_bytes(b"Reset function is not implemented");
+                                },
+                                |f| {
+                                    f();
+                                },
+                            );
                         } else if clean_str.starts_with("panic") {
                             panic!("Process Console forced a kernel panic.");
                         } else {

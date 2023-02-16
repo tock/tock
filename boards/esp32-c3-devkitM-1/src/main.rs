@@ -286,6 +286,7 @@ unsafe fn setup() -> (
         uart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(
         esp32_c3::timg::TimG

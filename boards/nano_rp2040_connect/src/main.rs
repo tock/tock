@@ -44,7 +44,17 @@ mod flash_bootloader;
 /// Allocate memory for the stack
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
+
+// Function for the process console to reboot the Nano RP2040 Connect.
+fn reset_function() -> ! {
+    unsafe {
+        cortexm0p::scb::reset();
+    }
+    loop {
+        cortexm0p::support::nop();
+    }
+}
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -532,6 +542,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset_function),
     )
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();

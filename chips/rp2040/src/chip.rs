@@ -133,7 +133,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub uart0: Uart<'a>,
     pub uart1: Uart<'a>,
     pub usb: usb::UsbCtrl<'a>,
-    pub watchdog: Watchdog,
+    pub watchdog: Watchdog<'a>,
     pub xosc: Xosc,
 }
 
@@ -161,6 +161,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
     pub fn resolve_dependencies(&'a self) {
         self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
         self.pwm.set_clocks(&self.clocks);
+        self.watchdog.resolve_dependencies(&self.resets);
         self.spi0.set_clocks(&self.clocks);
         self.uart0.set_clocks(&self.clocks);
         self.usb.set_gpio(self.pins.get_pin(RPGpio::GPIO15));
