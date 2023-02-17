@@ -1188,6 +1188,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'
         }
         match command_num {
             // check if present
+            // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
+            // but this driver is unchanged since it has been stabilized. It will be brought into
+            // compliance as part of the next major release of Tock.
             0 => CommandReturn::success_u32(self.channels.len() as u32),
 
             // Single sample on channel
