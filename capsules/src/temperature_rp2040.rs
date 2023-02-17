@@ -42,7 +42,7 @@ impl<'a> adc::Client for TemperatureRp2040<'a> {
         self.status.set(Status::Idle);
         self.temperature_client.map(|client| {
             client.callback(Ok(((27.0
-                - (((sample as f32 * 3.3 / 4095.0) - self.v_27) * 1000.0 / self.slope))
+                - (((sample as f32 * 3.3 / 65535.0) - self.v_27) * 1000.0 / self.slope))
                 * 100.0) as i32));
         });
     }
