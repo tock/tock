@@ -680,24 +680,42 @@ impl Kernel {
                     }
                 }
                 process::State::CredentialsApproved => {
-                    // The process has valid credentials (can run in principle);
-                    // now the kernel needs to check if its Application Identifier
-                    // is unique among running processes.
-
-                    if crate::process_checker::has_unique_identifiers(
+                    // The process's credentials are approved and it's
+                    // potentially runnable, but actually running
+                    // depends on what other processes there are.
+                    // Transition into the Running state if only if
+                    // process has the highest version number for its
+                    // Application ID/Short ID.
+                    if crate::process_checker::is_runnable(
                         process,
                         self.processes,
                         resources.credentials_checking_policy(),
                     ) {
-                        // Has a unique Application Identifier, push the first stack frame
-                        // and make it runnable.
-                        let _ = process.enqueue_init_task(&self.init_cap);
+                        if config::CONFIG.debug_process_credentials {
+                            debug!("Making process {} runnable", process.get_process_name());
+                        }
+                        match process.enqueue_init_task(&self.init_cap) {
+                            Ok(_) => { /* All is good, do nothing. */ }
+                            Err(e) => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!(
+                                        "Could not push initial stack frame onto process {}: {:?}",
+                                        process.get_process_name(),
+                                        e
+                                    );
+                                }
+                            }
+                        };
                     } else {
-                        // Its Application Identifier collides with a running process; enter
-                        // the Terminated state (could be made runnable later).
+                        // Move the process to the terminated state.
                         process.terminate(None);
+                        // Do nothing, not runnable
+                        if config::CONFIG.debug_process_credentials {
+                            debug!("Process {} is not runnable", process.get_process_name());
+                        }
                     }
                 }
+
                 process::State::Faulted
                 | process::State::Terminated
                 | process::State::CredentialsUnchecked
@@ -1560,7 +1578,9 @@ fn check_footer(
                 if config::CONFIG.debug_process_credentials {
                     debug!(
                         "ProcessLoad: @{:x} found a len {} footer: {:?}",
-                        footers_position, len, footer
+                        footers_position,
+                        len,
+                        footer.format()
                     );
                 }
                 footers_position = footers_position + len as usize + 4;
@@ -1644,6 +1664,11 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
                 self.footer.set(self.footer.get() + 1);
             }
         }
-        let _cont = self.next();
+        let cont = self.next();
+        match cont {
+            Ok(true) => { /* processing next footer, do nothing */ }
+            Ok(false) => {}
+            Err(_e) => {}
+        }
     }
 }
