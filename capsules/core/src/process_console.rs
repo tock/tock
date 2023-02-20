@@ -75,6 +75,52 @@ impl Default for WriterState {
     }
 }
 
+#[derive(Copy, Clone)]
+enum EscKey {
+    Up,
+    Down,
+}
+
+#[derive(Copy, Clone)]
+enum EscState {
+    Bypass,
+    Complete(EscKey),
+    Started,
+    Bracket,
+    Unrecognized,
+    UnrecognizedDone,
+}
+
+impl EscState {
+    fn next_state(self, data: u8) -> Self {
+        use self::{EscKey::*, EscState::*};
+        match (self, data) {
+            (Bypass, ESC) | (UnrecognizedDone, ESC) | (Complete(_), ESC) => Started,
+            (Bypass, _) | (UnrecognizedDone, _) | (Complete(_), _) => Bypass,
+            (Started, b'[') => Bracket,
+            (Bracket, b'A') => Complete(Up),
+            (Bracket, b'B') => Complete(Down),
+            _ => {
+                if EscState::terminator_esc_char(data) {
+                    UnrecognizedDone
+                } else {
+                    Unrecognized
+                }
+            }
+        }
+    }
+
+    fn in_progress(&self) -> bool {
+        matches!(self, EscState::Started)
+            || matches!(self, EscState::Bracket)
+            || matches!(self, EscState::Complete(_))
+    }
+
+    fn terminator_esc_char(data: u8) -> bool {
+        data.is_ascii_alphabetic()
+    }
+}
+
 /// Data structure to hold addresses about how the kernel is stored in memory on
 /// the chip.
 ///
@@ -111,15 +157,17 @@ pub struct ProcessConsole<
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
 
+    /// Escape state machine in order to process an escape sequence
+    esc_state: Cell<EscState>,
+
     /// Keep a history of inserted commands
     command_history: TakeCell<'static, [Command; COMMAND_HISTORY_LEN]>,
 
-    control_seq_in_progress: Cell<bool>,
-    modified_in_history: Cell<bool>,
-    modified_byte: Cell<u8>,
-
     /// Index of the last copied command in the history
     command_history_index: OptionalCell<usize>,
+
+    modified_in_history: Cell<bool>,
+    modified_byte: Cell<u8>,
 
     /// Keep the previously read byte to consider \r\n sequences
     /// as a single \n.
@@ -271,11 +319,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
 
-            control_seq_in_progress: Cell::new(false),
-            modified_byte: Cell::new(EOL),
-            modified_in_history: Cell::new(false),
+            esc_state: Cell::new(EscState::Bypass),
+
             command_history: TakeCell::new(cmd_history_buffer),
             command_history_index: OptionalCell::empty(),
+
+            modified_in_history: Cell::new(false),
+            modified_byte: Cell::new(EOL),
 
             previous_byte: Cell::new(0),
 
@@ -964,6 +1014,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
+                        let esc_state = self.esc_state.get().next_state(read_buf[0]);
+                        self.esc_state.set(esc_state);
+
                         let previous_byte = self.previous_byte.get();
                         self.previous_byte.set(read_buf[0]);
                         let index = self.command_index.get() as usize;
@@ -1003,120 +1056,123 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     });
                                 }
                             }
-                        } else if (COMMAND_HISTORY_LEN > 1)
-                            && (read_buf[0] == ESC || self.control_seq_in_progress.get())
-                        {
-                            // Catch the Up and Down arrow keys
-                            if read_buf[0] == ESC {
-                                // Signal that a control sequence has started and capture it
-                                self.control_seq_in_progress.set(true);
-                                self.modified_byte.set(previous_byte);
-                            } else if read_buf[0] != ('[' as u8) {
-                                // Fetch the index of the last command added to the history
-                                if let Some(index) = match read_buf[0] {
-                                    // Up arrow case
-                                    b'A' => {
-                                        let i = match self.command_history_index.extract() {
-                                            Some(i) => i + 1,
-                                            None => 1,
-                                        };
-                                        if i >= COMMAND_HISTORY_LEN {
-                                            None
-                                        } else {
-                                            // Check if any command can be displayed
-                                            self.command_history
-                                                .map(|cmd_arr| match cmd_arr[i].len == 0 {
-                                                    true => None,
-                                                    false => {
+                        } else if (COMMAND_HISTORY_LEN > 1) && (esc_state.in_progress()) {
+                            match esc_state {
+                                EscState::Started => {
+                                    self.modified_byte.set(previous_byte);
+                                }
+                                EscState::Complete(key) => {
+                                    if let Some(index) = match key {
+                                        EscKey::Up => {
+                                            let i = match self.command_history_index.extract() {
+                                                Some(i) => i + 1,
+                                                None => 1,
+                                            };
+
+                                            if i >= COMMAND_HISTORY_LEN {
+                                                None
+                                            } else {
+                                                // Check if any command can be displayed
+                                                self.command_history
+                                                    .map(|cmd_arr| match cmd_arr[i].len == 0 {
+                                                        true => None,
+                                                        false => {
+                                                            // Remove last whitespace byte from the command
+                                                            // or register a new unfinshed command
+                                                            // upon pressing backspace
+                                                            match self.modified_byte.get() {
+                                                                b' ' => {
+                                                                    (&mut cmd_arr[0])
+                                                                        .delete_last_byte();
+                                                                }
+                                                                b'\x08' | b'\x7F' => {
+                                                                    cmd_arr[0].clear();
+
+                                                                    let mut command_array =
+                                                                        [0; COMMAND_BUF_LEN];
+                                                                    command_array
+                                                                        .copy_from_slice(command);
+                                                                    cmd_arr[0]
+                                                                        .write(&command_array);
+                                                                }
+                                                                _ => {
+                                                                    self.modified_byte.set(EOL);
+                                                                }
+                                                            };
+                                                            Some(i)
+                                                        }
+                                                    })
+                                                    .unwrap()
+                                            }
+                                        }
+                                        EscKey::Down => {
+                                            match self.command_history_index.extract() {
+                                                Some(i) => match i > 0 {
+                                                    true => {
                                                         // Remove last whitespace byte from the command
                                                         // or register a new unfinshed command
                                                         // upon pressing backspace
-                                                        match self.modified_byte.get() {
-                                                            b' ' => {
-                                                                (&mut cmd_arr[0])
-                                                                    .delete_last_byte();
-                                                            }
-                                                            b'\x08' | b'\x7F' => {
-                                                                cmd_arr[0].clear();
+                                                        self.command_history.map(|cmd_arr| {
+                                                            match self.modified_byte.get() {
+                                                                b' ' => {
+                                                                    (&mut cmd_arr[0])
+                                                                        .delete_last_byte();
+                                                                }
+                                                                b'\x08' | b'\x7F' => {
+                                                                    cmd_arr[0].clear();
 
-                                                                let mut command_array =
-                                                                    [0; COMMAND_BUF_LEN];
-                                                                command_array
-                                                                    .copy_from_slice(command);
-                                                                cmd_arr[0].write(&command_array);
-                                                            }
-                                                            _ => {
-                                                                self.modified_byte.set(EOL);
-                                                            }
-                                                        };
-                                                        Some(i)
+                                                                    let mut command_array =
+                                                                        [0; COMMAND_BUF_LEN];
+                                                                    command_array
+                                                                        .copy_from_slice(command);
+                                                                    cmd_arr[0]
+                                                                        .write(&command_array);
+                                                                }
+                                                                _ => {
+                                                                    self.modified_byte.set(EOL);
+                                                                }
+                                                            };
+                                                        });
+
+                                                        Some(i - 1)
                                                     }
-                                                })
-                                                .unwrap()
-                                        }
-                                    }
-                                    // Down arrow case
-                                    b'B' => match self.command_history_index.extract() {
-                                        Some(i) => match i > 0 {
-                                            true => {
-                                                // Remove last whitespace byte from the command
-                                                // or register a new unfinshed command
-                                                // upon pressing backspace
-                                                self.command_history.map(|cmd_arr| {
-                                                    match self.modified_byte.get() {
-                                                        b' ' => {
-                                                            (&mut cmd_arr[0]).delete_last_byte();
-                                                        }
-                                                        b'\x08' | b'\x7F' => {
-                                                            cmd_arr[0].clear();
-
-                                                            let mut command_array =
-                                                                [0; COMMAND_BUF_LEN];
-                                                            command_array.copy_from_slice(command);
-                                                            cmd_arr[0].write(&command_array);
-                                                        }
-                                                        _ => {
-                                                            self.modified_byte.set(EOL);
-                                                        }
-                                                    };
-                                                });
-
-                                                Some(i - 1)
+                                                    false => None,
+                                                },
+                                                None => None,
                                             }
-                                            false => None,
-                                        },
-                                        None => None,
-                                    },
-                                    _ => None,
-                                } {
-                                    self.command_history_index.set(index);
-                                    self.command_history.map(|cmd_arr| {
-                                        let next_command = cmd_arr[index];
-                                        let prev_command_len = self.command_index.get();
-                                        let next_command_len = next_command.len;
-
-                                        // Clear the displayed command
-                                        for _ in 0..prev_command_len {
-                                            let _ = self.write_bytes(&[
-                                                '\x08' as u8,
-                                                ' ' as u8,
-                                                '\x08' as u8,
-                                            ]);
                                         }
+                                    } {
+                                        self.command_history_index.set(index);
+                                        self.command_history.map(|cmd_arr| {
+                                            let next_command = cmd_arr[index];
+                                            let prev_command_len = self.command_index.get();
+                                            let next_command_len = next_command.len;
 
-                                        // Display the new command
-                                        for i in 0..next_command_len {
-                                            let byte = next_command.buf[i];
-                                            let _ = self.write_byte(byte);
-                                            command[i] = byte;
-                                        }
+                                            // Clear the displayed command
+                                            for _ in 0..prev_command_len {
+                                                let _ = self.write_bytes(&[
+                                                    '\x08' as u8,
+                                                    ' ' as u8,
+                                                    '\x08' as u8,
+                                                ]);
+                                            }
 
-                                        self.modified_in_history.set(true);
-                                        self.command_index.set(next_command_len);
-                                        command[next_command_len] = EOL;
-                                    });
-                                };
-                                self.control_seq_in_progress.set(false);
+                                            // Display the new command
+                                            for i in 0..next_command_len {
+                                                let byte = next_command.buf[i];
+                                                let _ = self.write_byte(byte);
+                                                command[i] = byte;
+                                            }
+
+                                            self.modified_in_history.set(true);
+                                            self.command_index.set(next_command_len);
+                                            command[next_command_len] = EOL;
+                                        });
+                                    }
+                                }
+                                _ => {
+                                    // This branch cannot be reached
+                                }
                             }
                         } else if index < (command.len() - 1) && read_buf[0] < 128 {
                             // For some reason, sometimes reads return > 127 but no error,
