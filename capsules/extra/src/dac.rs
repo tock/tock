@@ -12,7 +12,7 @@
 //! ```
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Dac as usize;
 
 use kernel::hil;

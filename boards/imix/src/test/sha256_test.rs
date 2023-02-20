@@ -16,8 +16,8 @@
 //! 72 bytes long. As SHA uses 64-byte/512 bit blocks, this verifies
 //! that multi-block hashes work correctly.
 
-use extra_capsules::sha256::Sha256Software;
-use extra_capsules::test::sha256::TestSha256;
+use capsules_extra::sha256::Sha256Software;
+use capsules_extra::test::sha256::TestSha256;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::static_init;
 

@@ -12,5 +12,5 @@ kernel = { path = "../../kernel" }
 arty_e21_chip = { path = "../../chips/arty_e21_chip" }
 sifive = { path = "../../chips/sifive" }
 
-core-capsules = { path = "../../capsules/core" }
-extra-capsules = { path = "../../capsules/extra" }
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

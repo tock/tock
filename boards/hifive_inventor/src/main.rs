@@ -7,7 +7,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g003::interrupt_service::E310G003DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -45,12 +45,12 @@ pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFiveInventor {
-    console: &'static core_capsules::console::Console<'static>,
-    lldb: &'static core_capsules::low_level_debug::LowLevelDebug<
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
-        core_capsules::virtualizers::virtual_uart::UartDevice<'static>,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>,
     >,
@@ -67,9 +67,9 @@ impl SyscallDriverLookup for HiFiveInventor {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            core_capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -205,13 +205,13 @@ pub unsafe fn main() {
     systick_virtual_alarm.setup();
 
     let alarm = static_init!(
-        core_capsules::alarm::AlarmDriver<
+        capsules_core::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<'static, e310_g003::chip::E310xClint>,
         >,
-        core_capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(core_capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -250,7 +250,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -260,7 +260,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        core_capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());

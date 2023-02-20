@@ -14,8 +14,8 @@
 //! different on each invocation. Rigorous entropy tests are outside
 //! the scope of this test.
 
-use core_capsules::rng;
-use core_capsules::test::rng::TestRng;
+use capsules_core::rng;
+use capsules_core::test::rng::TestRng;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng::Rng;
 use kernel::static_init;

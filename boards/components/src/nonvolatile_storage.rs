@@ -19,9 +19,9 @@
 //! ));
 //! ```
 
+use capsules_extra::nonvolatile_storage_driver::NonvolatileStorage;
+use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
-use extra_capsules::nonvolatile_storage_driver::NonvolatileStorage;
-use extra_capsules::nonvolatile_to_pages::NonvolatileToPages;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -33,12 +33,12 @@ macro_rules! nonvolatile_storage_component_static {
     ($F:ty $(,)?) => {{
         let page = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
         let ntp = kernel::static_buf!(
-            extra_capsules::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
+            capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
         );
         let ns = kernel::static_buf!(
-            extra_capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>
+            capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>
         );
-        let buffer = kernel::static_buf!([u8; extra_capsules::nonvolatile_storage_driver::BUF_LEN]);
+        let buffer = kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
         (page, ntp, ns, buffer)
     };};
@@ -93,7 +93,7 @@ impl<
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
         &'static mut MaybeUninit<NonvolatileStorage<'static>>,
-        &'static mut MaybeUninit<[u8; extra_capsules::nonvolatile_storage_driver::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]>,
     );
     type Output = &'static NonvolatileStorage<'static>;
 
@@ -102,7 +102,7 @@ impl<
 
         let buffer = static_buffer
             .3
-            .write([0; extra_capsules::nonvolatile_storage_driver::BUF_LEN]);
+            .write([0; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
         let flash_pagebuffer = static_buffer
             .0

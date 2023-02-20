@@ -1,5 +1,5 @@
 [package]
-name = "extra-capsules"
+name = "capsules-extra"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -8,4 +8,4 @@ edition.workspace = true
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 tickv = { path = "../../libraries/tickv" }
-core-capsules = { path = "../core" }
+capsules-core = { path = "../core" }

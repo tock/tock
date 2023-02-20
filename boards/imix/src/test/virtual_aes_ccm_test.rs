@@ -34,8 +34,8 @@
 //! aes_ccm_test passed: (current_test=1, encrypting=false, tag_is_valid=true)
 //! aes_ccm_test passed: (current_test=2, encrypting=true, tag_is_valid=true)
 //! aes_ccm_test passed: (current_test=2, encrypting=false, tag_is_valid=true)
-use core_capsules::virtualizers::virtual_aes_ccm;
-use extra_capsules::test::aes_ccm::Test;
+use capsules_core::virtualizers::virtual_aes_ccm;
+use capsules_extra::test::aes_ccm::Test;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
 use kernel::static_init;

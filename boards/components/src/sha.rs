@@ -17,10 +17,10 @@
 //!    ));
 //! ```
 
+use capsules_core::virtualizers::virtual_sha::MuxSha;
+use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
+use capsules_extra::sha::ShaDriver;
 use core::mem::MaybeUninit;
-use core_capsules::virtualizers::virtual_sha::MuxSha;
-use core_capsules::virtualizers::virtual_sha::VirtualMuxSha;
-use extra_capsules::sha::ShaDriver;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -30,7 +30,7 @@ use kernel::hil::digest;
 #[macro_export]
 macro_rules! sha_mux_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtualizers::virtual_sha::MuxSha<'static, $A, $L>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_sha::MuxSha<'static, $A, $L>)
     };};
 }
 
@@ -61,12 +61,13 @@ impl<
 #[macro_export]
 macro_rules! sha_component_static {
     ($A:ty, $L:expr$(,)?) => {{
-        let sha_mux =
-            kernel::static_buf!(core_capsules::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>);
+        let sha_mux = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>
+        );
         let sha_driver = kernel::static_buf!(
-            extra_capsules::sha::ShaDriver<
+            capsules_extra::sha::ShaDriver<
                 'static,
-                core_capsules::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>,
+                capsules_core::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>,
                 $L,
             >
         );
@@ -124,7 +125,7 @@ impl<
         let data_buffer = s.2.write([0; 64]);
         let dest_buffer = s.3.write([0; L]);
 
-        let sha = s.1.write(extra_capsules::sha::ShaDriver::new(
+        let sha = s.1.write(capsules_extra::sha::ShaDriver::new(
             virtual_sha_user,
             data_buffer,
             dest_buffer,

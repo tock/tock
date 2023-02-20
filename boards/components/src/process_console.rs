@@ -14,10 +14,10 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
+use capsules_core::process_console::{self, ProcessConsole};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use core_capsules::process_console::{self, ProcessConsole};
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -27,22 +27,22 @@ use kernel::process::ProcessPrinter;
 #[macro_export]
 macro_rules! process_console_component_static {
     ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let uart = kernel::static_buf!(core_capsules::virtualizers::virtual_uart::UartDevice);
+        let alarm = kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
-            core_capsules::process_console::ProcessConsole<
+            capsules_core::process_console::ProcessConsole<
                 $COMMAND_HISTORY_LEN,
-                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 components::process_console::Capability,
             >
         );
 
-        let write_buffer = kernel::static_buf!([u8; core_capsules::process_console::WRITE_BUF_LEN]);
-        let read_buffer = kernel::static_buf!([u8; core_capsules::process_console::READ_BUF_LEN]);
-        let queue_buffer = kernel::static_buf!([u8; core_capsules::process_console::QUEUE_BUF_LEN]);
-        let command_buffer = kernel::static_buf!([u8; core_capsules::process_console::COMMAND_BUF_LEN]);
+        let write_buffer = kernel::static_buf!([u8; capsules_core::process_console::WRITE_BUF_LEN]);
+        let read_buffer = kernel::static_buf!([u8; capsules_core::process_console::READ_BUF_LEN]);
+        let queue_buffer = kernel::static_buf!([u8; capsules_core::process_console::QUEUE_BUF_LEN]);
+        let command_buffer = kernel::static_buf!([u8; capsules_core::process_console::COMMAND_BUF_LEN]);
         let command_history_buffer = kernel::static_buf!(
-            [core_capsules::process_console::Command; $COMMAND_HISTORY_LEN]
+            [capsules_core::process_console::Command; $COMMAND_HISTORY_LEN]
         );
 
         (
@@ -57,7 +57,7 @@ macro_rules! process_console_component_static {
         )
     };};
     ($A: ty $(,)?) => {{
-        $crate::process_console_component_static!($A, { core_capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN })
+        $crate::process_console_component_static!($A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
     };};
 }
 
@@ -112,11 +112,11 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<UartDevice<'static>>,
-        &'static mut MaybeUninit<[u8; core_capsules::process_console::WRITE_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; core_capsules::process_console::READ_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; core_capsules::process_console::QUEUE_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; core_capsules::process_console::COMMAND_BUF_LEN]>,
-        &'static mut MaybeUninit<[core_capsules::process_console::Command; COMMAND_HISTORY_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::WRITE_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::READ_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::QUEUE_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::COMMAND_BUF_LEN]>,
+        &'static mut MaybeUninit<[capsules_core::process_console::Command; COMMAND_HISTORY_LEN]>,
         &'static mut MaybeUninit<
             ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>, Capability>,
         >,
@@ -156,19 +156,19 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
 
         let write_buffer = static_buffer
             .2
-            .write([0; core_capsules::process_console::WRITE_BUF_LEN]);
+            .write([0; capsules_core::process_console::WRITE_BUF_LEN]);
         let read_buffer = static_buffer
             .3
-            .write([0; core_capsules::process_console::READ_BUF_LEN]);
+            .write([0; capsules_core::process_console::READ_BUF_LEN]);
         let queue_buffer = static_buffer
             .4
-            .write([0; core_capsules::process_console::QUEUE_BUF_LEN]);
+            .write([0; capsules_core::process_console::QUEUE_BUF_LEN]);
         let command_buffer = static_buffer
             .5
-            .write([0; core_capsules::process_console::COMMAND_BUF_LEN]);
+            .write([0; capsules_core::process_console::COMMAND_BUF_LEN]);
         let command_history_buffer = static_buffer
             .6
-            .write([core_capsules::process_console::Command::default(); COMMAND_HISTORY_LEN]);
+            .write([capsules_core::process_console::Command::default(); COMMAND_HISTORY_LEN]);
 
         let console = static_buffer.7.write(ProcessConsole::new(
             console_uart,

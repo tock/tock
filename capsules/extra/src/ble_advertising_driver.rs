@@ -116,7 +116,7 @@ use kernel::utilities::copy_slice::CopyOrErr;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::BleAdvertising as usize;
 
 /// Ids for read-only allow buffers

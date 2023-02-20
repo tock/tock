@@ -34,7 +34,7 @@
 // Last modified August 9th, 2018
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AnalogComparator as usize;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};

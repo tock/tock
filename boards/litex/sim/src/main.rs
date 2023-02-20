@@ -5,7 +5,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -107,15 +107,15 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LiteXSim {
-    gpio_driver: &'static core_capsules::gpio::GPIO<
+    gpio_driver: &'static capsules_core::gpio::GPIO<
         'static,
         litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
     >,
-    button_driver: &'static core_capsules::button::Button<
+    button_driver: &'static capsules_core::button::Button<
         'static,
         litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
     >,
-    led_driver: &'static core_capsules::led::LedDriver<
+    led_driver: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<
             'static,
@@ -123,12 +123,12 @@ struct LiteXSim {
         >,
         8,
     >,
-    console: &'static core_capsules::console::Console<'static>,
-    lldb: &'static core_capsules::low_level_debug::LowLevelDebug<
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
-        core_capsules::virtualizers::virtual_uart::UartDevice<'static>,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<
             'static,
@@ -162,12 +162,12 @@ impl SyscallDriverLookup for LiteXSim {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::button::DRIVER_NUM => f(Some(self.button_driver)),
-            core_capsules::led::DRIVER_NUM => f(Some(self.led_driver)),
-            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio_driver)),
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            core_capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button_driver)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led_driver)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio_driver)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -314,7 +314,7 @@ pub unsafe fn main() {
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        core_capsules::alarm::AlarmDriver<
+        capsules_core::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<
                 'static,
@@ -326,9 +326,9 @@ pub unsafe fn main() {
                 >,
             >,
         >,
-        core_capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(core_capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     virtual_alarm_user.set_alarm_client(alarm);
@@ -436,7 +436,7 @@ pub unsafe fn main() {
 
     let gpio_driver = components::gpio::GpioComponent::new(
         board_kernel,
-        core_capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper_owned!(
             GPIOPin,
             16 => gpio0.get_gpio_pin(16).unwrap(),
@@ -492,7 +492,7 @@ pub unsafe fn main() {
 
     let button_driver = components::button::ButtonComponent::new(
         board_kernel,
-        core_capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper_owned!(
             GPIOPin,
             (
@@ -580,7 +580,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -590,7 +590,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        core_capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());

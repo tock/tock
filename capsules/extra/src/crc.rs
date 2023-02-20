@@ -87,7 +87,7 @@ use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Crc as usize;
 pub const DEFAULT_CRC_BUF_LENGTH: usize = 256;
 

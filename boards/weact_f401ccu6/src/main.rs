@@ -8,8 +8,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
-use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -55,20 +55,20 @@ fn reset() -> ! {
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct WeactF401CC {
-    console: &'static core_capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static core_capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
         1,
     >,
-    button: &'static core_capsules::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
-    adc: &'static core_capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    button: &'static capsules_core::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
     >,
-    gpio: &'static core_capsules::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -80,13 +80,13 @@ impl SyscallDriverLookup for WeactF401CC {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
-            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
-            core_capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -309,7 +309,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -329,7 +329,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        core_capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f401cc::gpio::Pin,
             (
@@ -350,7 +350,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        core_capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(stm32f401cc::tim2::Tim2));
@@ -358,7 +358,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        core_capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f401cc::gpio::Pin,
             // 2 => gpio_ports.pins[2][13].as_ref().unwrap(), // C13 (reserved for led)
@@ -428,7 +428,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, core_capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,

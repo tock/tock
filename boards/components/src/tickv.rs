@@ -32,10 +32,10 @@
 //!    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
 //! ```
 
+use capsules_core::virtualizers::virtual_flash::FlashUser;
+use capsules_core::virtualizers::virtual_flash::MuxFlash;
+use capsules_extra::tickv::TicKVStore;
 use core::mem::MaybeUninit;
-use core_capsules::virtualizers::virtual_flash::FlashUser;
-use core_capsules::virtualizers::virtual_flash::MuxFlash;
-use extra_capsules::tickv::TicKVStore;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -47,11 +47,12 @@ use kernel::hil::hasher::Hasher;
 #[macro_export]
 macro_rules! tickv_component_static {
     ($F:ty, $H:ty) => {{
-        let flash = kernel::static_buf!(core_capsules::virtualizers::virtual_flash::FlashUser<'static, $F>);
+        let flash =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_flash::FlashUser<'static, $F>);
         let tickv = kernel::static_buf!(
-            extra_capsules::tickv::TicKVStore<
+            capsules_extra::tickv::TicKVStore<
                 'static,
-                core_capsules::virtualizers::virtual_flash::FlashUser<'static, $F>,
+                capsules_core::virtualizers::virtual_flash::FlashUser<'static, $F>,
                 $H,
             >
         );

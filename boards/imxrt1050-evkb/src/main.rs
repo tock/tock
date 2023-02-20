@@ -6,8 +6,8 @@
 #![no_main]
 #![deny(missing_docs)]
 
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
-use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
@@ -69,20 +69,20 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Imxrt1050EVKB {
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt1<'static>>,
     >,
-    button: &'static core_capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
-    console: &'static core_capsules::console::Console<'static>,
-    gpio: &'static core_capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
+    button: &'static capsules_core::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
+    console: &'static capsules_core::console::Console<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static core_capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         1,
     >,
-    ninedof: &'static extra_capsules::ninedof::NineDof<'static>,
+    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm7::systick::SysTick,
@@ -95,13 +95,13 @@ impl SyscallDriverLookup for Imxrt1050EVKB {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
-            extra_capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
         }
     }
@@ -331,7 +331,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         lpuart_mux,
     )
     .finalize(components::console_component_static!());
@@ -350,7 +350,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        core_capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             imxrt1050::gpio::Pin,
             (
@@ -370,7 +370,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        core_capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(imxrt1050::gpt::Gpt1));
@@ -379,7 +379,7 @@ pub unsafe fn main() {
     // For now we expose only two pins
     let gpio = GpioComponent::new(
         board_kernel,
-        core_capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             imxrt1050::gpio::Pin<'static>,
             // The User Led
@@ -459,7 +459,7 @@ pub unsafe fn main() {
     // Ninedof
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
-        extra_capsules::ninedof::DRIVER_NUM,
+        capsules_extra::ninedof::DRIVER_NUM,
     )
     .finalize(components::ninedof_component_static!(fxos8700));
 

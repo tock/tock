@@ -60,7 +60,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SoundPressure as usize;
 
 #[derive(Default)]

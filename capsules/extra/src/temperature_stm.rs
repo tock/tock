@@ -6,7 +6,7 @@ use kernel::hil::sensors;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Temperature as usize;
 
 #[derive(Copy, Clone, PartialEq)]

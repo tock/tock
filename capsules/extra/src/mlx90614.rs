@@ -27,7 +27,7 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::register_bitfields;
 use kernel::{ErrorCode, ProcessId};
 
-use core_capsules::driver;
+use capsules_core::driver;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Mlx90614 as usize;

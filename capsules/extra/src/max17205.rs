@@ -46,7 +46,7 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Max17205 as usize;
 
 pub static mut BUFFER: [u8; 8] = [0; 8];

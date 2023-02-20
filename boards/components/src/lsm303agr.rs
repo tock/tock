@@ -19,10 +19,10 @@
 //! );
 //! ```
 
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::lsm303agr::Lsm303agrI2C;
+use capsules_extra::lsm303xx;
 use core::mem::MaybeUninit;
-use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
-use extra_capsules::lsm303agr::Lsm303agrI2C;
-use extra_capsules::lsm303xx;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -32,9 +32,11 @@ use kernel::create_capability;
 macro_rules! lsm303agr_component_static {
     () => {{
         let buffer = kernel::static_buf!([u8; 8]);
-        let accelerometer_i2c = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice);
-        let magnetometer_i2c = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice);
-        let lsm303agr = kernel::static_buf!(extra_capsules::lsm303agr::Lsm303agrI2C<'static>);
+        let accelerometer_i2c =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
+        let magnetometer_i2c =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
+        let lsm303agr = kernel::static_buf!(capsules_extra::lsm303agr::Lsm303agrI2C<'static>);
 
         (accelerometer_i2c, magnetometer_i2c, buffer, lsm303agr)
     };};

@@ -13,8 +13,8 @@ earlgrey = { path = "../../../chips/earlgrey" }
 lowrisc = { path = "../../../chips/lowrisc" }
 tock-tbf = { path = "../../../libraries/tock-tbf" }
 
-core-capsules = { path = "../../../capsules/core" }
-extra-capsules = { path = "../../../capsules/extra" }
+capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
 
 
 [features]

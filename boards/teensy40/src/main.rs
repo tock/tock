@@ -34,16 +34,19 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 /// Teensy 4 platform
 struct Teensy40 {
-    led: &'static core_capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, imxrt1060::gpio::Pin<'static>>,
         1,
     >,
-    console: &'static core_capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            imxrt1060::gpt::Gpt1<'static>,
+        >,
     >,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -56,10 +59,10 @@ impl SyscallDriverLookup for Teensy40 {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -275,7 +278,7 @@ pub unsafe fn main() {
     // Setup the console
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -292,7 +295,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        core_capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(imxrt1060::gpt::Gpt1));

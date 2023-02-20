@@ -38,7 +38,7 @@ mod rw_allow {
     pub const COUNT: u8 = 2;
 }
 
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]

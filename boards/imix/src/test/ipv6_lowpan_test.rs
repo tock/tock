@@ -28,17 +28,17 @@
 //! lowpan_frag_test.start(); // If flashing the transmitting Imix
 //! ```
 
-use core::cell::Cell;
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use extra_capsules::ieee802154::device::{MacDevice, TxClient};
-use extra_capsules::net::ieee802154::MacAddress;
-use extra_capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
-use extra_capsules::net::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
-use extra_capsules::net::sixlowpan::sixlowpan_compression;
-use extra_capsules::net::sixlowpan::sixlowpan_state::{
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::ieee802154::device::{MacDevice, TxClient};
+use capsules_extra::net::ieee802154::MacAddress;
+use capsules_extra::net::ipv6::ip_utils::{ip6_nh, IPAddr};
+use capsules_extra::net::ipv6::{IP6Header, IP6Packet, IPPayload, TransportHeader};
+use capsules_extra::net::sixlowpan::sixlowpan_compression;
+use capsules_extra::net::sixlowpan::sixlowpan_state::{
     RxState, Sixlowpan, SixlowpanRxClient, SixlowpanState, TxState,
 };
-use extra_capsules::net::udp::UDPHeader;
+use capsules_extra::net::udp::UDPHeader;
+use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
@@ -123,15 +123,15 @@ pub struct LowpanTest<'a, A: time::Alarm<'a>> {
 }
 
 pub unsafe fn initialize_all(
-    mux_mac: &'static extra_capsules::ieee802154::virtual_mac::MuxMac<'static>,
+    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
-    core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
     let radio_mac = static_init!(
-        extra_capsules::ieee802154::virtual_mac::MacUser<'static>,
-        extra_capsules::ieee802154::virtual_mac::MacUser::new(mux_mac)
+        capsules_extra::ieee802154::virtual_mac::MacUser<'static>,
+        capsules_extra::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
     let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));

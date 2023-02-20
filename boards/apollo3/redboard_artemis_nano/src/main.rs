@@ -12,10 +12,10 @@
 #![reexport_test_harness_main = "test_main"]
 
 use apollo3::chip::Apollo3DefaultPeripherals;
+use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
-use core_capsules::virtualizers::virtual_alarm::MuxAlarm;
-use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -62,8 +62,8 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 // Test access to sensors
-static mut BME280: Option<&'static extra_capsules::bme280::Bme280<'static>> = None;
-static mut CCS811: Option<&'static extra_capsules::ccs811::Ccs811<'static>> = None;
+static mut BME280: Option<&'static capsules_extra::bme280::Bme280<'static>> = None;
+static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -73,31 +73,34 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct RedboardArtemisNano {
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    led: &'static core_capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, apollo3::gpio::GpioPin<'static>>,
         1,
     >,
-    gpio: &'static core_capsules::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
-    console: &'static core_capsules::console::Console<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
+    console: &'static capsules_core::console::Console<'static>,
     i2c_master:
-        &'static core_capsules::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
-    spi_controller: &'static core_capsules::spi_controller::Spi<
+        &'static capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
-        core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, apollo3::iom::Iom<'static>>,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            apollo3::iom::Iom<'static>,
+        >,
     >,
-    ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    temperature: &'static extra_capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static extra_capsules::humidity::HumiditySensor<'static>,
-    air_quality: &'static extra_capsules::air_quality::AirQualitySensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -109,16 +112,16 @@ impl SyscallDriverLookup for RedboardArtemisNano {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
-            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
-            core_capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            extra_capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            extra_capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            extra_capsules::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
             _ => f(None),
         }
     }
@@ -229,7 +232,7 @@ unsafe fn setup() -> (
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -247,7 +250,7 @@ unsafe fn setup() -> (
     // These are also ADC channels, but let's expose them as GPIOs
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        core_capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
             0 => &&peripherals.gpio_port[13],  // A0
@@ -267,7 +270,7 @@ unsafe fn setup() -> (
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        core_capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(apollo3::stimer::STimer));
@@ -280,12 +283,12 @@ unsafe fn setup() -> (
 
     // Init the I2C device attached via Qwiic
     let i2c_master = static_init!(
-        core_capsules::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
-        core_capsules::i2c_master::I2CMasterDriver::new(
+        capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
+        capsules_core::i2c_master::I2CMasterDriver::new(
             &peripherals.iom2,
-            &mut core_capsules::i2c_master::BUF,
+            &mut capsules_core::i2c_master::BUF,
             board_kernel.create_grant(
-                core_capsules::i2c_master::DRIVER_NUM,
+                capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_cap
             )
         )
@@ -302,13 +305,13 @@ unsafe fn setup() -> (
         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
-        extra_capsules::temperature::DRIVER_NUM,
+        capsules_extra::temperature::DRIVER_NUM,
         bme280,
     )
     .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
-        extra_capsules::humidity::DRIVER_NUM,
+        capsules_extra::humidity::DRIVER_NUM,
         bme280,
     )
     .finalize(components::humidity_component_static!());
@@ -318,7 +321,7 @@ unsafe fn setup() -> (
         .finalize(components::ccs811_component_static!());
     let air_quality = components::air_quality::AirQualityComponent::new(
         board_kernel,
-        extra_capsules::temperature::DRIVER_NUM,
+        capsules_extra::temperature::DRIVER_NUM,
         ccs811,
     )
     .finalize(components::air_quality_component_static!());
@@ -336,7 +339,7 @@ unsafe fn setup() -> (
         board_kernel,
         mux_spi,
         &peripherals.gpio_port[35], // A14
-        core_capsules::spi_controller::DRIVER_NUM,
+        capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
         apollo3::iom::Iom<'static>
@@ -353,7 +356,7 @@ unsafe fn setup() -> (
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
-        extra_capsules::ble_advertising_driver::DRIVER_NUM,
+        capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &peripherals.ble,
         mux_alarm,
     )

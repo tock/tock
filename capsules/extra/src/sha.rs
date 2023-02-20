@@ -23,7 +23,7 @@
 //! digest::DigestMut::set_client(virtual_sha_user, sha);
 //! ```
 
-use core_capsules::driver;
+use capsules_core::driver;
 use kernel::errorcode::into_statuscode;
 
 /// Syscall driver number.

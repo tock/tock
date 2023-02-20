@@ -7,21 +7,21 @@
 //!         Ccs811Component::new(mux_i2c, 0x77).finalize(components::ccs811_component_static!());
 //!     let temperature = components::temperature::TemperatureComponent::new(
 //!         board_kernel,
-//!         extra_capsules::temperature::DRIVER_NUM,
+//!         capsules_extra::temperature::DRIVER_NUM,
 //!         ccs811,
 //!     )
 //!     .finalize(());
 //!     let humidity = components::humidity::HumidityComponent::new(
 //!         board_kernel,
-//!         extra_capsules::humidity::DRIVER_NUM,
+//!         capsules_extra::humidity::DRIVER_NUM,
 //!         ccs811,
 //!     )
 //!     .finalize(());
 //! ```
 
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::ccs811::Ccs811;
 use core::mem::MaybeUninit;
-use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
-use extra_capsules::ccs811::Ccs811;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 
@@ -29,9 +29,9 @@ use kernel::dynamic_deferred_call::DynamicDeferredCall;
 #[macro_export]
 macro_rules! ccs811_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; 6]);
-        let ccs811 = kernel::static_buf!(extra_capsules::ccs811::Ccs811<'static>);
+        let ccs811 = kernel::static_buf!(capsules_extra::ccs811::Ccs811<'static>);
 
         (i2c_device, buffer, ccs811)
     };};

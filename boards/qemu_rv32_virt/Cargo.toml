@@ -12,5 +12,5 @@ rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
 qemu_rv32_virt_chip = { path = "../../chips/qemu_rv32_virt_chip" }
 
-core-capsules = { path = "../../capsules/core" }
-extra-capsules = { path = "../../capsules/extra" }
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

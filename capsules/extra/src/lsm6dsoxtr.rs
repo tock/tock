@@ -11,7 +11,7 @@
 //! Author: Cristiana Andrei <cristiana.andrei05@gmail.com>
 
 #![allow(non_camel_case_types)]
-use core_capsules::driver;
+use capsules_core::driver;
 
 use core::cell::Cell;
 use enum_primitive::cast::FromPrimitive;

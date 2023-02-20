@@ -37,11 +37,11 @@ use kernel::hil;
 #[macro_export]
 macro_rules! ctap_component_static {
     ($U:ty $(,)?) => {{
-        let hid = kernel::static_buf!(extra_capsules::usb::ctap::CtapHid<'static, $U>);
+        let hid = kernel::static_buf!(capsules_extra::usb::ctap::CtapHid<'static, $U>);
         let driver = kernel::static_buf!(
-            extra_capsules::ctap::CtapDriver<
+            capsules_extra::ctap::CtapDriver<
                 'static,
-                extra_capsules::usb::ctap::CtapHid<'static, $U>,
+                capsules_extra::usb::ctap::CtapHid<'static, $U>,
             >
         );
         let send_buffer = kernel::static_buf!([u8; 64]);
@@ -82,26 +82,26 @@ impl<U: 'static + hil::usb::UsbController<'static>> CtapComponent<U> {
 
 impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<U> {
     type StaticInput = (
-        &'static mut MaybeUninit<extra_capsules::usb::ctap::CtapHid<'static, U>>,
+        &'static mut MaybeUninit<capsules_extra::usb::ctap::CtapHid<'static, U>>,
         &'static mut MaybeUninit<
-            extra_capsules::ctap::CtapDriver<
+            capsules_extra::ctap::CtapDriver<
                 'static,
-                extra_capsules::usb::ctap::CtapHid<'static, U>,
+                capsules_extra::usb::ctap::CtapHid<'static, U>,
             >,
         >,
         &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<[u8; 64]>,
     );
     type Output = (
-        &'static extra_capsules::usb::ctap::CtapHid<'static, U>,
-        &'static extra_capsules::ctap::CtapDriver<
+        &'static capsules_extra::usb::ctap::CtapHid<'static, U>,
+        &'static capsules_extra::ctap::CtapDriver<
             'static,
-            extra_capsules::usb::ctap::CtapHid<'static, U>,
+            capsules_extra::usb::ctap::CtapHid<'static, U>,
         >,
     );
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let ctap = s.0.write(extra_capsules::usb::ctap::CtapHid::new(
+        let ctap = s.0.write(capsules_extra::usb::ctap::CtapHid::new(
             self.usb,
             self.vendor_id,
             self.product_id,
@@ -114,7 +114,7 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
         let send_buffer = s.2.write([0; 64]);
         let recv_buffer = s.3.write([0; 64]);
 
-        let ctap_driver = s.1.write(extra_capsules::ctap::CtapDriver::new(
+        let ctap_driver = s.1.write(capsules_extra::ctap::CtapDriver::new(
             Some(ctap),
             send_buffer,
             recv_buffer,

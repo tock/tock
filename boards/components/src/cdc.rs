@@ -13,7 +13,7 @@
 //! ];
 //! let cdc_acm = components::cdc::CdcAcmComponent::new(
 //!     &nrf52::usbd::USBD,
-//!     extra_capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840,
+//!     capsules_extra::usb::usbc_client::MAX_CTRL_PACKET_SIZE_NRF52840,
 //!     0x2341,
 //!     0x005a,
 //!     STRINGS)
@@ -22,7 +22,7 @@
 
 use core::mem::MaybeUninit;
 
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
@@ -32,12 +32,14 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! cdc_acm_component_static {
     ($U:ty, $A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let cdc = kernel::static_buf!(
-            extra_capsules::usb::cdc::CdcAcm<
+            capsules_extra::usb::cdc::CdcAcm<
                 'static,
                 $U,
-                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 
@@ -91,17 +93,17 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<
-            extra_capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>,
+            capsules_extra::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>,
         >,
     );
     type Output =
-        &'static extra_capsules::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>;
+        &'static capsules_extra::usb::cdc::CdcAcm<'static, U, VirtualMuxAlarm<'static, A>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let cdc_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         cdc_alarm.setup();
 
-        let cdc = s.1.write(extra_capsules::usb::cdc::CdcAcm::new(
+        let cdc = s.1.write(capsules_extra::usb::cdc::CdcAcm::new(
             self.usb,
             self.max_ctrl_packet_size,
             self.vendor_id,

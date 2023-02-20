@@ -69,7 +69,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Buzzer as usize;
 
 /// Standard max buzz time.

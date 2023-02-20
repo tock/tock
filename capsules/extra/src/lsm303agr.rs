@@ -95,7 +95,7 @@ use crate::lsm303xx::{
     AccelerometerRegisters, Lsm303AccelDataRate, Lsm303MagnetoDataRate, Lsm303Range, Lsm303Scale,
     CTRL_REG1, CTRL_REG4, RANGE_FACTOR_X_Y, RANGE_FACTOR_Z, SCALE_FACTOR,
 };
-use core_capsules::driver;
+use capsules_core::driver;
 
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Lsm303dlch as usize;

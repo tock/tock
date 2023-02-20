@@ -151,7 +151,7 @@ use kernel::ErrorCode;
 use kernel::ProcessId;
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::SevenSegment as usize;
 
 /// Digit patterns

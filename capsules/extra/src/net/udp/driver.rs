@@ -31,7 +31,7 @@ use kernel::utilities::cells::MapCell;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
 /// Ids for read-only allow buffers

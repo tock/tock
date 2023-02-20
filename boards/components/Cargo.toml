@@ -7,5 +7,5 @@ edition.workspace = true
 [dependencies]
 kernel = { path = "../../kernel" }
 
-core-capsules = { path = "../../capsules/core" }
-extra-capsules = { path = "../../capsules/extra" }
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

@@ -59,7 +59,7 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 use kernel::ProcessId;
 
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Can as usize;
 pub const BYTE4_MASK: usize = 0xff000000;
 pub const BYTE3_MASK: usize = 0xff0000;

@@ -12,5 +12,5 @@ kernel = { path = "../../kernel" }
 swervolf-eh1 = { path = "../../chips/swervolf-eh1" }
 swerv = { path = "../../chips/swerv" }
 
-core-capsules = { path = "../../capsules/core" }
-extra-capsules = { path = "../../capsules/extra" }
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

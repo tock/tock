@@ -1,7 +1,7 @@
 //! KV Driver
 //!
 
-use core_capsules::driver;
+use capsules_core::driver;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
 

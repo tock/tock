@@ -8,8 +8,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
-use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -62,22 +62,22 @@ fn reset() -> ! {
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF446RE {
-    console: &'static core_capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static core_capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, stm32f446re::gpio::Pin<'static>>,
         1,
     >,
-    button: &'static core_capsules::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
-    adc: &'static core_capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    button: &'static capsules_core::button::Button<'static, stm32f446re::gpio::Pin<'static>>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
 
-    temperature: &'static extra_capsules::temperature::TemperatureSensor<'static>,
-    gpio: &'static core_capsules::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -90,13 +90,13 @@ impl SyscallDriverLookup for NucleoF446RE {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
-            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
-            core_capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -351,7 +351,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -371,7 +371,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        core_capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f446re::gpio::Pin,
             (
@@ -391,7 +391,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        core_capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(stm32f446re::tim2::Tim2));
@@ -411,11 +411,11 @@ pub unsafe fn main() {
     ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(extra_capsules::temperature::DRIVER_NUM, &grant_cap);
+        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
-        extra_capsules::temperature::TemperatureSensor<'static>,
-        extra_capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+        capsules_extra::temperature::TemperatureSensor<'static>,
+        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
@@ -444,7 +444,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_static!(stm32f446re::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, core_capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,
@@ -461,7 +461,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        core_capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f446re::gpio::Pin,
             // Arduino like RX/TX

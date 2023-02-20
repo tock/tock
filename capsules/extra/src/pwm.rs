@@ -5,7 +5,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
-use core_capsules::driver;
+use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Pwm as usize;
 
 // An empty app, for potential uses in future updates of the driver

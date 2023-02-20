@@ -23,7 +23,7 @@
 //! digest::Digest::set_client(virtual_hmac_user, hmac);
 //! ```
 
-use core_capsules::driver;
+use capsules_core::driver;
 use kernel::errorcode::into_statuscode;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::Hmac as usize;

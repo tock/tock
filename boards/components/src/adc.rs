@@ -1,9 +1,9 @@
 //! Components for using ADC capsules.
 
+use capsules_core::adc::AdcDedicated;
+use capsules_core::adc::AdcVirtualized;
+use capsules_core::virtualizers::virtual_adc::{AdcDevice, MuxAdc};
 use core::mem::MaybeUninit;
-use core_capsules::adc::AdcDedicated;
-use core_capsules::adc::AdcVirtualized;
-use core_capsules::virtualizers::virtual_adc::{AdcDevice, MuxAdc};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -12,14 +12,14 @@ use kernel::hil::adc;
 #[macro_export]
 macro_rules! adc_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtualizers::virtual_adc::MuxAdc<'static, $A>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_adc::MuxAdc<'static, $A>)
     };};
 }
 
 #[macro_export]
 macro_rules! adc_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtualizers::virtual_adc::AdcDevice<'static, $A>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_adc::AdcDevice<'static, $A>)
     };};
 }
 
@@ -36,7 +36,7 @@ macro_rules! adc_syscall_component_helper {
                 $($P,)*
             ]
         );
-        let adc_virtualized = kernel::static_buf!(core_capsules::adc::AdcVirtualized<'static>);
+        let adc_virtualized = kernel::static_buf!(capsules_core::adc::AdcVirtualized<'static>);
         (adc_virtualized, drivers)
     };};
 }
@@ -44,10 +44,10 @@ macro_rules! adc_syscall_component_helper {
 #[macro_export]
 macro_rules! adc_dedicated_component_static {
     ($A:ty $(,)?) => {{
-        let adc = kernel::static_buf!(core_capsules::adc::AdcDedicated<'static, $A>);
-        let buffer1 = kernel::static_buf!([u16; core_capsules::adc::BUF_LEN]);
-        let buffer2 = kernel::static_buf!([u16; core_capsules::adc::BUF_LEN]);
-        let buffer3 = kernel::static_buf!([u16; core_capsules::adc::BUF_LEN]);
+        let adc = kernel::static_buf!(capsules_core::adc::AdcDedicated<'static, $A>);
+        let buffer1 = kernel::static_buf!([u16; capsules_core::adc::BUF_LEN]);
+        let buffer2 = kernel::static_buf!([u16; capsules_core::adc::BUF_LEN]);
+        let buffer3 = kernel::static_buf!([u16; capsules_core::adc::BUF_LEN]);
 
         (adc, buffer1, buffer2, buffer3)
     };};
@@ -122,7 +122,7 @@ impl Component for AdcVirtualComponent {
         &'static mut MaybeUninit<AdcVirtualized<'static>>,
         &'static [&'static dyn kernel::hil::adc::AdcChannel],
     );
-    type Output = &'static core_capsules::adc::AdcVirtualized<'static>;
+    type Output = &'static capsules_core::adc::AdcVirtualized<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -130,7 +130,7 @@ impl Component for AdcVirtualComponent {
 
         let adc = static_buffer
             .0
-            .write(core_capsules::adc::AdcVirtualized::new(
+            .write(capsules_core::adc::AdcVirtualized::new(
                 static_buffer.1,
                 grant_adc,
             ));
@@ -173,18 +173,18 @@ impl<A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static> Compon
 {
     type StaticInput = (
         &'static mut MaybeUninit<AdcDedicated<'static, A>>,
-        &'static mut MaybeUninit<[u16; core_capsules::adc::BUF_LEN]>,
-        &'static mut MaybeUninit<[u16; core_capsules::adc::BUF_LEN]>,
-        &'static mut MaybeUninit<[u16; core_capsules::adc::BUF_LEN]>,
+        &'static mut MaybeUninit<[u16; capsules_core::adc::BUF_LEN]>,
+        &'static mut MaybeUninit<[u16; capsules_core::adc::BUF_LEN]>,
+        &'static mut MaybeUninit<[u16; capsules_core::adc::BUF_LEN]>,
     );
     type Output = &'static AdcDedicated<'static, A>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let buffer1 = s.1.write([0; core_capsules::adc::BUF_LEN]);
-        let buffer2 = s.2.write([0; core_capsules::adc::BUF_LEN]);
-        let buffer3 = s.3.write([0; core_capsules::adc::BUF_LEN]);
+        let buffer1 = s.1.write([0; capsules_core::adc::BUF_LEN]);
+        let buffer2 = s.2.write([0; capsules_core::adc::BUF_LEN]);
+        let buffer3 = s.3.write([0; capsules_core::adc::BUF_LEN]);
 
         let adc = s.0.write(AdcDedicated::new(
             &self.adc,

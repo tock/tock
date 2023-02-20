@@ -32,10 +32,10 @@
 //! // wait for `ScreenClient::screen_is_ready` callback
 //! ```
 
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_extra::lpm013m126::Lpm013m126;
 use core::mem::MaybeUninit;
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use extra_capsules::lpm013m126::Lpm013m126;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::gpio;
@@ -94,13 +94,16 @@ impl<'a, P: gpio::Pin> gpio::Input for Inverted<'a, P> {
 #[macro_export]
 macro_rules! lpm013m126_component_static {
     ($A:ty, $P:ty, $S:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let buffer = kernel::static_buf!([u8; extra_capsules::lpm013m126::BUF_LEN]);
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
+        let buffer = kernel::static_buf!([u8; capsules_extra::lpm013m126::BUF_LEN]);
         let chip_select = kernel::static_buf!(components::lpm013m126::Inverted<'static, $P>);
-        let spi_device =
-            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let spi_device = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
+        );
         let lpm013m126 = kernel::static_buf!(
-            extra_capsules::lpm013m126::Lpm013m126<
+            capsules_extra::lpm013m126::Lpm013m126<
                 'static,
                 VirtualMuxAlarm<'static, $A>,
                 $P,
@@ -162,7 +165,7 @@ where
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<[u8; extra_capsules::lpm013m126::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::lpm013m126::BUF_LEN]>,
         &'static mut MaybeUninit<Inverted<'static, P>>,
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<
@@ -180,7 +183,7 @@ where
         let lpm013m126_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         lpm013m126_alarm.setup();
 
-        let buffer = s.1.write([0; extra_capsules::lpm013m126::BUF_LEN]);
+        let buffer = s.1.write([0; capsules_extra::lpm013m126::BUF_LEN]);
 
         let chip_select = s.2.write(Inverted(self.chip_select));
 

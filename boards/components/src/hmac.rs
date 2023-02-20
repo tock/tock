@@ -17,10 +17,10 @@
 //!    ));
 //! ```
 
+use capsules_core::virtualizers::virtual_hmac::MuxHmac;
+use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
+use capsules_extra::hmac::HmacDriver;
 use core::mem::MaybeUninit;
-use core_capsules::virtualizers::virtual_hmac::MuxHmac;
-use core_capsules::virtualizers::virtual_hmac::VirtualMuxHmac;
-use extra_capsules::hmac::HmacDriver;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -29,19 +29,20 @@ use kernel::hil::digest;
 #[macro_export]
 macro_rules! hmac_mux_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtualizers::virtual_hmac::MuxHmac<'static, $A, $L>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_hmac::MuxHmac<'static, $A, $L>)
     };};
 }
 
 #[macro_export]
 macro_rules! hmac_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        let virtual_mux =
-            kernel::static_buf!(core_capsules::virtualizers::virtual_hmac::VirtualMuxHmac<'static, $A, $L>);
+        let virtual_mux = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac<'static, $A, $L>
+        );
         let hmac = kernel::static_buf!(
-            extra_capsules::hmac::HmacDriver<
+            capsules_extra::hmac::HmacDriver<
                 'static,
-                core_capsules::virtualizers::virtual_hmac::VirtualMuxHmac<'static, $A, $L>,
+                capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac<'static, $A, $L>,
                 $L,
             >
         );
@@ -128,7 +129,7 @@ impl<
 
         let virtual_hmac_user = s.0.write(VirtualMuxHmac::new(self.mux_hmac, key_buffer));
 
-        let hmac = s.1.write(extra_capsules::hmac::HmacDriver::new(
+        let hmac = s.1.write(capsules_extra::hmac::HmacDriver::new(
             virtual_hmac_user,
             data_buffer,
             dest_buffer,

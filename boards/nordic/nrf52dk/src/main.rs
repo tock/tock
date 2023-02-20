@@ -67,7 +67,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
@@ -143,35 +143,38 @@ fn reset() -> ! {
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
         nrf52832::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, Rtc<'static>>,
     >,
-    button: &'static core_capsules::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
-    pconsole: &'static core_capsules::process_console::ProcessConsole<
+    button: &'static capsules_core::button::Button<'static, nrf52832::gpio::GPIOPin<'static>>,
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
-        { core_capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, Rtc<'static>>,
         components::process_console::Capability,
     >,
-    console: &'static core_capsules::console::Console<'static>,
-    gpio: &'static core_capsules::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
-    led: &'static core_capsules::led::LedDriver<
+    console: &'static capsules_core::console::Console<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52832::gpio::GPIOPin<'static>>,
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static core_capsules::rng::RngDriver<'static>,
-    temp: &'static extra_capsules::temperature::TemperatureSensor<'static>,
+    rng: &'static capsules_core::rng::RngDriver<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static extra_capsules::analog_comparator::AnalogComparator<
+    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
         nrf52832::acomp::Comparator<'static>,
     >,
-    alarm: &'static core_capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52832::rtc::Rtc<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            nrf52832::rtc::Rtc<'static>,
+        >,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -183,15 +186,15 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            core_capsules::console::DRIVER_NUM => f(Some(self.console)),
-            core_capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            core_capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            core_capsules::led::DRIVER_NUM => f(Some(self.led)),
-            core_capsules::button::DRIVER_NUM => f(Some(self.button)),
-            core_capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            extra_capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            extra_capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            extra_capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -265,7 +268,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        core_capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52832::gpio::GPIOPin,
             // Bottom right header on DK board
@@ -289,7 +292,7 @@ pub unsafe fn main() {
 
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        core_capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52832::gpio::GPIOPin,
             (
@@ -361,7 +364,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_static!(nrf52832::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        core_capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(nrf52832::rtc::Rtc));
@@ -404,7 +407,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        core_capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -414,7 +417,7 @@ pub unsafe fn main() {
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
-        extra_capsules::ble_advertising_driver::DRIVER_NUM,
+        capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -425,14 +428,14 @@ pub unsafe fn main() {
 
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        extra_capsules::temperature::DRIVER_NUM,
+        capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
     .finalize(components::temperature_component_static!());
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        core_capsules::rng::DRIVER_NUM,
+        capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(components::rng_component_static!());
@@ -446,7 +449,7 @@ pub unsafe fn main() {
             &nrf52832::acomp::CHANNEL_AC0
         ),
         board_kernel,
-        extra_capsules::analog_comparator::DRIVER_NUM,
+        capsules_extra::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::analog_comparator_component_static!(
         nrf52832::acomp::Comparator

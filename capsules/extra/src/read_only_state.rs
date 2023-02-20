@@ -38,7 +38,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ErrorCode;
 
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = core_capsules::driver::NUM::ReadOnlyState as usize;
+pub const DRIVER_NUM: usize = capsules_core::driver::NUM::ReadOnlyState as usize;
 const VERSION: u32 = 1;
 
 pub struct ReadOnlyStateDriver<'a, T: Time> {

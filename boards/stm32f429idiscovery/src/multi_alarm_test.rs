@@ -4,15 +4,15 @@
 //!    multi_alarm_test::run_alarm(alarm_mux);
 //! ```
 //! to the boot sequence, where `alarm_mux` is a
-//! `core_capsules::virtualizers::virtual_alarm::MuxAlarm`. The test sets up 3
+//! `capsules_core::virtualizers::virtual_alarm::MuxAlarm`. The test sets up 3
 //! different virtualized alarms of random durations and prints
 //! out when they fire. The durations are uniformly random with
 //! one caveat, that 1 in 11 is of duration 0; this is to test
 //! that alarms whose expiration was in the past due to the
 //! latency of software work correctly.
 
-use core_capsules::test::random_alarm::TestRandomAlarm;
-use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::test::random_alarm::TestRandomAlarm;
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
