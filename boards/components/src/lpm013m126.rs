@@ -33,8 +33,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use extra_capsules::lpm013m126::Lpm013m126;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -94,11 +94,11 @@ impl<'a, P: gpio::Pin> gpio::Input for Inverted<'a, P> {
 #[macro_export]
 macro_rules! lpm013m126_component_static {
     ($A:ty, $P:ty, $S:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let buffer = kernel::static_buf!([u8; extra_capsules::lpm013m126::BUF_LEN]);
         let chip_select = kernel::static_buf!(components::lpm013m126::Inverted<'static, $P>);
         let spi_device =
-            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
         let lpm013m126 = kernel::static_buf!(
             extra_capsules::lpm013m126::Lpm013m126<
                 'static,

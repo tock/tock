@@ -11,13 +11,13 @@
 
 mod imix_components;
 use core_capsules::alarm::AlarmDriver;
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
-use core_capsules::virtual_i2c::MuxI2C;
-use core_capsules::virtual_spi::VirtualSpiMasterDevice;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_i2c::MuxI2C;
+use core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use extra_capsules::net::ieee802154::MacAddress;
 use extra_capsules::net::ipv6::ip_utils::IPAddr;
-//use core_capsules::virtual_timer::MuxTimer;
+//use core_capsules::virtualizers::virtual_timer::MuxTimer;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -119,7 +119,7 @@ struct Imix {
     pconsole: &'static core_capsules::process_console::ProcessConsole<
         'static,
         { core_capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
         components::process_console::Capability,
     >,
     console: &'static core_capsules::console::Console<'static>,

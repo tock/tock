@@ -43,7 +43,7 @@ struct Teensy40 {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
     >,
 
     scheduler: &'static RoundRobinSched<'static>,

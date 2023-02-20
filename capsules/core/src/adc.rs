@@ -61,7 +61,7 @@ use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-use crate::virtual_adc::Operation;
+use crate::virtualizers::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 
 /// Multiplexed ADC syscall driver, used by applications and capsules.

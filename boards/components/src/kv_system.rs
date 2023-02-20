@@ -6,7 +6,7 @@
 //!    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
 //!        components::kv_store_mux_component_static!(
 //!            extra_capsules::tickv::TicKVStore<
-//!                core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+//!                core_capsules::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!            >,
 //!            extra_capsules::tickv::TicKVKeyType,
 //!        ),
@@ -15,7 +15,7 @@
 //!    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
 //!        components::kv_store_component_static!(
 //!            extra_capsules::tickv::TicKVStore<
-//!                core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+//!                core_capsules::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!            >,
 //!            extra_capsules::tickv::TicKVKeyType,
 //!        ),
@@ -29,7 +29,7 @@
 //!    .finalize(components::kv_driver_component_static!(
 //!        // extra_capsules::kv_store::KVStore<
 //!        extra_capsules::tickv::TicKVStore<
-//!            core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+//!            core_capsules::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
 //!        >,
 //!        extra_capsules::tickv::TicKVKeyType,
 //!    ));

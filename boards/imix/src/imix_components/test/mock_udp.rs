@@ -5,7 +5,7 @@
 #![allow(dead_code)] // Components are intended to be conditionally included
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use extra_capsules::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
 use extra_capsules::net::udp::udp_port_table::UdpPortManager;
@@ -19,7 +19,7 @@ use kernel::utilities::cells::TakeCell;
 /// Macro for constructing a mock UDP capsule for tests.
 macro_rules! mock_udp_component_static {
     () => {{
-        use core_capsules::virtual_alarm::VirtualMuxAlarm;
+        use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
         use extra_capsules::net::udp::udp_recv::UDPReceiver;
         use extra_capsules::net::udp::udp_send::UDPSendStruct;
         let udp_send = kernel::static_buf!(

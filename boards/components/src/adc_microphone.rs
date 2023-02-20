@@ -27,7 +27,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_adc::AdcDevice;
+use core_capsules::virtualizers::virtual_adc::AdcDevice;
 use extra_capsules::adc_microphone::AdcMicrophone;
 use kernel::component::Component;
 use kernel::hil::adc::{self, AdcChannel};
@@ -50,7 +50,7 @@ pub struct AdcMicrophoneComponent<
     P: 'static + gpio::Pin,
     const BUF_LEN: usize,
 > {
-    adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_mux: &'static core_capsules::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     pin: Option<&'static P>,
 }
@@ -59,7 +59,7 @@ impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize>
     AdcMicrophoneComponent<A, P, BUF_LEN>
 {
     pub fn new(
-        adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_mux: &'static core_capsules::virtualizers::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         pin: Option<&'static P>,
     ) -> AdcMicrophoneComponent<A, P, BUF_LEN> {

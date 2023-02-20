@@ -1,6 +1,6 @@
 //! Test reception on the virtualized UART: best if multiple Tests are
 //! instantiated and tested in parallel.
-use crate::virtual_uart::UartDevice;
+use crate::virtualizers::virtual_uart::UartDevice;
 
 use kernel::debug;
 use kernel::hil::uart;

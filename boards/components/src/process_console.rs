@@ -16,8 +16,8 @@
 
 use core::mem::MaybeUninit;
 use core_capsules::process_console::{self, ProcessConsole};
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_uart::{MuxUart, UartDevice};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -27,12 +27,12 @@ use kernel::process::ProcessPrinter;
 #[macro_export]
 macro_rules! process_console_component_static {
     ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let uart = kernel::static_buf!(core_capsules::virtual_uart::UartDevice);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let uart = kernel::static_buf!(core_capsules::virtualizers::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
             core_capsules::process_console::ProcessConsole<
                 $COMMAND_HISTORY_LEN,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 components::process_console::Capability,
             >
         );

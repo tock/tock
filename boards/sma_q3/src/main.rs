@@ -12,8 +12,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::I2CMaster;
@@ -109,7 +109,7 @@ pub struct Platform {
     >,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -372,8 +372,8 @@ pub unsafe fn main() {
     .finalize(components::temperature_component_static!());
 
     let sensors_i2c_bus = static_init!(
-        core_capsules::virtual_i2c::MuxI2C<'static>,
-        core_capsules::virtual_i2c::MuxI2C::new(
+        core_capsules::virtualizers::virtual_i2c::MuxI2C<'static>,
+        core_capsules::virtualizers::virtual_i2c::MuxI2C::new(
             &base_peripherals.twi1,
             None,
             dynamic_deferred_caller
@@ -430,8 +430,8 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let periodic_virtual_alarm = static_init!(
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-        core_capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     periodic_virtual_alarm.setup();
 

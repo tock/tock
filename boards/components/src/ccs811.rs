@@ -20,7 +20,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::ccs811::Ccs811;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -29,7 +29,7 @@ use kernel::dynamic_deferred_call::DynamicDeferredCall;
 #[macro_export]
 macro_rules! ccs811_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; 6]);
         let ccs811 = kernel::static_buf!(extra_capsules::ccs811::Ccs811<'static>);
 

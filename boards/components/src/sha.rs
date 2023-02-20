@@ -18,8 +18,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_sha::MuxSha;
-use core_capsules::virtual_sha::VirtualMuxSha;
+use core_capsules::virtualizers::virtual_sha::MuxSha;
+use core_capsules::virtualizers::virtual_sha::VirtualMuxSha;
 use extra_capsules::sha::ShaDriver;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -30,7 +30,7 @@ use kernel::hil::digest;
 #[macro_export]
 macro_rules! sha_mux_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_sha::MuxSha<'static, $A, $L>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_sha::MuxSha<'static, $A, $L>)
     };};
 }
 
@@ -62,11 +62,11 @@ impl<
 macro_rules! sha_component_static {
     ($A:ty, $L:expr$(,)?) => {{
         let sha_mux =
-            kernel::static_buf!(core_capsules::virtual_sha::VirtualMuxSha<'static, $A, $L>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>);
         let sha_driver = kernel::static_buf!(
             extra_capsules::sha::ShaDriver<
                 'static,
-                core_capsules::virtual_sha::VirtualMuxSha<'static, $A, $L>,
+                core_capsules::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>,
                 $L,
             >
         );

@@ -24,8 +24,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::bmp280::Bmp280;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
@@ -33,8 +33,8 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! bmp280_component_static {
     ($A:ty $(,)?) => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let buffer = kernel::static_buf!([u8; extra_capsules::bmp280::BUFFER_SIZE]);
         let bmp280 = kernel::static_buf!(
             extra_capsules::bmp280::Bmp280<'static, VirtualMuxAlarm<'static, $A>>

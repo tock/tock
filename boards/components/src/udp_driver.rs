@@ -19,7 +19,7 @@
 
 use core::mem::MaybeUninit;
 use core_capsules;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use extra_capsules::net::ipv6::ip_utils::IPAddr;
 use extra_capsules::net::ipv6::ipv6_send::IP6SendStruct;
 use extra_capsules::net::network_capabilities::{
@@ -49,7 +49,7 @@ macro_rules! udp_driver_component_static {
                 'static,
                 extra_capsules::net::ipv6::ipv6_send::IP6SendStruct<
                     'static,
-                    core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                    core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 >,
             >
         );

@@ -15,8 +15,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_flash::FlashUser;
-use core_capsules::virtual_flash::MuxFlash;
+use core_capsules::virtualizers::virtual_flash::FlashUser;
+use core_capsules::virtualizers::virtual_flash::MuxFlash;
 use kernel::component::Component;
 use kernel::hil::flash::{Flash, HasClient};
 
@@ -24,14 +24,14 @@ use kernel::hil::flash::{Flash, HasClient};
 #[macro_export]
 macro_rules! flash_user_component_static {
     ($F:ty) => {{
-        kernel::static_buf!(core_capsules::virtual_flash::FlashUser<'static, $F>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_flash::FlashUser<'static, $F>)
     };};
 }
 
 #[macro_export]
 macro_rules! flash_mux_component_static {
     ($F:ty) => {{
-        kernel::static_buf!(core_capsules::virtual_flash::MuxFlash<'static, $F>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_flash::MuxFlash<'static, $F>)
     };};
 }
 

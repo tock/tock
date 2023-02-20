@@ -25,7 +25,7 @@
 
 use core::mem::MaybeUninit;
 use core_capsules;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::ieee802154::device::MacDevice;
 use extra_capsules::net::ieee802154::MacAddress;
 use extra_capsules::net::ipv6::ip_utils::IPAddr;
@@ -67,7 +67,7 @@ macro_rules! udp_mux_component_static {
         use components::udp_mux::MAX_PAYLOAD_LEN;
         use core::mem::MaybeUninit;
         use core_capsules;
-        use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+        use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
         use extra_capsules::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
         use extra_capsules::net::udp::udp_send::MuxUdpSender;
 

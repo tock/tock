@@ -23,8 +23,8 @@
 // Last modified: 6/20/2018
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::ambient_light::AmbientLight;
 use extra_capsules::isl29035::Isl29035;
 use kernel::capabilities;
@@ -37,13 +37,13 @@ use kernel::hil::time::{self, Alarm};
 #[macro_export]
 macro_rules! isl29035_component_static {
     ($A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
         let i2c_buffer = kernel::static_buf!([u8; extra_capsules::isl29035::BUF_LEN]);
         let isl29035 = kernel::static_buf!(
             extra_capsules::isl29035::Isl29035<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

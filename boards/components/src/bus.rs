@@ -21,9 +21,9 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
-use core_capsules::virtual_spi::MuxSpiMaster;
-use core_capsules::virtual_spi::VirtualSpiMasterDevice;
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_spi::MuxSpiMaster;
+use core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use extra_capsules::bus::{Bus8080Bus, I2CMasterBus, SpiMasterBus};
 use kernel::component::Component;
 use kernel::hil::bus8080;
@@ -41,12 +41,12 @@ macro_rules! bus8080_bus_component_static {
 macro_rules! spi_bus_component_static {
     ($S:ty $(,)?) => {{
         let spi =
-            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
         let address_buffer = kernel::static_buf!([u8; core::mem::size_of::<usize>()]);
         let bus = kernel::static_buf!(
             extra_capsules::bus::SpiMasterBus<
                 'static,
-                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         );
 
@@ -59,7 +59,7 @@ macro_rules! i2c_master_bus_component_static {
     () => {{
         let address_buffer = kernel::static_buf!([u8; 1]);
         let bus = kernel::static_buf!(extra_capsules::bus::I2CMasterBus<'static>);
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
 
         (bus, i2c_device, address_buffer)
     };};

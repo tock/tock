@@ -12,10 +12,10 @@
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
-use core_capsules::virtual_aes_ccm;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_hmac::VirtualMuxHmac;
-use core_capsules::virtual_sha::VirtualMuxSha;
+use core_capsules::virtualizers::virtual_aes_ccm;
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_hmac::VirtualMuxHmac;
+use core_capsules::virtualizers::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -69,7 +69,7 @@ static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'st
 static mut TICKV: Option<
     &extra_capsules::tickv::TicKVStore<
         'static,
-        core_capsules::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
+        core_capsules::virtualizers::virtual_flash::FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
         extra_capsules::sip_hash::SipHasher24<'static>,
     >,
 > = None;
@@ -114,7 +114,7 @@ struct EarlGrey {
         'static,
         VirtualMuxHmac<
             'static,
-            core_capsules::virtual_digest::VirtualMuxDigest<
+            core_capsules::virtualizers::virtual_digest::VirtualMuxDigest<
                 'static,
                 lowrisc::hmac::Hmac<'static>,
                 32,
@@ -127,7 +127,7 @@ struct EarlGrey {
         'static,
         VirtualMuxSha<
             'static,
-            core_capsules::virtual_digest::VirtualMuxDigest<
+            core_capsules::virtualizers::virtual_digest::VirtualMuxDigest<
                 'static,
                 lowrisc::hmac::Hmac<'static>,
                 32,
@@ -138,13 +138,13 @@ struct EarlGrey {
     >,
     lldb: &'static core_capsules::low_level_debug::LowLevelDebug<
         'static,
-        core_capsules::virtual_uart::UartDevice<'static>,
+        core_capsules::virtualizers::virtual_uart::UartDevice<'static>,
     >,
     i2c_master:
         &'static core_capsules::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
     spi_controller: &'static core_capsules::spi_controller::Spi<
         'static,
-        core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, lowrisc::spi_host::SpiHost>,
+        core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, lowrisc::spi_host::SpiHost>,
     >,
     rng: &'static core_capsules::rng::RngDriver<'static>,
     aes: &'static extra_capsules::symmetric_encryption::aes::AesDriver<
@@ -155,7 +155,7 @@ struct EarlGrey {
         'static,
         extra_capsules::tickv::TicKVStore<
             'static,
-            core_capsules::virtual_flash::FlashUser<
+            core_capsules::virtualizers::virtual_flash::FlashUser<
                 'static,
                 lowrisc::flash_ctrl::FlashCtrl<'static>,
             >,
@@ -395,7 +395,7 @@ unsafe fn setup() -> (
     peripherals.hmac.set_client(digest);
 
     let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_static!(core_capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::hmac_mux_component_static!(core_capsules::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
     let hmac = components::hmac::HmacComponent::new(
@@ -404,14 +404,14 @@ unsafe fn setup() -> (
         &mux_hmac,
     )
     .finalize(components::hmac_component_static!(
-        core_capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
+        core_capsules::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
         32,
     ));
 
     digest.set_hmac_client(hmac);
 
     let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_static!(core_capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+        components::sha_mux_component_static!(core_capsules::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
     );
 
     let sha = components::sha::ShaComponent::new(
@@ -419,7 +419,7 @@ unsafe fn setup() -> (
         extra_capsules::sha::DRIVER_NUM,
         &mux_sha,
     )
-    .finalize(components::sha_component_static!(core_capsules::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
+    .finalize(components::sha_component_static!(core_capsules::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
 
     digest.set_sha_client(sha);
 
@@ -552,7 +552,7 @@ unsafe fn setup() -> (
     let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
         components::kv_store_mux_component_static!(
             extra_capsules::tickv::TicKVStore<
-                core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                core_capsules::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
                 extra_capsules::sip_hash::SipHasher24<'static>,
             >,
             extra_capsules::tickv::TicKVKeyType,
@@ -562,7 +562,7 @@ unsafe fn setup() -> (
     let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
         components::kv_store_component_static!(
             extra_capsules::tickv::TicKVStore<
-                core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+                core_capsules::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
                 extra_capsules::sip_hash::SipHasher24<'static>,
             >,
             extra_capsules::tickv::TicKVKeyType,
@@ -577,7 +577,7 @@ unsafe fn setup() -> (
     )
     .finalize(components::kv_driver_component_static!(
         extra_capsules::tickv::TicKVStore<
-            core_capsules::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
+            core_capsules::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
             extra_capsules::sip_hash::SipHasher24<'static>,
         >,
         extra_capsules::tickv::TicKVKeyType,

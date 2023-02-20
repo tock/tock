@@ -3,7 +3,7 @@
 use core::mem::MaybeUninit;
 use core_capsules::adc::AdcDedicated;
 use core_capsules::adc::AdcVirtualized;
-use core_capsules::virtual_adc::{AdcDevice, MuxAdc};
+use core_capsules::virtualizers::virtual_adc::{AdcDevice, MuxAdc};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -12,14 +12,14 @@ use kernel::hil::adc;
 #[macro_export]
 macro_rules! adc_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_adc::MuxAdc<'static, $A>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_adc::MuxAdc<'static, $A>)
     };};
 }
 
 #[macro_export]
 macro_rules! adc_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_adc::AdcDevice<'static, $A>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_adc::AdcDevice<'static, $A>)
     };};
 }
 

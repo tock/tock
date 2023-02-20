@@ -39,7 +39,7 @@
 //! ```rust
 //! let led = components::led_matrix_led!(
 //!     nrf52::gpio::GPIOPin<'static>,
-//!     core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 //!     led,
 //!     1,
 //!     2
@@ -52,7 +52,7 @@
 //! ```rust
 //! let leds = components::led_matrix_leds!(
 //!     nrf52::gpio::GPIOPin<'static>,
-//!     core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//!     core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
 //!     led,
 //!     (0, 0),
 //!     (1, 0),
@@ -66,7 +66,7 @@
 //!
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::led_matrix::LedMatrixDriver;
 use kernel::component::Component;
 use kernel::hil::gpio::{ActivationMode, Pin};
@@ -76,12 +76,12 @@ use kernel::hil::time::Alarm;
 macro_rules! led_matrix_component_static {
     ($Pin:ty, $A: ty, $num_cols: literal, $num_rows: literal $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $num_cols * $num_rows / 8 + 1]);
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let led = kernel::static_buf!(
             extra_capsules::led_matrix::LedMatrixDriver<
                 'static,
                 $Pin,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

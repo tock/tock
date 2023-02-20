@@ -25,7 +25,7 @@ use extra_capsules::net::sixlowpan::sixlowpan_state::{Sixlowpan, SixlowpanState,
 use kernel::ErrorCode;
 
 use core::cell::Cell;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;

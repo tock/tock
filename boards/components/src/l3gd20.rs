@@ -10,7 +10,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use core_capsules::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use extra_capsules::l3gd20::L3gd20Spi;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -26,7 +26,7 @@ macro_rules! l3gd20_component_static {
         let rxbuffer = kernel::static_buf!([u8; extra_capsules::l3gd20::RX_BUF_LEN]);
 
         let spi =
-            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $A>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $A>);
         let l3gd20spi = kernel::static_buf!(extra_capsules::l3gd20::L3gd20Spi<'static>);
 
         (spi, l3gd20spi, txbuffer, rxbuffer)

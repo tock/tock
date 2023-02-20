@@ -1,7 +1,7 @@
 //! Component for the RaspberryPI 2040 built-in temperature sensor.
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_adc::AdcDevice;
+use core_capsules::virtualizers::virtual_adc::AdcDevice;
 use extra_capsules::temperature_rp2040::TemperatureRp2040;
 use kernel::component::Component;
 use kernel::hil::adc;
@@ -19,7 +19,7 @@ macro_rules! temperature_rp2040_adc_component_static {
 }
 
 pub struct TemperatureRp2040Component<A: 'static + adc::Adc> {
-    adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_mux: &'static core_capsules::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     slope: f32,
     v_27: f32,
@@ -27,7 +27,7 @@ pub struct TemperatureRp2040Component<A: 'static + adc::Adc> {
 
 impl<A: 'static + adc::Adc> TemperatureRp2040Component<A> {
     pub fn new(
-        adc_mux: &'static core_capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_mux: &'static core_capsules::virtualizers::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         slope: f32,
         v_27: f32,

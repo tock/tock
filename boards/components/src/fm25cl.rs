@@ -10,7 +10,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use core_capsules::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use extra_capsules::fm25cl::FM25CL;
 use kernel::component::Component;
 use kernel::hil::spi;
@@ -23,11 +23,11 @@ macro_rules! fm25cl_component_static {
         let rxbuffer = kernel::static_buf!([u8; extra_capsules::fm25cl::BUF_LEN]);
 
         let spi =
-            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
         let fm25cl = kernel::static_buf!(
             extra_capsules::fm25cl::FM25CL<
                 'static,
-                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         );
 

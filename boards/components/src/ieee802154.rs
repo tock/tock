@@ -31,7 +31,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use extra_capsules::ieee802154::device::MacDevice;
 use extra_capsules::ieee802154::mac::{AwakeMac, Mac};
 use kernel::capabilities;
@@ -48,7 +48,7 @@ pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radi
 #[macro_export]
 macro_rules! mux_aes128ccm_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_aes_ccm::MuxAES128CCM<'static, $A>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM<'static, $A>)
     };};
 }
 
@@ -88,13 +88,13 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
 macro_rules! ieee802154_component_static {
     ($R:ty, $A:ty $(,)?) => {{
         let virtual_aes =
-            kernel::static_buf!(core_capsules::virtual_aes_ccm::VirtualAES128CCM<'static, $A>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $A>);
         let awake_mac = kernel::static_buf!(extra_capsules::ieee802154::mac::AwakeMac<'static, $R>);
         let framer = kernel::static_buf!(
             extra_capsules::ieee802154::framer::Framer<
                 'static,
                 extra_capsules::ieee802154::mac::AwakeMac<'static, $R>,
-                core_capsules::virtual_aes_ccm::VirtualAES128CCM<'static, $A>,
+                core_capsules::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $A>,
             >
         );
 
@@ -166,13 +166,13 @@ impl<
     > Component for Ieee802154Component<R, A>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<core_capsules::virtual_aes_ccm::VirtualAES128CCM<'static, A>>,
+        &'static mut MaybeUninit<core_capsules::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>>,
         &'static mut MaybeUninit<extra_capsules::ieee802154::mac::AwakeMac<'static, R>>,
         &'static mut MaybeUninit<
             extra_capsules::ieee802154::framer::Framer<
                 'static,
                 AwakeMac<'static, R>,
-                core_capsules::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+                core_capsules::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
             >,
         >,
         &'static mut MaybeUninit<extra_capsules::ieee802154::virtual_mac::MuxMac<'static>>,
@@ -193,7 +193,7 @@ impl<
         let crypt_buf = static_buffer.8.write([0; CRYPT_SIZE]);
         let aes_ccm = static_buffer
             .0
-            .write(core_capsules::virtual_aes_ccm::VirtualAES128CCM::new(
+            .write(core_capsules::virtualizers::virtual_aes_ccm::VirtualAES128CCM::new(
                 self.aes_mux,
                 crypt_buf,
             ));

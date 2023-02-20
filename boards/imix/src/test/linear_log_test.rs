@@ -14,7 +14,7 @@
 //! respectively.
 
 use core::cell::Cell;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::log;
 use kernel::debug;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;

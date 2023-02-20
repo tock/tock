@@ -28,8 +28,8 @@ use core::mem::MaybeUninit;
 
 use core_capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
 use core_capsules::spi_peripheral::SpiPeripheral;
-use core_capsules::virtual_spi;
-use core_capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use core_capsules::virtualizers::virtual_spi;
+use core_capsules::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -41,7 +41,7 @@ use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 #[macro_export]
 macro_rules! spi_mux_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_spi::MuxSpiMaster<'static, $S>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_spi::MuxSpiMaster<'static, $S>)
     };};
 }
 
@@ -49,11 +49,11 @@ macro_rules! spi_mux_component_static {
 macro_rules! spi_syscall_component_static {
     ($S:ty $(,)?) => {{
         let virtual_spi =
-            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
         let spi = kernel::static_buf!(
             core_capsules::spi_controller::Spi<
                 'static,
-                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         );
 
@@ -70,11 +70,11 @@ macro_rules! spi_syscall_component_static {
 macro_rules! spi_syscallp_component_static {
     ($S:ty $(,)?) => {{
         let spi_slave =
-            kernel::static_buf!(core_capsules::virtual_spi::SpiSlaveDevice<'static, $S>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::SpiSlaveDevice<'static, $S>);
         let spi_peripheral = kernel::static_buf!(
             core_capsules::spi_peripheral::SpiPeripheral<
                 'static,
-                core_capsules::virtual_spi::SpiSlaveDevice<'static, $S>,
+                core_capsules::virtualizers::virtual_spi::SpiSlaveDevice<'static, $S>,
             >
         );
 
@@ -90,7 +90,7 @@ macro_rules! spi_syscallp_component_static {
 #[macro_export]
 macro_rules! spi_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>)
     };};
 }
 

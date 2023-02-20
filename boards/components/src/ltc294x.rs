@@ -11,7 +11,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::ltc294x::LTC294XDriver;
 use extra_capsules::ltc294x::LTC294X;
 use kernel::capabilities;
@@ -22,7 +22,7 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! ltc294x_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
         let ltc294x = kernel::static_buf!(extra_capsules::ltc294x::LTC294X<'static>);
         let buffer = kernel::static_buf!([u8; extra_capsules::ltc294x::BUF_LEN]);
 

@@ -7,7 +7,7 @@
 #![deny(missing_docs)]
 
 use components::gpio::GpioComponent;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;

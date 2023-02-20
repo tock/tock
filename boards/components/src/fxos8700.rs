@@ -16,7 +16,7 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/03/2020
 
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::fxos8700cq::Fxos8700cq;
 
 use kernel::component::Component;
@@ -28,7 +28,7 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! fxos8700_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; extra_capsules::fxos8700cq::BUF_LEN]);
         let fxo = kernel::static_buf!(extra_capsules::fxos8700cq::Fxos8700cq<'static>);
 

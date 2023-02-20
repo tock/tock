@@ -18,8 +18,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use extra_capsules::mx25r6435f::MX25R6435F;
 use kernel::component::Component;
 use kernel::hil;
@@ -31,14 +31,14 @@ use kernel::hil::time::Alarm;
 macro_rules! mx25r6435f_component_static {
     ($S:ty, $P:ty, $A:ty $(,)?) => {{
         let spi_device =
-            kernel::static_buf!(core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let mx25r6435f = kernel::static_buf!(
             extra_capsules::mx25r6435f::MX25R6435F<
                 'static,
-                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
                 $P,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

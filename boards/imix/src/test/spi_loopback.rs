@@ -12,7 +12,7 @@
 
 use components::spi::SpiComponent;
 use core::cell::Cell;
-use core_capsules::virtual_spi::MuxSpiMaster;
+use core_capsules::virtualizers::virtual_spi::MuxSpiMaster;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::spi::{self, SpiMasterDevice};

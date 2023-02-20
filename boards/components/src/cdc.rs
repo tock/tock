@@ -22,7 +22,7 @@
 
 use core::mem::MaybeUninit;
 
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
@@ -32,12 +32,12 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! cdc_acm_component_static {
     ($U:ty, $A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let cdc = kernel::static_buf!(
             extra_capsules::usb::cdc::CdcAcm<
                 'static,
                 $U,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

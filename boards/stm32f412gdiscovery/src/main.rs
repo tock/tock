@@ -9,7 +9,7 @@
 #![deny(missing_docs)]
 use components::gpio::GpioComponent;
 use components::rng::RngComponent;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};

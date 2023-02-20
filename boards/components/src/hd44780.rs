@@ -30,7 +30,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::hd44780::HD44780;
 use kernel::component::Component;
 use kernel::hil::time;
@@ -40,11 +40,11 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! hd44780_component_static {
     ($A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let hd44780 = kernel::static_buf!(
             extra_capsules::hd44780::HD44780<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
         let buffer = kernel::static_buf!([u8; extra_capsules::hd44780::BUF_LEN]);

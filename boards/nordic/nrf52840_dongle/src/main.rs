@@ -9,8 +9,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
@@ -112,7 +112,7 @@ pub struct Platform {
     >,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,

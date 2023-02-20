@@ -2,7 +2,7 @@
 //! Gets a specified number of random numbers by making sequential calls to get()
 //! Full test harness for this can be found in nano33ble/test/virtual_rng_test
 
-use crate::virtual_rng::VirtualRngMasterDevice;
+use crate::virtualizers::virtual_rng::VirtualRngMasterDevice;
 
 use core::cell::Cell;
 

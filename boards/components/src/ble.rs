@@ -8,7 +8,7 @@
 
 use core::mem::MaybeUninit;
 use core_capsules;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -18,12 +18,12 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! ble_component_static {
     ($A:ty, $B:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let ble = kernel::static_buf!(
             extra_capsules::ble_advertising_driver::BLE<
                 'static,
                 $B,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
         let buffer =
@@ -39,7 +39,7 @@ pub struct BLEComponent<
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     radio: &'static B,
-    mux_alarm: &'static core_capsules::virtual_alarm::MuxAlarm<'static, A>,
+    mux_alarm: &'static core_capsules::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
 }
 
 impl<
@@ -51,7 +51,7 @@ impl<
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         radio: &'static B,
-        mux_alarm: &'static core_capsules::virtual_alarm::MuxAlarm<'static, A>,
+        mux_alarm: &'static core_capsules::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
     ) -> Self {
         Self {
             board_kernel,
@@ -68,7 +68,7 @@ impl<
     > Component for BLEComponent<A, B>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<core_capsules::virtual_alarm::VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<
             extra_capsules::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>,
         >,
@@ -84,7 +84,7 @@ impl<
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let ble_radio_virtual_alarm = s.0.write(
-            core_capsules::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm),
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm),
         );
         ble_radio_virtual_alarm.setup();
         let buffer =

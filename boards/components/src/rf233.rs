@@ -18,7 +18,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_spi::VirtualSpiMasterDevice;
+use core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use extra_capsules::rf233::RF233;
 use kernel::component::Component;
 use kernel::hil;
@@ -31,7 +31,7 @@ macro_rules! rf233_component_static {
         kernel::static_buf!(
             extra_capsules::rf233::RF233<
                 'static,
-                core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         )
     };};

@@ -21,7 +21,7 @@
 use core::mem::MaybeUninit;
 
 use core_capsules::alarm::AlarmDriver;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -31,7 +31,7 @@ use kernel::hil::time::{self, Alarm};
 #[macro_export]
 macro_rules! alarm_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_alarm::MuxAlarm<'static, $A>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::MuxAlarm<'static, $A>)
     };};
 }
 
@@ -40,11 +40,11 @@ macro_rules! alarm_mux_component_static {
 macro_rules! alarm_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm =
-            kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let alarm_driver = kernel::static_buf!(
             core_capsules::alarm::AlarmDriver<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

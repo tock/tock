@@ -1,7 +1,7 @@
 //! Component for LPS25HB pressure sensor.
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::lps25hb::LPS25HB;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -11,7 +11,7 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! lps25hb_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
         let lps25hb = kernel::static_buf!(extra_capsules::lps25hb::LPS25HB<'static>);
         let buffer = kernel::static_buf!([u8; extra_capsules::lps25hb::BUF_LEN]);
 

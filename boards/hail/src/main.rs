@@ -62,7 +62,7 @@ struct Hail {
     gpio: &'static core_capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
     >,
     ambient_light: &'static extra_capsules::ambient_light::AmbientLight<'static>,
     temp: &'static extra_capsules::temperature::TemperatureSensor<'static>,
@@ -70,7 +70,7 @@ struct Hail {
     humidity: &'static extra_capsules::humidity::HumiditySensor<'static>,
     spi: &'static core_capsules::spi_controller::Spi<
         'static,
-        core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
     >,
     nrf51822: &'static extra_capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     adc: &'static core_capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,

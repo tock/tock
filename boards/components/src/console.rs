@@ -21,7 +21,7 @@
 
 use core::mem::MaybeUninit;
 use core_capsules::console;
-use core_capsules::virtual_uart::{MuxUart, UartDevice};
+use core_capsules::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -34,14 +34,14 @@ use core_capsules::console::DEFAULT_BUF_SIZE;
 #[macro_export]
 macro_rules! uart_mux_component_static {
     () => {{
-        use core_capsules::virtual_uart::MuxUart;
+        use core_capsules::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
-        let RX_BUF = static_buf!([u8; core_capsules::virtual_uart::RX_BUF_LEN]);
+        let RX_BUF = static_buf!([u8; core_capsules::virtualizers::virtual_uart::RX_BUF_LEN]);
         (UART_MUX, RX_BUF)
     }};
     ($rx_buffer_len: literal) => {{
-        use core_capsules::virtual_uart::MuxUart;
+        use core_capsules::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
         let RX_BUF = static_buf!([u8; $rx_buffer_len]);
@@ -100,7 +100,7 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 macro_rules! console_component_static {
     () => {{
         use core_capsules::console::{Console, DEFAULT_BUF_SIZE};
-        use core_capsules::virtual_uart::UartDevice;
+        use core_capsules::virtualizers::virtual_uart::UartDevice;
         use kernel::static_buf;
         let read_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
         let write_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);

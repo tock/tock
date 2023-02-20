@@ -6,7 +6,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
 use kernel::component::Component;

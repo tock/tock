@@ -9,7 +9,7 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;

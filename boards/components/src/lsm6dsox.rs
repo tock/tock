@@ -25,7 +25,7 @@
 //! Author: Cristiana Andrei <cristiana.andrei@stud.fils.upb.ro>
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::lsm6dsoxtr::Lsm6dsoxtrI2C;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -36,7 +36,7 @@ use kernel::create_capability;
 macro_rules! lsm6ds_i2c_component_static {
     () => {{
         let buffer = kernel::static_buf!([u8; 8]);
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
         let lsm6dsoxtr = kernel::static_buf!(extra_capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
 
         (i2c_device, buffer, lsm6dsoxtr)

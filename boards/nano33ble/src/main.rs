@@ -93,7 +93,7 @@ static mut CDC_REF_FOR_PANIC: Option<
     &'static extra_capsules::usb::cdc::CdcAcm<
         'static,
         nrf52::usbd::Usbd,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
@@ -127,14 +127,14 @@ pub struct Platform {
     ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     ieee802154_radio: &'static extra_capsules::ieee802154::RadioDriver<'static>,
     console: &'static core_capsules::console::Console<'static>,
     pconsole: &'static core_capsules::process_console::ProcessConsole<
         'static,
         { core_capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,
     proximity: &'static extra_capsules::proximity::ProximitySensor<'static>,
@@ -151,7 +151,7 @@ pub struct Platform {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     udp_driver: &'static extra_capsules::net::udp::UDPDriver<'static>,
     scheduler: &'static RoundRobinSched<'static>,

@@ -15,7 +15,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{MuxI2C, SMBusDevice};
+use core_capsules::virtualizers::virtual_i2c::{MuxI2C, SMBusDevice};
 use extra_capsules::mlx90614::Mlx90614SMBus;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -25,7 +25,7 @@ use kernel::create_capability;
 #[macro_export]
 macro_rules! mlx90614_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::SMBusDevice);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::SMBusDevice);
         let buffer = kernel::static_buf!([u8; 14]);
         let mlx90614 = kernel::static_buf!(extra_capsules::mlx90614::Mlx90614SMBus<'static>);
 

@@ -12,7 +12,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::ft6x06::Ft6x06;
 use extra_capsules::ft6x06::NO_TOUCH;
 use kernel::component::Component;
@@ -22,7 +22,7 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! ft6x06_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; 17]);
         let events_buffer = kernel::static_buf!([kernel::hil::touch::TouchEvent; 2]);
         let ft6x06 = kernel::static_buf!(extra_capsules::ft6x06::Ft6x06<'static>);

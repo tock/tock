@@ -55,7 +55,7 @@ struct MspExp432P401R {
     gpio: &'static core_capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static core_capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,

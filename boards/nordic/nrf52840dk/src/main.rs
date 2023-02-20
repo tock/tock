@@ -70,8 +70,8 @@
 #![deny(missing_docs)]
 
 use core_capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use extra_capsules::net::ieee802154::MacAddress;
 use extra_capsules::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
@@ -195,7 +195,7 @@ pub struct Platform {
     >,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     nonvolatile_storage:
         &'static extra_capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
@@ -204,7 +204,7 @@ pub struct Platform {
         &'static core_capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
     spi_controller: &'static core_capsules::spi_controller::Spi<
         'static,
-        core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+        core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -603,7 +603,7 @@ pub unsafe fn main() {
     .finalize(components::nonvolatile_storage_component_static!(
         extra_capsules::mx25r6435f::MX25R6435F<
             'static,
-            core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
             nrf52840::gpio::GPIOPin,
             VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
         >

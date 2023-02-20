@@ -15,7 +15,7 @@ use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClie
 
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
@@ -482,7 +482,7 @@ pub unsafe fn main() {
         // bus type
         extra_capsules::bus::SpiMasterBus<
             'static,
-            core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, Spi>,
+            core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, Spi>,
         >,
         // timer type
         RPTimer,

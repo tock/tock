@@ -18,7 +18,7 @@
 // Last modified: 07/02/2020
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::segger_rtt::{SeggerRtt, SeggerRttMemory};
 use kernel::component::Component;
 use kernel::hil::time::{self, Alarm};
@@ -40,11 +40,11 @@ macro_rules! segger_rtt_memory_component_static {
 #[macro_export]
 macro_rules! segger_rtt_component_static {
     ($A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let rtt = kernel::static_buf!(
             extra_capsules::segger_rtt::SeggerRtt<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

@@ -5,7 +5,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -48,7 +48,7 @@ struct QemuRv32VirtPlatform {
     pconsole: &'static core_capsules::process_console::ProcessConsole<
         'static,
         { core_capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        core_capsules::virtual_alarm::VirtualMuxAlarm<
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<
             'static,
             qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
         >,
@@ -57,7 +57,7 @@ struct QemuRv32VirtPlatform {
     console: &'static core_capsules::console::Console<'static>,
     lldb: &'static core_capsules::low_level_debug::LowLevelDebug<
         'static,
-        core_capsules::virtual_uart::UartDevice<'static>,
+        core_capsules::virtualizers::virtual_uart::UartDevice<'static>,
     >,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,

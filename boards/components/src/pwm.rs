@@ -1,5 +1,5 @@
 use core::mem::MaybeUninit;
-use core_capsules::virtual_pwm::{MuxPwm, PwmPinUser};
+use core_capsules::virtualizers::virtual_pwm::{MuxPwm, PwmPinUser};
 use extra_capsules::pwm::Pwm;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -9,14 +9,14 @@ use kernel::hil::pwm;
 #[macro_export]
 macro_rules! pwm_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_pwm::MuxPwm<'static, $A>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_pwm::MuxPwm<'static, $A>)
     };};
 }
 
 #[macro_export]
 macro_rules! pwm_pin_user_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(core_capsules::virtual_pwm::PwmPinUser<'static, $A>)
+        kernel::static_buf!(core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, $A>)
     };};
 }
 

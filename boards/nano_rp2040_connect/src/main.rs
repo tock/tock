@@ -13,7 +13,7 @@ use core::arch::asm;
 
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;

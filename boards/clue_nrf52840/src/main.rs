@@ -8,7 +8,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -113,7 +113,7 @@ static mut CDC_REF_FOR_PANIC: Option<
     &'static extra_capsules::usb::cdc::CdcAcm<
         'static,
         nrf52::usbd::Usbd,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
@@ -150,7 +150,7 @@ pub struct Platform {
     ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     ieee802154_radio: &'static extra_capsules::ieee802154::RadioDriver<'static>,
     console: &'static core_capsules::console::Console<'static>,
@@ -167,14 +167,14 @@ pub struct Platform {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     buzzer: &'static extra_capsules::buzzer_driver::Buzzer<
         'static,
         extra_capsules::buzzer_pwm::PwmBuzzer<
             'static,
-            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-            core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+            core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
         >,
     >,
     adc: &'static core_capsules::adc::AdcVirtualized<'static>,
@@ -407,12 +407,12 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let mux_pwm = static_init!(
-        core_capsules::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
-        core_capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
+        core_capsules::virtualizers::virtual_pwm::MuxPwm<'static, nrf52840::pwm::Pwm>,
+        core_capsules::virtualizers::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
     );
     let virtual_pwm_buzzer = static_init!(
-        core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
-        core_capsules::virtual_pwm::PwmPinUser::new(
+        core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+        core_capsules::virtualizers::virtual_pwm::PwmPinUser::new(
             mux_pwm,
             nrf52840::pinmux::Pinmux::new(SPEAKER_PIN as u32)
         )
@@ -420,16 +420,16 @@ pub unsafe fn main() {
     virtual_pwm_buzzer.add_to_mux();
 
     let virtual_alarm_buzzer = static_init!(
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-        core_capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_buzzer.setup();
 
     let pwm_buzzer = static_init!(
         extra_capsules::buzzer_pwm::PwmBuzzer<
             'static,
-            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-            core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+            core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
         >,
         extra_capsules::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
@@ -443,8 +443,8 @@ pub unsafe fn main() {
             'static,
             extra_capsules::buzzer_pwm::PwmBuzzer<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-                core_capsules::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52840::pwm::Pwm>,
             >,
         >,
         extra_capsules::buzzer_driver::Buzzer::new(
@@ -584,8 +584,8 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = static_init!(
-        core_capsules::virtual_i2c::MuxI2C<'static>,
-        core_capsules::virtual_i2c::MuxI2C::new(
+        core_capsules::virtualizers::virtual_i2c::MuxI2C<'static>,
+        core_capsules::virtualizers::virtual_i2c::MuxI2C::new(
             &base_peripherals.twi1,
             None,
             dynamic_deferred_caller
@@ -667,7 +667,7 @@ pub unsafe fn main() {
         // bus type
         extra_capsules::bus::SpiMasterBus<
             'static,
-            core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
         >,
         // timer type
         nrf52840::rtc::Rtc,

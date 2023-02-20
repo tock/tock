@@ -93,7 +93,7 @@ pub struct MicroBit {
     ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     console: &'static core_capsules::console::Console<'static>,
     gpio: &'static core_capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
@@ -102,7 +102,7 @@ pub struct MicroBit {
         extra_capsules::led_matrix::LedMatrixLed<
             'static,
             nrf52::gpio::GPIOPin<'static>,
-            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
         >,
         25,
     >,
@@ -115,14 +115,14 @@ pub struct MicroBit {
     adc: &'static core_capsules::adc::AdcVirtualized<'static>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
     >,
     buzzer_driver: &'static extra_capsules::buzzer_driver::Buzzer<
         'static,
         extra_capsules::buzzer_pwm::PwmBuzzer<
             'static,
-            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
-            core_capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc<'static>>,
+            core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
         >,
     >,
     pwm: &'static extra_capsules::pwm::Pwm<'static, 1>,
@@ -339,8 +339,8 @@ pub unsafe fn main() {
         .finalize(components::pwm_mux_component_static!(nrf52833::pwm::Pwm));
 
     let virtual_pwm_buzzer = static_init!(
-        core_capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
-        core_capsules::virtual_pwm::PwmPinUser::new(
+        core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+        core_capsules::virtualizers::virtual_pwm::PwmPinUser::new(
             mux_pwm,
             nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
         )
@@ -348,16 +348,16 @@ pub unsafe fn main() {
     virtual_pwm_buzzer.add_to_mux();
 
     let virtual_alarm_buzzer = static_init!(
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
-        core_capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_buzzer.setup();
 
     let pwm_buzzer = static_init!(
         extra_capsules::buzzer_pwm::PwmBuzzer<
             'static,
-            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
-            core_capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+            core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
         >,
         extra_capsules::buzzer_pwm::PwmBuzzer::new(
             virtual_pwm_buzzer,
@@ -371,8 +371,8 @@ pub unsafe fn main() {
             'static,
             extra_capsules::buzzer_pwm::PwmBuzzer<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
-                core_capsules::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
+                core_capsules::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
             >,
         >,
         extra_capsules::buzzer_driver::Buzzer::new(
@@ -579,7 +579,7 @@ pub unsafe fn main() {
         virtual_app_flash,
     )
     .finalize(components::app_flash_component_static!(
-        core_capsules::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
+        core_capsules::virtualizers::virtual_flash::FlashUser<'static, nrf52833::nvmc::Nvmc>,
         512
     ));
 
@@ -637,13 +637,13 @@ pub unsafe fn main() {
             extra_capsules::led_matrix::LedMatrixLed<
                 'static,
                 nrf52::gpio::GPIOPin<'static>,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
             >,
             25,
         >,
         core_capsules::led::LedDriver::new(components::led_matrix_leds!(
             nrf52::gpio::GPIOPin<'static>,
-            core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+            core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
             led_matrix,
             (0, 0),
             (1, 0),

@@ -33,8 +33,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_flash::FlashUser;
-use core_capsules::virtual_flash::MuxFlash;
+use core_capsules::virtualizers::virtual_flash::FlashUser;
+use core_capsules::virtualizers::virtual_flash::MuxFlash;
 use extra_capsules::tickv::TicKVStore;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -47,11 +47,11 @@ use kernel::hil::hasher::Hasher;
 #[macro_export]
 macro_rules! tickv_component_static {
     ($F:ty, $H:ty) => {{
-        let flash = kernel::static_buf!(core_capsules::virtual_flash::FlashUser<'static, $F>);
+        let flash = kernel::static_buf!(core_capsules::virtualizers::virtual_flash::FlashUser<'static, $F>);
         let tickv = kernel::static_buf!(
             extra_capsules::tickv::TicKVStore<
                 'static,
-                core_capsules::virtual_flash::FlashUser<'static, $F>,
+                core_capsules::virtualizers::virtual_flash::FlashUser<'static, $F>,
                 $H,
             >
         );

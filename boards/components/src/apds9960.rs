@@ -1,7 +1,7 @@
 //! Component for APDS9960 proximity sensor.
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::apds9960::APDS9960;
 use kernel::component::Component;
 use kernel::hil::gpio;
@@ -9,7 +9,7 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! apds9960_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
         let apds9960 = kernel::static_buf!(extra_capsules::apds9960::APDS9960<'static>);
         let buffer = kernel::static_buf!([u8; extra_capsules::apds9960::BUF_LEN]);
 

@@ -9,7 +9,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -58,7 +58,7 @@ struct HiFive1 {
     console: &'static core_capsules::console::Console<'static>,
     lldb: &'static core_capsules::low_level_debug::LowLevelDebug<
         'static,
-        core_capsules::virtual_uart::UartDevice<'static>,
+        core_capsules::virtualizers::virtual_uart::UartDevice<'static>,
     >,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,

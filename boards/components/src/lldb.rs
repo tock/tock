@@ -18,7 +18,7 @@
 
 use core::mem::MaybeUninit;
 use core_capsules::low_level_debug::LowLevelDebug;
-use core_capsules::virtual_uart::{MuxUart, UartDevice};
+use core_capsules::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -27,12 +27,12 @@ use kernel::hil;
 #[macro_export]
 macro_rules! low_level_debug_component_static {
     () => {{
-        let uart = kernel::static_buf!(core_capsules::virtual_uart::UartDevice<'static>);
+        let uart = kernel::static_buf!(core_capsules::virtualizers::virtual_uart::UartDevice<'static>);
         let buffer = kernel::static_buf!([u8; core_capsules::low_level_debug::BUF_LEN]);
         let lldb = kernel::static_buf!(
             core_capsules::low_level_debug::LowLevelDebug<
                 'static,
-                core_capsules::virtual_uart::UartDevice<'static>,
+                core_capsules::virtualizers::virtual_uart::UartDevice<'static>,
             >
         );
 

@@ -29,7 +29,7 @@
 //! ```
 
 use core::cell::Cell;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use extra_capsules::ieee802154::device::{MacDevice, TxClient};
 use extra_capsules::net::ieee802154::MacAddress;
 use extra_capsules::net::ipv6::ip_utils::{ip6_nh, IPAddr};
@@ -127,7 +127,7 @@ pub unsafe fn initialize_all(
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
-    core_capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
     let radio_mac = static_init!(
         extra_capsules::ieee802154::virtual_mac::MacUser<'static>,

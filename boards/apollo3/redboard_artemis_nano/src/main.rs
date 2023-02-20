@@ -14,8 +14,8 @@
 use apollo3::chip::Apollo3DefaultPeripherals;
 use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
-use core_capsules::virtual_alarm::MuxAlarm;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::MuxAlarm;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
@@ -88,7 +88,7 @@ struct RedboardArtemisNano {
         &'static core_capsules::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
     spi_controller: &'static core_capsules::spi_controller::Spi<
         'static,
-        core_capsules::virtual_spi::VirtualSpiMasterDevice<'static, apollo3::iom::Iom<'static>>,
+        core_capsules::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, apollo3::iom::Iom<'static>>,
     >,
     ble_radio: &'static extra_capsules::ble_advertising_driver::BLE<
         'static,

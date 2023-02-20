@@ -13,8 +13,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use core_capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core_capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use core_capsules::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core_capsules::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use extra_capsules::sht3x::SHT3x;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
@@ -24,13 +24,13 @@ use kernel::hil::time::Alarm;
 macro_rules! sht3x_component_static {
     ($A:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; 6]);
-        let i2c_device = kernel::static_buf!(core_capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device = kernel::static_buf!(core_capsules::virtualizers::virtual_i2c::I2CDevice<'static>);
         let sht3x_alarm =
-            kernel::static_buf!(core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+            kernel::static_buf!(core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let sht3x = kernel::static_buf!(
             extra_capsules::sht3x::SHT3x<
                 'static,
-                core_capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

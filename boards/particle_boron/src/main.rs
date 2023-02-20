@@ -10,8 +10,8 @@
 #![deny(missing_docs)]
 
 use core_capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
-use core_capsules::virtual_aes_ccm::MuxAES128CCM;
-use core_capsules::virtual_alarm::VirtualMuxAlarm;
+use core_capsules::virtualizers::virtual_aes_ccm::MuxAES128CCM;
+use core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
@@ -81,7 +81,7 @@ static mut CDC_REF_FOR_PANIC: Option<
     &'static extra_capsules::usb::cdc::CdcAcm<
         'static,
         nrf52::usbd::Usbd,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
@@ -131,7 +131,7 @@ pub struct Platform {
         &'static core_capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
     alarm: &'static core_capsules::alarm::AlarmDriver<
         'static,
-        core_capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        core_capsules::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
