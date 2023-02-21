@@ -15,7 +15,7 @@ peripheral! {
 ```
 
 This invocation specifies two *registers*, `ctrl` and `received`. `ctrl`
-implements two *operations*`, `read` and `write`. `received` only implements
+implements two *operations*, `read` and `write`. `received` only implements
 `read`.
 
 ## Core `tock_registers` structs
