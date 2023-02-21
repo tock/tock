@@ -1,3 +1,4 @@
+use crate::scb;
 use core::ops::FnOnce;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -53,4 +54,15 @@ where
     F: FnOnce() -> R,
 {
     unimplemented!()
+}
+
+pub fn reset() -> ! {
+    unsafe {
+        scb::reset();
+    }
+    loop {
+        // This is required to avoid the empty loop clippy
+        // warning #[warn(clippy::empty_loop)]
+        nop();
+    }
 }
