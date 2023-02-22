@@ -10,7 +10,6 @@ use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
-use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::ProcessId;
 
@@ -169,9 +168,6 @@ pub struct ProcessConsole<
     /// Keep a history of inserted commands
     command_history: MapCell<CommandHistory<'static, COMMAND_HISTORY_LEN>>,
 
-    /// Index of the last copied command in the history
-    command_history_index: OptionalCell<usize>,
-
     /// Keep the previously read byte to consider \r\n sequences
     /// as a single \n.
     previous_byte: Cell<u8>,
@@ -274,6 +270,14 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
         }
     }
 
+    fn get_next_cmd_idx(&self) -> usize {
+        self.cmd_idx
+    }
+
+    fn set_next_cmd_idx(&mut self, idx: usize) {
+        self.cmd_idx = idx;
+    }
+
     fn make_space(&mut self, cmd: &[u8]) {
         let mut cmd_arr = [0; COMMAND_BUF_LEN];
         cmd_arr.copy_from_slice(cmd);
@@ -324,10 +328,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
 
     fn set_modified_history(&mut self, value: bool) {
         self.cmd_modified = value;
-    }
-
-    fn get_modified_history(&self) -> bool {
-        self.cmd_modified
     }
 
     fn get_command_len(&self, cmd_idx: usize) -> usize {
@@ -408,7 +408,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             esc_state: Cell::new(EscState::Bypass),
 
             command_history: MapCell::new(CommandHistory::new(cmd_history_buffer)),
-            command_history_index: OptionalCell::empty(),
 
             previous_byte: Cell::new(0),
 
@@ -1101,10 +1100,11 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         if let EscState::Complete(key) = esc_state {
                             if let Some(index) = match key {
                                 EscKey::Up => {
-                                    let i = match self.command_history_index.extract() {
-                                        Some(i) => i + 1,
-                                        None => 1,
-                                    };
+                                    let i = self
+                                        .command_history
+                                        .map(|ht| ht.get_next_cmd_idx())
+                                        .unwrap()
+                                        + 1;
 
                                     if i >= COMMAND_HISTORY_LEN {
                                         None
@@ -1125,25 +1125,23 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     }
                                 }
                                 EscKey::Down => {
-                                    match self.command_history_index.extract() {
-                                        Some(i) => match i > 0 {
-                                            true => {
-                                                // Remove last whitespace byte from the command
-                                                // or register a new unfinshed command
-                                                // upon pressing backspace
-                                                self.command_history
-                                                    .map(|ht| ht.unfinished(&command));
+                                    let i = self
+                                        .command_history
+                                        .map(|ht| ht.get_next_cmd_idx())
+                                        .unwrap();
 
-                                                Some(i - 1)
-                                            }
-                                            false => None,
-                                        },
-                                        None => None,
+                                    if i > 0 {
+                                        self.command_history.map(|ht| ht.unfinished(&command));
+
+                                        Some(i - 1)
+                                    } else {
+                                        None
                                     }
                                 }
                             } {
-                                self.command_history_index.set(index);
                                 self.command_history.map(|ht| {
+                                    ht.set_next_cmd_idx(index);
+
                                     let prev_command_len = self.command_index.get();
                                     let next_command_len = ht.get_command_len(index);
 
@@ -1176,10 +1174,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 self.previous_byte.set(0);
 
                                 if COMMAND_HISTORY_LEN > 1 {
-                                    self.command_history_index.insert(None);
-
                                     // Clear the unfinished command if the \r\n is received
                                     self.command_history.map(|ht| {
+                                        ht.set_next_cmd_idx(0);
                                         ht.set_modified_history(false);
                                         ht.clear_unfinished();
                                     });
