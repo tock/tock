@@ -770,8 +770,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             // Prints kernel memory by moving the writer to the
                             // start state.
                             self.writer_state.replace(WriterState::KernelStart);
-                        }
-                        if clean_str.starts_with("reset") {
+                        } else if clean_str.starts_with("reset") {
                             self.reset_function.map_or_else(
                                 || {
                                     let _ = self.write_bytes(b"Reset function is not implemented");
