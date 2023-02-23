@@ -293,11 +293,11 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
     fn change_cmd_from(&mut self, cmd: &[u8]) {
         match self.modified_byte {
             b' ' => {
-                self.delete_first_cmd_byte();
+                self.cmds[0].delete_last_byte();
             }
             b'\x08' | b'\x7F' => {
-                self.clear_first();
-                self.write_first(cmd);
+                self.cmds[0].clear();
+                self.write_to_first(cmd);
             }
             _ => {
                 self.modified_byte = EOL;
@@ -305,46 +305,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
         }
     }
 
-    fn clear_first(&mut self) {
-        self.cmds[0].clear();
-    }
-
-    fn delete_first_cmd_byte(&mut self) {
-        self.cmds[0].delete_last_byte();
-    }
-
-    fn insert_first_cmd_byte(&mut self, byte: u8) {
-        self.cmds[0].insert_byte(byte);
-    }
-
-    fn write_first(&mut self, cmd: &[u8]) {
+    fn write_to_first(&mut self, cmd: &[u8]) {
         let mut cmd_arr = [0; COMMAND_BUF_LEN];
         cmd_arr.copy_from_slice(cmd);
         self.cmds[0].write(&cmd_arr);
-    }
-
-    fn modify_byte_to(&mut self, byte: u8) {
-        self.modified_byte = byte;
-    }
-
-    fn cmd_modified(&mut self, truth: bool) {
-        self.cmd_is_modified = truth;
-    }
-
-    fn get_cmd_len(&self, cmd_idx: usize) -> usize {
-        self.cmds[cmd_idx].len
-    }
-
-    fn get_cmd_idx(&self) -> usize {
-        self.cmd_idx
-    }
-
-    fn set_cmd_idx(&mut self, idx: usize) {
-        self.cmd_idx = idx;
-    }
-
-    fn extract_cmd_byte(&self, cmd_idx: usize, byte_idx: usize) -> u8 {
-        self.cmds[cmd_idx].buf[byte_idx]
     }
 }
 
@@ -1110,18 +1074,15 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             if COMMAND_HISTORY_LEN >= 1 {
                                 if let Some(index) = match key {
                                     EscKey::Up => {
-                                        let i = self
-                                            .command_history
-                                            .map(|ht| ht.get_cmd_idx())
-                                            .unwrap()
-                                            + 1;
+                                        let i =
+                                            self.command_history.map(|ht| ht.cmd_idx).unwrap() + 1;
 
                                         if i >= COMMAND_HISTORY_LEN {
                                             None
                                         } else {
                                             // Check if any command can be displayed
                                             self.command_history
-                                                .map(|ht| match ht.get_cmd_len(i) == 0 {
+                                                .map(|ht| match ht.cmds[i].len == 0 {
                                                     true => None,
                                                     false => {
                                                         // Remove last whitespace byte from the command
@@ -1135,10 +1096,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         }
                                     }
                                     EscKey::Down => {
-                                        let i = self
-                                            .command_history
-                                            .map(|ht| ht.get_cmd_idx())
-                                            .unwrap();
+                                        let i = self.command_history.map(|ht| ht.cmd_idx).unwrap();
 
                                         if i > 0 {
                                             self.command_history
@@ -1151,10 +1109,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     }
                                 } {
                                     self.command_history.map(|ht| {
-                                        ht.set_cmd_idx(index);
+                                        ht.cmd_idx = index;
 
                                         let prev_command_len = self.command_index.get();
-                                        let next_command_len = ht.get_cmd_len(index);
+                                        let next_command_len = ht.cmds[index].len;
 
                                         // Clear the displayed command
                                         for _ in 0..prev_command_len {
@@ -1167,12 +1125,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                                         // Display the new command
                                         for i in 0..next_command_len {
-                                            let byte = ht.extract_cmd_byte(index, i);
+                                            let byte = ht.cmds[index].buf[i];
                                             let _ = self.write_byte(byte);
                                             command[i] = byte;
                                         }
 
-                                        ht.cmd_modified(true);
+                                        ht.cmd_is_modified = true;
                                         self.command_index.set(next_command_len);
                                         command[next_command_len] = EOL;
                                     });
@@ -1188,9 +1146,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 if COMMAND_HISTORY_LEN > 1 {
                                     // Clear the unfinished command if the \r\n is received
                                     self.command_history.map(|ht| {
-                                        ht.set_cmd_idx(0);
-                                        ht.cmd_modified(false);
-                                        ht.clear_first();
+                                        ht.cmd_idx = 0;
+                                        ht.cmd_is_modified = false;
+                                        ht.cmds[0].clear();
                                     });
                                 }
                             } else {
@@ -1209,13 +1167,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 // not to permit accumulation of the text
                                 if COMMAND_HISTORY_LEN > 1 {
                                     self.command_history.map(|ht| {
-                                        ht.delete_first_cmd_byte();
+                                        ht.cmds[0].delete_last_byte();
                                     });
                                 }
                             }
                         } else if (COMMAND_HISTORY_LEN > 1) && (esc_state.has_started()) {
                             self.command_history
-                                .map(|ht| ht.modify_byte_to(previous_byte));
+                                .map(|ht| ht.modified_byte = previous_byte);
                         } else if index < (command.len() - 1)
                             && read_buf[0] < 128
                             && !esc_state.in_progress()
@@ -1234,16 +1192,16 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     if ht.cmd_is_modified {
                                         // Copy the last command into the unfinished command
 
-                                        ht.clear_first();
-                                        ht.write_first(&command);
-                                        ht.cmd_modified(false);
+                                        ht.cmds[0].clear();
+                                        ht.write_to_first(&command);
+                                        ht.cmd_is_modified = false;
                                     } else {
                                         // Do not save unnecessary white spaces
                                         // between commands
                                         if read_buf[0] != (' ' as u8)
                                             || previous_byte != (' ' as u8)
                                         {
-                                            ht.insert_first_cmd_byte(read_buf[0]);
+                                            ht.cmds[0].insert_byte(read_buf[0]);
                                         }
                                     }
                                 });
