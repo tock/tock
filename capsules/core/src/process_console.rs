@@ -80,6 +80,8 @@ impl Default for WriterState {
 enum EscKey {
     Up,
     Down,
+    Left,
+    Right,
 }
 
 /// Escape state machine to check if
@@ -103,6 +105,8 @@ impl EscState {
             (Started, b'[') => Bracket,
             (Bracket, b'A') => Complete(Up),
             (Bracket, b'B') => Complete(Down),
+            (Bracket, b'D') => Complete(Left),
+            (Bracket, b'C') => Complete(Right),
             _ => {
                 if EscState::terminator_esc_char(data) {
                     UnrecognizedDone
@@ -309,6 +313,28 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
         let mut cmd_arr = [0; COMMAND_BUF_LEN];
         cmd_arr.copy_from_slice(cmd);
         self.cmds[0].write(&cmd_arr);
+    }
+
+    fn next_cmd_idx(&mut self) -> Option<usize> {
+        if self.cmd_idx + 1 >= COMMAND_HISTORY_LEN {
+            None
+        } else if self.cmds[self.cmd_idx + 1].len == 0 {
+            None
+        } else {
+            self.cmd_idx += 1;
+
+            Some(self.cmd_idx)
+        }
+    }
+
+    fn prev_cmd_idx(&mut self) -> Option<usize> {
+        if self.cmd_idx > 0 {
+            self.cmd_idx -= 1;
+
+            Some(self.cmd_idx)
+        } else {
+            None
+        }
     }
 }
 
@@ -1071,71 +1097,49 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         let index = self.command_index.get() as usize;
 
                         if let EscState::Complete(key) = esc_state {
-                            if COMMAND_HISTORY_LEN >= 1 {
-                                if let Some(index) = match key {
-                                    EscKey::Up => {
-                                        let i =
-                                            self.command_history.map(|ht| ht.cmd_idx).unwrap() + 1;
-
-                                        if i >= COMMAND_HISTORY_LEN {
-                                            None
-                                        } else {
-                                            // Check if any command can be displayed
-                                            self.command_history
-                                                .map(|ht| match ht.cmds[i].len == 0 {
-                                                    true => None,
-                                                    false => {
-                                                        // Remove last whitespace byte from the command
-                                                        // or register a new unfinshed command
-                                                        // upon pressing backspace
-                                                        ht.change_cmd_from(&command);
-                                                        Some(i)
-                                                    }
-                                                })
-                                                .unwrap()
-                                        }
-                                    }
-                                    EscKey::Down => {
-                                        let i = self.command_history.map(|ht| ht.cmd_idx).unwrap();
-
-                                        if i > 0 {
-                                            self.command_history
-                                                .map(|ht| ht.change_cmd_from(&command));
-
-                                            Some(i - 1)
-                                        } else {
-                                            None
-                                        }
-                                    }
-                                } {
+                            match key {
+                                EscKey::Up | EscKey::Down if COMMAND_HISTORY_LEN >= 1 => {
                                     self.command_history.map(|ht| {
-                                        ht.cmd_idx = index;
+                                        if let Some(index) = if matches!(key, EscKey::Up) {
+                                            ht.next_cmd_idx()
+                                        } else {
+                                            ht.prev_cmd_idx()
+                                        } {
+                                            ht.change_cmd_from(&command);
 
-                                        let prev_command_len = self.command_index.get();
-                                        let next_command_len = ht.cmds[index].len;
+                                            let prev_command_len = self.command_index.get();
+                                            let next_command_len = ht.cmds[index].len;
 
-                                        // Clear the displayed command
-                                        for _ in 0..prev_command_len {
-                                            let _ = self.write_bytes(&[
-                                                '\x08' as u8,
-                                                ' ' as u8,
-                                                '\x08' as u8,
-                                            ]);
-                                        }
+                                            // Clear the displayed command
+                                            for _ in 0..prev_command_len {
+                                                let _ = self.write_bytes(&[
+                                                    '\x08' as u8,
+                                                    ' ' as u8,
+                                                    '\x08' as u8,
+                                                ]);
+                                            }
 
-                                        // Display the new command
-                                        for i in 0..next_command_len {
-                                            let byte = ht.cmds[index].buf[i];
-                                            let _ = self.write_byte(byte);
-                                            command[i] = byte;
-                                        }
+                                            // Display the new command
+                                            for i in 0..next_command_len {
+                                                let byte = ht.cmds[index].buf[i];
+                                                let _ = self.write_byte(byte);
+                                                command[i] = byte;
+                                            }
 
-                                        ht.cmd_is_modified = true;
-                                        self.command_index.set(next_command_len);
-                                        command[next_command_len] = EOL;
+                                            ht.cmd_is_modified = true;
+                                            self.command_index.set(next_command_len);
+                                            command[next_command_len] = EOL;
+                                        };
                                     });
                                 }
-                            }
+                                EscKey::Left => {
+                                    // For futher implementations
+                                }
+                                EscKey::Right => {
+                                    // For futher implementations
+                                }
+                                _ => {}
+                            };
                         } else if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
                             if (previous_byte == ('\n' as u8) || previous_byte == ('\r' as u8))
                                 && previous_byte != read_buf[0]
