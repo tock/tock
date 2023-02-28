@@ -269,6 +269,14 @@ pub struct Watchdog<'a, Accessor> {
 }
 
 impl<'a, Accessor: watchdog::Accessor> Watchdog<'a, Accessor> {
+    use read::Register;
+    use write::Register;
+
+    // modify::Register is a not-yet-described trait that is implemented on all
+    // register types that implement both read and write. It provides the
+    // `.modify` method used by start_tick.
+    use modify::Register;
+
     pub const fn with_registers(registers: &'a watchdog::Registers<Accessor>) -> Watchdog<'a, Accessor> {
         Watchdog {
             registers,
@@ -326,7 +334,6 @@ mod tests {
         // ...
     }
 
-    0x000 => ctrl: u32 { read<CTRL::Register> + write<CTRL::Register> },
     impl read::Access<0, u32, CTRL::Register> for &FakeWatchdog {
         fn read(&self) -> u32 {
             self.ctrl.get()
