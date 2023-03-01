@@ -112,6 +112,9 @@ const EMPTY: OptionalCell<DynDefCallRef<'static>> = OptionalCell::empty();
 // All 3 of the below global statics are accessed only in this file, and all accesses
 // are via immutable references. Tock is single threaded, so each will only ever be
 // accessed via an immutable reference from the single kernel thread.
+// TODO: Once Tock decides on an approach to replace `static mut` with some sort of
+// `SyncCell`, migrate all three of these to that approach
+// (https://github.com/tock/tock/issues/1545)
 /// Counter for the number of deferred calls that have been created, this is
 /// used to track that no more than 32 deferred calls have been created.
 static mut CTR: Cell<usize> = Cell::new(0);
