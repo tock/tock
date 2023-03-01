@@ -8,7 +8,9 @@ edition.workspace = true
 [dependencies]
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
-capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 nrf52832 = { path = "../../../chips/nrf52832" }
 nrf52_components = { path = "../nrf52_components" }
+
+capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }

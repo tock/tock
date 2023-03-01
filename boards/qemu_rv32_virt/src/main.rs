@@ -5,7 +5,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
@@ -45,21 +45,21 @@ pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct QemuRv32VirtPlatform {
-    pconsole: &'static capsules::process_console::ProcessConsole<
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
-        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        capsules::virtual_alarm::VirtualMuxAlarm<
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
             'static,
             qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
         >,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
-        capsules::virtual_uart::UartDevice<'static>,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
@@ -68,7 +68,7 @@ struct QemuRv32VirtPlatform {
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
-    virtio_rng: Option<&'static capsules::rng::RngDriver<'static>>,
+    virtio_rng: Option<&'static capsules_core::rng::RngDriver<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -78,10 +78,10 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules::rng::DRIVER_NUM => {
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::rng::DRIVER_NUM => {
                 if let Some(rng_driver) = self.virtio_rng {
                     f(Some(rng_driver))
                 } else {
@@ -216,13 +216,13 @@ pub unsafe fn main() {
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
+        capsules_core::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
         >,
-        capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -250,7 +250,7 @@ pub unsafe fn main() {
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_rng_driver: Option<&'static capsules::rng::RngDriver<'static>> =
+    let virtio_rng_driver: Option<&'static capsules_core::rng::RngDriver<'static>> =
         if let Some(rng_idx) = virtio_rng_idx {
             use kernel::hil::rng::Rng;
             use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
@@ -294,16 +294,17 @@ pub unsafe fn main() {
                 .expect("rng: providing initial buffer failed");
 
             // Userspace RNG driver over the VirtIO EntropySource
-            let rng_driver: &'static mut capsules::rng::RngDriver = static_init!(
-                capsules::rng::RngDriver,
-                capsules::rng::RngDriver::new(
+            let rng_driver: &'static mut capsules_core::rng::RngDriver = static_init!(
+                capsules_core::rng::RngDriver,
+                capsules_core::rng::RngDriver::new(
                     rng,
-                    board_kernel.create_grant(capsules::rng::DRIVER_NUM, &memory_allocation_cap),
+                    board_kernel
+                        .create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
                 ),
             );
             rng.set_client(rng_driver);
 
-            Some(rng_driver as &'static capsules::rng::RngDriver)
+            Some(rng_driver as &'static capsules_core::rng::RngDriver)
         } else {
             // No VirtIO EntropySource discovered
             None
@@ -438,7 +439,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -448,7 +449,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());
