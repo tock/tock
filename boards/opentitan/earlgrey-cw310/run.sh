@@ -18,7 +18,7 @@ if [[ "${VERILATOR}" == "yes" ]]; then
 	${OBJCOPY} ${1} "$BUILD_DIR"/earlgrey-cw310-tests.elf
 	if [[ "${APP}" != "" ]]; then
 		# An app was specified, copy it in
-		printf "[CW-130: Verilator Tests]: Linking APP...\n\n"
+		printf "[CW-130: Verilator Tests]: Linking APP\n\n"
 		${OBJCOPY} --update-section .apps=${APP} "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.elf
 	fi
 	${OBJCOPY} --output-target=binary "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.bin
