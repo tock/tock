@@ -55,7 +55,7 @@ pub struct Capability<T> {
 
 impl<T> Capability<T> {
     /// Only allow `Capability`s to be created from `unsafe` code.
-    pub unsafe fn new() -> Self {
+    pub const unsafe fn new() -> Self {
         Self {
             capability: PhantomData {},
         }

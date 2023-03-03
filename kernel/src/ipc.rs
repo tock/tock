@@ -3,7 +3,7 @@
 //! This is a special syscall driver that allows userspace applications to
 //! share memory.
 
-use crate::capabilities::MemoryAllocationCapability;
+use crate::capabilities::{Capability, MemoryAllocation};
 use crate::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use crate::kernel::Kernel;
 use crate::process;
@@ -52,7 +52,7 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
     pub fn new(
         kernel: &'static Kernel,
         driver_num: usize,
-        capability: &dyn MemoryAllocationCapability,
+        capability: &Capability<MemoryAllocation>,
     ) -> Self {
         Self {
             data: kernel.create_grant(driver_num, capability),

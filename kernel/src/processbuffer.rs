@@ -24,7 +24,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
-use crate::capabilities;
+use crate::capabilities::{Capability, ExternalProcess};
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
@@ -255,7 +255,7 @@ impl ReadOnlyProcessBuffer {
     /// and length.
     ///
     /// Publicly accessible constructor, which requires the
-    /// [`capabilities::ExternalProcessCapability`] capability. This
+    /// [`Capability<ExternalProcess>`] capability. This
     /// is provided to allow implementations of the
     /// [`Process`](crate::process::Process) trait outside of the
     /// `kernel` crate.
@@ -286,7 +286,7 @@ impl ReadOnlyProcessBuffer {
         ptr: *const u8,
         len: usize,
         process_id: ProcessId,
-        _cap: &dyn capabilities::ExternalProcessCapability,
+        _cap: &Capability<ExternalProcess>,
     ) -> Self {
         Self::new(ptr, len, process_id)
     }
@@ -435,7 +435,7 @@ impl ReadWriteProcessBuffer {
     /// pointer and length.
     ///
     /// Publicly accessible constructor, which requires the
-    /// [`capabilities::ExternalProcessCapability`] capability. This
+    /// [`Capability<ExternalProcess>`] capability. This
     /// is provided to allow implementations of the
     /// [`Process`](crate::process::Process) trait outside of the
     /// `kernel` crate.
@@ -466,7 +466,7 @@ impl ReadWriteProcessBuffer {
         ptr: *mut u8,
         len: usize,
         process_id: ProcessId,
-        _cap: &dyn capabilities::ExternalProcessCapability,
+        _cap: &Capability<ExternalProcess>,
     ) -> Self {
         Self::new(ptr, len, process_id)
     }

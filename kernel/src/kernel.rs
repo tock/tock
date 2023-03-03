@@ -9,7 +9,10 @@ use core::cell::Cell;
 use core::ptr::NonNull;
 use core::slice;
 
-use crate::capabilities;
+use crate::capabilities::{
+    Capability, ExternalProcess, MainLoop, MemoryAllocation, ProcessApproval, ProcessInit,
+    ProcessManagement,
+};
 use crate::config;
 use crate::debug;
 use crate::deferred_call::DeferredCall;
@@ -63,7 +66,7 @@ pub struct Kernel {
     /// established.
     grants_finalized: Cell<bool>,
 
-    init_cap: KernelProcessInitCapability,
+    init_cap: Capability<ProcessInit>,
 
     checker: ProcessCheckerMachine,
 }
@@ -113,12 +116,6 @@ fn try_allocate_grant(driver: &dyn SyscallDriver, process: &dyn process::Process
     }
 }
 
-struct KernelProcessInitCapability {}
-unsafe impl capabilities::ProcessInitCapability for KernelProcessInitCapability {}
-
-struct KernelProcessApprovalCapability {}
-unsafe impl capabilities::ProcessApprovalCapability for KernelProcessApprovalCapability {}
-
 impl Kernel {
     pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
         Kernel {
@@ -126,13 +123,13 @@ impl Kernel {
             process_identifier_max: Cell::new(0),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
-            init_cap: KernelProcessInitCapability {},
+            init_cap: unsafe { Capability::<ProcessInit>::new() },
             checker: ProcessCheckerMachine {
                 process: Cell::new(0),
                 footer: Cell::new(0),
                 policy: OptionalCell::empty(),
                 processes: processes,
-                approve_cap: KernelProcessApprovalCapability {},
+                approve_cap: unsafe { Capability::<ProcessApproval>::new() },
             },
         }
     }
@@ -191,13 +188,13 @@ impl Kernel {
     ///
     /// This is functionally the same as `process_map_or()`, but this method is
     /// available outside the kernel crate and requires a
-    /// `ProcessManagementCapability` to use.
+    /// `Capability<ProcessManagement>` to use.
     pub fn process_map_or_external<F, R>(
         &self,
         default: R,
         processid: ProcessId,
         closure: F,
-        _capability: &dyn capabilities::ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> R
     where
         F: FnOnce(&dyn process::Process) -> R,
@@ -244,10 +241,10 @@ impl Kernel {
     ///
     /// This is functionally the same as `process_each()`, but this method is
     /// available outside the kernel crate and requires a
-    /// `ProcessManagementCapability` to use.
+    /// `Capability<ProcessManagement>` to use.
     pub fn process_each_capability<F>(
         &'static self,
-        _capability: &dyn capabilities::ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
         mut closure: F,
     ) where
         F: FnMut(&dyn process::Process),
@@ -305,7 +302,7 @@ impl Kernel {
     ///
     /// Calling this function is restricted to only certain users, and to
     /// enforce this calling this function requires the
-    /// `MemoryAllocationCapability` capability.
+    /// `Capability<MemoryAllocation>` capability.
     pub fn create_grant<
         T: Default,
         Upcalls: UpcallSize,
@@ -314,7 +311,7 @@ impl Kernel {
     >(
         &'static self,
         driver_num: usize,
-        _capability: &dyn capabilities::MemoryAllocationCapability,
+        _capability: &Capability<MemoryAllocation>,
     ) -> Grant<T, Upcalls, AllowROs, AllowRWs> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
@@ -351,7 +348,7 @@ impl Kernel {
     /// retrieve the final number of grants.
     pub fn get_grant_count_and_finalize_external(
         &self,
-        _capability: &dyn capabilities::ExternalProcessCapability,
+        _capability: &Capability<ExternalProcess>,
     ) -> usize {
         self.get_grant_count_and_finalize()
     }
@@ -370,11 +367,11 @@ impl Kernel {
     /// the state as if it had crashed (for example with an MPU violation). If
     /// the process is configured to be restarted it will be.
     ///
-    /// Only callers with the `ProcessManagementCapability` can call this
+    /// Only callers with the `Capability<ProcessManagement>` can call this
     /// function. This restricts general capsules from being able to call this
     /// function, since capsules should not be able to arbitrarily restart all
     /// apps.
-    pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
+    pub fn hardfault_all_apps(&self, _c: &Capability<ProcessManagement>) {
         for p in self.processes.iter() {
             p.map(|process| {
                 process.set_fault_state();
@@ -405,7 +402,7 @@ impl Kernel {
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         no_sleep: bool,
-        _capability: &dyn capabilities::MainLoopCapability,
+        _capability: &Capability<MainLoop>,
     ) {
         let scheduler = resources.scheduler();
 
@@ -471,7 +468,7 @@ impl Kernel {
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
-        capability: &dyn capabilities::MainLoopCapability,
+        capability: &Capability<MainLoop>,
     ) -> ! {
         resources.watchdog().setup();
         // Before we begin, verify that deferred calls were soundly setup.
@@ -1401,7 +1398,7 @@ pub struct ProcessCheckerMachine {
     footer: Cell<usize>,
     policy: OptionalCell<&'static dyn CredentialsCheckingPolicy<'static>>,
     processes: &'static [Option<&'static dyn Process>],
-    approve_cap: KernelProcessApprovalCapability,
+    approve_cap: Capability<ProcessApproval>,
 }
 
 #[derive(Debug)]
