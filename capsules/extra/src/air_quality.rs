@@ -6,9 +6,10 @@
 //! You need a device that provides the `hil::sensors::AirQualityDriver` trait.
 //!
 //! ```rust
+//! # use kernel::capabilities::{Capability, MemoryAllocation};
 //! # use kernel::static_init;
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //! let grant_temperature = board_kernel.create_grant(&grant_cap);
 //!
 //! let temp = static_init!(

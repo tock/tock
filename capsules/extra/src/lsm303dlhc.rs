@@ -32,7 +32,9 @@
 //! NideDof Example
 //!
 //! ```rust
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! # use kernel::capabilities::{Capability, MemoryAllocation};
+//!
+//! let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
 //! // use as primary NineDof Sensor
@@ -55,7 +57,7 @@
 //! Temperature Example
 //!
 //! ```rust
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //! let grant_temp = board_kernel.create_grant(&grant_cap);
 //!
 //! lsm303dlhc.configure(

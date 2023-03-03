@@ -37,9 +37,10 @@
 //! Here is an example of how to set up a proximity sensor with the apds9960 IC
 //!
 //! ```rust
+//! # use kernel::capabilities::{Capability, MemoryAllocation};
 //! # use kernel::static_init;
 //!
-//!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//!let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //!
 //!let proximity = static_init!(
 //!   capsules::proximity::ProximitySensor<'static>,

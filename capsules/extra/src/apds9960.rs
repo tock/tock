@@ -14,6 +14,8 @@
 //! -----
 //!
 //! ```rust
+//! # use kernel::capabilities::{Capability, MemoryAllocation};
+//!
 //! let apds9960_i2c = static_init!(
 //!    capsules::virtual_i2c::I2CDevice,
 //!    capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
@@ -30,7 +32,7 @@
 //! apds9960_i2c.set_client(apds9960);
 //! nrf52840::gpio::PORT[APDS9960_PIN].set_client(apds9960);
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //!
 //! let proximity = static_init!(
 //!    capsules::proximity::ProximitySensor<'static>,

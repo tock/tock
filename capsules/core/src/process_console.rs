@@ -7,7 +7,7 @@ use core::cmp;
 use core::fmt;
 use core::fmt::write;
 use core::str;
-use kernel::capabilities::ProcessManagementCapability;
+use kernel::capabilities::{Capability, ProcessManagement};
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -92,12 +92,7 @@ pub struct KernelAddresses {
     pub bss_end: *const u8,
 }
 
-pub struct ProcessConsole<
-    'a,
-    const COMMAND_HISTORY_LEN: usize,
-    A: Alarm<'a>,
-    C: ProcessManagementCapability,
-> {
+pub struct ProcessConsole<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>> {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
     process_printer: &'a dyn ProcessPrinter,
@@ -144,7 +139,7 @@ pub struct ProcessConsole<
 
     /// This capsule needs to use potentially dangerous APIs related to
     /// processes, and requires a capability to access those APIs.
-    capability: C,
+    capability: Capability<ProcessManagement>,
 }
 
 #[derive(Copy, Clone)]
@@ -240,8 +235,8 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>>
+    ProcessConsole<'a, COMMAND_HISTORY_LEN, A>
 {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
@@ -255,8 +250,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         kernel: &'static Kernel,
         kernel_addresses: KernelAddresses,
         reset_function: Option<fn() -> !>,
-        capability: C,
-    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
+        capability: Capability<ProcessManagement>,
+    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A> {
         ProcessConsole {
             uart: uart,
             alarm: alarm,
@@ -901,8 +896,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
-    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>> AlarmClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A>
 {
     fn alarm(&self) {
         self.prompt();
@@ -913,8 +908,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>> uart::TransmitClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A>
 {
     fn transmitted_buffer(
         &self,
@@ -949,8 +944,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>> uart::ReceiveClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A>
 {
     fn received_buffer(
         &self,

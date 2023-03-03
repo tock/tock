@@ -39,9 +39,10 @@
 //! You need a device that provides the `hil::sensors::SoundPressure` trait.
 //!
 //! ```rust
+//! # use kernel::capabilities::{Capability, MemoryAllocation};
 //! # use kernel::static_init;
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //! let grant_sound_pressure = board_kernel.create_grant(&grant_cap);
 //!
 //! let temp = static_init!(
