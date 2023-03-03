@@ -8,14 +8,14 @@
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{create_capability, static_init};
+use kernel::static_init;
 
 // use components::fxos8700::Fxos8700Component;
 // use components::ninedof::NineDofComponent;
@@ -310,10 +310,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

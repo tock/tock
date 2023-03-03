@@ -9,12 +9,12 @@
 #![deny(missing_docs)]
 
 use components::gpio::GpioComponent;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -325,10 +325,9 @@ pub unsafe fn main() {
         msp432::gpio::IntPin<'static>
     ));
 
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
 
     // Setup UART0
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)

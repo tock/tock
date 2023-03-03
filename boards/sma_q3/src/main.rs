@@ -14,6 +14,7 @@
 
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::i2c::I2CMaster;
@@ -23,7 +24,7 @@ use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
-use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use kernel::{debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components;
@@ -92,7 +93,6 @@ pub struct Platform {
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        components::process_console::Capability,
     >,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
@@ -258,8 +258,8 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
 
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
 
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
@@ -458,8 +458,7 @@ pub unsafe fn main() {
         board_kernel: &'static kernel::Kernel,
         chip: &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
     ) {
-        let process_management_capability =
-            create_capability!(capabilities::ProcessManagementCapability);
+        let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
         unsafe {
             kernel::process::load_processes(
                 board_kernel,

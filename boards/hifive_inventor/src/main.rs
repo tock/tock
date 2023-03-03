@@ -9,14 +9,14 @@
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g003::interrupt_service::E310G003DefaultPeripherals;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 use rv32i::csr;
 
 pub mod io;
@@ -154,10 +154,10 @@ pub unsafe fn main() {
     peripherals.e310x.uart1.disable();
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let memory_allocation_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let main_loop_cap = unsafe { Capability::<MainLoop>::new() };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 

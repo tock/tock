@@ -10,7 +10,7 @@
 
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::buzzer::Buzzer;
 use kernel::hil::i2c::I2CMaster;
@@ -24,7 +24,7 @@ use kernel::platform::mpu::MPU;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
+use kernel::{debug, debug_gpio, debug_verbose, static_init};
 
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -294,10 +294,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO

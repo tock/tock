@@ -6,7 +6,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, Timer};
@@ -16,7 +16,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 use rv32i::csr;
 
 mod io;
@@ -235,9 +235,9 @@ pub unsafe fn main() {
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let memory_allocation_cap = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_cap = unsafe { Capability::<MainLoop>::new() };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
