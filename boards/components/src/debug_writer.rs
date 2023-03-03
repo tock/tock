@@ -20,7 +20,6 @@
 
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
@@ -88,9 +87,6 @@ impl<const BUF_SIZE_BYTES: usize> DebugWriterComponent<BUF_SIZE_BYTES> {
         }
     }
 }
-
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BYTES> {
     type StaticInput = (

@@ -27,9 +27,8 @@
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -76,7 +75,7 @@ impl Component for Lsm6dsoxtrI2CComponent {
     type Output = &'static Lsm6dsoxtrI2C<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let lsm6dsox_i2c = static_buffer

@@ -21,9 +21,9 @@ use capsules_core::virtualizers::virtual_hmac::MuxHmac;
 use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
 use capsules_extra::hmac::HmacDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::Capability;
+use kernel::capabilities::MemoryAllocation;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::digest;
 
 #[macro_export]
@@ -121,7 +121,7 @@ impl<
     type Output = &'static HmacDriver<'static, VirtualMuxHmac<'static, A, L>, L>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let key_buffer = s.2.write([0; 32]);
         let data_buffer = s.3.write([0; 64]);

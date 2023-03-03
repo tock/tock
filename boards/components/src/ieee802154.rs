@@ -33,9 +33,8 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_extra::ieee802154::device::MacDevice;
 use capsules_extra::ieee802154::mac::{AwakeMac, Mac};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
@@ -180,7 +179,7 @@ impl<
     );
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let crypt_buf = static_buffer.8.write([0; CRYPT_SIZE]);
         let aes_ccm = static_buffer.0.write(

@@ -30,9 +30,8 @@ use capsules_core::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_
 use capsules_core::spi_peripheral::SpiPeripheral;
 use capsules_core::virtualizers::virtual_spi;
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
@@ -176,7 +175,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
     type Output = &'static Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let syscall_spi_device = static_buffer
             .0
@@ -221,7 +220,7 @@ impl<S: 'static + spi::SpiSlave> Component for SpiSyscallPComponent<S> {
     type Output = &'static SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let syscallp_spi_device = static_buffer
             .0
@@ -290,7 +289,7 @@ impl<S: 'static + spi::SpiSlave + kernel::hil::spi::SpiSlaveDevice> Component
     type Output = &'static SpiPeripheral<'static, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let spi_device = static_buffer.write(SpiPeripheral::new(
             self.device,

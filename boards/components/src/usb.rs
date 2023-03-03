@@ -15,9 +15,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::usb::UsbController;
 
 #[macro_export]
@@ -66,7 +65,7 @@ impl<U: UsbController<'static> + 'static> Component for UsbComponent<U> {
     >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         // Configure the USB controller
         let usb_client = s.0.write(capsules_extra::usb::usbc_client::Client::new(

@@ -16,9 +16,8 @@
 
 use capsules_extra::crc::CrcDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::crc::Crc;
 
 // Setup static space for the objects.
@@ -60,7 +59,7 @@ impl<C: 'static + Crc<'static>> Component for CrcComponent<C> {
     type Output = &'static CrcDriver<'static, C>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let crc_buf = static_buffer
             .1
             .write([0; capsules_extra::crc::DEFAULT_CRC_BUF_LENGTH]);

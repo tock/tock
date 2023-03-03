@@ -22,9 +22,8 @@
 use capsules_extra::nonvolatile_storage_driver::NonvolatileStorage;
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 // Setup static space for the objects.
@@ -98,7 +97,7 @@ impl<
     type Output = &'static NonvolatileStorage<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let buffer = static_buffer
             .3

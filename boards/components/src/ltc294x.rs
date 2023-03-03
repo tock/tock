@@ -14,9 +14,8 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::ltc294x::LTC294XDriver;
 use capsules_extra::ltc294x::LTC294X;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::gpio;
 
 #[macro_export]
@@ -107,7 +106,7 @@ impl Component for Ltc294xDriverComponent {
     type Output = &'static LTC294XDriver<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let ltc294x_driver = s.write(LTC294XDriver::new(self.ltc294x, grant));

@@ -9,9 +9,8 @@
 
 use capsules_extra::sound_pressure::SoundPressureSensor;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -46,7 +45,7 @@ impl<S: 'static + hil::sensors::SoundPressure<'static>> Component for SoundPress
     type Output = &'static SoundPressureSensor<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let sound_pressure = s.write(SoundPressureSensor::new(
             self.sound_sensor,

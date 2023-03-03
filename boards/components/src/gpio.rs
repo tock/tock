@@ -46,9 +46,8 @@
 
 use capsules_core::gpio::GPIO;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
 
@@ -140,7 +139,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for GpioComponent<IP> 
     type Output = &'static GPIO<'static, IP>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let gpio = static_buffer.write(GPIO::new(
             self.gpio_pins,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),

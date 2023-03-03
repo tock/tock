@@ -17,9 +17,8 @@
 use capsules_core::virtualizers::virtual_i2c::{MuxI2C, SMBusDevice};
 use capsules_extra::mlx90614::Mlx90614SMBus;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -69,7 +68,7 @@ impl Component for Mlx90614SMBusComponent {
             .0
             .write(SMBusDevice::new(self.i2c_mux, self.i2c_address));
         let buffer = static_buffer.1.write([0; 14]);
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let mlx90614 = static_buffer.2.write(Mlx90614SMBus::new(
             mlx90614_smbus,
             buffer,

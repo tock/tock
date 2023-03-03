@@ -19,9 +19,8 @@
 use capsules_core::low_level_debug::LowLevelDebug;
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -70,7 +69,7 @@ impl Component for LowLevelDebugComponent {
     type Output = &'static LowLevelDebug<'static, UartDevice<'static>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let lldb_uart = s.0.write(UartDevice::new(self.uart_mux, true));
         lldb_uart.setup();

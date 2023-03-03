@@ -9,9 +9,8 @@
 
 use capsules_extra::proximity::ProximitySensor;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -46,7 +45,7 @@ impl<P: hil::sensors::ProximityDriver<'static>> Component for ProximityComponent
     type Output = &'static ProximitySensor<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let proximity = s.write(ProximitySensor::new(self.sensor, grant));

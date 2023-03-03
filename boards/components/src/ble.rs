@@ -9,9 +9,8 @@
 use capsules_core;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::ble_advertising::BleConfig;
 use kernel::hil::time::Alarm;
 
@@ -85,7 +84,7 @@ impl<
     >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let ble_radio_virtual_alarm = s.0.write(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm),

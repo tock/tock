@@ -32,9 +32,8 @@
 //! ```
 use capsules_extra::touch::Touch;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! touch_component_static {
@@ -74,7 +73,7 @@ impl Component for TouchComponent {
     type Output = &'static capsules_extra::touch::Touch<'static>;
 
     fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let touch = static_input.write(capsules_extra::touch::Touch::new(
@@ -124,7 +123,7 @@ impl Component for MultiTouchComponent {
     type Output = &'static capsules_extra::touch::Touch<'static>;
 
     fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_touch = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let touch = static_input.write(capsules_extra::touch::Touch::new(

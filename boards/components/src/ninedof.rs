@@ -10,9 +10,8 @@
 
 use capsules_extra::ninedof::NineDof;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! ninedof_component_static {
@@ -54,7 +53,7 @@ impl Component for NineDofComponent {
     type Output = &'static capsules_extra::ninedof::NineDof<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_ninedof = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let ninedof = static_buffer.0.write(capsules_extra::ninedof::NineDof::new(

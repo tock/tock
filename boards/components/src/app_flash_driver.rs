@@ -14,9 +14,8 @@
 use capsules_extra::app_flash_driver::AppFlash;
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::nonvolatile_storage::NonvolatileStorage;
 
@@ -78,7 +77,7 @@ impl<
     type Output = &'static AppFlash<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let buffer = static_buffer.0.write([0; BUF_LEN]);
 

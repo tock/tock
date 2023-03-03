@@ -28,9 +28,8 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 // Setup static space for the objects.
@@ -109,7 +108,7 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
         ));
         self.usb.set_client(ctap);
 
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let send_buffer = s.2.write([0; 64]);
         let recv_buffer = s.3.write([0; 64]);

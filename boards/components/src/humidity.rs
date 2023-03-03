@@ -9,9 +9,8 @@
 
 use capsules_extra::humidity::HumiditySensor;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -46,7 +45,7 @@ impl<T: 'static + hil::sensors::HumidityDriver<'static>> Component for HumidityC
     type Output = &'static HumiditySensor<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let humidity = s.write(HumiditySensor::new(
             self.sensor,

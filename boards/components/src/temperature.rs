@@ -9,9 +9,8 @@
 
 use capsules_extra::temperature::TemperatureSensor;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -46,7 +45,7 @@ impl<T: 'static + hil::sensors::TemperatureDriver<'static>> Component for Temper
     type Output = &'static TemperatureSensor<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let temp = s.write(TemperatureSensor::new(
             self.temp_sensor,

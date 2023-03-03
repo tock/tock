@@ -27,9 +27,8 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::ambient_light::AmbientLight;
 use capsules_extra::isl29035::Isl29035;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::time::{self, Alarm};
 
@@ -128,7 +127,7 @@ impl<L: 'static + hil::sensors::AmbientLight<'static>> Component for AmbientLigh
     type Output = &'static AmbientLight<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let ambient_light = static_buffer.write(AmbientLight::new(
             self.light_sensor,

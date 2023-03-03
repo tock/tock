@@ -38,9 +38,8 @@
 use capsules_extra::kv_driver::KVSystemDriver;
 use capsules_extra::kv_store::{KVStore, MuxKVStore};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::kv_system::{KVSystem, KeyType};
 
 // Setup static space for the objects.
@@ -161,7 +160,7 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
     type Output = &'static KVSystemDriver<'static, K, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let data_buffer = static_buffer.1.write([0; 32]);
         let dest_buffer = static_buffer.2.write([0; 48]);

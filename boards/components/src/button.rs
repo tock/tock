@@ -30,9 +30,8 @@
 
 use capsules_core::button::Button;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::gpio;
 use kernel::hil::gpio::InterruptWithValue;
 
@@ -113,7 +112,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP
     type Output = &'static Button<'static, IP>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let button = static_buffer.write(capsules_core::button::Button::new(
             self.button_pins,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
