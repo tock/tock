@@ -260,7 +260,6 @@ impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
     }
 }
 
-#[allow(dead_code)]
 struct CommandHistory<'a, const COMMAND_HISTORY_LEN: usize> {
     cmds: &'a mut [Command; COMMAND_HISTORY_LEN],
     cmd_idx: usize,
@@ -315,6 +314,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
         self.cmds[0].write(&cmd_arr);
     }
 
+    // Set the next index in the command history
     fn next_cmd_idx(&mut self) -> Option<usize> {
         if self.cmd_idx + 1 >= COMMAND_HISTORY_LEN {
             None
@@ -327,6 +327,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
         }
     }
 
+    // Set the previous index in the command history
     fn prev_cmd_idx(&mut self) -> Option<usize> {
         if self.cmd_idx > 0 {
             self.cmd_idx -= 1;
