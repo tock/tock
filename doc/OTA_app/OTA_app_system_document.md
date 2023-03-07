@@ -1,5 +1,5 @@
-OTA app
-========
+OTA app proejct
+===============
 This document explains how `OTA app` works in microbit_v2 and 
 provides a guide to write an application by using `OTA app`.
 In addition, it describes the design overview.
@@ -7,11 +7,11 @@ In addition, it describes the design overview.
 <!-- npm i -g markdown-toc; markdown-toc -i ota_app_system_document.md -->
 <!-- toc -->
 
-- [Designe overview of ota app](#design-overview-of-ota-app)
-  *[Update Scenario](#update-scenario)
-  *[Module Dependency](#module-dependency)
-  *[Key points](#key-points)
-  *[State Machine](#state-machine)
+- [Designe overview of ota app](#design-overview-of-ota-app)  
+    *[Update Scenario](#update-scenario)  
+    *[Module Dependency](#module-dependency)  
+    *[Key points](#key-points)  
+    *[State Machine](#state-machine)  
 - [Guide for demo](#guide-for-demo)
 - [To do list](#to-do-list)
 - [Issues](#issues)
@@ -106,8 +106,10 @@ loading the loaded application through ⑥. If the loaded app doesn't follow
 `MPU alignment rule`, `OTA app` erases the loaded data and don't load
 the entry pointof the loaded application into `PROCESS global array` at main.rs.
   
-
-![OTA app module dependency](ota_app_module_dependency.png)
+<p align="center">
+<img src="./img/OTA_app_module_dependency.png"><br>
+<strong>OTA app module dependency</strong>
+<p>
 
 ### Key points
  
@@ -200,18 +202,33 @@ the start address as shown in `ota alignment2`
     EndWhile
 ```
 
-![ota alignment1](Alignment1.png)
-![ota alignment2](Alignment2.png)
+<p align="center">
+<img src="./img/Alignment1.PNG"><br>
+<strong>ota alignment1</strong>
+<p>
+    
+<p align="center">
+<img src="./img/Alignment2.PNG"><br>
+<strong>ota alignment2</strong>
+<p>
 
 In `ota alignment3` picture, we will load 64k ble app. It follows same sequence
 as the above pseudo code. `start_addr` starts at 0x40000 -> go to 0x60000 -> 
 0x70000. We save ble app from 0x70000
-![ota alignment3](Alignment3.png)
+
+<p align="center">
+<img src="./img/Alignment3.PNG"><br>
+<strong>ota alignment3</strong>
+<p>
 
 In `ota alignment4` picture, we will load 4k blink app. It follows same sequence
 as the above pseudo code. `start_addr` starts at 0x40000 -> go to 0x60000 -> 
 0x60800. We save ble app from 0x60800
-![ota alignment4](Alignment4.png)
+
+<p align="center">
+<img src="./img/Alignment4.PNG"><br>
+<strong>ota alignment4</strong>
+<p>
 
 `Note that` this pseudo code don't consider MPU subregion rules,
 because the MPU subregion rules make the implementation more complex and 
@@ -227,10 +244,15 @@ located sparsely in flash memory. Thus, the loaded apps from OTA app
 are not loaded after pushing the reset button. So we need to insert padding apps
 between the loaded apps. Padding apps are loaded after loading a new app 
 from OTA app. Below picture shows the result of `tockloader list --verbose`
-![ota alignment with padding apps](Alignment_With_Padding_Apps.png) 
 
+<p align="center">
+<img src="./img/Alignment_With_Padding_Apps.PNG"><br>
+<strong>ota alignment with padding apps</strong>
+<p>
+    
 [2022-08-11] 
-There are two arrays. `PROCESSES_REGION_START_ADDRESS` and `PROCESSES_REGION_SIZE`
+There are two arrays.
+`PROCESSES_REGION_FLASH_START_ADDRESS` and `PROCESSES_REGION_FLASH_SIZE`.
 at main.rs. We save the start address and the size of a loaded process into the two
 arrays respectively. The two arrays are used as below.
 1) Check whether or not a new flash region invades the other regions occupied by
@@ -252,6 +274,13 @@ Added a security feature.
 (0xff) all of the app flash region by using `nonvolatile_storage_driver`. 
 2) Result: Although the malicious ota app manipulate the regions unoccupied by the 
 existing apps, it doesn't have to invade the other regions occupied by the existing apps.
+
+[2022-08-15]
+Added validation check of TBF base header
+1) The header length isn't greater than the entire app
+2) The header length is at least as large as the v2 required header (which is 16 bytes)
+3) Check Base Header Checksum consistency
+4) Check consistency between the requested app size and the actual app size in TBF header
 
 
 ### State Machine
