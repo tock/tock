@@ -15,7 +15,7 @@ In addition, it describes the design overview.
 - [Guide for demo](#guide-for-demo)
 - [To do list](#to-do-list)
 - [Issues](#issues)
-- [Sorce Code and Pull Request](#source-code-and-pull-request)
+- [Code and Pull Request](#code-and-pull-request)
 
 <!-- tocstop -->
 
@@ -403,6 +403,6 @@ address, the logic skips this remnant app.
 [2022-08-14] Sloved: Added a logic to check whether or not the existing apps are 
 actually loaded app. If not, we load a new app from there.
 
-## Sorce Code and Pull Request
+## Code and Pull Request
 1) [Kernel Interface:] https://github.com/tock/tock/pull/3068
 2) [OTA App:] https://github.com/tock/libtock-c/pull/281
