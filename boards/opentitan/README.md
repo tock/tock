@@ -287,11 +287,10 @@ The TBF must be compiled for the OpenTitan board. For example, you can build
 the Hello World example app from the libtock-rs repository by running:
 
 ```shell
-cd [LIBTOCK-RS-DIR]
-make flash-opentitan
-tar xf target/riscv32imac-unknown-none-elf/tab/opentitan/hello_world.tab
-cd [TOCK_ROOT]/boards/opentitan
-make APP=[LIBTOCK-RS-DIR]/rv32imac.tbf qemu-app
+cd "$libtock_rs_dir"
+make opentitan EXAMPLE=console
+cd "${tock_dir}/boards/opentitan/earlgrey-cw310"
+make APP=$"{libtock_rs_dir}/target/tbf/opentitan/console.tbf" qemu-app
 ```
 
 QEMU GDB Debugging [**earlgrey-cw310**]
@@ -367,16 +366,16 @@ source <path_to_installation>/Xilinx/Vivado_Lab/2020.2/settings64.sh
 ```
 We can now build the `rsa.elf` with:
 ```shell
-cd ${OPENTITAN_TREE}
+cd "${OPENTITAN_TREE}"
 # Build OTBN Binary
 ./bazelisk.sh build //sw/device/tests:otbn_rsa_test
-```
 
-```shell
 # Package binary as a Tock app
 elf2tab --verbose -n "otbn-rsa" --kernel-minor 0 --kernel-major 2 --disable --app-heap 0 --kernel-heap 0 --stack 0 ./bazel-out/k8-fastbuild-ST-2cc462681f62/bin/sw/otbn/crypto/rsa.elf
 
-OPENTITAN_TREE=<...> make APP=${OPENTITAN_TREE}/build-out/sw/otbn/rsa.tbf test-hardware
+# Run on hardware
+cd "${tock_dir}/boards/opentitan/earlgrey-cw310"
+make APP="${OPENTITAN_TREE}/bazel-out/sw/otbn/rsa.tbf" test-hardware
 ```
 
 ### For Verilator
