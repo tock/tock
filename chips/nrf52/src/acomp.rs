@@ -231,7 +231,11 @@ impl<'a> Comparator<'a> {
     fn enable(&self) {
         // Checks if it's already enabled
         // Assumes no one else is writing to comp registers directly
-        if self.registers.enable.matches_any(Enable::ENABLE::Enabled) {
+        if self
+            .registers
+            .enable
+            .any_matching_bits_set(Enable::ENABLE::Enabled)
+        {
             return;
         }
 

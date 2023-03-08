@@ -155,7 +155,9 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET) && self.plic.get_saved_interrupts().is_none() {
+            if !mip.any_matching_bits_set(mip::mtimer::SET)
+                && self.plic.get_saved_interrupts().is_none()
+            {
                 break;
             }
         }

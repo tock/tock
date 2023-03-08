@@ -1027,7 +1027,7 @@ impl I2CHw {
             let interrupts = status.bitand(imr.get());
 
             // Check for errors.
-            if interrupts.matches_any(
+            if interrupts.any_matching_bits_set(
                 StatusSlave::BUSERR::SET
                     + StatusSlave::SMBPECERR::SET
                     + StatusSlave::SMBTOUT::SET

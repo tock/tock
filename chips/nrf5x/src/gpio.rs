@@ -483,7 +483,7 @@ impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
     fn is_pending(&self) -> bool {
         if let Ok(channel) = self.find_channel(self.pin) {
             let ev = &self.gpiote_registers.event_in[channel];
-            ev.matches_any(EventsIn::EVENT::Ready)
+            ev.any_matching_bits_set(EventsIn::EVENT::Ready)
         } else {
             false
         }
@@ -576,7 +576,7 @@ impl<'a, const N: usize> Port<'a, N> {
         let pin_registers = self.pins[0].gpiote_registers;
 
         for (i, ev) in pin_registers.event_in.iter().enumerate() {
-            if ev.matches_any(EventsIn::EVENT::Ready) {
+            if ev.any_matching_bits_set(EventsIn::EVENT::Ready) {
                 ev.write(EventsIn::EVENT::NotReady);
                 // Get pin number for the event and `trigger` an interrupt manually on that pin
                 let pin = pin_registers.config[i].read(Config::PSEL) as usize;
