@@ -24,7 +24,7 @@ include ../../Makefile.common
 # Pass OpenTitan board configuration option in `BOARD_CONFIGURATION` through
 # Cargo `--features`. Please see `Cargo.toml` for available options.
 ifneq ($(BOARD_CONFIGURATION),)
-	CARGO_FLAGS += --features=$(BOARD_CONFIGURATION)
+	CARGO_FLAGS += --no-default-features --features=$(BOARD_CONFIGURATION)
 endif
 
 # Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
