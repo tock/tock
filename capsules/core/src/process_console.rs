@@ -45,7 +45,19 @@ const VALID_COMMANDS_STR: &[u8] =
 const ESC: u8 = '\x1B' as u8;
 
 /// End of line character.
-const EOL: u8 = '\0' as u8;
+const EOL: u8 = '\x00' as u8;
+
+/// Backspace ANSI character
+const BS: u8 = '\x08' as u8;
+
+/// Delete ANSI character
+const DEL: u8 = '\x7F' as u8;
+
+/// Space ANSI character
+const SPACE: u8 = '\x20' as u8;
+
+/// Upper limit for ASCII characters
+const ASCII_LIMIT: u8 = 128;
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -88,11 +100,34 @@ enum EscKey {
 /// an escape sequence has occured
 #[derive(Copy, Clone)]
 enum EscState {
+    /// This state is reached when the character is a normal
+    /// ANSI character, and the escape sequence is bypassed.
     Bypass,
+
+    /// This state is reached when an escape sequence
+    /// is completed, and the corresponding EscKey is processed.
     Complete(EscKey),
+
+    /// This state is reached when an escape sequence has
+    /// just started and is waiting for the next
+    /// character to complete the sequence.
     Started,
+
+    /// This state is reached when the escape sequence
+    /// starts with a bracket character '[' and is waiting
+    /// for the next character to determine the corresponding EscKey.
     Bracket,
+
+    /// This state is reached when the current character does not match
+    /// any of the expected characters in the escape sequence.
+    /// Once entered in this state, the escape sequence cannot be processed
+    /// and is waiting for an ascii alphabetic character to complete
+    /// the unrecognized sequence.
     Unrecognized,
+
+    /// This state is reached when the escape sequence has ended with
+    /// an unrecognized character. This state waits for an ascii
+    /// alphabetic character to terminate the unrecognized sequence.
     UnrecognizedDone,
 }
 
@@ -295,10 +330,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
     /// into the history
     fn change_cmd_from(&mut self, cmd: &[u8]) {
         match self.modified_byte {
-            b' ' => {
+            SPACE => {
                 self.cmds[0].delete_last_byte();
             }
-            b'\x08' | b'\x7F' => {
+            BS | DEL => {
                 self.cmds[0].clear();
                 self.write_to_first(cmd);
             }
@@ -1113,11 +1148,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                                             // Clear the displayed command
                                             for _ in 0..prev_command_len {
-                                                let _ = self.write_bytes(&[
-                                                    '\x08' as u8,
-                                                    ' ' as u8,
-                                                    '\x08' as u8,
-                                                ]);
+                                                let _ = self.write_bytes(&[BS, SPACE, BS]);
                                             }
 
                                             // Display the new command
@@ -1160,11 +1191,11 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 self.execute.set(true);
                                 let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
                             }
-                        } else if read_buf[0] == ('\x08' as u8) || read_buf[0] == ('\x7F' as u8) {
+                        } else if read_buf[0] == BS || read_buf[0] == DEL {
                             if index > 0 {
                                 // Backspace, echo and remove last byte
                                 // Note echo is '\b \b' to erase
-                                let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
+                                let _ = self.write_bytes(&[BS, SPACE, BS]);
                                 command[index - 1] = EOL;
                                 self.command_index.set(index - 1);
 
@@ -1180,7 +1211,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             self.command_history
                                 .map(|ht| ht.modified_byte = previous_byte);
                         } else if index < (command.len() - 1)
-                            && read_buf[0] < 128
+                            && read_buf[0] < ASCII_LIMIT
                             && !esc_state.in_progress()
                         {
                             // For some reason, sometimes reads return > 127 but no error,
@@ -1203,9 +1234,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     } else {
                                         // Do not save unnecessary white spaces
                                         // between commands
-                                        if read_buf[0] != (' ' as u8)
-                                            || previous_byte != (' ' as u8)
-                                        {
+                                        if read_buf[0] != SPACE || previous_byte != SPACE {
                                             ht.cmds[0].insert_byte(read_buf[0]);
                                         }
                                     }
