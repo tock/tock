@@ -2,6 +2,7 @@
 members = [
     "alert_codes",
     "board-runner",
+    "license-checker",
     "litex-ci-runner",
     "qemu-runner",
     "sha256sum",

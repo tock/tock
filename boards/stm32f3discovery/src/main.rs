@@ -8,8 +8,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::lsm303xx;
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_extra::lsm303xx;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -51,28 +51,39 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1700] = [0; 0x1700];
 
+// Function for the process console to use to reboot the board
+fn reset() -> ! {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
+    }
+}
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F3Discovery {
-    console: &'static capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    gpio: &'static capsules::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
-    led: &'static capsules::led::LedDriver<
+    gpio: &'static capsules_core::gpio::GPIO<'static, stm32f303xc::gpio::Pin<'static>>,
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, stm32f303xc::gpio::Pin<'static>>,
         8,
     >,
-    button: &'static capsules::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    l3gd20: &'static capsules::l3gd20::L3gd20Spi<'static>,
-    lsm303dlhc: &'static capsules::lsm303dlhc::Lsm303dlhcI2C<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    button: &'static capsules_core::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
+    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
+    l3gd20: &'static capsules_extra::l3gd20::L3gd20Spi<'static>,
+    lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
     >,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    nonvolatile_storage:
+        &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -86,18 +97,20 @@ impl SyscallDriverLookup for STM32F3Discovery {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
-            capsules::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_extra::l3gd20::DRIVER_NUM => f(Some(self.l3gd20)),
+            capsules_extra::lsm303dlhc::DRIVER_NUM => f(Some(self.lsm303dlhc)),
+            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
+                f(Some(self.nonvolatile_storage))
+            }
             _ => f(None),
         }
     }
@@ -348,7 +361,7 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> (
+unsafe fn create_peripherals() -> (
     &'static mut Stm32f3xxDefaultPeripherals<'static>,
     &'static stm32f303xc::syscfg::Syscfg<'static>,
     &'static stm32f303xc::rcc::Rcc,
@@ -380,7 +393,7 @@ unsafe fn get_peripherals() -> (
 pub unsafe fn main() {
     stm32f303xc::init();
 
-    let (peripherals, syscfg, _rcc) = get_peripherals();
+    let (peripherals, syscfg, _rcc) = create_peripherals();
     peripherals.setup_circular_deps();
 
     set_pin_primary_functions(
@@ -434,7 +447,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -501,7 +514,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             (
@@ -527,7 +540,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(stm32f303xc::tim2::Tim2));
@@ -536,7 +549,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f303xc::gpio::Pin<'static>,
             // Left outer connector
@@ -644,7 +657,7 @@ pub unsafe fn main() {
         spi_mux,
         &gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
         board_kernel,
-        capsules::l3gd20::DRIVER_NUM,
+        capsules_extra::l3gd20::DRIVER_NUM,
     )
     .finalize(components::l3gd20_component_static!(
         // spi type
@@ -655,12 +668,12 @@ pub unsafe fn main() {
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
+        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
     // Comment this if you want to use the ADC MCU temp sensor
     let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
+        capsules_extra::temperature::TemperatureSensor<'static>,
+        capsules_extra::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
 
@@ -675,7 +688,7 @@ pub unsafe fn main() {
         None,
         None,
         board_kernel,
-        capsules::lsm303dlhc::DRIVER_NUM,
+        capsules_extra::lsm303dlhc::DRIVER_NUM,
     )
     .finalize(components::lsm303dlhc_component_static!());
 
@@ -691,9 +704,11 @@ pub unsafe fn main() {
         debug!("Failed to configure LSM303DLHC sensor ({:?})", error);
     }
 
-    let ninedof =
-        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules_extra::ninedof::DRIVER_NUM,
+    )
+    .finalize(components::ninedof_component_static!(l3gd20, lsm303dlhc));
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc1)
         .finalize(components::adc_mux_component_static!(stm32f303xc::adc::Adc));
@@ -712,8 +727,8 @@ pub unsafe fn main() {
     // let grant_temperature = board_kernel.create_grant(&grant_cap);
 
     // let temp = static_init!(
-    //     capsules::temperature::TemperatureSensor<'static>,
-    //     capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+    //     capsules_extra::temperature::TemperatureSensor<'static>,
+    //     capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     // );
     // kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
@@ -739,7 +754,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_static!(stm32f303xc::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_2,
                 adc_channel_3,
@@ -757,7 +772,7 @@ pub unsafe fn main() {
 
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        capsules::nonvolatile_storage_driver::DRIVER_NUM,
+        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
         &peripherals.flash,
         0x08038000, // Start address for userspace accesible region
         0x8000,     // Length of userspace accesible region (16 pages)
@@ -778,6 +793,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         stm32f303xc::tim2::Tim2

@@ -238,10 +238,10 @@ pub struct I2C<'a> {
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
 
     buffer: TakeCell<'static, [u8]>,
-    tx_position: Cell<u8>,
-    rx_position: Cell<u8>,
-    tx_len: Cell<u8>,
-    rx_len: Cell<u8>,
+    tx_position: Cell<usize>,
+    rx_position: Cell<usize>,
+    tx_len: Cell<usize>,
+    rx_len: Cell<usize>,
 
     slave_address: Cell<u8>,
 
@@ -485,8 +485,8 @@ impl i2c::I2CMaster for I2C<'_> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.status.get() == I2CStatus::Idle {
             self.reset();
@@ -506,7 +506,7 @@ impl i2c::I2CMaster for I2C<'_> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.status.get() == I2CStatus::Idle {
             self.reset();
@@ -525,7 +525,7 @@ impl i2c::I2CMaster for I2C<'_> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
         if self.status.get() == I2CStatus::Idle {
             self.reset();

@@ -18,7 +18,7 @@
 //! .finalize(components::panic_button_component_static!(sam4l::gpio::GPIOPin));
 //! ```
 
-use capsules::panic_button::PanicButton;
+use capsules_extra::panic_button::PanicButton;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
@@ -26,7 +26,7 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! panic_button_component_static {
     ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules::button::PanicButton<'static, $Pin>)
+        kernel::static_buf!(capsules_core::button::PanicButton<'static, $Pin>)
     };};
 }
 

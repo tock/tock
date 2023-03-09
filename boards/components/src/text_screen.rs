@@ -19,7 +19,7 @@
 //! ```
 //!
 
-use capsules::text_screen::TextScreen;
+use capsules_extra::text_screen::TextScreen;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -29,7 +29,7 @@ use kernel::create_capability;
 macro_rules! text_screen_component_static {
     ($s:literal $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $s]);
-        let screen = kernel::static_buf!(capsules::screen::TextScreen);
+        let screen = kernel::static_buf!(capsules_extra::screen::TextScreen);
 
         (buffer, screen)
     };};

@@ -45,20 +45,23 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct MspExp432P401R {
-    led: &'static capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         kernel::hil::led::LedHigh<'static, msp432::gpio::IntPin<'static>>,
         3,
     >,
-    console: &'static capsules::console::Console<'static>,
-    button: &'static capsules::button::Button<'static, msp432::gpio::IntPin<'static>>,
-    gpio: &'static capsules::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static capsules_core::console::Console<'static>,
+    button: &'static capsules_core::button::Button<'static, msp432::gpio::IntPin<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, msp432::gpio::IntPin<'static>>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, msp432::timer::TimerA<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            msp432::timer::TimerA<'static>,
+        >,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    adc: &'static capsules::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, msp432::adc::Adc<'static>>,
     wdt: &'static msp432::wdt::Wdt,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -109,13 +112,13 @@ impl SyscallDriverLookup for MspExp432P401R {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             _ => f(None),
         }
     }
@@ -187,7 +190,7 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
+unsafe fn create_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
     static_init!(
         msp432::chip::Msp432DefaultPeripherals,
         msp432::chip::Msp432DefaultPeripherals::new()
@@ -201,7 +204,7 @@ unsafe fn get_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeriphera
 pub unsafe fn main() {
     startup_intilialisation();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.init();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
@@ -242,7 +245,7 @@ pub unsafe fn main() {
     // Setup buttons
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             msp432::gpio::IntPin,
             (
@@ -276,7 +279,7 @@ pub unsafe fn main() {
     // Setup user-GPIOs
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             msp432::gpio::IntPin<'static>,
             // Left outer connector, top to bottom
@@ -347,7 +350,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -362,7 +365,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(msp432::timer::TimerA));
@@ -403,7 +406,7 @@ pub unsafe fn main() {
         &peripherals.adc,
         adc_channels,
         board_kernel,
-        capsules::adc::DRIVER_NUM,
+        capsules_core::adc::DRIVER_NUM,
     )
     .finalize(components::adc_dedicated_component_static!(
         msp432::adc::Adc

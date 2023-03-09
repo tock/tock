@@ -19,8 +19,10 @@ Process Console
   * [`terminate` and `boot`](#terminate-and-boot)
   * [`fault`](#fault)
   * [`panic`](#panic)
+  * [`reset`](#reset)
   * [`kernel`](#kernel)
   * [`process`](#process)
+  * [`commands history`](#commands-history)
 
 <!-- tocstop -->
 
@@ -37,12 +39,14 @@ Setup
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset_function),
     )
     .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
     ));
  let _ = _process_console.start();
  ```
+
 > Note: Using the process console might require allocating more stack to the kernel. This is done by modifying the `STACK_MEMORY` variable from the board's `main.rs`.
 
  Using Process Console
@@ -83,8 +87,10 @@ tock$
   - [`boot n`](#terminate-and-boot) - tries to restart a Terminated process with name n
   - [`fault n`](#fault) - forces the process with name n into a fault state
   - [`panic`](#panic) - causes the kernel to run the panic handler
+  - [`reset`](#reset) - causes the board to reset
   - [`kernel`](#kernel) - prints the kernel memory map
   - [`process n`](#process) - prints the memory map of process with name n
+  - [`commands history`](#commands-history) - scrolls through inserted user commands
 
  For the examples below we will have 2 processes on the board: `blink` (which will blink all the LEDs that are 
  connected to the kernel), and `c_hello` (which prints 'Hello World' when the console is started). Also, a micro:bit v2 board was used as support for the commands, so the results may vary on other devices.
@@ -537,6 +543,14 @@ tock$
     To debug, run `make debug RAM_START=0x20006000 FLASH_INIT=0x4085d`
     in the app's folder and open the .lst file.
 ```
+
+### `reset`
+  - You can also reset the board with the `reset` command:
+
+```text
+    tock$ reset
+```
+
 ### `kernel`
   - You can view the kernel memory map with the `kernel` command:
 
@@ -600,3 +614,50 @@ tock$
       0x00040800 ┴─────────────────────────────────────────── H
 
 ```
+
+### `commands history`
+ - You can use the up and down arrows to scroll through the command history and to view the previous commands you have run.
+ - If you inserted more commands than the command history can hold, oldest commands will be overwritten.
+ - You can view the commands in bidirectional order, `up arrow` for oldest commands and `down arrow` for newest.
+ - If the user custom size for the history is set to `0`, the history will be disabled and the rust compiler will be able to optimize the binary file by removing dead code.
+ - If you are typing a command and accidentally press the `up arrow` key, you can press `down arrow` in order to retrieve the command you were typing.
+ - If you scroll through the history and you want to edit a command and accidentally press the `up` or `down` arrow key, scroll to the bottom of the history and you will get back to the command you were typing.
+
+  Here is how to add a custom size for the command `history` used by the ProcessConsole structure to keep track of the typed commands, in the `main.rs` of boards:
+ ```rust
+ const COMMAND_HISTORY_LEN : usize = 30;
+
+ /// ...
+ 
+ pub struct Platform {
+    // other fields
+    
+    pconsole: &'static capsules::process_console::ProcessConsole<
+        'static,
+        COMMAND_HISTORY_LEN,
+        // or { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN }
+        // for the deafult behaviour
+        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        components::process_console::Capability,
+    >,
+    
+    // other fields
+}
+
+  /// ...
+
+  let _process_console = components::process_console::ProcessConsoleComponent::new(
+          board_kernel,
+          uart_mux,
+          mux_alarm,
+          process_printer,
+          Some(reset_function),
+      )
+      .finalize(components::process_console_component_static!(
+          nrf52833::rtc::Rtc,
+          COMMAND_HISTORY_LEN // or nothing for the default behaviour
+      ));
+
+  /// ...
+ ```
+> Note: In order to disable any functionality for the command history set the `COMMAND_HISTORY_LEN` to `0` or `1` (the history will be disabled for a size of `1`, because the first position from the command history is reserved for accidents by pressing `up` or `down` arrow key.

@@ -5,5 +5,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

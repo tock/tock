@@ -58,16 +58,16 @@ impl SysInfo {
         }
     }
 
-    pub fn get_revision(&self) -> u32 {
-        self.registers.chip_id.read(CHIP_ID::REVISION)
+    pub fn get_revision(&self) -> u8 {
+        self.registers.chip_id.read(CHIP_ID::REVISION) as u8
     }
 
-    pub fn get_part(&self) -> u32 {
-        self.registers.chip_id.read(CHIP_ID::PART)
+    pub fn get_part(&self) -> u16 {
+        self.registers.chip_id.read(CHIP_ID::PART) as u16
     }
 
-    pub fn get_manufacturer_rp2040(&self) -> u32 {
-        self.registers.chip_id.read(CHIP_ID::MANUFACTURER)
+    pub fn get_manufacturer_rp2040(&self) -> u16 {
+        self.registers.chip_id.read(CHIP_ID::MANUFACTURER) as u16
     }
 
     pub fn get_asic(&self) -> u32 {

@@ -10,7 +10,7 @@
 //! with different bit rates should see different clock
 //! frequencies.
 
-use capsules::virtual_spi::MuxSpiMaster;
+use capsules_core::virtualizers::virtual_spi::MuxSpiMaster;
 use components::spi::SpiComponent;
 use core::cell::Cell;
 use kernel::component::Component;

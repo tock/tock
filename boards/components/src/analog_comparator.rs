@@ -19,7 +19,7 @@
 //! .finalize(components::analog_comparator_component_static!(sam4l::acifc::Acifc));
 //! ```
 
-use capsules::analog_comparator::AnalogComparator;
+use capsules_extra::analog_comparator::AnalogComparator;
 use core::mem::MaybeUninit;
 use kernel;
 use kernel::capabilities;
@@ -45,7 +45,7 @@ macro_rules! analog_comparator_component_helper {
 #[macro_export]
 macro_rules! analog_comparator_component_static {
     ($AC:ty $(,)?) => {{
-        kernel::static_buf!(capsules::analog_comparator::AnalogComparator<'static, $AC>)
+        kernel::static_buf!(capsules_extra::analog_comparator::AnalogComparator<'static, $AC>)
     };};
 }
 

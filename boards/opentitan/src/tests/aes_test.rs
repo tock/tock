@@ -2,9 +2,9 @@
 
 use crate::tests::run_kernel_op;
 use crate::{AES, PERIPHERALS};
-use capsules::test::aes::{TestAes128Cbc, TestAes128Ctr, TestAes128Ecb};
-use capsules::test::aes_ccm::Test;
-use capsules::virtual_aes_ccm;
+use capsules_core::virtualizers::virtual_aes_ccm;
+use capsules_extra::test::aes::{TestAes128Cbc, TestAes128Ctr, TestAes128Ecb};
+use capsules_extra::test::aes_ccm::Test;
 use earlgrey::aes::Aes;
 use kernel::debug;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};

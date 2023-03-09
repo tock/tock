@@ -26,7 +26,7 @@
 //!         .finalize(components::screen_component_static!(40960));
 //! ```
 
-use capsules::screen::Screen;
+use capsules_extra::screen::Screen;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -36,7 +36,7 @@ use kernel::create_capability;
 macro_rules! screen_component_static {
     ($s:literal $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $s]);
-        let screen = kernel::static_buf!(capsules::screen::Screen);
+        let screen = kernel::static_buf!(capsules_extra::screen::Screen);
 
         (buffer, screen)
     };};
