@@ -125,8 +125,6 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
         let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));
         let udp_send = s.0.write(UDPSendStruct::new(self.udp_send_mux, udp_vis));
 
-        static DRIVER_CAP: Capability<UdpDriver> = unsafe { Capability::<UdpDriver>::new() };
-
         let net_cap = s.2.write(NetworkCapability::new(
             AddrRange::Any,
             PortRange::Any,
@@ -143,11 +141,13 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
             MAX_PAYLOAD_LEN,
             self.port_table,
             kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(buffer),
-            &DRIVER_CAP,
+            unsafe { Capability::<UdpDriver>::new() },
             net_cap,
         ));
         udp_send.set_client(udp_driver);
-        self.port_table.set_user_ports(udp_driver, &DRIVER_CAP);
+
+        let driver_cap = unsafe { Capability::<UdpDriver>::new() };
+        self.port_table.set_user_ports(udp_driver, &driver_cap);
 
         let udp_driver_rcvr = s.5.write(UDPReceiver::new());
         self.udp_recv_mux.set_driver(udp_driver);

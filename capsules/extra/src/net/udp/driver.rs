@@ -117,7 +117,7 @@ pub struct UDPDriver<'a> {
 
     kernel_buffer: MapCell<LeasableMutableBuffer<'static, u8>>,
 
-    driver_send_cap: &'a Capability<UdpDriver>,
+    driver_send_cap: Capability<UdpDriver>,
 
     net_cap: &'static NetworkCapability,
 }
@@ -135,7 +135,7 @@ impl<'a> UDPDriver<'a> {
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,
         kernel_buffer: LeasableMutableBuffer<'static, u8>,
-        driver_send_cap: &'a Capability<UdpDriver>,
+        driver_send_cap: Capability<UdpDriver>,
         net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
@@ -225,7 +225,7 @@ impl<'a> UDPDriver<'a> {
                                     dst_port,
                                     src_port,
                                     kernel_buffer,
-                                    self.driver_send_cap,
+                                    &self.driver_send_cap,
                                     self.net_cap,
                                 ) {
                                     Ok(_) => Ok(()),
