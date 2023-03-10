@@ -17,7 +17,6 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -320,14 +319,6 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
         .finalize(components::alarm_mux_component_static!(RPTimer));
 
@@ -356,7 +347,6 @@ pub unsafe fn main() {
         0x1,
         strings,
         mux_alarm,
-        dynamic_deferred_caller,
         None,
     )
     .finalize(components::cdc_acm_component_static!(
@@ -366,14 +356,13 @@ pub unsafe fn main() {
 
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
     // let uart_mux2 = components::console::UartMuxComponent::new(
     //     &peripherals.uart0,
     //     115200,
-    //     dynamic_deferred_caller,
     // )
     // .finalize(components::uart_mux_component_static!());
 
@@ -460,9 +449,8 @@ pub unsafe fn main() {
     let gpio_scl = peripherals.pins.get_pin(RPGpio::GPIO13);
     gpio_sda.set_function(GpioFunction::I2C);
     gpio_scl.set_function(GpioFunction::I2C);
-    let mux_i2c =
-        components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None)
+        .finalize(components::i2c_mux_component_static!());
 
     let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
         mux_i2c,

@@ -23,7 +23,6 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::ccs811::Ccs811;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -40,19 +39,13 @@ macro_rules! ccs811_component_static {
 pub struct Ccs811Component {
     i2c_mux: &'static MuxI2C<'static>,
     i2c_address: u8,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl Ccs811Component {
-    pub fn new(
-        i2c: &'static MuxI2C<'static>,
-        i2c_address: u8,
-        deferred_caller: &'static DynamicDeferredCall,
-    ) -> Self {
+    pub fn new(i2c: &'static MuxI2C<'static>, i2c_address: u8) -> Self {
         Ccs811Component {
             i2c_mux: i2c,
             i2c_address,
-            deferred_caller,
         }
     }
 }
@@ -70,14 +63,10 @@ impl Component for Ccs811Component {
             .0
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));
         let buffer = static_buffer.1.write([0; 6]);
-        let ccs811 = static_buffer
-            .2
-            .write(Ccs811::new(ccs811_i2c, buffer, self.deferred_caller));
+        let ccs811 = static_buffer.2.write(Ccs811::new(ccs811_i2c, buffer));
+        kernel::deferred_call::DeferredCallClient::register(ccs811);
 
         ccs811_i2c.set_client(ccs811);
-        ccs811.initialize_callback_handle(
-            self.deferred_caller.register(ccs811).unwrap(), // Unwrap fail = no deferred call slot available for CCS811
-        );
         ccs811.startup();
         ccs811
     }

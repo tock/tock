@@ -11,9 +11,7 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::debug;
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
@@ -129,22 +127,6 @@ impl CommandHeader {
     }
 }
 
-/// Schedules a deferred call with no arguments.
-/// This is separate from the device to make sure no other state is modified.
-fn schedule_deferred(
-    caller: &DynamicDeferredCall,
-    callback: &OptionalCell<DeferredCallHandle>,
-    name: &str,
-) -> Result<(), ()> {
-    match callback.extract().and_then(|handle| caller.set(handle)) {
-        Some(true) => Ok(()),
-        other => {
-            debug!("LPM013M126 can't call {} (returned {:?})", name, other,);
-            Err(())
-        }
-    }
-}
-
 /// Area of the screen to which data is written
 #[derive(Debug, Copy, Clone)]
 struct WriteFrame {
@@ -187,13 +169,16 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
 
     state: Cell<State>,
 
-    /// This is responsible for sending callbacks
+    /// Fields responsible for sending callbacks
     /// for actions completed in software.
-    deferred_caller: &'a DynamicDeferredCall,
-    ready_callback: OptionalCell<DeferredCallHandle>,
-    command_complete_callback: OptionalCell<DeferredCallHandle>,
-    /// Holds the handle and the pending call parameter.
-    write_complete_callback: OptionalCell<(DeferredCallHandle, Option<Result<(), ErrorCode>>)>,
+    ready_callback: DeferredCall,
+    ready_callback_handler: ReadyCallbackHandler<'a, A, P, S>,
+    command_complete_callback: DeferredCall,
+    command_complete_callback_handler: CommandCompleteCallbackHandler<'a, A, P, S>,
+    write_complete_callback: DeferredCall,
+    write_complete_callback_handler: WriteCompleteCallbackHandler<'a, A, P, S>,
+    /// Holds the pending call parameter
+    write_complete_pending_call: OptionalCell<Result<(), ErrorCode>>,
 
     /// The HIL requires updates to arbitrary rectangles.
     /// The display supports only updating entire rows,
@@ -218,7 +203,6 @@ where
         extcomin: &'a P,
         disp: &'a P,
         alarm: &'a A,
-        deferred_caller: &'a DynamicDeferredCall,
         frame_buffer: &'static mut [u8],
     ) -> Result<Self, InitError> {
         if frame_buffer.len() < BUF_LEN {
@@ -229,10 +213,13 @@ where
                 alarm,
                 disp,
                 extcomin,
-                deferred_caller,
-                ready_callback: OptionalCell::empty(),
-                command_complete_callback: OptionalCell::empty(),
-                write_complete_callback: OptionalCell::empty(),
+                ready_callback: DeferredCall::new(),
+                ready_callback_handler: ReadyCallbackHandler::new(),
+                command_complete_callback: DeferredCall::new(),
+                command_complete_callback_handler: CommandCompleteCallbackHandler::new(),
+                write_complete_callback: DeferredCall::new(),
+                write_complete_callback_handler: WriteCompleteCallbackHandler::new(),
+                write_complete_pending_call: OptionalCell::empty(),
                 frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer)),
                 buffer: TakeCell::empty(),
                 client: OptionalCell::empty(),
@@ -250,36 +237,14 @@ where
         // At the same time, self must be static for client registration.
         match self.state.get() {
             State::Uninitialized => {
-                self.ready_callback.insert(
-                    self.ready_callback
-                        .extract()
-                        .or_else(|| self.deferred_caller.register(self)),
-                );
-                if self.ready_callback.is_none() {
-                    return Err(ErrorCode::NOMEM);
-                }
-
-                self.command_complete_callback.insert(
-                    self.command_complete_callback
-                        .extract()
-                        .or_else(|| self.deferred_caller.register(self)),
-                );
-                if self.command_complete_callback.is_none() {
-                    return Err(ErrorCode::NOMEM);
-                }
-
-                self.write_complete_callback.insert(
-                    self.write_complete_callback
-                        .extract()
-                        .or_else(|| self.deferred_caller.register(self).map(|h| (h, None))),
-                );
-                if self.write_complete_callback.is_none() {
-                    return Err(ErrorCode::NOMEM);
-                }
-                // TODO: handles should maybe get unregistered on drop.
-                // Ideally they should unregister RAII style, but I'm not sure how.
-                // Perhaps in new().
-                // The deferred caller doesn't support unregistering anyway.
+                self.ready_callback_handler.lpm.set(self);
+                self.ready_callback.register(&self.ready_callback_handler);
+                self.command_complete_callback_handler.lpm.set(self);
+                self.command_complete_callback
+                    .register(&self.command_complete_callback_handler);
+                self.write_complete_callback_handler.lpm.set(self);
+                self.write_complete_callback
+                    .register(&self.write_complete_callback_handler);
 
                 self.state.set(State::Off);
                 Ok(())
@@ -353,26 +318,15 @@ where
                 self.disp.clear();
                 self.state.set(State::Off);
 
-                let scheduled =
-                    schedule_deferred(self.deferred_caller, &self.ready_callback, "ready");
-
-                if let Err(()) = scheduled {
-                    self.state.set(State::Bug);
-                    Err(ErrorCode::FAIL)
-                } else {
-                    Ok(())
-                }
+                self.ready_callback.set();
+                Ok(())
             }
         }
     }
 
-    fn call_write_complete(&self, ret: Result<(), ErrorCode>) -> Option<bool> {
-        if let Some((handle, None)) = self.write_complete_callback.extract() {
-            self.write_complete_callback.set((handle, Some(ret)));
-            self.deferred_caller.set(handle)
-        } else {
-            None
-        }
+    fn call_write_complete(&self, ret: Result<(), ErrorCode>) {
+        self.write_complete_callback.set();
+        self.write_complete_pending_call.set(ret);
     }
 
     fn arm_alarm(&self) {
@@ -380,6 +334,28 @@ where
         // for transmissive mode.
         let delay = self.alarm.ticks_from_ms(500);
         self.alarm.set_alarm(self.alarm.now(), delay);
+    }
+
+    fn handle_ready_callback(&self) {
+        self.client.map(|client| client.screen_is_ready());
+    }
+
+    fn handle_write_complete_callback(&self) {
+        self.client.map(|client| {
+            self.write_complete_pending_call.map(|pend| {
+                self.buffer
+                    .take()
+                    .map(|buffer| client.write_complete(buffer, *pend));
+            });
+            self.write_complete_pending_call.take();
+        });
+    }
+
+    fn handle_command_complete_callback(&self) {
+        // Thankfully, this is the only command that results in the callback,
+        // so there's no danger that this will get attributed
+        // to a command that's not finished yet.
+        self.client.map(|client| client.command_complete(Ok(())));
     }
 }
 
@@ -433,15 +409,7 @@ where
             State::Bug => Err(ErrorCode::FAIL),
         };
 
-        let scheduled = schedule_deferred(
-            self.deferred_caller,
-            &self.command_complete_callback,
-            "command_complete",
-        );
-
-        if let Err(()) = scheduled {
-            new_state = Some(State::Bug);
-        };
+        self.command_complete_callback.set();
 
         if let Some(new_state) = new_state {
             self.state.set(new_state);
@@ -486,16 +454,7 @@ where
 
         match self.state.get() {
             State::Writing(..) => {}
-            _ => match self.call_write_complete(ret) {
-                Some(true) => {}
-                other => {
-                    debug!(
-                        "LPM013M126 can't call write_complete (returned {:?})",
-                        other,
-                    );
-                    self.state.set(State::Bug);
-                }
-            },
+            _ => self.call_write_complete(ret),
         };
 
         ret
@@ -528,14 +487,8 @@ where
         // If the device is in the desired state by now,
         // then a callback needs to be sent manually.
         if let Err(ErrorCode::ALREADY) = ret {
-            let scheduled = schedule_deferred(self.deferred_caller, &self.ready_callback, "ready");
-
-            if let Err(()) = scheduled {
-                self.state.set(State::Bug);
-                Err(ErrorCode::FAIL)
-            } else {
-                Ok(())
-            }
+            self.ready_callback.set();
+            Ok(())
         } else {
             ret
         }
@@ -647,32 +600,82 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> SpiMasterClient for Lpm013m12
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DynamicDeferredCallClient
-    for Lpm013m126<'a, A, P, S>
-{
-    fn call(&self, handle: DeferredCallHandle) {
-        if Some(handle) == self.command_complete_callback.extract() {
-            // Thankfully, this is the only command that results in the callback,
-            // so there's no danger that this will get attributed
-            // to a command that's not finished yet.
-            self.client.map(|client| client.command_complete(Ok(())));
-        } else if let Some((handle, Some(arg))) = self.write_complete_callback.extract() {
-            self.client.map(|client| {
-                self.buffer
-                    .take()
-                    .map(|buffer| client.write_complete(buffer, arg));
-                self.write_complete_callback.replace((handle, None));
-            });
-        } else if Some(handle) == self.ready_callback.extract() {
-            self.client.map(|client| client.screen_is_ready());
-        } else {
-            debug!(
-                "LPM013M126 received deferred call impossible to handle. State: {:?}, command: {:?}, write: {:?}",
-                self.state.get(),
-                self.command_complete_callback.extract(),
-                self.write_complete_callback.extract(),
-            );
-            self.state.set(State::Bug)
+// DeferredCall requires a unique client for each DeferredCall so that different callbacks
+// can be distinguished.
+struct ReadyCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+    lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> ReadyCallbackHandler<'a, A, P, S> {
+    fn new() -> Self {
+        Self {
+            lpm: OptionalCell::empty(),
         }
+    }
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DeferredCallClient
+    for ReadyCallbackHandler<'a, A, P, S>
+where
+    Self: 'static,
+{
+    fn handle_deferred_call(&self) {
+        self.lpm.map(|l| l.handle_ready_callback());
+    }
+
+    fn register(&'static self) {
+        self.lpm.map(|l| l.ready_callback.register(self));
+    }
+}
+
+struct CommandCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+    lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> CommandCompleteCallbackHandler<'a, A, P, S> {
+    fn new() -> Self {
+        Self {
+            lpm: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DeferredCallClient
+    for CommandCompleteCallbackHandler<'a, A, P, S>
+where
+    Self: 'static,
+{
+    fn handle_deferred_call(&self) {
+        self.lpm.map(|l| l.handle_command_complete_callback());
+    }
+
+    fn register(&'static self) {
+        self.lpm.map(|l| l.command_complete_callback.register(self));
+    }
+}
+
+struct WriteCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+    lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> WriteCompleteCallbackHandler<'a, A, P, S> {
+    fn new() -> Self {
+        Self {
+            lpm: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DeferredCallClient
+    for WriteCompleteCallbackHandler<'a, A, P, S>
+where
+    Self: 'static,
+{
+    fn handle_deferred_call(&self) {
+        self.lpm.map(|l| l.handle_write_complete_callback());
+    }
+
+    fn register(&'static self) {
+        self.lpm.map(|l| l.write_complete_callback.register(self));
     }
 }

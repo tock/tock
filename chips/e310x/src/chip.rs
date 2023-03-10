@@ -10,17 +10,14 @@ use rv32i::csr;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::PMP;
 
-use crate::deferred_call_tasks::DeferredCallTask;
 use crate::plic::PLIC;
-use crate::uart::DEFERRED_CALLS;
-use kernel::deferred_call;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use sifive::plic::Plic;
 
 pub type E310xClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
-pub struct E310x<'a, I: InterruptService<DeferredCallTask> + 'a> {
+pub struct E310x<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: PMP<4>,
     plic: &'a Plic,
@@ -29,8 +26,8 @@ pub struct E310x<'a, I: InterruptService<DeferredCallTask> + 'a> {
 }
 
 pub struct E310xDefaultPeripherals<'a> {
-    pub uart0: sifive::uart::Uart<'a, DeferredCallTask>,
-    pub uart1: sifive::uart::Uart<'a, DeferredCallTask>,
+    pub uart0: sifive::uart::Uart<'a>,
+    pub uart1: sifive::uart::Uart<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
     pub prci: sifive::prci::Prci,
     pub pwm0: sifive::pwm::Pwm,
@@ -43,16 +40,8 @@ pub struct E310xDefaultPeripherals<'a> {
 impl<'a> E310xDefaultPeripherals<'a> {
     pub fn new(clock_frequency: u32) -> Self {
         Self {
-            uart0: sifive::uart::Uart::new(
-                crate::uart::UART0_BASE,
-                clock_frequency,
-                &DEFERRED_CALLS[0],
-            ),
-            uart1: sifive::uart::Uart::new(
-                crate::uart::UART1_BASE,
-                clock_frequency,
-                &DEFERRED_CALLS[1],
-            ),
+            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, clock_frequency),
+            uart1: sifive::uart::Uart::new(crate::uart::UART1_BASE, clock_frequency),
             gpio_port: crate::gpio::Port::new(),
             prci: sifive::prci::Prci::new(crate::prci::PRCI_BASE),
             pwm0: sifive::pwm::Pwm::new(crate::pwm::PWM0_BASE),
@@ -62,23 +51,21 @@ impl<'a> E310xDefaultPeripherals<'a> {
             watchdog: sifive::watchdog::Watchdog::new(crate::watchdog::WATCHDOG_BASE),
         }
     }
+
+    // Resolve any circular dependencies and register deferred calls
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart0);
+        kernel::deferred_call::DeferredCallClient::register(&self.uart1);
+    }
 }
 
-impl<'a> InterruptService<DeferredCallTask> for E310xDefaultPeripherals<'a> {
+impl<'a> InterruptService for E310xDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
         false
     }
-
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            DeferredCallTask::Uart0 => self.uart0.handle_deferred_call(),
-            DeferredCallTask::Uart1 => self.uart1.handle_deferred_call(),
-        }
-        true
-    }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> E310x<'a, I> {
+impl<'a, I: InterruptService + 'a> E310x<'a, I> {
     pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a E310xClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
@@ -122,7 +109,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> E310x<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
     type MPU = PMP<4>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
@@ -136,14 +123,6 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chi
 
     fn service_pending_interrupts(&self) {
         loop {
-            unsafe {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    if !self.plic_interrupt_service.service_deferred_call(task) {
-                        panic!("unhandled deferred call");
-                    }
-                }
-            }
-
             let mip = CSR.mip.extract();
 
             if mip.is_set(mip::mtimer) {

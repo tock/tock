@@ -1,5 +1,4 @@
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
-use stm32f4xx::deferred_calls::DeferredCallTask;
 
 pub struct Stm32f401ccDefaultPeripherals<'a> {
     pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
@@ -17,21 +16,17 @@ impl<'a> Stm32f401ccDefaultPeripherals<'a> {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
         }
     }
-    // Necessary for setting up circular dependencies
-    pub fn init(&'a self) {
+
+    // Necessary for setting up circular dependencies & registering deferred calls
+    pub fn init(&'static self) {
         self.stm32f4.setup_circular_deps();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
-    for Stm32f401ccDefaultPeripherals<'a>
-{
+impl<'a> kernel::platform::chip::InterruptService for Stm32f401ccDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f401cc specific interrupts here
             _ => self.stm32f4.service_interrupt(interrupt),
         }
-    }
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        self.stm32f4.service_deferred_call(task)
     }
 }

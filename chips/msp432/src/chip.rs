@@ -6,7 +6,7 @@ use crate::nvic;
 use crate::wdt;
 use kernel::platform::chip::InterruptService;
 
-pub struct Msp432<'a, I: InterruptService<()> + 'a> {
+pub struct Msp432<'a, I: InterruptService + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     interrupt_service: &'a I,
@@ -64,7 +64,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> kernel::platform::chip::InterruptService<()> for Msp432DefaultPeripherals<'a> {
+impl<'a> kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::ADC => self.adc.handle_interrupt(),
@@ -88,12 +88,9 @@ impl<'a> kernel::platform::chip::InterruptService<()> for Msp432DefaultPeriphera
         }
         true
     }
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
-    }
 }
 
-impl<'a, I: InterruptService<()> + 'a> Msp432<'a, I> {
+impl<'a, I: InterruptService + 'a> Msp432<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -103,7 +100,7 @@ impl<'a, I: InterruptService<()> + 'a> Msp432<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> Chip for Msp432<'a, I> {
+impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 

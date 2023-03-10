@@ -42,7 +42,7 @@
 //! ```rust
 //! # use capsules::test::aes_ccm::Test;
 //! # use capsules::virtual_aes_ccm;
-//! # use kernel::common::dynamic_deferred_call::DynamicDeferredCall;
+//! # use kernel::common::deferred_call::DeferredCallClient;
 //! # use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
 //! # use kernel::static_init;
 //! # use sam4l::aes::{Aes, AES};
@@ -50,12 +50,8 @@
 //! type AESCCMCLIENT = virtual_aes_ccm::VirtualAES128CCM<'static, AESCCMMUX>;
 //! // mux
 //! let ccm_mux = static_init!(AESCCMMUX, virtual_aes_ccm::MuxAES128CCM::new(&AES));
+//! ccm_mux.register();
 //! AES.set_client(ccm_mux);
-//! ccm_mux.initialize_callback_handle(
-//!     dynamic_deferred_caller
-//!         .register(ccm_mux)
-//!         .unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-//! );
 //! const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
 //! let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
 //! let ccm_client1 = static_init!(
@@ -84,9 +80,7 @@ use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::symmetric_encryption;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE, CCM_NONCE_LENGTH,
@@ -142,33 +136,19 @@ pub struct MuxAES128CCM<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> {
     client: OptionalCell<&'a dyn symmetric_encryption::Client<'a>>,
     ccm_clients: List<'a, VirtualAES128CCM<'a, A>>,
     inflight: OptionalCell<&'a VirtualAES128CCM<'a, A>>,
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
 }
 
 impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> {
-    pub fn new(aes: &'a A, deferred_caller: &'a DynamicDeferredCall) -> MuxAES128CCM<'a, A> {
+    pub fn new(aes: &'a A) -> Self {
         aes.enable(); // enable the hardware, in case it's forgotten elsewhere
-        MuxAES128CCM {
-            aes: aes,
+        Self {
+            aes,
             client: OptionalCell::empty(),
             ccm_clients: List::new(),
             inflight: OptionalCell::empty(),
-            deferred_caller: deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
-    }
-
-    /// inorder to receive callbacks correctly, please call
-    /// ```rust
-    /// mux.initialize_callback_handle(
-    ///     dynamic_deferred_caller.register(mux)
-    ///     .unwrap() // Unwrap fail = no deferred call slot available for ccm mux
-    /// );
-    /// ```
-    /// after the creation of the mux
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
     }
 
     /// Asynchronously executes the next operation, if any. Used by calls
@@ -176,7 +156,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
     /// returns.
     /// See virtual_uart::MuxUart<'a>::do_next_op_async
     fn do_next_op_async(&self) {
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
     }
 
     fn do_next_op(&self) {
@@ -214,11 +194,15 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> MuxAES128CCM<'a, A> 
     }
 }
 
-impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> DynamicDeferredCallClient
+impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> DeferredCallClient
     for MuxAES128CCM<'a, A>
 {
-    fn call(&self, _handle: DeferredCallHandle) {
+    fn handle_deferred_call(&self) {
         self.do_next_op();
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

@@ -19,7 +19,6 @@ use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
@@ -254,18 +253,11 @@ unsafe fn setup() -> (
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 6], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let peripherals = static_init!(
         EarlGreyDefaultPeripherals,
-        EarlGreyDefaultPeripherals::new(dynamic_deferred_caller)
+        EarlGreyDefaultPeripherals::new()
     );
+    peripherals.init();
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -278,7 +270,6 @@ unsafe fn setup() -> (
     let uart_mux = components::console::UartMuxComponent::new(
         &peripherals.uart0,
         earlgrey::uart::UART0_BAUDRATE,
-        dynamic_deferred_caller,
     )
     .finalize(components::uart_mux_component_static!());
 
@@ -444,11 +435,9 @@ unsafe fn setup() -> (
     peripherals.i2c0.set_master_client(i2c_master);
 
     //SPI
-    let mux_spi =
-        components::spi::SpiMuxComponent::new(&peripherals.spi_host0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_static!(
-                lowrisc::spi_host::SpiHost
-            ));
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi_host0).finalize(
+        components::spi_mux_component_static!(lowrisc::spi_host::SpiHost),
+    );
 
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
@@ -459,10 +448,6 @@ unsafe fn setup() -> (
     .finalize(components::spi_syscall_component_static!(
         lowrisc::spi_host::SpiHost
     ));
-
-    peripherals.aes.initialise(
-        dynamic_deferred_caller.register(&peripherals.aes).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
-    );
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -528,13 +513,9 @@ unsafe fn setup() -> (
     // SipHash
     let sip_hash = static_init!(
         capsules_extra::sip_hash::SipHasher24,
-        capsules_extra::sip_hash::SipHasher24::new(dynamic_deferred_caller)
+        capsules_extra::sip_hash::SipHasher24::new()
     );
-    sip_hash.initialise(
-        dynamic_deferred_caller
-            .register(sip_hash)
-            .expect("dynamic deferred caller out of slots for sip_hash"),
-    );
+    kernel::deferred_call::DeferredCallClient::register(sip_hash);
     SIPHASH = Some(sip_hash);
 
     // TicKV
@@ -652,12 +633,10 @@ unsafe fn setup() -> (
 
     let ccm_mux = static_init!(
         virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
-        virtual_aes_ccm::MuxAES128CCM::new(&peripherals.aes, dynamic_deferred_caller)
+        virtual_aes_ccm::MuxAES128CCM::new(&peripherals.aes)
     );
+    kernel::deferred_call::DeferredCallClient::register(ccm_mux);
     peripherals.aes.set_client(ccm_mux);
-    ccm_mux.initialize_callback_handle(
-        dynamic_deferred_caller.register(ccm_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-    );
 
     let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
     let ccm_client1 = static_init!(
@@ -689,11 +668,8 @@ unsafe fn setup() -> (
     {
         use capsules_extra::sha256::Sha256Software;
 
-        let sha_soft = static_init!(
-            Sha256Software<'static>,
-            Sha256Software::new(dynamic_deferred_caller)
-        );
-        sha_soft.initialize_callback_handle(dynamic_deferred_caller.register(sha_soft).unwrap());
+        let sha_soft = static_init!(Sha256Software<'static>, Sha256Software::new());
+        kernel::deferred_call::DeferredCallClient::register(sha_soft);
 
         SHA256SOFT = Some(sha_soft);
     }

@@ -2,14 +2,12 @@
 
 use core::fmt::Write;
 use cortexm4::{CortexM4, CortexMVariant};
-use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-use crate::deferred_call_tasks::DeferredCallTask;
 use crate::nvic;
 
-pub struct Stm32f3xx<'a, I: InterruptService<DeferredCallTask> + 'a> {
+pub struct Stm32f3xx<'a, I: InterruptService + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     interrupt_service: &'a I,
@@ -48,12 +46,18 @@ impl<'a> Stm32f3xxDefaultPeripherals<'a> {
         }
     }
 
-    pub fn setup_circular_deps(&'a self) {
+    // Setup any circular dependencies and register deferred calls
+    pub fn setup_circular_deps(&'static self) {
         self.gpio_ports.setup_circular_deps();
+
+        kernel::deferred_call::DeferredCallClient::register(&self.flash);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart1);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart2);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart3);
     }
 }
 
-impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> {
+impl<'a> InterruptService for Stm32f3xxDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::USART1 => self.usart1.handle_interrupt(),
@@ -81,19 +85,9 @@ impl<'a> InterruptService<DeferredCallTask> for Stm32f3xxDefaultPeripherals<'a> 
         }
         true
     }
-
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            DeferredCallTask::Flash => self.flash.handle_interrupt(),
-            DeferredCallTask::Usart1 => self.usart1.handle_deferred_task(),
-            DeferredCallTask::Usart2 => self.usart2.handle_deferred_task(),
-            DeferredCallTask::Usart3 => self.usart3.handle_deferred_task(),
-        }
-        true
-    }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> Stm32f3xx<'a, I> {
+impl<'a, I: InterruptService + 'a> Stm32f3xx<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -103,18 +97,14 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Stm32f3xx<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
+impl<'a, I: InterruptService + 'a> Chip for Stm32f3xx<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    if !self.interrupt_service.service_deferred_call(task) {
-                        panic!("unhandled deferred call");
-                    }
-                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
@@ -129,7 +119,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> Chip for Stm32f3xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {

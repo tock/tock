@@ -9,7 +9,6 @@
 //! ```rust
 //! let aes_mux = components::ieee802154::MuxAes128ccmComponent::new(
 //!     &base_peripherals.ecb,
-//!     dynamic_deferred_caller,
 //! )
 //!  .finalize(components::mux_aes128ccm_component_static!(
 //!     nrf52840::aes::AesECB
@@ -37,7 +36,6 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
@@ -54,15 +52,11 @@ macro_rules! mux_aes128ccm_component_static {
 
 pub struct MuxAes128ccmComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
     aes: &'static A,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> MuxAes128ccmComponent<A> {
-    pub fn new(aes: &'static A, deferred_caller: &'static DynamicDeferredCall) -> Self {
-        Self {
-            aes,
-            deferred_caller,
-        }
+    pub fn new(aes: &'static A) -> Self {
+        Self { aes }
     }
 }
 
@@ -73,11 +67,9 @@ impl<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
     type Output = &'static MuxAES128CCM<'static, A>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let aes_mux = static_buffer.write(MuxAES128CCM::new(self.aes, self.deferred_caller));
+        let aes_mux = static_buffer.write(MuxAES128CCM::new(self.aes));
+        kernel::deferred_call::DeferredCallClient::register(aes_mux);
         self.aes.set_client(aes_mux);
-        aes_mux.initialize_callback_handle(
-            self.deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-        );
 
         aes_mux
     }
@@ -132,7 +124,6 @@ pub struct Ieee802154Component<
     aes_mux: &'static MuxAES128CCM<'static, A>,
     pan_id: capsules_extra::net::ieee802154::PanID,
     short_addr: u16,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<
@@ -147,7 +138,6 @@ impl<
         aes_mux: &'static MuxAES128CCM<'static, A>,
         pan_id: capsules_extra::net::ieee802154::PanID,
         short_addr: u16,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
         Self {
             board_kernel,
@@ -156,7 +146,6 @@ impl<
             aes_mux,
             pan_id,
             short_addr,
-            deferred_caller,
         }
     }
 }
@@ -241,8 +230,8 @@ impl<
                 userspace_mac,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 radio_buffer,
-                self.deferred_caller,
             ));
+        kernel::deferred_call::DeferredCallClient::register(radio_driver);
 
         mac_device.set_key_procedure(radio_driver);
         mac_device.set_device_procedure(radio_driver);
@@ -250,9 +239,6 @@ impl<
         userspace_mac.set_receive_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
-        radio_driver.initialize_callback_handle(
-            self.deferred_caller.register(radio_driver).unwrap(), // Unwrap fail = no deferred call slot available for ieee802154 driver
-        );
 
         (radio_driver, mux_mac)
     }

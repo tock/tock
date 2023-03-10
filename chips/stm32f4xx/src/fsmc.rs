@@ -1,6 +1,6 @@
 use crate::rcc;
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -8,8 +8,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-
-use crate::deferred_calls::DeferredCallTask;
 
 /// FSMC peripheral interface
 #[repr(C)]
@@ -128,11 +126,6 @@ register_bitfields![u32,
     ]
 ];
 
-/// This mechanism allows us to schedule "interrupts" even if the hardware
-/// does not support them.
-static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
-    unsafe { DeferredCall::new(DeferredCallTask::Fsmc) };
-
 const FSMC_BASE: StaticRef<FsmcBankRegisters> =
     unsafe { StaticRef::new(0xA000_0000 as *const FsmcBankRegisters) };
 
@@ -170,6 +163,8 @@ pub struct Fsmc<'a> {
     buffer: TakeCell<'static, [u8]>,
     bus_width: Cell<usize>,
     len: Cell<usize>,
+
+    deferred_call: DeferredCall,
 }
 
 impl<'a> Fsmc<'a> {
@@ -186,6 +181,8 @@ impl<'a> Fsmc<'a> {
             buffer: TakeCell::empty(),
             bus_width: Cell::new(1),
             len: Cell::new(0),
+
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -238,21 +235,6 @@ impl<'a> Fsmc<'a> {
         self.clock.disable();
     }
 
-    pub fn handle_interrupt(&self) {
-        self.buffer.take().map_or_else(
-            || {
-                self.client.map(move |client| {
-                    client.command_complete(None, 0, Ok(()));
-                });
-            },
-            |buffer| {
-                self.client.map(move |client| {
-                    client.command_complete(Some(buffer), self.len.get(), Ok(()));
-                });
-            },
-        );
-    }
-
     #[inline]
     pub fn read_reg(&self, bank: FsmcBanks) -> Option<u16> {
         self.bank[bank as usize].map_or(None, |bank| Some(bank.ram.get()))
@@ -291,6 +273,27 @@ impl<'a> Fsmc<'a> {
     }
 }
 
+impl DeferredCallClient for Fsmc<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        self.buffer.take().map_or_else(
+            || {
+                self.client.map(move |client| {
+                    client.command_complete(None, 0, Ok(()));
+                });
+            },
+            |buffer| {
+                self.client.map(move |client| {
+                    client.command_complete(Some(buffer), self.len.get(), Ok(()));
+                });
+            },
+        );
+    }
+}
+
 struct FsmcClock<'a>(rcc::PeripheralClock<'a>);
 
 impl ClockInterface for FsmcClock<'_> {
@@ -312,7 +315,7 @@ impl Bus8080<'static> for Fsmc<'_> {
         match addr_width {
             BusWidth::Bits8 => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
-                DEFERRED_CALL.set();
+                self.deferred_call.set();
                 Ok(())
             }
             _ => Err(ErrorCode::NOSUPPORT),
@@ -343,7 +346,7 @@ impl Bus8080<'static> for Fsmc<'_> {
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
             self.len.set(len);
-            DEFERRED_CALL.set();
+            self.deferred_call.set();
             Ok(())
         } else {
             Err((ErrorCode::NOMEM, buffer))
@@ -374,7 +377,7 @@ impl Bus8080<'static> for Fsmc<'_> {
             self.buffer.replace(buffer);
             self.bus_width.set(bytes);
             self.len.set(len);
-            DEFERRED_CALL.set();
+            self.deferred_call.set();
             Ok(())
         } else {
             Err((ErrorCode::NOMEM, buffer))

@@ -25,9 +25,7 @@
 use core::cell::Cell;
 use core::convert::TryInto;
 use core::{cmp, mem};
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::hasher::{Client, Hasher, SipHash};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
@@ -42,8 +40,7 @@ pub struct SipHasher24<'a> {
 
     add_data_deferred_call: Cell<bool>,
     complete_deferred_call: Cell<bool>,
-    deferred_caller: &'static DynamicDeferredCall,
-    deferred_handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
 
     data_buffer: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
     out_buffer: TakeCell<'static, [u8; 8]>,
@@ -72,7 +69,7 @@ struct State {
 }
 
 impl<'a> SipHasher24<'a> {
-    pub fn new(deferred_caller: &'static DynamicDeferredCall) -> Self {
+    pub fn new() -> Self {
         let hasher = SipHasher {
             k0: 0,
             k1: 0,
@@ -92,14 +89,13 @@ impl<'a> SipHasher24<'a> {
             hasher: Cell::new(hasher),
             add_data_deferred_call: Cell::new(false),
             complete_deferred_call: Cell::new(false),
-            deferred_caller,
-            deferred_handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             data_buffer: Cell::new(None),
             out_buffer: TakeCell::empty(),
         }
     }
 
-    pub fn new_with_keys(deferred_caller: &'static DynamicDeferredCall, k0: u64, k1: u64) -> Self {
+    pub fn new_with_keys(k0: u64, k1: u64) -> Self {
         let hasher = SipHasher {
             k0,
             k1,
@@ -119,15 +115,10 @@ impl<'a> SipHasher24<'a> {
             hasher: Cell::new(hasher),
             add_data_deferred_call: Cell::new(false),
             complete_deferred_call: Cell::new(false),
-            deferred_caller,
-            deferred_handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             data_buffer: Cell::new(None),
             out_buffer: TakeCell::empty(),
         }
-    }
-
-    pub fn initialise(&self, deferred_call_handle: DeferredCallHandle) {
-        self.deferred_handle.set(deferred_call_handle);
     }
 }
 
@@ -242,8 +233,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
             ))));
 
         self.add_data_deferred_call.set(true);
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
 
         Ok(length)
     }
@@ -300,8 +290,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         )));
 
         self.add_data_deferred_call.set(true);
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
 
         Ok(length)
     }
@@ -329,8 +318,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         self.out_buffer.replace(digest);
 
         self.complete_deferred_call.set(true);
-        self.deferred_handle
-            .map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
 
         Ok(())
     }
@@ -363,8 +351,8 @@ impl<'a> SipHash for SipHasher24<'a> {
     }
 }
 
-impl<'a> DynamicDeferredCallClient for SipHasher24<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for SipHasher24<'a> {
+    fn handle_deferred_call(&self) {
         if self.add_data_deferred_call.get() {
             self.add_data_deferred_call.set(false);
 
@@ -390,5 +378,9 @@ impl<'a> DynamicDeferredCallClient for SipHasher24<'a> {
                 });
             });
         }
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }

@@ -2,9 +2,7 @@
 
 use core::cell::Cell;
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -16,8 +14,7 @@ pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: OptionalCell<&'a VirtualSpiMasterDevice<'a, Spi>>,
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
 }
 
 impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Spi> {
@@ -41,13 +38,12 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Sp
 }
 
 impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
-    pub fn new(spi: &'a Spi, deferred_caller: &'a DynamicDeferredCall) -> MuxSpiMaster<'a, Spi> {
-        MuxSpiMaster {
-            spi: spi,
+    pub fn new(spi: &'a Spi) -> Self {
+        Self {
+            spi,
             devices: List::new(),
             inflight: OptionalCell::empty(),
-            deferred_caller: deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -119,10 +115,6 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
         }
     }
 
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
-
     /// Asynchronously executes the next operation, if any. Used by calls
     /// to trigger do_next_op such that it will execute after the call
     /// returns. This is important in case the operation triggers an error,
@@ -132,13 +124,17 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
     ///
     /// https://github.com/tock/tock/issues/1496
     fn do_next_op_async(&self) {
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> DynamicDeferredCallClient for MuxSpiMaster<'a, Spi> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a, Spi: hil::spi::SpiMaster> DeferredCallClient for MuxSpiMaster<'a, Spi> {
+    fn handle_deferred_call(&self) {
         self.do_next_op();
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 

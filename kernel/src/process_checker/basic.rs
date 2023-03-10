@@ -2,9 +2,7 @@
 //! to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
-use crate::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha256};
 use crate::process::{Process, ShortID};
@@ -22,31 +20,25 @@ use tock_tbf::types::TbfFooterV2CredentialsType;
 /// Binary with the same process name as an existing one it fails the
 /// uniqueness check and is not run.
 pub struct AppCheckerSimulated<'a> {
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn Client<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
 
 impl<'a> AppCheckerSimulated<'a> {
-    pub fn new(call: &'a DynamicDeferredCall) -> AppCheckerSimulated<'a> {
-        AppCheckerSimulated {
-            deferred_caller: call,
-            handle: OptionalCell::empty(),
+    pub fn new() -> Self {
+        Self {
+            deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
         }
     }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
 }
 
-impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for AppCheckerSimulated<'a> {
+    fn handle_deferred_call(&self) {
         self.client.map(|c| {
             c.check_done(
                 Ok(CheckResult::Pass),
@@ -54,6 +46,10 @@ impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
                 self.binary.take().unwrap(),
             )
         });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 
@@ -67,17 +63,14 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        self.handle
-            .map_or(Err((ErrorCode::FAIL, credentials, binary)), |handle| {
-                if self.credentials.is_none() {
-                    self.credentials.replace(credentials);
-                    self.binary.replace(binary);
-                    self.deferred_caller.set(*handle);
-                    Ok(())
-                } else {
-                    Err((ErrorCode::BUSY, credentials, binary))
-                }
-            })
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
     }
 
     fn set_client(&self, client: &'a dyn Client<'a>) {
@@ -274,31 +267,25 @@ impl Compress for AppCheckerSha256 {
 /// exists to test that the Tock boot sequence correctly handles
 /// ID collisions and version numbers.
 pub struct AppCheckerRsaSimulated<'a> {
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn Client<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
 
 impl<'a> AppCheckerRsaSimulated<'a> {
-    pub fn new(call: &'a DynamicDeferredCall) -> AppCheckerRsaSimulated<'a> {
-        AppCheckerRsaSimulated {
-            deferred_caller: call,
-            handle: OptionalCell::empty(),
+    pub fn new() -> AppCheckerRsaSimulated<'a> {
+        Self {
+            deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
         }
     }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
 }
 
-impl<'a> DynamicDeferredCallClient for AppCheckerRsaSimulated<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
+    fn handle_deferred_call(&self) {
         // This checker does not actually verify the RSA signature; it
         // assumes the signature is valid and so accepts any RSA
         // signature. This checker is intended for testing kernel
@@ -318,6 +305,10 @@ impl<'a> DynamicDeferredCallClient for AppCheckerRsaSimulated<'a> {
             c.check_done(result, cred, binary)
         });
     }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
 }
 
 impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
@@ -330,17 +321,14 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        self.handle
-            .map_or(Err((ErrorCode::FAIL, credentials, binary)), |handle| {
-                if self.credentials.is_none() {
-                    self.credentials.replace(credentials);
-                    self.binary.replace(binary);
-                    self.deferred_caller.set(*handle);
-                    Ok(())
-                } else {
-                    Err((ErrorCode::BUSY, credentials, binary))
-                }
-            })
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
     }
 
     fn set_client(&self, client: &'a dyn Client<'a>) {

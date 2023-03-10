@@ -24,7 +24,6 @@ use core::mem::MaybeUninit;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::time::Alarm;
 
@@ -57,7 +56,6 @@ pub struct CdcAcmComponent<
     product_id: u16,
     strings: &'static [&'static str; 3],
     alarm_mux: &'static MuxAlarm<'static, A>,
-    deferred_caller: &'static DynamicDeferredCall,
     host_initiated_function: Option<&'static (dyn Fn() + 'static)>,
 }
 
@@ -71,7 +69,6 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
         product_id: u16,
         strings: &'static [&'static str; 3],
         alarm_mux: &'static MuxAlarm<'static, A>,
-        deferred_caller: &'static DynamicDeferredCall,
         host_initiated_function: Option<&'static (dyn Fn() + 'static)>,
     ) -> Self {
         Self {
@@ -81,7 +78,6 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
             product_id,
             strings,
             alarm_mux,
-            deferred_caller,
             host_initiated_function,
         }
     }
@@ -110,13 +106,10 @@ impl<U: 'static + hil::usb::UsbController<'static>, A: 'static + Alarm<'static>>
             self.product_id,
             self.strings,
             cdc_alarm,
-            self.deferred_caller,
             self.host_initiated_function,
         ));
+        kernel::deferred_call::DeferredCallClient::register(cdc);
         self.usb.set_client(cdc);
-        cdc.initialize_callback_handle(
-            self.deferred_caller.register(cdc).unwrap(), // Unwrap fail = no deferred call slot available for USB-CDC
-        );
         cdc_alarm.set_alarm_client(cdc);
 
         cdc

@@ -42,25 +42,17 @@
 //!     storage_volume!(VOLUME, 2);
 //!     static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //!
-//!     let dynamic_deferred_call_clients =
-//!         static_init!([DynamicDeferredCallClientState; 2], Default::default());
-//!     let dynamic_deferred_caller = static_init!(
-//!         DynamicDeferredCall,
-//!         DynamicDeferredCall::new(dynamic_deferred_call_clients)
-//!     );
-//!
 //!     let log = static_init!(
 //!         capsules::log::Log,
 //!         capsules::log::Log::new(
 //!             &VOLUME,
 //!             &mut sam4l::flashcalw::FLASH_CONTROLLER,
 //!             &mut PAGEBUFFER,
-//!             dynamic_deferred_caller,
 //!             true
 //!         )
 //!     );
+//!     log.register();
 //!     kernel::hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, log);
-//!     log.initialize_callback_handle(dynamic_deferred_caller.register(log).unwrap()); // Unwrap fail = no deferred call slot available for log storage
 //!
 //!     log.set_read_client(log_storage_read_client);
 //!     log.set_append_client(log_storage_append_client);
@@ -71,9 +63,7 @@ use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
 
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -128,10 +118,8 @@ pub struct Log<'a, F: Flash + 'static> {
     /// Entry ID of next entry to append.
     append_entry_id: Cell<EntryID>,
 
-    /// Deferred caller for deferring client callbacks.
-    deferred_caller: &'a DynamicDeferredCall,
-    /// Handle for deferred caller.
-    handle: OptionalCell<DeferredCallHandle>,
+    /// Deferred call for deferring client callbacks.
+    deferred_call: DeferredCall,
 
     // Note: for saving state across stack ripping.
     /// Client-provided buffer to write from.
@@ -149,13 +137,12 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         volume: &'static [u8],
         driver: &'a F,
         pagebuffer: &'static mut F::Page,
-        deferred_caller: &'a DynamicDeferredCall,
         circular: bool,
-    ) -> Log<'a, F> {
+    ) -> Self {
         let page_size = pagebuffer.as_mut().len();
         let capacity = volume.len() - PAGE_HEADER_SIZE * (volume.len() / page_size);
 
-        let log: Log<'a, F> = Log {
+        let log: Log<'a, F> = Self {
             volume,
             capacity,
             driver,
@@ -168,8 +155,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             oldest_entry_id: Cell::new(PAGE_HEADER_SIZE),
             read_entry_id: Cell::new(PAGE_HEADER_SIZE),
             append_entry_id: Cell::new(PAGE_HEADER_SIZE),
-            deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             buffer: TakeCell::empty(),
             length: Cell::new(0),
             records_lost: Cell::new(false),
@@ -522,14 +508,9 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
             .erase_page(self.page_number(self.oldest_entry_id.get()))
     }
 
-    /// Initializes a callback handle for deferred callbacks.
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
-
     /// Defers a client callback until later.
     fn deferred_client_callback(&self) {
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_call.set();
     }
 
     /// Resets the log state to idle and makes a client callback. The values returned by via the
@@ -903,8 +884,12 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> DynamicDeferredCallClient for Log<'a, F> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a, F: Flash + 'static> DeferredCallClient for Log<'a, F> {
+    fn handle_deferred_call(&self) {
         self.client_callback();
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }

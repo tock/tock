@@ -7,9 +7,7 @@ use kernel::utilities::registers::interfaces::Readable;
 use rv32i;
 
 use crate::clint;
-use crate::deferred_call_tasks::DeferredCallTask;
 use crate::interrupts;
-use crate::uart::DEFERRED_CALLS;
 use rv32i::pmp::PMP;
 
 extern "C" {
@@ -18,7 +16,7 @@ extern "C" {
 
 pub type ArtyExxClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
-pub struct ArtyExx<'a, I: InterruptService<DeferredCallTask> + 'a> {
+pub struct ArtyExx<'a, I: InterruptService + 'a> {
     pmp: PMP<2>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
@@ -29,7 +27,7 @@ pub struct ArtyExx<'a, I: InterruptService<DeferredCallTask> + 'a> {
 pub struct ArtyExxDefaultPeripherals<'a> {
     pub machinetimer: ArtyExxClint<'a>,
     pub gpio_port: crate::gpio::Port<'a>,
-    pub uart0: sifive::uart::Uart<'a, DeferredCallTask>,
+    pub uart0: sifive::uart::Uart<'a>,
 }
 
 impl<'a> ArtyExxDefaultPeripherals<'a> {
@@ -37,12 +35,17 @@ impl<'a> ArtyExxDefaultPeripherals<'a> {
         Self {
             machinetimer: ArtyExxClint::new(&clint::CLINT_BASE),
             gpio_port: crate::gpio::Port::new(),
-            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000, &DEFERRED_CALLS[0]),
+            uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, 32_000_000),
         }
+    }
+
+    // Resolves any circular dependencies and sets up deferred calls
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart0);
     }
 }
 
-impl<'a> InterruptService<DeferredCallTask> for ArtyExxDefaultPeripherals<'a> {
+impl<'a> InterruptService for ArtyExxDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::MTIP => self.machinetimer.handle_interrupt(),
@@ -70,16 +73,9 @@ impl<'a> InterruptService<DeferredCallTask> for ArtyExxDefaultPeripherals<'a> {
         }
         true
     }
-
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            DeferredCallTask::Uart0 => self.uart0.handle_deferred_call(),
-        }
-        true
-    }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> ArtyExx<'a, I> {
+impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
     pub unsafe fn new(machinetimer: &'a ArtyExxClint<'a>, interrupt_service: &'a I) -> Self {
         // Make a bit-vector of all interrupt locations that we actually intend
         // to use on this chip.
@@ -148,9 +144,7 @@ impl<'a, I: InterruptService<DeferredCallTask> + 'a> ArtyExx<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask> + 'a> kernel::platform::chip::Chip
-    for ArtyExx<'a, I>
-{
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
     type MPU = PMP<2>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 

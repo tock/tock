@@ -4,9 +4,7 @@
 //! [`litex/soc/cores/uart.py`](https://github.com/enjoy-digital/litex/blob/master/litex/soc/cores/uart.py).
 
 use core::cell::Cell;
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::StaticRef;
@@ -99,15 +97,14 @@ pub struct LiteXUart<'a, R: LiteXSoCRegisterConfiguration> {
     rx_progress: Cell<usize>,
     rx_aborted: Cell<bool>,
     rx_deferred_call: Cell<bool>,
-    deferred_caller: &'static DynamicDeferredCall,
-    deferred_handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
+    initialized: Cell<bool>,
 }
 
 impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
     pub fn new(
         uart_base: StaticRef<LiteXUartRegisters<R>>,
         phy_args: Option<(StaticRef<LiteXUartPhyRegisters<R>>, u32)>,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> LiteXUart<'a, R> {
         LiteXUart {
             uart_regs: uart_base,
@@ -124,14 +121,14 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
             rx_progress: Cell::new(0),
             rx_aborted: Cell::new(false),
             rx_deferred_call: Cell::new(false),
-            deferred_caller,
-            deferred_handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
+            initialized: Cell::new(false),
         }
     }
 
-    pub fn initialize(&self, deferred_call_handle: DeferredCallHandle) {
+    pub fn initialize(&self) {
         self.uart_regs.ev().disable_all();
-        self.deferred_handle.set(deferred_call_handle);
+        self.initialized.set(true);
     }
 
     pub fn transmit_sync(&self, bytes: &[u8]) {
@@ -336,7 +333,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Make sure the UART is initialized
-        assert!(self.deferred_handle.is_some());
+        assert!(self.initialized.get());
 
         if tx_buffer.len() < tx_len {
             return Err((ErrorCode::SIZE, tx_buffer));
@@ -397,8 +394,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
             assert!(progress == tx_len);
 
             self.tx_deferred_call.set(true);
-            self.deferred_handle
-                .map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
         }
 
         // If fifo_full == true, we will get an interrupt
@@ -408,7 +404,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
 
     fn transmit_word(&self, _word: u32) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
-        assert!(self.deferred_handle.is_some());
+        assert!(self.initialized.get());
 
         Err(ErrorCode::FAIL)
     }
@@ -421,15 +417,14 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Transmit<'a> for LiteXUart<'a, 
         // `deferred_tx_abort` if `tx_aborted` is set
 
         // Make sure the UART is initialized
-        assert!(self.deferred_handle.is_some());
+        assert!(self.initialized.get());
 
         self.uart_regs.ev().disable_event(EVENT_MANAGER_INDEX_TX);
 
         if self.tx_buffer.is_some() {
             self.tx_aborted.set(true);
             self.tx_deferred_call.set(true);
-            self.deferred_handle
-                .map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {
@@ -449,7 +444,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Make sure the UART is initialized
-        assert!(self.deferred_handle.is_some());
+        assert!(self.initialized.get());
 
         if rx_len > rx_buffer.len() {
             return Err((ErrorCode::SIZE, rx_buffer));
@@ -484,8 +479,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
             // instead! Otherwise we risk double-delivery of the
             // interrupt _and_ the deferred call
             self.rx_deferred_call.set(true);
-            self.deferred_handle
-                .map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
         } else {
             // We do _not_ clear any pending data in the FIFO by
             // acknowledging previous events
@@ -497,13 +491,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
-        assert!(self.deferred_handle.is_some());
+        assert!(self.initialized.get());
         Err(ErrorCode::FAIL)
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
         // Make sure the UART is initialized
-        assert!(self.deferred_handle.is_some());
+        assert!(self.initialized.get());
 
         // Disable RX events
         self.uart_regs.ev().disable_event(EVENT_MANAGER_INDEX_RX);
@@ -513,8 +507,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
             // call
             self.rx_aborted.set(true);
             self.rx_deferred_call.set(true);
-            self.deferred_handle
-                .map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {
@@ -523,8 +516,12 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> DynamicDeferredCallClient for LiteXUart<'a, R> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a, R: LiteXSoCRegisterConfiguration> DeferredCallClient for LiteXUart<'a, R> {
+    fn register(&'static self) {
+        self.deferred_call.register(self)
+    }
+
+    fn handle_deferred_call(&self) {
         // Are we currently in a TX or RX transaction?
         if self.tx_deferred_call.get() {
             self.tx_deferred_call.set(false);
