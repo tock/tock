@@ -9,7 +9,7 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient, NoSMBus};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-
+// `NoSMBus` provides a placeholder for `SMBusMaster` in case the board doesn't have a SMBus
 pub struct MuxI2C<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
     i2c: &'a I,
     smbus: Option<&'a S>,

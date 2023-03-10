@@ -28,6 +28,9 @@ macro_rules! i2c_mux_component_static {
     ($I:ty $(,)?) => {{
         kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, $I>)
     };};
+    ($I:ty, $S:ty $(,)?) => {{
+        kernel::static_buf!(capsules::virtual_i2c::MuxI2C<'static, $I, $S>)
+    };};
 }
 
 #[macro_export]
