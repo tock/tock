@@ -377,6 +377,11 @@ another app which is next to the loaded app immediately.
 [2022-08-14] OTA app can be used together with `tocklaoder erase-apps`, and it
 is totally compatible with `tocklaoder erase-apps`.
 
+<p align="center">
+<img src="./video/demo_uart.MOV"><br>
+<strong>Demo for loading the new app via UART</strong>
+<p>
+
 ## To do list
 1) Adding security features
 - Prevent a malicious ota app from manipulating the region occupied by
