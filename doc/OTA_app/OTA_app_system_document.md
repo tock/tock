@@ -15,6 +15,7 @@ In addition, it describes the design overview.
 - [Guide for demo](#guide-for-demo)
 - [To do list](#to-do-list)
 - [Issues](#issues)
+- [Security](#security)
 - [Code and Pull Request](#code-and-pull-request)
 
 <!-- tocstop -->
@@ -388,20 +389,29 @@ is totally compatible with `tocklaoder erase-apps`.
 4) Erase function and etc..
 
 ### Issues
-1) Erase 1 page of an existing app
-512 bytes 01 padding which are attached to the end of a loaded app delete
-an existing app. For exampe, when loading 128k -> 64k apps, 1 page of 128k app
-will be deleted. 
+1) Uninteded erase of already loaded app <br>
+512 bytes (1 page) size of 0x01 padding, which are attached to the end of the new app that is supposed to be loaded on the device deletes the already loaded app on the device. For exampe, when loading 128k app and then 64k app, the first 1 page (512 bytes) of 128k app will be deleted.<br>
 [2022-08-14] Sloved: Added a logic to check whether or not the 128k app is 
-actually loaded app. If so, we do not write 512 bytes 01 padding.
+actually loaded app. If so, we do not write 512 bytes (1 page) size of the 0x01 padding.
 
-2) Flash Memory Leakage
+2) Flash Memory Leakage <br>
 If we iterate loading apps by OTA app and `tockloader erase-apps`, we face the
 Flash Memory Leakage issue. Because `tockloader erase-apps` does not actaully
-erase the entire region of the existing apps in flash. So, when finding a start
+erase the entire region of the existing apps on the device. So, when finding a start
 address, the logic skips this remnant app.
 [2022-08-14] Sloved: Added a logic to check whether or not the existing apps are 
 actually loaded app. If not, we load a new app from there.
+
+## Security
+When implementing OTA app, it is crucial to add security features to this project. As OTA is widely utilized to update the up-to-date software, it provides the room that attackers can appropriate improperly. In OTA app design, the kernel grants the OTA app the right to access to EEPROM. So, If the interface that the OTA app uses is exposed to attackers, our system will become vulnerable to cyber security.
+
+Thus, our strategy is as follows.<br>
+1) When we design the interface to access to EEPROM, we only expose the pointer of the shared buffer between the OTA app and Kernel.<br>
+2) We check whether the format of the new app follows the Elf2Tab rules.<br>
+3) We verify the version of kernel and Elf2Tab.<br>
+4) We examine whether CRC included in the header of the new app is correct.<br>
+5) We add the digital signature to the new app and verify it before starting the flash process.<br>
+6) Consider a new plan to add HSM hardware component for security algorithm.<br>
 
 ## Code and Pull Request
 1) [Kernel Interface:] https://github.com/tock/tock/pull/3068
