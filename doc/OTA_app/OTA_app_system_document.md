@@ -378,7 +378,7 @@ another app which is next to the loaded app immediately.
 is totally compatible with `tocklaoder erase-apps`.
 
 <p align="center">
-<img src="./video/demo_uart.MOV"><br>
+<img href="./video/demo_uart.MOV"><br>
 <strong>Demo for loading the new app via UART</strong>
 <p>
 
