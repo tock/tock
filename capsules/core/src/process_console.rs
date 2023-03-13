@@ -56,6 +56,12 @@ const DEL: u8 = '\x7F' as u8;
 /// Space ANSI character
 const SPACE: u8 = '\x20' as u8;
 
+/// Carriage return ANSI character
+const CR: u8 = '\x0D' as u8;
+
+/// Newline ANSI character
+const NLINE: u8 = '\x0A' as u8;
+
 /// Upper limit for ASCII characters
 const ASCII_LIMIT: u8 = 128;
 
@@ -94,6 +100,8 @@ enum EscKey {
     Down,
     Left,
     Right,
+    Home,
+    End,
 }
 
 /// Escape state machine to check if
@@ -142,6 +150,8 @@ impl EscState {
             (Bracket, b'B') => Complete(Down),
             (Bracket, b'D') => Complete(Left),
             (Bracket, b'C') => Complete(Right),
+            (Bracket, b'H') => Complete(Home),
+            (Bracket, b'F') => Complete(End),
             _ => {
                 if EscState::terminator_esc_char(data) {
                     UnrecognizedDone
@@ -388,7 +398,7 @@ pub struct ConsoleWriter {
 impl ConsoleWriter {
     pub fn new() -> ConsoleWriter {
         ConsoleWriter {
-            buf: [0; 500],
+            buf: [EOL; 500],
             size: 0,
         }
     }
@@ -453,7 +463,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
             cursor: Cell::new(0),
 
-            previous_byte: Cell::new(0),
+            previous_byte: Cell::new(EOL),
 
             running: Cell::new(false),
             execute: Cell::new(false),
@@ -1187,14 +1197,28 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     let _ = self.write_byte(command[cursor]);
                                     self.cursor.set(cursor + 1);
                                 }
+                                EscKey::Home if cursor > 0 => {
+                                    for _ in 0..cursor {
+                                        let _ = self.write_byte(BS);
+                                    }
+
+                                    self.cursor.set(0);
+                                }
+                                EscKey::End if cursor < index => {
+                                    for i in cursor..index {
+                                        let _ = self.write_byte(command[i]);
+                                    }
+
+                                    self.cursor.set(index);
+                                }
                                 _ => {}
                             };
-                        } else if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-                            if (previous_byte == ('\n' as u8) || previous_byte == ('\r' as u8))
+                        } else if read_buf[0] == NLINE || read_buf[0] == CR {
+                            if (previous_byte == NLINE || previous_byte == CR)
                                 && previous_byte != read_buf[0]
                             {
                                 // Reset the sequence, when \r\n is received
-                                self.previous_byte.set(0);
+                                self.previous_byte.set(EOL);
                                 self.cursor.set(0);
 
                                 if COMMAND_HISTORY_LEN > 1 {
@@ -1207,7 +1231,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 }
                             } else {
                                 self.execute.set(true);
-                                let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
+                                let _ = self.write_bytes(&[CR, NLINE]);
                             }
                         } else if read_buf[0] == BS || read_buf[0] == DEL {
                             if cursor > 0 {
