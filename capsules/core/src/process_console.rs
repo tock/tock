@@ -102,6 +102,7 @@ enum EscKey {
     Right,
     Home,
     End,
+    Delete,
 }
 
 /// Escape state machine to check if
@@ -125,6 +126,7 @@ enum EscState {
     /// starts with a bracket character '[' and is waiting
     /// for the next character to determine the corresponding EscKey.
     Bracket,
+    Bracket3,
 
     /// This state is reached when the current character does not match
     /// any of the expected characters in the escape sequence.
@@ -152,6 +154,8 @@ impl EscState {
             (Bracket, b'C') => Complete(Right),
             (Bracket, b'H') => Complete(Home),
             (Bracket, b'F') => Complete(End),
+            (Bracket, b'3') => Bracket3,
+            (Bracket3, b'~') => Complete(Delete),
             _ => {
                 if EscState::terminator_esc_char(data) {
                     UnrecognizedDone
@@ -165,7 +169,7 @@ impl EscState {
     /// Checks if the escape state machine is in the middle
     /// of an escape sequence
     fn in_progress(&self) -> bool {
-        matches!(self, EscState::Bracket)
+        matches!(self, EscState::Bracket) || matches!(self, EscState::Bracket3)
     }
 
     /// Checks if the escape state machine is at the start
@@ -175,7 +179,7 @@ impl EscState {
     }
 
     fn terminator_esc_char(data: u8) -> bool {
-        data.is_ascii_alphabetic()
+        data.is_ascii_alphabetic() || data == b'~'
     }
 }
 
@@ -1210,6 +1214,31 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     }
 
                                     self.cursor.set(index);
+                                }
+                                EscKey::Delete if cursor < index => {
+                                    // Move the bytes one position to left
+                                    for i in cursor..index {
+                                        command[i] = command[i + 1];
+                                        let _ = self.write_byte(command[i]);
+                                    }
+
+                                    // Remove the EOL character at the end of the command
+                                    let _ = self.write_bytes(&[BS, SPACE, BS]);
+
+                                    // Move the cursor to last position
+                                    for _ in cursor..(index - 1) {
+                                        let _ = self.write_byte(BS);
+                                    }
+
+                                    self.command_index.set(index - 1);
+
+                                    // Remove the byte from the command in order
+                                    // not to permit accumulation of the text
+                                    if COMMAND_HISTORY_LEN > 1 {
+                                        self.command_history.map(|ht| {
+                                            ht.cmds[0].delete_byte(cursor - 1);
+                                        });
+                                    }
                                 }
                                 _ => {}
                             };
