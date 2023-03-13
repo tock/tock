@@ -353,10 +353,11 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
     /// before pressing Up or Down keys
     /// and saves the current modified command
     /// into the history
-    fn change_cmd_from(&mut self, pos: usize) {
+    fn change_cmd_from(&mut self, cmd: &[u8]) {
         match self.modified_byte {
             BS | DEL => {
-                self.cmds[0].delete_byte(pos);
+                self.cmds[0].clear();
+                self.write_to_first(cmd);
             }
             _ => {
                 self.modified_byte = EOL;
@@ -1166,7 +1167,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         } else {
                                             ht.prev_cmd_idx()
                                         } {
-                                            ht.change_cmd_from(cursor);
+                                            ht.change_cmd_from(&command);
 
                                             let next_command_len = ht.cmds[next_index].len;
 
