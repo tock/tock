@@ -2,7 +2,6 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 /// Reset and clock control
 #[repr(C)]
@@ -715,14 +714,12 @@ impl Rcc {
         }
     }
 
-    fn wait_for(count: usize, f: impl Fn() -> bool) -> bool {
-        for _ in 0..count {
-            if f() {
-                return true;
-            }
+    pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
+        match self.registers.cfgr.read(CFGR::SWS) {
+            0b00 => SysClockSource::HSI,
+            0b01 => SysClockSource::HSE,
+            _ => SysClockSource::PLLCLK,
         }
-
-        return false;
     }
 
     // Some clocks may need to be initialized before use
@@ -738,38 +735,20 @@ impl Rcc {
         self.set_pll_clocks_m_divider(8);
     }
 
-    pub(crate) fn disable_pll_clock(&self) -> Result<(), ErrorCode> {
-        // If PLL is configured as the system clock, then it is impossible to disable it
-        if self.registers.cfgr.read(CFGR::SWS) == 0b10 {
-            return Result::from(ErrorCode::FAIL);
-        }
-        // Disable PLL
+    pub(crate) fn disable_pll_clock(&self) {
         self.registers.cr.modify(CR::PLLON::CLEAR);
-        // Wait until PLL is unlocked by the CPU. Retry if it takes too long.
-        if let false = Self::wait_for(100, || {
-            self.registers.cr.read(CR::PLLRDY) == 0
-        }) {
-            return Result::from(ErrorCode::BUSY);
-        }
-
-        Ok(())
     }
 
-    pub(crate) fn enable_pll_clock(&self) -> Result<(), ErrorCode> {
-        // Enable PLL
+    pub(crate) fn enable_pll_clock(&self) {
         self.registers.cr.modify(CR::PLLON::SET);
-        // Wait until PLL is locked by the CPU. Retry if it takes too long.
-        if let false = Self::wait_for(100, || {
-            self.registers.cr.read(CR::PLLRDY) == 1
-        }) {
-            return Result::from(ErrorCode::BUSY);
-        }
-
-        Ok(())
     }
 
     pub(crate) fn is_enabled_pll_clock(&self) -> bool {
         self.registers.cr.read(CR::PLLON) == 1
+    }
+
+    pub(crate) fn is_locked_pll_clock(&self) -> bool {
+        self.registers.cr.read(CR::PLLRDY) == 1
     }
 
     // This method must be called only when all PLL clocks are disabled
@@ -1121,6 +1100,7 @@ pub enum PLLP {
 }
 
 /// Clock sources for the CPU
+#[derive(PartialEq)]
 pub enum SysClockSource {
     HSI = 0b00,
     HSE = 0b01,
