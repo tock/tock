@@ -6,6 +6,7 @@ use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 /// Reset and clock control
 #[repr(C)]
@@ -104,41 +105,21 @@ register_bitfields![u32,
         /// Main PLL (PLL) division factor for USB OTG FS, SDIO and random num
         PLLQ OFFSET(24) NUMBITS(4) [],
         /// Main PLL(PLL) and audio PLL (PLLI2S) entry clock source
-        PLLSRC OFFSET(22) NUMBITS(1) [],
+        PLLSRC OFFSET(22) NUMBITS(1) [
+            HSI = 0,
+            HSE = 1,
+        ],
         /// Main PLL (PLL) division factor for main system clock
-        PLLP1 OFFSET(17) NUMBITS(1) [],
-        /// Main PLL (PLL) division factor for main system clock
-        PLLP0 OFFSET(16) NUMBITS(1) [],
+        PLLP OFFSET(16) NUMBITS(2) [
+            DivideBy2 = 0b00,
+            DivideBy4 = 0b01,
+            DivideBy6 = 0b10,
+            DivideBy8 = 0b11,
+        ],
         /// Main PLL (PLL) multiplication factor for VCO
-        PLLN8 OFFSET(14) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN7 OFFSET(13) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN6 OFFSET(12) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN5 OFFSET(11) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN4 OFFSET(10) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN3 OFFSET(9) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN2 OFFSET(8) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN1 OFFSET(7) NUMBITS(1) [],
-        /// Main PLL (PLL) multiplication factor for VCO
-        PLLN0 OFFSET(6) NUMBITS(1) [],
+        PLLN OFFSET(6) NUMBITS(9) [],
         /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
-        PLLM5 OFFSET(5) NUMBITS(1) [],
-        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
-        PLLM4 OFFSET(4) NUMBITS(1) [],
-        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
-        PLLM3 OFFSET(3) NUMBITS(1) [],
-        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
-        PLLM2 OFFSET(2) NUMBITS(1) [],
-        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
-        PLLM1 OFFSET(1) NUMBITS(1) [],
-        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
-        PLLM0 OFFSET(0) NUMBITS(1) []
+        PLLM OFFSET(0) NUMBITS(6) []
     ],
     CFGR [
         /// Microcontroller clock output 2
@@ -160,13 +141,13 @@ register_bitfields![u32,
         /// AHB prescaler
         HPRE OFFSET(4) NUMBITS(4) [],
         /// System clock switch status
-        SWS1 OFFSET(3) NUMBITS(1) [],
-        /// System clock switch status
-        SWS0 OFFSET(2) NUMBITS(1) [],
+        SWS OFFSET(2) NUMBITS(2) [],
         /// System clock switch
-        SW1 OFFSET(1) NUMBITS(1) [],
-        /// System clock switch
-        SW0 OFFSET(0) NUMBITS(1) []
+        SW OFFSET(0) NUMBITS(2) [
+            HSI = 0b00,
+            HSE = 0b01,
+            PLL = 0b10,
+        ]
     ],
     CIR [
         /// Clock security system interrupt clear
@@ -738,6 +719,81 @@ impl Rcc {
         }
     }
 
+    fn wait_for(count: usize, f: impl Fn() -> bool) -> bool {
+        for _ in 0..count {
+            if f() {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Some clocks may need to be initialized before use
+    pub fn init(&self) {
+        self.init_pll_clocks();
+    }
+
+    fn init_pll_clocks(&self) {
+        // Setting HSI as source clock for the PLL clocks
+        self.set_pll_clocks_source(PllSource::HSI);
+        // As the documentation says, setting the input VCO frequency to 2MHz limits the effects of
+        // the PLL jitter: HSI_freq / PLLM --> 16MHz / 8 --> 2Mhz
+        self.set_pll_clocks_m_divider(8);
+    }
+
+    pub(crate) fn disable_pll_clock(&self) -> Result<(), ErrorCode> {
+        // If PLL is configured as the system clock, then it is impossible to disable it
+        if self.registers.cfgr.read(CFGR::SWS) == 0b10 {
+            return Result::from(ErrorCode::FAIL);
+        }
+        // Disable PLL
+        self.registers.cr.modify(CR::PLLON::CLEAR);
+        // Wait until PLL is unlocked by the CPU. Retry if it takes too long.
+        if let false = Self::wait_for(100, || {
+            self.registers.cr.read(CR::PLLRDY) == 0
+        }) {
+            return Result::from(ErrorCode::BUSY);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn enable_pll_clock(&self) -> Result<(), ErrorCode> {
+        // Enable PLL
+        self.registers.cr.modify(CR::PLLON::SET);
+        // Wait until PLL is locked by the CPU. Retry if it takes too long.
+        if let false = Self::wait_for(100, || {
+            self.registers.cr.read(CR::PLLRDY) == 1
+        }) {
+            return Result::from(ErrorCode::BUSY);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn is_enabled_pll_clock(&self) -> bool {
+        self.registers.cr.read(CR::PLLON) == 1
+    }
+
+    // This method must be called only when all PLL clocks are disabled
+    fn set_pll_clocks_source(&self, source: PllSource) {
+        self.registers.pllcfgr.modify(PLLCFGR::PLLSRC.val(source as u32));
+    }
+
+    // This method must be called only when all PLL clocks are disabled
+    fn set_pll_clocks_m_divider(&self, m: usize) {
+        self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
+    }
+
+    pub(crate) fn set_pll_clock_n_multiplier(&self, n: usize) {
+        self.registers.pllcfgr.modify(PLLCFGR::PLLN.val(n as u32));
+    }
+
+    pub(crate) fn set_pll_clock_p_divider(&self, p: PLLP) {
+        self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
+    }
+
     fn configure_rng_clock(&self) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
         self.registers.cr.modify(CR::PLLON::SET);
@@ -1054,12 +1110,38 @@ impl Rcc {
     }
 }
 
-/// Clock sources for CPU
-pub enum CPUClock {
-    HSE,
-    HSI,
-    PLLCLK,
-    PPLLR,
+// **NOTE:** HSE is not yet supported as source clock.
+pub enum PllSource {
+    HSI = 0b0,
+    HSE = 0b1,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum PLLP {
+    DivideBy2 = 0b00,
+    DivideBy4 = 0b01,
+    DivideBy6 = 0b10,
+    DivideBy8 = 0b11,
+}
+
+/// Clock sources for the CPU
+pub enum SysClockSource {
+    HSI = 0b00,
+    HSE = 0b01,
+    PLLCLK = 0b10,
+    // **NOTE:** is there any board that uses this as source for the system clock? Furthermore, not all chips
+    // for the STM32F4xx family support this option.
+    //PPLLR,
+}
+
+impl From<u32> for SysClockSource {
+    fn from(value: u32) -> Self {
+        match value {
+            0b00 => SysClockSource::HSI,
+            0b01 => SysClockSource::HSE,
+            _ => SysClockSource::PLLCLK
+        }
+    }
 }
 
 pub struct PeripheralClock<'a> {

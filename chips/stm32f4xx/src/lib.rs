@@ -22,6 +22,7 @@ pub mod exti;
 pub mod fsmc;
 pub mod gpio;
 pub mod i2c;
+pub mod pll;
 pub mod rcc;
 pub mod spi;
 pub mod syscfg;
