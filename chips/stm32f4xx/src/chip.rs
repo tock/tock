@@ -23,6 +23,7 @@ pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub dma2_streams: [crate::dma::Stream<'a, dma::Dma2<'a>>; 8],
     pub exti: &'a crate::exti::Exti<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
+    pub pll: crate::pll::Pll<'a>,
     pub spi3: crate::spi::Spi<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
     pub usart1: crate::usart::Usart<'a, dma::Dma2<'a>>,
@@ -45,6 +46,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,
             i2c1: crate::i2c::I2C::new(rcc),
+            pll: crate::pll::Pll::new(rcc),
             spi3: crate::spi::Spi::new(
                 crate::spi::SPI3_BASE,
                 crate::spi::SpiClock(crate::rcc::PeripheralClock::new(
