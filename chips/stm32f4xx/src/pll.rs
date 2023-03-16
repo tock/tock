@@ -1,4 +1,5 @@
 use crate::rcc::Rcc;
+use crate::rcc::SysClockSource;
 use crate::rcc::PLLP;
 
 use kernel::debug;
@@ -103,8 +104,18 @@ impl<'a> Pll<'a> {
 
     /// Start the PLL clock.
     pub fn enable(&self) -> Result<(), ErrorCode> {
-        // Enable PLL clock
-        self.rcc.enable_pll_clock()
+        // Enable the PLL clock
+        self.rcc.enable_pll_clock();
+
+        // Wait until the PLL clock is locked.
+        for _ in 0..100 {
+            if self.rcc.is_locked_pll_clock() {
+                return Ok(());
+            }
+        }
+
+        // If waiting for the PLL clock took too long, return ErrorCode::BUSY
+        Err(ErrorCode::BUSY)
     }
 
     /// Stop the PLL clock.
@@ -113,7 +124,23 @@ impl<'a> Pll<'a> {
     /// + Err(ErrorCode::BUSY) disabling the PLL clock took to long. Retry.
     /// + Ok(()) everything went alright
     pub fn disable(&self) -> Result<(), ErrorCode> {
-        self.rcc.disable_pll_clock()
+        // Can't disable the PLL clock when it is used as the system clock
+        if self.rcc.get_sys_clock_source() == SysClockSource::PLLCLK {
+            return Err(ErrorCode::FAIL);
+        }
+
+        // Disable the PLL clock
+        self.rcc.disable_pll_clock();
+
+        // Wait to unlock the PLL clock
+        for _ in 0..100 {
+            if self.rcc.is_locked_pll_clock() == false {
+                return Ok(());
+            }
+        }
+
+        // If the waiting was too long, return ErrorCode::BUSY
+        Err(ErrorCode::BUSY)
     }
 
     /// Check whether the PLL clock is enabled or not.
