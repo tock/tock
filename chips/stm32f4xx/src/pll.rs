@@ -3,6 +3,7 @@ use crate::rcc::PLLP;
 
 use kernel::debug;
 use kernel::ErrorCode;
+use kernel::utilities::cells::OptionalCell;
 
 #[derive(Debug, PartialEq)]
 struct PllConfig {
@@ -47,16 +48,27 @@ impl PllConfig {
 // At the moment, only HSI is supported as the source clock.
 pub struct Pll<'a> {
     rcc: &'a Rcc,
+    frequency: OptionalCell<usize>,
 }
 
 impl<'a> Pll<'a> {
+    /// Create a new instance of the PLL clock.
+    ///
+    /// ## Panics
+    ///
+    /// This constructor may panic if an internal error occurred.
     pub fn new(rcc: &'a Rcc) -> Self {
-        Self {
+        let pll = Self {
             rcc,
+            frequency: OptionalCell::empty(),
+        };
+        if let Err(_) = pll.set_frequency(16) {
+            panic!("Something went wrong when creating the PLL clock structure");
         }
+        pll
     }
 
-    // **NOTE**: It assumes a value of 8 for PLLM
+    // **NOTE**: It assumes a value of 8 for PLLM (check rcc::init_pll_clocks() method)
     // **TODO**: Change this function so it can adapt to changes of the PLLM
     fn get_pll_config_for_frequency_using_hsi(desired_frequency_mhz: usize) -> Option<PllConfig> {
         if desired_frequency_mhz < 13 || desired_frequency_mhz > 216 {
@@ -89,19 +101,44 @@ impl<'a> Pll<'a> {
         Some(pll_config)
     }
 
-    /// Start PLL clock. It supports only HSI as source at the moment.
+    /// Start the PLL clock.
+    pub fn enable(&self) -> Result<(), ErrorCode> {
+        // Enable PLL clock
+        self.rcc.enable_pll_clock()
+    }
+
+    /// Stop the PLL clock.
+    /// Returns:
+    /// + Err(ErrorCode::FAIL) if the PLL clock is configured as the system clock.
+    /// + Err(ErrorCode::BUSY) disabling the PLL clock took to long. Retry.
+    /// + Ok(()) everything went alright
+    pub fn disable(&self) -> Result<(), ErrorCode> {
+        self.rcc.disable_pll_clock()
+    }
+
+    /// Check whether the PLL clock is enabled or not.
+    ///
+    /// Returns true if the PLL clock is enabled, otherwise false.
+    pub fn is_enabled(&self) -> bool {
+        self.rcc.is_enabled_pll_clock()
+    }
+
+    /// Set the frequency of the PLL clock. The PLL clock must be disabled.
+    ///
+    /// frequency must be in MHz
+    ///
     /// Returns:
     /// + Err(ErrorCode::INVAL) if the desired frequency can't be achieved
-    /// + Err(ErrorCode::FAIL) if any PLL clock is already enabled. They must be disabled before
-    /// configuring them again.
+    /// + Err(ErrorCode::FAIL) if the PLL clock is already enabled. It must be disabled before
+    /// configuring it.
     /// + Err(ErrorCode::BUSY) starting the PLL clock took too long. Retry.
     /// + Ok(()) everything went OK
-    pub fn start(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
+    pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
         // Check whether the PLL clock is running or not
         if self.rcc.is_enabled_pll_clock() {
             return Result::from(ErrorCode::FAIL);
         }
-        // Config the PLL
+        // Configure the PLL
         let pll_config = Self::get_pll_config_for_frequency_using_hsi(desired_frequency_mhz);
         if let None = pll_config {
             return Result::from(ErrorCode::INVAL);
@@ -110,17 +147,20 @@ impl<'a> Pll<'a> {
         self.rcc.set_pll_clock_n_multiplier(pll_config.get_n());
         self.rcc.set_pll_clock_p_divider(pll_config.get_p());
 
-        // Enable PLL clock
-        self.rcc.enable_pll_clock()
+        self.frequency.set(desired_frequency_mhz);
+
+        Ok(())
     }
 
-    /// Stop PLL clock.
-    /// Returns:
-    /// + Err(ErrorCode::FAIL) if the PLL clock is configured as the system clock.
-    /// + Err(ErrorCode::BUSY) stoping the PLL clock took to long. Retry.
-    /// + Ok(()) everything went alright
-    pub fn stop(&self) -> Result<(), ErrorCode> {
-        self.rcc.disable_pll_clock()
+    /// Get the frequency of the PLL clock.
+    ///
+    /// Returns the frequency in MHz if the clock is enabled, or None if it is disabled.
+    pub fn get_frequency(&self) -> Option<usize> {
+        if self.is_enabled() {
+            self.frequency.extract()
+        } else {
+            None
+        }
     }
 }
 
@@ -128,7 +168,7 @@ pub mod unit_tests {
     use super::*;
 
     fn test_get_pll_config_for_frequency_using_hsi() {
-        debug!("Testing PLL config...");
+        debug!("Testing PLL configuration...");
 
         // Desired frequency can't be achieved
         assert_eq!(None, Pll::get_pll_config_for_frequency_using_hsi(12));
@@ -180,35 +220,55 @@ pub mod unit_tests {
         assert_eq!(180, pll_config.get_n());
         assert_eq!(PLLP::DivideBy2, pll_config.get_p());
 
-        // 216MHz --> Max frequency for the CPU due to the VCO output frequency limit
+        // 216MHz --> Max frequency for the PLL due to the VCO output frequency limit
         let pll_config = Pll::get_pll_config_for_frequency_using_hsi(216).unwrap();
         assert_eq!(216, pll_config.get_n());
         assert_eq!(PLLP::DivideBy2, pll_config.get_p());
 
-        debug!("Finished testing PLL config.");
+        debug!("Finished testing PLL configuration.");
     }
 
     fn test_pll_start_stop<'a>(pll: &'a Pll<'a>) {
-        debug!("Testing start/stop PLL...");
-        // If the pll is already stop, nothing should happen
-        assert_eq!(Ok(()), pll.stop());
+        debug!("Testing PLL struct...");
+        // Make sure the PLL clock is disabled
+        assert_eq!(Ok(()), pll.disable());
+        assert_eq!(false, pll.is_enabled());
 
-        // Attempting to start PLL with either too high or too low frequency
-        assert_eq!(Err(ErrorCode::INVAL), pll.start(12));
-        assert_eq!(Err(ErrorCode::INVAL), pll.start(217));
+        // Attempting to configure the PLL with either too high or too low frequency
+        assert_eq!(Err(ErrorCode::INVAL), pll.set_frequency(12));
+        assert_eq!(Err(ErrorCode::INVAL), pll.set_frequency(217));
 
-        // Start the PLL with 25MHz
-        assert_eq!(Ok(()), pll.start(25));
+        // Start the PLL with the default configuration.
+        assert_eq!(Ok(()), pll.enable());
 
-        // Impossible to start the PLL if it is already started
-        assert_eq!(Err(ErrorCode::FAIL), pll.start(50));
+        // Make sure the PLL is enabled.
+        assert_eq!(true, pll.is_enabled());
 
-        // Stop PLL
-        assert_eq!(Ok(()), pll.stop());
+        // By default, the PLL clock is set to 16MHz
+        assert_eq!(Some(16), pll.get_frequency());
 
-        // Now, it can be configured to run at 50MHz
-        assert_eq!(Ok(()), pll.start(50));
-        debug!("Finished testing start/stop PLL.");
+        // Impossible to configure the PLL clock once it is enabled.
+        assert_eq!(Err(ErrorCode::FAIL), pll.set_frequency(50));
+
+        // Stop the PLL in order to reconfigure it.
+        assert_eq!(Ok(()), pll.disable());
+
+        // Configure the PLL clock to run at 25MHz
+        assert_eq!(Ok(()), pll.set_frequency(25));
+
+        // Start the PLL with the new configuration
+        assert_eq!(Ok(()), pll.enable());
+
+        // get_frequency() method should reflect the new change
+        assert_eq!(Some(25), pll.get_frequency());
+
+        // Stop the PLL clock
+        assert_eq!(Ok(()), pll.disable());
+
+        // Attempting to get the frequency of the PLL clock when it is disabled should return None.
+        assert_eq!(None, pll.get_frequency());
+
+        debug!("Finished testing PLL struct.");
     }
 
     pub fn run<'a>(pll: &'a Pll<'a>) {
