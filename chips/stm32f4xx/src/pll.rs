@@ -18,7 +18,7 @@
 //!
 //! # Examples
 //!
-//! For the purposes of brievity, any error checking has been removed. In real applications, always
+//! For the purposes of brevity, any error checking has been removed. In real applications, always
 //! check the return values of the [Pll] methods.
 //!
 //! First, get a reference to the [Pll] struct:
@@ -29,7 +29,7 @@
 //! ## Start the clock with a given frequency
 //!
 //! ```rust,ignore
-//! pll.set_frequency(100); // 100Mhz
+//! pll.set_frequency(100); // 100MHz
 //! pll.enable();
 //! ```
 //!
@@ -80,7 +80,7 @@ impl<'a> Pll<'a> {
     // The instance of the PLL clock is configured to run at 96MHz and with minimal PLL jitter
     // effects.
     //
-    // # Params
+    // # Parameters
     //
     // + rcc: an instance of [crate::rcc]
     //
@@ -132,7 +132,7 @@ impl<'a> Pll<'a> {
     ///
     /// + Err([ErrorCode::BUSY]): if enabling the PLL clock took too long. Recall this method to 
     /// ensure the PLL clock is running.
-    /// + Ok(()): PLL clock succesfully enabled and running.
+    /// + Ok(()): PLL clock successfully enabled and running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         // Enable the PLL clock
         self.rcc.enable_pll_clock();
@@ -199,7 +199,7 @@ impl<'a> Pll<'a> {
     /// + Err([ErrorCode::INVAL]): if the desired frequency can't be achieved
     /// + Err([ErrorCode::FAIL]): if the PLL clock is already enabled. It must be disabled before
     /// configuring it.
-    /// + Ok(()): the PLL clock has been succesfully configured
+    /// + Ok(()): the PLL clock has been successfully configured
     pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
         // Check whether the PLL clock is running or not
         if self.rcc.is_enabled_pll_clock() {
