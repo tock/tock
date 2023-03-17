@@ -75,19 +75,19 @@ pub struct Pll<'a> {
 }
 
 impl<'a> Pll<'a> {
-    /// Create a new instance of the PLL clock.
-    ///
-    /// The instance of the PLL clock is configured to run at 96MHz and with minimal PLL jitter
-    /// effects.
-    ///
-    /// # Params
-    ///
-    /// + rcc: an instance of [crate::rcc]
-    ///
-    /// # Returns
-    ///
-    /// An instance of the PLL clock.
-    pub fn new(rcc: &'a Rcc) -> Self {
+    // Create a new instance of the PLL clock.
+    //
+    // The instance of the PLL clock is configured to run at 96MHz and with minimal PLL jitter
+    // effects.
+    //
+    // # Params
+    //
+    // + rcc: an instance of [crate::rcc]
+    //
+    // # Returns
+    //
+    // An instance of the PLL clock.
+    pub(crate) fn new(rcc: &'a Rcc) -> Self {
         const PLLP: usize = match DEFAULT_PLLP_VALUE {
             PLLP::DivideBy2 => 2,
             PLLP::DivideBy4 => 4,
