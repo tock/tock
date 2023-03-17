@@ -1,3 +1,62 @@
+#![warn(missing_docs)]
+//! Main phase-locked loop (PLL) clock driver for the STM32F4xx family.
+//!
+//! Many boards of the STM32F4xx family provide several PLL clocks. However, all of them have a
+//! main PLL clock. This driver is designed for the main PLL clock. It will be simply referred as
+//! the PLL clock.
+//!
+//! # Implemented features
+//!
+//! - [x] Default configuration of 96MHz with reduced PLL jitter
+//! - [x] 1MHz frequency precision
+//! - [x] Support for 13-216MHz frequency range
+//!
+//! # Missing features
+//!
+//! - [ ] High granularity for setting the frequency
+//! - [ ] Source selection
+//!
+//! # Examples
+//!
+//! For the purposes of brievity, any error checking has been removed. In real applications, always
+//! check the return values of the [Pll] methods.
+//!
+//! First, get a reference to the [Pll] struct:
+//! ```rust,ignore
+//! let pll = peripherals.stm32f4.pll;
+//! ```
+//!
+//! ## Start the clock with a given frequency
+//!
+//! ```rust,ignore
+//! pll.set_frequency(100); // 100Mhz
+//! pll.enable();
+//! ```
+//!
+//! ## Stop the clock
+//!
+//! ```
+//! pll.disable();
+//! ```
+//!
+//! ## Reconfigure the clock once started
+//!
+//! ```rust,ignore
+//! pll.disable(); // The PLL clock can't be configured while running
+//! pll.set_frequency(50); // 50MHz
+//! pll.enable();
+//! ```
+//!
+//! ## Check whether the PLL clock is running or not
+//! ```rust,ignore
+//! if pll.is_enabled() {
+//!     // do something...
+//! } else {
+//!     // do something...
+//! }
+//! ```
+
+
 use crate::rcc::*;
 
 use kernel::debug;
@@ -9,8 +68,7 @@ const VCO_INPUT_FREQUENCY: usize = 16 / match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => 16,
 };
 
-/// Main PLL clock.
-// At the moment, only HSI is supported as the source clock.
+/// Main PLL clock structure.
 pub struct Pll<'a> {
     rcc: &'a Rcc,
     frequency: OptionalCell<usize>,
@@ -18,6 +76,17 @@ pub struct Pll<'a> {
 
 impl<'a> Pll<'a> {
     /// Create a new instance of the PLL clock.
+    ///
+    /// The instance of the PLL clock is configured to run at 96MHz and with minimal PLL jitter
+    /// effects.
+    ///
+    /// # Params
+    ///
+    /// + rcc: an instance of [crate::rcc]
+    ///
+    /// # Returns
+    ///
+    /// An instance of the PLL clock.
     pub fn new(rcc: &'a Rcc) -> Self {
         const PLLP: usize = match DEFAULT_PLLP_VALUE {
             PLLP::DivideBy2 => 2,
@@ -58,6 +127,12 @@ impl<'a> Pll<'a> {
     }
 
     /// Start the PLL clock.
+    ///
+    /// # Returns
+    ///
+    /// + Err([ErrorCode::BUSY]): if enabling the PLL clock took too long. Recall this method to 
+    /// ensure the PLL clock is running.
+    /// + Ok(()): PLL clock succesfully enabled and running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         // Enable the PLL clock
         self.rcc.enable_pll_clock();
@@ -74,10 +149,13 @@ impl<'a> Pll<'a> {
     }
 
     /// Stop the PLL clock.
-    /// Returns:
-    /// + Err(ErrorCode::FAIL) if the PLL clock is configured as the system clock.
-    /// + Err(ErrorCode::BUSY) disabling the PLL clock took to long. Retry.
-    /// + Ok(()) everything went alright
+    ///
+    /// # Returns
+    ///
+    /// + Err([ErrorCode::FAIL]): if the PLL clock is configured as the system clock.
+    /// + Err([ErrorCode::BUSY]): disabling the PLL clock took to long. Retry to ensure it is
+    /// not running.
+    /// + Ok(()): PLL clock disabled and off.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         // Can't disable the PLL clock when it is used as the system clock
         if self.rcc.get_sys_clock_source() == SysClockSource::PLLCLK {
@@ -100,21 +178,28 @@ impl<'a> Pll<'a> {
 
     /// Check whether the PLL clock is enabled or not.
     ///
-    /// Returns true if the PLL clock is enabled, otherwise false.
+    /// # Returns
+    ///
+    /// + [false]: the PLL clock is not enabled
+    /// + [true]: the PLL clock is enabled
     pub fn is_enabled(&self) -> bool {
         self.rcc.is_enabled_pll_clock()
     }
 
-    /// Set the frequency of the PLL clock. The PLL clock must be disabled.
+    /// Set the frequency of the PLL clock.
     ///
-    /// frequency must be in MHz
+    /// The PLL clock must be disabled.
     ///
-    /// Returns:
-    /// + Err(ErrorCode::INVAL) if the desired frequency can't be achieved
-    /// + Err(ErrorCode::FAIL) if the PLL clock is already enabled. It must be disabled before
+    /// # Parameters
+    ///
+    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 13-216MHz.
+    ///
+    /// # Returns
+    ///
+    /// + Err([ErrorCode::INVAL]): if the desired frequency can't be achieved
+    /// + Err([ErrorCode::FAIL]): if the PLL clock is already enabled. It must be disabled before
     /// configuring it.
-    /// + Err(ErrorCode::BUSY) starting the PLL clock took too long. Retry.
-    /// + Ok(()) everything went OK
+    /// + Ok(()): the PLL clock has been succesfully configured
     pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
         // Check whether the PLL clock is running or not
         if self.rcc.is_enabled_pll_clock() {
@@ -133,9 +218,12 @@ impl<'a> Pll<'a> {
         Ok(())
     }
 
-    /// Get the frequency of the PLL clock.
+    /// Get the frequency in MHz of the PLL clock.
     ///
-    /// Returns the frequency in MHz if the clock is enabled, or None if it is disabled.
+    /// # Returns
+    ///
+    /// + Some(frequency_mhz): if the PLL clock is enabled.
+    /// + None: if the PLL clock is disabled.
     pub fn get_frequency(&self) -> Option<usize> {
         if self.is_enabled() {
             self.frequency.extract()
@@ -145,6 +233,48 @@ impl<'a> Pll<'a> {
     }
 }
 
+
+/// Tests for the PLL clock
+///
+/// This module ensures that the PLL clock works as expected. If the PLL clock has changed, ensure
+/// to run all the tests to see if anything is broken.
+///
+/// # Usage
+///
+/// First, import the pll module:
+///
+/// ```rust,ignore
+/// use stm32f429zi::pll;
+/// ```
+/// To run all the available tests, add this line before **kernel::process::load_processes()**:
+///
+/// ```rust,ignore
+/// pll::tests::run_all(&peripherals.stm32f4.pll);
+/// ```
+///
+/// If everything works as expected, the following message should be printed on the kernel console:
+///
+/// ```text
+/// ===============================================
+/// Testing PLL...
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing PLL configuration...
+/// Finished testing PLL configuration.
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing PLL struct...
+/// Finished testing PLL struct.
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Finished testing PLL. Everything is alright!
+/// ===============================================
+/// ```
+///
+/// There is also the possibility to run a part of the test suite. Check the functions present in
+/// this module for more details.
+///
+/// # Errors
+///
+/// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
+/// output of the test execution.
 pub mod unit_tests {
     use super::*;
 
@@ -154,7 +284,16 @@ pub mod unit_tests {
         PLLM::DivideBy16 => 2,
     };
 
-    fn test_get_pll_config_for_frequency_using_hsi() {
+    /// Test if the configuration parameters are correctly computed for a given frequency.
+    ///
+    /// # Usage
+    ///
+    /// ```rust,ignore
+    /// use stm32f429zi::pll; // Import the pll module
+    /// /* Code goes here */
+    /// pll::test::test_pll_config(&peripherals.stm32f4.pll); // Run the tests
+    /// ```
+    pub fn test_pll_config() {
         debug!("Testing PLL configuration...");
 
         // Desired frequency can't be achieved
@@ -195,7 +334,19 @@ pub mod unit_tests {
         debug!("Finished testing PLL configuration.");
     }
 
-    fn test_pll_start_stop<'a>(pll: &'a Pll<'a>) {
+    /// Check if the PLL works as expected.
+    ///
+    /// **NOTE:** it is highly recommended to call [test_pll_config]
+    /// first to check whether the configuration parameters are correctly computed.
+    ///
+    /// # Usage
+    ///
+    /// ```rust,ignore
+    /// use stm32f429zi::pll; // Import the PLL module
+    /// /* Code goes here */
+    /// pll::test::test_pll_struct(&peripherals.stm32f4.pll); // Run the tests
+    /// ```
+    pub fn test_pll_struct<'a>(pll: &'a Pll<'a>) {
         debug!("Testing PLL struct...");
         // Make sure the PLL clock is disabled
         assert_eq!(Ok(()), pll.disable());
@@ -238,14 +389,23 @@ pub mod unit_tests {
         debug!("Finished testing PLL struct.");
     }
 
+    /// Run the entire test suite.
+    ///
+    /// # Usage
+    ///
+    /// ```rust,ignore
+    /// use stm32f429zi::pll; // Import the PLL module
+    /// /* Code goes here */
+    /// pll::test::run(&peripherals.stm32f4.pll); // Run the tests
+    /// ```
     pub fn run<'a>(pll: &'a Pll<'a>) {
         debug!("");
         debug!("===============================================");
         debug!("Testing PLL...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        test_get_pll_config_for_frequency_using_hsi();
+        test_pll_config();
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        test_pll_start_stop(pll);
+        test_pll_struct(pll);
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Finished testing PLL. Everything is alright!");
         debug!("===============================================");
