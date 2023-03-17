@@ -708,14 +708,17 @@ const RCC_BASE: StaticRef<RccRegisters> =
     unsafe { StaticRef::new(0x40023800 as *const RccRegisters) };
 
 // Default values when the hardware is reset. Uncomment if you need themn.
-//pub(crate) const RESET_PLLM_VALUE: usize = 0b010_000; // M = 16
+//pub(crate) const RESET_PLLM_VALUE: usize = PLLM::DivideBy16; // M = 16
 pub(crate) const RESET_PLLN_VALUE: usize = 0b011_000_000; // N = 192
-//pub(crate) const RESET_PLLP_VALUE: PLLP = PLLP::DivideBy2;
+//pub(crate) const RESET_PLLP_VALUE: PLLP = PLLP::DivideBy2; // P = 2
 
 // The default PLL configuration. See Rss::init_pll_clock() for more details.
-pub(crate) const DEFAULT_PLLM_VALUE: usize = 8;
+pub(crate) const DEFAULT_PLLM_VALUE: PLLM = PLLM::DivideBy8;
 pub(crate) const DEFAULT_PLLN_VALUE: usize = RESET_PLLN_VALUE;
-pub(crate) const DEFAULT_PLLP_VALUE: PLLP = PLLP::DivideBy4;
+pub(crate) const DEFAULT_PLLP_VALUE: PLLP = match DEFAULT_PLLM_VALUE {
+    PLLM::DivideBy16 => PLLP::DivideBy2,
+    PLLM::DivideBy8 => PLLP::DivideBy4,
+};
 
 pub struct Rcc {
     registers: StaticRef<RccRegisters>,
@@ -750,7 +753,10 @@ impl Rcc {
     // dividing this frequency by 2.
     fn init_pll_clock(&self) {
         self.set_pll_clocks_source(PllSource::HSI);
-        self.set_pll_clocks_m_divider(DEFAULT_PLLM_VALUE);
+        self.set_pll_clocks_m_divider(match DEFAULT_PLLM_VALUE {
+            PLLM::DivideBy16 => 16,
+            PLLM::DivideBy8 => 8,
+        });
         self.set_pll_clock_n_multiplier(DEFAULT_PLLN_VALUE);
         self.set_pll_clock_p_divider(DEFAULT_PLLP_VALUE);
     }
@@ -777,7 +783,7 @@ impl Rcc {
     }
 
     // This method must be called only when all PLL clocks are disabled
-    fn set_pll_clocks_m_divider(&self, m: usize) {
+    pub(crate) fn set_pll_clocks_m_divider(&self, m: usize) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
     }
 
@@ -1117,6 +1123,11 @@ pub enum PLLP {
     DivideBy4 = 0b01,
     DivideBy6 = 0b10,
     DivideBy8 = 0b11,
+}
+
+pub enum PLLM {
+    DivideBy8,
+    DivideBy16,
 }
 
 /// Clock sources for the CPU
