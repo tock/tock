@@ -1,11 +1,19 @@
-//! Components for Console, the generic serial interface, and for multiplexed access
-//! to UART.
+//! Components for Console and ConsoleOrdered. These are two alternative implementations of
+//! the serial console system call interface. Console allows prints of arbitrary length but does
+//! not have ordering or atomicity guarantees. ConsoleOrdered, in contrast, has limits on the
+//! maximum lengths of prints but provides a temporal ordering and ensures a print is atomic at
+//! least up to particular length (typically 200 bytes). Console is useful when userspace is
+//! printing large messages. ConsoleOrdered is useful when you are debugging and there are
+//! inter-related messages from the kernel and userspace, whose ordering is important to
+//! maintain.
 //!
 //!
-//! This provides two Components, `ConsoleComponent`, which implements a buffered
-//! read/write console over a serial port, and `UartMuxComponent`, which provides
-//! multiplexed access to hardware UART. As an example, the serial port used for
-//! console on Imix is typically USART3 (the DEBUG USB connector).
+//! This provides three Components, `ConsoleComponent` and
+//! `ConsoleOrderedComponent`, which implement a buffered read/write
+//! console over a serial port, and `UartMuxComponent`, which provides
+//! multiplexed access to hardware UART. As an example, the serial
+//! port used for console on Imix is typically USART3 (the DEBUG USB
+//! connector).
 //!
 //! Usage
 //! -----
@@ -20,6 +28,8 @@
 // Last modified: 1/08/2020
 
 use capsules::console;
+use capsules::console_ordered::ConsoleOrdered;
+
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -28,6 +38,8 @@ use kernel::create_capability;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::hil::time::{self, Alarm};
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use capsules::console::DEFAULT_BUF_SIZE;
 
@@ -162,3 +174,56 @@ impl Component for ConsoleComponent {
         console
     }
 }
+#[macro_export]
+macro_rules! console_ordered_component_static {
+    ($A:ty $(,)?) => {{
+        let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+        let print_log = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
+        (mux_alarm, print_log)
+    };};
+}
+
+
+pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    alarm_mux: &'static MuxAlarm<'static, A>,
+}
+
+impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        alarm_mux: &'static MuxAlarm<'static, A>,
+    ) -> ConsoleOrderedComponent<A> {
+        ConsoleOrderedComponent {
+            board_kernel: board_kernel,
+            driver_num: driver_num,
+            alarm_mux: alarm_mux,
+        }
+    }
+}
+
+impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A> {
+    type StaticInput = (
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>>,
+    );
+    type Output = &'static ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let virtual_alarm1 = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
+        virtual_alarm1.setup();
+
+        let print_log = static_buffer.1.write(ConsoleOrdered::new(
+            virtual_alarm1,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
+
+        virtual_alarm1.set_alarm_client(print_log);
+        print_log
+    }
+}
+

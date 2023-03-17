@@ -11,9 +11,9 @@
 
 mod imix_components;
 use capsules::alarm::AlarmDriver;
+use capsules::console_ordered::ConsoleOrdered;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::print_log::PrintLog;
 use capsules::virtual_aes_ccm::MuxAES128CCM;
 use capsules::virtual_alarm::VirtualMuxAlarm;
 use capsules::virtual_i2c::MuxI2C;
@@ -43,7 +43,7 @@ use capsules::sha256::Sha256Software;
 
 use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
-use components::console::{ConsoleComponent, UartMuxComponent};
+use components::console::{ConsoleOrderedComponent, UartMuxComponent};
 use components::crc::CrcComponent;
 use components::debug_writer::DebugWriterComponent;
 use components::gpio::GpioComponent;
@@ -51,7 +51,6 @@ use components::isl29035::AmbientLightComponent;
 use components::isl29035::Isl29035Component;
 use components::led::LedsComponent;
 use components::nrf51822::Nrf51822Component;
-use components::print_log::PrintLogComponent;
 use components::process_console::ProcessConsoleComponent;
 use components::rng::RngComponent;
 use components::si7021::SI7021Component;
@@ -113,7 +112,7 @@ struct Imix {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
+    console: &'static capsules::console_ordered::ConsoleOrdered<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -145,10 +144,6 @@ struct Imix {
     >,
     nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
     nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    printlog: &'static capsules::print_log::PrintLog<
-        'static,
-        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
-    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     credentials_checking_policy: &'static AppCheckerSha256,
@@ -174,7 +169,7 @@ impl SyscallDriverLookup for Imix {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules::console_ordered::DRIVER_NUM => f(Some(self.console)),
             capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
@@ -192,7 +187,6 @@ impl SyscallDriverLookup for Imix {
             capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
             capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::print_log::DRIVER_NUM => f(Some(self.printlog)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -405,12 +399,9 @@ pub unsafe fn main() {
         .finalize(components::process_console_component_static!(
             sam4l::ast::Ast
         ));
-    let console = ConsoleComponent::new(board_kernel, capsules::console::DRIVER_NUM, uart_mux)
-        .finalize(components::console_component_static!());
+    let console = ConsoleOrderedComponent::new(board_kernel, capsules::console_ordered::DRIVER_NUM, mux_alarm)
+        .finalize(components::console_ordered_component_static!(sam4l::ast::Ast));
     DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
-
-    let printlog = PrintLogComponent::new(board_kernel, capsules::print_log::DRIVER_NUM, mux_alarm)
-        .finalize(components::printlog_component_static!(sam4l::ast::Ast));
 
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
@@ -696,7 +687,6 @@ pub unsafe fn main() {
         usb_driver,
         nrf51822: nrf_serialization,
         nonvolatile_storage,
-        printlog,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         credentials_checking_policy: checker,

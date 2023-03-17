@@ -1,5 +1,7 @@
 //! Provides userspace with access to a serial interface whose output
-//! is in-order with respect to kernel debug!() operations.
+//! is in-order with respect to kernel debug!() operations. Prints to
+//! the console are atomic up to a newline or a particular constant
+//! length as defined in the kernel.
 //!
 //! Setup
 //! -----
@@ -25,17 +27,18 @@
 //!
 //! ```c
 //! // (Optional) Set a callback to be invoked when the buffer has been written
-//! subscribe(PRINTLOG_DRIVER_NUM, 1, my_callback);
+//! subscribe(CONSOLE_DRIVER_NUM, 1, my_callback);
 //! // Share the buffer from userspace with the driver
-//! allow(PRINTLOG_DRIVER_NUM, buffer, buffer_len_in_bytes);
+//! allow(CONSOLE_DRIVER_NUM, buffer, buffer_len_in_bytes);
 //! // Initiate the transaction
-//! command(PRINTLOG_DRIVER_NUM, 1, len_to_write_in_bytes)
+//! command(CONSOLE_DRIVER_NUM, 1, len_to_write_in_bytes)
 //! ```
 //!
 
 use core::cell::Cell;
 
 use kernel::debug_process_slice;
+use kernel::debug::debug_available_len;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::processbuffer::ReadableProcessBuffer;
@@ -44,7 +47,11 @@ use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use crate::driver;
-pub const DRIVER_NUM: usize = driver::NUM::PrintLog as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
+
+const TIMEOUT_START: u32 = 10; // Time to wait if the debug buffer doesn't have space
+const TIMEOUT_WRITE: u32 = 10; // Time to delay sending callback to userspace after write
+const MAX_WRITE_LEN: usize = 200; // Maximium size of application write that is promised atomicity
 
 /// Ids for read-only allow buffers
 mod ro_allow {
@@ -70,7 +77,7 @@ pub struct App {
     tx_counter: usize,   // Used to keep order of writes
 }
 
-pub struct PrintLog<'a, A: Alarm<'a>> {
+pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
     apps: Grant<
         App,
         UpcallCount<3>,
@@ -82,7 +89,7 @@ pub struct PrintLog<'a, A: Alarm<'a>> {
     alarm: &'a A,               // Timer for trying to send  more
 }
 
-impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
+impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
     pub fn new(
         alarm: &'a A,
         grant: Grant<
@@ -91,8 +98,8 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> PrintLog<'a, A> {
-        PrintLog {
+    ) -> ConsoleOrdered<'a, A> {
+        ConsoleOrdered {
             apps: grant,
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
@@ -123,17 +130,31 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
         // Order the prints through a global counter.
         app.tx_counter = self.tx_counter.get();
         self.tx_counter.set(app.tx_counter.wrapping_add(1));
+
+        let debug_space_avail = debug_available_len();
+
         if self.tx_in_progress.get() {
             // A prior print is outstanding, enqueue
             app.pending_write = true;
-        } else {
-            // No prior print, send some text.
-            app.write_len = self.send(app, kernel_data).map_or(0, |bytes| 0);
+        } else if app.write_len <= debug_space_avail {
+            // Space for the full write, make it
+            app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
+        } else if MAX_WRITE_LEN <= debug_space_avail {
+            // Space for a partial write, make it
+            app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
+        } else { 
+            // No space even for a partial, minimum size write: enqueue
+            app.pending_write = true;
+            self.alarm
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(TIMEOUT_START));
         }
         Ok(())
     }
 
-    /// Internal helper function for sending data.
+    /// Internal helper function for sending data. Assumes that there is enough
+    /// space in the debug buffer for the write. Writes longer than available
+    /// debug buffer space will be truncated, so callers that wish to not lose
+    /// data must check before calling.
     fn send(&self, app: &mut App, kernel_data: &GrantKernelData) -> Result<usize, kernel::process::Error> {
         // We can ignore the Result because if the call fails, it means
         // the process has terminated, so issuing a callback doesn't matter.
@@ -158,18 +179,18 @@ impl<'a, A: Alarm<'a>> PrintLog<'a, A> {
                 })
             });
         // We're writing, so start a timer to send more and
-        // block subsequent writes. Detect there are other
+        // block subsequent writes. Detect if there are other
         // processes with things to write by looking at the
         // sequence number; if the next-to-be-given sequence
         // number != this process+1, then a process has
         // grabbed this process+1 and has something to send.
         self.alarm
-            .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
+            .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(TIMEOUT_WRITE));
         res
     }
 }
 
-impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
+impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
     fn alarm(&self) {
         //debug!("Alarm fired.");
         if self.tx_in_progress.get() {
@@ -221,12 +242,12 @@ impl<'a, A: Alarm<'a>> AlarmClient for PrintLog<'a, A> {
     }
 }
 
-impl<'a, A: Alarm<'a>> SyscallDriver for PrintLog<'a, A> {
+impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
     ///
-    /// - `0`: Readonly buffer for write bufferu
+    /// - `0`: Readonly buffer for write buffer
 
     // Setup callbacks.
     //
@@ -242,7 +263,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for PrintLog<'a, A> {
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
-        //debug!("PrintLog receiving command: {} {} from {:?}", cmd_num, arg1, appid);
+        //debug!("ConsoleOrdered receiving command: {} {} from {:?}", cmd_num, arg1, appid);
         let res = self
             .apps
             .enter(appid, |app, kernel_data| {

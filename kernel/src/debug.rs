@@ -71,8 +71,7 @@ use crate::ErrorCode;
 /// available).
 ///
 /// Also, in our use cases, writes are infaillible, so the write function cannot return an Error,
-/// however it might not be able to write everything, so it returns  the number of bytes written
-/// anything.
+/// however it might not be able to write everything, so it returns  the number of bytes written.
 ///
 /// See also the tracking issue: <https://github.com/rust-lang/rfcs/issues/2262>
 pub trait IoWrite {
@@ -470,6 +469,10 @@ impl DebugWriter {
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
         self.internal_buffer.take()
     }
+
+    fn available_len(&self) -> usize {
+        self.internal_buffer.map_or(0, |rb| rb.available_len())
+    }
 }
 
 impl hil::uart::TransmitClient for DebugWriter {
@@ -508,6 +511,10 @@ impl DebugWriterWrapper {
 
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
         self.dw.map_or(None, |dw| dw.extract())
+    }
+
+    fn available_len(&self) -> usize {
+        self.dw.map_or(0, |dw| dw.available_len())
     }
 }
 
@@ -577,6 +584,12 @@ pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
     writer.publish_bytes();
     total
 }
+
+pub fn debug_available_len() -> usize {
+    let writer = unsafe { get_debug_writer() };
+    writer.available_len()
+}
+
 
 fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
     writer.increment_count();
