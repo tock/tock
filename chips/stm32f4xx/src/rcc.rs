@@ -766,11 +766,11 @@ impl Rcc {
     }
 
     pub(crate) fn is_enabled_pll_clock(&self) -> bool {
-        self.registers.cr.read(CR::PLLON) == 1
+        self.registers.cr.is_set(CR::PLLON)
     }
 
     pub(crate) fn is_locked_pll_clock(&self) -> bool {
-        self.registers.cr.read(CR::PLLRDY) == 1
+        self.registers.cr.is_set(CR::PLLRDY)
     }
 
     // This method must be called only when all PLL clocks are disabled
