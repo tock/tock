@@ -307,17 +307,26 @@ pub mod unit_tests {
         // 25MHz --> minimum required value for Ethernet devices
         assert_eq!((100 * MULTIPLIER, PLLP::DivideBy8), Pll::get_pll_config_for_frequency_using_hsi(25).unwrap());
 
+        // 54MHz --> last frequency before PLLP becomes DivideBy6
+        assert_eq!((216 * MULTIPLIER, PLLP::DivideBy8), Pll::get_pll_config_for_frequency_using_hsi(54).unwrap());
+
         // 55MHz --> PLLP becomes DivideBy6
         assert_eq!((165 * MULTIPLIER, PLLP::DivideBy6), Pll::get_pll_config_for_frequency_using_hsi(55).unwrap());
 
         // 70MHz --> Another value for PLLP::DivideBy6
         assert_eq!((210 * MULTIPLIER, PLLP::DivideBy6), Pll::get_pll_config_for_frequency_using_hsi(70).unwrap());
 
+        // 72MHz --> last frequency before PLLP becomes DivideBy4
+        assert_eq!((216 * MULTIPLIER, PLLP::DivideBy6), Pll::get_pll_config_for_frequency_using_hsi(72).unwrap());
+
         // 73MHz --> PLLP becomes DivideBy4
         assert_eq!((146 * MULTIPLIER, PLLP::DivideBy4), Pll::get_pll_config_for_frequency_using_hsi(73).unwrap());
 
         // 100MHz --> Another value for PLLP::DivideBy4
         assert_eq!((200 * MULTIPLIER, PLLP::DivideBy4), Pll::get_pll_config_for_frequency_using_hsi(100).unwrap());
+
+        // 108MHz --> last frequency before PLLP becomes DivideBy2
+        assert_eq!((216 * MULTIPLIER, PLLP::DivideBy4), Pll::get_pll_config_for_frequency_using_hsi(108).unwrap());
 
         // 109MHz --> PLLP becomes DivideBy2
         assert_eq!((109 * MULTIPLIER, PLLP::DivideBy2), Pll::get_pll_config_for_frequency_using_hsi(109).unwrap());
