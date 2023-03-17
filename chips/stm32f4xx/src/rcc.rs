@@ -778,7 +778,7 @@ impl Rcc {
     }
 
     // This method must be called only when all PLL clocks are disabled
-    fn set_pll_clocks_source(&self, source: PllSource) {
+    pub(crate) fn set_pll_clocks_source(&self, source: PllSource) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLSRC.val(source as u32));
     }
 
@@ -787,10 +787,12 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
     }
 
+    // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_n_multiplier(&self, n: usize) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLN.val(n as u32));
     }
 
+    // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_p_divider(&self, p: PLLP) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
     }
@@ -1112,20 +1114,21 @@ impl Rcc {
 }
 
 // **NOTE:** HSE is not yet supported as source clock.
-pub enum PllSource {
+pub(crate) enum PllSource {
     HSI = 0b0,
-    HSE = 0b1,
+    //HSE = 0b1,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum PLLP {
+pub(crate) enum PLLP {
     DivideBy2 = 0b00,
     DivideBy4 = 0b01,
     DivideBy6 = 0b10,
     DivideBy8 = 0b11,
 }
 
-pub enum PLLM {
+#[allow(dead_code)]
+pub(crate) enum PLLM {
     DivideBy8,
     DivideBy16,
 }
