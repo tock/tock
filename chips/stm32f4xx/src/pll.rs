@@ -1,6 +1,4 @@
-use crate::rcc::Rcc;
-use crate::rcc::SysClockSource;
-use crate::rcc::PLLP;
+use crate::rcc::*;
 
 use kernel::debug;
 use kernel::ErrorCode;
@@ -54,19 +52,17 @@ pub struct Pll<'a> {
 
 impl<'a> Pll<'a> {
     /// Create a new instance of the PLL clock.
-    ///
-    /// ## Panics
-    ///
-    /// This constructor may panic if an internal error occurred.
     pub fn new(rcc: &'a Rcc) -> Self {
-        let pll = Self {
-            rcc,
-            frequency: OptionalCell::empty(),
+        let pllp = match DEFAULT_PLLP_VALUE {
+            PLLP::DivideBy2 => 2,
+            PLLP::DivideBy4 => 4,
+            PLLP::DivideBy6 => 6,
+            PLLP::DivideBy8 => 8,
         };
-        if let Err(_) = pll.set_frequency(16) {
-            panic!("Something went wrong when creating the PLL clock structure");
+        Self {
+            rcc,
+            frequency: OptionalCell::new(16 / DEFAULT_PLLM_VALUE * DEFAULT_PLLN_VALUE / pllp),
         }
-        pll
     }
 
     // **NOTE**: It assumes a value of 8 for PLLM (check rcc::init_pll_clocks() method)
@@ -271,8 +267,8 @@ pub mod unit_tests {
         // Make sure the PLL is enabled.
         assert_eq!(true, pll.is_enabled());
 
-        // By default, the PLL clock is set to 16MHz
-        assert_eq!(Some(16), pll.get_frequency());
+        // By default, the PLL clock is set to 96MHz
+        assert_eq!(Some(96), pll.get_frequency());
 
         // Impossible to configure the PLL clock once it is enabled.
         assert_eq!(Err(ErrorCode::FAIL), pll.set_frequency(50));
