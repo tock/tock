@@ -710,6 +710,11 @@ pub(crate) const RESET_PLLN_VALUE: usize = 0b011_000_000; // N = 192
 
 // The default PLL configuration. See Rss::init_pll_clock() for more details.
 pub(crate) const DEFAULT_PLLM_VALUE: PLLM = PLLM::DivideBy8;
+// **HELP:** Does tock support static asserts? Changing DEFAULT_PLLN_VALUE might change the default
+// PLL frequency of 96MHz. TRNG relies on this value to get its 48MHz frequency (see
+// Rcc::configure_rng_clock()). Either the default frequency value of the PLL is statically
+// asserted to prevent subtle bugs or change the TRNG peripheral implementation to take into
+// account the possible variation of the main Pll clock.
 pub(crate) const DEFAULT_PLLN_VALUE: usize = RESET_PLLN_VALUE;
 pub(crate) const DEFAULT_PLLP_VALUE: PLLP = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => PLLP::DivideBy2,
@@ -1123,6 +1128,8 @@ pub(crate) enum PLLP {
     DivideBy8 = 0b11,
 }
 
+// Theoretically, the PLLM value can range from 2 to 63. However, the current implementation was
+// designed to support 1MHz frequency precision. In a future update, PLLM will become a usize.
 #[allow(dead_code)]
 pub(crate) enum PLLM {
     DivideBy8,
