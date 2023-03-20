@@ -724,6 +724,10 @@ pub(crate) const DEFAULT_PLLP_VALUE: PLLP = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => PLLP::DivideBy2,
     PLLM::DivideBy8 => PLLP::DivideBy4,
 };
+pub(crate) const DEFAULT_PLLQ_VALUE: PLLQ = match DEFAULT_PLLM_VALUE {
+    PLLM::DivideBy16 => PLLQ::DivideBy4,
+    PLLM::DivideBy8 => PLLQ::DivideBy8,
+};
 
 pub struct Rcc {
     registers: StaticRef<RccRegisters>,
@@ -797,6 +801,11 @@ impl Rcc {
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_p_divider(&self, p: PLLP) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
+    }
+
+    // This method must be called only if the main PLL clock is disabled
+    pub(crate) fn set_pll_clock_q_divider(&self, q: PLLQ) {
+        self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
     }
 
     fn configure_rng_clock(&self) {
@@ -1135,6 +1144,33 @@ pub(crate) enum PLLP {
 pub(crate) enum PLLM {
     DivideBy8 = 8,
     DivideBy16 = 16,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) enum PLLQ {
+    DivideBy2 = 2,
+    DivideBy3,
+    DivideBy4,
+    DivideBy5,
+    DivideBy6,
+    DivideBy7,
+    DivideBy8,
+    DivideBy9,
+}
+
+impl From<usize> for PLLQ {
+    fn from(value: usize) -> Self {
+        match value {
+            2 => PLLQ::DivideBy2,
+            3 => PLLQ::DivideBy3,
+            4 => PLLQ::DivideBy4,
+            5 => PLLQ::DivideBy5,
+            6 => PLLQ::DivideBy6,
+            7 => PLLQ::DivideBy7,
+            8 => PLLQ::DivideBy8,
+            _ => PLLQ::DivideBy9,
+        }
+    }
 }
 
 /// Clock sources for the CPU

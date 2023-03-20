@@ -63,15 +63,13 @@ use kernel::debug;
 use kernel::ErrorCode;
 use kernel::utilities::cells::OptionalCell;
 
-const VCO_INPUT_FREQUENCY: usize = 16 / match DEFAULT_PLLM_VALUE {
-    PLLM::DivideBy8 => 8,
-    PLLM::DivideBy16 => 16,
-};
 
 /// Main PLL clock structure.
 pub struct Pll<'a> {
     rcc: &'a Rcc,
     frequency: OptionalCell<usize>,
+    pll48_frequency: OptionalCell<usize>,
+    pll48_calibrated: OptionalCell<bool>,
 }
 
 impl<'a> Pll<'a> {
@@ -95,21 +93,19 @@ impl<'a> Pll<'a> {
             PLLP::DivideBy8 => 8,
         };
         const PLLM: usize = DEFAULT_PLLM_VALUE as usize;
+        const PLLQ: usize = DEFAULT_PLLQ_VALUE as usize;
         Self {
             rcc,
             frequency: OptionalCell::new(16 / PLLM * DEFAULT_PLLN_VALUE / PLLP),
+            pll48_frequency: OptionalCell::new(16 / PLLM * DEFAULT_PLLN_VALUE / PLLQ),
+            pll48_calibrated: OptionalCell::new(true),
         }
     }
 
-    fn get_pll_config_for_frequency_using_hsi(desired_frequency_mhz: usize) -> Option<(usize, PLLP)> {
-        // The current PLL clock implementation supports frequencies ranging from 13MHz to 216MHz
-        if desired_frequency_mhz < 13 || desired_frequency_mhz > 216 {
-            return None;
-        }
-        // As the documentation says, selecting a frequency of 2MHz for the VCO input frequency
-        // limits the PLL jitter. Since the HSI frequency is 16MHz, M must be configured
-        // accordingly.
-        let p = if desired_frequency_mhz < 55 {
+    // The caller must ensure the desired frequency lies between 13 and 216MHz. Otherwise, the
+    // return value makes no sense.
+    fn compute_pllp(desired_frequency_mhz: usize) -> PLLP {
+        if desired_frequency_mhz < 55 {
             PLLP::DivideBy8
         } else if desired_frequency_mhz < 73 {
             PLLP::DivideBy6
@@ -117,10 +113,25 @@ impl<'a> Pll<'a> {
             PLLP::DivideBy4
         } else {
             PLLP::DivideBy2
-        };
-        let n = desired_frequency_mhz * (p as usize + 1) * 2 / VCO_INPUT_FREQUENCY;
+        }
+    }
 
-        Some((n, p))
+    // The caller must ensure the desired frequency lies between 13 and 216MHz. Otherwise, the
+    // return value makes no sense.
+    fn compute_plln(desired_frequency_mhz: usize, pllp: PLLP) -> usize {
+        const VCO_INPUT_FREQUENCY: usize = 16 / DEFAULT_PLLM_VALUE as usize;
+        desired_frequency_mhz * (pllp as usize + 1) * 2 / VCO_INPUT_FREQUENCY
+    }
+
+    // The caller must ensure the VCO output frequency lies between 100 and 432MHz. Otherwise, the
+    // return value makes no sense.
+    fn compute_pllq(vco_output_frequency_mhz: usize) -> PLLQ {
+        for pllq in 3..10 {
+            if 48 * pllq >= vco_output_frequency_mhz {
+                return PLLQ::from(pllq);
+            }
+        }
+        unreachable!("The previous for loop should always return");
     }
 
     /// Start the PLL clock.
@@ -198,19 +209,33 @@ impl<'a> Pll<'a> {
     /// configuring it.
     /// + Ok(()): the PLL clock has been successfully configured
     pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
-        // Check whether the PLL clock is running or not
+        // Check for errors:
+        // + PLL clock running
+        // + invalid frequency
         if self.rcc.is_enabled_pll_clock() {
             return Result::from(ErrorCode::FAIL);
+        } else if desired_frequency_mhz < 13 || desired_frequency_mhz > 216 {
+            return Err(ErrorCode::INVAL);
         }
-        // Configure the PLL
-        let (n, p) = match Self::get_pll_config_for_frequency_using_hsi(desired_frequency_mhz) {
-            None => return Err(ErrorCode::INVAL),
-            Some(tuple) => tuple,
-        };
-        self.rcc.set_pll_clock_n_multiplier(n);
-        self.rcc.set_pll_clock_p_divider(p);
+
+        // Compute PLLP
+        let pllp = Self::compute_pllp(desired_frequency_mhz);
+        self.rcc.set_pll_clock_p_divider(pllp);
+
+        // Compute PLLN
+        let plln = Self::compute_plln(desired_frequency_mhz, pllp);
+        self.rcc.set_pll_clock_n_multiplier(plln);
+
+        // Compute PLLQ
+        let vco_output_frequency = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        let pllq = Self::compute_pllq(vco_output_frequency);
+        self.rcc.set_pll_clock_q_divider(pllq);
+
+        // Check if PLL48CLK is calibrated, e.g. its frequency is exactly 48MHz
+        self.pll48_calibrated.set(vco_output_frequency % pllq as usize == 0);
 
         self.frequency.set(desired_frequency_mhz);
+        self.pll48_frequency.set(vco_output_frequency / pllq as usize);
 
         Ok(())
     }
@@ -228,6 +253,7 @@ impl<'a> Pll<'a> {
             None
         }
     }
+
 }
 
 
@@ -293,49 +319,122 @@ pub mod unit_tests {
     pub fn test_pll_config() {
         debug!("Testing PLL configuration...");
 
-        // Desired frequency can't be achieved
-        assert_eq!(None, Pll::get_pll_config_for_frequency_using_hsi(12));
-        assert_eq!(None, Pll::get_pll_config_for_frequency_using_hsi(217));
-
-        // Reachable frequencies
         // 13MHz --> minimum value
-        assert_eq!((52 * MULTIPLIER, PLLP::DivideBy8), Pll::get_pll_config_for_frequency_using_hsi(13).unwrap());
+        let mut pllp = Pll::compute_pllp(13);
+        assert_eq!(PLLP::DivideBy8, pllp);
+        let mut plln = Pll::compute_plln(13, pllp);
+        assert_eq!(52 * MULTIPLIER, plln);
+        let mut vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        let mut pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy3, pllq);
 
         // 25MHz --> minimum required value for Ethernet devices
-        assert_eq!((100 * MULTIPLIER, PLLP::DivideBy8), Pll::get_pll_config_for_frequency_using_hsi(25).unwrap());
+        pllp = Pll::compute_pllp(25);
+        assert_eq!(PLLP::DivideBy8, pllp);
+        plln = Pll::compute_plln(25, pllp);
+        assert_eq!(100 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy5, pllq);
 
         // 54MHz --> last frequency before PLLP becomes DivideBy6
-        assert_eq!((216 * MULTIPLIER, PLLP::DivideBy8), Pll::get_pll_config_for_frequency_using_hsi(54).unwrap());
+        pllp = Pll::compute_pllp(54);
+        assert_eq!(PLLP::DivideBy8, pllp);
+        plln = Pll::compute_plln(54, pllp);
+        assert_eq!(216 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy9, pllq);
 
         // 55MHz --> PLLP becomes DivideBy6
-        assert_eq!((165 * MULTIPLIER, PLLP::DivideBy6), Pll::get_pll_config_for_frequency_using_hsi(55).unwrap());
+        pllp = Pll::compute_pllp(55);
+        assert_eq!(PLLP::DivideBy6, pllp);
+        plln = Pll::compute_plln(55, pllp);
+        assert_eq!(165 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy7, pllq);
 
         // 70MHz --> Another value for PLLP::DivideBy6
-        assert_eq!((210 * MULTIPLIER, PLLP::DivideBy6), Pll::get_pll_config_for_frequency_using_hsi(70).unwrap());
+        pllp = Pll::compute_pllp(70);
+        assert_eq!(PLLP::DivideBy6, pllp);
+        plln = Pll::compute_plln(70, pllp);
+        assert_eq!(210 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy9, pllq);
 
         // 72MHz --> last frequency before PLLP becomes DivideBy4
-        assert_eq!((216 * MULTIPLIER, PLLP::DivideBy6), Pll::get_pll_config_for_frequency_using_hsi(72).unwrap());
+        pllp = Pll::compute_pllp(72);
+        assert_eq!(PLLP::DivideBy6, pllp);
+        plln = Pll::compute_plln(72, pllp);
+        assert_eq!(216 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy9, pllq);
 
         // 73MHz --> PLLP becomes DivideBy4
-        assert_eq!((146 * MULTIPLIER, PLLP::DivideBy4), Pll::get_pll_config_for_frequency_using_hsi(73).unwrap());
+        pllp = Pll::compute_pllp(73);
+        assert_eq!(PLLP::DivideBy4, pllp);
+        plln = Pll::compute_plln(73, pllp);
+        assert_eq!(146 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy7, pllq);
 
         // 100MHz --> Another value for PLLP::DivideBy4
-        assert_eq!((200 * MULTIPLIER, PLLP::DivideBy4), Pll::get_pll_config_for_frequency_using_hsi(100).unwrap());
+        pllp = Pll::compute_pllp(100);
+        assert_eq!(PLLP::DivideBy4, pllp);
+        plln = Pll::compute_plln(100, pllp);
+        assert_eq!(200 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy9, pllq);
 
         // 108MHz --> last frequency before PLLP becomes DivideBy2
-        assert_eq!((216 * MULTIPLIER, PLLP::DivideBy4), Pll::get_pll_config_for_frequency_using_hsi(108).unwrap());
+        pllp = Pll::compute_pllp(108);
+        assert_eq!(PLLP::DivideBy4, pllp);
+        plln = Pll::compute_plln(108, pllp);
+        assert_eq!(216 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy9, pllq);
 
         // 109MHz --> PLLP becomes DivideBy2
-        assert_eq!((109 * MULTIPLIER, PLLP::DivideBy2), Pll::get_pll_config_for_frequency_using_hsi(109).unwrap());
+        pllp = Pll::compute_pllp(109);
+        assert_eq!(PLLP::DivideBy2, pllp);
+        plln = Pll::compute_plln(109, pllp);
+        assert_eq!(109 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy5, pllq);
 
         // 125MHz --> Another value for PLLP::DivideBy2
-        assert_eq!((125 * MULTIPLIER, PLLP::DivideBy2), Pll::get_pll_config_for_frequency_using_hsi(125).unwrap());
+        pllp = Pll::compute_pllp(125);
+        assert_eq!(PLLP::DivideBy2, pllp);
+        plln = Pll::compute_plln(125, pllp);
+        assert_eq!(125 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy6, pllq);
 
         // 180MHz --> Max frequency for the CPU
-        assert_eq!((180 * MULTIPLIER, PLLP::DivideBy2), Pll::get_pll_config_for_frequency_using_hsi(180).unwrap());
+        pllp = Pll::compute_pllp(180);
+        assert_eq!(PLLP::DivideBy2, pllp);
+        plln = Pll::compute_plln(180, pllp);
+        assert_eq!(180 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy8, pllq);
 
         // 216MHz --> Max frequency for the PLL due to the VCO output frequency limit
-        assert_eq!((216 * MULTIPLIER , PLLP::DivideBy2), Pll::get_pll_config_for_frequency_using_hsi(216).unwrap());
+        pllp = Pll::compute_pllp(216);
+        assert_eq!(PLLP::DivideBy2, pllp);
+        plln = Pll::compute_plln(216, pllp);
+        assert_eq!(216 * MULTIPLIER , plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+        assert_eq!(PLLQ::DivideBy9, pllq);
 
         debug!("Finished testing PLL configuration.");
     }
