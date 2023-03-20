@@ -5,18 +5,25 @@
 //! main PLL clock. This driver is designed for the main PLL clock. It will be simply referred as
 //! the PLL clock.
 //!
+//! The PLL clock is composed of two outputs:
+//!
+//! + the main one used for the system clock
+//! + the PLL48CLK used for USB OTG FS, the random number generator and SDIO clocks
+//!
 //! # Implemented features
 //!
 //! - [x] Default configuration of 96MHz with reduced PLL jitter
 //! - [x] 1MHz frequency precision
 //! - [x] Support for 13-216MHz frequency range
+//! - [x] Support for PLL48CLK output
 //!
 //! # Missing features
 //!
-//! - [ ] High granularity for setting the frequency
+//! - [ ] Precision higher than 1MHz
 //! - [ ] Source selection
+//! - [ ] Precise control over the PLL48CLK frequency
 //!
-//! # Examples
+//! # Usage
 //!
 //! For the purposes of brevity, any error checking has been removed. In real applications, always
 //! check the return values of the [Pll] methods.
@@ -31,6 +38,17 @@
 //! ```rust,ignore
 //! pll.set_frequency(100); // 100MHz
 //! pll.enable();
+//! ```
+//!
+//! ## Check the clock frequency
+//! 
+//! ```rust,ignore
+//! let optional_pll_frequency = pll.get_frequency();
+//! if let None = optional_pll_frequency {
+//!     /* Clock stopped */
+//! }
+//! let pll_frequency = optional_pll_frequency.unwrap_or_panic();
+//! /* Computations based on the PLL frequency */
 //! ```
 //!
 //! ## Stop the clock
@@ -54,6 +72,33 @@
 //! } else {
 //!     // do something...
 //! }
+//! ```
+//!
+//! ## Configure the PLL clock so that PLL48CLK output is correctly calibrated
+//! ```rust,ignore
+//! // The frequency of the PLL clock must be 1, 1.5, 2, 2.5, 3, 3.5 or 4 x 48MHz in order to get
+//! // 48MHz output. Otherwise, the driver will attempt to get a frequency lower than 48MHz, but as
+//! // close as possible to 48MHz.
+//! pll.set_frequency(72); // 72MHz = 48Mhz * 1.5
+//! pll.enable();
+//! assert_eq!(true, pll.is_pll48_calibrated());
+//! ```
+//!
+//! ## Check if the PLL48CLK output is calibrated.
+//! ```
+//! if !pll.is_pll48_calibrated() {
+//!     /* Handle the case when it is not calibrated */
+//! }
+//! ```
+//!
+//! ## Get the frequency of the PLL48CLK output
+//!
+//! ```
+//! let optional_pll48_frequency = pll.get_frequency();
+//! if let None = optional_pll48_frequency {
+//!     /* Clock stopped */
+//! }
+//! let pll48_frequency = optinal_pll48_frequency.unwrap_or_panic();
 //! ```
 
 
@@ -138,9 +183,9 @@ impl<'a> Pll<'a> {
     ///
     /// # Returns
     ///
-    /// + Err([ErrorCode::BUSY]): if enabling the PLL clock took too long. Recall this method to 
+    /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long. Recall this method to 
     /// ensure the PLL clock is running.
-    /// + Ok(()): PLL clock successfully enabled and running.
+    /// + [Ok]\(()\): PLL clock successfully enabled and running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         // Enable the PLL clock
         self.rcc.enable_pll_clock();
@@ -160,10 +205,10 @@ impl<'a> Pll<'a> {
     ///
     /// # Returns
     ///
-    /// + Err([ErrorCode::FAIL]): if the PLL clock is configured as the system clock.
-    /// + Err([ErrorCode::BUSY]): disabling the PLL clock took to long. Retry to ensure it is
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is configured as the system clock.
+    /// + [Err]\([ErrorCode::BUSY]\): disabling the PLL clock took to long. Retry to ensure it is
     /// not running.
-    /// + Ok(()): PLL clock disabled and off.
+    /// + [Ok]\(()\): PLL clock disabled and off.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         // Can't disable the PLL clock when it is used as the system clock
         if self.rcc.get_sys_clock_source() == SysClockSource::PLLCLK {
@@ -196,7 +241,17 @@ impl<'a> Pll<'a> {
 
     /// Set the frequency of the PLL clock.
     ///
-    /// The PLL clock must be disabled.
+    /// The PLL clock has two outputs:
+    ///
+    /// + main output used for configuring the system clock
+    /// + a second output called PLL48CLK used by OTG USB FS (48MHz), the random number generator
+    /// (≤ 48MHz) and the SDIO (≤ 48MHz) clocks.
+    ///
+    /// When calling this method, the given frequency is set for the main output. The method will
+    /// attempt to configure the PLL48CLK output to 48MHz, or to the hightest value less than 48MHz
+    /// if it is not possible to get a precise 48MHz. In order to obtain a precise 48MHz frequency
+    /// (for the OTG USB FS peripheral), one should call this method with a frequency of 1, 1.5, 2,
+    /// 2.5 ... 4 x 48MHz.
     ///
     /// # Parameters
     ///
@@ -204,10 +259,10 @@ impl<'a> Pll<'a> {
     ///
     /// # Returns
     ///
-    /// + Err([ErrorCode::INVAL]): if the desired frequency can't be achieved
-    /// + Err([ErrorCode::FAIL]): if the PLL clock is already enabled. It must be disabled before
+    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
     /// configuring it.
-    /// + Ok(()): the PLL clock has been successfully configured
+    /// + [Ok]\(()\): the PLL clock has been successfully configured
     pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
         // Check for errors:
         // + PLL clock running
@@ -217,6 +272,12 @@ impl<'a> Pll<'a> {
         } else if desired_frequency_mhz < 13 || desired_frequency_mhz > 216 {
             return Err(ErrorCode::INVAL);
         }
+
+        // The output frequencies for the PLL clock is computed as following:
+        // Source frequency / PLLM = VCO input frequency (must range from 1MHz to 2MHz)
+        // VCO output frequency = VCO input frequency * PLLN (must range from 100MHz to 432MHz)
+        // PLL output frequency = VCO output frequency / PLLP
+        // PLL48CLK = VCO output frequency / PLLQ
 
         // Compute PLLP
         let pllp = Self::compute_pllp(desired_frequency_mhz);
@@ -246,8 +307,8 @@ impl<'a> Pll<'a> {
     ///
     /// # Returns
     ///
-    /// + Some(frequency_mhz): if the PLL clock is enabled.
-    /// + None: if the PLL clock is disabled.
+    /// + [Some]\(frequency_mhz\): if the PLL clock is enabled.
+    /// + [None]: if the PLL clock is disabled.
     pub fn get_frequency(&self) -> Option<usize> {
         if self.is_enabled() {
             self.frequency.extract()
@@ -263,8 +324,8 @@ impl<'a> Pll<'a> {
     ///
     /// # Returns
     ///
-    /// + Some(frequency_mhz): if the PLL clock is enabled.
-    /// + None: if the PLL clock is disabled.
+    /// + [Some]\(frequency_mhz\): if the PLL clock is enabled.
+    /// + [None]: if the PLL clock is disabled.
     pub fn get_frequency_pll48(&self) -> Option<usize> {
         if self.is_enabled() {
             self.pll48_frequency.extract()
@@ -273,14 +334,14 @@ impl<'a> Pll<'a> {
         }
     }
 
-    /// Check if the PLL48 clock is configured (its output is exactly 48MHz).
+    /// Check if the PLL48 clock is calibrated (its output is exactly 48MHz).
     ///
-    /// 48MHz is required for USB OTG FS.
+    /// A frequency of 48MHz is required for USB OTG FS.
     ///
     /// # Returns
     ///
-    /// + true: the PLL48 clock frequency is exactly 48MHz.
-    /// + false: the PLL48 clock is not exactly 48MHz.
+    /// + [true]: the PLL48 clock frequency is exactly 48MHz.
+    /// + [false]: the PLL48 clock is not exactly 48MHz.
     pub fn is_pll48_calibrated(&self) -> bool {
         // Cannot panic, since pll48_calibrated is never assigned to None
         self.pll48_calibrated.unwrap_or_panic()
@@ -290,8 +351,8 @@ impl<'a> Pll<'a> {
 
 /// Tests for the PLL clock
 ///
-/// This module ensures that the PLL clock works as expected. If the PLL clock has changed, ensure
-/// to run all the tests to see if anything is broken.
+/// This module ensures that the PLL clock works as expected. If changes are brought to the PLL
+/// clock, ensure to run all the tests to see if anything is broken.
 ///
 /// # Usage
 ///
@@ -329,7 +390,7 @@ impl<'a> Pll<'a> {
 ///
 /// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
 /// output of the test execution.
-pub mod unit_tests {
+pub mod tests {
     use super::*;
 
     // Depending on the default PLLM value, the computed PLLN value changes.
