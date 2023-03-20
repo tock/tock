@@ -711,6 +711,7 @@ const RCC_BASE: StaticRef<RccRegisters> =
 //pub(crate) const RESET_PLLM_VALUE: usize = PLLM::DivideBy16; // M = 16
 pub(crate) const RESET_PLLN_VALUE: usize = 0b011_000_000; // N = 192
 //pub(crate) const RESET_PLLP_VALUE: PLLP = PLLP::DivideBy2; // P = 2
+//pub(crate) const RESET_PLLQ_VALUE: PLLQ = PLLQ::DivideBy4; // Q = 4
 
 // The default PLL configuration. See Rcc::init_pll_clock() for more details.
 pub(crate) const DEFAULT_PLLM_VALUE: PLLM = PLLM::DivideBy8;
@@ -765,6 +766,7 @@ impl Rcc {
         self.set_pll_clocks_m_divider(DEFAULT_PLLM_VALUE);
         self.set_pll_clock_n_multiplier(DEFAULT_PLLN_VALUE);
         self.set_pll_clock_p_divider(DEFAULT_PLLP_VALUE);
+        self.set_pll_clock_q_divider(DEFAULT_PLLQ_VALUE);
     }
 
     pub(crate) fn disable_pll_clock(&self) {
