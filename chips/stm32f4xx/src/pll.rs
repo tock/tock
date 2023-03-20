@@ -103,13 +103,14 @@
 //!
 //! [^doc_ref]: See 6.2.3 in the documentation.
 
-
-use crate::rcc::*;
+use crate::rcc::{DEFAULT_PLLM_VALUE, DEFAULT_PLLN_VALUE, DEFAULT_PLLP_VALUE, DEFAULT_PLLQ_VALUE};
+use crate::rcc::{PLLM, PLLP, PLLQ};
+use crate::rcc::Rcc;
+use crate::rcc::SysClockSource;
 
 use kernel::debug;
-use kernel::ErrorCode;
 use kernel::utilities::cells::OptionalCell;
-
+use kernel::ErrorCode;
 
 /// Main PLL clock structure.
 pub struct Pll<'a> {
@@ -185,7 +186,7 @@ impl<'a> Pll<'a> {
     ///
     /// # Returns
     ///
-    /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long. Recall this method to 
+    /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long. Recall this method to
     /// ensure the PLL clock is running.
     /// + [Ok]\(()\): PLL clock successfully enabled and running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
@@ -296,7 +297,8 @@ impl<'a> Pll<'a> {
 
         // Check if PLL48CLK is calibrated, e.g. its frequency is exactly 48MHz
         let pll48_frequency = vco_output_frequency / pllq as usize;
-        self.pll48_calibrated.set(pll48_frequency == 48 && vco_output_frequency % pllq as usize == 0);
+        self.pll48_calibrated
+            .set(pll48_frequency == 48 && vco_output_frequency % pllq as usize == 0);
 
         // Cache the frequency so it is not computed every time a get method is called
         self.frequency.set(desired_frequency_mhz);
@@ -349,7 +351,6 @@ impl<'a> Pll<'a> {
         self.pll48_calibrated.unwrap_or_panic()
     }
 }
-
 
 /// Tests for the PLL clock
 ///
@@ -418,7 +419,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy8, pllp);
         let mut plln = Pll::compute_plln(13, pllp);
         assert_eq!(52 * MULTIPLIER, plln);
-        let mut vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        let mut vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         let mut pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy3, pllq);
 
@@ -427,7 +428,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy8, pllp);
         plln = Pll::compute_plln(25, pllp);
         assert_eq!(100 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy5, pllq);
 
@@ -436,7 +437,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy8, pllp);
         plln = Pll::compute_plln(54, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -445,7 +446,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy6, pllp);
         plln = Pll::compute_plln(55, pllp);
         assert_eq!(165 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy7, pllq);
 
@@ -454,7 +455,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy6, pllp);
         plln = Pll::compute_plln(70, pllp);
         assert_eq!(210 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -463,7 +464,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy6, pllp);
         plln = Pll::compute_plln(72, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -472,7 +473,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy4, pllp);
         plln = Pll::compute_plln(73, pllp);
         assert_eq!(146 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy7, pllq);
 
@@ -481,7 +482,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy4, pllp);
         plln = Pll::compute_plln(100, pllp);
         assert_eq!(200 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -490,7 +491,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy4, pllp);
         plln = Pll::compute_plln(108, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -499,7 +500,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(109, pllp);
         assert_eq!(109 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy5, pllq);
 
@@ -508,7 +509,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(125, pllp);
         assert_eq!(125 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy6, pllq);
 
@@ -517,7 +518,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(180, pllp);
         assert_eq!(180 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy8, pllq);
 
@@ -525,8 +526,8 @@ pub mod tests {
         pllp = Pll::compute_pllp(216);
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(216, pllp);
-        assert_eq!(216 * MULTIPLIER , plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize  * plln;
+        assert_eq!(216 * MULTIPLIER, plln);
+        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
