@@ -710,8 +710,8 @@ const RCC_BASE: StaticRef<RccRegisters> =
 // Default values when the hardware is reset. Uncomment if you need them.
 //pub(crate) const RESET_PLLM_VALUE: usize = PLLM::DivideBy16; // M = 16
 pub(crate) const RESET_PLLN_VALUE: usize = 0b011_000_000; // N = 192
-//pub(crate) const RESET_PLLP_VALUE: PLLP = PLLP::DivideBy2; // P = 2
-//pub(crate) const RESET_PLLQ_VALUE: PLLQ = PLLQ::DivideBy4; // Q = 4
+                                                          //pub(crate) const RESET_PLLP_VALUE: PLLP = PLLP::DivideBy2; // P = 2
+                                                          //pub(crate) const RESET_PLLQ_VALUE: PLLQ = PLLQ::DivideBy4; // Q = 4
 
 // Default PLL configuration. See Rcc::init_pll_clock() for more details.
 //
@@ -790,7 +790,9 @@ impl Rcc {
 
     // This method must be called only when all PLL clocks are disabled
     pub(crate) fn set_pll_clocks_source(&self, source: PllSource) {
-        self.registers.pllcfgr.modify(PLLCFGR::PLLSRC.val(source as u32));
+        self.registers
+            .pllcfgr
+            .modify(PLLCFGR::PLLSRC.val(source as u32));
     }
 
     // This method must be called only when all PLL clocks are disabled
@@ -1195,7 +1197,7 @@ impl From<u32> for SysClockSource {
         match value {
             0b00 => SysClockSource::HSI,
             0b01 => SysClockSource::HSE,
-            _ => SysClockSource::PLLCLK
+            _ => SysClockSource::PLLCLK,
         }
     }
 }
