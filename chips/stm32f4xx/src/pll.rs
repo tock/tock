@@ -94,10 +94,7 @@ impl<'a> Pll<'a> {
             PLLP::DivideBy6 => 6,
             PLLP::DivideBy8 => 8,
         };
-        const PLLM: usize = match DEFAULT_PLLM_VALUE {
-            PLLM::DivideBy8 => 8,
-            PLLM::DivideBy16 => 16,
-        };
+        const PLLM: usize = DEFAULT_PLLM_VALUE as usize;
         Self {
             rcc,
             frequency: OptionalCell::new(16 / PLLM * DEFAULT_PLLN_VALUE / PLLP),

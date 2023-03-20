@@ -754,10 +754,7 @@ impl Rcc {
     // dividing this frequency by 2.
     fn init_pll_clock(&self) {
         self.set_pll_clocks_source(PllSource::HSI);
-        self.set_pll_clocks_m_divider(match DEFAULT_PLLM_VALUE {
-            PLLM::DivideBy16 => 16,
-            PLLM::DivideBy8 => 8,
-        });
+        self.set_pll_clocks_m_divider(DEFAULT_PLLM_VALUE);
         self.set_pll_clock_n_multiplier(DEFAULT_PLLN_VALUE);
         self.set_pll_clock_p_divider(DEFAULT_PLLP_VALUE);
     }
@@ -784,7 +781,7 @@ impl Rcc {
     }
 
     // This method must be called only when all PLL clocks are disabled
-    pub(crate) fn set_pll_clocks_m_divider(&self, m: usize) {
+    pub(crate) fn set_pll_clocks_m_divider(&self, m: PLLM) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
     }
 
@@ -1132,8 +1129,8 @@ pub(crate) enum PLLP {
 // designed to support 1MHz frequency precision. In a future update, PLLM will become a usize.
 #[allow(dead_code)]
 pub(crate) enum PLLM {
-    DivideBy8,
-    DivideBy16,
+    DivideBy8 = 8,
+    DivideBy16 = 16,
 }
 
 /// Clock sources for the CPU
