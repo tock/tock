@@ -41,7 +41,7 @@
 //! ```
 //!
 //! ## Check the clock frequency
-//! 
+//!
 //! ```rust,ignore
 //! let optional_pll_frequency = pll.get_frequency();
 //! if let None = optional_pll_frequency {
@@ -98,7 +98,7 @@
 //! if let None = optional_pll48_frequency {
 //!     /* Clock stopped */
 //! }
-//! let pll48_frequency = optinal_pll48_frequency.unwrap_or_panic();
+//! let pll48_frequency = optional_pll48_frequency.unwrap_or_panic();
 //! ```
 
 
