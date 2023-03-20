@@ -713,18 +713,19 @@ pub(crate) const RESET_PLLN_VALUE: usize = 0b011_000_000; // N = 192
 //pub(crate) const RESET_PLLP_VALUE: PLLP = PLLP::DivideBy2; // P = 2
 //pub(crate) const RESET_PLLQ_VALUE: PLLQ = PLLQ::DivideBy4; // Q = 4
 
-// The default PLL configuration. See Rcc::init_pll_clock() for more details.
+// Default PLL configuration. See Rcc::init_pll_clock() for more details.
+//
+// Choose PLLM::DivideBy8 for reduced PLL jitter or PLLM::DivideBy16 for default hardware
+// configuration
 pub(crate) const DEFAULT_PLLM_VALUE: PLLM = PLLM::DivideBy8;
-// **HELP:** Does tock support static asserts? Changing DEFAULT_PLLN_VALUE might change the default
-// PLL frequency of 96MHz. TRNG relies on this value to get its 48MHz frequency (see
-// Rcc::configure_rng_clock()). Either the default frequency value of the PLL is statically
-// asserted to prevent subtle bugs or change the TRNG peripheral implementation to take into
-// account the possible variation of the main Pll clock.
+// DON'T CHANGE THIS VALUE
 pub(crate) const DEFAULT_PLLN_VALUE: usize = RESET_PLLN_VALUE;
+// Dynamically getting the default PLLP value based on the PLLM value
 pub(crate) const DEFAULT_PLLP_VALUE: PLLP = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => PLLP::DivideBy2,
     PLLM::DivideBy8 => PLLP::DivideBy4,
 };
+// Dynamically getting the default PLLP value based on the PLLM value
 pub(crate) const DEFAULT_PLLQ_VALUE: PLLQ = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => PLLQ::DivideBy4,
     PLLM::DivideBy8 => PLLQ::DivideBy8,
@@ -769,6 +770,7 @@ impl Rcc {
         self.set_pll_clock_q_divider(DEFAULT_PLLQ_VALUE);
     }
 
+    /* Main PLL clock*/
     pub(crate) fn disable_pll_clock(&self) {
         self.registers.cr.modify(CR::PLLON::CLEAR);
     }
@@ -781,6 +783,7 @@ impl Rcc {
         self.registers.cr.is_set(CR::PLLON)
     }
 
+    // The PLL clock is locked when its signal is stable
     pub(crate) fn is_locked_pll_clock(&self) -> bool {
         self.registers.cr.is_set(CR::PLLRDY)
     }
@@ -1149,6 +1152,7 @@ pub(crate) enum PLLM {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
+// Due to the restricted values for PLLM, PLLQ 10-15 values are meaningless.
 pub(crate) enum PLLQ {
     DivideBy2 = 2,
     DivideBy3,
