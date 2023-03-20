@@ -47,13 +47,13 @@
 //! if let None = optional_pll_frequency {
 //!     /* Clock stopped */
 //! }
-//! let pll_frequency = optional_pll_frequency.unwrap_or_panic();
+//! let pll_frequency = optional_pll_frequency.unwrap();
 //! /* Computations based on the PLL frequency */
 //! ```
 //!
 //! ## Stop the clock
 //!
-//! ```
+//! ```rust,ignore
 //! pll.disable();
 //! ```
 //!
@@ -85,7 +85,7 @@
 //! ```
 //!
 //! ## Check if the PLL48CLK output is calibrated.
-//! ```
+//! ```rust,ignore
 //! if !pll.is_pll48_calibrated() {
 //!     /* Handle the case when it is not calibrated */
 //! }
@@ -93,20 +93,20 @@
 //!
 //! ## Get the frequency of the PLL48CLK output
 //!
-//! ```
+//! ```rust,ignore
 //! let optional_pll48_frequency = pll.get_frequency();
 //! if let None = optional_pll48_frequency {
 //!     /* Clock stopped */
 //! }
-//! let pll48_frequency = optional_pll48_frequency.unwrap_or_panic();
+//! let pll48_frequency = optional_pll48_frequency.unwrap();
 //! ```
 //!
 //! [^doc_ref]: See 6.2.3 in the documentation.
 
-use crate::rcc::{DEFAULT_PLLM_VALUE, DEFAULT_PLLN_VALUE, DEFAULT_PLLP_VALUE, DEFAULT_PLLQ_VALUE};
-use crate::rcc::{PLLM, PLLP, PLLQ};
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
+use crate::rcc::{DEFAULT_PLLM_VALUE, DEFAULT_PLLN_VALUE, DEFAULT_PLLP_VALUE, DEFAULT_PLLQ_VALUE};
+use crate::rcc::{PLLM, PLLP, PLLQ};
 
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
