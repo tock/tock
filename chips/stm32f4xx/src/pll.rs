@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-//! Main phase-locked loop (PLL) clock driver for the STM32F4xx family.
+//! Main phase-locked loop (PLL) clock driver for the STM32F4xx family. [^doc_ref]
 //!
 //! Many boards of the STM32F4xx family provide several PLL clocks. However, all of them have a
 //! main PLL clock. This driver is designed for the main PLL clock. It will be simply referred as
@@ -100,6 +100,8 @@
 //! }
 //! let pll48_frequency = optional_pll48_frequency.unwrap_or_panic();
 //! ```
+//!
+//! [^doc_ref]: See 6.2.3 in the documentation.
 
 
 use crate::rcc::*;
