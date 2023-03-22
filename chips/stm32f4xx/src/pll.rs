@@ -196,7 +196,8 @@ impl<'a> Pll<'a> {
         self.rcc.enable_pll_clock();
 
         // Wait until the PLL clock is locked.
-        for _ in 0..100 {
+        // 125 was obtained by running tests in release mode
+        for _ in 0..125 {
             if self.rcc.is_locked_pll_clock() {
                 return Ok(());
             }
@@ -224,7 +225,8 @@ impl<'a> Pll<'a> {
         self.rcc.disable_pll_clock();
 
         // Wait to unlock the PLL clock
-        for _ in 0..100 {
+        // 10 was obtained by testing in release mode
+        for _ in 0..10 {
             if self.rcc.is_locked_pll_clock() == false {
                 return Ok(());
             }
