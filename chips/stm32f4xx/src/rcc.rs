@@ -770,7 +770,6 @@ impl Rcc {
         SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
     }
 
-
     /* Main PLL clock*/
 
     // The main PLL clock must not be configured as the sistem clock.
