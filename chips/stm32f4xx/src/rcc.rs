@@ -113,7 +113,7 @@ register_bitfields![u32,
         ],
         /// Main PLL (PLL) multiplication factor for VCO
         PLLN OFFSET(6) NUMBITS(9) [],
-        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) inpu
+        /// Division factor for the main PLL (PLL) and audio PLL (PLLI2S) input
         PLLM OFFSET(0) NUMBITS(6) []
     ],
     CFGR [
@@ -740,22 +740,22 @@ impl Rcc {
         rcc
     }
 
-    pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
-        SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
-    }
-
-    // Some clocks may need to be initialized before use
-    pub fn init(&self) {
+    // Some clocks need to be initialized before use
+    fn init(&self) {
         self.init_pll_clock();
     }
 
     // Init the PLL clock. The default configuration:
-    // + sets HSI as the source clock
-    // + Provides a 2MHz VCO input frequency to reduce PLL jitter: freq_VCO_input = freq_source / PLLM
-    // + Provides a 384MHz VCO output frequency: freq_VCO_output = freq_VCO_input * PLLN
-    // + The PLL frequency is set to 96MHz: freq_PLL = freq_VCO_output / PLLP. This way, the 48MHz
-    // frequency required for USB OTG FS, SDIO and RNG peripherals can be easily obtained by
-    // dividing this frequency by 2.
+    // + if DEFAULT_PLLM_VALUE == PLLM::DivideBy8:
+    //   + 2MHz VCO input frequency for reduced PLL jitter: freq_VCO_input = freq_source / PLLM
+    //   + 384MHz VCO output frequency: freq_VCO_output = freq_VCO_input * PLLN
+    //   + 96MHz main output frequency: freq_PLL = freq_VCO_output / PLLP
+    //   + 48MHz PLL48CLK output frequency: freq_PLL48CLK = freq_VCO_output / PLLQ
+    // + if DEFAULT_PLLM_VALUE == PLLM::DivideBy16: (default hardware configuration)
+    //   + 1MHz VCO input frequency for reduced PLL jitter: freq_VCO_input = freq_source / PLLM
+    //   + 384MHz VCO output frequency: freq_VCO_output = freq_VCO_input * PLLN
+    //   + 96MHz main output frequency: freq_PLL = freq_VCO_output / PLLP
+    //   + 48MHz PLL48CLK output frequency: freq_PLL48CLK = freq_VCO_output / PLLQ
     fn init_pll_clock(&self) {
         self.set_pll_clocks_source(PllSource::HSI);
         self.set_pll_clocks_m_divider(DEFAULT_PLLM_VALUE);
@@ -764,7 +764,16 @@ impl Rcc {
         self.set_pll_clock_q_divider(DEFAULT_PLLQ_VALUE);
     }
 
+    // Get the current system clock source
+    pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
+        // Can't panic because the SysClockSource is based on the hardware possible values
+        SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
+    }
+
+
     /* Main PLL clock*/
+
+    // The main PLL clock must not be configured as the sistem clock.
     pub(crate) fn disable_pll_clock(&self) {
         self.registers.cr.modify(CR::PLLON::CLEAR);
     }
