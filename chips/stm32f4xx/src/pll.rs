@@ -174,7 +174,7 @@ impl<'a> Pll<'a> {
     fn compute_pllq(vco_output_frequency_mhz: usize) -> PLLQ {
         for pllq in 3..10 {
             if 48 * pllq >= vco_output_frequency_mhz {
-                return PLLQ::from(pllq);
+                return PLLQ::try_from(pllq).unwrap();
             }
         }
         unreachable!("The previous for loop should always return");
@@ -269,7 +269,7 @@ impl<'a> Pll<'a> {
         // + PLL clock running
         // + invalid frequency
         if self.rcc.is_enabled_pll_clock() {
-            return Result::from(ErrorCode::FAIL);
+            return Err(ErrorCode::FAIL);
         } else if desired_frequency_mhz < 13 || desired_frequency_mhz > 216 {
             return Err(ErrorCode::INVAL);
         }
