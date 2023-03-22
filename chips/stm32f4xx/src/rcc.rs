@@ -739,11 +739,7 @@ impl Rcc {
     }
 
     pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
-        match self.registers.cfgr.read(CFGR::SWS) {
-            0b00 => SysClockSource::HSI,
-            0b01 => SysClockSource::HSE,
-            _ => SysClockSource::PLLCLK,
-        }
+        SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
     }
 
     // Some clocks may need to be initialized before use
@@ -1162,17 +1158,20 @@ pub(crate) enum PLLQ {
     DivideBy9,
 }
 
-impl From<usize> for PLLQ {
-    fn from(value: usize) -> Self {
+impl TryFrom<usize> for PLLQ {
+    type Error = &'static str;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
-            2 => PLLQ::DivideBy2,
-            3 => PLLQ::DivideBy3,
-            4 => PLLQ::DivideBy4,
-            5 => PLLQ::DivideBy5,
-            6 => PLLQ::DivideBy6,
-            7 => PLLQ::DivideBy7,
-            8 => PLLQ::DivideBy8,
-            _ => PLLQ::DivideBy9,
+            2 => Ok(PLLQ::DivideBy2),
+            3 => Ok(PLLQ::DivideBy3),
+            4 => Ok(PLLQ::DivideBy4),
+            5 => Ok(PLLQ::DivideBy5),
+            6 => Ok(PLLQ::DivideBy6),
+            7 => Ok(PLLQ::DivideBy7),
+            8 => Ok(PLLQ::DivideBy8),
+            9 => Ok(PLLQ::DivideBy9),
+            _ => Err("Invalid value for PLLQ::try_from"),
         }
     }
 }
@@ -1188,12 +1187,15 @@ pub enum SysClockSource {
     //PPLLR,
 }
 
-impl From<u32> for SysClockSource {
-    fn from(value: u32) -> Self {
+impl TryFrom<u32> for SysClockSource {
+    type Error = &'static str;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
-            0b00 => SysClockSource::HSI,
-            0b01 => SysClockSource::HSE,
-            _ => SysClockSource::PLLCLK,
+            0b00 => Ok(SysClockSource::HSI),
+            0b01 => Ok(SysClockSource::HSE),
+            0b10 => Ok(SysClockSource::PLLCLK),
+            _ => Err("Invalid value for SysClockSource::try_from"),
         }
     }
 }
