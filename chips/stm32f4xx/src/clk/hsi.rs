@@ -55,7 +55,7 @@ impl<'a> Hsi<'a> {
     /// Create a new instance of the HSI clock.
     ///
     /// # Parameters
-    /// 
+    ///
     /// + rcc: an instance of [crate::rcc]
     ///
     /// # Returns
@@ -155,7 +155,7 @@ impl<'a> Hsi<'a> {
 /// ```
 ///
 /// If everything works as expected, the following message should be printed on the kernel console:
-/// 
+///
 /// ```text
 /// ===============================================
 /// Testing HSI...
