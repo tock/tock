@@ -145,7 +145,9 @@ impl<'a> Pll<'a> {
         Self {
             rcc,
             frequency: OptionalCell::new(HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLP),
-            pll48_frequency: OptionalCell::new(HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLQ),
+            pll48_frequency: OptionalCell::new(
+                HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLQ,
+            ),
             pll48_calibrated: OptionalCell::new(true),
         }
     }
