@@ -19,13 +19,18 @@ pub mod exti;
 pub mod fsmc;
 pub mod gpio;
 pub mod i2c;
-pub mod pll;
 pub mod rcc;
 pub mod spi;
 pub mod syscfg;
 pub mod tim2;
 pub mod trng;
 pub mod usart;
+
+// Clocks
+mod clk;
+pub use clk::clocks;
+pub use clk::pll;
+pub use clk::hsi;
 
 use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 

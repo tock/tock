@@ -770,6 +770,32 @@ impl Rcc {
         SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
     }
 
+    pub(crate) fn is_hsi_clock_system_clock(&self) -> bool {
+        let system_clock_source = self.get_sys_clock_source();
+        system_clock_source == SysClockSource::HSI ||
+            system_clock_source == SysClockSource::PLLCLK &&
+            self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
+    }
+
+    /* HSI clock */
+    // The HSI clock must not be configured as the sistem clock, either directly or indirectly.
+    pub(crate) fn disable_hsi_clock(&self) {
+        self.registers.cr.modify(CR::HSION::CLEAR);
+    }
+
+    pub(crate) fn enable_hsi_clock(&self) {
+        self.registers.cr.modify(CR::HSION::SET);
+    }
+
+    pub(crate) fn is_enabled_hsi_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSION)
+    }
+
+    // Indicates whether the HSI oscillator is stable
+    pub(crate) fn is_ready_hsi_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSIRDY)
+    }
+
     /* Main PLL clock*/
 
     // The main PLL clock must not be configured as the sistem clock.

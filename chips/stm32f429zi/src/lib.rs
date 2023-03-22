@@ -3,7 +3,7 @@
 use cortexm4::{CortexM4, CortexMVariant};
 
 pub use stm32f4xx::{
-    adc, can, chip, dbg, dma, exti, gpio, nvic, pll, rcc, spi, syscfg, tim2, trng, usart,
+    adc, can, clocks, chip, dbg, dma, exti, gpio, hsi, nvic, pll, rcc, spi, syscfg, tim2, trng, usart,
 };
 
 pub mod can_registers;
