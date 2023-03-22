@@ -736,10 +736,12 @@ pub struct Rcc {
 }
 
 impl Rcc {
-    pub const fn new() -> Rcc {
-        Rcc {
+    pub fn new() -> Self {
+        let rcc = Self {
             registers: RCC_BASE,
-        }
+        };
+        rcc.init();
+        rcc
     }
 
     pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
