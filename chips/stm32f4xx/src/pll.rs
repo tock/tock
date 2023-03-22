@@ -118,6 +118,8 @@ pub struct Pll<'a> {
     pll48_calibrated: OptionalCell<bool>,
 }
 
+const HSI_FREQUENCY_MHZ: usize = 16;
+
 impl<'a> Pll<'a> {
     // Create a new instance of the PLL clock.
     //
@@ -142,8 +144,8 @@ impl<'a> Pll<'a> {
         const PLLQ: usize = DEFAULT_PLLQ_VALUE as usize;
         Self {
             rcc,
-            frequency: OptionalCell::new(16 / PLLM * DEFAULT_PLLN_VALUE / PLLP),
-            pll48_frequency: OptionalCell::new(16 / PLLM * DEFAULT_PLLN_VALUE / PLLQ),
+            frequency: OptionalCell::new(HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLP),
+            pll48_frequency: OptionalCell::new(HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLQ),
             pll48_calibrated: OptionalCell::new(true),
         }
     }
@@ -165,7 +167,7 @@ impl<'a> Pll<'a> {
     // The caller must ensure the desired frequency lies between 13 and 216MHz. Otherwise, the
     // return value makes no sense.
     fn compute_plln(desired_frequency_mhz: usize, pllp: PLLP) -> usize {
-        const VCO_INPUT_FREQUENCY: usize = 16 / DEFAULT_PLLM_VALUE as usize;
+        const VCO_INPUT_FREQUENCY: usize = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize;
         desired_frequency_mhz * (pllp as usize + 1) * 2 / VCO_INPUT_FREQUENCY
     }
 
@@ -289,7 +291,7 @@ impl<'a> Pll<'a> {
         self.rcc.set_pll_clock_n_multiplier(plln);
 
         // Compute PLLQ
-        let vco_output_frequency = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        let vco_output_frequency = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         let pllq = Self::compute_pllq(vco_output_frequency);
         self.rcc.set_pll_clock_q_divider(pllq);
 
@@ -417,7 +419,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy8, pllp);
         let mut plln = Pll::compute_plln(13, pllp);
         assert_eq!(52 * MULTIPLIER, plln);
-        let mut vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        let mut vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         let mut pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy3, pllq);
 
@@ -426,7 +428,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy8, pllp);
         plln = Pll::compute_plln(25, pllp);
         assert_eq!(100 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy5, pllq);
 
@@ -435,7 +437,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy8, pllp);
         plln = Pll::compute_plln(54, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -444,7 +446,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy6, pllp);
         plln = Pll::compute_plln(55, pllp);
         assert_eq!(165 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy7, pllq);
 
@@ -453,7 +455,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy6, pllp);
         plln = Pll::compute_plln(70, pllp);
         assert_eq!(210 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -462,7 +464,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy6, pllp);
         plln = Pll::compute_plln(72, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -471,7 +473,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy4, pllp);
         plln = Pll::compute_plln(73, pllp);
         assert_eq!(146 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy7, pllq);
 
@@ -480,7 +482,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy4, pllp);
         plln = Pll::compute_plln(100, pllp);
         assert_eq!(200 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -489,7 +491,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy4, pllp);
         plln = Pll::compute_plln(108, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
@@ -498,7 +500,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(109, pllp);
         assert_eq!(109 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy5, pllq);
 
@@ -507,7 +509,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(125, pllp);
         assert_eq!(125 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy6, pllq);
 
@@ -516,7 +518,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(180, pllp);
         assert_eq!(180 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy8, pllq);
 
@@ -525,7 +527,7 @@ pub mod tests {
         assert_eq!(PLLP::DivideBy2, pllp);
         plln = Pll::compute_plln(216, pllp);
         assert_eq!(216 * MULTIPLIER, plln);
-        vco_output_frequency_mhz = 16 / DEFAULT_PLLM_VALUE as usize * plln;
+        vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         pllq = Pll::compute_pllq(vco_output_frequency_mhz);
         assert_eq!(PLLQ::DivideBy9, pllq);
 
