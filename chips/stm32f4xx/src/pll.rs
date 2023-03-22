@@ -40,29 +40,10 @@
 //! pll.enable();
 //! ```
 //!
-//! ## Check the clock frequency
-//!
-//! ```rust,ignore
-//! let optional_pll_frequency = pll.get_frequency();
-//! if let None = optional_pll_frequency {
-//!     /* Clock stopped */
-//! }
-//! let pll_frequency = optional_pll_frequency.unwrap();
-//! /* Computations based on the PLL frequency */
-//! ```
-//!
 //! ## Stop the clock
 //!
 //! ```rust,ignore
 //! pll.disable();
-//! ```
-//!
-//! ## Reconfigure the clock once started
-//!
-//! ```rust,ignore
-//! pll.disable(); // The PLL clock can't be configured while running
-//! pll.set_frequency(50); // 50MHz
-//! pll.enable();
 //! ```
 //!
 //! ## Check whether the PLL clock is running or not
@@ -74,14 +55,31 @@
 //! }
 //! ```
 //!
+//! ## Check the clock frequency
+//!
+//! ```rust,ignore
+//! let optional_pll_frequency = pll.get_frequency();
+//! if let None = optional_pll_frequency {
+//!     /* Clock stopped */
+//! }
+//! let pll_frequency = optional_pll_frequency.unwrap();
+//! /* Computations based on the PLL frequency */
+//! ```
+//!
+//! ## Reconfigure the clock once started
+//!
+//! ```rust,ignore
+//! pll.disable(); // The PLL clock can't be configured while running
+//! pll.set_frequency(50); // 50MHz
+//! pll.enable();
+//! ```
+//!
 //! ## Configure the PLL clock so that PLL48CLK output is correctly calibrated
 //! ```rust,ignore
 //! // The frequency of the PLL clock must be 1, 1.5, 2, 2.5, 3, 3.5 or 4 x 48MHz in order to get
-//! // 48MHz output. Otherwise, the driver will attempt to get a frequency lower than 48MHz, but as
-//! // close as possible to 48MHz.
+//! // 48MHz output. Otherwise, the driver will attempt to get the closest frequency lower than 48MHz
 //! pll.set_frequency(72); // 72MHz = 48Mhz * 1.5
 //! pll.enable();
-//! assert_eq!(true, pll.is_pll48_calibrated());
 //! ```
 //!
 //! ## Check if the PLL48CLK output is calibrated.
