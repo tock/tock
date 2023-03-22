@@ -720,12 +720,12 @@ pub(crate) const RESET_PLLN_VALUE: usize = 0b011_000_000; // N = 192
 pub(crate) const DEFAULT_PLLM_VALUE: PLLM = PLLM::DivideBy8;
 // DON'T CHANGE THIS VALUE
 pub(crate) const DEFAULT_PLLN_VALUE: usize = RESET_PLLN_VALUE;
-// Dynamically getting the default PLLP value based on the PLLM value
+// Dynamically computing the default PLLP value based on the PLLM value
 pub(crate) const DEFAULT_PLLP_VALUE: PLLP = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => PLLP::DivideBy2,
     PLLM::DivideBy8 => PLLP::DivideBy4,
 };
-// Dynamically getting the default PLLP value based on the PLLM value
+// Dynamically computing the default PLLQ value based on the PLLM value
 pub(crate) const DEFAULT_PLLQ_VALUE: PLLQ = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy16 => PLLQ::DivideBy4,
     PLLM::DivideBy8 => PLLQ::DivideBy8,
@@ -1127,7 +1127,7 @@ impl Rcc {
     }
 }
 
-// **NOTE:** HSE is not yet supported as source clock.
+// NOTE: HSE is not yet supported as source clock.
 pub(crate) enum PllSource {
     HSI = 0b0,
     //HSE = 0b1,
@@ -1186,8 +1186,7 @@ pub enum SysClockSource {
     HSI = 0b00,
     HSE = 0b01,
     PLLCLK = 0b10,
-    // **NOTE:** is there any board that uses this as source for the system clock? Furthermore, not all chips
-    // for the STM32F4xx family support this option.
+    // NOTE: not all STM32F4xx boards support this source.
     //PPLLR,
 }
 
