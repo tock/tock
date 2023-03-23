@@ -514,7 +514,8 @@ impl DebugWriterWrapper {
     }
 
     fn available_len(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.available_len())
+        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
+        self.dw.map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
     }
 }
 

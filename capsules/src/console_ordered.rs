@@ -36,9 +36,11 @@
 //!
 
 use core::cell::Cell;
+use core::cmp;
 
 use kernel::debug_process_slice;
 use kernel::debug::debug_available_len;
+
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::processbuffer::ReadableProcessBuffer;
@@ -49,7 +51,7 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
-const TIMEOUT_START: u32 = 10; // Time to wait if the debug buffer doesn't have space
+const TIMEOUT_START: u32 = 40; // Time to wait if the debug buffer doesn't have space
 const TIMEOUT_WRITE: u32 = 10; // Time to delay sending callback to userspace after write
 const MAX_WRITE_LEN: usize = 200; // Maximium size of application write that is promised atomicity
 
@@ -132,7 +134,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         self.tx_counter.set(app.tx_counter.wrapping_add(1));
 
         let debug_space_avail = debug_available_len();
-
+        
         if self.tx_in_progress.get() {
             // A prior print is outstanding, enqueue
             app.pending_write = true;
@@ -164,15 +166,18 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             .and_then(|write| {
                 write.enter(|data| {
                     // The slice might have become shorter than the requested
-                    // write; if so, just write what there is.
-                    let remaining_data = match data.get(0..app.write_len) {
+                    // write; if so, just write what there is.                    
+                    let real_write_len = cmp::min(app.write_len, debug_available_len() - 20);
+                    let remaining_data = match data.get(0..real_write_len) {
                         Some(remaining_data) => remaining_data,
                         None => data,
                     };
+
                     app.writing = true;
                     self.tx_in_progress.set(true);
-                    if remaining_data.len() > 0 {
-                        debug_process_slice!(remaining_data)
+                    if real_write_len > 0 {
+                        let count = debug_process_slice!(remaining_data);
+                        count
                     } else {
                         0
                     }
@@ -183,7 +188,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         // processes with things to write by looking at the
         // sequence number; if the next-to-be-given sequence
         // number != this process+1, then a process has
-        // grabbed this process+1 and has something to send.
+        // grabbed this process+1 and has something to send. -pal
         self.alarm
             .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(TIMEOUT_WRITE));
         res
@@ -192,7 +197,6 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
 
 impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
     fn alarm(&self) {
-        //debug!("Alarm fired.");
         if self.tx_in_progress.get() {
             self.tx_in_progress.set(false);
 
@@ -235,8 +239,9 @@ impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
         next_writer.map(|pid| {
             self.apps.enter(pid, |app, kernel_data| {
                 app.pending_write = false;
-                let res = self.send(app, kernel_data);
-                app.write_len = res.map_or(0, |bytes| bytes);
+                let len = app.write_len;
+                let _ = self.send_new(app, kernel_data, len);
+                //app.write_len = res.map_or(0, |bytes| bytes);
             })
         });
     }
@@ -263,7 +268,6 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {
-        //debug!("ConsoleOrdered receiving command: {} {} from {:?}", cmd_num, arg1, appid);
         let res = self
             .apps
             .enter(appid, |app, kernel_data| {
@@ -278,7 +282,6 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
                 }
             })
             .map_err(ErrorCode::from);
-        //debug!("Result: {:?}", res);
         match res {
             Ok(Ok(())) => CommandReturn::success(),
             Ok(Err(e)) => CommandReturn::failure(e),
