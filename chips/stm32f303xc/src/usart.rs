@@ -1,6 +1,6 @@
 // use core::cell::Cell;
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -9,7 +9,6 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use crate::deferred_call_tasks::DeferredCallTask;
 use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
@@ -268,14 +267,6 @@ register_bitfields![u32,
     ]
 ];
 
-static DEFERRED_CALLS: [DeferredCall<DeferredCallTask>; 3] = unsafe {
-    [
-        DeferredCall::new(DeferredCallTask::Usart1),
-        DeferredCall::new(DeferredCallTask::Usart2),
-        DeferredCall::new(DeferredCallTask::Usart3),
-    ]
-};
-
 const USART1_BASE: StaticRef<UsartRegisters> =
     unsafe { StaticRef::new(0x40013800 as *const UsartRegisters) };
 const USART2_BASE: StaticRef<UsartRegisters> =
@@ -315,6 +306,8 @@ pub struct Usart<'a> {
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     rx_status: Cell<USARTStateRX>,
+
+    deferred_call: DeferredCall,
 }
 
 impl<'a> Usart<'a> {
@@ -335,6 +328,8 @@ impl<'a> Usart<'a> {
             rx_position: Cell::new(0),
             rx_len: Cell::new(0),
             rx_status: Cell::new(USARTStateRX::Idle),
+
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -378,33 +373,6 @@ impl<'a> Usart<'a> {
 
     pub fn disable_clock(&self) {
         self.clock.disable();
-    }
-
-    pub fn handle_deferred_task(&self) {
-        if self.tx_status.get() == USARTStateTX::AbortRequested {
-            // alert client
-            self.tx_client.map(|client| {
-                self.tx_buffer.take().map(|buf| {
-                    client.transmitted_buffer(buf, self.tx_position.get(), Err(ErrorCode::CANCEL));
-                });
-            });
-            self.tx_status.set(USARTStateTX::Idle);
-        }
-
-        if self.rx_status.get() == USARTStateRX::AbortRequested {
-            // alert client
-            self.rx_client.map(|client| {
-                self.rx_buffer.take().map(|buf| {
-                    client.received_buffer(
-                        buf,
-                        self.rx_position.get(),
-                        Err(ErrorCode::CANCEL),
-                        hil::uart::Error::Aborted,
-                    );
-                });
-            });
-            self.rx_status.set(USARTStateRX::Idle);
-        }
     }
 
     // for use by panic in io.rs
@@ -514,6 +482,39 @@ impl<'a> Usart<'a> {
     }
 }
 
+impl DeferredCallClient for Usart<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+
+    fn handle_deferred_call(&self) {
+        if self.tx_status.get() == USARTStateTX::AbortRequested {
+            // alert client
+            self.tx_client.map(|client| {
+                self.tx_buffer.take().map(|buf| {
+                    client.transmitted_buffer(buf, self.tx_position.get(), Err(ErrorCode::CANCEL));
+                });
+            });
+            self.tx_status.set(USARTStateTX::Idle);
+        }
+
+        if self.rx_status.get() == USARTStateRX::AbortRequested {
+            // alert client
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|buf| {
+                    client.received_buffer(
+                        buf,
+                        self.rx_position.get(),
+                        Err(ErrorCode::CANCEL),
+                        hil::uart::Error::Aborted,
+                    );
+                });
+            });
+            self.rx_status.set(USARTStateRX::Idle);
+        }
+    }
+}
+
 impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
@@ -549,14 +550,7 @@ impl<'a> hil::uart::Transmit<'a> for Usart<'a> {
             self.disable_transmit_interrupt();
             self.tx_status.set(USARTStateTX::AbortRequested);
 
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*USART1_BASE) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*USART2_BASE) as *const _ {
-                DEFERRED_CALLS[1].set()
-            } else if ptr == &(*USART3_BASE) as *const _ {
-                DEFERRED_CALLS[2].set()
-            }
+            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {
@@ -644,14 +638,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
             self.disable_receive_interrupt();
             self.rx_status.set(USARTStateRX::AbortRequested);
 
-            let ptr = &(*self.registers) as *const _;
-            if ptr == &(*USART1_BASE) as *const _ {
-                DEFERRED_CALLS[0].set()
-            } else if ptr == &(*USART2_BASE) as *const _ {
-                DEFERRED_CALLS[1].set()
-            } else if ptr == &(*USART3_BASE) as *const _ {
-                DEFERRED_CALLS[2].set()
-            }
+            self.deferred_call.set();
 
             Err(ErrorCode::BUSY)
         } else {

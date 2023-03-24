@@ -186,7 +186,7 @@ pub trait Read<T: UIntLike> {
     fn is_set(&self, field: Field<T, Self::Reg>) -> bool;
 
     /// Check if any specified parts of a field match
-    fn matches_any(&self, field: FieldValue<T, Self::Reg>) -> bool;
+    fn any_matching_bits_set(&self, field: FieldValue<T, Self::Reg>) -> bool;
 
     /// Check if all specified parts of a field match
     fn matches_all(&self, field: FieldValue<T, Self::Reg>) -> bool;
@@ -273,8 +273,8 @@ where
     }
 
     #[inline]
-    fn matches_any(&self, field: FieldValue<T, Self::Reg>) -> bool {
-        field.matches_any(self.get())
+    fn any_matching_bits_set(&self, field: FieldValue<T, Self::Reg>) -> bool {
+        field.any_matching_bits_set(self.get())
     }
 
     #[inline]

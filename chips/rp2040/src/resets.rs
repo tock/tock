@@ -356,4 +356,12 @@ impl Resets {
             while (self.registers.reset_done.get() & value) != value {}
         }
     }
+
+    pub fn watchdog_reset_all_except(&self, peripherals: &'static [Peripheral]) {
+        let mut value = 0xFFFFFF;
+        for peripheral in peripherals {
+            value ^= peripheral.get_reset_field_set().value;
+        }
+        self.registers.wdsel.set(value);
+    }
 }

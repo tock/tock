@@ -7,7 +7,7 @@
 //!     .finalize(air_quality_component_static!());
 //! ```
 
-use capsules::air_quality::AirQualitySensor;
+use capsules_extra::air_quality::AirQualitySensor;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -17,7 +17,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! air_quality_component_static {
     () => {{
-        kernel::static_buf!(capsules::air_quality::AirQualitySensor<'static>)
+        kernel::static_buf!(capsules_extra::air_quality::AirQualitySensor<'static>)
     };};
 }
 

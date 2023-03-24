@@ -1,0 +1,11 @@
+[package]
+name = "capsules-extra"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+kernel = { path = "../../kernel" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+tickv = { path = "../../libraries/tickv" }
+capsules-core = { path = "../core" }

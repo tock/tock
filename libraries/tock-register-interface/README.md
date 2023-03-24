@@ -203,8 +203,9 @@ ReadOnly<T: UIntLike, R: RegisterLongName = ()>: Readable
 .read(field: Field<T, R>) -> T                 // Read the value of the given field
 .read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
-.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.any_matching_bits_set(value: FieldValue<T, R>) -> bool  // Check if any bits corresponding to the mask in the passed field are set
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.matches_any(&self, fields: &[FieldValue<T, R>]) -> bool // Check if any specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
 WriteOnly<T: UIntLike, R: RegisterLongName = ()>: Writeable
@@ -224,8 +225,9 @@ ReadWrite<T: UIntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWri
       original: LocalRegisterCopy<T, R>,       //  leaving other fields unchanged, but pass in
       value: FieldValue<T, R>)                 //  the original value, instead of doing a register read
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
-.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.any_matching_bits_set(value: FieldValue<T, R>) -> bool  // Check if any bits corresponding to the mask in the passed field are set
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.matches_any(&self, fields: &[FieldValue<T, R>]) -> bool // Check if any specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 
 Aliased<T: UIntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readable + Writeable
@@ -236,8 +238,9 @@ Aliased<T: UIntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readab
 .write(value: FieldValue<T, W>)                // Write the value of one or more fields,
                                                //  overwriting other fields to zero
 .is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
-.matches_any(value: FieldValue<T, R>) -> bool  // Check if any specified parts of a field match
+.any_matching_bits_set(value: FieldValue<T, R>) -> bool  // Check if any bits corresponding to the mask in the passed field are set
 .matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
+.matches_any(&self, fields: &[FieldValue<T, R>]) -> bool // Check if any specified parts of a field match
 .extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
 ```
 
@@ -335,7 +338,8 @@ let txcomplete: bool = registers.s.is_set(Status::TXCOMPLETE);
 // MATCHING
 // -----------------------------------------------------------------------------
 
-// You can also query a specific register state easily with `matches_[any|all]`:
+// You can also query a specific register state easily with `matches_all` or
+// `any_matching_bits_set` or `matches_any`:
 
 // Doesn't care about the state of any field except TXCOMPLETE and MODE:
 let ready: bool = registers.s.matches_all(Status::TXCOMPLETE:SET +
@@ -347,7 +351,16 @@ while !registers.s.matches_all(Status::TXCOMPLETE::SET +
                           Status::TXINTERRUPT::CLEAR) {}
 
 // Or for checking whether any interrupts are enabled:
-let any_ints = registers.s.matches_any(Status::TXINTERRUPT + Status::RXINTERRUPT);
+let any_ints = registers.s.any_matching_bits_set(Status::TXINTERRUPT + Status::RXINTERRUPT);
+
+// Or for checking whether any completion states are cleared:
+let any_cleared = registers.s.matches_any(&[Status::TXCOMPLETE::CLEAR, Status::RXCOMPLETE::CLEAR]);
+
+// Or for checking if a multi-bit field matches one of several modes:
+let sub_word_size = registers.s.matches_any(&[Size::Halfword, Size::Word]);
+
+// Or for checking if any of several fields exactly match in the register:
+let not_supported_mode = registers.s.matches_any(&[Status::Mode::HalfDuplex, Status::Mode::VARSYNC, Status::MODE::NOPARITY]);
 
 // Also you can read a register with set of enumerated values as a enum and `match` over it:
 let mode = registers.cr.read_as_enum(Status::MODE);

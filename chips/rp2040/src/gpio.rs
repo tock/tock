@@ -460,6 +460,31 @@ impl<'a> RPGpioPin<'a> {
     pub fn handle_interrupt(&self) {
         self.client.map(|client| client.fired());
     }
+
+    // needed for usb errata https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf#RP2040-E5
+
+    pub fn start_usb_errata(&self) -> (u32, u32) {
+        let prev_ctrl = self.gpio_registers.pin[self.pin].ctrl.get();
+        let prev_pad = self.gpio_pad_registers.gpio_pad[self.pin].get();
+
+        self.gpio_pad_registers.gpio_pad[self.pin].modify(GPIO_PAD::PUE::SET + GPIO_PAD::PDE::SET);
+        self.gpio_registers.pin[self.pin]
+            .ctrl
+            .modify(GPIOx_CTRL::OEOVER::Disable);
+
+        self.set_function(GpioFunction::GPCK);
+
+        self.gpio_registers.pin[self.pin]
+            .ctrl
+            .modify(GPIOx_CTRL::INOVER::DriveHigh);
+
+        (prev_ctrl, prev_pad)
+    }
+
+    pub fn finish_usb_errata(&self, prev_ctrl: u32, prev_pad: u32) {
+        self.gpio_registers.pin[self.pin].ctrl.set(prev_ctrl);
+        self.gpio_pad_registers.gpio_pad[self.pin].set(prev_pad);
+    }
 }
 
 impl<'a> hil::gpio::Interrupt<'a> for RPGpioPin<'a> {

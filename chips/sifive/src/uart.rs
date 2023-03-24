@@ -12,7 +12,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
 #[repr(C)]
 pub struct UartRegisters {
@@ -76,7 +76,7 @@ enum UARTStateRX {
     AbortRequested,
 }
 
-pub struct Uart<'a, T> {
+pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
     clock_frequency: u32,
     stop_bits: Cell<hil::uart::StopBits>,
@@ -94,7 +94,7 @@ pub struct Uart<'a, T> {
     rx_position: Cell<usize>,
     rx_status: Cell<UARTStateRX>,
 
-    deferred_call: &'a DeferredCall<T>,
+    deferred_call: DeferredCall,
 }
 
 #[derive(Copy, Clone)]
@@ -102,12 +102,8 @@ pub struct UartParams {
     pub baud_rate: u32,
 }
 
-impl<'a, T> Uart<'a, T> {
-    pub fn new(
-        base: StaticRef<UartRegisters>,
-        clock_frequency: u32,
-        deferred_call: &'a DeferredCall<T>,
-    ) -> Uart<'a, T> {
+impl<'a> Uart<'a> {
+    pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
             registers: base,
             clock_frequency: clock_frequency,
@@ -126,7 +122,7 @@ impl<'a, T> Uart<'a, T> {
             rx_position: Cell::new(0),
             rx_status: Cell::new(UARTStateRX::Idle),
 
-            deferred_call,
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -274,7 +270,26 @@ impl<'a, T> Uart<'a, T> {
         }
     }
 
-    pub fn handle_deferred_call(&self) {
+    pub fn transmit_sync(&self, bytes: &[u8]) {
+        let regs = self.registers;
+
+        // Make sure the UART is enabled.
+        regs.txctrl
+            .write(txctrl::txen::SET + self.get_stop_bits() + txctrl::txcnt.val(1));
+
+        for b in bytes.iter() {
+            while regs.txdata.is_set(txdata::full) {}
+            regs.txdata.write(txdata::data.val(*b as u32));
+        }
+    }
+}
+
+impl DeferredCallClient for Uart<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self)
+    }
+
+    fn handle_deferred_call(&self) {
         if self.tx_status.get() == UARTStateTX::AbortRequested {
             // alert client
             self.tx_client.map(|client| {
@@ -300,22 +315,9 @@ impl<'a, T> Uart<'a, T> {
             self.rx_status.set(UARTStateRX::Idle);
         }
     }
-
-    pub fn transmit_sync(&self, bytes: &[u8]) {
-        let regs = self.registers;
-
-        // Make sure the UART is enabled.
-        regs.txctrl
-            .write(txctrl::txen::SET + self.get_stop_bits() + txctrl::txcnt.val(1));
-
-        for b in bytes.iter() {
-            while regs.txdata.is_set(txdata::full) {}
-            regs.txdata.write(txdata::data.val(*b as u32));
-        }
-    }
 }
 
-impl<T> hil::uart::Configure for Uart<'_, T> {
+impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // This chip does not support these features.
         if params.parity != hil::uart::Parity::None {
@@ -335,7 +337,7 @@ impl<T> hil::uart::Configure for Uart<'_, T> {
     }
 }
 
-impl<'a, T: Into<usize> + TryFrom<usize> + Copy> hil::uart::Transmit<'a> for Uart<'a, T> {
+impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -389,7 +391,7 @@ impl<'a, T: Into<usize> + TryFrom<usize> + Copy> hil::uart::Transmit<'a> for Uar
     }
 }
 
-impl<'a, T: Into<usize> + TryFrom<usize> + Copy> hil::uart::Receive<'a> for Uart<'a, T> {
+impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }

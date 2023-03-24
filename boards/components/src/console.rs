@@ -27,33 +27,32 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 1/08/2020
 
-use capsules::console;
-use capsules::console_ordered::ConsoleOrdered;
+use capsules_core::console;
+use capsules_core::console_ordered::ConsoleOrdered;
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
 use kernel::hil::time::{self, Alarm};
 use kernel::hil::uart;
 
-use capsules::console::DEFAULT_BUF_SIZE;
+use capsules_core::console::DEFAULT_BUF_SIZE;
 
 #[macro_export]
 macro_rules! uart_mux_component_static {
     () => {{
-        use capsules::virtual_uart::MuxUart;
+        use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
-        let RX_BUF = static_buf!([u8; capsules::virtual_uart::RX_BUF_LEN]);
+        let RX_BUF = static_buf!([u8; capsules_core::virtualizers::virtual_uart::RX_BUF_LEN]);
         (UART_MUX, RX_BUF)
     }};
     ($rx_buffer_len: literal) => {{
-        use capsules::virtual_uart::MuxUart;
+        use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
         let RX_BUF = static_buf!([u8; $rx_buffer_len]);
@@ -64,20 +63,14 @@ macro_rules! uart_mux_component_static {
 pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
     uart: &'static dyn uart::Uart<'static>,
     baud_rate: u32,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
     pub fn new(
         uart: &'static dyn uart::Uart<'static>,
         baud_rate: u32,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> UartMuxComponent<RX_BUF_LEN> {
-        UartMuxComponent {
-            uart,
-            baud_rate,
-            deferred_caller,
-        }
+        UartMuxComponent { uart, baud_rate }
     }
 }
 
@@ -90,15 +83,8 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rx_buf = s.1.write([0; RX_BUF_LEN]);
-        let uart_mux = s.0.write(MuxUart::new(
-            self.uart,
-            rx_buf,
-            self.baud_rate,
-            self.deferred_caller,
-        ));
-        uart_mux.initialize_callback_handle(
-            self.deferred_caller.register(uart_mux).unwrap(), // Unwrap fail = no deferred call slot available for uart mux
-        );
+        let uart_mux = s.0.write(MuxUart::new(self.uart, rx_buf, self.baud_rate));
+        kernel::deferred_call::DeferredCallClient::register(uart_mux);
 
         uart_mux.initialize();
         hil::uart::Transmit::set_transmit_client(self.uart, uart_mux);
@@ -111,8 +97,8 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 #[macro_export]
 macro_rules! console_component_static {
     () => {{
-        use capsules::console::{Console, DEFAULT_BUF_SIZE};
-        use capsules::virtual_uart::UartDevice;
+        use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
+        use capsules_core::virtualizers::virtual_uart::UartDevice;
         use kernel::static_buf;
         let read_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
         let write_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);

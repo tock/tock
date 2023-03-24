@@ -1,0 +1,16 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+# Copyright Google LLC 2022.
+
+/.git/
+*.md
+
+# TODO: This disables the license checker over most of the repository, enabling
+# it on a handful of files for demonstration purposes. The next few lines should
+# be removed when license headers are added.
+*
+!/.lcignore
+!/tools/
+!/tools/license-checker/
+!/tools/license-checker/**

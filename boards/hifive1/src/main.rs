@@ -9,11 +9,10 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::platform::chip::Chip;
@@ -50,23 +49,24 @@ pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct HiFive1 {
-    led: &'static capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, sifive::gpio::GpioPin<'static>>,
         3,
     >,
-    console: &'static capsules::console::Console<'static>,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
-        capsules::virtual_uart::UartDevice<'static>,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>,
+        VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
     >,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer:
-        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+    scheduler_timer: &'static VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -76,10 +76,10 @@ impl SyscallDriverLookup for HiFive1 {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             _ => f(None),
         }
     }
@@ -94,7 +94,7 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>;
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -130,10 +130,12 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
 /// Additionally, this function should only ever be called once, as it is declaring and
 /// initializing static memory for system peripherals.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut E310G002DefaultPeripherals<'static> {
+unsafe fn create_peripherals(
+    clock_frequency: u32,
+) -> &'static mut E310G002DefaultPeripherals<'static> {
     static_init!(
         E310G002DefaultPeripherals,
-        E310G002DefaultPeripherals::new()
+        E310G002DefaultPeripherals::new(clock_frequency)
     )
 }
 
@@ -193,7 +195,8 @@ pub unsafe fn main() {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
-    let peripherals = create_peripherals();
+    let peripherals = create_peripherals(344_000_000);
+    peripherals.init();
 
     peripherals.e310x.watchdog.disable();
     peripherals.e310x.rtc.disable();
@@ -205,19 +208,11 @@ pub unsafe fn main() {
     peripherals
         .e310x
         .prci
-        .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
+        .set_clock_frequency(sifive::prci::ClockFrequency::Freq344Mhz);
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -227,12 +222,8 @@ pub unsafe fn main() {
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.e310x.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.e310x.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
@@ -248,37 +239,40 @@ pub unsafe fn main() {
     );
 
     let hardware_timer = static_init!(
-        sifive::clint::Clint,
-        sifive::clint::Clint::new(&e310_g002::clint::CLINT_BASE)
+        e310_g002::chip::E310xClint,
+        e310_g002::chip::E310xClint::new(&e310_g002::clint::CLINT_BASE)
     );
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, sifive::clint::Clint>,
+        MuxAlarm<'static, e310_g002::chip::E310xClint>,
         MuxAlarm::new(hardware_timer)
     );
     hil::time::Alarm::set_alarm_client(hardware_timer, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
+        VirtualMuxAlarm<'static, e310_g002::chip::E310xClint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let systick_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, sifive::clint::Clint>,
+        VirtualMuxAlarm<'static, e310_g002::chip::E310xClint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     systick_virtual_alarm.setup();
 
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, sifive::clint::Clint>>,
-        capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver<
+            'static,
+            VirtualMuxAlarm<'static, e310_g002::chip::E310xClint>,
+        >,
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
@@ -298,9 +292,10 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(
-        sifive::clint::Clint
+        e310_g002::chip::E310xClint
     ));
     let _ = process_console.start();
 
@@ -316,17 +311,18 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
+    const DEBUG_BUFFER_KB: usize = 1;
     components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+        .finalize(components::debug_writer_component_static!(DEBUG_BUFFER_KB));
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());
@@ -341,7 +337,7 @@ pub unsafe fn main() {
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, sifive::clint::Clint<'static>>>,
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
 

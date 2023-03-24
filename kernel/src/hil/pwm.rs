@@ -7,7 +7,7 @@ pub trait Pwm {
     /// The chip-dependent type of a PWM pin.
     type Pin;
 
-    /// Generate a PWM single on the given pin at the given frequency and duty
+    /// Generate a PWM signal on the given pin at the given frequency and duty
     /// cycle.
     ///
     /// - `frequency_hz` is specified in Hertz.
