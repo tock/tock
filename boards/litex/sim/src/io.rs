@@ -19,10 +19,11 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         unsafe {
             PANIC_REFERENCES.uart.unwrap().transmit_sync(buf);
         }
+        buf.len()
     }
 }
 

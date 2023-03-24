@@ -37,7 +37,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         let uart = nrf52833::uart::Uarte::new();
 
         use kernel::hil::uart::Configure;
@@ -59,6 +59,7 @@ impl IoWrite for Writer {
                 while !uart.tx_ready() {}
             }
         }
+        buf.len()
     }
 }
 

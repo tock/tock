@@ -30,10 +30,11 @@ impl<'a> Writer<'a> {
 }
 
 impl IoWrite for Writer<'_> {
-    fn write(&mut self, bytes: &[u8]) {
+    fn write(&mut self, bytes: &[u8]) -> usize {
         for byte in bytes {
             self.output.send_byte(*byte);
         }
+        buf.len()
     }
 }
 

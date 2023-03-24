@@ -25,7 +25,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         // Here, we create a second instance of the Uarte struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
@@ -46,6 +46,7 @@ impl IoWrite for Writer {
             }
             while !uart.tx_ready() {}
         }
+        buf.len()
     }
 }
 

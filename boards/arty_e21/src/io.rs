@@ -25,8 +25,9 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         sifive::uart::Uart::new(arty_e21_chip::uart::UART0_BASE, 32_000_000).transmit_sync(buf);
+        buf.len()
     }
 }
 

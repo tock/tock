@@ -24,9 +24,10 @@ impl Write for Uart {
 }
 
 impl IoWrite for Uart {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         let uart0 = msp432::uart::Uart::new(msp432::usci::USCI_A0_BASE, 0, 1, 1, 1);
         uart0.transmit_sync(buf);
+        buf.len()
     }
 }
 
