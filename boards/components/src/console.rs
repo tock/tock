@@ -178,8 +178,8 @@ impl Component for ConsoleComponent {
 macro_rules! console_ordered_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
-        let print_log = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
-        (mux_alarm, print_log)
+        let console   = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
+        (mux_alarm, console)
     };};
 }
 
@@ -188,6 +188,9 @@ pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     alarm_mux: &'static MuxAlarm<'static, A>,
+    atomic_size: usize,
+    retry_timer: u32,
+    write_timer: u32,
 }
 
 impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
@@ -195,11 +198,17 @@ impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         alarm_mux: &'static MuxAlarm<'static, A>,
+        atomic_size: usize,
+        retry_timer: u32,
+        write_timer: u32,
     ) -> ConsoleOrderedComponent<A> {
         ConsoleOrderedComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,
             alarm_mux: alarm_mux,
+            atomic_size: atomic_size,
+            retry_timer: retry_timer,
+            write_timer: write_timer,
         }
     }
 }
@@ -217,13 +226,16 @@ impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A>
         let virtual_alarm1 = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         virtual_alarm1.setup();
 
-        let print_log = static_buffer.1.write(ConsoleOrdered::new(
+        let console = static_buffer.1.write(ConsoleOrdered::new(
             virtual_alarm1,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            self.atomic_size,
+            self.retry_timer,
+            self.write_timer,
         ));
 
-        virtual_alarm1.set_alarm_client(print_log);
-        print_log
+        virtual_alarm1.set_alarm_client(console);
+        console
     }
 }
 

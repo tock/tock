@@ -1,7 +1,15 @@
 //! Provides userspace with access to a serial interface whose output
 //! is in-order with respect to kernel debug!() operations. Prints to
-//! the console are atomic up to a newline or a particular constant
-//! length as defined in the kernel.
+//! the console are atomic up to particular constant length, which
+//! can be set at capsule instantiation.
+//!
+//! Note that this capsule does *not* buffer writes in an additional
+//! buffer; this is critical to ensure ordering. Instead, it pushes
+//! writes into the kernel debug buffer. If there is insufficient space
+//! in the buffer for the write (or an atomic block size chunk of a very
+//! large write), the capsule waits and uses a retry timer. This means
+//! that in-kernel debug statements can starve userspace prints, e.g.,
+//! if they always keep the kernel debug buffer full.
 //!
 //! Setup
 //! -----
@@ -51,10 +59,6 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Console as usize;
 
-const TIMEOUT_START: u32 = 40; // Time to wait if the debug buffer doesn't have space
-const TIMEOUT_WRITE: u32 = 10; // Time to delay sending callback to userspace after write
-const MAX_WRITE_LEN: usize = 200; // Maximium size of application write that is promised atomicity
-
 /// Ids for read-only allow buffers
 mod ro_allow {
     /// Before the allow syscall was handled by the kernel,
@@ -89,6 +93,16 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
     tx_in_progress: Cell<bool>, // If true there's an ongoing write so others must wait
     tx_counter: Cell<usize>,    // Sequence number for writes from different processes
     alarm: &'a A,               // Timer for trying to send  more
+    atomic_size: Cell<usize>,   // The maximum size write the capsule promises atomicity;
+                                // larger writes may be broken into atomic_size chunks.
+                                // This must be smaller than the debug buffer size or a long
+                                // write may never print.
+    retry_timer: Cell<u32>,     // How long the capsule will wait before retrying if there
+                                // is insufficient space in the debug buffer (alarm ticks)
+                                // when a write is first attempted.
+    write_timer: Cell<u32>,     // Time to wait after a successful write into the debug buffer,
+                                // before checking whether write more or issue a callback that
+                                // the current write has completed (alarm ticks).
 }
 
 impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
@@ -100,12 +114,18 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
+        atomic_size: usize,
+        retry_timer: u32,
+        write_timer: u32,
     ) -> ConsoleOrdered<'a, A> {
         ConsoleOrdered {
             apps: grant,
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
             alarm: alarm,
+            atomic_size: Cell::new(atomic_size),
+            retry_timer: Cell::new(retry_timer),
+            write_timer: Cell::new(write_timer),
         }
     }
 
@@ -141,14 +161,14 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         } else if app.write_len <= debug_space_avail {
             // Space for the full write, make it
             app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
-        } else if MAX_WRITE_LEN <= debug_space_avail {
+        } else if self.atomic_size.get() <= debug_space_avail {
             // Space for a partial write, make it
             app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
         } else { 
             // No space even for a partial, minimum size write: enqueue
             app.pending_write = true;
             self.alarm
-                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(TIMEOUT_START));
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(self.retry_timer.get()));
         }
         Ok(())
     }
@@ -190,7 +210,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         // number != this process+1, then a process has
         // grabbed this process+1 and has something to send. -pal
         self.alarm
-            .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(TIMEOUT_WRITE));
+            .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(self.write_timer.get()));
         res
     }
 }

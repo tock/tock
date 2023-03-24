@@ -399,7 +399,8 @@ pub unsafe fn main() {
         .finalize(components::process_console_component_static!(
             sam4l::ast::Ast
         ));
-    let console = ConsoleOrderedComponent::new(board_kernel, capsules::console_ordered::DRIVER_NUM, mux_alarm)
+    let console = ConsoleOrderedComponent::new(board_kernel, capsules::console_ordered::DRIVER_NUM, mux_alarm,
+        200, 20, 20)
         .finalize(components::console_ordered_component_static!(sam4l::ast::Ast));
     DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
 
