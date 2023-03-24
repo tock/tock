@@ -34,7 +34,7 @@ impl IoWrite for Writer<'_> {
         for byte in bytes {
             self.output.send_byte(*byte);
         }
-        buf.len()
+        bytes.len()
     }
 }
 
