@@ -30,6 +30,7 @@
 use capsules::console;
 use capsules::console_ordered::ConsoleOrdered;
 
+use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -37,9 +38,8 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil;
-use kernel::hil::uart;
 use kernel::hil::time::{self, Alarm};
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use kernel::hil::uart;
 
 use capsules::console::DEFAULT_BUF_SIZE;
 
@@ -178,11 +178,10 @@ impl Component for ConsoleComponent {
 macro_rules! console_ordered_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
-        let console   = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
+        let console = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
         (mux_alarm, console)
     };};
 }
-
 
 pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
@@ -238,4 +237,3 @@ impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A>
         console
     }
 }
-

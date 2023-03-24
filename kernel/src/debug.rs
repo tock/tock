@@ -515,7 +515,8 @@ impl DebugWriterWrapper {
 
     fn available_len(&self) -> usize {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw.map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
+        self.dw
+            .map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
     }
 }
 
@@ -590,7 +591,6 @@ pub fn debug_available_len() -> usize {
     let writer = unsafe { get_debug_writer() };
     writer.available_len()
 }
-
 
 fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
     writer.increment_count();

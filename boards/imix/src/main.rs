@@ -112,7 +112,10 @@ struct Imix {
         capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console_ordered::ConsoleOrdered<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
+    console: &'static capsules::console_ordered::ConsoleOrdered<
+        'static,
+        VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    >,
     gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
     temp: &'static capsules::temperature::TemperatureSensor<'static>,
@@ -399,9 +402,17 @@ pub unsafe fn main() {
         .finalize(components::process_console_component_static!(
             sam4l::ast::Ast
         ));
-    let console = ConsoleOrderedComponent::new(board_kernel, capsules::console_ordered::DRIVER_NUM, mux_alarm,
-        200, 20, 20)
-        .finalize(components::console_ordered_component_static!(sam4l::ast::Ast));
+    let console = ConsoleOrderedComponent::new(
+        board_kernel,
+        capsules::console_ordered::DRIVER_NUM,
+        mux_alarm,
+        200,
+        20,
+        20,
+    )
+    .finalize(components::console_ordered_component_static!(
+        sam4l::ast::Ast
+    ));
     DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
 
     // Allow processes to communicate over BLE through the nRF51822

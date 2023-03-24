@@ -46,8 +46,8 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::debug_process_slice;
 use kernel::debug::debug_available_len;
+use kernel::debug_process_slice;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -94,15 +94,15 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
     tx_counter: Cell<usize>,    // Sequence number for writes from different processes
     alarm: &'a A,               // Timer for trying to send  more
     atomic_size: Cell<usize>,   // The maximum size write the capsule promises atomicity;
-                                // larger writes may be broken into atomic_size chunks.
-                                // This must be smaller than the debug buffer size or a long
-                                // write may never print.
-    retry_timer: Cell<u32>,     // How long the capsule will wait before retrying if there
-                                // is insufficient space in the debug buffer (alarm ticks)
-                                // when a write is first attempted.
-    write_timer: Cell<u32>,     // Time to wait after a successful write into the debug buffer,
-                                // before checking whether write more or issue a callback that
-                                // the current write has completed (alarm ticks).
+    // larger writes may be broken into atomic_size chunks.
+    // This must be smaller than the debug buffer size or a long
+    // write may never print.
+    retry_timer: Cell<u32>, // How long the capsule will wait before retrying if there
+    // is insufficient space in the debug buffer (alarm ticks)
+    // when a write is first attempted.
+    write_timer: Cell<u32>, // Time to wait after a successful write into the debug buffer,
+                            // before checking whether write more or issue a callback that
+                            // the current write has completed (alarm ticks).
 }
 
 impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
@@ -154,7 +154,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         self.tx_counter.set(app.tx_counter.wrapping_add(1));
 
         let debug_space_avail = debug_available_len();
-        
+
         if self.tx_in_progress.get() {
             // A prior print is outstanding, enqueue
             app.pending_write = true;
@@ -164,11 +164,13 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         } else if self.atomic_size.get() <= debug_space_avail {
             // Space for a partial write, make it
             app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
-        } else { 
+        } else {
             // No space even for a partial, minimum size write: enqueue
             app.pending_write = true;
-            self.alarm
-                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(self.retry_timer.get()));
+            self.alarm.set_alarm(
+                self.alarm.now(),
+                self.alarm.ticks_from_ms(self.retry_timer.get()),
+            );
         }
         Ok(())
     }
@@ -177,7 +179,11 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
     /// space in the debug buffer for the write. Writes longer than available
     /// debug buffer space will be truncated, so callers that wish to not lose
     /// data must check before calling.
-    fn send(&self, app: &mut App, kernel_data: &GrantKernelData) -> Result<usize, kernel::process::Error> {
+    fn send(
+        &self,
+        app: &mut App,
+        kernel_data: &GrantKernelData,
+    ) -> Result<usize, kernel::process::Error> {
         // We can ignore the Result because if the call fails, it means
         // the process has terminated, so issuing a callback doesn't matter.
         // If the call fails, just use the alarm to try the next client.
@@ -186,7 +192,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             .and_then(|write| {
                 write.enter(|data| {
                     // The slice might have become shorter than the requested
-                    // write; if so, just write what there is.                    
+                    // write; if so, just write what there is.
                     let real_write_len = cmp::min(app.write_len, debug_available_len() - 20);
                     let remaining_data = match data.get(0..real_write_len) {
                         Some(remaining_data) => remaining_data,
@@ -209,8 +215,10 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         // sequence number; if the next-to-be-given sequence
         // number != this process+1, then a process has
         // grabbed this process+1 and has something to send. -pal
-        self.alarm
-            .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(self.write_timer.get()));
+        self.alarm.set_alarm(
+            self.alarm.now(),
+            self.alarm.ticks_from_ms(self.write_timer.get()),
+        );
         res
     }
 }
