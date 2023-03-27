@@ -770,6 +770,13 @@ impl Rcc {
         SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
     }
 
+    // Set the system clock source
+    // The source must be enabled
+    // NOTE: The flash latency also needs to be configured when changing the system clock frequency
+    pub(crate) fn set_sys_clock_source(&self, source: SysClockSource) {
+        self.registers.cfgr.modify(CFGR::SW.val(source as u32));
+    }
+
     pub(crate) fn is_hsi_clock_system_clock(&self) -> bool {
         let system_clock_source = self.get_sys_clock_source();
         system_clock_source == SysClockSource::HSI ||
@@ -1213,10 +1220,11 @@ impl TryFrom<usize> for PLLQ {
 }
 
 /// Clock sources for the CPU
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SysClockSource {
     HSI = 0b00,
-    HSE = 0b01,
+    // HSE is not supported yet.
+    //HSE = 0b01,
     PLLCLK = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR,
@@ -1228,7 +1236,7 @@ impl TryFrom<u32> for SysClockSource {
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
             0b00 => Ok(SysClockSource::HSI),
-            0b01 => Ok(SysClockSource::HSE),
+            //0b01 => Ok(SysClockSource::HSE),
             0b10 => Ok(SysClockSource::PLLCLK),
             _ => Err("Invalid value for SysClockSource::try_from"),
         }
