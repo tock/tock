@@ -22,6 +22,9 @@ pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub dma1_streams: [crate::dma::Stream<'a, dma::Dma1<'a>>; 8],
     pub dma2_streams: [crate::dma::Stream<'a, dma::Dma2<'a>>; 8],
     pub exti: &'a crate::exti::Exti<'a>,
+    pub flash: crate::flash::Flash,
+    pub fsmc: crate::fsmc::Fsmc<'a>,
+    pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
     pub clocks: crate::clk::clocks::Clocks<'a>,
     pub spi3: crate::spi::Spi<'a>,
@@ -29,8 +32,6 @@ pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub usart1: crate::usart::Usart<'a, dma::Dma2<'a>>,
     pub usart2: crate::usart::Usart<'a, dma::Dma1<'a>>,
     pub usart3: crate::usart::Usart<'a, dma::Dma1<'a>>,
-    pub gpio_ports: crate::gpio::GpioPorts<'a>,
-    pub fsmc: crate::fsmc::Fsmc<'a>,
 }
 
 impl<'a> Stm32f4xxDefaultPeripherals<'a> {
@@ -45,6 +46,17 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
             dma1_streams: dma::new_dma1_stream(dma1),
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,
+            flash: crate::flash::Flash::new(),
+            fsmc: crate::fsmc::Fsmc::new(
+                [
+                    Some(crate::fsmc::FSMC_BANK1),
+                    None,
+                    Some(crate::fsmc::FSMC_BANK3),
+                    None,
+                ],
+                rcc,
+            ),
+            gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
             i2c1: crate::i2c::I2C::new(rcc),
             clocks: crate::clk::clocks::Clocks::new(rcc),
             spi3: crate::spi::Spi::new(
@@ -60,16 +72,6 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
             usart1: crate::usart::Usart::new_usart1(rcc),
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
-            gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
-            fsmc: crate::fsmc::Fsmc::new(
-                [
-                    Some(crate::fsmc::FSMC_BANK1),
-                    None,
-                    Some(crate::fsmc::FSMC_BANK3),
-                    None,
-                ],
-                rcc,
-            ),
         }
     }
 

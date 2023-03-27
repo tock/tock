@@ -16,6 +16,7 @@ pub mod dbg;
 pub mod deferred_calls;
 pub mod dma;
 pub mod exti;
+pub mod flash;
 pub mod fsmc;
 pub mod gpio;
 pub mod i2c;
