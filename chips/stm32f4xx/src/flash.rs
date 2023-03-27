@@ -116,6 +116,7 @@ pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
 
+#[derive(Copy, Clone, PartialEq)]
 pub enum LatencyValue {
     Latency0,
     Latency1,

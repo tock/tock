@@ -43,6 +43,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
     ) -> Self {
         Self {
             adc1: crate::adc::Adc::new(rcc),
+            clocks: crate::clk::clocks::Clocks::new(rcc),
             dma1_streams: dma::new_dma1_stream(dma1),
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,
@@ -58,7 +59,6 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
             ),
             gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
             i2c1: crate::i2c::I2C::new(rcc),
-            clocks: crate::clk::clocks::Clocks::new(rcc),
             spi3: crate::spi::Spi::new(
                 crate::spi::SPI3_BASE,
                 crate::spi::SpiClock(crate::rcc::PeripheralClock::new(
@@ -76,6 +76,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
     }
 
     pub fn setup_circular_deps(&'a self) {
+        self.clocks.set_flash(&self.flash);
         self.gpio_ports.setup_circular_deps();
     }
 }
