@@ -19,6 +19,7 @@ pub mod can;
 pub mod dbg;
 pub mod dma;
 pub mod exti;
+pub mod flash;
 pub mod fsmc;
 pub mod gpio;
 pub mod i2c;
