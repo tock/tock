@@ -116,8 +116,8 @@ pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
 
-#[derive(Copy, Clone, PartialEq)]
-pub enum LatencyValue {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum FlashLatency {
     Latency0,
     Latency1,
     Latency2,
@@ -126,7 +126,7 @@ pub enum LatencyValue {
     Latency5,
     Latency6,
     Latency7,
-    // HELP: Some STM32F4xx allow only 3 bit values for the flash latency, while others allow for 4
+    // HELP: Some STM32F4xx chips allow only 3 bit values for the flash latency, while others allow for 4
     // bit values
     //Latency8,
     //Latency9,
@@ -138,20 +138,20 @@ pub enum LatencyValue {
     //Latency15,
 }
 
-impl TryFrom<usize> for LatencyValue {
+impl TryFrom<usize> for FlashLatency {
     type Error = &'static str;
 
     fn try_from(item: usize) -> Result<Self, Self::Error> {
         match item {
-            0 => Ok(LatencyValue::Latency0),
-            1 => Ok(LatencyValue::Latency1),
-            2 => Ok(LatencyValue::Latency2),
-            3 => Ok(LatencyValue::Latency3),
-            4 => Ok(LatencyValue::Latency4),
-            5 => Ok(LatencyValue::Latency5),
-            6 => Ok(LatencyValue::Latency6),
-            7 => Ok(LatencyValue::Latency7),
-            _ => Err("Error value for LatencyValue::try_from"),
+            0 => Ok(FlashLatency::Latency0),
+            1 => Ok(FlashLatency::Latency1),
+            2 => Ok(FlashLatency::Latency2),
+            3 => Ok(FlashLatency::Latency3),
+            4 => Ok(FlashLatency::Latency4),
+            5 => Ok(FlashLatency::Latency5),
+            6 => Ok(FlashLatency::Latency6),
+            7 => Ok(FlashLatency::Latency7),
+            _ => Err("Error value for FlashLatency::try_from"),
         }
     }
 }
@@ -163,12 +163,12 @@ impl Flash {
         }
     }
 
-    pub fn get_latency(&self) -> LatencyValue {
-        // Can't fail because the hardware will always contain a valid value
+    pub fn get_latency(&self) -> FlashLatency {
+        // Can't panic because the hardware will always contain a valid value
         TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
     }
 
-    pub fn set_latency(&self, value: LatencyValue) {
+    pub fn set_latency(&self, value: FlashLatency) {
         self.registers.acr.modify(ACR::LATENCY.val(value as u32));
     }
 }
