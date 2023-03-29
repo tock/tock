@@ -850,17 +850,31 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
     }
 
-    pub(crate) fn set_apb1_prescaler(&self, apb1_prescaler: APB1Prescaler) {
+    pub(crate) fn set_apb1_prescaler(&self, apb1_prescaler: APBPrescaler) {
         self.registers.cfgr.modify(CFGR::PPRE1.val(apb1_prescaler as u32));
     }
 
-    pub(crate) fn get_apb1_prescaler(&self) -> APB1Prescaler {
+    pub(crate) fn get_apb1_prescaler(&self) -> APBPrescaler {
         match self.registers.cfgr.read(CFGR::PPRE1) {
-            0b100 => APB1Prescaler::DivideBy2,
-            0b101 => APB1Prescaler::DivideBy4,
-            0b110 => APB1Prescaler::DivideBy8,
-            0b111 => APB1Prescaler::DivideBy16,
-            _ => APB1Prescaler::DivideBy1, // 0b0xx means no division
+            0b100 => APBPrescaler::DivideBy2,
+            0b101 => APBPrescaler::DivideBy4,
+            0b110 => APBPrescaler::DivideBy8,
+            0b111 => APBPrescaler::DivideBy16,
+            _ => APBPrescaler::DivideBy1, // 0b0xx means no division
+        }
+    }
+
+    pub(crate) fn set_apb2_prescaler(&self, apb2_prescaler: APBPrescaler) {
+        self.registers.cfgr.modify(CFGR::PPRE2.val(apb2_prescaler as u32));
+    }
+
+    pub(crate) fn get_apb2_prescaler(&self) -> APBPrescaler {
+        match self.registers.cfgr.read(CFGR::PPRE2) {
+            0b100 => APBPrescaler::DivideBy2,
+            0b101 => APBPrescaler::DivideBy4,
+            0b110 => APBPrescaler::DivideBy8,
+            0b111 => APBPrescaler::DivideBy16,
+            _ => APBPrescaler::DivideBy1, // 0b0xx means no division
         }
     }
 
@@ -1258,7 +1272,7 @@ impl TryFrom<u32> for SysClockSource {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum APB1Prescaler {
+pub enum APBPrescaler {
     DivideBy1 = 0b000, // No division
     DivideBy2 = 0b100,
     DivideBy4 = 0b101,
@@ -1266,28 +1280,28 @@ pub enum APB1Prescaler {
     DivideBy16 = 0b111,
 }
 
-impl TryFrom<usize> for APB1Prescaler {
+impl TryFrom<usize> for APBPrescaler {
     type Error = &'static str;
     fn try_from(item: usize) -> Result<Self, Self::Error> {
         match item {
-            1 => Ok(APB1Prescaler::DivideBy1),
-            2 => Ok(APB1Prescaler::DivideBy2),
-            4 => Ok(APB1Prescaler::DivideBy4),
-            8 => Ok(APB1Prescaler::DivideBy8),
-            16 => Ok(APB1Prescaler::DivideBy16),
-            _ => Err("Invalid value for APB1Prescaler::try_from()"),
+            1 => Ok(APBPrescaler::DivideBy1),
+            2 => Ok(APBPrescaler::DivideBy2),
+            4 => Ok(APBPrescaler::DivideBy4),
+            8 => Ok(APBPrescaler::DivideBy8),
+            16 => Ok(APBPrescaler::DivideBy16),
+            _ => Err("Invalid value for APBPrescaler::try_from()"),
         }
     }
 }
 
-impl From<APB1Prescaler> for usize {
-    fn from(item: APB1Prescaler) -> Self {
+impl From<APBPrescaler> for usize {
+    fn from(item: APBPrescaler) -> Self {
         match item {
-            APB1Prescaler::DivideBy1 => 1,
-            APB1Prescaler::DivideBy2 => 2,
-            APB1Prescaler::DivideBy4 => 4,
-            APB1Prescaler::DivideBy8 => 8,
-            APB1Prescaler::DivideBy16 => 16,
+            APBPrescaler::DivideBy1 => 1,
+            APBPrescaler::DivideBy2 => 2,
+            APBPrescaler::DivideBy4 => 4,
+            APBPrescaler::DivideBy8 => 8,
+            APBPrescaler::DivideBy16 => 16,
         }
     }
 }
