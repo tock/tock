@@ -17,6 +17,26 @@ pub struct Clocks<'a> {
     pub pll: Pll<'a>,
 }
 
+const APB1_FREQUENCY_LIMIT: usize = if cfg!(stm32f412) {
+    50
+} else if cfg!(stm32f42x) || cfg!(stm32f43x) || cfg!(stm32f446) {
+    45
+} else if cfg!(stm32f405) || cfg!(stm32f407) || cfg!(stm32f415) || cfg!(stm32f417) || cfg!(stm32f401) {
+    42
+} else {
+    panic!("stm32f4xx flag not defined");
+};
+
+const APB2_FREQUENCY_LIMIT: usize = if cfg!(stm32f412) {
+    100
+} else if cfg!(stm32f42x) || cfg!(stm32f43x) || cfg!(stm32f446) {
+    90
+} else if cfg!(stm32f405) || cfg!(stm32f407) || cfg!(stm32f415) || cfg!(stm32f417) || cfg!(stm32f401) {
+    84
+} else {
+    panic!("stm32f4xx flag not defined");
+};
+
 impl<'a> Clocks<'a> {
     pub(crate) fn new(rcc: &'a Rcc) -> Self {
         Self {
@@ -66,8 +86,8 @@ impl<'a> Clocks<'a> {
 
     fn check_apb1_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
         match self.rcc.get_apb1_prescaler()  {
-            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= 45,
-            APBPrescaler::DivideBy2 => sys_clk_frequency_mhz <= 90,
+            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT,
+            APBPrescaler::DivideBy2 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT * 2,
             // Maximum system clock frequency is 168MHz < 45MHz * 4, which means that a value equal
             // or higher than 4 guarantees the APB1 frequency domain limit.
             _ => true,
@@ -98,7 +118,7 @@ impl<'a> Clocks<'a> {
 
     fn  check_apb2_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
         match self.rcc.get_apb2_prescaler() {
-            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= 90,
+            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB2_FREQUENCY_LIMIT,
             // Maximum system clock frequency is 168MHz < 90MHz * 2, which means that a value equal
             // or higher than 2 for the APB2 prescaler guarantees the APB2 frequency domain limit.
             _ => true,
@@ -305,13 +325,14 @@ pub mod tests {
         assert_eq!(16, clocks.get_apb2_frequency());
 
         // Attempting to change the system clock frequency without correctly configuring the APB1
-        // prescaler (freq_APB1 <= 45MHz) and APB2 prescaler (freq_APB2 <= 90MHz) must fail
+        // prescaler (freq_APB1 <= APB1_FREQUENCY_LIMIT) and APB2 prescaler
+        // (freq_APB2 <= APB2_FREQUENCY_LIMIT) must fail
         assert_eq!(Ok(()), clocks.pll.disable());
-        assert_eq!(Ok(()), clocks.pll.set_frequency(100));
+        assert_eq!(Ok(()), clocks.pll.set_frequency(112));
         assert_eq!(Ok(()), clocks.pll.enable());
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
-        // Even if the APB1 prescaler is changed to 2, it must fail (100 / 2 > 45)
+        // Even if the APB1 prescaler is changed to 2, it must fail (100 / 2 > APB1_FREQUENCY_LIMIT)
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
@@ -324,8 +345,8 @@ pub mod tests {
 
         // Now the system clock source can be changed
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
-        assert_eq!(25, clocks.get_apb1_frequency());
-        assert_eq!(50, clocks.get_apb2_frequency());
+        assert_eq!(28, clocks.get_apb1_frequency());
+        assert_eq!(56, clocks.get_apb2_frequency());
 
         // Revert to default system clock configuration
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
