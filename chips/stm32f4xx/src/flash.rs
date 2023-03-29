@@ -251,7 +251,9 @@ impl Flash {
     }
 
     // TODO: Take into the account the power supply
-    pub fn set_latency(&self, sys_clock_frequency: usize) {
+    // This method has been made public(crate) because flash latency depends on the system
+    // clock frequency.
+    pub(crate) fn set_latency(&self, sys_clock_frequency: usize) {
         let number_wait_cycles = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency) as u32;
         self.registers.acr.modify(ACR::LATENCY.val(number_wait_cycles));
     }
