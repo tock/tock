@@ -850,6 +850,20 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
     }
 
+    pub(crate) fn set_apb1_prescaler(&self, apb1_prescaler: APB1Prescaler) {
+        self.registers.cfgr.modify(CFGR::PPRE1.val(apb1_prescaler as u32));
+    }
+
+    pub(crate) fn get_apb1_prescaler(&self) -> APB1Prescaler {
+        match self.registers.cfgr.read(CFGR::PPRE1) {
+            0b100 => APB1Prescaler::DivideBy2,
+            0b101 => APB1Prescaler::DivideBy4,
+            0b110 => APB1Prescaler::DivideBy8,
+            0b111 => APB1Prescaler::DivideBy16,
+            _ => APB1Prescaler::DivideBy1, // 0b0xx means no division
+        }
+    }
+
     fn configure_rng_clock(&self) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
         self.registers.cr.modify(CR::PLLON::SET);
@@ -1239,6 +1253,41 @@ impl TryFrom<u32> for SysClockSource {
             //0b01 => Ok(SysClockSource::HSE),
             0b10 => Ok(SysClockSource::PLLCLK),
             _ => Err("Invalid value for SysClockSource::try_from"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum APB1Prescaler {
+    DivideBy1 = 0b000, // No division
+    DivideBy2 = 0b100,
+    DivideBy4 = 0b101,
+    DivideBy8 = 0b110,
+    DivideBy16 = 0b111,
+}
+
+impl TryFrom<usize> for APB1Prescaler {
+    type Error = &'static str;
+    fn try_from(item: usize) -> Result<Self, Self::Error> {
+        match item {
+            1 => Ok(APB1Prescaler::DivideBy1),
+            2 => Ok(APB1Prescaler::DivideBy2),
+            4 => Ok(APB1Prescaler::DivideBy4),
+            8 => Ok(APB1Prescaler::DivideBy8),
+            16 => Ok(APB1Prescaler::DivideBy16),
+            _ => Err("Invalid value for APB1Prescaler::try_from()"),
+        }
+    }
+}
+
+impl From<APB1Prescaler> for usize {
+    fn from(item: APB1Prescaler) -> Self {
+        match item {
+            APB1Prescaler::DivideBy1 => 1,
+            APB1Prescaler::DivideBy2 => 2,
+            APB1Prescaler::DivideBy4 => 4,
+            APB1Prescaler::DivideBy8 => 8,
+            APB1Prescaler::DivideBy16 => 16,
         }
     }
 }

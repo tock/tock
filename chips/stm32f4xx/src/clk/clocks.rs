@@ -42,7 +42,7 @@ impl<'a> Clocks<'a> {
             Ok(FlashLatency::Latency3)
         } else if frequency_mhz <= 150 {
             Ok(FlashLatency::Latency4)
-        // STM32F42xx and STM32F43xx support system clock frequencies up to 180MHz
+        // HELP: STM32F42xx and STM32F43xx support system clock frequencies up to 180MHz
         } else if frequency_mhz <= 168 {
             Ok(FlashLatency::Latency5)
         } else {
@@ -64,6 +64,38 @@ impl<'a> Clocks<'a> {
         Err(ErrorCode::BUSY)
     }
 
+    fn check_apb1_frequency_limit(&self, frequency_mhz: usize) -> bool {
+        match self.rcc.get_apb1_prescaler()  {
+            APB1Prescaler::DivideBy1 => frequency_mhz <= 45,
+            APB1Prescaler::DivideBy2 => frequency_mhz <= 90,
+            // Maximum system clock frequency is 168MHz < 45MHz * 4, which means that a value equal
+            // or higher than 4 guarantees the APB1 frequency domain limit.
+            _ => true,
+        }
+    }
+
+    pub fn set_apb1_prescaler(&self, prescaler: APB1Prescaler) -> Result<(), ErrorCode> {
+        self.rcc.set_apb1_prescaler(prescaler);
+
+        for _ in 0..16 {
+            if self.rcc.get_apb1_prescaler() == prescaler {
+                return Ok(());
+            }
+        }
+
+        Err(ErrorCode::BUSY)
+    }
+
+    pub fn get_apb1_prescaler(&self) -> APB1Prescaler {
+        self.rcc.get_apb1_prescaler()
+    }
+
+    pub fn get_apb1_frequency(&self) -> usize {
+        // Every enum variant can be converted into a usize
+        let divider: usize = self.rcc.get_apb1_prescaler().try_into().unwrap();
+        self.get_sys_clock_frequency() / divider
+    }
+
     pub fn set_sys_clock_source(&self, source: SysClockSource) -> Result<(), ErrorCode> {
         if source == self.get_sys_clock_source() {
             return Ok(());
@@ -83,6 +115,10 @@ impl<'a> Clocks<'a> {
             SysClockSource::PLLCLK => self.pll.get_frequency().unwrap(),
         };
 
+        if let false = self.check_apb1_frequency_limit(alternate_frequency) {
+            return Err(ErrorCode::SIZE);
+        }
+
         if alternate_frequency > current_frequency {
             self.set_flash_latency_according_to_sys_clock_freq(alternate_frequency)?;
         }
@@ -90,7 +126,6 @@ impl<'a> Clocks<'a> {
         if alternate_frequency < current_frequency {
             self.set_flash_latency_according_to_sys_clock_freq(alternate_frequency)?;
         }
-
 
         Ok(())
     }
@@ -169,6 +204,9 @@ pub mod tests {
 
         // Maximum PLL frequency
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_flash_latency_according_to_sys_clock_freq(216));
+        
+        // Revert to default settings
+        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(16));
 
         debug!("Finished testing clocks. Everything is alright!");
         debug!("===============================================");
@@ -186,6 +224,12 @@ pub mod tests {
         // HSI frequency is 16MHz
         assert_eq!(16, clocks.get_sys_clock_frequency());
 
+        // APB1 default prescaler is 1
+        assert_eq!(APB1Prescaler::DivideBy1, clocks.get_apb1_prescaler());
+
+        // APB1 default frequency is 16MHz
+        assert_eq!(16, clocks.get_apb1_frequency());
+
         // Attempting to change the system clock source with a disabled source
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
@@ -193,12 +237,16 @@ pub mod tests {
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
 
         // Change the system clock source
+        assert_eq!(Ok(()), clocks.pll.set_frequency(25));
         assert_eq!(Ok(()), clocks.pll.enable());
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
         assert_eq!(SysClockSource::PLLCLK, clocks.get_sys_clock_source());
 
-        // Now the system clock frequency is equal to 96MHz (default PLL frequency)
-        assert_eq!(96, clocks.get_sys_clock_frequency());
+        // Now the system clock frequency is equal to 25MHz
+        assert_eq!(25, clocks.get_sys_clock_frequency());
+
+        // APB1 frequency must also be 25MHz
+        assert_eq!(25, clocks.get_apb1_frequency());
 
         // Attempting to disable PLL when it is configured as the system clock must fail
         assert_eq!(Err(ErrorCode::FAIL), clocks.pll.disable());
@@ -208,6 +256,29 @@ pub mod tests {
         // Revert to default system clock configuration
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
         assert_eq!(16, clocks.get_sys_clock_frequency());
+        assert_eq!(16, clocks.get_apb1_frequency());
+
+        // Attempting to change system clock frequency without correctly configuring the APB1
+        // prescaler (freq_APB1 <= 45MHz) must fail
+        assert_eq!(Ok(()), clocks.pll.disable());
+        assert_eq!(Ok(()), clocks.pll.set_frequency(100));
+        assert_eq!(Ok(()), clocks.pll.enable());
+        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+
+        // Even if the APB1 prescaler is changed to 2, it must fail (100 / 2 > 45)
+        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APB1Prescaler::DivideBy2));
+        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+
+        // Configure APB1 prescaler to 4 and enabling the PLL clock should work now
+        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APB1Prescaler::DivideBy4));
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(25, clocks.get_apb1_frequency());
+
+        // Revert to default system clock configuration
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
+        assert_eq!(16, clocks.get_sys_clock_frequency());
+        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APB1Prescaler::DivideBy1));
+        assert_eq!(16, clocks.get_apb1_frequency());
 
         debug!("Finished testing clocks struct. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
