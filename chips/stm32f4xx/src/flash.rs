@@ -2,6 +2,7 @@ use kernel::utilities::StaticRef;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::registers::interfaces::{Readable, ReadWriteable};
 
+// TODO: Make sure it is possible to create one common superset flash structure
 register_structs! {
     /// FLASH
     FlashRegisters {
@@ -24,6 +25,7 @@ register_structs! {
     }
 }
 
+// TODO: Make sure it is possible to create one common superset flash bitfields
 register_bitfields![u32,
     ACR [
         /// Latency
@@ -116,7 +118,10 @@ pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
 
-pub enum LatencyValue {
+// All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
+// values, while the other chips support 4 bit values
+#[cfg(not(any(stm32f405, stm32f415, stm32f407, stm32f417)))]
+pub enum FlashLatency {
     Latency0,
     Latency1,
     Latency2,
@@ -125,32 +130,66 @@ pub enum LatencyValue {
     Latency5,
     Latency6,
     Latency7,
-    // HELP: Some STM32F4xx allow only 3 bit values for the flash latency, while others allow for 4
-    // bit values
-    //Latency8,
-    //Latency9,
-    //Latency10,
-    //Latency11,
-    //Latency12,
-    //Latency13,
-    //Latency14,
-    //Latency15,
+    Latency8,
+    Latency9,
+    Latency10,
+    Latency11,
+    Latency12,
+    Latency13,
+    Latency14,
+    Latency15,
 }
 
-impl TryFrom<usize> for LatencyValue {
+#[cfg(any(stm32f405, stm32f415, stm32f407, stm32f417))]
+pub enum FlashLatency {
+    Latency0,
+    Latency1,
+    Latency2,
+    Latency3,
+    Latency4,
+    Latency5,
+    Latency6,
+    Latency7,
+}
+
+impl TryFrom<usize> for FlashLatency {
     type Error = &'static str;
 
+    #[cfg(not(any(stm32f405, stm32f415, stm32f407, stm32f417)))]
     fn try_from(item: usize) -> Result<Self, Self::Error> {
         match item {
-            0 => Ok(LatencyValue::Latency0),
-            1 => Ok(LatencyValue::Latency1),
-            2 => Ok(LatencyValue::Latency2),
-            3 => Ok(LatencyValue::Latency3),
-            4 => Ok(LatencyValue::Latency4),
-            5 => Ok(LatencyValue::Latency5),
-            6 => Ok(LatencyValue::Latency6),
-            7 => Ok(LatencyValue::Latency7),
-            _ => Err("Error value for LatencyValue::try_from"),
+            0 => Ok(FlashLatency::Latency0),
+            1 => Ok(FlashLatency::Latency1),
+            2 => Ok(FlashLatency::Latency2),
+            3 => Ok(FlashLatency::Latency3),
+            4 => Ok(FlashLatency::Latency4),
+            5 => Ok(FlashLatency::Latency5),
+            6 => Ok(FlashLatency::Latency6),
+            7 => Ok(FlashLatency::Latency7),
+            8 => Ok(FlashLatency::Latency8),
+            9 => Ok(FlashLatency::Latency9),
+            10 => Ok(FlashLatency::Latency10),
+            11 => Ok(FlashLatency::Latency11),
+            12 => Ok(FlashLatency::Latency12),
+            13 => Ok(FlashLatency::Latency13),
+            14 => Ok(FlashLatency::Latency14),
+            15 => Ok(FlashLatency::Latency15),
+            _ => Err("Error value for FlashLatency::try_from"),
+        }
+    }
+
+    #[cfg(any(stm32f405, stm32f415, stm32f407, stm32f417))]
+    fn try_from(item: usize) -> Result<Self, Self::Error> {
+        match item {
+            0 => Ok(FlashLatency::Latency0),
+            1 => Ok(FlashLatency::Latency1),
+            2 => Ok(FlashLatency::Latency2),
+            3 => Ok(FlashLatency::Latency3),
+            4 => Ok(FlashLatency::Latency4),
+            5 => Ok(FlashLatency::Latency5),
+            6 => Ok(FlashLatency::Latency6),
+            7 => Ok(FlashLatency::Latency7),
+            _ => Err("Error value for FlashLatency::try_from"),
         }
     }
 }
@@ -162,12 +201,58 @@ impl Flash {
         }
     }
 
-    pub fn get_latency(&self) -> LatencyValue {
+    // TODO: Take into account different chip models
+    // TODO: Take into account the power supply
+    #[cfg(not(any(stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
+    fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
+        if frequency_mhz <= 30 {
+            FlashLatency::Latency0
+        } else if frequency_mhz <= 60 {
+            FlashLatency::Latency1
+        } else if frequency_mhz <= 90 {
+            FlashLatency::Latency2
+        } else if frequency_mhz <= 120 {
+            FlashLatency::Latency3
+        } else if frequency_mhz <= 150 {
+            FlashLatency::Latency4
+        } else {
+            FlashLatency::Latency5
+        }
+    }
+
+    #[cfg(any(stm32f410, stm32f411, stm32f412))]
+    fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
+        if frequency_mhz <= 30 {
+            FlashLatency::Latency0
+        } else if frequency_mhz <= 64 {
+            FlashLatency::Latency1
+        } else if frequency_mhz <= 90 {
+            FlashLatency::Latency2
+        } else {
+            FlashLatency::Latency3
+        }
+    }
+
+    #[cfg(any(stm32f413, stm32f423))]
+    fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
+        if frequency_mhz <= 25 {
+            FlashLatency::Latency0
+        } else if frequency_mhz <= 50 {
+            FlashLatency::Latency1
+        } else if frequency_mhz <= 75 {
+            FlashLatency::Latency2
+        } else {
+            FlashLatency::Latency3
+        }
+    }
+
+    pub fn get_latency(&self) -> FlashLatency {
         // Can't fail because the hardware will always contain a valid value
         TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
     }
 
-    pub fn set_latency(&self, value: LatencyValue) {
-        self.registers.acr.modify(ACR::LATENCY.val(value as u32));
+    pub fn set_latency(&self, sys_clock_frequency: usize) {
+        let number_wait_cycles = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency) as u32;
+        self.registers.acr.modify(ACR::LATENCY.val(number_wait_cycles));
     }
 }
