@@ -44,14 +44,14 @@ use crate::rcc::Rcc;
 use kernel::debug;
 use kernel::ErrorCode;
 
+pub(crate) const HSI_FREQUENCY_MHZ: usize = 16;
+
 /// Main HSI clock structure
 pub struct Hsi<'a> {
     rcc: &'a Rcc,
 }
 
 impl<'a> Hsi<'a> {
-    const FREQUENCY_MHZ: usize = 16;
-
     /// Create a new instance of the HSI clock.
     ///
     /// # Parameters
@@ -128,7 +128,7 @@ impl<'a> Hsi<'a> {
     /// + [None]: if the HSI clock is disabled.
     pub fn get_frequency(&self) -> Option<usize> {
         if self.is_enabled() {
-            Some(Self::FREQUENCY_MHZ)
+            Some(HSI_FREQUENCY_MHZ)
         } else {
             None
         }
@@ -177,7 +177,7 @@ pub mod tests {
         assert_eq!(true, hsi.is_enabled());
 
         // HSI frequency is 16MHz
-        assert_eq!(Some(16), hsi.get_frequency());
+        assert_eq!(Some(HSI_FREQUENCY_MHZ), hsi.get_frequency());
 
         // Nothing should happen if the HSI clock is being enabled when already running
         assert_eq!(Ok(()), hsi.enable());

@@ -18,9 +18,10 @@ pub struct Clocks<'a> {
     pub pll: Pll<'a>,
 }
 
-const APB1_FREQUENCY_LIMIT: usize = if cfg!(stm32f412) {
+const APB1_FREQUENCY_LIMIT_MHZ: usize =
+if cfg!(stm32f410) || cfg!(stm32f411) || cfg!(stm32f412) || cfg!(stm32f413) || cfg!(stm32f423) {
     50
-} else if cfg!(stm32f42x) || cfg!(stm32f43x) || cfg!(stm32f446) {
+} else if cfg!(stm32f42x) || cfg!(stm32f43x) || cfg!(stm32f446) || cfg!(stm32f469) || cfg!(stm32f479) {
     45
 } else if cfg!(stm32f405) || cfg!(stm32f407) || cfg!(stm32f415) || cfg!(stm32f417) || cfg!(stm32f401) {
     42
@@ -28,11 +29,17 @@ const APB1_FREQUENCY_LIMIT: usize = if cfg!(stm32f412) {
     panic!("stm32f4xx flag not defined");
 };
 
-const APB2_FREQUENCY_LIMIT: usize = if cfg!(stm32f412) {
+// APB2 frequency limit is twice the APB1 frequency limit
+const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
+
+const SYS_CLOCK_FREQUENCY_LIMIT: usize =
+if cfg!(stm32f410) || cfg!(stm32f411) || cfg!(stm32f412) || cfg!(stm32f413) || cfg!(stm32f423) {
     100
-} else if cfg!(stm32f42x) || cfg!(stm32f43x) || cfg!(stm32f446) {
-    90
-} else if cfg!(stm32f405) || cfg!(stm32f407) || cfg!(stm32f415) || cfg!(stm32f417) || cfg!(stm32f401) {
+} else if cfg!(stm32f42x) || cfg!(stm32f43x) || cfg!(stm32f446) || cfg!(stm32f469) || cfg!(stm32f479) { 
+    180
+} else if cfg!(stm32f405) || cfg!(stm32f407) || cfg!(stm32f415) || cfg!(stm32f417) {
+    168
+} else if cfg!(stm32f401) {
     84
 } else {
     panic!("stm32f4xx flag not defined");
@@ -52,6 +59,8 @@ impl<'a> Clocks<'a> {
         self.flash.set(flash);
     }
 
+    // TODO: Move this into flash, since different STM32F4xx chips have different wait cycles
+    // requirements
     fn sys_clock_frequency_to_flash_latency(frequency_mhz: usize) -> Result<FlashLatency, ErrorCode> {
         if frequency_mhz <= 30 {
             Ok(FlashLatency::Latency0)
@@ -64,7 +73,7 @@ impl<'a> Clocks<'a> {
         } else if frequency_mhz <= 150 {
             Ok(FlashLatency::Latency4)
         // HELP: STM32F42xx and STM32F43xx support system clock frequencies up to 180MHz
-        } else if frequency_mhz <= 168 {
+        } else if frequency_mhz <= 180 {
             Ok(FlashLatency::Latency5)
         } else {
             Err(ErrorCode::SIZE)
@@ -87,8 +96,8 @@ impl<'a> Clocks<'a> {
 
     fn check_apb1_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
         match self.rcc.get_apb1_prescaler()  {
-            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT,
-            APBPrescaler::DivideBy2 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT * 2,
+            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ,
+            APBPrescaler::DivideBy2 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ * 2,
             // Maximum system clock frequency is 168MHz < 45MHz * 4, which means that a value equal
             // or higher than 4 guarantees the APB1 frequency domain limit.
             _ => true,
@@ -119,7 +128,7 @@ impl<'a> Clocks<'a> {
 
     fn  check_apb2_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
         match self.rcc.get_apb2_prescaler() {
-            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB2_FREQUENCY_LIMIT,
+            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB2_FREQUENCY_LIMIT_MHZ,
             // Maximum system clock frequency is 168MHz < 90MHz * 2, which means that a value equal
             // or higher than 2 for the APB2 prescaler guarantees the APB2 frequency domain limit.
             _ => true,
@@ -166,6 +175,10 @@ impl<'a> Clocks<'a> {
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
             SysClockSource::PLLCLK => self.pll.get_frequency().unwrap(),
         };
+
+        if alternate_frequency > SYS_CLOCK_FREQUENCY_LIMIT {
+            return Err(ErrorCode::SIZE);
+        }
 
         // APB1 frequency must not exceed 45MHz
         if let false = self.check_apb1_frequency_limit(alternate_frequency) {
@@ -271,6 +284,8 @@ pub mod tests {
         debug!("");
     }
 
+    // TODO: Split this function depending on whether the system clock frequency is higher or not
+    // than 100MHz, otherwise the tests will fail
     pub fn test_clocks_struct(clocks: &Clocks) {
         const LOW_FREQUENCY: usize = 25;
         const HIGH_FREQUENCY: usize = 112;
@@ -328,15 +343,15 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
 
         // Attempting to change the system clock frequency without correctly configuring the APB1
-        // prescaler (freq_APB1 <= APB1_FREQUENCY_LIMIT) and APB2 prescaler
-        // (freq_APB2 <= APB2_FREQUENCY_LIMIT) must fail
+        // prescaler (freq_APB1 <= APB1_FREQUENCY_LIMIT_MHZ) and APB2 prescaler
+        // (freq_APB2 <= APB2_FREQUENCY_LIMIT_MHZ) must fail
         assert_eq!(Ok(()), clocks.pll.disable());
         assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
         // Even if the APB1 prescaler is changed to 2, it must fail
-        // (HIGH_FREQUENCY / 2 > APB1_FREQUENCY_LIMIT)
+        // (HIGH_FREQUENCY / 2 > APB1_FREQUENCY_LIMIT_MHZ)
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
