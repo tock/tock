@@ -4,6 +4,7 @@ use crate::clk::hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 use crate::rcc::APBPrescaler;
+use crate::rcc::AHBPrescaler;
 use crate::flash::Flash;
 
 use kernel::debug;
@@ -69,6 +70,27 @@ impl<'a> Clocks<'a> {
         }
     }
 
+    pub fn set_ahb_prescaler(&self, prescaler: AHBPrescaler) -> Result<(), ErrorCode> {
+        self.rcc.set_ahb_prescaler(prescaler);
+
+        for _ in 0..16 {
+            if self.get_ahb_prescaler() == prescaler {
+                return Ok(());
+            }
+        }
+
+        Err(ErrorCode::BUSY)
+    }
+
+    pub fn get_ahb_prescaler(&self) -> AHBPrescaler {
+        self.rcc.get_ahb_prescaler()
+    }
+
+    pub fn get_ahb_frequency(&self) -> usize {
+        let ahb_divider: usize = self.get_ahb_prescaler().into();
+        self.get_sys_clock_frequency() / ahb_divider
+    }
+
     pub fn set_apb1_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
         self.rcc.set_apb1_prescaler(prescaler);
 
@@ -88,7 +110,7 @@ impl<'a> Clocks<'a> {
     pub fn get_apb1_frequency(&self) -> usize {
         // Every enum variant can be converted into a usize
         let divider: usize = self.rcc.get_apb1_prescaler().try_into().unwrap();
-        self.get_sys_clock_frequency() / divider
+        self.get_ahb_frequency() / divider
     }
 
     fn check_apb2_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
@@ -119,7 +141,7 @@ impl<'a> Clocks<'a> {
     pub fn get_apb2_frequency(&self) -> usize {
         // Every enum variant can be converted into a usize
         let divider: usize = self.rcc.get_apb2_prescaler().try_into().unwrap();
-        self.get_sys_clock_frequency() / divider
+        self.get_ahb_frequency() / divider
     }
 
     pub fn set_sys_clock_source(&self, source: SysClockSource) -> Result<(), ErrorCode> {
@@ -141,17 +163,21 @@ impl<'a> Clocks<'a> {
             SysClockSource::PLLCLK => self.pll.get_frequency().unwrap(),
         };
 
+        // TODO: Remove this once PLL is configured in such a way that it outputs only valid values
         if alternate_frequency > SYS_CLOCK_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::SIZE);
         }
 
+        let ahb_divider: usize = self.get_ahb_prescaler().into();
+        let ahb_frequency = alternate_frequency / ahb_divider;
+
         // APB1 frequency must not exceed APB1_FREQUENCY_LIMIT_MHZ
-        if let false = self.check_apb1_frequency_limit(alternate_frequency) {
+        if let false = self.check_apb1_frequency_limit(ahb_frequency) {
             return Err(ErrorCode::SIZE);
         }
 
         // APB2 frequency must not exceed APB2_FREQUENCY_LIMIT_MHZ
-        if let false = self.check_apb2_frequency_limit(alternate_frequency) {
+        if let false = self.check_apb2_frequency_limit(ahb_frequency) {
             return Err(ErrorCode::SIZE);
         }
 
@@ -184,6 +210,16 @@ impl<'a> Clocks<'a> {
 pub mod tests {
     use super::*;
 
+    fn set_default_configuration(clocks: &Clocks) {
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
+        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1));
+        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
+        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+    }
+
     #[cfg(any(stm32f401, stm32f410, stm32f411, stm32f412, stm32f413, stm32f423))]
     pub fn test_clocks_struct(clocks: &Clocks) {
         const LOW_FREQUENCY: usize = 25;
@@ -197,6 +233,12 @@ pub mod tests {
 
         // HSI frequency is 16MHz
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
+
+        // AHB default prescaler is 1
+        assert_eq!(AHBPrescaler::DivideBy1, clocks.get_ahb_prescaler());
+
+        // AHB default frequency is 16MHz
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_ahb_frequency());
 
         // APB1 default prescaler is 1
         assert_eq!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler());
@@ -236,10 +278,7 @@ pub mod tests {
         assert_eq!(Err(ErrorCode::FAIL), clocks.hsi.disable());
 
         // Revert to default system clock configuration
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+        set_default_configuration(clocks);
 
         // Trying to configure a high frequency for the system clock without configuring the APB1
         // prescaler must fail
@@ -257,17 +296,27 @@ pub mod tests {
         // Configuring APB2 prescaler to 2
         assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
 
+        // Check new AHB frequency
+        assert_eq!(HIGH_FREQUENCY, clocks.get_ahb_frequency());
+
         // Check new APB frequencies
         assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
         assert_eq!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency());
 
         // Revert to default system clock configuration
+        set_default_configuration(clocks);
+
+        // Doing the same thing as before, except that this time the AHB prescaler is configured
+        // instead of individual APB prescalers
+        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
-        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency());
+        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
+        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
+
+
+        // Revert to default configuration
+        set_default_configuration(clocks);
 
         debug!("Finished testing clocks struct. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -326,10 +375,7 @@ pub mod tests {
         assert_eq!(Err(ErrorCode::FAIL), clocks.hsi.disable());
 
         // Revert to default system clock configuration
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+        set_default_configuration(clocks);
 
         // Attempting to change the system clock frequency without correctly configuring the APB1
         // prescaler (freq_APB1 <= APB1_FREQUENCY_LIMIT_MHZ) and APB2 prescaler
@@ -357,12 +403,17 @@ pub mod tests {
         assert_eq!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency());
 
         // Revert to default system clock configuration
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
-        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+        set_default_configuration(clocks);
+
+        // This time, configure the AHB prescaler instead of APB prescalers
+        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency());
+        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
+        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency());
+
+        // Revert to default configuration
+        set_default_configuration(clocks);
 
         debug!("Finished testing clocks struct. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");

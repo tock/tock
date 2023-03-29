@@ -845,10 +845,33 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
     }
 
+
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_q_divider(&self, q: PLLQ) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
     }
+
+    /* AHB prescaler */
+
+    pub(crate) fn set_ahb_prescaler(&self, ahb_prescaler: AHBPrescaler) {
+        self.registers.cfgr.modify(CFGR::HPRE.val(ahb_prescaler as u32));
+    }
+
+    pub(crate) fn get_ahb_prescaler(&self) -> AHBPrescaler {
+        match self.registers.cfgr.read(CFGR::HPRE) {
+            0b1000 => AHBPrescaler::DivideBy2,
+            0b1001 => AHBPrescaler::DivideBy4,
+            0b1010 => AHBPrescaler::DivideBy8,
+            0b1011 => AHBPrescaler::DivideBy16,
+            0b1100 => AHBPrescaler::DivideBy64,
+            0b1101 => AHBPrescaler::DivideBy128,
+            0b1110 => AHBPrescaler::DivideBy256,
+            0b1111 => AHBPrescaler::DivideBy512,
+            _ => AHBPrescaler::DivideBy1,
+        }
+    }
+
+    /* APB1 prescaler */
 
     pub(crate) fn set_apb1_prescaler(&self, apb1_prescaler: APBPrescaler) {
         self.registers.cfgr.modify(CFGR::PPRE1.val(apb1_prescaler as u32));
@@ -863,6 +886,8 @@ impl Rcc {
             _ => APBPrescaler::DivideBy1, // 0b0xx means no division
         }
     }
+
+    /* APB2 prescaler */
 
     pub(crate) fn set_apb2_prescaler(&self, apb2_prescaler: APBPrescaler) {
         self.registers.cfgr.modify(CFGR::PPRE2.val(apb2_prescaler as u32));
@@ -1267,6 +1292,53 @@ impl TryFrom<u32> for SysClockSource {
             //0b01 => Ok(SysClockSource::HSE),
             0b10 => Ok(SysClockSource::PLLCLK),
             _ => Err("Invalid value for SysClockSource::try_from"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum AHBPrescaler {
+    DivideBy1 = 0b0000,
+    DivideBy2 = 0b1000,
+    DivideBy4 = 0b1001,
+    DivideBy8 = 0b1010,
+    DivideBy16 = 0b1011,
+    DivideBy64 = 0b1100,
+    DivideBy128 = 0b1101,
+    DivideBy256 = 0b1110,
+    DivideBy512 = 0b1111,
+}
+
+impl TryFrom<usize> for AHBPrescaler {
+    type Error = &'static str;
+    fn try_from(item: usize) -> Result<Self, Self::Error> {
+        match item {
+            1 => Ok(AHBPrescaler::DivideBy1),
+            2 => Ok(AHBPrescaler::DivideBy2),
+            4 => Ok(AHBPrescaler::DivideBy4),
+            8 => Ok(AHBPrescaler::DivideBy8),
+            16 => Ok(AHBPrescaler::DivideBy16),
+            64 => Ok(AHBPrescaler::DivideBy64),
+            128 => Ok(AHBPrescaler::DivideBy128),
+            256 => Ok(AHBPrescaler::DivideBy256),
+            512 => Ok(AHBPrescaler::DivideBy512),
+            _ => Err("Invalid value for AHBPrescaler::try_from"),
+        }
+    }
+}
+
+impl From<AHBPrescaler> for usize {
+    fn from(item: AHBPrescaler) -> usize {
+        match item {
+            AHBPrescaler::DivideBy1 => 1,
+            AHBPrescaler::DivideBy2 => 2,
+            AHBPrescaler::DivideBy4 => 4,
+            AHBPrescaler::DivideBy8 => 8,
+            AHBPrescaler::DivideBy16 => 16,
+            AHBPrescaler::DivideBy64 => 64,
+            AHBPrescaler::DivideBy128 => 128,
+            AHBPrescaler::DivideBy256 => 256,
+            AHBPrescaler::DivideBy512 => 512,
         }
     }
 }
