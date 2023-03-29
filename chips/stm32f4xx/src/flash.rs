@@ -246,7 +246,7 @@ impl Flash {
     }
 
     pub fn get_latency(&self) -> FlashLatency {
-        // Can't fail because the hardware will always contain a valid value
+        // Can't panic because the hardware will always contain a valid value
         TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
     }
 
