@@ -201,7 +201,6 @@ impl Flash {
         }
     }
 
-    // TODO: Take into account different chip models
     // TODO: Take into account the power supply
     #[cfg(not(any(stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
@@ -251,6 +250,7 @@ impl Flash {
         TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
     }
 
+    // TODO: Take into the account the power supply
     pub fn set_latency(&self, sys_clock_frequency: usize) {
         let number_wait_cycles = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency) as u32;
         self.registers.acr.modify(ACR::LATENCY.val(number_wait_cycles));
