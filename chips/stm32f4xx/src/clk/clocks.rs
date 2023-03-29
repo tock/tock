@@ -5,7 +5,6 @@ use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 use crate::rcc::APBPrescaler;
 use crate::flash::Flash;
-use crate::flash::FlashLatency;
 
 use kernel::debug;
 use kernel::ErrorCode;
@@ -32,6 +31,7 @@ if cfg!(stm32f410) || cfg!(stm32f411) || cfg!(stm32f412) || cfg!(stm32f413) || c
 // APB2 frequency limit is twice the APB1 frequency limit
 const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
 
+// TODO: Ensure that PLL clock never outputs a frequency higher than this
 const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize =
 if cfg!(stm32f410) || cfg!(stm32f411) || cfg!(stm32f412) || cfg!(stm32f413) || cfg!(stm32f423) {
     100
@@ -57,41 +57,6 @@ impl<'a> Clocks<'a> {
 
     pub(crate) fn set_flash(&self, flash: &'a Flash) {
         self.flash.set(flash);
-    }
-
-    // TODO: Move this into flash, since different STM32F4xx chips have different wait cycles
-    // requirements
-    fn sys_clock_frequency_to_flash_latency(frequency_mhz: usize) -> Result<FlashLatency, ErrorCode> {
-        if frequency_mhz <= 30 {
-            Ok(FlashLatency::Latency0)
-        } else if frequency_mhz <= 60 {
-            Ok(FlashLatency::Latency1)
-        } else if frequency_mhz <= 90 {
-            Ok(FlashLatency::Latency2)
-        } else if frequency_mhz <= 120 {
-            Ok(FlashLatency::Latency3)
-        } else if frequency_mhz <= 150 {
-            Ok(FlashLatency::Latency4)
-        // HELP: STM32F42xx and STM32F43xx support system clock frequencies up to 180MHz
-        } else if frequency_mhz <= 180 {
-            Ok(FlashLatency::Latency5)
-        } else {
-            Err(ErrorCode::SIZE)
-        }
-    }
-
-    fn set_flash_latency_according_to_sys_clock_freq(&self, frequency_mhz: usize) -> Result<(), ErrorCode> {
-        let latency_value = Self::sys_clock_frequency_to_flash_latency(frequency_mhz)?;
-
-        self.flash.unwrap_or_panic().set_latency(latency_value);
-
-        for _ in 0..100 {
-            if self.flash.unwrap_or_panic().get_latency() == latency_value {
-                return Ok(());
-            }
-        }
-
-        Err(ErrorCode::BUSY)
     }
 
     fn check_apb1_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
@@ -191,11 +156,11 @@ impl<'a> Clocks<'a> {
         }
 
         if alternate_frequency > current_frequency {
-            self.set_flash_latency_according_to_sys_clock_freq(alternate_frequency)?;
+            self.flash.unwrap_or_panic().set_latency(alternate_frequency);
         }
         self.rcc.set_sys_clock_source(source);
         if alternate_frequency < current_frequency {
-            self.set_flash_latency_according_to_sys_clock_freq(alternate_frequency)?;
+            self.flash.unwrap_or_panic().set_latency(alternate_frequency);
         }
 
         Ok(())
@@ -219,73 +184,6 @@ impl<'a> Clocks<'a> {
 pub mod tests {
     use super::*;
 
-    pub fn test_sys_clock_frequency_to_flash_latency() {
-        debug!("");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing flash latency value according to the system clock frequency...");
-
-        // HSI frequency
-        assert_eq!(Ok(FlashLatency::Latency0), Clocks::sys_clock_frequency_to_flash_latency(HSI_FREQUENCY_MHZ));
-
-        // AHB Ethernet minimal frequency
-        assert_eq!(Ok(FlashLatency::Latency0), Clocks::sys_clock_frequency_to_flash_latency(25));
-
-        // Maximum APB1 frequency
-        assert_eq!(Ok(FlashLatency::Latency1), Clocks::sys_clock_frequency_to_flash_latency(45));
-
-        // Maximum APB2 frequency
-        assert_eq!(Ok(FlashLatency::Latency2), Clocks::sys_clock_frequency_to_flash_latency(90));
-
-        // Default PLL frequency
-        assert_eq!(Ok(FlashLatency::Latency3), Clocks::sys_clock_frequency_to_flash_latency(96));
-
-        // Maximum CPU frequency for all STM32F4xx models
-        assert_eq!(Ok(FlashLatency::Latency5), Clocks::sys_clock_frequency_to_flash_latency(168));
-
-        // Maximum PLL frequency
-        assert_eq!(Err(ErrorCode::SIZE), Clocks::sys_clock_frequency_to_flash_latency(216));
-
-        debug!("Finished testing sys_clock_frequency_to_flash_latency(). Everything is alright!");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("");
-    }
-
-    pub fn test_set_flash_latency_according_to_sys_clock_freq(clocks: &Clocks) {
-        debug!("");
-        debug!("===============================================");
-        debug!("Testing clocks...");
-
-        // HSI frequency
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(HSI_FREQUENCY_MHZ));
-
-        // Minimal Ethernet frequency
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(25));
-
-        // Maximum APB1 frequency
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(45));
-
-        // Maximum APB2 frequency
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(90));
-
-        // Default PLL frequency
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(96));
-
-        // Maximum CPU frequency
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(168));
-
-        // Maximum PLL frequency
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_flash_latency_according_to_sys_clock_freq(216));
-        
-        // Revert to default settings
-        assert_eq!(Ok(()), clocks.set_flash_latency_according_to_sys_clock_freq(HSI_FREQUENCY_MHZ));
-
-        debug!("Finished testing clocks. Everything is alright!");
-        debug!("===============================================");
-        debug!("");
-    }
-
-    // TODO: Split this function depending on whether the system clock frequency is higher or not
-    // than 100MHz, otherwise the tests will fail
     #[cfg(any(stm32f401, stm32f410, stm32f411, stm32f412, stm32f413, stm32f423))]
     pub fn test_clocks_struct(clocks: &Clocks) {
         const LOW_FREQUENCY: usize = 25;
@@ -476,8 +374,6 @@ pub mod tests {
         debug!("===============================================");
         debug!("Testing clocks...");
 
-        test_sys_clock_frequency_to_flash_latency();
-        test_set_flash_latency_according_to_sys_clock_freq(clocks);
         test_clocks_struct(clocks);
 
         debug!("Finished testing clocks. Everything is alright!");
