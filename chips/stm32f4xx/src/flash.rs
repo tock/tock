@@ -226,60 +226,6 @@ pub enum FlashLatency {
     Latency7,
 }
 
-// Convenience method to create a FlashLatency from a usize. However, it is recommended to use
-// FlashLatency directly.
-impl TryFrom<usize> for FlashLatency {
-    type Error = &'static str;
-
-    #[cfg(not(any(
-        feature = "stm32f405",
-        feature = "stm32f415",
-        feature = "stm32f407",
-        feature = "stm32f417"
-    )))]
-    fn try_from(item: usize) -> Result<Self, Self::Error> {
-        match item {
-            0 => Ok(FlashLatency::Latency0),
-            1 => Ok(FlashLatency::Latency1),
-            2 => Ok(FlashLatency::Latency2),
-            3 => Ok(FlashLatency::Latency3),
-            4 => Ok(FlashLatency::Latency4),
-            5 => Ok(FlashLatency::Latency5),
-            6 => Ok(FlashLatency::Latency6),
-            7 => Ok(FlashLatency::Latency7),
-            8 => Ok(FlashLatency::Latency8),
-            9 => Ok(FlashLatency::Latency9),
-            10 => Ok(FlashLatency::Latency10),
-            11 => Ok(FlashLatency::Latency11),
-            12 => Ok(FlashLatency::Latency12),
-            13 => Ok(FlashLatency::Latency13),
-            14 => Ok(FlashLatency::Latency14),
-            15 => Ok(FlashLatency::Latency15),
-            _ => Err("Error value for FlashLatency::try_from"),
-        }
-    }
-
-    #[cfg(any(
-        feature = "stm32f405",
-        feature = "stm32f415",
-        feature = "stm32f407",
-        feature = "stm32f417"
-    ))]
-    fn try_from(item: usize) -> Result<Self, Self::Error> {
-        match item {
-            0 => Ok(FlashLatency::Latency0),
-            1 => Ok(FlashLatency::Latency1),
-            2 => Ok(FlashLatency::Latency2),
-            3 => Ok(FlashLatency::Latency3),
-            4 => Ok(FlashLatency::Latency4),
-            5 => Ok(FlashLatency::Latency5),
-            6 => Ok(FlashLatency::Latency6),
-            7 => Ok(FlashLatency::Latency7),
-            _ => Err("Error value for FlashLatency::try_from"),
-        }
-    }
-}
-
 impl Flash {
     // Flash constructor. It should be called when creating Stm32f4xxDefaultPeripherals.
     pub(crate) fn new() -> Self {
@@ -351,8 +297,49 @@ impl Flash {
 
     /// Return the current flash latency
     pub fn get_latency(&self) -> FlashLatency {
-        // Can't panic because the hardware will always contain a valid value
-        TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
+        #[cfg(not(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417"
+        )))]
+        match self.registers.acr.read(ACR::LATENCY) {
+            0 => FlashLatency::Latency0,
+            1 => FlashLatency::Latency1,
+            2 => FlashLatency::Latency2,
+            3 => FlashLatency::Latency3,
+            4 => FlashLatency::Latency4,
+            5 => FlashLatency::Latency5,
+            6 => FlashLatency::Latency6,
+            7 => FlashLatency::Latency7,
+            8 => FlashLatency::Latency8,
+            9 => FlashLatency::Latency9,
+            10 => FlashLatency::Latency10,
+            11 => FlashLatency::Latency11,
+            12 => FlashLatency::Latency12,
+            13 => FlashLatency::Latency13,
+            14 => FlashLatency::Latency14,
+            // The hardware allows 4-bit latency values
+            _ => FlashLatency::Latency15,
+        }
+
+        #[cfg(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417"
+        ))]
+        match self.registers.acr.read(ACR::LATENCY) {
+            0 => FlashLatency::Latency0,
+            1 => FlashLatency::Latency1,
+            2 => FlashLatency::Latency2,
+            3 => FlashLatency::Latency3,
+            4 => FlashLatency::Latency4,
+            5 => FlashLatency::Latency5,
+            6 => FlashLatency::Latency6,
+            // The hardware allows 3-bit latency values
+            _ => FlashLatency::Latency7,
+        }
     }
 
     // TODO: Take into the account the power supply
