@@ -1,6 +1,8 @@
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::registers::interfaces::{Readable, ReadWriteable};
+use kernel::ErrorCode;
+use kernel::debug;
 
 // TODO: Make sure it is possible to create one common superset flash structure
 register_structs! {
@@ -126,6 +128,7 @@ pub struct Flash {
     feature = "stm32f407",
     feature = "stm32f417"
 )))]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum FlashLatency {
     Latency0,
     Latency1,
@@ -151,6 +154,7 @@ pub enum FlashLatency {
     feature = "stm32f407",
     feature = "stm32f417"
 ))]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum FlashLatency {
     Latency0,
     Latency1,
@@ -286,8 +290,114 @@ impl Flash {
     // TODO: Take into the account the power supply
     // This method has been made public(crate) because flash latency depends on the system
     // clock frequency.
-    pub(crate) fn set_latency(&self, sys_clock_frequency: usize) {
-        let number_wait_cycles = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency) as u32;
-        self.registers.acr.modify(ACR::LATENCY.val(number_wait_cycles));
+    pub(crate) fn set_latency(&self, sys_clock_frequency: usize) -> Result<(), ErrorCode> {
+        let flash_latency = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency);
+        self.registers.acr.modify(ACR::LATENCY.val(flash_latency as u32));
+
+        for _ in 0..16 {
+            if self.get_latency() == flash_latency {
+                return Ok(());
+            }
+        }
+
+        Err(ErrorCode::BUSY)
+    }
+}
+
+pub mod tests {
+    use super::*;
+
+    const HSI_FREQUENCY_MHZ: usize = 16;
+
+    #[cfg(not(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    )))]
+    pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
+        debug!("");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing number of wait cycles based on the system frequency...");
+
+        // HSI frequency
+        assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ));
+
+        // AHB Ethernet minimal frequency
+        assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(25));
+
+        // Maximum APB1 frequency for some models
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(45));
+
+        // Maximum APB2 frequency for some models
+        assert_eq!(FlashLatency::Latency2, flash.get_number_wait_cycles_based_on_frequency(90));
+
+        // Default PLL frequency
+        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(96));
+
+        // Maximum CPU frequency without overdrive
+        assert_eq!(FlashLatency::Latency5, flash.get_number_wait_cycles_based_on_frequency(168));
+
+        // Maximum CPU frequency with overdrive (for some models)
+        assert_eq!(FlashLatency::Latency5, flash.get_number_wait_cycles_based_on_frequency(180));
+
+        debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("");
+    }
+
+    #[cfg(not(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    )))]
+    pub fn test_set_flash_latency(flash: &Flash) {
+        debug!("");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing setting flash latency...");
+
+        // HSI frequency
+        assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
+
+        // Minimal Ethernet frequency
+        assert_eq!(Ok(()), flash.set_latency(25));
+
+        // Maximum APB1 frequency
+        assert_eq!(Ok(()), flash.set_latency(45));
+
+        // Maximum APB2 frequency
+        assert_eq!(Ok(()), flash.set_latency(90));
+
+        // Default PLL frequency
+        assert_eq!(Ok(()), flash.set_latency(96));
+
+        // Maximum CPU frequency without overdrive
+        assert_eq!(Ok(()), flash.set_latency(168));
+
+        // Maximum CPU frequency with overdrive (for some models)
+        assert_eq!(Ok(()), flash.set_latency(180));
+
+        // Revert to default settings
+        assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
+
+        debug!("Finished testing setting flash latency. Everything is alright!");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("");
+    }
+
+    pub fn run_all(flash: &Flash) {
+        debug!("");
+        debug!("===============================================");
+        debug!("Testing setting flash latency...");
+
+        test_get_number_wait_cycles_based_on_frequency(flash);
+        test_set_flash_latency(flash);
+
+        debug!("Finished testing flash. Everything is alright!");
+        debug!("===============================================");
+        debug!("");
     }
 }
