@@ -427,6 +427,21 @@ pub mod tests {
     use super::*;
 
     const HSI_FREQUENCY_MHZ: usize = 16;
+    const AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ: usize = 25;
+    // Different chips have different maximum values for APB1
+    const APB1_MAX_FREQUENCY_MHZ_1: usize = 42;
+    const APB1_MAX_FREQUENCY_MHZ_2: usize = 45;
+    const APB1_MAX_FREQUENCY_MHZ_3: usize = 50;
+    // Different chips have different maximum values for APB2
+    const APB2_MAX_FREQUENCY_MHZ_1: usize = 84;
+    const APB2_MAX_FREQUENCY_MHZ_2: usize = 90;
+    const APB2_MAX_FREQUENCY_MHZ_3: usize = 100;
+    // Many STM32F4 chips allow a maximum frequency of 168MHz and some of them 180MHz if overdrive
+    // is turned on
+    const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
+    const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
+    // Default PLL frequency
+    const PLL_FREQUENCY_MHZ: usize = 96;
 
     #[cfg(not(any(
         feature = "stm32f413",
@@ -440,37 +455,30 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing number of wait cycles based on the system frequency...");
 
-        // HSI frequency
         assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ));
 
-        // AHB Ethernet minimal frequency
-        assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(25));
+        assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ));
 
-        // Maximum APB1 frequency depending on the chip
-        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(42));
-        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(45));
-        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(50));
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1));
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2));
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3));
 
-        // Maximum APB2 frequency depending on the chip
-        assert_eq!(FlashLatency::Latency2, flash.get_number_wait_cycles_based_on_frequency(84));
+        assert_eq!(FlashLatency::Latency2, flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1));
 
         // STM32F401 maximum clock frequency is 84MHz
         #[cfg(not(
             feature = "stm32f401"
         ))]
         {
-            // Maximum APB2 frequency depending on the chip
-            assert_eq!(FlashLatency::Latency2, flash.get_number_wait_cycles_based_on_frequency(90));
-            assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(100));
+            assert_eq!(FlashLatency::Latency2, flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2));
 
-            // Default PLL frequency
-            assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(96));
+            assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3));
 
-            // Maximum CPU frequency without overdrive
-            assert_eq!(FlashLatency::Latency5, flash.get_number_wait_cycles_based_on_frequency(168));
+            assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ));
 
-            // Maximum CPU frequency with overdrive (for some chips)
-            assert_eq!(FlashLatency::Latency5, flash.get_number_wait_cycles_based_on_frequency(180));
+            assert_eq!(FlashLatency::Latency5, flash.get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ));
+
+            assert_eq!(FlashLatency::Latency5, flash.get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ));
         }
 
         debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
@@ -499,24 +507,19 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing number of wait cycles based on the system frequency...");
 
-        // HSI frequency
         assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ));
 
-        // AHB Ethernet minimal frequency
-        assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(25));
+        assert_eq!(FlashLatency::Latency0, flash.get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ));
 
-        // Maximum APB1 frequency depending on the chip
-        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(42));
-        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(45));
-        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(50));
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1));
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2));
+        assert_eq!(FlashLatency::Latency1, flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3));
 
-        // Maximum APB2 frequency depending on the chip
-        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(84));
-        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(90));
-        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(100));
+        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1));
+        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2));
+        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3));
 
-        // Default PLL frequency
-        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(96));
+        assert_eq!(FlashLatency::Latency3, flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ));
 
         debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -538,29 +541,23 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing setting flash latency...");
 
-        // HSI frequency
         assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
 
-        // Minimal Ethernet frequency
-        assert_eq!(Ok(()), flash.set_latency(25));
+        assert_eq!(Ok(()), flash.set_latency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ));
 
-        // Maximum APB1 frequency depending on the chip
-        assert_eq!(Ok(()), flash.set_latency(42));
-        assert_eq!(Ok(()), flash.set_latency(45));
-        assert_eq!(Ok(()), flash.set_latency(50));
+        assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_1));
+        assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_2));
+        assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_3));
 
-        // Maximum APB2 frequency depending on the chip
-        assert_eq!(Ok(()), flash.set_latency(84));
+        assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_1));
 
         // STM32F401 maximum system clock frequency is 84MHz
         #[cfg(not(feature = "stm32f401"))]
         {
-            // Maximum APB2 frequency depending on the chip
-            assert_eq!(Ok(()), flash.set_latency(90));
-            assert_eq!(Ok(()), flash.set_latency(100));
+            assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_2));
+            assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_3));
 
-            // Default PLL frequency
-            assert_eq!(Ok(()), flash.set_latency(96));
+            assert_eq!(Ok(()), flash.set_latency(PLL_FREQUENCY_MHZ));
         }
 
         // Low entries STM32F4 chips don't support frequencies higher than 100 MHz,
@@ -575,11 +572,9 @@ pub mod tests {
             feature = "stm32f423",
         )))]
         {
-            // Maximum CPU frequency without overdrive
-            assert_eq!(Ok(()), flash.set_latency(168));
+            assert_eq!(Ok(()), flash.set_latency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ));
 
-            // Maximum CPU frequency with overdrive (for some chips)
-            assert_eq!(Ok(()), flash.set_latency(180));
+            assert_eq!(Ok(()), flash.set_latency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ));
 
         }
 
