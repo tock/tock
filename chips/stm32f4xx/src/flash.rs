@@ -10,6 +10,7 @@
 //! # Missing features
 //!
 //! - [ ] Support for different power supplies
+//! - [ ] Instruction prefetch
 //! - [ ] Instruction and data cache
 //!
 //!
@@ -144,6 +145,7 @@ register_bitfields![u32,
     ]
 ];
 
+// All chips models have the same FLASH_BASE
 const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x40023C00 as *const FlashRegisters) };
 
@@ -224,6 +226,8 @@ pub enum FlashLatency {
     Latency7,
 }
 
+// Convenience method to create a FlashLatency from a usize. However, it is recommended to use
+// FlashLatency directly.
 impl TryFrom<usize> for FlashLatency {
     type Error = &'static str;
 
@@ -277,13 +281,18 @@ impl TryFrom<usize> for FlashLatency {
 }
 
 impl Flash {
+    // Flash constructor. It should be called when creating Stm32f4xxDefaultPeripherals.
     pub(crate) fn new() -> Self {
         Self {
             registers: FLASH_BASE,
         }
     }
 
-    // TODO: Take into account the power supply
+    // The number of wait cycles depends on two factors: system clock frequency and the supply
+    // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
+    // TODO: Take into the account the power supply
+    //
+    // The number of wait states varies from chip to chip.
     #[cfg(not(any(
         feature = "stm32f410",
         feature = "stm32f411",
@@ -347,24 +356,33 @@ impl Flash {
     }
 
     // TODO: Take into the account the power supply
-    // This method has been made public(crate) because flash latency depends on the system
-    // clock frequency.
+    //
+    // NOTE: This method is pub(crate) to prevent a capsule from modifying the flash latency. Flash
+    // latency is dependent on the system clock frequency. Other peripherals will modify this when
+    // appropriate.
     pub(crate) fn set_latency(&self, sys_clock_frequency: usize) -> Result<(), ErrorCode> {
         let flash_latency = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency);
         self.registers.acr.modify(ACR::LATENCY.val(flash_latency as u32));
 
+        // Wait until the flash latency is set
+        // The value 16 was chosen randomily, but it behaves well in tests. It can be tuned in a
+        // future revision of the driver.
         for _ in 0..16 {
             if self.get_latency() == flash_latency {
                 return Ok(());
             }
         }
 
+        // Return BUSY if setting the frequency took too long. The caller can either:
+        //
+        // + recall this method
+        // + or busy wait get_latency() until the flash latency has the desired value
         Err(ErrorCode::BUSY)
     }
 }
 
 /// Tests for the STM32F4xx flash driver.
-/// 
+///
 /// If any contributions are made to this driver, it is highly recommended to run these tests to
 /// ensure that everything still works as expected. The tests are chip agnostic. They can be run
 /// on any STM32F4 chips.
@@ -396,18 +414,18 @@ impl Flash {
 /// ```text
 /// ===============================================
 /// Testing setting flash latency...
-/// 
+///
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// Testing number of wait cycles based on the system frequency...
 /// Finished testing number of wait cycles based on the system clock frequency. Everything is alright!
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/// 
-/// 
+///
+///
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// Testing setting flash latency...
 /// Finished testing setting flash latency. Everything is alright!
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/// 
+///
 /// Finished testing flash. Everything is alright!
 /// ===============================================
 /// ```
@@ -428,7 +446,7 @@ pub mod tests {
         feature = "stm32f423"
     )))]
     /// Test for the mapping between the system clock frequency and flash latency
-    /// 
+    ///
     /// It is highly recommended to run this test since everything else depends on it.
     pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
         debug!("");
@@ -478,7 +496,7 @@ pub mod tests {
         feature = "stm32f423"
     ))]
     /// Test for the mapping between the system clock frequency and flash latency
-    /// 
+    ///
     /// It is highly recommended to run this test since everything else depends on it.
     pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
         debug!("");
@@ -510,10 +528,6 @@ pub mod tests {
     }
 
     /// Test for the set_flash() method
-    ///
-    /// The latency of the flash **must not** be set manually. Other drivers will take care of this
-    /// so that everything is correctly configured. This test ensures it works as expected as if it
-    /// were called by another driver.
     pub fn test_set_flash_latency(flash: &Flash) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
