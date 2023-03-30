@@ -1,3 +1,34 @@
+#![deny(missing_docs)]
+//! STM32F4xx flash driver
+//!
+//! This driver provides basic functionalities for the entire STM32F4 series.
+//!
+//! # Features
+//!
+//! - [x] Configuring latency based on the system clock frequency
+//!
+//! # Missing features
+//!
+//! - [ ] Support for different power supplies
+//! - [ ] Instruction and data cache
+//!
+//!
+//! # Usage
+//!
+//! To use this driver, a reference to the Flash peripheral is required:
+//!
+//! ```rust,ignore
+//! // Inside the board main.rs
+//! let flash = &peripherals.stm32f4.flash;
+//! ```
+//!
+//! ## Retrieve the current flash latency
+//!
+//! ```rust,ignore
+//! let flash_latency = flash.get_latency() as usize;
+//! debug!("Current flash latency is {}", flash_latency);
+//! ```
+
 use kernel::utilities::StaticRef;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
 use kernel::utilities::registers::interfaces::{Readable, ReadWriteable};
@@ -27,7 +58,7 @@ register_structs! {
     }
 }
 
-// TODO: Make sure it is possible to create one common superset flash bitfields
+// TODO: Make sure it is possible to create one common superset flash bit fields
 register_bitfields![u32,
     ACR [
         /// Latency
@@ -116,6 +147,7 @@ register_bitfields![u32,
 const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x40023C00 as *const FlashRegisters) };
 
+/// Main Flash struct
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
@@ -129,22 +161,39 @@ pub struct Flash {
     feature = "stm32f417"
 )))]
 #[derive(Copy, Clone, PartialEq, Debug)]
+/// Enum representing all the possible values for the flash latency
 pub enum FlashLatency {
+    /// 0 wait cycles
     Latency0,
+    /// 1 wait cycle
     Latency1,
+    /// 2 wait cycles
     Latency2,
+    /// 3 wait cycles
     Latency3,
+    /// 4 wait cycles
     Latency4,
+    /// 5 wait cycles
     Latency5,
+    /// 6 wait cycles
     Latency6,
+    /// 7 wait cycles
     Latency7,
+    /// 8 wait cycles
     Latency8,
+    /// 9 wait cycles
     Latency9,
+    /// 10 wait cycles
     Latency10,
+    /// 11 wait cycles
     Latency11,
+    /// 12 wait cycles
     Latency12,
+    /// 13 wait cycles
     Latency13,
+    /// 14 wait cycles
     Latency14,
+    /// 15 wait cycles
     Latency15,
 }
 
@@ -155,14 +204,23 @@ pub enum FlashLatency {
     feature = "stm32f417"
 ))]
 #[derive(Copy, Clone, PartialEq, Debug)]
+/// Enum representing all the possible values for the flash latency
 pub enum FlashLatency {
+    /// 0 wait cycles
     Latency0,
+    /// 1 wait cycle
     Latency1,
+    /// 2 wait cycles
     Latency2,
+    /// 3 wait cycles
     Latency3,
+    /// 4 wait cycles
     Latency4,
+    /// 5 wait cycles
     Latency5,
+    /// 6 wait cycles
     Latency6,
+    /// 7 wait cycles
     Latency7,
 }
 
@@ -219,7 +277,7 @@ impl TryFrom<usize> for FlashLatency {
 }
 
 impl Flash {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             registers: FLASH_BASE,
         }
@@ -282,6 +340,7 @@ impl Flash {
         }
     }
 
+    /// Return the current flash latency
     pub fn get_latency(&self) -> FlashLatency {
         // Can't panic because the hardware will always contain a valid value
         TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
@@ -304,6 +363,61 @@ impl Flash {
     }
 }
 
+/// Tests for the STM32F4xx flash driver.
+/// 
+/// If any contributions are made to this driver, it is highly recommended to run these tests to
+/// ensure that everything still works as expected. The tests are chip agnostic. They can be run
+/// on any STM32F4 chips.
+///
+/// # Usage
+///
+/// First, the flash module must be imported:
+///
+/// ```
+/// // Change this line depending on the chip the board is using
+/// use stm32f429zi::flash;
+/// ```
+///
+/// Then, get a reference to the peripheral:
+///
+/// ```rust,ignore
+/// // Inside the board main.rs
+/// let flash = &peripherals.stm32f4.flash;
+/// ```
+///
+/// To run all tests:
+///
+/// ```
+/// flash::tests::run_all(flash);
+/// ```
+///
+/// The following output should be printed:
+///
+/// ```text
+/// ===============================================
+/// Testing setting flash latency...
+/// 
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing number of wait cycles based on the system frequency...
+/// Finished testing number of wait cycles based on the system clock frequency. Everything is alright!
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// 
+/// 
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing setting flash latency...
+/// Finished testing setting flash latency. Everything is alright!
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// 
+/// Finished testing flash. Everything is alright!
+/// ===============================================
+/// ```
+///
+/// To run individual tests, see the functions in this module.
+///
+/// # Errors
+///
+/// In case of any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide
+/// the output of the test execution.
 pub mod tests {
     use super::*;
 
@@ -313,6 +427,9 @@ pub mod tests {
         feature = "stm32f413",
         feature = "stm32f423"
     )))]
+    /// Test for the mapping between the system clock frequency and flash latency
+    /// 
+    /// It is highly recommended to run this test since everything else depends on it.
     pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -360,6 +477,9 @@ pub mod tests {
         feature = "stm32f413",
         feature = "stm32f423"
     ))]
+    /// Test for the mapping between the system clock frequency and flash latency
+    /// 
+    /// It is highly recommended to run this test since everything else depends on it.
     pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -389,6 +509,11 @@ pub mod tests {
         debug!("");
     }
 
+    /// Test for the set_flash() method
+    ///
+    /// The latency of the flash **must not** be set manually. Other drivers will take care of this
+    /// so that everything is correctly configured. This test ensures it works as expected as if it
+    /// were called by another driver.
     pub fn test_set_flash_latency(flash: &Flash) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -447,6 +572,7 @@ pub mod tests {
         debug!("");
     }
 
+    /// Run the entire test suite
     pub fn run_all(flash: &Flash) {
         debug!("");
         debug!("===============================================");
