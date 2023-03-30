@@ -7,5 +7,8 @@ edition.workspace = true
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
-stm32f4xx = { path = "../stm32f4xx" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+
+[dependencies.stm32f4xx]
+path = "../stm32f4xx"
+features = ["stm32f446"]

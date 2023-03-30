@@ -120,7 +120,12 @@ pub struct Flash {
 
 // All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
 // values, while the other chips support 4 bit values
-#[cfg(not(any(stm32f405, stm32f415, stm32f407, stm32f417)))]
+#[cfg(not(any(
+    feature = "stm32f405",
+    feature = "stm32f415",
+    feature = "stm32f407",
+    feature = "stm32f417"
+)))]
 pub enum FlashLatency {
     Latency0,
     Latency1,
@@ -140,7 +145,12 @@ pub enum FlashLatency {
     Latency15,
 }
 
-#[cfg(any(stm32f405, stm32f415, stm32f407, stm32f417))]
+#[cfg(any(
+    feature = "stm32f405",
+    feature = "stm32f415",
+    feature = "stm32f407",
+    feature = "stm32f417"
+))]
 pub enum FlashLatency {
     Latency0,
     Latency1,
@@ -155,7 +165,12 @@ pub enum FlashLatency {
 impl TryFrom<usize> for FlashLatency {
     type Error = &'static str;
 
-    #[cfg(not(any(stm32f405, stm32f415, stm32f407, stm32f417)))]
+    #[cfg(not(any(
+        feature = "stm32f405",
+        feature = "stm32f415",
+        feature = "stm32f407",
+        feature = "stm32f417"
+    )))]
     fn try_from(item: usize) -> Result<Self, Self::Error> {
         match item {
             0 => Ok(FlashLatency::Latency0),
@@ -178,7 +193,12 @@ impl TryFrom<usize> for FlashLatency {
         }
     }
 
-    #[cfg(any(stm32f405, stm32f415, stm32f407, stm32f417))]
+    #[cfg(any(
+        feature = "stm32f405",
+        feature = "stm32f415",
+        feature = "stm32f407",
+        feature = "stm32f417"
+    ))]
     fn try_from(item: usize) -> Result<Self, Self::Error> {
         match item {
             0 => Ok(FlashLatency::Latency0),
@@ -202,7 +222,13 @@ impl Flash {
     }
 
     // TODO: Take into account the power supply
-    #[cfg(not(any(stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
+    #[cfg(not(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    )))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
         if frequency_mhz <= 30 {
             FlashLatency::Latency0
@@ -219,7 +245,11 @@ impl Flash {
         }
     }
 
-    #[cfg(any(stm32f410, stm32f411, stm32f412))]
+    #[cfg(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+    ))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
         if frequency_mhz <= 30 {
             FlashLatency::Latency0
@@ -232,7 +262,10 @@ impl Flash {
         }
     }
 
-    #[cfg(any(stm32f413, stm32f423))]
+    #[cfg(any(
+        feature = "stm32f413",
+        feature = "stm32f423",
+    ))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
         if frequency_mhz <= 25 {
             FlashLatency::Latency0
