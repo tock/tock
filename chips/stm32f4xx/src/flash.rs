@@ -484,7 +484,16 @@ pub mod tests {
     ))]
     /// Test for the mapping between the system clock frequency and flash latency
     ///
-    /// It is highly recommended to run this test since everything else depends on it.
+    /// If there is no error, the following output will be printed on the console:
+    ///
+    /// ```text
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// Testing number of wait cycles based on the system frequency...
+    /// Finished testing number of wait cycles based on the system clock frequency. Everything is alright!
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// ```
+    ///
+    /// It is highly recommended to run this test. test_set_flash_latency() depends on it.
     pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -515,6 +524,15 @@ pub mod tests {
     }
 
     /// Test for the set_flash() method
+    ///
+    /// If there is no error, the following output will be printed on the console:
+    ///
+    /// ```text
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// Testing setting flash latency...
+    /// Finished testing setting flash latency. Everything is alright!
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// ```
     pub fn test_set_flash_latency(flash: &Flash) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
