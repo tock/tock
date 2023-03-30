@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implementation of SPI for NRF52 using EasyDMA.
 //!
 //! This file only implements support for the three SPI master (`SPIM`)

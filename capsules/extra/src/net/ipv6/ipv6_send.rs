@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! This file contains the interface definition for sending an IPv6 packet.
 //! The [IP6Sender](trait.IP6Sender.html) trait provides an interface
 //! for sending IPv6 packets, while the [IP6SendClient](trait.IP6SendClient) trait

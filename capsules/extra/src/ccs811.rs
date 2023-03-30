@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! SyscallDriver for the AMS CCS811 an ultra-low power digital gas sensor
 //! solution which integrates a metal oxide (MOX) gas sensor to detect a wide
 //! range of Volatile Organic Compounds (VOCs) for indoor air quality

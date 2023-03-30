@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Frame buffer driver for the Japan Display LPM013M126 display
 //!
 //! Used in Bangle.js 2 and [Jazda](https://jazda.org).

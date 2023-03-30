@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! This file contains the definition and implementation of a simple ICMPv6
 //! sending interface. The [ICMP6Sender](trait.ICMP6Sender.html) trait provides
 //! an interface for an upper layer to send an ICMPv6 packet, and the

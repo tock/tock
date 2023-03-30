@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Example copied from https://github.com/RustCrypto/hashes/blob/master/sha2/examples/sha256sum.rs
 //!
 //! Please refer to the license at: https://github.com/RustCrypto/hashes#license
