@@ -365,20 +365,43 @@ pub mod tests {
         // Minimal Ethernet frequency
         assert_eq!(Ok(()), flash.set_latency(25));
 
-        // Maximum APB1 frequency
+        // Maximum APB1 frequency for some models
         assert_eq!(Ok(()), flash.set_latency(45));
 
-        // Maximum APB2 frequency
-        assert_eq!(Ok(()), flash.set_latency(90));
+        // STM32F401 maximum system clock frequency is 84MHz
+        #[cfg(not(feature = "stm32f401"))]
+        {
+            // Maximum APB2 frequency for some models
+            assert_eq!(Ok(()), flash.set_latency(90));
 
-        // Default PLL frequency
-        assert_eq!(Ok(()), flash.set_latency(96));
+            // Default PLL frequency
+            assert_eq!(Ok(()), flash.set_latency(96));
+        }
 
-        // Maximum CPU frequency without overdrive
-        assert_eq!(Ok(()), flash.set_latency(168));
+        // Low entries STM32F4 chips don't support frequencies higher than 100 MHz,
+        // but the foundation and advanced ones support system clock frequencies up to
+        // 180MHz
+        #[cfg(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417",
+            feature = "stm32f427",
+            feature = "stm32f429",
+            feature = "stm32f437",
+            feature = "stm32f439",
+            feature = "stm32f446",
+            feature = "stm32f469",
+            feature = "stm32f479"
+        ))]
+        {
+            // Maximum CPU frequency without overdrive
+            assert_eq!(Ok(()), flash.set_latency(168));
 
-        // Maximum CPU frequency with overdrive (for some models)
-        assert_eq!(Ok(()), flash.set_latency(180));
+            // Maximum CPU frequency with overdrive (for some models)
+            assert_eq!(Ok(()), flash.set_latency(180));
+
+        }
 
         // Revert to default settings
         assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
