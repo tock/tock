@@ -257,7 +257,21 @@ impl<'a> Clocks<'a> {
     ///
     /// AHB bus, core, memory, DMA, Cortex System timer and FCLK Cortex free-running clock
     /// frequencies are equal to the system clock frequency divided by the AHB prescaler.
+    ///
+    /// # Errors:
+    ///
+    /// + [Err]\([ErrorCode::FAIL]\) if changing the AHB prescaler doesn't preserve APB frequency
+    /// constraints
+    /// + [Err]\([ErrorCode::BUSY]\) if changing the AHB prescaler took too long. Retry.
     pub fn set_ahb_prescaler(&self, prescaler: AHBPrescaler) -> Result<(), ErrorCode> {
+        // Changing the AHB prescaler affects the APB frequencies. A check must be done to ensure
+        // that the constraints are still valid
+        let divider: usize = prescaler.into();
+        let new_ahb_frequency = self.get_sys_clock_frequency() / divider;
+        if !self.check_apb1_frequency_limit(new_ahb_frequency) || !self.check_apb2_frequency_limit(new_ahb_frequency) {
+            return Err(ErrorCode::FAIL);
+        }
+
         self.rcc.set_ahb_prescaler(prescaler);
 
         for _ in 0..16 {
@@ -537,6 +551,9 @@ pub mod tests {
         assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
         assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
+
+        // Now, decreasing the AHB prescaler would result in the violation of APB constraints
+        assert_eq!(Err(ErrorCode::FAIL), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1));
 
         // Revert to default configuration
         set_default_configuration(clocks);
