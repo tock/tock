@@ -77,7 +77,8 @@ mod rw_allow {
 
 #[derive(Default)]
 pub struct App {
-    write_len: usize,    // Length of write
+    write_position: usize, // Current write position
+    write_len: usize,    // Length of total write
     writing: bool,       // Are we in the midst of a write
     pending_write: bool, // Are we waiting to write
     tx_counter: usize,   // Used to keep order of writes
@@ -141,6 +142,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         if app.writing || app.pending_write {
             return Err(ErrorCode::BUSY);
         }
+        app.write_position = 0;
         app.write_len = kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
             .map_or(0, |write| write.len())
@@ -160,10 +162,10 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             app.pending_write = true;
         } else if app.write_len <= debug_space_avail {
             // Space for the full write, make it
-            app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
+            app.write_position = self.send(app, kernel_data).map_or(0, |len| len);
         } else if self.atomic_size.get() <= debug_space_avail {
             // Space for a partial write, make it
-            app.write_len = self.send(app, kernel_data).map_or(0, |len| len);
+            app.write_position = self.send(app, kernel_data).map_or(0, |len| len);
         } else {
             // No space even for a partial, minimum size write: enqueue
             app.pending_write = true;
@@ -193,8 +195,10 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
                 write.enter(|data| {
                     // The slice might have become shorter than the requested
                     // write; if so, just write what there is.
-                    let real_write_len = cmp::min(app.write_len, debug_available_len() - 20);
-                    let remaining_data = match data.get(0..real_write_len) {
+                    let remaining_len = app.write_len - app.write_position;
+                    let real_write_len = cmp::min(remaining_len, debug_available_len());
+                    let this_write_end = app.write_position + real_write_len;
+                    let remaining_data = match data.get(app.write_position..this_write_end) {
                         Some(remaining_data) => remaining_data,
                         None => data,
                     };
@@ -209,12 +213,8 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
                     }
                 })
             });
-        // We're writing, so start a timer to send more and
-        // block subsequent writes. Detect if there are other
-        // processes with things to write by looking at the
-        // sequence number; if the next-to-be-given sequence
-        // number != this process+1, then a process has
-        // grabbed this process+1 and has something to send. -pal
+        // Start a timer to signal completion of this write
+        // and potentially write more.
         self.alarm.set_alarm(
             self.alarm.now(),
             self.alarm.ticks_from_ms(self.write_timer.get()),
@@ -226,52 +226,76 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
 impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
     fn alarm(&self) {
         if self.tx_in_progress.get() {
+            // We clear this here and set it later in case .enter fails (process has died).
             self.tx_in_progress.set(false);
-
-            // Issue an upcall for the in-progress write
+            // Check if the current writer is finished; if so, issue an upcall, if not,
+            // try to write more.
             for cntr in self.apps.iter() {
                 cntr.enter(|app, kernel_data| {
                     // This is the in-progress write
                     if app.writing {
-                        let _res = kernel_data.schedule_upcall(1, (app.write_len, 0, 0));
-                        app.writing = false;
+                        if app.write_position >= app.write_len {
+                            let _res = kernel_data.schedule_upcall(1, (app.write_len, 0, 0));
+                            app.writing = false;
+                        } else {
+                            // Still have more to write, don't allow others to jump in.
+                            self.tx_in_progress.set(true);
+                            let remaining_len = app.write_len - app.write_position;
+
+                            // Promise to write to the end, or the atomic write unit, whichever is smaller
+                            let debug_space_avail = debug_available_len();
+                            let minimum_write = cmp::min(remaining_len, self.atomic_size.get());
+
+                            // Write, or if there isn't space for a minimum write, retry later
+                            if minimum_write <= debug_space_avail {
+                                app.write_position += self.send(app, kernel_data).map_or(0, |len| len);
+                            } else {
+                                self.alarm.set_alarm(
+                                    self.alarm.now(),
+                                    self.alarm.ticks_from_ms(self.retry_timer.get()),
+                                );
+                            }
+                        }
                     }
                 });
             }
         }
 
-        // Find if there's another writer and mark it busy.
-        let mut next_writer: Option<ProcessId> = None;
-        let mut seqno = self.tx_counter.get();
+        // There's no ongoing send, try to send the next one (process with
+        // lowest sequence number).
+        if !self.tx_in_progress.get() {
+            // Find if there's another writer and mark it busy.
+            let mut next_writer: Option<ProcessId> = None;
+            let mut seqno = self.tx_counter.get();
 
-        // Find the process that has an outstanding write with the
-        // earliest sequence number, handling wraparound.
-        for cntr in self.apps.iter() {
-            let appid = cntr.processid();
-            cntr.enter(|app, _| {
-                if app.pending_write {
-                    // Checks wither app.tx_counter is earlier than
-                    // seqno, with the constrain that there are <
-                    // usize/2 processes. wrapping_sub allows this to
-                    // handle wraparound E.g., in 8-bit arithmetic
-                    // 0x02 - 0xff = 0x03 and so 0xff is "earlier"
-                    // than 0x02. -pal
-                    if seqno.wrapping_sub(app.tx_counter) < usize::MAX / 2 {
-                        seqno = app.tx_counter;
-                        next_writer = Some(appid);
+            // Find the process that has an outstanding write with the
+            // earliest sequence number, handling wraparound.
+            for cntr in self.apps.iter() {
+                let appid = cntr.processid();
+                cntr.enter(|app, _| {
+                    if app.pending_write {
+                        // Checks wither app.tx_counter is earlier than
+                        // seqno, with the constrain that there are <
+                        // usize/2 processes. wrapping_sub allows this to
+                        // handle wraparound E.g., in 8-bit arithmetic
+                        // 0x02 - 0xff = 0x03 and so 0xff is "earlier"
+                        // than 0x02. -pal
+                        if seqno.wrapping_sub(app.tx_counter) < usize::MAX / 2 {
+                            seqno = app.tx_counter;
+                            next_writer = Some(appid);
+                        }
                     }
-                }
+                });
+            }
+
+            next_writer.map(|pid| {
+                self.apps.enter(pid, |app, kernel_data| {
+                    app.pending_write = false;
+                    let len = app.write_len;
+                    let _ = self.send_new(app, kernel_data, len);
+                })
             });
         }
-
-        next_writer.map(|pid| {
-            self.apps.enter(pid, |app, kernel_data| {
-                app.pending_write = false;
-                let len = app.write_len;
-                let _ = self.send_new(app, kernel_data, len);
-                //app.write_len = res.map_or(0, |bytes| bytes);
-            })
-        });
     }
 }
 
