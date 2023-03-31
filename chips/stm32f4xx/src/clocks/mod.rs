@@ -525,7 +525,8 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
     }
 
-    fn test_prescalers(clocks: &Clocks) {
+    /// Test for the AHB and APB prescalers
+    pub fn test_prescalers(clocks: &Clocks) {
         // This test requires a bit of setup. A system clock running at 160MHz is configured.
         assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
@@ -564,123 +565,6 @@ pub mod tests {
         set_default_configuration(clocks);
     }
 
-    #[cfg(any(
-        feature = "stm32f401",
-        feature = "stm32f410",
-        feature = "stm32f411",
-        feature = "stm32f412",
-        feature = "stm32f413",
-        feature = "stm32f423"
-    ))]
-    /// Test for the [crate::clk::clocks::Clocks] struct
-    pub fn test_clocks_struct(clocks: &Clocks) {
-        debug!("");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing clocks struct...");
-
-        // By default, the HSI clock is the system clock
-        assert_eq!(SysClockSource::HSI, clocks.get_sys_clock_source());
-
-        // HSI frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
-
-        // AHB default prescaler is 1
-        assert_eq!(AHBPrescaler::DivideBy1, clocks.get_ahb_prescaler());
-
-        // AHB default frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_ahb_frequency());
-
-        // APB1 default prescaler is 1
-        assert_eq!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler());
-
-        // APB1 default frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
-
-        // APB2 default prescaler is 1
-        assert_eq!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler());
-
-        // APB2 default frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
-
-        // Attempting to change the system clock source with a disabled source
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
-
-        // Attempting to set twice the same system clock source is fine
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
-
-        // Change the system clock source to a low frequency so that APB prescalers don't need to be
-        // changed
-        assert_eq!(Ok(()), clocks.pll.set_frequency(LOW_FREQUENCY));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
-        assert_eq!(SysClockSource::PLLCLK, clocks.get_sys_clock_source());
-
-        // Now the system clock frequency is equal to 25MHz
-        assert_eq!(LOW_FREQUENCY, clocks.get_sys_clock_frequency());
-
-        // APB1 and APB2 frequencies must also be 25MHz
-        assert_eq!(LOW_FREQUENCY, clocks.get_apb1_frequency());
-        assert_eq!(LOW_FREQUENCY, clocks.get_apb2_frequency());
-
-        // Attempting to disable PLL when it is configured as the system clock must fail
-        assert_eq!(Err(ErrorCode::FAIL), clocks.pll.disable());
-        // Same for the HSI since it is used indirectly as a system clock through PLL
-        assert_eq!(Err(ErrorCode::FAIL), clocks.hsi.disable());
-
-        // Revert to default system clock configuration
-        set_default_configuration(clocks);
-
-        // Trying to configure a high frequency for the system clock without configuring the APB1
-        // prescaler must fail
-        assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
-
-        // Configuring APB1 prescaler to 4
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
-
-        // Now, PLL can be set as the system clock source
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
-
-        // Configuring APB2 prescaler to 2
-        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
-
-        // Check new AHB frequency
-        assert_eq!(HIGH_FREQUENCY, clocks.get_ahb_frequency());
-
-        // Check new APB frequencies
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
-        assert_eq!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency());
-
-        // Revert to default system clock configuration
-        set_default_configuration(clocks);
-
-        // Doing the same thing as before, except that this time the AHB prescaler is configured
-        // instead of individual APB prescalers
-        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency());
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
-
-
-        // Revert to default configuration
-        set_default_configuration(clocks);
-
-        debug!("Finished testing clocks struct. Everything is alright!");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("");
-    }
-
-    #[cfg(not(any(
-        feature = "stm32f401",
-        feature = "stm32f410",
-        feature = "stm32f411",
-        feature = "stm32f412",
-        feature = "stm32f413",
-        feature = "stm32f423"
-    )))]
     /// Test for the [crate::clocks::Clocks] struct
     pub fn test_clocks_struct(clocks: &Clocks) {
         debug!("");
@@ -721,6 +605,7 @@ pub mod tests {
         // Now the system clock frequency is equal to 25MHz
         assert_eq!(LOW_FREQUENCY, clocks.get_sys_clock_frequency());
 
+
         // APB1 and APB2 frequencies must also be 25MHz
         assert_eq!(LOW_FREQUENCY, clocks.get_apb1_frequency());
         assert_eq!(LOW_FREQUENCY, clocks.get_apb2_frequency());
@@ -744,10 +629,26 @@ pub mod tests {
         // Even if the APB1 prescaler is changed to 2, it must fail
         // (HIGH_FREQUENCY / 2 > APB1_FREQUENCY_LIMIT_MHZ)
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
+        #[cfg(not(any(
+            feature = "stm32f401",
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413",
+            feature = "stm32f423"
+        )))]
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
         // Configuring APB1 prescaler to 4 is fine, but APB2 prescaler is still wrong
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
+        #[cfg(not(any(
+            feature = "stm32f401",
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413",
+            feature = "stm32f423"
+        )))]
         assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
 
         // Configuring APB2 prescaler to 2
