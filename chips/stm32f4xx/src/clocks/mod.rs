@@ -480,6 +480,26 @@ impl<'a> Clocks<'a> {
 pub mod tests {
     use super::*;
 
+    const LOW_FREQUENCY: usize = 25;
+    #[cfg(not(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    )))]
+    const HIGH_FREQUENCY: usize = 112;
+    #[cfg(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    ))]
+    const HIGH_FREQUENCY: usize = 80;
+
     fn set_default_configuration(clocks: &Clocks) {
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
         assert_eq!(Ok(()), clocks.pll.disable());
@@ -491,10 +511,9 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
     }
 
-    #[cfg(not(any(stm32f401, stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
     fn test_apb_prescalers(clocks: &Clocks) {
         // This test requires a bit of setup. A system clock running at 160MHz is configured.
-        assert_eq!(Ok(()), clocks.pll.set_frequency(160));
+        assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
         assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
@@ -502,17 +521,32 @@ pub mod tests {
 
         // Trying to reduce the APB scaler to an invalid value should fail
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
+        // The following assert will pass on these models because of the low system clock
+        // frequency limit
+        #[cfg(not(any(
+            feature = "stm32f401",
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413",
+            feature = "stm32f423"
+        )))]
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
 
         // Revert to default configuration
         set_default_configuration(clocks);
     }
 
-    #[cfg(any(stm32f401, stm32f410, stm32f411, stm32f412, stm32f413, stm32f423))]
+    #[cfg(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    ))]
     /// Test for the [crate::clk::clocks::Clocks] struct
     pub fn test_clocks_struct(clocks: &Clocks) {
-        const LOW_FREQUENCY: usize = 25;
-        const HIGH_FREQUENCY: usize = 80;
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing clocks struct...");
@@ -612,11 +646,16 @@ pub mod tests {
         debug!("");
     }
 
-    #[cfg(not(any(stm32f401, stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
+    #[cfg(not(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    )))]
     /// Test for the [crate::clocks::Clocks] struct
     pub fn test_clocks_struct(clocks: &Clocks) {
-        const LOW_FREQUENCY: usize = 25;
-        const HIGH_FREQUENCY: usize = 112;
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing clocks struct...");
