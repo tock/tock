@@ -533,6 +533,11 @@ pub mod tests {
         )))]
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
 
+        // Increasing the AHB prescaler should allow decreasing APB prescalers
+        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
+        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
+        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
+
         // Revert to default configuration
         set_default_configuration(clocks);
     }
