@@ -423,8 +423,8 @@ pub unsafe fn main() {
         capsules_core::console_ordered::DRIVER_NUM,
         mux_alarm,
         200,
-        20,
-        20,
+        5,
+        5,
     )
     .finalize(components::console_ordered_component_static!(
         sam4l::ast::Ast

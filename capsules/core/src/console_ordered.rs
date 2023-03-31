@@ -14,18 +14,40 @@
 //! Setup
 //! -----
 //!
-//! This capsule allows userspace programs to print to the kernel debug
-//! log. This ensures that (as long as the writes are not truncated) that
-//! kernel and userspace print operations are in order.
+//! This capsule allows userspace programs to print to the kernel
+//! debug log. This ensures that (as long as the writes are not
+//! truncated) that kernel and userspace print operations are in
+//! order. It requires a reference to an Alarm for timers to issue
+//! callbacks and send more data. The three configuration constants are:
+//!   - ATOMIC_SIZE: the minimum block of buffer that will be sent. If
+//!                  there is not enough space in the debug buffer to
+//!                  send ATOMIC_SIZE bytes, the console retries later.
+//!   - RETRY_TIMER: if there is not enough space in the debug buffer
+//!                  to send the next chunk of a write, the console
+//!                  waits RETRY_TIMER ticks of the supplied alarm.
+//!   - WRITE_TIMER: after completing a write, the console waits
+//!                  WRITE_TIMER ticks of the supplied alarm before
+//!                  issuing a callback or writing more.
+//!
+//! RETRY_TIMER and WRITE_TIMER should be set based on the speed of
+//! the underlying UART and desired load. Generally speaking, setting
+//! them around 50-100 byte times is good. For example, this means on
+//! a 115200 UART, setting them to 5ms (576 bits, or 72 bytes) is
+//! reasonable. ATOMIC_SIZE should be at least 80 (row width
+//! of a standard console).
 //!
 //! ```rust
 //! # use kernel::static_init;
-//! # use capsules::console::Console;
-//! let print_log = static_init!(
-//!     PrintLog,
-//!     PrintLog::new(&usart::USART0,
-//!                  115200,
-//!                  board_kernel.create_grant(&grant_cap)));
+//! # use capsules_core::console_ordered::ConsoleOrdered;
+//! let console = static_init!(
+//!     ConsoleOrdered,
+//!     ConsoleOrdered::new(virtual_alarm,
+//!                         board_kernel.create_grant(capsules_core::console_ordered::DRIVER_NUM,
+//!                                                   &grant_cap),
+//!                         ATOMIC_SIZE,
+//!                         RETRY_TIMER,
+//!                         WRITE_TIMER));
+//!
 //! ```
 //!
 //! Usage
@@ -226,8 +248,10 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
 impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
     fn alarm(&self) {
         if self.tx_in_progress.get() {
-            // We clear this here and set it later in case .enter fails (process has died).
+            // Clear here and set it later; if .enter fails (process
+            // has died) it remains cleared.
             self.tx_in_progress.set(false);
+
             // Check if the current writer is finished; if so, issue an upcall, if not,
             // try to write more.
             for cntr in self.apps.iter() {
@@ -240,9 +264,9 @@ impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
                         } else {
                             // Still have more to write, don't allow others to jump in.
                             self.tx_in_progress.set(true);
-                            let remaining_len = app.write_len - app.write_position;
 
                             // Promise to write to the end, or the atomic write unit, whichever is smaller
+                            let remaining_len = app.write_len - app.write_position;
                             let debug_space_avail = debug_available_len();
                             let minimum_write = cmp::min(remaining_len, self.atomic_size.get());
 
