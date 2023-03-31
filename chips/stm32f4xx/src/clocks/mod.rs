@@ -525,7 +525,7 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
     }
 
-    fn test_apb_prescalers(clocks: &Clocks) {
+    fn test_prescalers(clocks: &Clocks) {
         // This test requires a bit of setup. A system clock running at 160MHz is configured.
         assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
@@ -781,7 +781,7 @@ pub mod tests {
         hsi::tests::run(&clocks.hsi);
         pll::tests::run(&clocks.pll);
         test_clocks_struct(clocks);
-        test_apb_prescalers(clocks);
+        test_prescalers(clocks);
 
         debug!("Finished testing clocks. Everything is alright!");
         debug!("===============================================");
