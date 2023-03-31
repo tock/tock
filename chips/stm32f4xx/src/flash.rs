@@ -52,8 +52,7 @@ register_structs! {
         (0x010 => cr: ReadWrite<u32, CR::Register>),
         /// Flash option control register
         (0x014 => optcr: ReadWrite<u32, OPTCR::Register>),
-        /// Flash option control register
-/// 1
+        /// Flash option control register 1
         (0x018 => optcr1: ReadWrite<u32>),
         (0x01C => @END),
     }
@@ -63,7 +62,8 @@ register_structs! {
 register_bitfields![u32,
     ACR [
         /// Latency
-        LATENCY OFFSET(0) NUMBITS(3) [],
+        // NOTE: This bit field can be either 3 or 4 bits long
+        LATENCY OFFSET(0) NUMBITS(4) [],
         /// Prefetch enable
         PRFTEN OFFSET(8) NUMBITS(1) [],
         /// Instruction cache enable
@@ -96,6 +96,9 @@ register_bitfields![u32,
         PGPERR OFFSET(6) NUMBITS(1) [],
         /// Programming sequence error
         PGSERR OFFSET(7) NUMBITS(1) [],
+        /// Read protection error
+        // NOTE: This bit field is not available on STM32F405, STM32F415, STM32F407 and STM32F417
+        RDERR OFFSET(8) NUMBITS(1) [],
         /// Busy
         BSY OFFSET(16) NUMBITS(1) []
     ],
@@ -107,10 +110,12 @@ register_bitfields![u32,
         /// Mass Erase of sectors 0 to 11
         MER OFFSET(2) NUMBITS(1) [],
         /// Sector number
+        // NOTE: This bit field can be either 4 or 5 bits long depending on the chip model
         SNB OFFSET(3) NUMBITS(5) [],
         /// Program size
         PSIZE OFFSET(8) NUMBITS(2) [],
         /// Mass Erase of sectors 12 to 23
+        // NOTE: This bit is not available on all chip models
         MER1 OFFSET(15) NUMBITS(1) [],
         /// Start
         STRT OFFSET(16) NUMBITS(1) [],
@@ -137,6 +142,7 @@ register_bitfields![u32,
         /// Read protect
         RDP OFFSET(8) NUMBITS(8) [],
         /// Not write protect
+        // The length of this bit field varies with the chip model
         nWRP OFFSET(16) NUMBITS(12) []
     ],
     OPTCR1 [
@@ -373,7 +379,7 @@ impl Flash {
 ///
 /// First, the flash module must be imported:
 ///
-/// ```
+/// ```rust,ignore
 /// // Change this line depending on the chip the board is using
 /// use stm32f429zi::flash;
 /// ```
@@ -387,7 +393,7 @@ impl Flash {
 ///
 /// To run all tests:
 ///
-/// ```
+/// ```rust,ignore
 /// flash::tests::run_all(flash);
 /// ```
 ///
@@ -429,13 +435,18 @@ pub mod tests {
     const APB1_MAX_FREQUENCY_MHZ_3: usize = 50;
     // Different chips have different maximum values for APB2
     const APB2_MAX_FREQUENCY_MHZ_1: usize = 84;
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const APB2_MAX_FREQUENCY_MHZ_2: usize = 90;
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const APB2_MAX_FREQUENCY_MHZ_3: usize = 100;
     // Many STM32F4 chips allow a maximum frequency of 168MHz and some of them 180MHz if overdrive
     // is turned on
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
     // Default PLL frequency
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const PLL_FREQUENCY_MHZ: usize = 96;
 
     #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
