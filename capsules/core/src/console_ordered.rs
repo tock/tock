@@ -78,10 +78,10 @@ mod rw_allow {
 #[derive(Default)]
 pub struct App {
     write_position: usize, // Current write position
-    write_len: usize,    // Length of total write
-    writing: bool,       // Are we in the midst of a write
-    pending_write: bool, // Are we waiting to write
-    tx_counter: usize,   // Used to keep order of writes
+    write_len: usize,      // Length of total write
+    writing: bool,         // Are we in the midst of a write
+    pending_write: bool,   // Are we waiting to write
+    tx_counter: usize,     // Used to keep order of writes
 }
 
 pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
@@ -248,7 +248,8 @@ impl<'a, A: Alarm<'a>> AlarmClient for ConsoleOrdered<'a, A> {
 
                             // Write, or if there isn't space for a minimum write, retry later
                             if minimum_write <= debug_space_avail {
-                                app.write_position += self.send(app, kernel_data).map_or(0, |len| len);
+                                app.write_position +=
+                                    self.send(app, kernel_data).map_or(0, |len| len);
                             } else {
                                 self.alarm.set_alarm(
                                     self.alarm.now(),
