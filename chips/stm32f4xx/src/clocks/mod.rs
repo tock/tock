@@ -546,6 +546,9 @@ pub mod tests {
             feature = "stm32f423"
         )))]
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
+        // Any failure in changing the APB prescalers must preserve their values
+        assert_eq!(APBPrescaler::DivideBy4, clocks.get_apb1_prescaler());
+        assert_eq!(APBPrescaler::DivideBy2, clocks.get_apb2_prescaler());
 
         // Increasing the AHB prescaler should allow decreasing APB prescalers
         assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
@@ -554,6 +557,8 @@ pub mod tests {
 
         // Now, decreasing the AHB prescaler would result in the violation of APB constraints
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1));
+        // Any failure in changing the AHB prescaler must preserve its value
+        assert_eq!(AHBPrescaler::DivideBy4, clocks.get_ahb_prescaler());
 
         // Revert to default configuration
         set_default_configuration(clocks);
