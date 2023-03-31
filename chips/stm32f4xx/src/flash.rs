@@ -162,7 +162,6 @@ pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
 // All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
 // values, while the other chips support 4 bit values
 #[cfg(not(any(
