@@ -16,7 +16,7 @@
 //! - [ ] Precision of 1MHz
 //! - [ ] No support for MCO
 //!
-//! # Usage
+//! # Usage [^usage_note]
 //!
 //! First, import the following enums:
 //!
@@ -27,7 +27,7 @@
 //! use stm32f429zi::rcc::SysClockSource;
 //! ```
 //!
-//! A reference to the [crate::clk::clocks::Clocks] is needed:
+//! A reference to the [crate::clocks::Clocks] is needed:
 //!
 //! ```rust,ignore
 //! // Add this in board main.rs
@@ -48,7 +48,7 @@
 //! debug!("Current AHB prescaler is {:?}", ahb_prescaler);
 //! ```
 //!
-//! NOTE: If one wishes to get the usize equivalent value of [crate::clk::clocks::Clocks::get_ahb_prescaler], to use in
+//! NOTE: If one wishes to get the usize equivalent value of [crate::clocks::Clocks::get_ahb_prescaler], to use in
 //! computations for example, they must use [crate::rcc::AHBPrescaler].into() method:
 //!
 //! ```rust,ignore
@@ -145,10 +145,15 @@
 //! ```rust,ignore
 //! clocks.set_sys_clock_source(SysClockSource::PLLCLK);
 //! ```
+//!
+//! [^usage_note]: For the purpose of brievity, any error checking has been removed.
 
-use crate::clk::pll::Pll;
-use crate::clk::hsi::Hsi;
-use crate::clk::hsi::HSI_FREQUENCY_MHZ;
+pub mod hsi;
+pub mod pll;
+
+use pll::Pll;
+use hsi::Hsi;
+use hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 use crate::rcc::APBPrescaler;
@@ -590,7 +595,7 @@ pub mod tests {
     }
 
     #[cfg(not(any(stm32f401, stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
-    /// Test for the [crate::clk::clocks::Clocks] struct
+    /// Test for the [crate::clocks::Clocks] struct
     pub fn test_clocks_struct(clocks: &Clocks) {
         const LOW_FREQUENCY: usize = 25;
         const HIGH_FREQUENCY: usize = 112;

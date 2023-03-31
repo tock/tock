@@ -142,7 +142,7 @@ impl<'a> Hsi<'a> {
 ///
 /// # Usage
 ///
-/// First, import the [crate::clk::hsi] module in the desired board main file:
+/// First, import the [crate::clocks::hsi] module in the desired board main file:
 ///
 /// ```rust,ignore
 /// use stm32f429zi::hsi;

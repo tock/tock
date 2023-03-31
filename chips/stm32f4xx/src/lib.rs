@@ -28,10 +28,7 @@ pub mod trng;
 pub mod usart;
 
 // Clocks
-mod clk;
-pub use clk::clocks;
-pub use clk::pll;
-pub use clk::hsi;
+pub mod clocks;
 
 use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 

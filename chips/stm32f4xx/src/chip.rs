@@ -26,7 +26,7 @@ pub struct Stm32f4xxDefaultPeripherals<'a> {
     pub fsmc: crate::fsmc::Fsmc<'a>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
-    pub clocks: crate::clk::clocks::Clocks<'a>,
+    pub clocks: crate::clocks::Clocks<'a>,
     pub spi3: crate::spi::Spi<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
     pub usart1: crate::usart::Usart<'a, dma::Dma2<'a>>,
@@ -43,7 +43,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
     ) -> Self {
         Self {
             adc1: crate::adc::Adc::new(rcc),
-            clocks: crate::clk::clocks::Clocks::new(rcc),
+            clocks: crate::clocks::Clocks::new(rcc),
             dma1_streams: dma::new_dma1_stream(dma1),
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,

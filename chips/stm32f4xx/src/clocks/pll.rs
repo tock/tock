@@ -363,7 +363,7 @@ impl<'a> Pll<'a> {
 ///
 /// # Usage
 ///
-/// First, import the [crate::clk::pll] module inside the board main file:
+/// First, import the [crate::clocks::pll] module inside the board main file:
 ///
 /// ```rust,ignore
 /// use stm32f429zi::pll;
