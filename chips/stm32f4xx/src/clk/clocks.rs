@@ -291,7 +291,18 @@ impl<'a> Clocks<'a> {
     ///
     /// The APB1 peripheral clock frequency is equal to the AHB frequency divided by the APB1
     /// prescaler.
+    ///
+    /// # Errors:
+    ///
+    /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the APB1 frequency limit
+    /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long. Retry.
     pub fn set_apb1_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
+        let ahb_frequency = self.get_ahb_frequency();
+        let divider: usize = prescaler.into();
+        if ahb_frequency / divider > APB1_FREQUENCY_LIMIT_MHZ {
+            return Err(ErrorCode::FAIL);
+        }
+
         self.rcc.set_apb1_prescaler(prescaler);
 
         for _ in 0..16 {
@@ -328,7 +339,18 @@ impl<'a> Clocks<'a> {
     ///
     /// The APB2 peripheral clock frequency is equal to the AHB frequency divided by the APB2
     /// prescaler.
+    ///
+    /// # Errors:
+    ///
+    /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the APB2 frequency limit
+    /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long. Retry.
     pub fn set_apb2_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
+        let current_ahb_frequency = self.get_ahb_frequency();
+        let divider: usize = prescaler.into();
+        if current_ahb_frequency / divider > APB2_FREQUENCY_LIMIT_MHZ {
+            return Err(ErrorCode::FAIL);
+        }
+
         self.rcc.set_apb2_prescaler(prescaler);
 
         for _ in 0..16 {
