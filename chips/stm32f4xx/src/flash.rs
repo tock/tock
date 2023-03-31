@@ -1,6 +1,40 @@
-use kernel::utilities::StaticRef;
+#![deny(missing_docs)]
+//! STM32F4xx flash driver
+//!
+//! This driver provides basic functionalities for the entire STM32F4 series.
+//!
+//! # Features
+//!
+//! - [x] Configuring latency based on the system clock frequency
+//!
+//! # Missing features
+//!
+//! - [ ] Support for different power supplies
+//! - [ ] Instruction prefetch
+//! - [ ] Instruction and data cache
+//!
+//!
+//! # Usage
+//!
+//! To use this driver, a reference to the Flash peripheral is required:
+//!
+//! ```rust,ignore
+//! // Inside the board main.rs
+//! let flash = &peripherals.stm32f4.flash;
+//! ```
+//!
+//! ## Retrieve the current flash latency
+//!
+//! ```rust,ignore
+//! let flash_latency = flash.get_latency() as usize;
+//! debug!("Current flash latency is {}", flash_latency);
+//! ```
+
+use kernel::debug;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
-use kernel::utilities::registers::interfaces::{Readable, ReadWriteable};
+use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 // TODO: Make sure it is possible to create one common superset flash structure
 register_structs! {
@@ -18,18 +52,19 @@ register_structs! {
         (0x010 => cr: ReadWrite<u32, CR::Register>),
         /// Flash option control register
         (0x014 => optcr: ReadWrite<u32, OPTCR::Register>),
-        /// Flash option control register
-/// 1
+        /// Flash option control register 1
+        // NOTE: This register is present only on some chip models
         (0x018 => optcr1: ReadWrite<u32>),
         (0x01C => @END),
     }
 }
 
-// TODO: Make sure it is possible to create one common superset flash bitfields
+// TODO: Make sure it is possible to create one common superset flash bit fields
 register_bitfields![u32,
     ACR [
         /// Latency
-        LATENCY OFFSET(0) NUMBITS(3) [],
+        // NOTE: This bit field can be either 3 or 4 bits long
+        LATENCY OFFSET(0) NUMBITS(4) [],
         /// Prefetch enable
         PRFTEN OFFSET(8) NUMBITS(1) [],
         /// Instruction cache enable
@@ -62,6 +97,9 @@ register_bitfields![u32,
         PGPERR OFFSET(6) NUMBITS(1) [],
         /// Programming sequence error
         PGSERR OFFSET(7) NUMBITS(1) [],
+        /// Read protection error
+        // NOTE: This bit field is not available on STM32F405, STM32F415, STM32F407 and STM32F417
+        RDERR OFFSET(8) NUMBITS(1) [],
         /// Busy
         BSY OFFSET(16) NUMBITS(1) []
     ],
@@ -73,10 +111,12 @@ register_bitfields![u32,
         /// Mass Erase of sectors 0 to 11
         MER OFFSET(2) NUMBITS(1) [],
         /// Sector number
+        // NOTE: This bit field can be either 4 or 5 bits long depending on the chip model
         SNB OFFSET(3) NUMBITS(5) [],
         /// Program size
         PSIZE OFFSET(8) NUMBITS(2) [],
         /// Mass Erase of sectors 12 to 23
+        // NOTE: This bit is not available on all chip models
         MER1 OFFSET(15) NUMBITS(1) [],
         /// Start
         STRT OFFSET(16) NUMBITS(1) [],
@@ -103,17 +143,21 @@ register_bitfields![u32,
         /// Read protect
         RDP OFFSET(8) NUMBITS(8) [],
         /// Not write protect
+        // NOTE: The length of this bit field varies with the chip model
         nWRP OFFSET(16) NUMBITS(12) []
     ],
     OPTCR1 [
         /// Not write protect
+        // NOTE: The length of this bit field varies with the chip model
         nWRP OFFSET(16) NUMBITS(12) []
     ]
 ];
 
+// All chips models have the same FLASH_BASE
 const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x40023C00 as *const FlashRegisters) };
 
+/// Main Flash struct
 pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
@@ -121,89 +165,96 @@ pub struct Flash {
 #[derive(Copy, Clone, Debug, PartialEq)]
 // All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
 // values, while the other chips support 4 bit values
-#[cfg(not(any(stm32f405, stm32f415, stm32f407, stm32f417)))]
+#[cfg(not(any(
+    feature = "stm32f405",
+    feature = "stm32f415",
+    feature = "stm32f407",
+    feature = "stm32f417"
+)))]
+#[derive(Copy, Clone, PartialEq, Debug)]
+/// Enum representing all the possible values for the flash latency
 pub enum FlashLatency {
+    /// 0 wait cycles
     Latency0,
+    /// 1 wait cycle
     Latency1,
+    /// 2 wait cycles
     Latency2,
+    /// 3 wait cycles
     Latency3,
+    /// 4 wait cycles
     Latency4,
+    /// 5 wait cycles
     Latency5,
+    /// 6 wait cycles
     Latency6,
+    /// 7 wait cycles
     Latency7,
+    /// 8 wait cycles
     Latency8,
+    /// 9 wait cycles
     Latency9,
+    /// 10 wait cycles
     Latency10,
+    /// 11 wait cycles
     Latency11,
+    /// 12 wait cycles
     Latency12,
+    /// 13 wait cycles
     Latency13,
+    /// 14 wait cycles
     Latency14,
+    /// 15 wait cycles
     Latency15,
 }
 
-#[cfg(any(stm32f405, stm32f415, stm32f407, stm32f417))]
+#[cfg(any(
+    feature = "stm32f405",
+    feature = "stm32f415",
+    feature = "stm32f407",
+    feature = "stm32f417"
+))]
+#[derive(Copy, Clone, PartialEq, Debug)]
+/// Enum representing all the possible values for the flash latency
 pub enum FlashLatency {
+    /// 0 wait cycles
     Latency0,
+    /// 1 wait cycle
     Latency1,
+    /// 2 wait cycles
     Latency2,
+    /// 3 wait cycles
     Latency3,
+    /// 4 wait cycles
     Latency4,
+    /// 5 wait cycles
     Latency5,
+    /// 6 wait cycles
     Latency6,
+    /// 7 wait cycles
     Latency7,
 }
 
-impl TryFrom<usize> for FlashLatency {
-    type Error = &'static str;
-
-    #[cfg(not(any(stm32f405, stm32f415, stm32f407, stm32f417)))]
-    fn try_from(item: usize) -> Result<Self, Self::Error> {
-        match item {
-            0 => Ok(FlashLatency::Latency0),
-            1 => Ok(FlashLatency::Latency1),
-            2 => Ok(FlashLatency::Latency2),
-            3 => Ok(FlashLatency::Latency3),
-            4 => Ok(FlashLatency::Latency4),
-            5 => Ok(FlashLatency::Latency5),
-            6 => Ok(FlashLatency::Latency6),
-            7 => Ok(FlashLatency::Latency7),
-            8 => Ok(FlashLatency::Latency8),
-            9 => Ok(FlashLatency::Latency9),
-            10 => Ok(FlashLatency::Latency10),
-            11 => Ok(FlashLatency::Latency11),
-            12 => Ok(FlashLatency::Latency12),
-            13 => Ok(FlashLatency::Latency13),
-            14 => Ok(FlashLatency::Latency14),
-            15 => Ok(FlashLatency::Latency15),
-            _ => Err("Error value for FlashLatency::try_from"),
-        }
-    }
-
-    #[cfg(any(stm32f405, stm32f415, stm32f407, stm32f417))]
-    fn try_from(item: usize) -> Result<Self, Self::Error> {
-        match item {
-            0 => Ok(FlashLatency::Latency0),
-            1 => Ok(FlashLatency::Latency1),
-            2 => Ok(FlashLatency::Latency2),
-            3 => Ok(FlashLatency::Latency3),
-            4 => Ok(FlashLatency::Latency4),
-            5 => Ok(FlashLatency::Latency5),
-            6 => Ok(FlashLatency::Latency6),
-            7 => Ok(FlashLatency::Latency7),
-            _ => Err("Error value for FlashLatency::try_from"),
-        }
-    }
-}
-
 impl Flash {
-    pub fn new() -> Self {
+    // Flash constructor. It should be called when creating Stm32f4xxDefaultPeripherals.
+    pub(crate) fn new() -> Self {
         Self {
             registers: FLASH_BASE,
         }
     }
 
-    // TODO: Take into account the power supply
-    #[cfg(not(any(stm32f410, stm32f411, stm32f412, stm32f413, stm32f423)))]
+    // The number of wait cycles depends on two factors: system clock frequency and the supply
+    // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
+    // TODO: Take into the account the power supply
+    //
+    // The number of wait states varies from chip to chip.
+    #[cfg(not(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    )))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
         if frequency_mhz <= 30 {
             FlashLatency::Latency0
@@ -220,7 +271,7 @@ impl Flash {
         }
     }
 
-    #[cfg(any(stm32f410, stm32f411, stm32f412))]
+    #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
         if frequency_mhz <= 30 {
             FlashLatency::Latency0
@@ -233,7 +284,7 @@ impl Flash {
         }
     }
 
-    #[cfg(any(stm32f413, stm32f423))]
+    #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
     fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
         if frequency_mhz <= 25 {
             FlashLatency::Latency0
@@ -246,16 +297,372 @@ impl Flash {
         }
     }
 
+    /// Return the current flash latency
     pub fn get_latency(&self) -> FlashLatency {
-        // Can't panic because the hardware will always contain a valid value
-        TryFrom::try_from(self.registers.acr.read(ACR::LATENCY) as usize).unwrap()
+        #[cfg(not(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417"
+        )))]
+        match self.registers.acr.read(ACR::LATENCY) {
+            0 => FlashLatency::Latency0,
+            1 => FlashLatency::Latency1,
+            2 => FlashLatency::Latency2,
+            3 => FlashLatency::Latency3,
+            4 => FlashLatency::Latency4,
+            5 => FlashLatency::Latency5,
+            6 => FlashLatency::Latency6,
+            7 => FlashLatency::Latency7,
+            8 => FlashLatency::Latency8,
+            9 => FlashLatency::Latency9,
+            10 => FlashLatency::Latency10,
+            11 => FlashLatency::Latency11,
+            12 => FlashLatency::Latency12,
+            13 => FlashLatency::Latency13,
+            14 => FlashLatency::Latency14,
+            // The hardware allows 4-bit latency values
+            _ => FlashLatency::Latency15,
+        }
+
+        #[cfg(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417"
+        ))]
+        match self.registers.acr.read(ACR::LATENCY) {
+            0 => FlashLatency::Latency0,
+            1 => FlashLatency::Latency1,
+            2 => FlashLatency::Latency2,
+            3 => FlashLatency::Latency3,
+            4 => FlashLatency::Latency4,
+            5 => FlashLatency::Latency5,
+            6 => FlashLatency::Latency6,
+            // The hardware allows 3-bit latency values
+            _ => FlashLatency::Latency7,
+        }
     }
 
     // TODO: Take into the account the power supply
-    // This method has been made public(crate) because flash latency depends on the system
-    // clock frequency.
-    pub(crate) fn set_latency(&self, sys_clock_frequency: usize) {
-        let number_wait_cycles = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency) as u32;
-        self.registers.acr.modify(ACR::LATENCY.val(number_wait_cycles));
+    //
+    // NOTE: This method is pub(crate) to prevent a capsule from modifying the flash latency. Flash
+    // latency is dependent on the system clock frequency. Other peripherals will modify this when
+    // appropriate.
+    pub(crate) fn set_latency(&self, sys_clock_frequency: usize) -> Result<(), ErrorCode> {
+        let flash_latency = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency);
+        self.registers
+            .acr
+            .modify(ACR::LATENCY.val(flash_latency as u32));
+
+        // Wait until the flash latency is set
+        // The value 16 was chosen randomily, but it behaves well in tests. It can be tuned in a
+        // future revision of the driver.
+        for _ in 0..16 {
+            if self.get_latency() == flash_latency {
+                return Ok(());
+            }
+        }
+
+        // Return BUSY if setting the frequency took too long. The caller can either:
+        //
+        // + recall this method
+        // + or busy wait get_latency() until the flash latency has the desired value
+        Err(ErrorCode::BUSY)
+    }
+}
+
+/// Tests for the STM32F4xx flash driver.
+///
+/// If any contributions are made to this driver, it is highly recommended to run these tests to
+/// ensure that everything still works as expected. The tests are chip agnostic. They can be run
+/// on any STM32F4 chips.
+///
+/// # Usage
+///
+/// First, the flash module must be imported:
+///
+/// ```rust,ignore
+/// // Change this line depending on the chip the board is using
+/// use stm32f429zi::flash;
+/// ```
+///
+/// Then, get a reference to the peripheral:
+///
+/// ```rust,ignore
+/// // Inside the board main.rs
+/// let flash = &peripherals.stm32f4.flash;
+/// ```
+///
+/// To run all tests:
+///
+/// ```rust,ignore
+/// flash::tests::run_all(flash);
+/// ```
+///
+/// The following output should be printed:
+///
+/// ```text
+/// ===============================================
+/// Testing setting flash latency...
+///
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing number of wait cycles based on the system frequency...
+/// Finished testing number of wait cycles based on the system clock frequency. Everything is alright!
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+///
+///
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing setting flash latency...
+/// Finished testing setting flash latency. Everything is alright!
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+///
+/// Finished testing flash. Everything is alright!
+/// ===============================================
+/// ```
+///
+/// To run individual tests, see the functions in this module.
+///
+/// # Errors
+///
+/// In case of any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide
+/// the output of the test execution.
+pub mod tests {
+    use super::*;
+
+    const HSI_FREQUENCY_MHZ: usize = 16;
+    const AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ: usize = 25;
+    // Different chips have different maximum values for APB1
+    const APB1_MAX_FREQUENCY_MHZ_1: usize = 42;
+    const APB1_MAX_FREQUENCY_MHZ_2: usize = 45;
+    const APB1_MAX_FREQUENCY_MHZ_3: usize = 50;
+    // Different chips have different maximum values for APB2
+    const APB2_MAX_FREQUENCY_MHZ_1: usize = 84;
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    const APB2_MAX_FREQUENCY_MHZ_2: usize = 90;
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    const APB2_MAX_FREQUENCY_MHZ_3: usize = 100;
+    // Many STM32F4 chips allow a maximum frequency of 168MHz and some of them 180MHz if overdrive
+    // is turned on
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
+    // Default PLL frequency
+    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    const PLL_FREQUENCY_MHZ: usize = 96;
+
+    #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
+    /// Test for the mapping between the system clock frequency and flash latency
+    ///
+    /// It is highly recommended to run this test since everything else depends on it.
+    pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
+        debug!("");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing number of wait cycles based on the system frequency...");
+
+        assert_eq!(
+            FlashLatency::Latency0,
+            flash.get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency0,
+            flash.get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency1,
+            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1)
+        );
+        assert_eq!(
+            FlashLatency::Latency1,
+            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2)
+        );
+        assert_eq!(
+            FlashLatency::Latency1,
+            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency2,
+            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1)
+        );
+
+        // STM32F401 maximum clock frequency is 84MHz
+        #[cfg(not(feature = "stm32f401"))]
+        {
+            assert_eq!(
+                FlashLatency::Latency2,
+                flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2)
+            );
+
+            assert_eq!(
+                FlashLatency::Latency3,
+                flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3)
+            );
+
+            assert_eq!(
+                FlashLatency::Latency3,
+                flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
+            );
+
+            assert_eq!(
+                FlashLatency::Latency5,
+                flash.get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
+            );
+
+            assert_eq!(
+                FlashLatency::Latency5,
+                flash.get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ)
+            );
+        }
+
+        debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("");
+    }
+
+    #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
+    /// Test for the mapping between the system clock frequency and flash latency
+    ///
+    /// If there is no error, the following output will be printed on the console:
+    ///
+    /// ```text
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// Testing number of wait cycles based on the system frequency...
+    /// Finished testing number of wait cycles based on the system clock frequency. Everything is alright!
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// ```
+    ///
+    /// It is highly recommended to run this test. test_set_flash_latency() depends on it.
+    pub fn test_get_number_wait_cycles_based_on_frequency(flash: &Flash) {
+        debug!("");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing number of wait cycles based on the system frequency...");
+
+        assert_eq!(
+            FlashLatency::Latency0,
+            flash.get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency0,
+            flash.get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency1,
+            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1)
+        );
+        assert_eq!(
+            FlashLatency::Latency1,
+            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2)
+        );
+        assert_eq!(
+            FlashLatency::Latency1,
+            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency3,
+            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1)
+        );
+        assert_eq!(
+            FlashLatency::Latency3,
+            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2)
+        );
+        assert_eq!(
+            FlashLatency::Latency3,
+            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3)
+        );
+
+        assert_eq!(
+            FlashLatency::Latency3,
+            flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
+        );
+
+        debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("");
+    }
+
+    /// Test for the set_flash() method
+    ///
+    /// If there is no error, the following output will be printed on the console:
+    ///
+    /// ```text
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// Testing setting flash latency...
+    /// Finished testing setting flash latency. Everything is alright!
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /// ```
+    pub fn test_set_flash_latency(flash: &Flash) {
+        debug!("");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing setting flash latency...");
+
+        assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
+
+        assert_eq!(
+            Ok(()),
+            flash.set_latency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
+        );
+
+        assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_1));
+        assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_2));
+        assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_3));
+
+        assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_1));
+
+        // STM32F401 maximum system clock frequency is 84MHz
+        #[cfg(not(feature = "stm32f401"))]
+        {
+            assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_2));
+            assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_3));
+
+            assert_eq!(Ok(()), flash.set_latency(PLL_FREQUENCY_MHZ));
+        }
+
+        // Low entries STM32F4 chips don't support frequencies higher than 100 MHz,
+        // but the foundation and advanced ones support system clock frequencies up to
+        // 180MHz
+        #[cfg(not(any(
+            feature = "stm32f401",
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413",
+            feature = "stm32f423",
+        )))]
+        {
+            assert_eq!(
+                Ok(()),
+                flash.set_latency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
+            );
+
+            assert_eq!(Ok(()), flash.set_latency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ));
+        }
+
+        // Revert to default settings
+        assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
+
+        debug!("Finished testing setting flash latency. Everything is alright!");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("");
+    }
+
+    /// Run the entire test suite
+    pub fn run_all(flash: &Flash) {
+        debug!("");
+        debug!("===============================================");
+        debug!("Testing setting flash latency...");
+
+        test_get_number_wait_cycles_based_on_frequency(flash);
+        test_set_flash_latency(flash);
+
+        debug!("Finished testing flash. Everything is alright!");
+        debug!("===============================================");
+        debug!("");
     }
 }

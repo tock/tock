@@ -8,3 +8,11 @@ edition.workspace = true
 cortexm4 = { path = "../../arch/cortex-m4" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
+
+[features]
+default = []
+
+stm32f401 = []
+stm32f412 = []
+stm32f429 = []
+stm32f446 = []

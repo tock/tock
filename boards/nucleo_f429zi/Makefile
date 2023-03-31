@@ -3,9 +3,6 @@
 TARGET=thumbv7em-none-eabi
 PLATFORM=nucleo_f429zi
 
-# Add this flag before including Makefile.common
-RUSTC_FLAGS = --cfg stm32f42x
-
 include ../Makefile.common
 
 OPENOCD=openocd
