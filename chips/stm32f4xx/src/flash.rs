@@ -53,6 +53,7 @@ register_structs! {
         /// Flash option control register
         (0x014 => optcr: ReadWrite<u32, OPTCR::Register>),
         /// Flash option control register 1
+        // NOTE: This register is present only on some chip models
         (0x018 => optcr1: ReadWrite<u32>),
         (0x01C => @END),
     }
@@ -142,11 +143,12 @@ register_bitfields![u32,
         /// Read protect
         RDP OFFSET(8) NUMBITS(8) [],
         /// Not write protect
-        // The length of this bit field varies with the chip model
+        // NOTE: The length of this bit field varies with the chip model
         nWRP OFFSET(16) NUMBITS(12) []
     ],
     OPTCR1 [
         /// Not write protect
+        // NOTE: The length of this bit field varies with the chip model
         nWRP OFFSET(16) NUMBITS(12) []
     ]
 ];
