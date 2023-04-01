@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
 #
 # usage: svd2regs.py [-h] [--group] (--mcu VENDOR MCU | --svd [SVD])
 #                    [--save FILE] [--fmt ['ARG ..']] [--path PATH]

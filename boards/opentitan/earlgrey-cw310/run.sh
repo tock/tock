@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 BUILD_DIR="verilator_build/"
 
 # Preemptively cleanup layout (incase this was a test) so that following apps (non-tests) load the correct layout.

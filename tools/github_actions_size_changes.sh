@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 # Post github check indicating how a PR affects flash and RAM use for different boards.
 # This script is run by Github actions after successful PR builds. It reports resource differences between
 # the target branch before and after merging in the PR.
