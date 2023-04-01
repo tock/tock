@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implements IEEE 802.15.4 MAC device abstraction over a 802.15.4 MAC interface.
 //! Allows its users to prepare and send frames in plaintext, handling 802.15.4
 //! encoding and security procedures (in the future) transparently.

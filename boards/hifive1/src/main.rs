@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for SiFive HiFive1b RISC-V development platform.
 //!
 //! - <https://www.sifive.com/boards/hifive1-rev-b>

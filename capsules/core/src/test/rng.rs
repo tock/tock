@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test entropy and random number generators. Usually, to test the
 //! full library, these generators should be through two layers of
 //! translation for entropy then converted to randomness. For example,

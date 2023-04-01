@@ -3,14 +3,42 @@
 # Copyright Tock Contributors 2022.
 # Copyright Google LLC 2022.
 
+/.envrc
+/.direnv/
 /.git/
+/COPYRIGHT
+/LICENSE-APACHE
+/LICENSE-MIT
+
+/shell.nix
+/rust-toolchain
+/.github/
+/doc/
+/vagrant/Vagrantfile
+/tools/sha256sum/src/main.rs
+rustfmt.toml
+.gitignore
 *.md
+*.ld
+*.cfg
+*.gdb
+*.jlink
+*.xml
+*.json
+*.mcs
+*.py
+*.sh
 
 # TODO: This disables the license checker over most of the repository, enabling
 # it on a handful of files for demonstration purposes. The next few lines should
 # be removed when license headers are added.
-*
-!/.lcignore
-!/tools/
-!/tools/license-checker/
-!/tools/license-checker/**
+#!/.lcignore
+#!/tools/
+#!/tools/license-checker/
+#!/tools/license-checker/**
+#/capsules/
+#/chips/
+#/arch/
+#/libraries/
+#/tools/
+#/kernel/

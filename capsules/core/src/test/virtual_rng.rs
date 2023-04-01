@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test virtual rng for a single device
 //! Gets a specified number of random numbers by making sequential calls to get()
 //! Full test harness for this can be found in nano33ble/test/virtual_rng_test

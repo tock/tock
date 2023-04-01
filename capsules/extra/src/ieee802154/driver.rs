@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! IEEE 802.15.4 userspace interface for configuration and transmit/receive.
 //!
 //! Implements a userspace interface for sending and receiving IEEE 802.15.4

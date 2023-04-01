@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 pub(crate) mod aes_test;
 pub(crate) mod crc_test;
 pub(crate) mod i2c_dummy;
