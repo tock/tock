@@ -1,0 +1,30 @@
+# Test configuration file to modify test environment and settings
+# There will be a file like this in EACH board folder.
+
+title = "Test Configuration Sample"
+
+[scripts] 
+    [scripts.install]
+    # if you want to run a proprietary installation, please define "run"
+    # i.e. run = "command /path/to/script/"
+    # Note: default install script will be run if scripts.install is omitted
+    run = "make install" # Default install script
+    postrun = "make clean"
+
+    [scripts.test]
+    # if you want to run a proprietary test, please define "run"
+    # i.e. run = "command /path/to/script"
+    # Note: default test script will be run if scripts. test is omitted
+    # TODO: Refine this for if the person writing the test isn't necessarily
+    # ther person with access to the RPi file system.
+
+        [script.test.all]
+        run = "echo \"hello world\""
+
+# If scripts.test is set to default, you could modify the run from here
+[test]
+
+    [test.all]
+    # List the application(s) that will be installed for tests
+    # Demo
+    app = ["gpio", "uartrt"]
