@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for Nucleo-F446RE development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/nucleo-f446re.html>
@@ -12,7 +16,6 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -312,13 +315,6 @@ pub unsafe fn main() {
     );
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
         stm32f446re::chip::Stm32f4xx<Stm32f446reDefaultPeripherals>,
@@ -330,12 +326,8 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart2.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(
-        &base_peripherals.usart2,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.

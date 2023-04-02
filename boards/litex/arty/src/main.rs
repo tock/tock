@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for a LiteX-built VexRiscv-based SoC synthesized for a
 //! Digilent Arty-A7 FPGA board
 
@@ -10,7 +14,6 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
@@ -48,7 +51,15 @@ struct LiteXArtyInterruptablePeripherals {
     >,
     ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
 }
-impl InterruptService<()> for LiteXArtyInterruptablePeripherals {
+
+impl LiteXArtyInterruptablePeripherals {
+    // Resolve any recursive dependencies and set up deferred calls:
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(self.uart0);
+    }
+}
+
+impl InterruptService for LiteXArtyInterruptablePeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt as usize {
             socc::UART_INTERRUPT => {
@@ -65,10 +76,6 @@ impl InterruptService<()> for LiteXArtyInterruptablePeripherals {
             }
             _ => false,
         }
-    }
-
-    unsafe fn service_deferred_call(&self, _task: ()) -> bool {
-        false
     }
 }
 
@@ -240,14 +247,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     // ---------- LED CONTROLLER HARDWARE ----------
 
     // Initialize the LEDs, stopping any patterns from the bootloader
@@ -398,22 +397,15 @@ pub unsafe fn main() {
             // hardware. Change with --uart-baudrate during SoC
             // generation. Fixed to 1MBd.
             None,
-            dynamic_deferred_caller,
         )
     );
-    uart0.initialize(
-        dynamic_deferred_caller.register(uart0).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
-    );
+    uart0.initialize();
 
     PANIC_REFERENCES.uart = Some(uart0);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        uart0,
-        socc::UART_BAUDRATE,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(uart0, socc::UART_BAUDRATE)
+        .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
@@ -462,6 +454,7 @@ pub unsafe fn main() {
             ethmac0,
         }
     );
+    interrupt_service.init();
 
     let chip = static_init!(
         litex_vexriscv::chip::LiteXVexRiscv<

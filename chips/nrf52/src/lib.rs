@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 #![no_std]
 #![crate_name = "nrf52"]
 #![crate_type = "rlib"]
@@ -8,7 +12,6 @@ pub mod ble_radio;
 pub mod chip;
 pub mod clock;
 pub mod crt1;
-pub mod deferred_call_tasks;
 pub mod ficr;
 pub mod i2c;
 pub mod ieee802154_radio;

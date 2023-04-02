@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! The contract satisfied by an implementation of an IEEE 802.15.4 MAC device.
 //! Any IEEE 802.15.4 MAC device should expose the following high-level
 //! functionality:

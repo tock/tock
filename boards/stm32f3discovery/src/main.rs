@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for STM32F3Discovery Kit development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/stm32f3discovery.html>
@@ -13,7 +17,6 @@ use capsules_extra::lsm303xx;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
@@ -406,13 +409,6 @@ pub unsafe fn main() {
     setup_peripherals(&peripherals.tim2);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
         stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>,
@@ -426,12 +422,8 @@ pub unsafe fn main() {
     peripherals.usart1.enable_clock();
     peripherals.usart2.enable_clock();
 
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.usart1,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart1, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
@@ -650,7 +642,7 @@ pub unsafe fn main() {
     ));
 
     // L3GD20 sensor
-    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1, dynamic_deferred_caller)
+    let spi_mux = components::spi::SpiMuxComponent::new(&peripherals.spi1)
         .finalize(components::spi_mux_component_static!(stm32f303xc::spi::Spi));
 
     let l3gd20 = components::l3gd20::L3gd20Component::new(
@@ -679,9 +671,8 @@ pub unsafe fn main() {
 
     // LSM303DLHC
 
-    let mux_i2c =
-        components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None)
+        .finalize(components::i2c_mux_component_static!());
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
         mux_i2c,

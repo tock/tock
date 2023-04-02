@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! SyscallDriver for the AMS CCS811 an ultra-low power digital gas sensor
 //! solution which integrates a metal oxide (MOX) gas sensor to detect a wide
 //! range of Volatile Organic Compounds (VOCs) for indoor air quality
@@ -7,9 +11,7 @@
 //!
 
 use core::cell::Cell;
-use kernel::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{AirQualityClient, AirQualityDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -67,33 +69,21 @@ pub struct Ccs811<'a> {
     op: Cell<Operation>,
 
     /// Deferred caller for deferring client callbacks.
-    deferred_caller: &'a DynamicDeferredCall,
-    /// Handle for deferred caller.
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
     deferred_count: Cell<usize>,
 }
 
 impl<'a> Ccs811<'a> {
-    pub fn new(
-        i2c: &'a dyn I2CDevice,
-        buffer: &'static mut [u8],
-        deferred_caller: &'a DynamicDeferredCall,
-    ) -> Self {
-        Ccs811 {
+    pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
+        Self {
             buffer: TakeCell::new(buffer),
             i2c,
             client: OptionalCell::empty(),
             state: Cell::new(DeviceState::Identify),
             op: Cell::new(Operation::Setup),
-            deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_call: DeferredCall::new(),
             deferred_count: Cell::new(0),
         }
-    }
-
-    /// Initializes a callback handle for deferred callbacks.
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
     }
 
     pub fn startup(&self) {
@@ -232,7 +222,7 @@ impl<'a> I2CClient for Ccs811<'a> {
                 self.state.set(DeviceState::Reset);
             }
             DeviceState::Reset => {
-                self.handle.map(|handle| self.deferred_caller.set(*handle));
+                self.deferred_call.set();
                 self.buffer.replace(buffer);
             }
             DeviceState::StatusCheck => {
@@ -265,7 +255,7 @@ impl<'a> I2CClient for Ccs811<'a> {
                     Operation::None => (),
                     Operation::Setup => {
                         self.buffer.replace(buffer);
-                        self.handle.map(|handle| self.deferred_caller.set(*handle));
+                        self.deferred_call.set();
                         return;
                     }
                     Operation::SetEnv => {
@@ -305,8 +295,8 @@ impl<'a> I2CClient for Ccs811<'a> {
     }
 }
 
-impl<'a> DynamicDeferredCallClient for Ccs811<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for Ccs811<'a> {
+    fn handle_deferred_call(&self) {
         if self.deferred_count.get() > 1000 {
             match self.state.get() {
                 DeviceState::Reset => {
@@ -324,7 +314,11 @@ impl<'a> DynamicDeferredCallClient for Ccs811<'a> {
             }
         } else {
             self.deferred_count.set(self.deferred_count.get() + 1);
-            self.handle.map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_call.set();
         }
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }

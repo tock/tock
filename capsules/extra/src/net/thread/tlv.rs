@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implements Type-Length-Value (TLV) encoding and decoding as outlined
 //! in the Thread 1.1.1 Specification. TLVs are used to serialize
 //! information exchanged during mesh link establishment (MLE). MLE is

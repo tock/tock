@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for the Japan Display LPM013M126 display.
 //!
 //! Usage
@@ -17,7 +21,6 @@
 //!         disp_pin,
 //!         extcomin_pin,
 //!         alarm_mux,
-//!         dynamic_deferred_caller,
 //!     )
 //!     .finalize(
 //!         components::lpm013m126_component_static!(
@@ -37,7 +40,6 @@ use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDev
 use capsules_extra::lpm013m126::Lpm013m126;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::gpio;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
 use kernel::hil::time::Alarm;
@@ -127,7 +129,6 @@ where
     disp: &'static P,
     extcomin: &'static P,
     alarm_mux: &'static MuxAlarm<'static, A>,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<A, P, S> Lpm013m126Component<A, P, S>
@@ -144,7 +145,6 @@ where
         disp: &'static P,
         extcomin: &'static P,
         alarm_mux: &'static MuxAlarm<'static, A>,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
         Self {
             spi,
@@ -152,7 +152,6 @@ where
             disp,
             extcomin,
             alarm_mux,
-            deferred_caller,
         }
     }
 }
@@ -197,13 +196,16 @@ where
                 self.extcomin,
                 self.disp,
                 lpm013m126_alarm,
-                self.deferred_caller,
                 buffer,
             )
             .unwrap(),
         );
         spi_device.set_client(lpm013m126);
         lpm013m126_alarm.set_alarm_client(lpm013m126);
+        // Because this capsule uses multiple deferred calls internally, this
+        // takes care of registering the deferred calls as well. Thus there is
+        // no need to explicitly call
+        // `kernel::deferred_call::DeferredCallClient::register`.
         lpm013m126.setup().unwrap();
         lpm013m126
     }

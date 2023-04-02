@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock's main kernel loop, scheduler loop, and Scheduler trait.
 //!
 //! This module also includes utility functions that are commonly used
@@ -12,7 +16,7 @@ use core::slice;
 use crate::capabilities;
 use crate::config;
 use crate::debug;
-use crate::dynamic_deferred_call::DynamicDeferredCall;
+use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
@@ -447,9 +451,7 @@ impl Kernel {
                                     // starts, the interrupt will not be
                                     // serviced and the chip will never wake
                                     // from sleep.
-                                    if !chip.has_pending_interrupts()
-                                        && !DynamicDeferredCall::global_instance_calls_pending()
-                                            .unwrap_or(false)
+                                    if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
                                     {
                                         resources.watchdog().suspend();
                                         chip.sleep();
@@ -476,6 +478,8 @@ impl Kernel {
         capability: &dyn capabilities::MainLoopCapability,
     ) -> ! {
         resources.watchdog().setup();
+        // Before we begin, verify that deferred calls were soundly setup.
+        DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }

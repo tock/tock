@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interface for a persistent log that stores distinct log entries.
 //!
 //! Log entries are appended to the end of a log and read back sequentially. Log data persists

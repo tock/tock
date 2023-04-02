@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! In-kernel structure for tracking UDP ports bound by capsules.
 //!
 //! When kernel capsules wish to send or receive UDP packets, the UDP sending / receiving

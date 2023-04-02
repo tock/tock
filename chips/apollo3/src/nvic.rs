@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Named constants for NVIC ids shared across the Apollo3 family of chips
 
 pub const BROWNOUT: u32 = 0;

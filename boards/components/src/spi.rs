@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for SPI.
 //!
 //! This provides four components.
@@ -33,7 +37,6 @@ use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDev
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
@@ -107,7 +110,6 @@ macro_rules! spi_peripheral_component_static {
 
 pub struct SpiMuxComponent<S: 'static + spi::SpiMaster> {
     spi: &'static S,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
@@ -129,11 +131,8 @@ pub struct SpiComponent<S: 'static + spi::SpiMaster> {
 }
 
 impl<S: 'static + spi::SpiMaster> SpiMuxComponent<S> {
-    pub fn new(spi: &'static S, deferred_caller: &'static DynamicDeferredCall) -> Self {
-        SpiMuxComponent {
-            spi: spi,
-            deferred_caller: deferred_caller,
-        }
+    pub fn new(spi: &'static S) -> Self {
+        Self { spi }
     }
 }
 
@@ -142,11 +141,8 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
     type Output = &'static MuxSpiMaster<'static, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mux_spi = static_buffer.write(MuxSpiMaster::new(self.spi, self.deferred_caller));
-
-        mux_spi.initialize_callback_handle(
-            self.deferred_caller.register(mux_spi).unwrap(), // Unwrap fail = no deferred call slot available for SPI mux
-        );
+        let mux_spi = static_buffer.write(MuxSpiMaster::new(self.spi));
+        kernel::deferred_call::DeferredCallClient::register(mux_spi);
 
         self.spi.set_client(mux_spi);
 

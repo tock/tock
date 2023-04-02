@@ -1,13 +1,15 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Chip trait setup.
 
 use core::fmt::Write;
-use kernel::deferred_call;
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
 use crate::adc;
 use crate::clocks::Clocks;
-use crate::deferred_call_tasks::DeferredCallTask;
 use crate::gpio::{RPGpio, RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
@@ -28,7 +30,7 @@ pub enum Processor {
     Processor1 = 1,
 }
 
-pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
+pub struct Rp2040<'a, I: InterruptService + 'a> {
     mpu: cortexm0p::mpu::MPU,
     userspace_kernel_boundary: cortexm0p::syscall::SysCall,
     interrupt_service: &'a I,
@@ -37,7 +39,7 @@ pub struct Rp2040<'a, I: InterruptService<DeferredCallTask> + 'a> {
     processor1_interrupt_mask: (u128, u128),
 }
 
-impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
+impl<'a, I: InterruptService> Rp2040<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
         Self {
             mpu: cortexm0p::mpu::MPU::new(),
@@ -50,7 +52,7 @@ impl<'a, I: InterruptService<DeferredCallTask>> Rp2040<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
+impl<'a, I: InterruptService> Chip for Rp2040<'a, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
 
@@ -61,11 +63,7 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
                 Processor::Processor1 => self.processor1_interrupt_mask,
             };
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    if !self.interrupt_service.service_deferred_call(task) {
-                        panic!("unhandled deferred call");
-                    }
-                } else if let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
+                if let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
                     // ignore SIO_IRQ_PROC1 as it is intended for processor 1
                     // not able to unset its pending status
                     // probably only processor 1 can unset the pending by reading the fifo
@@ -90,7 +88,7 @@ impl<'a, I: InterruptService<DeferredCallTask>> Chip for Rp2040<'a, I> {
             Processor::Processor0 => self.processor0_interrupt_mask,
             Processor::Processor1 => self.processor1_interrupt_mask,
         };
-        unsafe { cortexm0p::nvic::has_pending_with_mask(mask) || deferred_call::has_tasks() }
+        unsafe { cortexm0p::nvic::has_pending_with_mask(mask) }
     }
 
     fn mpu(&self) -> &Self::MPU {
@@ -158,17 +156,19 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
         }
     }
 
-    pub fn resolve_dependencies(&'a self) {
-        self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
+    pub fn resolve_dependencies(&'static self) {
         self.pwm.set_clocks(&self.clocks);
         self.watchdog.resolve_dependencies(&self.resets);
         self.spi0.set_clocks(&self.clocks);
         self.uart0.set_clocks(&self.clocks);
+        kernel::deferred_call::DeferredCallClient::register(&self.uart0);
+        kernel::deferred_call::DeferredCallClient::register(&self.uart1);
+        self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
         self.usb.set_gpio(self.pins.get_pin(RPGpio::GPIO15));
     }
 }
 
-impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
+impl InterruptService for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::TIMER_IRQ_0 => {
@@ -216,13 +216,5 @@ impl InterruptService<DeferredCallTask> for Rp2040DefaultPeripherals<'_> {
             }
             _ => false,
         }
-    }
-
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        match task {
-            DeferredCallTask::Uart0 => self.uart0.handle_deferred_call(),
-            DeferredCallTask::Uart1 => self.uart1.handle_deferred_call(),
-        }
-        true
     }
 }

@@ -47,7 +47,7 @@ Debugging Capsules
 These are selectively included on a board to help with testing and debugging
 various elements of Tock.
 
-- **[Low-Level Debug](src/low_level_debug.rs)**: Provides system calls for
+- **[Low-Level Debug](src/low_level_debug/mod.rs)**: Provides system calls for
   low-level debugging tasks, such as debugging toolchain and relocation issues.
 - **[Process Console](src/process_console.rs)**: Provide a UART console to
   inspect the status of process and stop/start them.
@@ -57,19 +57,19 @@ Virtualized Hardware Resources
 
 These allow for multiple users of shared hardware resources in the kernel.
 
-- **[Virtual ADC](src/virtual_adc.rs)**: Shared single ADC channel.
-- **[Virtual AES-CCM](src/virtual_aes_ccm.rs)**: Shared AES-CCM engine.
-- **[Virtual Alarm](src/virtual_alarm.rs)**: Shared alarm resource.
-- **[Virtual Digest](src/virtual_digest.rs)**: Shared digest resource.
-- **[Virtual Flash](src/virtual_flash.rs)**: Shared flash resource.
-- **[Virtual HMAC](src/virtual_hmac.rs)**: Shared HMAC resource.
-- **[Virtual I2C](src/virtual_i2c.rs)**: Shared I2C and fixed addresses.
-- **[Virtual PWM](src/virtual_pwm.rs)**: Shared PWM hardware.
-- **[Virtual RNG](src/virtual_rng.rs)**: Shared random number generator.
-- **[Virtual SHA](src/virtual_sha.rs)**: Shared SHA hashes.
-- **[Virtual SPI](src/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
-- **[Virtual Timer](src/virtual_timer.rs)**: Shared timer.
-- **[Virtual UART](src/virtual_uart.rs)**: Shared UART bus.
+- **[Virtual ADC](src/virtualizers/virtual_adc.rs)**: Shared single ADC channel.
+- **[Virtual AES-CCM](src/virtualizers/virtual_aes_ccm.rs)**: Shared AES-CCM engine.
+- **[Virtual Alarm](src/virtualizers/virtual_alarm.rs)**: Shared alarm resource.
+- **[Virtual Digest](src/virtualizers/virtual_digest.rs)**: Shared digest resource.
+- **[Virtual Flash](src/virtualizers/virtual_flash.rs)**: Shared flash resource.
+- **[Virtual HMAC](src/virtualizers/virtual_hmac.rs)**: Shared HMAC resource.
+- **[Virtual I2C](src/virtualizers/virtual_i2c.rs)**: Shared I2C and fixed addresses.
+- **[Virtual PWM](src/virtualizers/virtual_pwm.rs)**: Shared PWM hardware.
+- **[Virtual RNG](src/virtualizers/virtual_rng.rs)**: Shared random number generator.
+- **[Virtual SHA](src/virtualizers/virtual_sha.rs)**: Shared SHA hashes.
+- **[Virtual SPI](src/virtualizers/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
+- **[Virtual Timer](src/virtualizers/virtual_timer.rs)**: Shared timer.
+- **[Virtual UART](src/virtualizers/virtual_uart.rs)**: Shared UART bus.
 
 Miscallenous Capsules & Infrastructure
 --------------------------------------

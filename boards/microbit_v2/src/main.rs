@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock kernel for the Micro:bit v2.
 //!
 //! It is based on nRF52833 SoC (Cortex M4 core with a BLE).
@@ -10,7 +14,6 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -313,18 +316,6 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // Deferred Call (Dynamic) Setup
-    //--------------------------------------------------------------------------
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
-    //--------------------------------------------------------------------------
     // ALARM & TIMER
     //--------------------------------------------------------------------------
 
@@ -431,12 +422,8 @@ pub unsafe fn main() {
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &base_peripherals.uarte0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -469,12 +456,8 @@ pub unsafe fn main() {
         nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(
-        &base_peripherals.twi0,
-        None,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::i2c_mux_component_static!());
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+        .finalize(components::i2c_mux_component_static!());
 
     // LSM303AGR
 

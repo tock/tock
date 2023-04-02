@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for STM32F412GDiscovery Discovery kit development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/32f412gdiscovery.html>
@@ -12,7 +16,6 @@ use components::gpio::GpioComponent;
 use components::rng::RngComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio;
 use kernel::hil::led::LedLow;
 use kernel::hil::screen::ScreenRotation;
@@ -434,14 +437,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let chip = static_init!(
         stm32f412g::chip::Stm32f4xx<Stm32f412gDefaultPeripherals>,
         stm32f412g::chip::Stm32f4xx::new(peripherals)
@@ -452,12 +447,8 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart2.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(
-        &base_peripherals.usart2,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     io::WRITER.set_initialized();
 
@@ -625,12 +616,8 @@ pub unsafe fn main() {
 
     // FT6206
 
-    let mux_i2c = components::i2c::I2CMuxComponent::new(
-        &base_peripherals.i2c1,
-        None,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&base_peripherals.i2c1, None)
+        .finalize(components::i2c_mux_component_static!());
 
     let ft6x06 = components::ft6x06::Ft6x06Component::new(
         mux_i2c,
