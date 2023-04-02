@@ -9,11 +9,12 @@ TOCK_BOARD_DIR = f'{Path.home()}/actions-runner/_work/tock/tock/boards/'
 LIBTOCK_C_DIR = f'{Path.home()}/libtock-c/'
 CI_TEST_DIR = f'{LIBTOCK_C_DIR}/examples/ci-tests/'
 CONFIG_FILE = f'{Path.home()}/tock/tools/tock-test-harness/config.toml'
-BOARD_CONFIG_FILE = 'test.config.toml'
+BOARD_CONFIG_FILE = 'ci_test.config.toml'
 
 # This dictionary maps the board to the universal test
 TEST_MOD_MAP = {
-    'nrf52dk': 'Nrf52840Test'
+    'nrf52dk': 'Nrf52Test'
+    'nrf52840dk': 'Nrf52840Test'
 }
 
 class Runner:
@@ -29,6 +30,7 @@ class Runner:
         self.home_dir = Path.home()
         self.path = 'path/to/board'
         self.board = 'board_model'
+        self.test_mod = 'board_to_test'
         self.comm_proc = ''
         self.harness_id = '' # Considered free lancer if left blank
         self.log = self.setup_logger()
@@ -172,7 +174,7 @@ class Runner:
         for app in apps:
             # exit_code
             exit_code = os.system((f'python3 {CI_TEST_DIR}/{app}/test.py ' +
-                                    f'{TEST_MOD_MAP[self.board]}')) >> 8
+                                    f'{TEST_MOD_MAP[self.test_mod]}')) >> 8
 
             if exit_code != 0:
                 return exit_code
