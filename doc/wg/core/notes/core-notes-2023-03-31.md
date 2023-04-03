@@ -86,7 +86,7 @@ Attendees
  * Alyssa: Because we have a fixed set of platforms, we check the platform now. But that's not scalable to Tock in the same way.
  * Phil: In terms of C, there are compiler flags for this. Whether you're freestanding or not. I don't know of Rust equivalents. I'd guess that it doesn't because of how fundamental multithreading is.
  * Alyssa: There's something in the target for the toolchain. But I don't think it's available to compiled programs.
- * Johnathan: We're actually the only Tock project I know of that's single-threaded. Even the embedded stuff assumes threading in most cases.
+ * Johnathan: We're actually the only Rust project I know of that's single-threaded. Even the embedded stuff assumes threading in most cases.
  * Alyssa: Maybe something in build.rs with a config.
  * Phil: What's weird is that no-threading is the common case. It's only under host stuff that there ever is threading.
  * Alyssa: Okay, I'll review possibilities and come back.
