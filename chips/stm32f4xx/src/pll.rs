@@ -289,7 +289,9 @@ impl<'a> Pll<'a> {
         // + invalid frequency
         if self.rcc.is_enabled_pll_clock() {
             return Err(ErrorCode::FAIL);
-        } else if desired_frequency_mhz < PLL_MIN_FREQ_MHZ || desired_frequency_mhz > PLL_MAX_FREQ_MHZ {
+        } else if desired_frequency_mhz < PLL_MIN_FREQ_MHZ
+            || desired_frequency_mhz > PLL_MAX_FREQ_MHZ
+        {
             return Err(ErrorCode::INVAL);
         }
 
