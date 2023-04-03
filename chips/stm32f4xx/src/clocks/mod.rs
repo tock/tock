@@ -112,7 +112,7 @@
 //! Since the APB1 frequency limit is satisfied now, the system clock source can be safely changed.
 //!
 //! ```rust,ignore
-//! clocks.set_sys_clock_source(SysClockSource::PLLCLK);
+//! clocks.set_sys_clock_source(SysClockSource::PLL);
 //! ```
 //!
 //! ## Another example of changing the system clock to PLL for STM32F429:
@@ -143,7 +143,7 @@
 //! Now, it's safe to change the system clock source:
 //!
 //! ```rust,ignore
-//! clocks.set_sys_clock_source(SysClockSource::PLLCLK);
+//! clocks.set_sys_clock_source(SysClockSource::PLL);
 //! ```
 //!
 //! [^usage_note]: For the purpose of brievity, any error checking has been removed.
@@ -411,7 +411,7 @@ impl<'a> Clocks<'a> {
         // Ensure the source is enabled before configuring it as the system clock source
         if let false = match source {
             SysClockSource::HSI => self.hsi.is_enabled(),
-            SysClockSource::PLLCLK => self.pll.is_enabled(),
+            SysClockSource::PLL => self.pll.is_enabled(),
         } {
             return Err(ErrorCode::FAIL);
         }
@@ -422,7 +422,7 @@ impl<'a> Clocks<'a> {
         let alternate_frequency = match source {
             // The unwrap can't failed because the source clock status was checked before
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::PLLCLK => self.pll.get_frequency().unwrap(),
+            SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         };
 
         // HELP: Confusing point. The PLL clock can output a frequency up to 216MHz, but the doc
@@ -482,15 +482,72 @@ impl<'a> Clocks<'a> {
             // enabled. Also, Hsi and Pll structs ensure that the clocks can't be disabled when
             // they are configured as the system clock
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::PLLCLK => self.pll.get_frequency().unwrap(),
+            SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         }
     }
 }
 
 /// Tests for clocks functionalities
 ///
-/// Run these tests to ensure that system clock and AHB, APB1 and APB2 prescalers work as expected.
-/// To test HSI or PLL, see their documentation.
+/// These tests ensure the clocks are properly working. If any changes are made to the clock
+/// module, make sure to run these tests.
+///
+/// # Usage
+///
+/// First, import the [crate::clocks] module inside the board main file:
+///
+/// ```rust,ignore
+/// // This example assumes a STM32F429 chip
+/// use stm32f429zi::clocks;
+/// ```
+///
+/// To run all the available tests, add this line before **kernel::process::load_processes()**:
+///
+/// ```rust,ignore
+/// clocks::tests::run_all(&peripherals.stm32f4.clocks);
+/// ```
+///
+/// If everything works as expected, the following message should be printed on the kernel console:
+///
+/// ```text
+/// ===============================================
+/// Testing clocks...
+///
+/// ===============================================
+/// Testing HSI...
+/// Finished testing HSI. Everything is alright!
+/// ===============================================
+///
+///
+/// ===============================================
+/// Testing PLL...
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing PLL configuration...
+/// Finished testing PLL configuration.
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing PLL struct...
+/// Finished testing PLL struct.
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Finished testing PLL. Everything is alright!
+/// ===============================================
+///
+///
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/// Testing clocks struct...
+/// Finished testing clocks struct. Everything is alright!
+/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+///
+/// Finished testing clocks. Everything is alright!
+/// ===============================================
+/// ```
+///
+/// There is also the possibility to run a part of the test suite. CHeck the functions present in
+/// this module for more details.
+///
+/// # Errors
+///
+/// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
+/// output of the test execution.
 pub mod tests {
     use super::*;
 
@@ -526,13 +583,28 @@ pub mod tests {
     }
 
     /// Test for the AHB and APB prescalers
+    ///
+    /// # Usage
+    ///
+    /// First, import the clock module:
+    ///
+    /// ```rust,ignore
+    /// // This test assumes a STM32F429 chip
+    /// use stm32f429zi::clocks;
+    /// ```
+    ///
+    /// Then run the test:
+    ///
+    /// ```rust,ignore
+    /// clocks::test::test_prescalers(&peripherals.stm32f4.clocks);
+    /// ```
     pub fn test_prescalers(clocks: &Clocks) {
         // This test requires a bit of setup. A system clock running at 160MHz is configured.
         assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
         assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
 
         // Trying to reduce the APB scaler to an invalid value should fail
         assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
@@ -566,6 +638,21 @@ pub mod tests {
     }
 
     /// Test for the [crate::clocks::Clocks] struct
+    ///
+    /// # Usage
+    ///
+    /// First, import the clock module:
+    ///
+    /// ```rust,ignore
+    /// // This test assumes a STM32F429 chip
+    /// use stm32f429zi::clocks;
+    /// ```
+    ///
+    /// Then run the test:
+    ///
+    /// ```rust,ignore
+    /// clocks::test::test_clocks_struct(&peripherals.stm32f4.clocks);
+    /// ```
     pub fn test_clocks_struct(clocks: &Clocks) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -590,7 +677,7 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
 
         // Attempting to change the system clock source with a disabled source
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLL));
 
         // Attempting to set twice the same system clock source is fine
         assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
@@ -599,8 +686,8 @@ pub mod tests {
         // changed
         assert_eq!(Ok(()), clocks.pll.set_frequency(LOW_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
-        assert_eq!(SysClockSource::PLLCLK, clocks.get_sys_clock_source());
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
+        assert_eq!(SysClockSource::PLL, clocks.get_sys_clock_source());
 
         // Now the system clock frequency is equal to 25MHz
         assert_eq!(LOW_FREQUENCY, clocks.get_sys_clock_frequency());
@@ -624,7 +711,7 @@ pub mod tests {
         assert_eq!(Ok(()), clocks.pll.disable());
         assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
         assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL));
 
         // Even if the APB1 prescaler is changed to 2, it must fail
         // (HIGH_FREQUENCY / 2 > APB1_FREQUENCY_LIMIT_MHZ)
@@ -637,7 +724,7 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL));
 
         // Configuring APB1 prescaler to 4 is fine, but APB2 prescaler is still wrong
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
@@ -649,13 +736,13 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL));
 
         // Configuring APB2 prescaler to 2
         assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
 
         // Now the system clock source can be changed
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
         assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
         assert_eq!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency());
 
@@ -665,7 +752,7 @@ pub mod tests {
         // This time, configure the AHB prescaler instead of APB prescalers
         assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
         assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLLCLK));
+        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
         assert_eq!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency());
         assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
         assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency());
@@ -678,7 +765,7 @@ pub mod tests {
         debug!("");
     }
 
-    /// Run the entire test suite
+    /// Run the entire test suite for all clocks
     pub fn run_all(clocks: &Clocks) {
         debug!("");
         debug!("===============================================");

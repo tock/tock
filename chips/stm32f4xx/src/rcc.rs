@@ -786,7 +786,7 @@ impl Rcc {
     pub(crate) fn is_hsi_clock_system_clock(&self) -> bool {
         let system_clock_source = self.get_sys_clock_source();
         system_clock_source == SysClockSource::HSI ||
-            system_clock_source == SysClockSource::PLLCLK &&
+            system_clock_source == SysClockSource::PLL &&
             self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
     }
 
