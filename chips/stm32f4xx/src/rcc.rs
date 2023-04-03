@@ -1282,24 +1282,6 @@ pub enum AHBPrescaler {
     DivideBy512 = 0b1111,
 }
 
-impl TryFrom<usize> for AHBPrescaler {
-    type Error = &'static str;
-    fn try_from(item: usize) -> Result<Self, Self::Error> {
-        match item {
-            1 => Ok(AHBPrescaler::DivideBy1),
-            2 => Ok(AHBPrescaler::DivideBy2),
-            4 => Ok(AHBPrescaler::DivideBy4),
-            8 => Ok(AHBPrescaler::DivideBy8),
-            16 => Ok(AHBPrescaler::DivideBy16),
-            64 => Ok(AHBPrescaler::DivideBy64),
-            128 => Ok(AHBPrescaler::DivideBy128),
-            256 => Ok(AHBPrescaler::DivideBy256),
-            512 => Ok(AHBPrescaler::DivideBy512),
-            _ => Err("Invalid value for AHBPrescaler::try_from"),
-        }
-    }
-}
-
 impl From<AHBPrescaler> for usize {
     fn from(item: AHBPrescaler) -> usize {
         match item {
@@ -1323,20 +1305,6 @@ pub enum APBPrescaler {
     DivideBy4 = 0b101,
     DivideBy8 = 0b110,
     DivideBy16 = 0b111,
-}
-
-impl TryFrom<usize> for APBPrescaler {
-    type Error = &'static str;
-    fn try_from(item: usize) -> Result<Self, Self::Error> {
-        match item {
-            1 => Ok(APBPrescaler::DivideBy1),
-            2 => Ok(APBPrescaler::DivideBy2),
-            4 => Ok(APBPrescaler::DivideBy4),
-            8 => Ok(APBPrescaler::DivideBy8),
-            16 => Ok(APBPrescaler::DivideBy16),
-            _ => Err("Invalid value for APBPrescaler::try_from()"),
-        }
-    }
 }
 
 impl From<APBPrescaler> for usize {
