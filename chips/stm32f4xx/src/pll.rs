@@ -201,11 +201,10 @@ impl<'a> Pll<'a> {
 
     /// Start the PLL clock.
     ///
-    /// # Returns
+    /// # Errors
     ///
     /// + [Err]\([ErrorCode::BUSY]\): if enabling the PLL clock took too long. Recall this method to
     /// ensure the PLL clock is running.
-    /// + [Ok]\(()\): PLL clock successfully enabled and running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         // Enable the PLL clock
         self.rcc.enable_pll_clock();
@@ -224,12 +223,11 @@ impl<'a> Pll<'a> {
 
     /// Stop the PLL clock.
     ///
-    /// # Returns
+    /// # Errors
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is configured as the system clock.
     /// + [Err]\([ErrorCode::BUSY]\): disabling the PLL clock took to long. Retry to ensure it is
     /// not running.
-    /// + [Ok]\(()\): PLL clock disabled and off.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         // Can't disable the PLL clock when it is used as the system clock
         if self.rcc.get_sys_clock_source() == SysClockSource::PLL {
@@ -280,12 +278,11 @@ impl<'a> Pll<'a> {
     /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 24-216MHz for
     /// STM32F401 and 13-216MHz for all the other chips
     ///
-    /// # Returns
+    /// # Errors
     ///
     /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
     /// configuring it.
-    /// + [Ok]\(()\): the PLL clock has been successfully configured
     pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
         // Check for errors:
         // + PLL clock running
