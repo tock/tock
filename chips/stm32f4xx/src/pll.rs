@@ -232,7 +232,7 @@ impl<'a> Pll<'a> {
     /// + [Ok]\(()\): PLL clock disabled and off.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         // Can't disable the PLL clock when it is used as the system clock
-        if self.rcc.get_sys_clock_source() == SysClockSource::PLLCLK {
+        if self.rcc.get_sys_clock_source() == SysClockSource::PLL {
             return Err(ErrorCode::FAIL);
         }
 

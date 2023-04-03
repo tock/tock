@@ -769,9 +769,9 @@ impl Rcc {
         match self.registers.cfgr.read(CFGR::SWS) {
             0b00 => SysClockSource::HSI,
             //0b01 => SysClockSource::HSE, Uncomment this when HSE support is added
-            _ => SysClockSource::PLLCLK,
+            _ => SysClockSource::PLL,
             // Uncomment this when PPLLR support is added. Also change the above match arm to
-            // 0b10 => SysClockSource::PLLCLK,
+            // 0b10 => SysClockSource::PLL,
             //_ => SysClockSource::PPLLR,
         }
     }
@@ -1178,7 +1178,7 @@ pub(crate) enum PLLQ {
 pub enum SysClockSource {
     HSI = 0b00,
     //HSE = 0b01, Uncomment this when support for HSE is added
-    PLLCLK = 0b10,
+    PLL = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR = 0b11, Uncomment this when support for PPLLR is added
 }
