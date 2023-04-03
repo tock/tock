@@ -435,7 +435,7 @@ with open(TOCK_HARNESS_PATH + 'config.toml', 'w') as output_toml_file:
 
         'env': {
             'board': board,
-            'board_to_test': board_to_test
+            'board_to_test': board_to_test,
             'path': board_path,
             'harness_id': harness_id,
             'communication_protocol': comm_proc,
