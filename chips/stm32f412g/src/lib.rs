@@ -3,7 +3,8 @@
 use cortexm4::{CortexM4, CortexMVariant};
 
 pub use stm32f4xx::{
-    adc, chip, clocks, dbg, dma, exti, flash, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, trng, usart,
+    adc, chip, clocks, dbg, dma, exti, flash, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, trng,
+    usart,
 };
 
 pub mod interrupt_service;

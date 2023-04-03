@@ -151,18 +151,18 @@
 pub mod hsi;
 pub mod pll;
 
-use pll::Pll;
-use hsi::Hsi;
-use hsi::HSI_FREQUENCY_MHZ;
+use crate::flash::Flash;
+use crate::rcc::AHBPrescaler;
+use crate::rcc::APBPrescaler;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
-use crate::rcc::APBPrescaler;
-use crate::rcc::AHBPrescaler;
-use crate::flash::Flash;
+use hsi::Hsi;
+use hsi::HSI_FREQUENCY_MHZ;
+use pll::Pll;
 
 use kernel::debug;
-use kernel::ErrorCode;
 use kernel::utilities::cells::OptionalCell;
+use kernel::ErrorCode;
 
 /// Main struct for configuring on-board clocks.
 pub struct Clocks<'a> {
@@ -232,9 +232,7 @@ const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
 ))]
 const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
 
-#[cfg(any(
-    feature = "stm32f401",
-))]
+#[cfg(any(feature = "stm32f401"))]
 const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
 
 impl<'a> Clocks<'a> {
@@ -268,7 +266,9 @@ impl<'a> Clocks<'a> {
         // that the constraints are still valid
         let divider: usize = prescaler.into();
         let new_ahb_frequency = self.get_sys_clock_frequency() / divider;
-        if !self.check_apb1_frequency_limit(new_ahb_frequency) || !self.check_apb2_frequency_limit(new_ahb_frequency) {
+        if !self.check_apb1_frequency_limit(new_ahb_frequency)
+            || !self.check_apb2_frequency_limit(new_ahb_frequency)
+        {
             return Err(ErrorCode::FAIL);
         }
 
@@ -298,7 +298,7 @@ impl<'a> Clocks<'a> {
     // called when the system clock source is changed. The sys_clk_frequency_mhz is the
     // hypothetical future frequency.
     fn check_apb1_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
-        match self.rcc.get_apb1_prescaler()  {
+        match self.rcc.get_apb1_prescaler() {
             APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ,
             APBPrescaler::DivideBy2 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ * 2,
             // For all models 4 * APB1_MAX_FREQUENCY >= SYS_MAX_FREQUENCY
@@ -374,7 +374,7 @@ impl<'a> Clocks<'a> {
 
         for _ in 0..16 {
             if self.rcc.get_apb2_prescaler() == prescaler {
-                return  Ok(());
+                return Ok(());
             }
         }
 
@@ -459,11 +459,15 @@ impl<'a> Clocks<'a> {
         // + if the desired frequency is lower than the current frequency, first change the system
         // clock source, then set the flash latency
         if alternate_frequency > current_frequency {
-            self.flash.unwrap_or_panic().set_latency(alternate_frequency)?;
+            self.flash
+                .unwrap_or_panic()
+                .set_latency(alternate_frequency)?;
         }
         self.rcc.set_sys_clock_source(source);
         if alternate_frequency < current_frequency {
-            self.flash.unwrap_or_panic().set_latency(alternate_frequency)?;
+            self.flash
+                .unwrap_or_panic()
+                .set_latency(alternate_frequency)?;
         }
 
         // If this point is reached, everything worked as expected
@@ -592,11 +596,16 @@ pub mod tests {
                         // The reborrows below are intentional. Without them, the stack slot for the
                         // borrow is initialized even before the values are compared, leading to a
                         // noticeable slow down.
-                        core::panicking::assert_failed(kind, &*left_val, &*right_val, core::option::Option::None);
+                        core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            core::option::Option::None,
+                        );
                     }
                 }
             };
-        }
+        };
     }
 
     /// Test for the AHB and APB prescalers
@@ -619,12 +628,28 @@ pub mod tests {
         // This test requires a bit of setup. A system clock running at 160MHz is configured.
         check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
-        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4), clocks);
-        check_and_panic!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2), clocks);
-        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb1_prescaler(APBPrescaler::DivideBy4),
+            clocks
+        );
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb2_prescaler(APBPrescaler::DivideBy2),
+            clocks
+        );
+        check_and_panic!(
+            Ok(()),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
 
         // Trying to reduce the APB scaler to an invalid value should fail
-        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1), clocks);
+        check_and_panic!(
+            Err(ErrorCode::FAIL),
+            clocks.set_apb1_prescaler(APBPrescaler::DivideBy1),
+            clocks
+        );
         // The following assert will pass on these models because of the low system clock
         // frequency limit
         #[cfg(not(any(
@@ -635,18 +660,38 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1), clocks);
+        check_and_panic!(
+            Err(ErrorCode::FAIL),
+            clocks.set_apb2_prescaler(APBPrescaler::DivideBy1),
+            clocks
+        );
         // Any failure in changing the APB prescalers must preserve their values
         check_and_panic!(APBPrescaler::DivideBy4, clocks.get_apb1_prescaler(), clocks);
         check_and_panic!(APBPrescaler::DivideBy2, clocks.get_apb2_prescaler(), clocks);
 
         // Increasing the AHB prescaler should allow decreasing APB prescalers
-        check_and_panic!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4), clocks);
-        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1), clocks);
-        check_and_panic!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4),
+            clocks
+        );
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb1_prescaler(APBPrescaler::DivideBy1),
+            clocks
+        );
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb2_prescaler(APBPrescaler::DivideBy1),
+            clocks
+        );
 
         // Now, decreasing the AHB prescaler would result in the violation of APB constraints
-        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1), clocks);
+        check_and_panic!(
+            Err(ErrorCode::FAIL),
+            clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1),
+            clocks
+        );
         // Any failure in changing the AHB prescaler must preserve its value
         check_and_panic!(AHBPrescaler::DivideBy4, clocks.get_ahb_prescaler(), clocks);
 
@@ -694,21 +739,32 @@ pub mod tests {
         check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency(), clocks);
 
         // Attempting to change the system clock source with a disabled source
-        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Err(ErrorCode::FAIL),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
 
         // Attempting to set twice the same system clock source is fine
-        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_sys_clock_source(SysClockSource::HSI),
+            clocks
+        );
 
         // Change the system clock source to a low frequency so that APB prescalers don't need to be
         // changed
         check_and_panic!(Ok(()), clocks.pll.set_frequency(LOW_FREQUENCY), clocks);
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
-        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
         check_and_panic!(SysClockSource::PLL, clocks.get_sys_clock_source(), clocks);
 
         // Now the system clock frequency is equal to 25MHz
         check_and_panic!(LOW_FREQUENCY, clocks.get_sys_clock_frequency(), clocks);
-
 
         // APB1 and APB2 frequencies must also be 25MHz
         check_and_panic!(LOW_FREQUENCY, clocks.get_apb1_frequency(), clocks);
@@ -728,11 +784,19 @@ pub mod tests {
         check_and_panic!(Ok(()), clocks.pll.disable(), clocks);
         check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
-        check_and_panic!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Err(ErrorCode::SIZE),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
 
         // Even if the APB1 prescaler is changed to 2, it must fail
         // (HIGH_FREQUENCY / 2 > APB1_FREQUENCY_LIMIT_MHZ)
-        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb1_prescaler(APBPrescaler::DivideBy2),
+            clocks
+        );
         #[cfg(not(any(
             feature = "stm32f401",
             feature = "stm32f410",
@@ -741,10 +805,18 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        check_and_panic!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Err(ErrorCode::SIZE),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
 
         // Configuring APB1 prescaler to 4 is fine, but APB2 prescaler is still wrong
-        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb1_prescaler(APBPrescaler::DivideBy4),
+            clocks
+        );
         #[cfg(not(any(
             feature = "stm32f401",
             feature = "stm32f410",
@@ -753,13 +825,25 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        check_and_panic!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Err(ErrorCode::SIZE),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
 
         // Configuring APB2 prescaler to 2
-        check_and_panic!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_apb2_prescaler(APBPrescaler::DivideBy2),
+            clocks
+        );
 
         // Now the system clock source can be changed
-        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
         check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency(), clocks);
         check_and_panic!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency(), clocks);
 
@@ -767,9 +851,17 @@ pub mod tests {
         set_default_configuration(clocks);
 
         // This time, configure the AHB prescaler instead of APB prescalers
-        check_and_panic!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4),
+            clocks
+        );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
-        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks.set_sys_clock_source(SysClockSource::PLL),
+            clocks
+        );
         check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency(), clocks);
         check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency(), clocks);
         check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency(), clocks);

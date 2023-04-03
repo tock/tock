@@ -62,9 +62,7 @@ impl<'a> Hsi<'a> {
     ///
     /// An instance of the HSI clock.
     pub fn new(rcc: &'a Rcc) -> Self {
-        Self {
-            rcc
-        }
+        Self { rcc }
     }
 
     /// Start the HSI clock.

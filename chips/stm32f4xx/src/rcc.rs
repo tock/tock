@@ -785,9 +785,9 @@ impl Rcc {
 
     pub(crate) fn is_hsi_clock_system_clock(&self) -> bool {
         let system_clock_source = self.get_sys_clock_source();
-        system_clock_source == SysClockSource::HSI ||
-            system_clock_source == SysClockSource::PLL &&
-            self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
+        system_clock_source == SysClockSource::HSI
+            || system_clock_source == SysClockSource::PLL
+                && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
     }
 
     /* HSI clock */
@@ -851,7 +851,6 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
     }
 
-
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_q_divider(&self, q: PLLQ) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
@@ -860,7 +859,9 @@ impl Rcc {
     /* AHB prescaler */
 
     pub(crate) fn set_ahb_prescaler(&self, ahb_prescaler: AHBPrescaler) {
-        self.registers.cfgr.modify(CFGR::HPRE.val(ahb_prescaler as u32));
+        self.registers
+            .cfgr
+            .modify(CFGR::HPRE.val(ahb_prescaler as u32));
     }
 
     pub(crate) fn get_ahb_prescaler(&self) -> AHBPrescaler {
@@ -880,7 +881,9 @@ impl Rcc {
     /* APB1 prescaler */
 
     pub(crate) fn set_apb1_prescaler(&self, apb1_prescaler: APBPrescaler) {
-        self.registers.cfgr.modify(CFGR::PPRE1.val(apb1_prescaler as u32));
+        self.registers
+            .cfgr
+            .modify(CFGR::PPRE1.val(apb1_prescaler as u32));
     }
 
     pub(crate) fn get_apb1_prescaler(&self) -> APBPrescaler {
@@ -896,7 +899,9 @@ impl Rcc {
     /* APB2 prescaler */
 
     pub(crate) fn set_apb2_prescaler(&self, apb2_prescaler: APBPrescaler) {
-        self.registers.cfgr.modify(CFGR::PPRE2.val(apb2_prescaler as u32));
+        self.registers
+            .cfgr
+            .modify(CFGR::PPRE2.val(apb2_prescaler as u32));
     }
 
     pub(crate) fn get_apb2_prescaler(&self) -> APBPrescaler {
