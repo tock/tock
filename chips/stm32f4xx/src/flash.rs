@@ -443,9 +443,21 @@ pub mod tests {
     const APB2_MAX_FREQUENCY_MHZ_3: usize = 100;
     // Many STM32F4 chips allow a maximum frequency of 168MHz and some of them 180MHz if overdrive
     // is turned on
-    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    #[cfg(not(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413"
+    )))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
-    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    #[cfg(not(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413"
+    )))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
     // Default PLL frequency
     #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
@@ -505,7 +517,16 @@ pub mod tests {
                 FlashLatency::Latency3,
                 flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
             );
+        }
 
+        #[cfg(not(any(
+            feature = "stm32f401",
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413"
+        )))] // Not needed for these chips
+        {
             assert_eq!(
                 FlashLatency::Latency5,
                 flash.get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
@@ -602,25 +623,43 @@ pub mod tests {
         debug!("Testing setting flash latency...");
 
         assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
+        assert_eq!(FlashLatency::Latency0, flash.get_latency());
 
         assert_eq!(
             Ok(()),
             flash.set_latency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
         );
+        assert_eq!(FlashLatency::Latency0, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_1));
+        assert_eq!(FlashLatency::Latency1, flash.get_latency());
+
         assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_2));
+        assert_eq!(FlashLatency::Latency1, flash.get_latency());
+
         assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_3));
+        assert_eq!(FlashLatency::Latency1, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_1));
+        #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
+        assert_eq!(FlashLatency::Latency3, flash.get_latency());
+        #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
+        assert_eq!(FlashLatency::Latency2, flash.get_latency());
 
         // STM32F401 maximum system clock frequency is 84MHz
         #[cfg(not(feature = "stm32f401"))]
         {
             assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_2));
+            #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
+            assert_eq!(FlashLatency::Latency3, flash.get_latency());
+            #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
+            assert_eq!(FlashLatency::Latency2, flash.get_latency());
+
             assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_3));
+            assert_eq!(FlashLatency::Latency3, flash.get_latency());
 
             assert_eq!(Ok(()), flash.set_latency(PLL_FREQUENCY_MHZ));
+            assert_eq!(FlashLatency::Latency3, flash.get_latency());
         }
 
         // Low entries STM32F4 chips don't support frequencies higher than 100 MHz,
@@ -639,12 +678,15 @@ pub mod tests {
                 Ok(()),
                 flash.set_latency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
             );
+            assert_eq!(FlashLatency::Latency5, flash.get_latency());
 
             assert_eq!(Ok(()), flash.set_latency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ));
+            assert_eq!(FlashLatency::Latency5, flash.get_latency());
         }
 
         // Revert to default settings
         assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
+        assert_eq!(FlashLatency::Latency0, flash.get_latency());
 
         debug!("Finished testing setting flash latency. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
