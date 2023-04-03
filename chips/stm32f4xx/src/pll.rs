@@ -120,6 +120,13 @@ pub struct Pll<'a> {
 
 const HSI_FREQUENCY_MHZ: usize = 16;
 
+#[cfg(not(feature = "stm32f401"))]
+const PLL_MIN_FREQ_MHZ: usize = 13;
+#[cfg(feature = "stm32f401")]
+const PLL_MIN_FREQ_MHZ: usize = 24;
+
+const PLL_MAX_FREQ_MHZ: usize = 216;
+
 impl<'a> Pll<'a> {
     // Create a new instance of the PLL clock.
     //
@@ -152,7 +159,7 @@ impl<'a> Pll<'a> {
         }
     }
 
-    // The caller must ensure the desired frequency lies between 13 and 216MHz. Otherwise, the
+    // The caller must ensure the desired frequency lies between PLL_MIN_FREQ_MHZ and PLL_MAX_FREQ_MHZ. Otherwise, the
     // return value makes no sense.
     fn compute_pllp(desired_frequency_mhz: usize) -> PLLP {
         if desired_frequency_mhz < 55 {
@@ -166,7 +173,7 @@ impl<'a> Pll<'a> {
         }
     }
 
-    // The caller must ensure the desired frequency lies between 13 and 216MHz. Otherwise, the
+    // The caller must ensure the desired frequency lies between PLL_MIN_FREQ_MHZ and PLL_MAX_FREQ_MHZ. Otherwise, the
     // return value makes no sense.
     fn compute_plln(desired_frequency_mhz: usize, pllp: PLLP) -> usize {
         const VCO_INPUT_FREQUENCY: usize = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize;
@@ -262,7 +269,8 @@ impl<'a> Pll<'a> {
     ///
     /// # Parameters
     ///
-    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 13-216MHz.
+    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 24-216MHz for
+    /// STM32F401 and 13-216MHz for all the other chips
     ///
     /// # Returns
     ///
@@ -276,7 +284,7 @@ impl<'a> Pll<'a> {
         // + invalid frequency
         if self.rcc.is_enabled_pll_clock() {
             return Err(ErrorCode::FAIL);
-        } else if desired_frequency_mhz < 13 || desired_frequency_mhz > 216 {
+        } else if desired_frequency_mhz < PLL_MIN_FREQ_MHZ || desired_frequency_mhz > PLL_MAX_FREQ_MHZ {
             return Err(ErrorCode::INVAL);
         }
 
@@ -418,14 +426,23 @@ pub mod tests {
     pub fn test_pll_config() {
         debug!("Testing PLL configuration...");
 
-        // 13MHz --> minimum value
-        let mut pllp = Pll::compute_pllp(13);
+        // 13 or 24MHz --> minimum value
+        let mut pllp = Pll::compute_pllp(PLL_MIN_FREQ_MHZ);
         assert_eq!(PLLP::DivideBy8, pllp);
-        let mut plln = Pll::compute_plln(13, pllp);
+        let mut plln = Pll::compute_plln(PLL_MIN_FREQ_MHZ, pllp);
+
+        #[cfg(not(feature = "stm32f401"))]
         assert_eq!(52 * MULTIPLIER, plln);
+        #[cfg(feature = "stm32f401")]
+        assert_eq!(96 * MULTIPLIER, plln);
+
         let mut vco_output_frequency_mhz = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize * plln;
         let mut pllq = Pll::compute_pllq(vco_output_frequency_mhz);
+
+        #[cfg(not(feature = "stm32f401"))]
         assert_eq!(PLLQ::DivideBy3, pllq);
+        #[cfg(feature = "stm32f401")]
+        assert_eq!(PLLQ::DivideBy4, pllq);
 
         // 25MHz --> minimum required value for Ethernet devices
         pllp = Pll::compute_pllp(25);
