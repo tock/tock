@@ -766,8 +766,14 @@ impl Rcc {
 
     // Get the current system clock source
     pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
-        // Can't panic because the SysClockSource is based on the hardware possible values
-        SysClockSource::try_from(self.registers.cfgr.read(CFGR::SWS)).unwrap()
+        match self.registers.cfgr.read(CFGR::SWS) {
+            0b00 => SysClockSource::HSI,
+            //0b01 => SysClockSource::HSE, Uncomment this when HSE support is added
+            _ => SysClockSource::PLLCLK,
+            // Uncomment this when PPLLR support is added. Also change the above match arm to
+            // 0b10 => SysClockSource::PLLCLK,
+            //_ => SysClockSource::PPLLR,
+        }
     }
 
     /* Main PLL clock*/
@@ -1156,10 +1162,9 @@ pub(crate) enum PLLM {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-// Due to the restricted values for PLLM, PLLQ 10-15 values are meaningless.
+// Due to the restricted values for PLLM, PLLQ 2/10-15 values are meaningless.
 pub(crate) enum PLLQ {
-    DivideBy2 = 2,
-    DivideBy3,
+    DivideBy3 = 3,
     DivideBy4,
     DivideBy5,
     DivideBy6,
@@ -1168,45 +1173,14 @@ pub(crate) enum PLLQ {
     DivideBy9,
 }
 
-impl TryFrom<usize> for PLLQ {
-    type Error = &'static str;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            2 => Ok(PLLQ::DivideBy2),
-            3 => Ok(PLLQ::DivideBy3),
-            4 => Ok(PLLQ::DivideBy4),
-            5 => Ok(PLLQ::DivideBy5),
-            6 => Ok(PLLQ::DivideBy6),
-            7 => Ok(PLLQ::DivideBy7),
-            8 => Ok(PLLQ::DivideBy8),
-            9 => Ok(PLLQ::DivideBy9),
-            _ => Err("Invalid value for PLLQ::try_from"),
-        }
-    }
-}
-
 /// Clock sources for the CPU
 #[derive(PartialEq)]
 pub enum SysClockSource {
     HSI = 0b00,
-    HSE = 0b01,
+    //HSE = 0b01, Uncomment this when support for HSE is added
     PLLCLK = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
-    //PPLLR,
-}
-
-impl TryFrom<u32> for SysClockSource {
-    type Error = &'static str;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            0b00 => Ok(SysClockSource::HSI),
-            0b01 => Ok(SysClockSource::HSE),
-            0b10 => Ok(SysClockSource::PLLCLK),
-            _ => Err("Invalid value for SysClockSource::try_from"),
-        }
-    }
+    //PPLLR = 0b11, Uncomment this when support for PPLLR is added
 }
 
 pub struct PeripheralClock<'a> {

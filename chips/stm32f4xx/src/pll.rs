@@ -185,7 +185,15 @@ impl<'a> Pll<'a> {
     fn compute_pllq(vco_output_frequency_mhz: usize) -> PLLQ {
         for pllq in 3..10 {
             if 48 * pllq >= vco_output_frequency_mhz {
-                return PLLQ::try_from(pllq).unwrap();
+                return match pllq {
+                    3 => PLLQ::DivideBy3,
+                    4 => PLLQ::DivideBy4,
+                    5 => PLLQ::DivideBy5,
+                    6 => PLLQ::DivideBy6,
+                    7 => PLLQ::DivideBy7,
+                    8 => PLLQ::DivideBy8,
+                    _ => PLLQ::DivideBy9,
+                };
             }
         }
         unreachable!("The previous for loop should always return");
