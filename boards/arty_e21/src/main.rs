@@ -12,12 +12,12 @@
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::priority::PrioritySched;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 
 #[allow(dead_code)]
 mod timer_test;
@@ -138,8 +138,8 @@ pub unsafe fn main() {
     CHIP = Some(chip);
     chip.initialize();
 
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let main_loop_cap = unsafe { Capability::<MainLoop>::new() };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 

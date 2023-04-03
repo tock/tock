@@ -22,7 +22,7 @@ use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 //use capsules_core::virtualizers::virtual_timer::MuxTimer;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::digest::Digest;
@@ -39,7 +39,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, static_init};
+use kernel::{debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
 
 use capsules_extra::sha256::Sha256Software;
@@ -127,7 +127,6 @@ struct Imix {
             'static,
             sam4l::ast::Ast<'static>,
         >,
-        components::process_console::Capability,
     >,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
@@ -362,9 +361,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_cap = create_capability!(capabilities::MainLoopCapability);
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let main_cap = unsafe { Capability::<MainLoop>::new() };
+    let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
     power::configure_submodules(
         &peripherals.pa,

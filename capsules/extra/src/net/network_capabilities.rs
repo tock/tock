@@ -11,23 +11,26 @@
 //! ports using the PortRange enum.
 //!
 //! Capsules must obtain static references to network capabilities from trusted
-//! code (i.e. code that must use the unsafe keyword) since the constructor of
-//! a network capability requires the NetworkCapabilityCreationCapability capability. Code that
-//! checks these capabilities must possess the appropriate visibilty privileges.
-//! UDP visibility privileges are given through the UdpVisibilityCapability capability and IP
-//! visibility privileges are given through the IpVisibilityCapability capability.
+//! code (i.e. code that must use the `unsafe` keyword) since the constructor of
+//! a network capability requires the `Capability<NetworkCapabilityCreation>`
+//! capability. Code that checks these capabilities must possess the appropriate
+//! visibilty privileges. UDP visibility privileges are given through the
+//! `Capability<UdpVisibility>` capability and IP visibility privileges are
+//! given through the `Capability<IpVisibility>` capability.
 //!
 //! An example of the visibility capabilities can be found in udp_port_table.rs.
 //! When attempting to bind to a port, we must first verify that the caller of
 //! bind has a capability to send from that port. Therefore, we check the
 //! network capability of the caller. In order to check the UDP-specific aspect
-//! of the network capability, the port table must posses a UdpVisibilityCapability reference.
+//! of the network capability, the port table must posses a
+//! `Capability<UdpVisibility>` reference.
+
 use crate::net::ipv6::ip_utils::IPAddr;
 
 const MAX_ADDR_SET_SIZE: usize = 8;
 const MAX_PORT_SET_SIZE: usize = 8;
 
-use kernel::capabilities::NetworkCapabilityCreationCapability;
+use kernel::capabilities::{Capability, NetworkCapabilityCreation};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AddrRange {
@@ -83,30 +86,25 @@ impl PortRange {
     }
 }
 
-/// The UdpVisibilityCapability and IpVisibilityCapability has an empty private
+/// The `UdpVisibilityCapability and IpVisibilityCapability` has an empty private
 /// field to make it so the only way to create these structs is via a call to
-/// `new` which requires a NetworkCapabilityCreationCapability.
+/// `new` which requires a `Capability<NetworkCapabilityCreation>`.
 pub struct UdpVisibilityCapability {
-    _priv: (), // an empty private field
+    _priv: (),
 }
-
 pub struct IpVisibilityCapability {
-    _priv: (), // an empty private field
+    _priv: (),
 }
 
 impl UdpVisibilityCapability {
-    pub fn new(
-        _create_net_cap: &dyn NetworkCapabilityCreationCapability,
-    ) -> UdpVisibilityCapability {
-        UdpVisibilityCapability { _priv: () }
+    pub fn new(_create_net_cap: &Capability<NetworkCapabilityCreation>) -> Self {
+        Self { _priv: () }
     }
 }
 
 impl IpVisibilityCapability {
-    pub fn new(
-        _create_net_cap: &dyn NetworkCapabilityCreationCapability,
-    ) -> IpVisibilityCapability {
-        IpVisibilityCapability { _priv: () }
+    pub fn new(_create_net_cap: &Capability<NetworkCapabilityCreation>) -> Self {
+        Self { _priv: () }
     }
 }
 
@@ -125,7 +123,7 @@ impl NetworkCapability {
         remote_addrs: AddrRange,
         remote_ports: PortRange,
         local_ports: PortRange,
-        _create_net_cap: &dyn NetworkCapabilityCreationCapability,
+        _create_net_cap: &Capability<NetworkCapabilityCreation>,
     ) -> NetworkCapability {
         NetworkCapability {
             remote_addrs: remote_addrs,

@@ -40,7 +40,7 @@ use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapabilit
 
 use core::fmt;
 
-use kernel::capabilities::{CreatePortTableCapability, UdpDriverCapability};
+use kernel::capabilities::{Capability, CreatePortTable, UdpDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -153,7 +153,7 @@ impl UdpPortBindingRx {
 impl UdpPortManager {
     // Require capability so that the port table is only created by kernel
     pub fn new(
-        _cap: &dyn CreatePortTableCapability,
+        _cap: &Capability<CreatePortTable>,
         used_kernel_ports: &'static mut [Option<SocketBindingEntry>],
         udp_vis: &'static UdpVisibilityCapability,
     ) -> UdpPortManager {
@@ -169,7 +169,7 @@ impl UdpPortManager {
     pub fn set_user_ports(
         &self,
         user_ports_ref: &'static dyn PortQuery,
-        _driver_cap: &dyn UdpDriverCapability,
+        _driver_cap: &Capability<UdpDriver>,
     ) {
         self.user_ports.replace(user_ports_ref);
     }

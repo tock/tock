@@ -16,9 +16,8 @@
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use capsules_extra::l3gd20::L3gd20Spi;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::SpiMasterDevice;
 
@@ -71,7 +70,7 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20Component<S> {
     type Output = &'static L3gd20Spi<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let spi_device = static_buffer

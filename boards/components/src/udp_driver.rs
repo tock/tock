@@ -34,10 +34,8 @@ use capsules_extra::net::udp::udp_recv::UDPReceiver;
 use capsules_extra::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use core::mem::MaybeUninit;
 use kernel;
-use kernel::capabilities;
-use kernel::capabilities::NetworkCapabilityCreationCapability;
+use kernel::capabilities::{Capability, MemoryAllocation, NetworkCapabilityCreation, UdpDriver};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::time::Alarm;
 
 const MAX_PAYLOAD_LEN: usize = super::udp_mux::MAX_PAYLOAD_LEN;
@@ -125,17 +123,11 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
     type Output = &'static capsules_extra::net::udp::UDPDriver<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         // TODO: change initialization below
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));
         let udp_send = s.0.write(UDPSendStruct::new(self.udp_send_mux, udp_vis));
-
-        // Can't use create_capability bc need capability to have a static lifetime
-        // so that UDP driver can use it as needed
-        struct DriverCap;
-        unsafe impl capabilities::UdpDriverCapability for DriverCap {}
-        static DRIVER_CAP: DriverCap = DriverCap;
 
         let net_cap = s.2.write(NetworkCapability::new(
             AddrRange::Any,
@@ -153,11 +145,13 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
             MAX_PAYLOAD_LEN,
             self.port_table,
             kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(buffer),
-            &DRIVER_CAP,
+            unsafe { Capability::<UdpDriver>::new() },
             net_cap,
         ));
         udp_send.set_client(udp_driver);
-        self.port_table.set_user_ports(udp_driver, &DRIVER_CAP);
+
+        let driver_cap = unsafe { Capability::<UdpDriver>::new() };
+        self.port_table.set_user_ports(udp_driver, &driver_cap);
 
         let udp_driver_rcvr = s.5.write(UDPReceiver::new());
         self.udp_recv_mux.set_driver(udp_driver);

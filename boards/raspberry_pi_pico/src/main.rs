@@ -20,6 +20,7 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::{Configure, FloatingState};
@@ -29,7 +30,7 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
-use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{static_init, Kernel};
 
 use rp2040;
 use rp2040::adc::{Adc, Channel};
@@ -321,10 +322,9 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(Kernel, Kernel::new(&PROCESSES));
 
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
         .finalize(components::alarm_mux_component_static!(RPTimer));
@@ -451,7 +451,7 @@ pub unsafe fn main() {
         rp2040::adc::Adc
     ));
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
     let grant_temperature =
         board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 

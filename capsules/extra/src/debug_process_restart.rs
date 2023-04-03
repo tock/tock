@@ -11,18 +11,13 @@
 //! -----
 //!
 //! ```rust
-//! # use kernel::{capabilities, static_init};
+//! # use kernel::static_init;
+//! # use kernel::capabilities::{Capability, ProcessManagement}
 //!
-//! struct ProcessMgmtCap;
-//! unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
 //! let debug_process_restart = static_init!(
-//!     capsules::debug_process_restart::DebugProcessRestart<
-//!         'static,
-//!         ProcessMgmtCap,
-//!     >,
+//!     capsules::debug_process_restart::DebugProcessRestart<'static>,
 //!     capsules::debug_process_restart::DebugProcessRestart::new(
 //!         board_kernel,
-//!         ProcessMgmtCap
 //!         &sam4l::gpio::PA[16],
 //!         kernel::hil::gpio::ActivationMode::ActiveLow,
 //!         kernel::hil::gpio::FloatingState::PullUp
@@ -31,21 +26,21 @@
 //! sam4l::gpio::PA[16].set_client(debug_process_restart);
 //! ```
 
-use kernel::capabilities::ProcessManagementCapability;
+use kernel::capabilities::{Capability, ProcessManagement};
 use kernel::hil::gpio;
 use kernel::Kernel;
 
-pub struct DebugProcessRestart<'a, C: ProcessManagementCapability> {
+pub struct DebugProcessRestart<'a> {
     kernel: &'static Kernel,
-    capability: C,
+    capability: Capability<ProcessManagement>,
     pin: &'a dyn gpio::InterruptPin<'a>,
     mode: gpio::ActivationMode,
 }
 
-impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
+impl<'a> DebugProcessRestart<'a> {
     pub fn new(
         kernel: &'static Kernel,
-        cap: C,
+        cap: Capability<ProcessManagement>,
         pin: &'a dyn gpio::InterruptPin<'a>,
         mode: gpio::ActivationMode,
         floating_state: gpio::FloatingState,
@@ -63,7 +58,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
     }
 }
 
-impl<C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<'_, C> {
+impl gpio::Client for DebugProcessRestart<'_> {
     fn fired(&self) {
         if self.pin.read_activation(self.mode) == gpio::ActivationState::Active {
             self.kernel.hardfault_all_apps(&self.capability);

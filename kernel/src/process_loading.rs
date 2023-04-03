@@ -11,9 +11,8 @@
 use core::convert::TryInto;
 use core::fmt;
 
-use crate::capabilities::{ProcessApprovalCapability, ProcessManagementCapability};
+use crate::capabilities::{Capability, ProcessApproval, ProcessManagement};
 use crate::config;
-use crate::create_capability;
 use crate::debug;
 use crate::kernel::{Kernel, ProcessCheckerMachine};
 use crate::platform::chip::Chip;
@@ -181,7 +180,7 @@ pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability_management: &dyn ProcessManagementCapability,
+    capability_management: &Capability<ProcessManagement>,
 ) -> Result<(), ProcessLoadError>
 where
     <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static,
@@ -215,7 +214,7 @@ pub fn load_processes<C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability_management: &dyn ProcessManagementCapability,
+    capability_management: &Capability<ProcessManagement>,
 ) -> Result<(), ProcessLoadError> {
     load_processes_from_flash(
         kernel,
@@ -230,7 +229,7 @@ pub fn load_processes<C: Chip>(
     if config::CONFIG.debug_process_credentials {
         debug!("Checking: no checking, load and run all processes");
     }
-    let capability = create_capability!(ProcessApprovalCapability);
+    let capability = unsafe { Capability::<ProcessApproval>::new() };
     for proc in procs.iter() {
         let res = proc.map(|p| {
             p.mark_credentials_pass(None, ShortID::LocallyUnique, &capability)
@@ -264,7 +263,7 @@ pub fn load_processes<C: Chip>(
 ///
 /// This function is made `pub` so that board files can use it, but loading
 /// processes from slices of flash an memory is fundamentally unsafe. Therefore,
-/// we require the `ProcessManagementCapability` to call this function.
+/// we require the `Capability<ProcessManagement>` to call this function.
 ///
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
@@ -277,7 +276,7 @@ fn load_processes_from_flash<C: Chip>(
     app_memory: &'static mut [u8],
     procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability: &dyn ProcessManagementCapability,
+    capability: &Capability<ProcessManagement>,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
@@ -364,7 +363,7 @@ fn load_process<C: Chip>(
     app_memory: &'static mut [u8],
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
-    _capability: &dyn ProcessManagementCapability,
+    _capability: &Capability<ProcessManagement>,
 ) -> Result<
     (
         &'static [u8],

@@ -20,14 +20,14 @@ use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -60,7 +60,7 @@ static mut BOARD: Option<&'static kernel::Kernel> = None;
 static mut PLATFORM: Option<&'static RedboardArtemisNano> = None;
 // Test access to main loop capability
 #[cfg(test)]
-static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+static MAIN_CAP: Capability<MainLoop> = unsafe { Capability::<MainLoop>::new() };
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 // Test access to sensors
@@ -183,8 +183,8 @@ unsafe fn setup() -> (
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let memory_allocation_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -434,7 +434,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, esp32_c3_board, chip, _peripherals) = setup();
 
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        let main_loop_cap = unsafe { Capability::<MainLoop>::new() };
 
         board_kernel.kernel_loop(
             esp32_c3_board,
@@ -456,7 +456,6 @@ fn test_runner(tests: &[&dyn Fn()]) {
         BOARD = Some(board_kernel);
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         PLATFORM.map(|p| {
             p.watchdog().setup();

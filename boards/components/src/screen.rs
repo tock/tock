@@ -32,9 +32,8 @@
 
 use capsules_extra::screen::Screen;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! screen_component_static {
@@ -77,7 +76,7 @@ impl<const SCREEN_BUF_LEN: usize> Component for ScreenComponent<SCREEN_BUF_LEN> 
     type Output = &'static Screen<'static>;
 
     fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_screen = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let buffer = static_input.0.write([0; SCREEN_BUF_LEN]);

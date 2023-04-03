@@ -10,9 +10,10 @@
 //! You need a device that provides the `hil::sensors::NineDof` trait.
 //!
 //! ```rust
+//! # use kernel::capabilities::{Capability, MemoryAllocation};
 //! # use kernel::{hil, static_init};
 //!
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
 //! let ninedof = static_init!(

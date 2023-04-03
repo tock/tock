@@ -14,13 +14,13 @@
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -335,10 +335,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -401,7 +400,7 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f446re::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
     let grant_temperature =
         board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 

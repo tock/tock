@@ -26,9 +26,8 @@
 use capsules_extra::analog_comparator::AnalogComparator;
 use core::mem::MaybeUninit;
 use kernel;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 #[macro_export]
 macro_rules! analog_comparator_component_helper {
@@ -87,7 +86,7 @@ impl<AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>> Co
     type Output = &'static AnalogComparator<'static, AC>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_ac = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let analog_comparator =

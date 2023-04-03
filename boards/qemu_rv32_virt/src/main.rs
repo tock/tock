@@ -10,7 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
@@ -18,7 +18,7 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use rv32i::csr;
 
@@ -55,7 +55,6 @@ struct QemuRv32VirtPlatform {
             'static,
             qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
         >,
-        components::process_console::Capability,
     >,
     console: &'static capsules_core::console::Console<'static>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
@@ -154,9 +153,9 @@ pub unsafe fn main() {
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
     // Acquire required capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let memory_allocation_cap = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_cap = unsafe { Capability::<MainLoop>::new() };
 
     // Create a board kernel instance
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));

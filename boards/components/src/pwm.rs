@@ -5,9 +5,8 @@
 use capsules_core::virtualizers::virtual_pwm::{MuxPwm, PwmPinUser};
 use capsules_extra::pwm::Pwm;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::pwm;
 
 #[macro_export]
@@ -115,7 +114,7 @@ impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
     type Output = &'static capsules_extra::pwm::Pwm<'static, NUM_PINS>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let pwm = static_buffer

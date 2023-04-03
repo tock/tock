@@ -26,9 +26,8 @@ use core::mem::MaybeUninit;
 
 use capsules_core::alarm::AlarmDriver;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::time::{self, Alarm};
 
 // Setup static space for the objects.
@@ -107,7 +106,7 @@ impl<A: 'static + time::Alarm<'static>> Component for AlarmDriverComponent<A> {
     type Output = &'static AlarmDriver<'static, VirtualMuxAlarm<'static, A>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let virtual_alarm1 = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         virtual_alarm1.setup();

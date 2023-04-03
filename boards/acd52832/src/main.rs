@@ -11,7 +11,7 @@
 #![deny(missing_docs)]
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::adc::Adc;
@@ -25,7 +25,7 @@ use kernel::hil::time::{Alarm, Counter};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, static_init};
+use kernel::{debug, debug_gpio, static_init};
 use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
@@ -189,10 +189,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 

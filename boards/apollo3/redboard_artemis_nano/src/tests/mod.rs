@@ -17,7 +17,7 @@ fn run_kernel_op(loops: usize) {
                 CHIP.unwrap(),
                 None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
                 true,
-                MAIN_CAP.unwrap(),
+                &MAIN_CAP,
             );
         }
     }

@@ -17,13 +17,13 @@ mod io;
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{create_capability, static_init};
+use kernel::static_init;
 
 /// Number of concurrent processes this platform supports
 const NUM_PROCS: usize = 4;
@@ -295,10 +295,9 @@ pub unsafe fn main() {
     //
     // Capabilities
     //
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
 
     let ipc = kernel::ipc::IPC::new(
         board_kernel,

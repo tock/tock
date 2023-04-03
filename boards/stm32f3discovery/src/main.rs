@@ -15,7 +15,7 @@
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::lsm303xx;
 use components::gpio::GpioComponent;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
@@ -23,7 +23,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 use stm32f303xc::chip::Stm32f3xxDefaultPeripherals;
 use stm32f303xc::wdt;
 
@@ -431,10 +431,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -658,7 +657,7 @@ pub unsafe fn main() {
 
     l3gd20.power_on();
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
     let grant_temperature =
         board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
@@ -714,7 +713,7 @@ pub unsafe fn main() {
     //         // spi mux
     //         adc_mux
     //     ));
-    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    // let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
     // let grant_temperature = board_kernel.create_grant(&grant_cap);
 
     // let temp = static_init!(

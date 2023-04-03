@@ -30,8 +30,7 @@ use kernel::ErrorCode;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
-use kernel::capabilities::NetworkCapabilityCreationCapability;
-use kernel::create_capability;
+use kernel::capabilities::{Capability, NetworkCapabilityCreation};
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
@@ -71,7 +70,7 @@ pub unsafe fn run(
     mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) {
-    let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+    let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
     let net_cap = static_init!(
         NetworkCapability,
         NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)

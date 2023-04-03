@@ -25,9 +25,9 @@
 
 use capsules_extra::can::CanCapsule;
 use core::mem::MaybeUninit;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
 use kernel::hil::can;
-use kernel::{capabilities, create_capability};
 
 #[macro_export]
 macro_rules! can_component_static {
@@ -73,7 +73,7 @@ impl<A: 'static + can::Can> Component for CanComponent<A> {
     type Output = &'static CanCapsule<'static, A>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_can = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let can = static_buffer.0.write(capsules_extra::can::CanCapsule::new(

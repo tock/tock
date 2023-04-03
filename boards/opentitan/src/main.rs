@@ -21,7 +21,7 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
 use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::digest::Digest;
@@ -38,7 +38,7 @@ use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup, TbfHeaderFilterDefaultAllow};
 use kernel::scheduler::priority::PrioritySched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::{create_capability, debug, static_init};
+use kernel::{debug, static_init};
 use lowrisc::flash_ctrl::FlashMPConfig;
 use rv32i::csr;
 
@@ -65,7 +65,7 @@ static mut BOARD: Option<&'static kernel::Kernel> = None;
 static mut PLATFORM: Option<&'static EarlGrey> = None;
 // Test access to main loop capability
 #[cfg(test)]
-static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
+static MAIN_CAP: Capability<MainLoop> = unsafe { Capability::<MainLoop>::new() };
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static>>> = None;
 // Test access to TicKV
@@ -252,8 +252,8 @@ unsafe fn setup() -> (
     earlgrey::chip::configure_trap_handler();
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_mgmt_cap = unsafe { Capability::<ProcessManagement>::new() };
+    let memory_allocation_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -823,7 +823,7 @@ pub unsafe fn main() {
     {
         let (board_kernel, earlgrey, chip, _peripherals) = setup();
 
-        let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+        let main_loop_cap = unsafe { Capability::<MainLoop>::new() };
 
         board_kernel.kernel_loop(earlgrey, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
     }
@@ -840,7 +840,6 @@ fn test_runner(tests: &[&dyn Fn()]) {
         BOARD = Some(board_kernel);
         PLATFORM = Some(&earlgrey);
         PERIPHERALS = Some(peripherals);
-        MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         PLATFORM.map(|p| {
             p.watchdog().setup();

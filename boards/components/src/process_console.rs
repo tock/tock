@@ -22,7 +22,7 @@ use capsules_core::process_console::{self, ProcessConsole};
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::time::Alarm;
@@ -37,7 +37,6 @@ macro_rules! process_console_component_static {
             capsules_core::process_console::ProcessConsole<
                 $COMMAND_HISTORY_LEN,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
-                components::process_console::Capability,
             >
         );
 
@@ -107,9 +106,6 @@ extern "C" {
     static _ezero: u8;
 }
 
-pub struct Capability;
-unsafe impl capabilities::ProcessManagementCapability for Capability {}
-
 impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
     for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
 {
@@ -122,14 +118,13 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
         &'static mut MaybeUninit<[u8; capsules_core::process_console::COMMAND_BUF_LEN]>,
         &'static mut MaybeUninit<[capsules_core::process_console::Command; COMMAND_HISTORY_LEN]>,
         &'static mut MaybeUninit<
-            ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>, Capability>,
+            ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>>,
         >,
     );
     type Output = &'static process_console::ProcessConsole<
         'static,
         COMMAND_HISTORY_LEN,
         VirtualMuxAlarm<'static, A>,
-        Capability,
     >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
@@ -186,7 +181,7 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
             self.board_kernel,
             kernel_addresses,
             self.reset_function,
-            Capability,
+            unsafe { Capability::<ProcessManagement>::new() },
         ));
         hil::uart::Transmit::set_transmit_client(console_uart, console);
         hil::uart::Receive::set_receive_client(console_uart, console);

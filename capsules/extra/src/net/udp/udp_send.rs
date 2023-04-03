@@ -28,7 +28,7 @@ use crate::net::udp::UDPHeader;
 
 use core::cell::Cell;
 
-use kernel::capabilities::UdpDriverCapability;
+use kernel::capabilities::{Capability, UdpDriver};
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::debug;
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -210,7 +210,7 @@ pub trait UDPSender<'a> {
         dst_port: u16,
         src_port: u16,
         buf: LeasableMutableBuffer<'static, u8>,
-        driver_send_cap: &dyn UdpDriverCapability,
+        driver_send_cap: &Capability<UdpDriver>,
         net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableMutableBuffer<'static, u8>>;
 
@@ -304,7 +304,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         dst_port: u16,
         src_port: u16,
         buf: LeasableMutableBuffer<'static, u8>,
-        _driver_send_cap: &dyn UdpDriverCapability,
+        _driver_send_cap: &Capability<UdpDriver>,
         net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableMutableBuffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();

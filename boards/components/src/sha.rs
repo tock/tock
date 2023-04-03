@@ -25,9 +25,9 @@ use capsules_core::virtualizers::virtual_sha::MuxSha;
 use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
 use capsules_extra::sha::ShaDriver;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::Capability;
+use kernel::capabilities::MemoryAllocation;
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::digest;
 
 // Setup static space for the objects.
@@ -122,7 +122,7 @@ impl<
     type Output = &'static ShaDriver<'static, VirtualMuxSha<'static, A, L>, L>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let virtual_sha_user = s.0.write(VirtualMuxSha::new(self.mux_sha));
 

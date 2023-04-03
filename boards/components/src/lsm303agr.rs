@@ -27,9 +27,8 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::lsm303agr::Lsm303agrI2C;
 use capsules_extra::lsm303xx;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -84,7 +83,7 @@ impl Component for Lsm303agrI2CComponent {
     type Output = &'static Lsm303agrI2C<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let buffer = static_buffer.2.write([0; 8]);
 

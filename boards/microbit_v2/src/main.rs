@@ -12,14 +12,14 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
+use kernel::{debug, debug_gpio, debug_verbose, static_init};
 
 use nrf52833::gpio::Pin;
 use nrf52833::interrupt_service::Nrf52833DefaultPeripherals;
@@ -247,10 +247,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
 
     //--------------------------------------------------------------------------
     // DEBUG GPIO

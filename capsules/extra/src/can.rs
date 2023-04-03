@@ -37,7 +37,9 @@
 //!
 //! You need a driver that implements the Can trait.
 //! ```rust
-//! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//! # use kernel::capabilities::{Capabilities, MemoryAllocation};
+//!
+//! let grant_cap = unsafe { Capabilities::<MemoryAllocation>::new() };
 //! let grant_can = self.board_kernel.create_grant(
 //!     capsules::can::CanCapsule::DRIVER_NUM, &grant_cap);
 //! let can = capsules::can::CanCapsule::new(

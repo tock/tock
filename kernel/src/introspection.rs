@@ -16,7 +16,7 @@
 
 use core::cell::Cell;
 
-use crate::capabilities::ProcessManagementCapability;
+use crate::capabilities::{Capability, ProcessManagement};
 use crate::kernel::Kernel;
 use crate::process;
 use crate::process::ProcessId;
@@ -36,7 +36,7 @@ impl KernelInfo {
     /// functionally equivalent to how many of the process slots have been used
     /// on the board. This does not consider what state the process is in, as
     /// long as it has been loaded.
-    pub fn number_loaded_processes(&self, _capability: &dyn ProcessManagementCapability) -> usize {
+    pub fn number_loaded_processes(&self, _capability: &Capability<ProcessManagement>) -> usize {
         let count: Cell<usize> = Cell::new(0);
         self.kernel.process_each(|_| count.increment());
         count.get()
@@ -47,7 +47,7 @@ impl KernelInfo {
     /// processes which have faulted, or processes which the kernel is no longer
     /// scheduling because they have faulted too frequently or for some other
     /// reason.
-    pub fn number_active_processes(&self, _capability: &dyn ProcessManagementCapability) -> usize {
+    pub fn number_active_processes(&self, _capability: &Capability<ProcessManagement>) -> usize {
         let count: Cell<usize> = Cell::new(0);
         self.kernel
             .process_each(|process| match process.get_state() {
@@ -61,10 +61,7 @@ impl KernelInfo {
     /// Returns how many processes are considered to be inactive. This includes
     /// processes in the `Fault` state and processes which the kernel is not
     /// scheduling for any reason.
-    pub fn number_inactive_processes(
-        &self,
-        _capability: &dyn ProcessManagementCapability,
-    ) -> usize {
+    pub fn number_inactive_processes(&self, _capability: &Capability<ProcessManagement>) -> usize {
         let count: Cell<usize> = Cell::new(0);
         self.kernel
             .process_each(|process| match process.get_state() {
@@ -79,7 +76,7 @@ impl KernelInfo {
     pub fn process_name(
         &self,
         app: ProcessId,
-        _capability: &dyn ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> &'static str {
         self.kernel
             .process_map_or("unknown", app, |process| process.get_process_name())
@@ -89,7 +86,7 @@ impl KernelInfo {
     pub fn number_app_syscalls(
         &self,
         app: ProcessId,
-        _capability: &dyn ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> usize {
         self.kernel
             .process_map_or(0, app, |process| process.debug_syscall_count())
@@ -101,7 +98,7 @@ impl KernelInfo {
     pub fn number_app_dropped_upcalls(
         &self,
         app: ProcessId,
-        _capability: &dyn ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> usize {
         self.kernel
             .process_map_or(0, app, |process| process.debug_dropped_upcall_count())
@@ -111,7 +108,7 @@ impl KernelInfo {
     pub fn number_app_restarts(
         &self,
         app: ProcessId,
-        _capability: &dyn ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> usize {
         self.kernel
             .process_map_or(0, app, |process| process.get_restart_count())
@@ -121,7 +118,7 @@ impl KernelInfo {
     pub fn number_app_timeslice_expirations(
         &self,
         app: ProcessId,
-        _capability: &dyn ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> usize {
         self.kernel
             .process_map_or(0, app, |process| process.debug_timeslice_expiration_count())
@@ -132,7 +129,7 @@ impl KernelInfo {
     pub fn number_app_grant_uses(
         &self,
         app: ProcessId,
-        _capability: &dyn ProcessManagementCapability,
+        _capability: &Capability<ProcessManagement>,
     ) -> (usize, usize) {
         // Just need to get the number, this has already been finalized, but it
         // doesn't hurt to call this again.
@@ -149,7 +146,7 @@ impl KernelInfo {
 
     /// Returns the total number of times all processes have exceeded
     /// their timeslices.
-    pub fn timeslice_expirations(&self, _capability: &dyn ProcessManagementCapability) -> usize {
+    pub fn timeslice_expirations(&self, _capability: &Capability<ProcessManagement>) -> usize {
         let count: Cell<usize> = Cell::new(0);
         self.kernel.process_each(|proc| {
             count.add(proc.debug_timeslice_expiration_count());

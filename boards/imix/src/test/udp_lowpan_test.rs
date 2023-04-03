@@ -132,9 +132,8 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use capsules_extra::test::udp::MockUdp;
 use core::cell::Cell;
-use kernel::capabilities::NetworkCapabilityCreationCapability;
+use kernel::capabilities::{Capability, NetworkCapabilityCreation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::static_init;
@@ -178,7 +177,7 @@ pub unsafe fn initialize_all(
     'static,
     capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
-    let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+    let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
     let net_cap = static_init!(
         NetworkCapability,
         NetworkCapability::new(AddrRange::Any, PortRange::Any, PortRange::Any, &create_cap)
@@ -326,7 +325,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     // This test ensures that an app and capsule cant bind to the same port
     // but can bind to different ports
     fn bind_test(&self) {
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let net_cap = unsafe {
             static_init!(
                 NetworkCapability,
@@ -354,7 +353,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     // This test ensures that two capsules could not bind to the same port,
     // that single bindings work correctly,
     fn port_table_test(&self) {
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let net_cap = unsafe {
             static_init!(
                 NetworkCapability,
@@ -563,7 +562,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     fn capsule_send_valid_net_cap_test(&self) {
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let net_cap1 = unsafe {
             static_init!(
                 NetworkCapability,
@@ -594,7 +593,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 
     // Invalid network capability (valid addr, invalid port)
     fn capsule_send_invalid_net_cap_port_test(&self) {
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let net_cap1 = unsafe {
             static_init!(
                 NetworkCapability,
@@ -626,7 +625,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 
     // Invalid network capability (invalid addr, valid port)
     fn capsule_send_invalid_net_cap_addr_test(&self) {
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let net_cap1 = unsafe {
             static_init!(
                 NetworkCapability,
@@ -654,7 +653,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
 
     // Invalid network capability (invalid addr, invalid port)
     fn capsule_send_invalid_net_cap_addr_port_test(&self) {
-        let create_cap = create_capability!(NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let net_cap1 = unsafe {
             static_init!(
                 NetworkCapability,

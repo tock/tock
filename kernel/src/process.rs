@@ -9,7 +9,7 @@ use core::fmt::Write;
 use core::ptr::NonNull;
 use core::str;
 
-use crate::capabilities;
+use crate::capabilities::{Capability, ExternalProcess, ProcessApproval, ProcessInit};
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
@@ -139,7 +139,7 @@ impl ProcessId {
         kernel: &'static Kernel,
         identifier: usize,
         index: usize,
-        _capability: &dyn capabilities::ExternalProcessCapability,
+        _capability: &Capability<ExternalProcess>,
     ) -> ProcessId {
         ProcessId {
             kernel: kernel,
@@ -254,10 +254,7 @@ pub trait Process {
     /// starting a process has security implications (e.g., that every
     /// running process has a unique application identifier), this
     /// method requires a Capability.
-    fn enqueue_init_task(
-        &self,
-        cap: &dyn capabilities::ProcessInitCapability,
-    ) -> Result<(), ErrorCode>;
+    fn enqueue_init_task(&self, cap: &Capability<ProcessInit>) -> Result<(), ErrorCode>;
 
     /// Transition a loaded but unchecked process into the
     /// `CredentialsApproved` state so it can run. Returns an error if
@@ -273,12 +270,12 @@ pub trait Process {
         &self,
         credentials: Option<TbfFooterV2Credentials>,
         short_app_id: ShortID,
-        capability: &dyn capabilities::ProcessApprovalCapability,
+        capability: &Capability<ProcessApproval>,
     ) -> Result<(), ErrorCode>;
 
     /// Transition a process into the `CredentialsFailed` state, indicating
     /// it should never run.
-    fn mark_credentials_fail(&self, capability: &dyn capabilities::ProcessApprovalCapability);
+    fn mark_credentials_fail(&self, capability: &Capability<ProcessApproval>);
 
     /// Return the credentials which have made this process runnable, or
     /// `None` if it was not made runnable or allowed to run without credentials.

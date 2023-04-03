@@ -47,9 +47,8 @@ use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use capsules_extra::net::udp::UDPHeader;
 use core::mem::MaybeUninit;
 use kernel;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, CreatePortTable, NetworkCapabilityCreation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::time::Alarm;
 
@@ -241,7 +240,7 @@ impl<A: Alarm<'static> + 'static> Component for UDPMuxComponent<A> {
                 self.mux_mac,
             ));
         self.mux_mac.add_user(udp_mac);
-        let create_cap = create_capability!(capabilities::NetworkCapabilityCreationCapability);
+        let create_cap = unsafe { Capability::<NetworkCapabilityCreation>::new() };
         let udp_vis = s.14.write(UdpVisibilityCapability::new(&create_cap));
         let ip_vis = s.15.write(IpVisibilityCapability::new(&create_cap));
 
@@ -310,7 +309,7 @@ impl<A: Alarm<'static> + 'static> Component for UDPMuxComponent<A> {
         ip_send.set_client(udp_send_mux);
 
         let kernel_ports = s.10.write([None; MAX_NUM_BOUND_PORTS]);
-        let create_table_cap = create_capability!(capabilities::CreatePortTableCapability);
+        let create_table_cap = unsafe { Capability::<CreatePortTable>::new() };
         let udp_port_table = s.7.write(UdpPortManager::new(
             &create_table_cap,
             kernel_ports,

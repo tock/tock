@@ -20,9 +20,8 @@
 
 use capsules_extra::nrf51822_serialization::Nrf51822Serialization;
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil;
 
 #[macro_export]
@@ -79,7 +78,7 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
     type Output = &'static Nrf51822Serialization<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let write_buffer =
             s.1.write([0; capsules_extra::nrf51822_serialization::WRITE_BUF_LEN]);

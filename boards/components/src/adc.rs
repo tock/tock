@@ -8,9 +8,8 @@ use capsules_core::adc::AdcDedicated;
 use capsules_core::adc::AdcVirtualized;
 use capsules_core::virtualizers::virtual_adc::{AdcDevice, MuxAdc};
 use core::mem::MaybeUninit;
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MemoryAllocation};
 use kernel::component::Component;
-use kernel::create_capability;
 use kernel::hil::adc;
 
 #[macro_export]
@@ -129,7 +128,7 @@ impl Component for AdcVirtualComponent {
     type Output = &'static capsules_core::adc::AdcVirtualized<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
         let grant_adc = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
         let adc = static_buffer
@@ -184,7 +183,7 @@ impl<A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static> Compon
     type Output = &'static AdcDedicated<'static, A>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_cap = unsafe { Capability::<MemoryAllocation>::new() };
 
         let buffer1 = s.1.write([0; capsules_core::adc::BUF_LEN]);
         let buffer2 = s.2.write([0; capsules_core::adc::BUF_LEN]);

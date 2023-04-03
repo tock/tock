@@ -13,7 +13,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use kernel::capabilities;
+use kernel::capabilities::{Capability, MainLoop, MemoryAllocation, ProcessManagement};
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::led::LedLow;
@@ -21,7 +21,7 @@ use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, static_init};
+use kernel::{debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -269,10 +269,9 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_management_capability = unsafe { Capability::<ProcessManagement>::new() };
+    let main_loop_capability = unsafe { Capability::<MainLoop>::new() };
+    let memory_allocation_capability = unsafe { Capability::<MemoryAllocation>::new() };
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -476,18 +475,14 @@ pub unsafe fn main() {
     // //
     // // Uncomment to enable a button press to restart all apps.
     // //
-    // // Create a dummy object that provides the `ProcessManagementCapability` to
+    // // Create a dummy object that provides the `Capability<ProcessManagement>` to
     // // the `debug_process_restart` capsule.
-    // struct ProcessMgmtCap;
-    // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
     // let debug_process_restart = static_init!(
-    //     capsules_core::debug_process_restart::DebugProcessRestart<
-    //         ProcessMgmtCap,
-    //     >,
+    //     capsules_core::debug_process_restart::DebugProcessRestart,
     //     capsules_core::debug_process_restart::DebugProcessRestart::new(
     //         board_kernel,
     //         &peripherals.pa[16],
-    //         ProcessMgmtCap
+    //         unsafe { Capability::<ProcessManagement>::new() }
     //     )
     // );
     // peripherals.pa[16].set_client(debug_process_restart);

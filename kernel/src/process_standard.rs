@@ -13,7 +13,7 @@ use core::fmt::Write;
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
 
-use crate::capabilities;
+use crate::capabilities::{Capability, ProcessApproval, ProcessInit};
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::config;
@@ -286,7 +286,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         credentials: Option<TbfFooterV2Credentials>,
         short_app_id: ShortID,
-        _capability: &dyn capabilities::ProcessApprovalCapability,
+        _capability: &Capability<ProcessApproval>,
     ) -> Result<(), ErrorCode> {
         if self.state.get() != State::CredentialsUnchecked {
             return Err(ErrorCode::NODEVICE);
@@ -298,7 +298,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         Ok(())
     }
 
-    fn mark_credentials_fail(&self, _capability: &dyn capabilities::ProcessApprovalCapability) {
+    fn mark_credentials_fail(&self, _capability: &Capability<ProcessApproval>) {
         self.state.set(State::CredentialsFailed);
     }
 
@@ -313,10 +313,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     // when a process is in the `State::Terminated` or
     // `State::CredentialsApproved` state. If this returns `Err` the
     // process will not start execution.
-    fn enqueue_init_task(
-        &self,
-        _cap: &dyn capabilities::ProcessInitCapability,
-    ) -> Result<(), ErrorCode> {
+    fn enqueue_init_task(&self, _cap: &Capability<ProcessInit>) -> Result<(), ErrorCode> {
         if self.state.get() != State::CredentialsApproved && self.state.get() != State::Terminated {
             return Err(ErrorCode::NODEVICE);
         }
