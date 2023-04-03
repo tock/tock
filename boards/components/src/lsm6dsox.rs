@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for the LSM6DSOXTR Sensor
 //!
 //! Usage
@@ -6,26 +10,26 @@
 //! ```rust
 //! let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
 //!     mux_i2c,
-//!     capsules::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
+//!     capsules_extra::lsm6dsoxtr::ACCELEROMETER_BASE_ADDRESS,
 //!     board_kernel,
-//!     capsules::lsm6dsoxtr::DRIVER_NUM,
+//!     capsules_extra::lsm6dsoxtr::DRIVER_NUM,
 //! )
 //! .finalize(components::lsm6ds_i2c_component_static!());
 //!
 //! let _ = lsm6dsoxtr
 //!          .configure(
-//!              capsules::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
-//!              capsules::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
-//!              capsules::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
-//!              capsules::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
+//!              capsules_extra::lsm6ds_definitions::LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ,
+//!              capsules_extra::lsm6ds_definitions::LSM6DSOXAccelDataRate::LSM6DSOX_ACCEL_RATE_12_5_HZ,
+//!              capsules_extra::lsm6ds_definitions::LSM6DSOXAccelRange::LSM6DSOX_ACCEL_RANGE_2_G,
+//!              capsules_extra::lsm6ds_definitions::LSM6DSOXTRGyroRange::LSM6DSOX_GYRO_RANGE_250_DPS,
 //!              true,
 //!          )
 //!          .map_err(|e| panic!("ERROR Failed LSM6DSOXTR sensor configuration ({:?})", e));
 //! ```
 //! Author: Cristiana Andrei <cristiana.andrei@stud.fils.upb.ro>
 
-use capsules::lsm6dsoxtr::Lsm6dsoxtrI2C;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -36,8 +40,9 @@ use kernel::create_capability;
 macro_rules! lsm6ds_i2c_component_static {
     () => {{
         let buffer = kernel::static_buf!([u8; 8]);
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
-        let lsm6dsoxtr = kernel::static_buf!(capsules::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+        let lsm6dsoxtr = kernel::static_buf!(capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>);
 
         (i2c_device, buffer, lsm6dsoxtr)
     };};

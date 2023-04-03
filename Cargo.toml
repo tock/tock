@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 [workspace]
 members = [
     "arch/cortex-m",
@@ -43,7 +47,8 @@ members = [
     "boards/qemu_rv32_virt",
     "boards/swervolf",
     "boards/weact_f401ccu6/",
-    "capsules",
+    "capsules/core",
+    "capsules/extra",
     "chips/apollo3",
     "chips/arty_e21_chip",
     "chips/e310_g002",
@@ -74,6 +79,7 @@ members = [
     "chips/stm32f4xx",
     "chips/swerv",
     "chips/swervolf-eh1",
+    "chips/virtio",
     "kernel",
     "libraries/enum_primitive",
     "libraries/riscv-csr",

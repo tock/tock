@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the BME280 Humidity, Pressure and Temperature Sensor.
 //!
 //! Usage
@@ -7,31 +11,30 @@
 //!         Ccs811Component::new(mux_i2c, 0x77).finalize(components::ccs811_component_static!());
 //!     let temperature = components::temperature::TemperatureComponent::new(
 //!         board_kernel,
-//!         capsules::temperature::DRIVER_NUM,
+//!         capsules_extra::temperature::DRIVER_NUM,
 //!         ccs811,
 //!     )
 //!     .finalize(());
 //!     let humidity = components::humidity::HumidityComponent::new(
 //!         board_kernel,
-//!         capsules::humidity::DRIVER_NUM,
+//!         capsules_extra::humidity::DRIVER_NUM,
 //!         ccs811,
 //!     )
 //!     .finalize(());
 //! ```
 
-use capsules::ccs811::Ccs811;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::ccs811::Ccs811;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! ccs811_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; 6]);
-        let ccs811 = kernel::static_buf!(capsules::ccs811::Ccs811<'static>);
+        let ccs811 = kernel::static_buf!(capsules_extra::ccs811::Ccs811<'static>);
 
         (i2c_device, buffer, ccs811)
     };};
@@ -40,19 +43,13 @@ macro_rules! ccs811_component_static {
 pub struct Ccs811Component {
     i2c_mux: &'static MuxI2C<'static>,
     i2c_address: u8,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl Ccs811Component {
-    pub fn new(
-        i2c: &'static MuxI2C<'static>,
-        i2c_address: u8,
-        deferred_caller: &'static DynamicDeferredCall,
-    ) -> Self {
+    pub fn new(i2c: &'static MuxI2C<'static>, i2c_address: u8) -> Self {
         Ccs811Component {
             i2c_mux: i2c,
             i2c_address,
-            deferred_caller,
         }
     }
 }
@@ -70,14 +67,10 @@ impl Component for Ccs811Component {
             .0
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));
         let buffer = static_buffer.1.write([0; 6]);
-        let ccs811 = static_buffer
-            .2
-            .write(Ccs811::new(ccs811_i2c, buffer, self.deferred_caller));
+        let ccs811 = static_buffer.2.write(Ccs811::new(ccs811_i2c, buffer));
+        kernel::deferred_call::DeferredCallClient::register(ccs811);
 
         ccs811_i2c.set_client(ccs811);
-        ccs811.initialize_callback_handle(
-            self.deferred_caller.register(ccs811).unwrap(), // Unwrap fail = no deferred call slot available for CCS811
-        );
         ccs811.startup();
         ccs811
     }

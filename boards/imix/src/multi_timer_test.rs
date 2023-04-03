@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test the behavior of a single alarm.
 //! To add this test, include the line
 //! ```
@@ -12,8 +16,8 @@ use kernel::debug;
 use kernel::hil::time::Timer;
 use kernel::static_init;
 
-use capsules::test::random_timer::TestRandomTimer;
-use capsules::virtual_timer::{MuxTimer, VirtualTimer};
+use capsules_core::test::random_timer::TestRandomTimer;
+use capsules_core::virtualizers::virtual_timer::{MuxTimer, VirtualTimer};
 use sam4l::ast::Ast;
 
 pub unsafe fn run_multi_timer(mux: &'static MuxTimer<'static, Ast<'static>>) {

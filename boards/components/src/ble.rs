@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for creating a ble_advertising_driver.
 //!
 //! Usage
@@ -6,8 +10,8 @@
 //! let ble_radio = BLEComponent::new(board_kernel, &nrf52::ble_radio::RADIO, mux_alarm).finalize();
 //! ```
 
-use capsules;
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -18,15 +22,18 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! ble_component_static {
     ($A:ty, $B:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let ble = kernel::static_buf!(
-            capsules::ble_advertising_driver::BLE<
+            capsules_extra::ble_advertising_driver::BLE<
                 'static,
                 $B,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
-        let buffer = kernel::static_buf!([u8; capsules::ble_advertising_driver::PACKET_LENGTH]);
+        let buffer =
+            kernel::static_buf!([u8; capsules_extra::ble_advertising_driver::PACKET_LENGTH]);
         (alarm, ble, buffer)
     }};
 }
@@ -38,7 +45,7 @@ pub struct BLEComponent<
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     radio: &'static B,
-    mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, A>,
+    mux_alarm: &'static capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
 }
 
 impl<
@@ -50,7 +57,7 @@ impl<
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         radio: &'static B,
-        mux_alarm: &'static capsules::virtual_alarm::MuxAlarm<'static, A>,
+        mux_alarm: &'static capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, A>,
     ) -> Self {
         Self {
             board_kernel,
@@ -67,26 +74,31 @@ impl<
     > Component for BLEComponent<A, B>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<capsules::virtual_alarm::VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<
-            capsules::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, A>,
         >,
-        &'static mut MaybeUninit<[u8; capsules::ble_advertising_driver::PACKET_LENGTH]>,
+        &'static mut MaybeUninit<
+            capsules_extra::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>,
+        >,
+        &'static mut MaybeUninit<[u8; capsules_extra::ble_advertising_driver::PACKET_LENGTH]>,
     );
-    type Output =
-        &'static capsules::ble_advertising_driver::BLE<'static, B, VirtualMuxAlarm<'static, A>>;
+    type Output = &'static capsules_extra::ble_advertising_driver::BLE<
+        'static,
+        B,
+        VirtualMuxAlarm<'static, A>,
+    >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let ble_radio_virtual_alarm = s.0.write(capsules::virtual_alarm::VirtualMuxAlarm::new(
-            self.mux_alarm,
-        ));
+        let ble_radio_virtual_alarm = s.0.write(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(self.mux_alarm),
+        );
         ble_radio_virtual_alarm.setup();
         let buffer =
-            s.2.write([0; capsules::ble_advertising_driver::PACKET_LENGTH]);
+            s.2.write([0; capsules_extra::ble_advertising_driver::PACKET_LENGTH]);
 
-        let ble_radio = s.1.write(capsules::ble_advertising_driver::BLE::new(
+        let ble_radio = s.1.write(capsules_extra::ble_advertising_driver::BLE::new(
             self.radio,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             buffer,

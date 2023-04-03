@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for Digital to Analog Converters (DAC).
 //!
 //! Usage
@@ -7,7 +11,7 @@
 //!      .finalize(components::dac_component_static!());
 //! ```
 
-use capsules::dac::Dac;
+use capsules_extra::dac::Dac;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
@@ -15,7 +19,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! dac_component_static {
     () => {{
-        kernel::static_buf!(capsules::dac::Dac<'static>)
+        kernel::static_buf!(capsules_extra::dac::Dac<'static>)
     };};
 }
 

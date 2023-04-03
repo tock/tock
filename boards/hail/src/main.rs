@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for Hail development platform.
 //!
 //! - <https://github.com/tock/tock/tree/master/boards/hail>
@@ -11,7 +15,6 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
@@ -45,35 +48,51 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+// Function for the process console to use to reboot the board
+fn reset() -> ! {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
+    }
+}
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static capsules_core::console::Console<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            sam4l::ast::Ast<'static>,
+        >,
     >,
-    ambient_light: &'static capsules::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    spi: &'static capsules::spi_controller::Spi<
+    ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
+    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    spi: &'static capsules_core::spi_controller::Spi<
         'static,
-        capsules::virtual_spi::VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            sam4l::spi::SpiHw,
+        >,
     >,
-    nrf51822: &'static capsules::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-    led: &'static capsules::led::LedDriver<
+    nrf51822: &'static capsules_extra::nrf51822_serialization::Nrf51822Serialization<'static>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, sam4l::gpio::GPIOPin<'static>>,
         3,
     >,
-    button: &'static capsules::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
+    button: &'static capsules_core::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
+    rng: &'static capsules_core::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    crc: &'static capsules::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
-    dac: &'static capsules::dac::Dac<'static>,
+    crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
+    dac: &'static capsules_extra::dac::Dac<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -85,25 +104,25 @@ impl SyscallDriverLookup for Hail {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
 
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi)),
-            capsules::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
-            capsules::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi)),
+            capsules_extra::nrf51822_serialization::DRIVER_NUM => f(Some(self.nrf51822)),
+            capsules_extra::ambient_light::DRIVER_NUM => f(Some(self.ambient_light)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
 
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
 
-            capsules::crc::DRIVER_NUM => f(Some(self.crc)),
+            capsules_extra::crc::DRIVER_NUM => f(Some(self.crc)),
 
-            capsules::dac::DRIVER_NUM => f(Some(self.dac)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
 
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -212,7 +231,7 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals(
+unsafe fn create_peripherals(
     pm: &'static sam4l::pm::PowerManager,
 ) -> &'static Sam4lDefaultPeripherals {
     static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
@@ -227,7 +246,7 @@ pub unsafe fn main() {
     sam4l::init();
 
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
-    let peripherals = get_peripherals(pm);
+    let peripherals = create_peripherals(pm);
 
     pm.setup_system_clock(
         sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
@@ -241,7 +260,7 @@ pub unsafe fn main() {
     sam4l::bpm::set_ck32source(sam4l::bpm::CK32Source::RC32K);
 
     set_pin_primary_functions(peripherals);
-    peripherals.setup_dma();
+    peripherals.setup_circular_deps();
     let chip = static_init!(
         sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
         sam4l::chip::Sam4l::new(pm, peripherals)
@@ -262,14 +281,6 @@ pub unsafe fn main() {
         Some(&peripherals.pa[14]),
     );
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -280,12 +291,8 @@ pub unsafe fn main() {
     peripherals.usart0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.usart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart0, 115200)
+        .finalize(components::uart_mux_component_static!());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&peripherals.usart0, uart_mux);
@@ -298,7 +305,7 @@ pub unsafe fn main() {
     // Setup the console and the process inspection console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -307,6 +314,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
@@ -320,28 +328,27 @@ pub unsafe fn main() {
     // over UART to the nRF51822 radio.
     let nrf_serialization = components::nrf51822::Nrf51822Component::new(
         board_kernel,
-        capsules::nrf51822_serialization::DRIVER_NUM,
+        capsules_extra::nrf51822_serialization::DRIVER_NUM,
         &peripherals.usart3,
         &peripherals.pa[17],
     )
     .finalize(components::nrf51822_component_static!());
 
-    let sensors_i2c =
-        components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_static!());
+    let sensors_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None)
+        .finalize(components::i2c_mux_component_static!());
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
     let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
         .finalize(components::si7021_component_static!(sam4l::ast::Ast));
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM,
+        capsules_extra::temperature::DRIVER_NUM,
         si7021,
     )
     .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
-        capsules::humidity::DRIVER_NUM,
+        capsules_extra::humidity::DRIVER_NUM,
         si7021,
     )
     .finalize(components::humidity_component_static!());
@@ -351,7 +358,7 @@ pub unsafe fn main() {
         .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
     let ambient_light = components::isl29035::AmbientLightComponent::new(
         board_kernel,
-        capsules::ambient_light::DRIVER_NUM,
+        capsules_extra::ambient_light::DRIVER_NUM,
         isl29035,
     )
     .finalize(components::ambient_light_component_static!());
@@ -359,7 +366,7 @@ pub unsafe fn main() {
     // Alarm
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(sam4l::ast::Ast));
@@ -369,20 +376,22 @@ pub unsafe fn main() {
         components::fxos8700::Fxos8700Component::new(sensors_i2c, 0x1e, &peripherals.pa[9])
             .finalize(components::fxos8700_component_static!());
 
-    let ninedof =
-        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_static!(fxos8700));
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules_extra::ninedof::DRIVER_NUM,
+    )
+    .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI
     // Set up a SPI MUX, so there can be multiple clients.
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi, dynamic_deferred_caller)
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
         .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
     // Create the SPI system call capsule.
     let spi_syscalls = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
         0,
-        capsules::spi_controller::DRIVER_NUM,
+        capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
 
@@ -397,7 +406,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             sam4l::gpio::GPIOPin,
             (
@@ -425,14 +434,14 @@ pub unsafe fn main() {
         &peripherals.adc,
         adc_channels,
         board_kernel,
-        capsules::adc::DRIVER_NUM,
+        capsules_core::adc::DRIVER_NUM,
     )
     .finalize(components::adc_dedicated_component_static!(sam4l::adc::Adc));
 
     // Setup RNG
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
+        capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
     .finalize(components::rng_component_static!());
@@ -440,7 +449,7 @@ pub unsafe fn main() {
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             sam4l::gpio::GPIOPin,
             0 => &peripherals.pb[14], // D0
@@ -454,7 +463,7 @@ pub unsafe fn main() {
     // CRC
     let crc = components::crc::CrcComponent::new(
         board_kernel,
-        capsules::crc::DRIVER_NUM,
+        capsules_extra::crc::DRIVER_NUM,
         &peripherals.crccu,
     )
     .finalize(components::crc_component_static!(sam4l::crccu::Crccu));
@@ -472,10 +481,10 @@ pub unsafe fn main() {
     // struct ProcessMgmtCap;
     // unsafe impl capabilities::ProcessManagementCapability for ProcessMgmtCap {}
     // let debug_process_restart = static_init!(
-    //     capsules::debug_process_restart::DebugProcessRestart<
+    //     capsules_core::debug_process_restart::DebugProcessRestart<
     //         ProcessMgmtCap,
     //     >,
-    //     capsules::debug_process_restart::DebugProcessRestart::new(
+    //     capsules_core::debug_process_restart::DebugProcessRestart::new(
     //         board_kernel,
     //         &peripherals.pa[16],
     //         ProcessMgmtCap

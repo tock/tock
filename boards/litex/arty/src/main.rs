@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for a LiteX-built VexRiscv-based SoC synthesized for a
 //! Digilent Arty-A7 FPGA board
 
@@ -6,11 +10,10 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
@@ -48,7 +51,15 @@ struct LiteXArtyInterruptablePeripherals {
     >,
     ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
 }
-impl InterruptService<()> for LiteXArtyInterruptablePeripherals {
+
+impl LiteXArtyInterruptablePeripherals {
+    // Resolve any recursive dependencies and set up deferred calls:
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(self.uart0);
+    }
+}
+
+impl InterruptService for LiteXArtyInterruptablePeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt as usize {
             socc::UART_INTERRUPT => {
@@ -65,10 +76,6 @@ impl InterruptService<()> for LiteXArtyInterruptablePeripherals {
             }
             _ => false,
         }
-    }
-
-    unsafe fn service_deferred_call(&self, _task: ()) -> bool {
-        false
     }
 }
 
@@ -106,14 +113,15 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LiteXArty {
-    led_driver: &'static capsules::led::LedDriver<
+    led_driver: &'static capsules_core::led::LedDriver<
         'static,
         litex_vexriscv::led_controller::LiteXLed<'static, socc::SoCRegisterFmt>,
         4,
     >,
-    console: &'static capsules::console::Console<'static>,
-    pconsole: &'static capsules::process_console::ProcessConsole<
+    console: &'static capsules_core::console::Console<'static>,
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<
             'static,
             litex_vexriscv::timer::LiteXAlarm<
@@ -125,11 +133,11 @@ struct LiteXArty {
         >,
         components::process_console::Capability,
     >,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
-        capsules::virtual_uart::UartDevice<'static>,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<
             'static,
@@ -163,10 +171,10 @@ impl SyscallDriverLookup for LiteXArty {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led_driver)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led_driver)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -238,14 +246,6 @@ pub unsafe fn main() {
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     // ---------- LED CONTROLLER HARDWARE ----------
 
@@ -334,7 +334,7 @@ pub unsafe fn main() {
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
+        capsules_core::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<
                 'static,
@@ -346,9 +346,9 @@ pub unsafe fn main() {
                 >,
             >,
         >,
-        capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     virtual_alarm_user.set_alarm_client(alarm);
@@ -397,22 +397,15 @@ pub unsafe fn main() {
             // hardware. Change with --uart-baudrate during SoC
             // generation. Fixed to 1MBd.
             None,
-            dynamic_deferred_caller,
         )
     );
-    uart0.initialize(
-        dynamic_deferred_caller.register(uart0).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
-    );
+    uart0.initialize();
 
     PANIC_REFERENCES.uart = Some(uart0);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        uart0,
-        socc::UART_BAUDRATE,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(uart0, socc::UART_BAUDRATE)
+        .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
@@ -461,6 +454,7 @@ pub unsafe fn main() {
             ethmac0,
         }
     );
+    interrupt_service.init();
 
     let chip = static_init!(
         litex_vexriscv::chip::LiteXVexRiscv<
@@ -494,6 +488,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(
         litex_vexriscv::timer::LiteXAlarm<
@@ -507,7 +502,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -518,7 +513,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());

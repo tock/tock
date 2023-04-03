@@ -1,7 +1,11 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for the built-in STM temperature sensor.
 
-use capsules::temperature_stm::TemperatureSTM;
-use capsules::virtual_adc::AdcDevice;
+use capsules_core::virtualizers::virtual_adc::AdcDevice;
+use capsules_extra::temperature_stm::TemperatureSTM;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::adc;
@@ -12,14 +16,14 @@ macro_rules! temperature_stm_adc_component_static {
     ($A:ty $(,)?) => {{
         let adc_device = components::adc_component_static!($A);
         let temperature_stm =
-            kernel::static_buf!(capsules::temperature_stm::TemperatureSTM<'static>);
+            kernel::static_buf!(capsules_extra::temperature_stm::TemperatureSTM<'static>);
 
         (adc_device, temperature_stm)
     };};
 }
 
 pub struct TemperatureSTMComponent<A: 'static + adc::Adc> {
-    adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     slope: f32,
     v_25: f32,
@@ -27,7 +31,7 @@ pub struct TemperatureSTMComponent<A: 'static + adc::Adc> {
 
 impl<A: 'static + adc::Adc> TemperatureSTMComponent<A> {
     pub fn new(
-        adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         slope: f32,
         v_25: f32,

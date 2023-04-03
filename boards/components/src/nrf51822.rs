@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for communicating with the nRF51822 (BLE).
 //!
 //! This provides one Component, Nrf51822Component, which implements
@@ -14,7 +18,7 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-use capsules::nrf51822_serialization::Nrf51822Serialization;
+use capsules_extra::nrf51822_serialization::Nrf51822Serialization;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -24,11 +28,13 @@ use kernel::hil;
 #[macro_export]
 macro_rules! nrf51822_component_static {
     () => {{
-        let nrf =
-            kernel::static_buf!(capsules::nrf51822_serialization::Nrf51822Serialization<'static>);
+        let nrf = kernel::static_buf!(
+            capsules_extra::nrf51822_serialization::Nrf51822Serialization<'static>
+        );
         let write_buffer =
-            kernel::static_buf!([u8; capsules::nrf51822_serialization::WRITE_BUF_LEN]);
-        let read_buffer = kernel::static_buf!([u8; capsules::nrf51822_serialization::READ_BUF_LEN]);
+            kernel::static_buf!([u8; capsules_extra::nrf51822_serialization::WRITE_BUF_LEN]);
+        let read_buffer =
+            kernel::static_buf!([u8; capsules_extra::nrf51822_serialization::READ_BUF_LEN]);
 
         (nrf, write_buffer, read_buffer)
     };};
@@ -67,8 +73,8 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
 {
     type StaticInput = (
         &'static mut MaybeUninit<Nrf51822Serialization<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::nrf51822_serialization::WRITE_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::nrf51822_serialization::READ_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::nrf51822_serialization::WRITE_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::nrf51822_serialization::READ_BUF_LEN]>,
     );
     type Output = &'static Nrf51822Serialization<'static>;
 
@@ -76,9 +82,9 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let write_buffer =
-            s.1.write([0; capsules::nrf51822_serialization::WRITE_BUF_LEN]);
+            s.1.write([0; capsules_extra::nrf51822_serialization::WRITE_BUF_LEN]);
         let read_buffer =
-            s.2.write([0; capsules::nrf51822_serialization::READ_BUF_LEN]);
+            s.2.write([0; capsules_extra::nrf51822_serialization::READ_BUF_LEN]);
 
         let nrf_serialization = s.0.write(Nrf51822Serialization::new(
             self.uart,

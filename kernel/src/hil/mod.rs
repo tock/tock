@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Public traits for interfaces between Tock components.
 
 pub mod adc;
@@ -5,6 +9,7 @@ pub mod analog_comparator;
 pub mod ble_advertising;
 pub mod bus8080;
 pub mod buzzer;
+pub mod can;
 pub mod crc;
 pub mod dac;
 pub mod digest;

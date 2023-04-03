@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! System configuration
 //!
 //! - LED on pin 13
@@ -15,7 +19,6 @@ use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -34,16 +37,19 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 /// Teensy 4 platform
 struct Teensy40 {
-    led: &'static capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, imxrt1060::gpio::Pin<'static>>,
         1,
     >,
-    console: &'static capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, imxrt1060::gpt::Gpt1<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            imxrt1060::gpt::Gpt1<'static>,
+        >,
     >,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -56,10 +62,10 @@ impl SyscallDriverLookup for Teensy40 {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             _ => f(None),
         }
     }
@@ -133,7 +139,7 @@ mod dma_config {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
+unsafe fn create_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1060::chip::Imxrt10xxDefaultPeripherals,
@@ -185,7 +191,7 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
 pub unsafe fn main() {
     imxrt1060::init();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.ccm.set_low_power_mode();
 
     peripherals.dcdc.clock().enable();
@@ -254,20 +260,9 @@ pub unsafe fn main() {
     // Start loading the kernel
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
     // TODO how many of these should there be...?
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.lpuart2,
-        115_200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
+        .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
@@ -275,7 +270,7 @@ pub unsafe fn main() {
     // Setup the console
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -292,7 +287,7 @@ pub unsafe fn main() {
     );
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(imxrt1060::gpt::Gpt1));

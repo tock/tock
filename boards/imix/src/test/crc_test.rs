@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test that CRC is working properly.
 //!
 //! To test, add the following line to the imix boot sequence:
@@ -17,7 +21,7 @@
 //! taken from
 //! <https://reveng.sourceforge.io/crc-catalogue/17plus.htm>
 
-use capsules::test::crc::TestCrc;
+use capsules_extra::test::crc::TestCrc;
 use kernel::hil::crc::Crc;
 use kernel::static_init;
 use sam4l::crccu::Crccu;

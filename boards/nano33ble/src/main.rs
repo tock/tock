@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock kernel for the Arduino Nano 33 BLE.
 //!
 //! It is based on nRF52840 SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
@@ -10,7 +14,6 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedLow;
@@ -65,8 +68,8 @@ const APDS9960_PIN: Pin = Pin::P0_19;
 /// Personal Area Network ID for the IEEE 802.15.4 radio
 const PAN_ID: u16 = 0xABCD;
 /// Gateway (or next hop) MAC Address
-const DST_MAC_ADDR: capsules::net::ieee802154::MacAddress =
-    capsules::net::ieee802154::MacAddress::Short(49138);
+const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
+    capsules_extra::net::ieee802154::MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
@@ -90,10 +93,10 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 static mut CDC_REF_FOR_PANIC: Option<
-    &'static capsules::usb::cdc::CdcAcm<
+    &'static capsules_extra::usb::cdc::CdcAcm<
         'static,
         nrf52::usbd::Usbd,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
     >,
 > = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
@@ -112,37 +115,57 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+// Function for the process console to use to reboot the board.
+fn reset() -> ! {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
+    }
+}
+
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
         nrf52::ble_radio::Radio<'static>,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            nrf52::rtc::Rtc<'static>,
+        >,
     >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    console: &'static capsules::console::Console<'static>,
-    pconsole: &'static capsules::process_console::ProcessConsole<
+    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    console: &'static capsules_core::console::Console<'static>,
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            nrf52::rtc::Rtc<'static>,
+        >,
         components::process_console::Capability,
     >,
-    proximity: &'static capsules::proximity::ProximitySensor<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules::humidity::HumiditySensor<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<
+    proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, nrf52::gpio::GPIOPin<'static>>,
         3,
     >,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    rng: &'static capsules::rng::RngDriver<'static>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    rng: &'static capsules_core::rng::RngDriver<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            nrf52::rtc::Rtc<'static>,
+        >,
     >,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
+    udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -153,18 +176,18 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::proximity::DRIVER_NUM => f(Some(self.proximity)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_extra::proximity::DRIVER_NUM => f(Some(self.proximity)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -213,7 +236,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
+unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
@@ -228,7 +251,7 @@ unsafe fn get_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> 
 pub unsafe fn main() {
     nrf52840::init();
 
-    let nrf52840_peripherals = get_peripherals();
+    let nrf52840_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
@@ -270,7 +293,7 @@ pub unsafe fn main() {
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
@@ -298,18 +321,6 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // Deferred Call (Dynamic) Setup
-    //--------------------------------------------------------------------------
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
-    //--------------------------------------------------------------------------
     // ALARM & TIMER
     //--------------------------------------------------------------------------
 
@@ -320,7 +331,7 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_static!(nrf52::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(nrf52::rtc::Rtc));
@@ -348,12 +359,11 @@ pub unsafe fn main() {
 
     let cdc = components::cdc::CdcAcmComponent::new(
         &nrf52840_peripherals.usbd,
-        capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
+        capsules_extra::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
         0x2341,
         0x005a,
         strings,
         mux_alarm,
-        dynamic_deferred_caller,
         Some(&baud_rate_reset_bootloader_enter),
     )
     .finalize(components::cdc_acm_component_static!(
@@ -368,7 +378,7 @@ pub unsafe fn main() {
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -376,6 +386,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>
@@ -384,7 +395,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -398,7 +409,7 @@ pub unsafe fn main() {
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
+        capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(components::rng_component_static!());
@@ -412,7 +423,7 @@ pub unsafe fn main() {
         .finalize(components::adc_mux_component_static!(nrf52840::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 // A0
                 components::adc::AdcComponent::new(
@@ -468,12 +479,8 @@ pub unsafe fn main() {
     // SENSORS
     //--------------------------------------------------------------------------
 
-    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(
-        &base_peripherals.twi0,
-        None,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::i2c_mux_component_static!());
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+        .finalize(components::i2c_mux_component_static!());
     base_peripherals.twi0.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
@@ -491,7 +498,7 @@ pub unsafe fn main() {
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
-        capsules::proximity::DRIVER_NUM,
+        capsules_extra::proximity::DRIVER_NUM,
     )
     .finalize(components::proximity_component_static!());
 
@@ -499,13 +506,13 @@ pub unsafe fn main() {
         .finalize(components::hts221_component_static!());
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM,
+        capsules_extra::temperature::DRIVER_NUM,
         hts221,
     )
     .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
-        capsules::humidity::DRIVER_NUM,
+        capsules_extra::humidity::DRIVER_NUM,
         hts221,
     )
     .finalize(components::humidity_component_static!());
@@ -516,7 +523,7 @@ pub unsafe fn main() {
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM,
+        capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -525,33 +532,29 @@ pub unsafe fn main() {
         nrf52840::ble_radio::Radio
     ));
 
-    use capsules::net::ieee802154::MacAddress;
+    use capsules_extra::net::ieee802154::MacAddress;
 
-    let aes_mux = components::ieee802154::MuxAes128ccmComponent::new(
-        &base_peripherals.ecb,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::mux_aes128ccm_component_static!(
-        nrf52840::aes::AesECB
-    ));
+    let aes_mux = components::ieee802154::MuxAes128ccmComponent::new(&base_peripherals.ecb)
+        .finalize(components::mux_aes128ccm_component_static!(
+            nrf52840::aes::AesECB
+        ));
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        capsules::ieee802154::DRIVER_NUM,
+        capsules_extra::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
-        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
         nrf52840::aes::AesECB<'static>
     ));
-    use capsules::net::ipv6::ip_utils::IPAddr;
+    use capsules_extra::net::ipv6::ip_utils::IPAddr;
 
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
@@ -564,7 +567,7 @@ pub unsafe fn main() {
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
                 0x1e, 0x1f,
             ]),
-            IPAddr::generate_from_mac(capsules::net::ieee802154::MacAddress::Short(
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
                 serial_num_bottom_16
             )),
         ]
@@ -584,7 +587,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
-        capsules::net::udp::DRIVER_NUM,
+        capsules_extra::net::udp::DRIVER_NUM,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -644,12 +647,10 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // test::linear_log_test::run(
     //     mux_alarm,
-    //     dynamic_deferred_caller,
     //     &nrf52840_peripherals.nrf52.nvmc,
     // );
     // test::log_test::run(
     //     mux_alarm,
-    //     dynamic_deferred_caller,
     //     &nrf52840_peripherals.nrf52.nvmc,
     // );
 

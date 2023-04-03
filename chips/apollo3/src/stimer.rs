@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! STimer driver for the Apollo3
 
 use kernel::utilities::cells::OptionalCell;
@@ -152,7 +156,7 @@ impl<'a> Counter<'a> for STimer<'a> {
 
     fn is_running(&self) -> bool {
         let regs = self.registers;
-        regs.stcfg.matches_any(STCFG::CLKSEL::XTAL_DIV2)
+        regs.stcfg.matches_any(&[STCFG::CLKSEL::XTAL_DIV2])
     }
 }
 

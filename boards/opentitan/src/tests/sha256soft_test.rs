@@ -1,8 +1,12 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test SHA256 software implementation
 
 use crate::tests::run_kernel_op;
 use crate::SHA256SOFT;
-use capsules::test::sha256::TestSha256;
+use capsules_extra::test::sha256::TestSha256;
 use kernel::debug;
 use kernel::static_init;
 

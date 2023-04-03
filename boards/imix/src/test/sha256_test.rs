@@ -1,9 +1,13 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! This tests a software SHA256 implementation. To run this test,
 //! add this line to the imix boot sequence:
 //! ```
-//!     test::sha256_test::run_sha256(dynamic_deferred_caller);
+//!     test::sha256_test::run_sha256();
 //! ```
-//! This test takes a dynamic deferred call (for callbacks). It tries to
+//! This test uses a deferred call (for callbacks). It tries to
 //! hash 'hello world' and uses Digest::validate to check that the hash
 //! is correct.
 //!
@@ -16,13 +20,12 @@
 //! 72 bytes long. As SHA uses 64-byte/512 bit blocks, this verifies
 //! that multi-block hashes work correctly.
 
-use capsules::sha256::Sha256Software;
-use capsules::test::sha256::TestSha256;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use capsules_extra::sha256::Sha256Software;
+use capsules_extra::test::sha256::TestSha256;
 use kernel::static_init;
 
-pub unsafe fn run_sha256(call: &'static DynamicDeferredCall) {
-    let t = static_init_test_sha256(call);
+pub unsafe fn run_sha256() {
+    let t = static_init_test_sha256();
     t.run();
 }
 
@@ -42,9 +45,9 @@ pub static mut LHASH: [u8; 32] = [
     0x45, 0x94, 0xd5, 0xee, 0x15, 0xcb, 0x8a, 0x1e, 0x28, 0x7c, 0x20, 0x12, 0xc2, 0xce, 0xb5, 0xa9,
 ];
 
-unsafe fn static_init_test_sha256(call: &'static DynamicDeferredCall) -> &'static TestSha256 {
-    let sha = static_init!(Sha256Software<'static>, Sha256Software::new(call));
-    sha.initialize_callback_handle(call.register(sha).unwrap());
+unsafe fn static_init_test_sha256() -> &'static TestSha256 {
+    let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
+    kernel::deferred_call::DeferredCallClient::register(sha);
     let bytes = b"hello ";
     for i in 0..12 {
         for j in 0..6 {

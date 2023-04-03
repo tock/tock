@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Wrapper type for safe pointers to static memory.
 
 use core::ops::Deref;
@@ -37,7 +41,7 @@ impl<T> Copy for StaticRef<T> {}
 
 impl<T> Deref for StaticRef<T> {
     type Target = T;
-    fn deref(&self) -> &'static T {
+    fn deref(&self) -> &T {
         unsafe { &*self.ptr }
     }
 }

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for ProcessConsole, the command console.
 //!
 //! This provides one Component, ProcessConsoleComponent, which implements a
@@ -7,16 +11,16 @@
 //! Usage
 //! -----
 //! ```rust
-//! let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, alarm_mux, process_printer)
+//! let pconsole = ProcessConsoleComponent::new(board_kernel, uart_mux, alarm_mux, process_printer, Some(reset_function))
 //!     .finalize(process_console_component_static!());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-use capsules::process_console::{self, ProcessConsole};
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules_core::process_console::{self, ProcessConsole};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -26,20 +30,24 @@ use kernel::process::ProcessPrinter;
 
 #[macro_export]
 macro_rules! process_console_component_static {
-    ($A: ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
+    ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
+        let alarm = kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let pconsole = kernel::static_buf!(
-            capsules::process_console::ProcessConsole<
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            capsules_core::process_console::ProcessConsole<
+                $COMMAND_HISTORY_LEN,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 components::process_console::Capability,
             >
         );
 
-        let write_buffer = kernel::static_buf!([u8; capsules::process_console::WRITE_BUF_LEN]);
-        let read_buffer = kernel::static_buf!([u8; capsules::process_console::READ_BUF_LEN]);
-        let queue_buffer = kernel::static_buf!([u8; capsules::process_console::QUEUE_BUF_LEN]);
-        let command_buffer = kernel::static_buf!([u8; capsules::process_console::COMMAND_BUF_LEN]);
+        let write_buffer = kernel::static_buf!([u8; capsules_core::process_console::WRITE_BUF_LEN]);
+        let read_buffer = kernel::static_buf!([u8; capsules_core::process_console::READ_BUF_LEN]);
+        let queue_buffer = kernel::static_buf!([u8; capsules_core::process_console::QUEUE_BUF_LEN]);
+        let command_buffer = kernel::static_buf!([u8; capsules_core::process_console::COMMAND_BUF_LEN]);
+        let command_history_buffer = kernel::static_buf!(
+            [capsules_core::process_console::Command; $COMMAND_HISTORY_LEN]
+        );
 
         (
             alarm,
@@ -48,30 +56,39 @@ macro_rules! process_console_component_static {
             read_buffer,
             queue_buffer,
             command_buffer,
+            command_history_buffer,
             pconsole,
         )
     };};
+    ($A: ty $(,)?) => {{
+        $crate::process_console_component_static!($A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
+    };};
 }
 
-pub struct ProcessConsoleComponent<A: 'static + Alarm<'static>> {
+pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     process_printer: &'static dyn ProcessPrinter,
+    reset_function: Option<fn() -> !>,
 }
 
-impl<A: 'static + Alarm<'static>> ProcessConsoleComponent<A> {
+impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
+    ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+{
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         uart_mux: &'static MuxUart,
         alarm_mux: &'static MuxAlarm<'static, A>,
         process_printer: &'static dyn ProcessPrinter,
-    ) -> ProcessConsoleComponent<A> {
+        reset_function: Option<fn() -> !>,
+    ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A> {
         ProcessConsoleComponent {
-            board_kernel: board_kernel,
-            uart_mux: uart_mux,
-            alarm_mux: alarm_mux,
+            board_kernel,
+            uart_mux,
+            alarm_mux,
             process_printer,
+            reset_function,
         }
     }
 }
@@ -93,18 +110,27 @@ extern "C" {
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
-impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
+impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
+    for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<UartDevice<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::process_console::WRITE_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::process_console::READ_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::process_console::QUEUE_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::process_console::COMMAND_BUF_LEN]>,
-        &'static mut MaybeUninit<ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::WRITE_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::READ_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::QUEUE_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_core::process_console::COMMAND_BUF_LEN]>,
+        &'static mut MaybeUninit<[capsules_core::process_console::Command; COMMAND_HISTORY_LEN]>,
+        &'static mut MaybeUninit<
+            ProcessConsole<'static, COMMAND_HISTORY_LEN, VirtualMuxAlarm<'static, A>, Capability>,
+        >,
     );
-    type Output =
-        &'static process_console::ProcessConsole<'static, VirtualMuxAlarm<'static, A>, Capability>;
+    type Output = &'static process_console::ProcessConsole<
+        'static,
+        COMMAND_HISTORY_LEN,
+        VirtualMuxAlarm<'static, A>,
+        Capability,
+    >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
@@ -134,18 +160,21 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
 
         let write_buffer = static_buffer
             .2
-            .write([0; capsules::process_console::WRITE_BUF_LEN]);
+            .write([0; capsules_core::process_console::WRITE_BUF_LEN]);
         let read_buffer = static_buffer
             .3
-            .write([0; capsules::process_console::READ_BUF_LEN]);
+            .write([0; capsules_core::process_console::READ_BUF_LEN]);
         let queue_buffer = static_buffer
             .4
-            .write([0; capsules::process_console::QUEUE_BUF_LEN]);
+            .write([0; capsules_core::process_console::QUEUE_BUF_LEN]);
         let command_buffer = static_buffer
             .5
-            .write([0; capsules::process_console::COMMAND_BUF_LEN]);
+            .write([0; capsules_core::process_console::COMMAND_BUF_LEN]);
+        let command_history_buffer = static_buffer
+            .6
+            .write([capsules_core::process_console::Command::default(); COMMAND_HISTORY_LEN]);
 
-        let console = static_buffer.6.write(ProcessConsole::new(
+        let console = static_buffer.7.write(ProcessConsole::new(
             console_uart,
             console_alarm,
             self.process_printer,
@@ -153,8 +182,10 @@ impl<A: 'static + Alarm<'static>> Component for ProcessConsoleComponent<A> {
             read_buffer,
             queue_buffer,
             command_buffer,
+            command_history_buffer,
             self.board_kernel,
             kernel_addresses,
+            self.reset_function,
             Capability,
         ));
         hil::uart::Transmit::set_transmit_client(console_uart, console);

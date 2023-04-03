@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 # Force the Shell to be bash as some systems have strange default shells
 SHELL := bash
 
@@ -267,8 +271,8 @@ else
 endif
 
 # virtual-function-elimination reduces the size of binaries, but is still
-# experimental and has some possible miscompilation issues. We don't use it
-# by default but expose it via the `VFUNC_ELIM=1 make` option.
+# experimental and has some possible miscompilation issues. This is only enabled
+# for some boards by default, but is exposed via the `VFUNC_ELIM=1` option.
 #
 # For details on virtual-function-elimination see: https://github.com/rust-lang/rust/pull/96285
 # See https://github.com/rust-lang/rust/issues/68262 for general tracking

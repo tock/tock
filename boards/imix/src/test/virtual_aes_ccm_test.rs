@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! notice that there will be 18 tests, 6 for each,
 //! and the test output will make the debug buffer full,
 //! please go to boards/components/src/debug_writer.rs and change
@@ -34,9 +38,8 @@
 //! aes_ccm_test passed: (current_test=1, encrypting=false, tag_is_valid=true)
 //! aes_ccm_test passed: (current_test=2, encrypting=true, tag_is_valid=true)
 //! aes_ccm_test passed: (current_test=2, encrypting=false, tag_is_valid=true)
-use capsules::test::aes_ccm::Test;
-use capsules::virtual_aes_ccm;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use capsules_core::virtualizers::virtual_aes_ccm;
+use capsules_extra::test::aes_ccm::Test;
 use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
 use kernel::static_init;
 use sam4l::aes::Aes;
@@ -44,20 +47,10 @@ use sam4l::aes::Aes;
 type AESCCMMUX = virtual_aes_ccm::MuxAES128CCM<'static, Aes<'static>>;
 type AESCCMCLIENT = virtual_aes_ccm::VirtualAES128CCM<'static, Aes<'static>>;
 
-pub unsafe fn run(
-    aes: &'static sam4l::aes::Aes,
-    dynamic_deferred_caller: &'static DynamicDeferredCall,
-) {
+pub unsafe fn run(aes: &'static sam4l::aes::Aes) {
     // mux
-    let ccm_mux = static_init!(
-        AESCCMMUX,
-        virtual_aes_ccm::MuxAES128CCM::new(aes, dynamic_deferred_caller)
-    );
-    ccm_mux.initialize_callback_handle(
-        dynamic_deferred_caller
-            .register(ccm_mux)
-            .expect("no deferred call slot available for ccm mux"),
-    );
+    let ccm_mux = static_init!(AESCCMMUX, virtual_aes_ccm::MuxAES128CCM::new(aes));
+    kernel::deferred_call::DeferredCallClient::register(ccm_mux);
     aes.set_client(ccm_mux);
     // ---------------- ONE CLIENT ---------------------
     // client 1

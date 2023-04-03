@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 [package]
 name = "earlgrey-cw310"
 version.workspace = true
@@ -8,13 +12,18 @@ edition.workspace = true
 [dependencies]
 components = { path = "../../components" }
 rv32i = { path = "../../../arch/rv32i" }
-capsules = { path = "../../../capsules" }
 kernel = { path = "../../../kernel" }
 earlgrey = { path = "../../../chips/earlgrey" }
 lowrisc = { path = "../../../chips/lowrisc" }
 tock-tbf = { path = "../../../libraries/tock-tbf" }
 
+capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
+
+
 [features]
+default = ["fpga_cw310"]
+
 # OpenTitan SoC design can be synthesized or compiled for different targets. A
 # target can be a specific FPGA board, an ASIC technology, or a simulation tool.
 # Please see: https://docs.opentitan.org/doc/ug/getting_started/ for further

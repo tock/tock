@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for a multi-level feedback queue scheduler.
 //!
 //! This provides one Component, MLFQComponent.
@@ -7,7 +11,7 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time;
 use kernel::process::Process;
@@ -16,11 +20,13 @@ use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
 #[macro_export]
 macro_rules! mlfq_component_static {
     ($A:ty, $N:expr $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let mlfq_sched = kernel::static_buf!(
             kernel::scheduler::mlfq::MLFQSched<
                 'static,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
         let mlfq_node = kernel::static_buf!(

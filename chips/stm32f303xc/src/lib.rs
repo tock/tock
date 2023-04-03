@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Peripheral implementations for the STM32F3xx MCU.
 //!
 //! STM32F303: <https://www.st.com/en/microcontrollers-microprocessors/stm32f303.html>
@@ -7,7 +11,6 @@
 #![no_std]
 
 pub mod chip;
-mod deferred_call_tasks;
 pub mod nvic;
 
 // Peripherals

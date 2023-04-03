@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for hardware timer Alarms.
 //!
 //! This provides two components, `AlarmMuxComponent`, which provides a
@@ -20,8 +24,8 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::alarm::AlarmDriver;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::alarm::AlarmDriver;
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -31,7 +35,7 @@ use kernel::hil::time::{self, Alarm};
 #[macro_export]
 macro_rules! alarm_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_alarm::MuxAlarm<'static, $A>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, $A>)
     };};
 }
 
@@ -39,11 +43,13 @@ macro_rules! alarm_mux_component_static {
 #[macro_export]
 macro_rules! alarm_component_static {
     ($A:ty $(,)?) => {{
-        let mux_alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let mux_alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let alarm_driver = kernel::static_buf!(
-            capsules::alarm::AlarmDriver<
+            capsules_core::alarm::AlarmDriver<
                 'static,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 

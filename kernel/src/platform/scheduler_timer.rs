@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Scheduler Timer for enforcing Process Timeslices
 //!
 //! Interface for use by the Kernel to configure timers which can preempt

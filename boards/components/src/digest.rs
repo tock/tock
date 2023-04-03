@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for collections of Digests.
 //!
 //! Usage
@@ -18,8 +22,8 @@
 //!    ));
 //! ```
 
-use capsules::virtual_digest::MuxDigest;
-use capsules::virtual_digest::VirtualMuxDigest;
+use capsules_core::virtualizers::virtual_digest::MuxDigest;
+use capsules_core::virtualizers::virtual_digest::VirtualMuxDigest;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::digest;
@@ -27,15 +31,16 @@ use kernel::hil::digest;
 #[macro_export]
 macro_rules! digest_mux_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_digest::MuxDigest<'static, $A, $L>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_digest::MuxDigest<'static, $A, $L>)
     };};
 }
 
 #[macro_export]
 macro_rules! digest_component_static {
     ($A:ty, $L:expr $(,)?) => {{
-        let virtual_mux =
-            kernel::static_buf!(capsules::virtual_digest::VirtualMuxDigest<'static, $A, $L>);
+        let virtual_mux = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<'static, $A, $L>
+        );
         let key_buffer = kernel::static_buf!([u8; $L]);
 
         (virtual_mux, key_buffer)

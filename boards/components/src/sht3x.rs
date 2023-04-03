@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for the SHT3x sensor.
 //!
 //! I2C Interface
@@ -6,15 +10,15 @@
 //! -----
 //!
 //! ```rust
-//! let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, capsules::sht3x::BASE_ADDR, mux_alarm).finalize(
+//! let sht3x = components::sht3x::SHT3xComponent::new(sensors_i2c_bus, capsules_extra::sht3x::BASE_ADDR, mux_alarm).finalize(
 //!         components::sht3x_component_static!(nrf52::rtc::Rtc<'static>),
 //!     );
 //! sht3x.reset();
 //! ```
 
-use capsules::sht3x::SHT3x;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::sht3x::SHT3x;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::time::Alarm;
@@ -24,11 +28,16 @@ use kernel::hil::time::Alarm;
 macro_rules! sht3x_component_static {
     ($A:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; 6]);
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
-        let sht3x_alarm =
-            kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+        let sht3x_alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let sht3x = kernel::static_buf!(
-            capsules::sht3x::SHT3x<'static, capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>>
+            capsules_extra::sht3x::SHT3x<
+                'static,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            >
         );
 
         (sht3x_alarm, i2c_device, sht3x, buffer)

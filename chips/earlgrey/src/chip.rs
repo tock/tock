@@ -1,8 +1,11 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
 use kernel;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
@@ -14,7 +17,7 @@ use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
 
-pub struct EarlGrey<'a, I: InterruptService<()> + 'a> {
+pub struct EarlGrey<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMP<8>,
     plic: &'a Plic,
@@ -39,9 +42,9 @@ pub struct EarlGreyDefaultPeripherals<'a> {
 }
 
 impl<'a> EarlGreyDefaultPeripherals<'a> {
-    pub fn new(deferred_caller: &'static DynamicDeferredCall) -> Self {
+    pub fn new() -> Self {
         Self {
-            aes: crate::aes::Aes::new(deferred_caller),
+            aes: crate::aes::Aes::new(),
             hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
@@ -71,9 +74,13 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
             ),
         }
     }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.aes);
+    }
 }
 
-impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
+impl<'a> InterruptService for EarlGreyDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0_TX_WATERMARK..=interrupts::UART0_RX_PARITYERR => {
@@ -111,13 +118,9 @@ impl<'a> InterruptService<()> for EarlGreyDefaultPeripherals<'a> {
         }
         true
     }
-
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
-    }
 }
 
-impl<'a, I: InterruptService<()> + 'a> EarlGrey<'a, I> {
+impl<'a, I: InterruptService + 'a> EarlGrey<'a, I> {
     pub unsafe fn new(
         plic_interrupt_service: &'a I,
         timer: &'static crate::timer::RvTimer,
@@ -222,7 +225,7 @@ impl<'a, I: InterruptService<()> + 'a> EarlGrey<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for EarlGrey<'a, I> {
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for EarlGrey<'a, I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
 

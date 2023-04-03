@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! General Purpose Input/Output driver.
 
 use core::ops::{Index, IndexMut};
@@ -277,6 +281,23 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD3_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            42 => {
+                regs.padkey.set(115);
+                regs.padreg[10].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::SET
+                        + PADREG::PAD2STRNG::SET
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[5].modify(
+                    CFG::GPIO2INCFG.val(0x00)
+                        + CFG::GPIO2OUTCFG.val(0x000)
+                        + CFG::GPIO2INTD.val(0x00),
+                );
+                regs.altpadcfgk
+                    .modify(ALTPADCFG::PAD2_DS1::SET + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("sck not supported");
             }
@@ -336,6 +357,23 @@ impl Port<'_> {
                     .modify(ALTPADCFG::PAD0_DS1::SET + ALTPADCFG::PAD0_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
+            38 => {
+                regs.padkey.set(115);
+                regs.padreg[9].modify(
+                    PADREG::PAD2PULL::CLEAR
+                        + PADREG::PAD2INPEN::CLEAR
+                        + PADREG::PAD2STRNG::CLEAR
+                        + PADREG::PAD2FNCSEL.val(0x5),
+                );
+                regs.cfg[4].modify(
+                    CFG::GPIO6INCFG.val(0x00)
+                        + CFG::GPIO6OUTCFG.val(0x000)
+                        + CFG::GPIO6INTD.val(0x00),
+                );
+                regs.altpadcfgj
+                    .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             _ => {
                 panic!("mosi not supported");
             }
@@ -392,6 +430,23 @@ impl Port<'_> {
                 );
                 regs.altpadcfgg
                     .modify(ALTPADCFG::PAD2_DS1::CLEAR + ALTPADCFG::PAD2_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            43 => {
+                regs.padkey.set(115);
+                regs.padreg[10].modify(
+                    PADREG::PAD3PULL::CLEAR
+                        + PADREG::PAD3INPEN::SET
+                        + PADREG::PAD3STRNG::CLEAR
+                        + PADREG::PAD3FNCSEL.val(0x5),
+                );
+                regs.cfg[5].modify(
+                    CFG::GPIO3INCFG.val(0x00)
+                        + CFG::GPIO3OUTCFG.val(0x000)
+                        + CFG::GPIO3INTD.val(0x00),
+                );
+                regs.altpadcfgk
+                    .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
             _ => {

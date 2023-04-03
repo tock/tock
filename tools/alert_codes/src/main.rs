@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 /// Prints an error message and  usage string. Used to report command line
 /// argument errors.
 fn usage_error(message: &str) {

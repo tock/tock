@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Reading process binaries and loading them into in-memory Tock processes.
 //!
 //! The process loader is responsible for parsing the binary formats of Tock processes,
@@ -310,6 +314,10 @@ fn load_processes_from_flash<C: Chip>(
                     }
                     procs[index] = proc;
                     index = index + 1;
+                } else {
+                    if config::CONFIG.debug_load_processes {
+                        debug!("No process loaded.");
+                    }
                 }
             }
             Err((_new_flash, _new_mem, err)) => {
@@ -324,13 +332,13 @@ fn load_processes_from_flash<C: Chip>(
     Ok(())
 }
 
-/// Use `checker` to transition `procs` from the `Unverified` into the
-/// `Unstarted` state (if they pass the checker policy) or
-/// `CredentialsFailed` state (if they do not pass the checker
-/// policy). If `verifier` is `None` then all processes are
-/// automatically verified. Processes that transition into the
-/// `Unstarted` state are started by enqueueing a stack frame to run
-/// the initialization function as indicated in the TBF header.
+/// Use `checker` to transition `procs` from the
+/// `CredentialsUnchecked` state into the `CredentialsApproved` state
+/// (if they pass the checker policy) or `CredentialsFailed` state (if
+/// they do not pass the checker policy). When the kernel encounters a
+/// process in the `CredentialsApproved` state, it starts the process
+/// by enqueueing a stack frame to run the initialization function as
+/// indicated in the TBF header.
 #[inline(always)]
 fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
     kernel_resources: &KR,

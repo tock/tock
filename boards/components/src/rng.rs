@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for random number generator using `Entropy32ToRandom`.
 //!
 //! This provides one Component, RngComponent, which implements a userspace
@@ -13,7 +17,7 @@
 // Author: Hudson Ayers <hayers@cs.stanford.edu>
 // Last modified: 07/12/2019
 
-use capsules::rng;
+use capsules_core::rng;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -24,8 +28,8 @@ use kernel::hil::rng::Rng;
 #[macro_export]
 macro_rules! rng_component_static {
     () => {{
-        let etr = kernel::static_buf!(capsules::rng::Entropy32ToRandom<'static>);
-        let rng = kernel::static_buf!(capsules::rng::RngDriver<'static>);
+        let etr = kernel::static_buf!(capsules_core::rng::Entropy32ToRandom<'static>);
+        let rng = kernel::static_buf!(capsules_core::rng::RngDriver<'static>);
 
         (etr, rng)
     };};
@@ -53,8 +57,8 @@ impl RngComponent {
 
 impl Component for RngComponent {
     type StaticInput = (
-        &'static mut MaybeUninit<capsules::rng::Entropy32ToRandom<'static>>,
-        &'static mut MaybeUninit<capsules::rng::RngDriver<'static>>,
+        &'static mut MaybeUninit<capsules_core::rng::Entropy32ToRandom<'static>>,
+        &'static mut MaybeUninit<capsules_core::rng::RngDriver<'static>>,
     );
     type Output = &'static rng::RngDriver<'static>;
 

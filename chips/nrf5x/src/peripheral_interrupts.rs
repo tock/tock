@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 pub const POWER_CLOCK: u32 = 0;
 pub const RADIO: u32 = 1;
 pub const UART0: u32 = 2;

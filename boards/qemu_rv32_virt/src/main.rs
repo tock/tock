@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for qemu-system-riscv32 "virt" machine type
 
 #![no_std]
@@ -5,10 +9,9 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
@@ -40,17 +43,26 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct QemuRv32VirtPlatform {
-    console: &'static capsules::console::Console<'static>,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
-        capsules::virtual_uart::UartDevice<'static>,
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
+        >,
+        components::process_console::Capability,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
+        'static,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
+    >,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
@@ -59,6 +71,7 @@ struct QemuRv32VirtPlatform {
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
+    virtio_rng: Option<&'static capsules_core::rng::RngDriver<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -68,9 +81,16 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::rng::DRIVER_NUM => {
+                if let Some(rng_driver) = self.virtio_rng {
+                    f(Some(rng_driver))
+                } else {
+                    f(None)
+                }
+            }
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -141,18 +161,6 @@ pub unsafe fn main() {
     // Create a board kernel instance
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    // Some capsules require a callback from a different stack
-    // frame. The dynamic deferred call infrastructure can be used to
-    // request such a callback (issued from the scheduler) without
-    // requiring to wire these capsule up in the chip crates.
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
     let peripherals = static_init!(
@@ -163,12 +171,8 @@ pub unsafe fn main() {
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
@@ -199,18 +203,188 @@ pub unsafe fn main() {
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
+        capsules_core::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint>,
         >,
-        capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
+    // ---------- VIRTIO PERIPHERAL DISCOVERY ----------
+    //
+    // This board has 8 virtio-mmio (v2 personality required!) devices
+    //
+    // Collect supported VirtIO peripheral indicies and initialize them if they
+    // are found. If there are two instances of a supported peripheral, the one
+    // on a higher-indexed VirtIO transport is used.
+    let (mut virtio_net_idx, mut virtio_rng_idx) = (None, None);
+    for (i, virtio_device) in peripherals.virtio_mmio.iter().enumerate() {
+        use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
+        match virtio_device.query() {
+            Some(VirtIODeviceType::NetworkCard) => {
+                virtio_net_idx = Some(i);
+            }
+            Some(VirtIODeviceType::EntropySource) => {
+                virtio_rng_idx = Some(i);
+            }
+            _ => (),
+        }
+    }
+
+    // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
+    // driver and expose it to userspace though the RngDriver
+    let virtio_rng_driver: Option<&'static capsules_core::rng::RngDriver<'static>> =
+        if let Some(rng_idx) = virtio_rng_idx {
+            use kernel::hil::rng::Rng;
+            use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
+            use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+                SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+            };
+            use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+            use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+            // EntropySource requires a single Virtqueue for retrieved entropy
+            let descriptors =
+                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+            let available_ring =
+                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
+            let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
+            let queue = static_init!(
+                SplitVirtqueue<1>,
+                SplitVirtqueue::new(descriptors, available_ring, used_ring),
+            );
+            queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
+
+            // VirtIO EntropySource device driver instantiation
+            let rng = static_init!(VirtIORng, VirtIORng::new(queue));
+            kernel::deferred_call::DeferredCallClient::register(rng);
+            queue.set_client(rng);
+
+            // Register the queues and driver with the transport, so interrupts
+            // are routed properly
+            let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
+            peripherals.virtio_mmio[rng_idx]
+                .initialize(rng, mmio_queues)
+                .unwrap();
+
+            // Provide an internal randomness buffer
+            let rng_buffer = static_init!([u8; 64], [0; 64]);
+            rng.provide_buffer(rng_buffer)
+                .expect("rng: providing initial buffer failed");
+
+            // Userspace RNG driver over the VirtIO EntropySource
+            let rng_driver: &'static mut capsules_core::rng::RngDriver = static_init!(
+                capsules_core::rng::RngDriver,
+                capsules_core::rng::RngDriver::new(
+                    rng,
+                    board_kernel
+                        .create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
+                ),
+            );
+            rng.set_client(rng_driver);
+
+            Some(rng_driver as &'static capsules_core::rng::RngDriver)
+        } else {
+            // No VirtIO EntropySource discovered
+            None
+        };
+
+    // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
+    // driver. Currently this is not used, as work on the userspace network
+    // driver and kernel network stack is in progress.
+    //
+    // A template dummy driver is provided to verify basic functionality of this
+    // interface.
+    let _virtio_net_if: Option<
+        &'static qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+    > = if let Some(net_idx) = virtio_net_idx {
+        use qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+        };
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        // A VirtIO NetworkCard requires 2 Virtqueues:
+        // - a TX Virtqueue with buffers for outgoing packets
+        // - a RX Virtqueue where incoming packet buffers are
+        //   placed and filled by the device
+
+        // TX Virtqueue
+        let tx_descriptors =
+            static_init!(VirtqueueDescriptors<2>, VirtqueueDescriptors::default(),);
+        let tx_available_ring =
+            static_init!(VirtqueueAvailableRing<2>, VirtqueueAvailableRing::default(),);
+        let tx_used_ring = static_init!(VirtqueueUsedRing<2>, VirtqueueUsedRing::default(),);
+        let tx_queue = static_init!(
+            SplitVirtqueue<2>,
+            SplitVirtqueue::new(tx_descriptors, tx_available_ring, tx_used_ring),
+        );
+        tx_queue.set_transport(&peripherals.virtio_mmio[net_idx]);
+
+        // RX Virtqueue
+        let rx_descriptors =
+            static_init!(VirtqueueDescriptors<2>, VirtqueueDescriptors::default(),);
+        let rx_available_ring =
+            static_init!(VirtqueueAvailableRing<2>, VirtqueueAvailableRing::default(),);
+        let rx_used_ring = static_init!(VirtqueueUsedRing<2>, VirtqueueUsedRing::default(),);
+        let rx_queue = static_init!(
+            SplitVirtqueue<2>,
+            SplitVirtqueue::new(rx_descriptors, rx_available_ring, rx_used_ring),
+        );
+        rx_queue.set_transport(&peripherals.virtio_mmio[net_idx]);
+
+        // Incoming and outgoing packets are prefixed by a 12-byte
+        // VirtIO specific header
+        let tx_header_buf = static_init!([u8; 12], [0; 12]);
+        let rx_header_buf = static_init!([u8; 12], [0; 12]);
+
+        // Currently, provide a single receive buffer to write
+        // incoming packets into
+        let rx_buffer = static_init!([u8; 1526], [0; 1526]);
+
+        // Instantiate the VirtIONet (NetworkCard) driver and set
+        // the queues
+        let virtio_net = static_init!(
+            VirtIONet<'static>,
+            VirtIONet::new(
+                0,
+                tx_queue,
+                tx_header_buf,
+                rx_queue,
+                rx_header_buf,
+                rx_buffer,
+            ),
+        );
+        tx_queue.set_client(virtio_net);
+        rx_queue.set_client(virtio_net);
+
+        // Register the queues and driver with the transport, so
+        // interrupts are routed properly
+        let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
+        peripherals.virtio_mmio[net_idx]
+            .initialize(virtio_net, mmio_queues)
+            .unwrap();
+
+        // Don't forget to enable RX once when integrating this into a
+        // proper Ethernet stack:
+        // virtio_net.enable_rx();
+
+        // TODO: When we have a proper Ethernet driver available for userspace,
+        // return that. For now, just return a reference to the raw VirtIONet
+        // driver:
+        Some(virtio_net as &'static VirtIONet)
+    } else {
+        // No VirtIO NetworkCard discovered
+        None
+    };
+
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
+
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer),
@@ -233,10 +407,22 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // Initialize the kernel's process console.
+    let pconsole = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+    )
+    .finalize(components::process_console_component_static!(
+        qemu_rv32_virt_chip::chip::QemuRv32VirtClint
+    ));
+
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -246,10 +432,38 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());
+
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
+
+    let scheduler_timer = static_init!(
+        VirtualSchedulerTimer<
+            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+        >,
+        VirtualSchedulerTimer::new(systick_virtual_alarm)
+    );
+
+    let platform = QemuRv32VirtPlatform {
+        pconsole,
+        console,
+        alarm,
+        lldb,
+        scheduler,
+        scheduler_timer,
+        virtio_rng: virtio_rng_driver,
+        ipc: kernel::ipc::IPC::new(
+            board_kernel,
+            kernel::ipc::DRIVER_NUM,
+            &memory_allocation_cap,
+        ),
+    };
+
+    // Start the process console:
+    let _ = platform.pconsole.start();
 
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
     debug!("Entering main loop.");
@@ -265,29 +479,6 @@ pub unsafe fn main() {
         /// End of the RAM region for app memory.
         static _eappmem: u8;
     }
-
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
-
-    let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<
-            VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-        >,
-        VirtualSchedulerTimer::new(systick_virtual_alarm)
-    );
-
-    let platform = QemuRv32VirtPlatform {
-        console,
-        alarm,
-        lldb,
-        scheduler,
-        scheduler_timer,
-        ipc: kernel::ipc::IPC::new(
-            board_kernel,
-            kernel::ipc::DRIVER_NUM,
-            &memory_allocation_cap,
-        ),
-    };
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 

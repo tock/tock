@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implementation of I2C for nRF52 using EasyDMA.
 //!
 //! This module supports nRF52's two I2C master (`TWI`) peripherals,
@@ -137,7 +141,7 @@ impl TWI {
 
             if self.registers.events_write.is_set(EVENT::EVENT) {
                 self.registers.events_write.write(EVENT::EVENT::CLEAR);
-                let length = self.registers.rxd_amount.read(AMOUNT::AMOUNT) as u8;
+                let length = self.registers.rxd_amount.read(AMOUNT::AMOUNT) as usize;
                 self.slave_client.map(|client| match self.buf.take() {
                     None => (),
                     Some(buf) => {
@@ -152,7 +156,7 @@ impl TWI {
 
             if self.registers.events_read.is_set(EVENT::EVENT) {
                 self.registers.events_read.write(EVENT::EVENT::CLEAR);
-                let length = self.registers.txd_amount.read(AMOUNT::AMOUNT) as u8;
+                let length = self.registers.txd_amount.read(AMOUNT::AMOUNT) as usize;
                 self.slave_client
                     .map(|client| match self.slave_read_buf.take() {
                         None => (),
@@ -208,8 +212,8 @@ impl hil::i2c::I2CMaster for TWI {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address_0
@@ -242,7 +246,7 @@ impl hil::i2c::I2CMaster for TWI {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address_0
@@ -269,7 +273,7 @@ impl hil::i2c::I2CMaster for TWI {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers
             .address_0
@@ -317,7 +321,7 @@ impl hil::i2c::I2CSlave for TWI {
     fn write_receive(
         &self,
         data: &'static mut [u8],
-        max_len: u8,
+        max_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers.rxd_ptr.set(data.as_mut_ptr() as u32);
         self.registers
@@ -338,7 +342,7 @@ impl hil::i2c::I2CSlave for TWI {
     fn read_send(
         &self,
         data: &'static mut [u8],
-        max_len: u8,
+        max_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.registers.txd_ptr.set(data.as_mut_ptr() as u32);
         self.registers

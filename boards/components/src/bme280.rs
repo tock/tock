@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the BME280 Humidity, Pressure and Temperature Sensor.
 //!
 //! Usage
@@ -7,20 +11,20 @@
 //!         Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
 //!     let temperature = components::temperature::TemperatureComponent::new(
 //!         board_kernel,
-//!         capsules::temperature::DRIVER_NUM,
+//!         capsules_extra::temperature::DRIVER_NUM,
 //!         bme280,
 //!     )
 //!     .finalize(components::temperature_component_static!());
 //!     let humidity = components::humidity::HumidityComponent::new(
 //!         board_kernel,
-//!         capsules::humidity::DRIVER_NUM,
+//!         capsules_extra::humidity::DRIVER_NUM,
 //!         bme280,
 //!     )
 //!     .finalize(components::humidity_component_static!());
 //! ```
 
-use capsules::bme280::Bme280;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::bme280::Bme280;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 
@@ -28,9 +32,10 @@ use kernel::component::Component;
 #[macro_export]
 macro_rules! bme280_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
         let i2c_buffer = kernel::static_buf!([u8; 26]);
-        let bme280 = kernel::static_buf!(capsules::bme280::Bme280<'static>);
+        let bme280 = kernel::static_buf!(capsules_extra::bme280::Bme280<'static>);
 
         (i2c_device, i2c_buffer, bme280)
     };};
