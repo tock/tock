@@ -13,7 +13,7 @@ BOARD_CONFIG_FILE = 'ci_test.config.toml'
 
 # This dictionary maps the board to the universal test
 TEST_MOD_MAP = {
-    'nrf52dk': 'Nrf52Test'
+    'nrf52dk': 'Nrf52Test',
     'nrf52840dk': 'Nrf52840Test'
 }
 

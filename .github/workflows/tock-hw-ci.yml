@@ -42,4 +42,3 @@ jobs:
     steps:
     - name: HW Test
       run: python3 ~/tock/tools/tock-test-harness/lib/main.py -t
-      

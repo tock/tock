@@ -17,4 +17,3 @@ For configuring the Raspberry Pi, look into: `runner_init.py`
 
 For better understanding of the workflow on how boards are tested, look into: `main.py` in the `lib` folder and 'Runner.py` for the functions called to build, install, and test the board.
 
-
