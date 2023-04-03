@@ -443,9 +443,21 @@ pub mod tests {
     const APB2_MAX_FREQUENCY_MHZ_3: usize = 100;
     // Many STM32F4 chips allow a maximum frequency of 168MHz and some of them 180MHz if overdrive
     // is turned on
-    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    #[cfg(not(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413"
+    )))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
-    #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
+    #[cfg(not(any(
+        feature = "stm32f401",
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413"
+    )))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
     // Default PLL frequency
     #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
@@ -505,7 +517,16 @@ pub mod tests {
                 FlashLatency::Latency3,
                 flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
             );
+        }
 
+        #[cfg(not(any(
+            feature = "stm32f401",
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413"
+        )))] // Not needed for these chips
+        {
             assert_eq!(
                 FlashLatency::Latency5,
                 flash.get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
