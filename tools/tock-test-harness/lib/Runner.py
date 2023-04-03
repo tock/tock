@@ -66,6 +66,7 @@ class Runner:
         """Read configuration and assign path to 'path' member variable"""
         self.path = TOCK_BOARD_DIR + self.config['env']['path'] + '/'
         self.board = self.config['env']['board']
+        self.test_mod = self.config['env']['board_to_test']
         self.harness_id = self.config['env']['harness_id']
         self.comm_proc = self.config['env']['communication_protocol']
         
