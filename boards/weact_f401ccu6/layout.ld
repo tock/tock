@@ -1,7 +1,7 @@
 /* Memory layout for the STM32F401CCU6
  * rom = 256KiB (LENGTH = 0x00040000)
  * kernel = 150KiB
- * user = 128KiB
+ * user = 102KiB
  * ram = 64KiB */
 
 MEMORY
