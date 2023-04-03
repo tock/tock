@@ -582,6 +582,23 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
     }
 
+    macro_rules! check_and_panic {
+        ($left:expr, $right:expr, $clocks: ident) => {
+            match (&$left, &$right) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        set_default_configuration($clocks);
+                        let kind = core::panicking::AssertKind::Eq;
+                        // The reborrows below are intentional. Without them, the stack slot for the
+                        // borrow is initialized even before the values are compared, leading to a
+                        // noticeable slow down.
+                        core::panicking::assert_failed(kind, &*left_val, &*right_val, core::option::Option::None);
+                    }
+                }
+            };
+        }
+    }
+
     /// Test for the AHB and APB prescalers
     ///
     /// # Usage
@@ -600,14 +617,14 @@ pub mod tests {
     /// ```
     pub fn test_prescalers(clocks: &Clocks) {
         // This test requires a bit of setup. A system clock running at 160MHz is configured.
-        assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
-        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
+        check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
+        check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
+        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4), clocks);
+        check_and_panic!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2), clocks);
+        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
 
         // Trying to reduce the APB scaler to an invalid value should fail
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
+        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1), clocks);
         // The following assert will pass on these models because of the low system clock
         // frequency limit
         #[cfg(not(any(
@@ -618,20 +635,20 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
+        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1), clocks);
         // Any failure in changing the APB prescalers must preserve their values
-        assert_eq!(APBPrescaler::DivideBy4, clocks.get_apb1_prescaler());
-        assert_eq!(APBPrescaler::DivideBy2, clocks.get_apb2_prescaler());
+        check_and_panic!(APBPrescaler::DivideBy4, clocks.get_apb1_prescaler(), clocks);
+        check_and_panic!(APBPrescaler::DivideBy2, clocks.get_apb2_prescaler(), clocks);
 
         // Increasing the AHB prescaler should allow decreasing APB prescalers
-        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
-        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
+        check_and_panic!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4), clocks);
+        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1), clocks);
+        check_and_panic!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1), clocks);
 
         // Now, decreasing the AHB prescaler would result in the violation of APB constraints
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1));
+        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1), clocks);
         // Any failure in changing the AHB prescaler must preserve its value
-        assert_eq!(AHBPrescaler::DivideBy4, clocks.get_ahb_prescaler());
+        check_and_panic!(AHBPrescaler::DivideBy4, clocks.get_ahb_prescaler(), clocks);
 
         // Revert to default configuration
         set_default_configuration(clocks);
@@ -659,48 +676,48 @@ pub mod tests {
         debug!("Testing clocks struct...");
 
         // By default, the HSI clock is the system clock
-        assert_eq!(SysClockSource::HSI, clocks.get_sys_clock_source());
+        check_and_panic!(SysClockSource::HSI, clocks.get_sys_clock_source(), clocks);
 
         // HSI frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
+        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency(), clocks);
 
         // APB1 default prescaler is 1
-        assert_eq!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler());
+        check_and_panic!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler(), clocks);
 
         // APB1 default frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
+        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency(), clocks);
 
         // APB2 default prescaler is 1
-        assert_eq!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler());
+        check_and_panic!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler(), clocks);
 
         // APB2 default frequency is 16MHz
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency(), clocks);
 
         // Attempting to change the system clock source with a disabled source
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLL));
+        check_and_panic!(Err(ErrorCode::FAIL), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
 
         // Attempting to set twice the same system clock source is fine
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI));
+        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::HSI), clocks);
 
         // Change the system clock source to a low frequency so that APB prescalers don't need to be
         // changed
-        assert_eq!(Ok(()), clocks.pll.set_frequency(LOW_FREQUENCY));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
-        assert_eq!(SysClockSource::PLL, clocks.get_sys_clock_source());
+        check_and_panic!(Ok(()), clocks.pll.set_frequency(LOW_FREQUENCY), clocks);
+        check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
+        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(SysClockSource::PLL, clocks.get_sys_clock_source(), clocks);
 
         // Now the system clock frequency is equal to 25MHz
-        assert_eq!(LOW_FREQUENCY, clocks.get_sys_clock_frequency());
+        check_and_panic!(LOW_FREQUENCY, clocks.get_sys_clock_frequency(), clocks);
 
 
         // APB1 and APB2 frequencies must also be 25MHz
-        assert_eq!(LOW_FREQUENCY, clocks.get_apb1_frequency());
-        assert_eq!(LOW_FREQUENCY, clocks.get_apb2_frequency());
+        check_and_panic!(LOW_FREQUENCY, clocks.get_apb1_frequency(), clocks);
+        check_and_panic!(LOW_FREQUENCY, clocks.get_apb2_frequency(), clocks);
 
         // Attempting to disable PLL when it is configured as the system clock must fail
-        assert_eq!(Err(ErrorCode::FAIL), clocks.pll.disable());
+        check_and_panic!(Err(ErrorCode::FAIL), clocks.pll.disable(), clocks);
         // Same for the HSI since it is used indirectly as a system clock through PLL
-        assert_eq!(Err(ErrorCode::FAIL), clocks.hsi.disable());
+        check_and_panic!(Err(ErrorCode::FAIL), clocks.hsi.disable(), clocks);
 
         // Revert to default system clock configuration
         set_default_configuration(clocks);
@@ -708,14 +725,14 @@ pub mod tests {
         // Attempting to change the system clock frequency without correctly configuring the APB1
         // prescaler (freq_APB1 <= APB1_FREQUENCY_LIMIT_MHZ) and APB2 prescaler
         // (freq_APB2 <= APB2_FREQUENCY_LIMIT_MHZ) must fail
-        assert_eq!(Ok(()), clocks.pll.disable());
-        assert_eq!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL));
+        check_and_panic!(Ok(()), clocks.pll.disable(), clocks);
+        check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
+        check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
+        check_and_panic!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
 
         // Even if the APB1 prescaler is changed to 2, it must fail
         // (HIGH_FREQUENCY / 2 > APB1_FREQUENCY_LIMIT_MHZ)
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
+        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2), clocks);
         #[cfg(not(any(
             feature = "stm32f401",
             feature = "stm32f410",
@@ -724,10 +741,10 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL));
+        check_and_panic!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
 
         // Configuring APB1 prescaler to 4 is fine, but APB2 prescaler is still wrong
-        assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4));
+        check_and_panic!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy4), clocks);
         #[cfg(not(any(
             feature = "stm32f401",
             feature = "stm32f410",
@@ -736,26 +753,26 @@ pub mod tests {
             feature = "stm32f413",
             feature = "stm32f423"
         )))]
-        assert_eq!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL));
+        check_and_panic!(Err(ErrorCode::SIZE), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
 
         // Configuring APB2 prescaler to 2
-        assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2));
+        check_and_panic!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy2), clocks);
 
         // Now the system clock source can be changed
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
-        assert_eq!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency());
+        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency(), clocks);
 
         // Revert to default system clock configuration
         set_default_configuration(clocks);
 
         // This time, configure the AHB prescaler instead of APB prescalers
-        assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4));
-        assert_eq!(Ok(()), clocks.pll.enable());
-        assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency());
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency());
-        assert_eq!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency());
+        check_and_panic!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy4), clocks);
+        check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
+        check_and_panic!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency(), clocks);
 
         // Revert to default configuration
         set_default_configuration(clocks);
