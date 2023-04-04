@@ -262,7 +262,7 @@ TOCK_HARNESS_PATH = f'{Path.home()}/tock/tools/tock-test-harness/'
 I2C_BOOT_CONFIG = ['yes', 'no']
 title = ''
 board = ''
-board_to_test ''
+board_to_test = ''
 board_path = ''
 harness_no = ''
 comm_proc = ''
