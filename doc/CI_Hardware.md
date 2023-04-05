@@ -263,7 +263,7 @@ $ sudo nano /home/ubuntu/.bashrc
 Once in the bashrc file, add the following two lines
 ```bash
 echo Running at boot 
-sudo python /home/ubuntu/libtock-c/examples/ci-tests/boot-up/i2cboot.py
+python3 /home/ubuntu/libtock-c/examples/ci-tests/boot-up/i2cboot.py
 ```
 This will then run the script whenever the RPi is ssh into from terminal. Thus, it's important to ssh into the RPi initially on boot before left to run as a test harness, or i2c test will fail in the initial run.
 
