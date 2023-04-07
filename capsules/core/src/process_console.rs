@@ -1249,6 +1249,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             {
                                 // Reset the sequence, when \r\n is received
                                 self.previous_byte.set(EOL);
+                            } else {
                                 self.cursor.set(0);
 
                                 if COMMAND_HISTORY_LEN > 1 {
@@ -1259,7 +1260,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         ht.cmds[0].clear();
                                     });
                                 }
-                            } else {
+
                                 self.execute.set(true);
                                 let _ = self.write_bytes(&[CR, NLINE]);
                             }
