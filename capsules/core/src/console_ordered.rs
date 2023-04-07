@@ -273,7 +273,9 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
     }
 
     
-    /// Internal helper function for starting a receive operation
+    /// Internal helper function for starting a receive operation. Processes
+    /// do not share reads, they take turns, with turn order monitored through
+    /// a sequence number.
     fn receive_new(
         &self,
         processid: ProcessId,
