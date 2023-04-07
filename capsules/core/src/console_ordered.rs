@@ -107,7 +107,6 @@ mod rw_allow {
     pub const COUNT: u8 = 2;
 }
 
-
 #[derive(Default)]
 pub struct App {
     write_position: usize, // Current write position
@@ -134,8 +133,8 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
     rx_counter: Cell<usize>,
     rx_in_progress: OptionalCell<ProcessId>,
     rx_buffer: TakeCell<'static, [u8]>,
-    
-    atomic_size: Cell<usize>,   // The maximum size write the capsule promises atomicity;
+
+    atomic_size: Cell<usize>, // The maximum size write the capsule promises atomicity;
     // larger writes may be broken into atomic_size chunks.
     // This must be smaller than the debug buffer size or a long
     // write may never print.
@@ -146,7 +145,6 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
                             // before checking whether write more or issue a callback that
                             // the current write has completed (alarm ticks).
 }
-
 
 impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
     pub fn new(
@@ -169,7 +167,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
             alarm: alarm,
-            
+
             rx_counter: Cell::new(0),
             rx_in_progress: OptionalCell::empty(),
             rx_buffer: TakeCell::new(rx_buffer),
@@ -272,7 +270,6 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         res
     }
 
-    
     /// Internal helper function for starting a receive operation. Processes
     /// do not share reads, they take turns, with turn order monitored through
     /// a sequence number.
@@ -283,16 +280,20 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         kernel_data: &GrantKernelData,
         len: usize,
     ) -> Result<(), ErrorCode> {
-        if app.read_len != 0 { // We are busy reading, don't try again
+        if app.read_len != 0 {
+            // We are busy reading, don't try again
             Err(ErrorCode::BUSY)
-        } else if len == 0 {   //  Cannot read length 0
+        } else if len == 0 {
+            //  Cannot read length 0
             Err(ErrorCode::INVAL)
-        } else if self.rx_buffer.is_none() { // Console is busy receiving, so enqueue
-            app.rx_counter = self.rx_counter.get(); 
+        } else if self.rx_buffer.is_none() {
+            // Console is busy receiving, so enqueue
+            app.rx_counter = self.rx_counter.get();
             self.rx_counter.set(app.rx_counter + 1);
             app.read_len = len;
             Ok(())
-        } else {  // App can try to start a read
+        } else {
+            // App can try to start a read
             let read_len = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
                 .map_or(0, |read| read.len())
@@ -449,7 +450,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
         self.apps.enter(processid, |_, _| {})
     }
 }
-        
+
 impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
     fn received_buffer(
         &self,
@@ -551,15 +552,14 @@ impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
                     .unwrap_or_default();
             })
             .unwrap_or_default();
-        
+
         // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
         self.rx_buffer.replace(buffer);
 
-        
         // Find if there's another reader and if so start reading
         let mut next_reader: Option<ProcessId> = None;
         let mut seqno = self.tx_counter.get();
-        
+
         for cntr in self.apps.iter() {
             let appid = cntr.processid();
             cntr.enter(|app, _| {
@@ -576,13 +576,13 @@ impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
                     }
                 }
             });
-        };
-        
+        }
+
         next_reader.map(|pid| {
             self.apps.enter(pid, |app, kernel_data| {
                 let len = app.read_len;
                 let _ = self.receive_new(pid, app, kernel_data, len);
             })
-        }); 
+        });
     }
 }

@@ -171,7 +171,8 @@ macro_rules! console_ordered_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
         let read_buf = static_buf!([u8; capsules_core::console::DEFAULT_BUF_SIZE]);
-        let console_uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
+        let console_uart =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let console = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
         (mux_alarm, read_buf, console_uart, console)
     };};
