@@ -1251,18 +1251,18 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 self.previous_byte.set(EOL);
                             } else {
                                 self.cursor.set(0);
+                                self.execute.set(true);
+
+                                let _ = self.write_bytes(&[CR, NLINE]);
 
                                 if COMMAND_HISTORY_LEN > 1 {
-                                    // Clear the unfinished command if the \r\n is received
+                                    // Clear the unfinished command
                                     self.command_history.map(|ht| {
                                         ht.cmd_idx = 0;
                                         ht.cmd_is_modified = false;
                                         ht.cmds[0].clear();
                                     });
                                 }
-
-                                self.execute.set(true);
-                                let _ = self.write_bytes(&[CR, NLINE]);
                             }
                         } else if read_buf[0] == BS || read_buf[0] == DEL {
                             if cursor > 0 {
