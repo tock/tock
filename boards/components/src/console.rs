@@ -1,11 +1,17 @@
-//! Components for Console and ConsoleOrdered. These are two alternative implementations of
-//! the serial console system call interface. Console allows prints of arbitrary length but does
-//! not have ordering or atomicity guarantees. ConsoleOrdered, in contrast, has limits on the
-//! maximum lengths of prints but provides a temporal ordering and ensures a print is atomic at
-//! least up to particular length (typically 200 bytes). Console is useful when userspace is
-//! printing large messages. ConsoleOrdered is useful when you are debugging and there are
-//! inter-related messages from the kernel and userspace, whose ordering is important to
-//! maintain.
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
+//! Components for Console and ConsoleOrdered. These are two
+//! alternative implementations of the serial console system call
+//! interface. Console allows prints of arbitrary length but does not
+//! have ordering or atomicity guarantees. ConsoleOrdered, in
+//! contrast, has limits on the maximum lengths of prints but provides
+//! a temporal ordering and ensures a print is atomic at least up to
+//! particular length (typically 200 bytes). Console is useful when
+//! userspace is printing large messages. ConsoleOrdered is useful
+//! when you are debugging and there are inter-related messages from
+//! the kernel and userspace, whose ordering is important to maintain.
 //!
 //!
 //! This provides three Components, `ConsoleComponent` and
@@ -25,7 +31,7 @@
 //!    .finalize(console_component_static!());
 //! ```
 // Author: Philip Levis <pal@cs.stanford.edu>
-// Last modified: 1/08/2020
+// Last modified: 1/08/2023
 
 use capsules_core::console;
 use capsules_core::console_ordered::ConsoleOrdered;

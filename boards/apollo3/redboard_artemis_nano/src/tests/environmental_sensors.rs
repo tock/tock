@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test that we can get temperature, humidity and pressure from the BME280
 //! chip.
 //! This test requires the "SparkFun Environmental Combo Breakout" board

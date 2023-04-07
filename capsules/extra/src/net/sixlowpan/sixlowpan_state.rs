@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! 6loWPAN (IPv6 over Low-Power Wireless Networks) is standard for compressing
 //! and fragmenting IPv6 packets over low power wireless networks, particularly
 //! ones with MTUs (Minimum Transmission Units) smaller than 1280 octets, like

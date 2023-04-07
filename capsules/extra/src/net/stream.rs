@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 #[derive(Debug)]
 pub enum SResult<Output = (), Error = ()> {
     // `Done(off, out)`: No errors encountered. We are currently at `off` in the

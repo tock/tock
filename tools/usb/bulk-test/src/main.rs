@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! This utility performs a simple test of usb functionality in Tock:
 //! It writes bulk data into an eight-byte buffer on a connected
 //! device and reads that data back from it, using nonstandard

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! SyscallDriver for the LSM303DLHC 3D accelerometer and 3D magnetometer sensor.
 //!
 //! May be used with NineDof and Temperature

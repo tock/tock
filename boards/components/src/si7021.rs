@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the SI7021 Temperature/Humidity Sensor.
 //!
 //! This provides the SI7021Component which provides access to the SI7021 over

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implements a helper function for enabling/disabling power on the imix
 //! submodules.
 //  On imix, submodules are powered on/off via power gate ICs. The MCU has an

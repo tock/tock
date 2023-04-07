@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! `udp_lowpan_test.rs`: Kernel test suite for the UDP/6LoWPAN stack
 //!
 //! This file tests port binding and sending and receiving messages from kernel space.

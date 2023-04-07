@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test that tries to enter a grant twice.
 //!
 //! This must fail or Tock allows multiple mutable references to the same memory

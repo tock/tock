@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::ip_utils::{compute_udp_checksum, ip6_nh, IPAddr};
 use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};

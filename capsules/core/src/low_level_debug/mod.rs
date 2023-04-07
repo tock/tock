@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Provides low-level debugging functionality to userspace. The system call
 //! interface is documented in doc/syscalls/00008_low_level_debug.md.
 
