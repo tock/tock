@@ -170,14 +170,17 @@ impl Component for ConsoleComponent {
 macro_rules! console_ordered_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+        let read_buf = static_buf!([u8; capsules_core::console::DEFAULT_BUF_SIZE]);
+        let console_uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let console = kernel::static_buf!(ConsoleOrdered<'static, VirtualMuxAlarm<'static, $A>>);
-        (mux_alarm, console)
+        (mux_alarm, read_buf, console_uart, console)
     };};
 }
 
 pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
+    uart_mux: &'static MuxUart<'static>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     atomic_size: usize,
     retry_timer: u32,
@@ -188,6 +191,7 @@ impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
+        uart_mux: &'static MuxUart<'static>,
         alarm_mux: &'static MuxAlarm<'static, A>,
         atomic_size: usize,
         retry_timer: u32,
@@ -196,6 +200,7 @@ impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
         ConsoleOrderedComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,
+            uart_mux: uart_mux,
             alarm_mux: alarm_mux,
             atomic_size: atomic_size,
             retry_timer: retry_timer,
@@ -207,6 +212,8 @@ impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
 impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+        &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
+        &'static mut MaybeUninit<UartDevice<'static>>,
         &'static mut MaybeUninit<ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>>,
     );
     type Output = &'static ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>;
@@ -217,8 +224,15 @@ impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A>
         let virtual_alarm1 = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         virtual_alarm1.setup();
 
-        let console = static_buffer.1.write(ConsoleOrdered::new(
+        let read_buffer = static_buffer.1.write([0; DEFAULT_BUF_SIZE]);
+
+        let console_uart = static_buffer.2.write(UartDevice::new(self.uart_mux, true));
+        console_uart.setup();
+
+        let console = static_buffer.3.write(ConsoleOrdered::new(
+            console_uart,
             virtual_alarm1,
+            read_buffer,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.atomic_size,
             self.retry_timer,
@@ -226,6 +240,7 @@ impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A>
         ));
 
         virtual_alarm1.set_alarm_client(console);
+        hil::uart::Receive::set_receive_client(console_uart, console);
         console
     }
 }

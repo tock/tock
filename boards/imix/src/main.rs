@@ -39,7 +39,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::hil::led::LedHigh;
 use kernel::hil::Controller;
 #[allow(unused_imports)]
-use kernel::{create_capability, debug, debug_gpio, static_init};
+use kernel::{create_capability, debug, debug_gpio, static_init, static_buf};
 use sam4l::chip::Sam4lDefaultPeripherals;
 
 use capsules_extra::sha256::Sha256Software;
@@ -425,6 +425,7 @@ pub unsafe fn main() {
     let console = ConsoleOrderedComponent::new(
         board_kernel,
         capsules_core::console_ordered::DRIVER_NUM,
+        uart_mux,
         mux_alarm,
         200,
         5,

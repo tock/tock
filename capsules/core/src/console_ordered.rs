@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Provides userspace with access to a serial interface whose output
 //! is in-order with respect to kernel debug!() operations. Prints to
 //! the console are atomic up to particular constant length, which
@@ -73,8 +77,10 @@ use kernel::debug_process_slice;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
-use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::hil::uart;
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -87,15 +93,20 @@ mod ro_allow {
     /// console used allow number "1", so to preserve compatibility
     /// we still use allow number 1 now.
     pub const WRITE: usize = 1;
-    /// The number of allow buffers the kernel stores for this grant
+    /// The number of read-allow buffers (for putstr) the kernel stores for this grant
     pub const COUNT: u8 = 2;
 }
 
 /// Ids for read-write allow buffers
 mod rw_allow {
-    pub const _READ: usize = 0;
-    pub const COUNT: u8 = 0;
+    /// Before the allow syscall was handled by the kernel,
+    /// console used allow number "1", so to preserve compatibility
+    /// we still use allow number 1 now.
+    pub const READ: usize = 1;
+    /// The number of read-write allow buffers (for getstr) the kernel stores for this grant
+    pub const COUNT: u8 = 2;
 }
+
 
 #[derive(Default)]
 pub struct App {
@@ -104,9 +115,12 @@ pub struct App {
     writing: bool,         // Are we in the midst of a write
     pending_write: bool,   // Are we waiting to write
     tx_counter: usize,     // Used to keep order of writes
+    read_len: usize,       // Read length
+    rx_counter: usize,     // Used to order reads (no starvation)
 }
 
 pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
+    uart: &'a dyn uart::Receive<'a>,
     apps: Grant<
         App,
         UpcallCount<3>,
@@ -116,6 +130,11 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
     tx_in_progress: Cell<bool>, // If true there's an ongoing write so others must wait
     tx_counter: Cell<usize>,    // Sequence number for writes from different processes
     alarm: &'a A,               // Timer for trying to send  more
+
+    rx_counter: Cell<usize>,
+    rx_in_progress: OptionalCell<ProcessId>,
+    rx_buffer: TakeCell<'static, [u8]>,
+    
     atomic_size: Cell<usize>,   // The maximum size write the capsule promises atomicity;
     // larger writes may be broken into atomic_size chunks.
     // This must be smaller than the debug buffer size or a long
@@ -128,9 +147,12 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
                             // the current write has completed (alarm ticks).
 }
 
+
 impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
     pub fn new(
+        uart: &'a dyn uart::Receive<'a>,
         alarm: &'a A,
+        rx_buffer: &'static mut [u8],
         grant: Grant<
             App,
             UpcallCount<3>,
@@ -142,10 +164,16 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         write_timer: u32,
     ) -> ConsoleOrdered<'a, A> {
         ConsoleOrdered {
+            uart: uart,
             apps: grant,
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
             alarm: alarm,
+            
+            rx_counter: Cell::new(0),
+            rx_in_progress: OptionalCell::empty(),
+            rx_buffer: TakeCell::new(rx_buffer),
+
             atomic_size: Cell::new(atomic_size),
             retry_timer: Cell::new(retry_timer),
             write_timer: Cell::new(write_timer),
@@ -242,6 +270,45 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             self.alarm.ticks_from_ms(self.write_timer.get()),
         );
         res
+    }
+
+    
+    /// Internal helper function for starting a receive operation
+    fn receive_new(
+        &self,
+        processid: ProcessId,
+        app: &mut App,
+        kernel_data: &GrantKernelData,
+        len: usize,
+    ) -> Result<(), ErrorCode> {
+        if app.read_len != 0 { // We are busy reading, don't try again
+            Err(ErrorCode::BUSY)
+        } else if len == 0 {   //  Cannot read length 0
+            Err(ErrorCode::INVAL)
+        } else if self.rx_buffer.is_none() { // Console is busy receiving, so enqueue
+            app.rx_counter = self.rx_counter.get(); 
+            self.rx_counter.set(app.rx_counter + 1);
+            app.read_len = len;
+            Ok(())
+        } else {  // App can try to start a read
+            let read_len = kernel_data
+                .get_readwrite_processbuffer(rw_allow::READ)
+                .map_or(0, |read| read.len())
+                .min(len);
+            if read_len > self.rx_buffer.map_or(0, |buf| buf.len()) {
+                // For simplicity, impose a small maximum receive length
+                // instead of doing incremental reads
+                Err(ErrorCode::INVAL)
+            } else {
+                // Note: We have ensured above that rx_buffer is present
+                app.read_len = read_len;
+                self.rx_buffer.take().map(|buffer| {
+                    self.rx_in_progress.set(processid);
+                    let _ = self.uart.receive_buffer(buffer, app.read_len);
+                });
+                Ok(())
+            }
+        }
     }
 }
 
@@ -355,6 +422,16 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
                         let len = arg1;
                         self.send_new(app, kernel_data, len)
                     }
+                    2 => {
+                        // getnstr
+                        let len = arg1;
+                        self.receive_new(appid, app, kernel_data, len)
+                    }
+                    3 => {
+                        // Abort RX
+                        let _ = self.uart.receive_abort();
+                        Ok(())
+                    }
                     _ => Err(ErrorCode::NOSUPPORT),
                 }
             })
@@ -368,5 +445,142 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
+    }
+}
+        
+impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
+    fn received_buffer(
+        &self,
+        buffer: &'static mut [u8],
+        rx_len: usize,
+        rcode: Result<(), ErrorCode>,
+        error: uart::Error,
+    ) {
+        // First, handle this read, then see if there's another read to process.
+        self.rx_in_progress
+            .take()
+            .map(|processid| {
+                self.apps
+                    .enter(processid, |app, kernel_data| {
+                        // An iterator over the returned buffer yielding only the first `rx_len`
+                        // bytes
+                        let rx_buffer = buffer.iter().take(rx_len);
+                        app.read_len = 0; // Mark that we are no longer reading.
+                        match error {
+                            uart::Error::None | uart::Error::Aborted => {
+                                // Receive some bytes, signal error type and return bytes to process buffer
+                                let count = kernel_data
+                                    .get_readwrite_processbuffer(rw_allow::READ)
+                                    .and_then(|read| {
+                                        read.mut_enter(|data| {
+                                            let mut c = 0;
+                                            for (a, b) in data.iter().zip(rx_buffer) {
+                                                c = c + 1;
+                                                a.set(*b);
+                                            }
+                                            c
+                                        })
+                                    })
+                                    .unwrap_or(-1);
+
+                                // Make sure we report the same number
+                                // of bytes that we actually copied into
+                                // the app's buffer. This is defensive:
+                                // we shouldn't ever receive more bytes
+                                // than will fit in the app buffer since
+                                // we use the app_buffer's length when
+                                // calling `receive()`. However, a buggy
+                                // lower layer could return more bytes
+                                // than we asked for, and we don't want
+                                // to propagate that length error to
+                                // userspace. However, we do return an
+                                // error code so that userspace knows
+                                // something went wrong.
+                                //
+                                // If count < 0 this means the buffer
+                                // disappeared: return NOMEM.
+                                let read_buffer_len = kernel_data
+                                    .get_readwrite_processbuffer(rw_allow::READ)
+                                    .map_or(0, |read| read.len());
+                                let (ret, received_length) = if count < 0 {
+                                    (Err(ErrorCode::NOMEM), 0)
+                                } else if rx_len > read_buffer_len {
+                                    // Return `SIZE` indicating that
+                                    // some received bytes were dropped.
+                                    // We report the length that we
+                                    // actually copied into the buffer,
+                                    // but also indicate that there was
+                                    // an issue in the kernel with the
+                                    // receive.
+                                    (Err(ErrorCode::SIZE), read_buffer_len)
+                                } else {
+                                    // This is the normal and expected
+                                    // case.
+                                    (rcode, rx_len)
+                                };
+                                kernel_data
+                                    .schedule_upcall(
+                                        2,
+                                        (
+                                            kernel::errorcode::into_statuscode(ret),
+                                            received_length,
+                                            0,
+                                        ),
+                                    )
+                                    .ok();
+                            }
+                            _ => {
+                                // Some UART error occurred
+                                kernel_data
+                                    .schedule_upcall(
+                                        2,
+                                        (
+                                            kernel::errorcode::into_statuscode(Err(
+                                                ErrorCode::FAIL,
+                                            )),
+                                            0,
+                                            0,
+                                        ),
+                                    )
+                                    .ok();
+                            }
+                        }
+                    })
+                    .unwrap_or_default();
+            })
+            .unwrap_or_default();
+        
+        // Whatever happens, we want to make sure to replace the rx_buffer for future transactions
+        self.rx_buffer.replace(buffer);
+
+        
+        // Find if there's another reader and if so start reading
+        let mut next_reader: Option<ProcessId> = None;
+        let mut seqno = self.tx_counter.get();
+        
+        for cntr in self.apps.iter() {
+            let appid = cntr.processid();
+            cntr.enter(|app, _| {
+                if app.read_len != 0 {
+                    // Checks wither app.tx_counter is earlier than
+                    // seqno, with the constrain that there are <
+                    // usize/2 processes. wrapping_sub allows this to
+                    // handle wraparound E.g., in 8-bit arithmetic
+                    // 0x02 - 0xff = 0x03 and so 0xff is "earlier"
+                    // than 0x02. -pal
+                    if seqno.wrapping_sub(app.rx_counter) < usize::MAX / 2 {
+                        seqno = app.rx_counter;
+                        next_reader = Some(appid);
+                    }
+                }
+            });
+        };
+        
+        next_reader.map(|pid| {
+            self.apps.enter(pid, |app, kernel_data| {
+                let len = app.read_len;
+                let _ = self.receive_new(pid, app, kernel_data, len);
+            })
+        }); 
     }
 }
