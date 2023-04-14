@@ -42,6 +42,12 @@ impl<'a> Component for NrfStartupComponent<'a> {
     type StaticInput = ();
     type Output = ();
     fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+        // Disable APPROTECT in software. This is required as of newer nRF52
+        // hardware revisions. See
+        // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect.
+        let approtect = nrf52::approtect::Approtect::new();
+        approtect.sw_disable_approtect();
+
         // Make non-volatile memory writable and activate the reset button
         let uicr = nrf52::uicr::Uicr::new();
 
