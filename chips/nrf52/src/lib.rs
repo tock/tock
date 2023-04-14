@@ -8,6 +8,7 @@
 
 pub mod acomp;
 pub mod adc;
+pub mod approtect;
 pub mod ble_radio;
 pub mod chip;
 pub mod clock;
