@@ -7,6 +7,7 @@
 //! Minimal implementation to support activation of the reset button on
 //! nRF52-DK.
 
+use crate::ficr;
 use enum_primitive::cast::FromPrimitive;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
@@ -59,6 +60,8 @@ register_bitfields! [u32,
         PALL OFFSET(0) NUMBITS(8) [
             /// Enable
             ENABLED = 0x00,
+            /// Disable for later nRF52 variants
+            HWDISABLE = 0x5a,
             /// Disable
             DISABLED = 0xff
         ]
@@ -187,5 +190,29 @@ impl Uicr {
 
     pub fn set_ap_protect(&self) {
         self.registers.approtect.write(ApProtect::PALL::ENABLED);
+    }
+
+    /// Disable the access port protection in the UICR register. This is stored
+    /// in flash and is persistent. This behavior can also be accomplished
+    /// outside of tock by running `nrfjprog --recover`.
+    ///
+    /// The `hardware_only` flag indicates whether
+    pub fn disable_ap_protect(&self) {
+        // We need to understand the variant of this nRF52 chip to correctly
+        // implement this function.
+        let factory_config = ficr::Ficr::new();
+        match factory_config.variant() {
+            ficr::Variant::AAF0 | ficr::Variant::Unspecified => {
+                // Newer revisions of the chip require setting the APPROTECT
+                // register to `HwDisable`. We assume that an unspecified
+                // version means that it is new and the FICR module hasn't been
+                // updated to recognize it.
+                self.registers.approtect.write(ApProtect::PALL::HWDISABLE);
+            }
+            _ => {
+                // All other revisions just use normal disable.
+                self.registers.approtect.write(ApProtect::PALL::DISABLED);
+            }
+        }
     }
 }

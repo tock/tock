@@ -246,7 +246,7 @@ register_bitfields! [u32,
 /// Variant describes part variant, hardware version, and production configuration.
 #[derive(PartialEq, Debug)]
 #[repr(u32)]
-enum Variant {
+pub(crate) enum Variant {
     AAA0 = 0x41414130,
     AAAA = 0x41414141,
     AAAB = 0x41414142,
@@ -322,7 +322,7 @@ pub struct Ficr {
 }
 
 impl Ficr {
-    const fn new() -> Ficr {
+    pub(crate) const fn new() -> Ficr {
         Ficr {
             registers: FICR_BASE,
         }
@@ -337,7 +337,7 @@ impl Ficr {
         }
     }
 
-    fn variant(&self) -> Variant {
+    pub(crate) fn variant(&self) -> Variant {
         match self.registers.info_variant.get() {
             0x41414130 => Variant::AAA0,
             0x41414141 => Variant::AAAA,
