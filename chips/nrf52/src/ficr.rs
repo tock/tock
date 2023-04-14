@@ -171,8 +171,16 @@ register_bitfields! [u32,
             ABBA = 0x41424241,
             /// AAD0
             AAD0 = 0x41414430,
+            /// AAD1
+            AAD1 = 0x41414431,
+            /// AADA
+            AADA = 0x41414441,
             /// AAE0
             AAE0 = 0x41414530,
+            /// AAEA
+            AAEA = 0x41414541,
+            /// AAF0
+            AAF0 = 0x41414630,
             /// BAAA
             BAAA = 0x42414141,
             /// CAAA
@@ -248,9 +256,13 @@ enum Variant {
     AAC0 = 0x41414330,
     AACA = 0x41414341,
     AACB = 0x41414342,
-    ABBA = 0x41424241,
     AAD0 = 0x41414430,
+    AAD1 = 0x41414431,
+    AADA = 0x41414441,
     AAE0 = 0x41414530,
+    AAEA = 0x41414541,
+    AAF0 = 0x41414630,
+    ABBA = 0x41424241,
     BAAA = 0x42414141,
     CAAA = 0x43414141,
     Unspecified = 0xffffffff,
@@ -338,7 +350,11 @@ impl Ficr {
             0x41414342 => Variant::AACB,
             0x41424241 => Variant::ABBA,
             0x41414430 => Variant::AAD0,
+            0x41414431 => Variant::AAD1,
+            0x41414441 => Variant::AADA,
             0x41414530 => Variant::AAE0,
+            0x41414541 => Variant::AAEA,
+            0x41414630 => Variant::AAF0,
             0x42414141 => Variant::BAAA,
             0x43414141 => Variant::CAAA,
             _ => Variant::Unspecified,
