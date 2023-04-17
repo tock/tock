@@ -1,4 +1,4 @@
-# Tock Core Notes 2023-01-20
+# Tock Core Notes 2023-02-03
 
 Attendees:
  - Branden Ghena
