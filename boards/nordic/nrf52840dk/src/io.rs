@@ -44,7 +44,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         match self {
             Writer::WriterUart(ref mut initialized) => {
                 // Here, we create a second instance of the Uarte struct.
@@ -88,6 +88,7 @@ impl IoWrite for Writer {
                 }
             }
         };
+        buf.len()
     }
 }
 

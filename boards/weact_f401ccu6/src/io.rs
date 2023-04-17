@@ -44,7 +44,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         let rcc = stm32f401cc::rcc::Rcc::new();
         let uart = stm32f401cc::usart::Usart::new_usart2(&rcc);
 
@@ -63,6 +63,7 @@ impl IoWrite for Writer {
         for &c in buf {
             uart.send_byte(c);
         }
+        buf.len()
     }
 }
 

@@ -14,6 +14,7 @@ pub mod adc;
 pub mod alarm;
 pub mod button;
 pub mod console;
+pub mod console_ordered;
 pub mod driver;
 pub mod gpio;
 pub mod i2c_master;

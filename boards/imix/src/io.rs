@@ -29,7 +29,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         // Here, we create a second instance of the USART3 struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
@@ -47,10 +47,13 @@ impl IoWrite for Writer {
             uart.enable_tx(regs_manager);
         }
         // XXX: I'd like to get this working the "right" way, but I'm not sure how
+        let mut total = 0;
         for &c in buf {
             uart.send_byte(regs_manager, c);
             while !uart.tx_ready(regs_manager) {}
+            total = total + 1;
         }
+        total
     }
 }
 

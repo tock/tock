@@ -41,7 +41,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         let ccm = crate::imxrt1050::ccm::Ccm::new();
         let uart = imxrt1050::lpuart::Lpuart::new_lpuart1(&ccm);
 
@@ -60,6 +60,7 @@ impl IoWrite for Writer {
         for &c in buf {
             uart.send_byte(c);
         }
+        buf.len()
     }
 }
 

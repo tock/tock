@@ -66,7 +66,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         self.uart.map_or_else(
             || {
                 let uart = Uart::new_uart0();
@@ -78,6 +78,7 @@ impl IoWrite for Writer {
                 self.write_to_uart(uart, buf);
             },
         );
+        buf.len()
     }
 }
 

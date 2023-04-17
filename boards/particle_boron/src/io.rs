@@ -50,7 +50,7 @@ impl uart::TransmitClient for DummyUsbClient {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         if !self.initialized {
             self.initialized = true;
         }
@@ -118,6 +118,7 @@ impl IoWrite for Writer {
                 DUMMY.fired.set(false);
             });
         }
+        buf.len()
     }
 }
 
