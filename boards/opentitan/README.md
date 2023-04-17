@@ -130,9 +130,6 @@ $ ./bazelisk.sh build //hw/ip/otp_ctrl/...
 
 # To build FuseSOC
 $ ./bazelisk.sh build //hw:verilator
-
-# To build OTBN Binary (optional for testing rsa/otbn)
-$ ./bazelisk.sh build //sw/device/tests:otbn_rsa_test
 ```
 
 ### Test Verilator
@@ -359,8 +356,14 @@ $ make test
 
 in the specific board directory.
 
-To run the test on hardware use these commands to build the OTBN binary and run it on hardware:
+To run the test on hardware use the following steps to build the OTBN binary and run it on hardware:
 
+**Note: You will need to have **Vivado 2020.2 Lab Edition** installed to be able to build `rsa.elf`. See here for an [installation guide](https://docs.opentitan.org/doc/getting_started/install_vivado/) from the OpenTitan docs. Once installed source the settings.sh file. Can be done with:**
+
+```shell
+source <path_to_installation>/Xilinx/Vivado_Lab/2020.2/settings64.sh
+```
+We can now build the `rsa.elf` with:
 ```shell
 $ cd ${OPENTITAN_TREE}
 # Build OTBN Binary

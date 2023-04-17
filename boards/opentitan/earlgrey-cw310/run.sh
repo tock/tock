@@ -18,7 +18,7 @@ if [[ "${VERILATOR}" == "yes" ]]; then
 	${OBJCOPY} ${1} "$BUILD_DIR"/earlgrey-cw310-tests.elf
 	if [[ "${APP}" != "" ]]; then
 		# An app was specified, copy it in
-		printf "[CW-130: Verilator Tests]: Linking APP...\n\n"
+		printf "[CW-130: Verilator Tests]: Linking APP\n\n"
 		${OBJCOPY} --update-section .apps=${APP} "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.elf
 	fi
 	${OBJCOPY} --output-target=binary "$BUILD_DIR"/earlgrey-cw310-tests.elf "$BUILD_DIR"/earlgrey-cw310-tests.bin
@@ -27,7 +27,7 @@ if [[ "${VERILATOR}" == "yes" ]]; then
 		--binary --offset 0 --byte-swap 8 --fill 0xff \
 		-within "$BUILD_DIR"/earlgrey-cw310-tests.bin\
 		-binary -range-pad 8 --output "$BUILD_DIR"/binary.64.vmem --vmem 64
-	${OPENTITAN_TREE}/bazel-out/k8-fastbuild/bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
+	${OPENTITAN_TREE}/bazel-bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
 		--meminit=rom,${OPENTITAN_TREE}/bazel-out/k8-fastbuild-ST-2cc462681f62/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem \
 		--meminit=flash,./"$BUILD_DIR"/binary.64.vmem \
 		--meminit=otp,${OPENTITAN_TREE}/bazel-out/k8-fastbuild/bin/hw/ip/otp_ctrl/data/img_rma.24.vmem

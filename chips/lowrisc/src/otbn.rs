@@ -171,6 +171,10 @@ impl<'a> Otbn<'a> {
             // OTBN is performing an operation, we can't make any changes
             return Err(ErrorCode::BUSY);
         }
+        // Instruction memory is too large to fit
+        if (input.len() / 4) > self.registers.imem.len() {
+            return Err(ErrorCode::SIZE);
+        }
 
         for i in 0..(input.len() / 4) {
             let idx = i * 4;
