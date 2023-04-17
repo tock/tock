@@ -1,11 +1,15 @@
+# Tock Core Notes 2022-03-03
+
 Attendees:
-  Hudson
-  Alexandru
-  Branden
-  Amit
-  Johnathan
-  Alyssa
-  Leon
+- Hudson
+- Alexandru
+- Branden
+- Amit
+- Johnathan
+- Alyssa
+- Leon
+
+## Updates
   
 Leon: PR to split capsules is in. 
 
