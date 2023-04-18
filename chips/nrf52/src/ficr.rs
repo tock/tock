@@ -338,6 +338,8 @@ impl Ficr {
     }
 
     pub(crate) fn variant(&self) -> Variant {
+        // If you update this, make sure to update
+        // `has_updated_approtect_logic()` as well.
         match self.registers.info_variant.get() {
             0x41414130 => Variant::AAA0,
             0x41414141 => Variant::AAAA,
@@ -358,6 +360,21 @@ impl Ficr {
             0x42414141 => Variant::BAAA,
             0x43414141 => Variant::CAAA,
             _ => Variant::Unspecified,
+        }
+    }
+
+    /// Returns if this variant of the nRF52 has the updated APPROTECT logic.
+    /// This changed occurred towards the end of 2021 with chips becoming widely
+    /// available/used in 2023.
+    ///
+    /// See https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect
+    /// for more information.
+    pub(crate) fn has_updated_approtect_logic(&self) -> bool {
+        // We assume that an unspecified version means that it is new and this
+        // module hasn't been updated to recognize it.
+        match self.variant() {
+            Variant::AAF0 | Variant::Unspecified => true,
+            _ => false,
         }
     }
 

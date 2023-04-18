@@ -185,9 +185,10 @@ impl Uicr {
         // implement this function. Newer versions use a different value to
         // indicate disabled.
         let factory_config = ficr::Ficr::new();
-        let disabled_val = match factory_config.variant() {
-            ficr::Variant::AAF0 | ficr::Variant::Unspecified => ApProtect::PALL::HWDISABLE,
-            _ => ApProtect::PALL::DISABLED,
+        let disabled_val = if factory_config.has_updated_approtect_logic() {
+            ApProtect::PALL::HWDISABLE
+        } else {
+            ApProtect::PALL::DISABLED
         };
 
         // Here we compare to the correct DISABLED value because any other value
@@ -206,18 +207,13 @@ impl Uicr {
         // We need to understand the variant of this nRF52 chip to correctly
         // implement this function.
         let factory_config = ficr::Ficr::new();
-        match factory_config.variant() {
-            ficr::Variant::AAF0 | ficr::Variant::Unspecified => {
-                // Newer revisions of the chip require setting the APPROTECT
-                // register to `HwDisable`. We assume that an unspecified
-                // version means that it is new and the FICR module hasn't been
-                // updated to recognize it.
-                self.registers.approtect.write(ApProtect::PALL::HWDISABLE);
-            }
-            _ => {
-                // All other revisions just use normal disable.
-                self.registers.approtect.write(ApProtect::PALL::DISABLED);
-            }
+        if factory_config.has_updated_approtect_logic() {
+            // Newer revisions of the chip require setting the APPROTECT
+            // register to `HwDisable`.
+            self.registers.approtect.write(ApProtect::PALL::HWDISABLE);
+        } else {
+            // All other revisions just use normal disable.
+            self.registers.approtect.write(ApProtect::PALL::DISABLED);
         }
     }
 }
