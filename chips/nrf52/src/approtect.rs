@@ -13,7 +13,7 @@
 //!
 //! Example code to disable the APPROTECT protection in software:
 //!
-//! ```rust
+//! ```rust,ignore
 //! let approtect = nrf52::approtect::Approtect::new();
 //! approtect.sw_disable_approtect();
 //! ```

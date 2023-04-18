@@ -181,11 +181,18 @@ impl Uicr {
     }
 
     pub fn is_ap_protect_enabled(&self) -> bool {
-        // Here we compare to DISABLED value because any other value should enable the protection.
-        !self
-            .registers
-            .approtect
-            .matches_all(ApProtect::PALL::DISABLED)
+        // We need to understand the variant of this nRF52 chip to correctly
+        // implement this function. Newer versions use a different value to
+        // indicate disabled.
+        let factory_config = ficr::Ficr::new();
+        let disabled_val = match factory_config.variant() {
+            ficr::Variant::AAF0 | ficr::Variant::Unspecified => ApProtect::PALL::HWDISABLE,
+            _ => ApProtect::PALL::DISABLED,
+        };
+
+        // Here we compare to the correct DISABLED value because any other value
+        // should enable the protection.
+        !self.registers.approtect.matches_all(disabled_val)
     }
 
     pub fn set_ap_protect(&self) {
@@ -195,8 +202,6 @@ impl Uicr {
     /// Disable the access port protection in the UICR register. This is stored
     /// in flash and is persistent. This behavior can also be accomplished
     /// outside of tock by running `nrfjprog --recover`.
-    ///
-    /// The `hardware_only` flag indicates whether
     pub fn disable_ap_protect(&self) {
         // We need to understand the variant of this nRF52 chip to correctly
         // implement this function.
