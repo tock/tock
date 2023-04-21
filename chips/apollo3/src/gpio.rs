@@ -116,7 +116,9 @@ impl Port<'_> {
         let mut count = 0;
         while irqs != 0 && count < self.pins.len() {
             if (irqs & 0b1) != 0 {
-                self.pins[count].handle_interrupt();
+                // Offset the count by 32 as it's the second GPIO bank
+                // (top 32 GPIOs)
+                self.pins[count + 32].handle_interrupt();
             }
             count += 1;
             irqs >>= 1;
@@ -847,7 +849,10 @@ impl<'a> GpioPin<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        unimplemented!();
+        // Trigger the upcall
+        self.client.map(|client| {
+            client.fired();
+        });
     }
 }
 
@@ -1187,7 +1192,7 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
                 .set(!(1 << self.pin as usize) & regs.int0en.get());
         } else {
             regs.int1en
-                .set(!(1 << (self.pin as usize - 32)) & regs.int0en.get());
+                .set(!(1 << (self.pin as usize - 32)) & regs.int1en.get());
         }
 
         // Clear interrupt
