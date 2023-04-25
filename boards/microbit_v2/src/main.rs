@@ -116,7 +116,7 @@ pub struct MicroBit {
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
         'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<nrf52833::i2c::TWI>,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI>,
     >,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,

@@ -23,6 +23,7 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::ccs811::Ccs811;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]

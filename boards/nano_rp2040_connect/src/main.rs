@@ -86,8 +86,10 @@ pub struct NanoRP2040Connect {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    lsm6dsoxtr:
-        &'static capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<'static, rp2040::i2c::I2c<'static>>,
+    lsm6dsoxtr: &'static capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, rp2040::i2c::I2c<'static>>,
+    >,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,

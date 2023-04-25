@@ -79,7 +79,10 @@ pub struct Platform {
     >,
     gpio_async: &'static capsules_extra::gpio_async::GPIOAsync<
         'static,
-        capsules_extra::mcp230xx::MCP230xx<'static, nrf52832::i2c::TWI>,
+        capsules_extra::mcp230xx::MCP230xx<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+        >,
     >,
     light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
     buzzer: &'static capsules_extra::buzzer_driver::Buzzer<
@@ -374,13 +377,13 @@ pub unsafe fn main() {
     )
     .finalize();
     let mcp23017_i2c = static_init!(
-        capsules_core::virtualizers::virtual_i2c::I2CDevice,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::I2CDevice::new(i2c_mux, 0x40)
     );
     let mcp23017 = static_init!(
         capsules_extra::mcp230xx::MCP230xx<
             'static,
-            capsules::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
         >,
         capsules_extra::mcp230xx::MCP230xx::new(
             mcp23017_i2c,
@@ -403,7 +406,7 @@ pub unsafe fn main() {
     // administrative layer that provides a single interface to them all.
     let async_gpio_ports = static_init!(
         [&'static capsules_extra::mcp230xx::MCP230xx<
-            capsules::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
         >; 1],
         [mcp23017]
     );
@@ -414,7 +417,7 @@ pub unsafe fn main() {
             'static,
             capsules_extra::mcp230xx::MCP230xx<
                 'static,
-                capsules::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
             >,
         >,
         capsules_extra::gpio_async::GPIOAsync::new(
