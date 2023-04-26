@@ -157,6 +157,7 @@ use crate::rcc::APBPrescaler;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 use crate::rcc::MCO1Source;
+use crate::rcc::MCO1Divider;
 use hsi::Hsi;
 use hsi::HSI_FREQUENCY_MHZ;
 use pll::Pll;
@@ -499,6 +500,16 @@ impl<'a> Clocks<'a> {
     /// Get the clock source of the MCO1
     pub fn get_mco1_clock_source(&self) -> MCO1Source {
         self.rcc.get_mco1_clock_source()
+    }
+
+    /// Set MCO1 divider
+    pub fn set_mco1_clock_divider(&self, divider: MCO1Divider) {
+        self.rcc.set_mco1_clock_divider(divider);
+    }
+
+    /// Get MCO1 divider
+    pub fn get_mco1_clock_divider(&self) -> MCO1Divider {
+        self.rcc.get_mco1_clock_divider()
     }
 }
 

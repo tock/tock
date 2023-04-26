@@ -927,6 +927,20 @@ impl Rcc {
         }
     }
 
+    pub(crate) fn set_mco1_clock_divider(&self, divider: MCO1Divider) {
+        self.registers.cfgr.modify(CFGR::MCO1PRE.val(divider as u32));
+    }
+
+    pub(crate) fn get_mco1_clock_divider(&self) -> MCO1Divider {
+        match self.registers.cfgr.read(CFGR::MCO1PRE) {
+            0b100 => MCO1Divider::DivideBy2,
+            0b101 => MCO1Divider::DivideBy3,
+            0b110 => MCO1Divider::DivideBy4,
+            0b111 => MCO1Divider::DivideBy5,
+            _ => MCO1Divider::DivideBy1,
+        }
+    }
+
     fn configure_rng_clock(&self) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
         self.registers.cr.modify(CR::PLLON::SET);
@@ -1292,6 +1306,14 @@ pub enum MCO1Source {
     LSE = 0b01,
     HSE = 0b10,
     PLL = 0b11,
+}
+
+pub enum MCO1Divider {
+    DivideBy1 = 0b000,
+    DivideBy2 = 0b100,
+    DivideBy3 = 0b101,
+    DivideBy4 = 0b110,
+    DivideBy5 = 0b111,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
