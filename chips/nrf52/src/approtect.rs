@@ -4,7 +4,7 @@
 
 //! Access port protection
 //!
-//! https://infocenter.nordicsemi.com/index.jsp?topic=%2Fps_nrf52840%2Fdif.html&cp=5_0_0_3_7_1&anchor=register.DISABLE
+//! <https://infocenter.nordicsemi.com/index.jsp?topic=%2Fps_nrf52840%2Fdif.html&cp=5_0_0_3_7_1&anchor=register.DISABLE>
 //!
 //! The logic around APPROTECT was changed in newer revisions of the nRF52
 //! series chips (Oct 2021) and later which requires more careful disabling of
@@ -67,8 +67,8 @@ impl Approtect {
     /// disabled both in the UICR register (hardware) and in this register
     /// (software). For older variants this is just a no-op.
     ///
-    /// - https://devzone.nordicsemi.com/f/nordic-q-a/96590/how-to-disable-approtect-permanently-dfu-is-needed
-    /// - https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect
+    /// - <https://devzone.nordicsemi.com/f/nordic-q-a/96590/how-to-disable-approtect-permanently-dfu-is-needed>
+    /// - <https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect>
     pub fn sw_disable_approtect(&self) {
         let factory_config = ficr::Ficr::new();
         match factory_config.variant() {
