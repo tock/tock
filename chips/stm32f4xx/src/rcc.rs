@@ -921,8 +921,8 @@ impl Rcc {
     pub(crate) fn get_mco1_clock_source(&self) -> MCO1Source {
         match self.registers.cfgr.read(CFGR::MCO1) {
             0b00 => MCO1Source::HSI,
-            0b01 => MCO1Source::LSE,
-            0b10 => MCO1Source::HSE,
+            //0b01 => MCO1Source::LSE,
+            //0b10 => MCO1Source::HSE,
             _ => MCO1Source::PLL
         }
     }
@@ -1303,8 +1303,8 @@ pub enum SysClockSource {
 
 pub enum MCO1Source {
     HSI = 0b00,
-    LSE = 0b01,
-    HSE = 0b10,
+    //LSE = 0b01, // When support for LSE is added, uncomment this
+    //HSE = 0b10, // When support for HSE is added, uncomment this
     PLL = 0b11,
 }
 

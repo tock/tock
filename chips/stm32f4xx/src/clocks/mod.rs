@@ -493,8 +493,23 @@ impl<'a> Clocks<'a> {
     }
 
     /// Set the clock source for the microcontroller clock output 1 (MCO1)
-    pub fn set_mco1_clock_source(&self, source: MCO1Source) {
+    ///
+    /// # Errors:
+    ///
+    /// + [Err]\([ErrorCode::FAIL]\) if the source apart from HSI is already enabled.
+    pub fn set_mco1_clock_source(&self, source: MCO1Source) -> Result<(), ErrorCode> {
+        match source {
+            MCO1Source::PLL => {
+                if self.pll.is_enabled() {
+                    return Err(ErrorCode::FAIL);
+                }
+            }
+            _ => (),
+        }
+
         self.rcc.set_mco1_clock_source(source);
+
+        Ok(())
     }
 
     /// Get the clock source of the MCO1
@@ -503,8 +518,23 @@ impl<'a> Clocks<'a> {
     }
 
     /// Set MCO1 divider
-    pub fn set_mco1_clock_divider(&self, divider: MCO1Divider) {
+    ///
+    /// # Errors:
+    ///
+    /// + [Err]\([ErrorCode::FAIL]\) if the configured source apart from HSI is already enabled.
+    pub fn set_mco1_clock_divider(&self, divider: MCO1Divider) -> Result<(), ErrorCode> {
+        match self.get_mco1_clock_source() {
+            MCO1Source::PLL => {
+                if self.pll.is_enabled() {
+                    return Err(ErrorCode::FAIL);
+                }
+            }
+            MCO1Source::HSI => (),
+        }
+
         self.rcc.set_mco1_clock_divider(divider);
+
+        Ok(())
     }
 
     /// Get MCO1 divider
@@ -896,6 +926,50 @@ pub mod tests {
         debug!("");
     }
 
+    /// Test for the microcontroller clock outputs
+    ///
+    /// # Usage
+    ///
+    /// First, import the clock module:
+    ///
+    /// ```rust,ignore
+    /// // This test assumes a STM32F429 chip
+    /// use stm32f429zi::clocks;
+    /// ```
+    ///
+    /// Then run the test:
+    ///
+    /// ```rust,ignore
+    /// clocks::test::test_mco(&peripherals.stm32f4.clocks);
+    /// ```
+    pub fn test_mco(clocks: &Clocks) {
+        debug!("");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing MCOs...");
+
+        // Set MCO1 source to PLL
+        assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::PLL));
+
+        // Set MCO1 divider to 3
+        assert_eq!(Ok(()), clocks.set_mco1_clock_divider(MCO1Divider::DivideBy3));
+
+        // Enable PLL
+        assert_eq!(Ok(()), clocks.pll.enable());
+
+        // Attempting to change the divider while the PLL is running must fail
+        assert_eq!(Err(ErrorCode::FAIL), clocks.set_mco1_clock_divider(MCO1Divider::DivideBy2));
+
+        // Switch back to HSI
+        assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::HSI));
+
+        // Attempting to change the source to PLL when it is already enabled must fail
+        assert_eq!(Err(ErrorCode::FAIL), clocks.set_mco1_clock_source(MCO1Source::PLL));
+
+        debug!("Finished testing MCOs. Everything is alright!");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("");
+    }
+
     /// Run the entire test suite for all clocks
     pub fn run_all(clocks: &Clocks) {
         debug!("");
@@ -904,8 +978,9 @@ pub mod tests {
 
         hsi::tests::run(&clocks.hsi);
         pll::tests::run(&clocks.pll);
-        test_clocks_struct(clocks);
         test_prescalers(clocks);
+        test_clocks_struct(clocks);
+        test_mco(clocks);
 
         debug!("Finished testing clocks. Everything is alright!");
         debug!("===============================================");
