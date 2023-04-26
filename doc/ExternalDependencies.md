@@ -162,20 +162,14 @@ external dependencies, Tock follows a specific policy for their inclusion.
 
 ### Including Core External Dependencies
 
-The only crate that may specify an external dependency in its `Cargo.toml` file
-is the `tockextern` crate. This crate solely exists to house external
-dependencies, and only re-exports the dependencies within the `tockextern`
-namespace.
+The only crates that can contain external dependencies must be inside the
+`capsules/` directory. For each new dependency a new crate should be added
+within the `capsules/` directory. Only that crate can have the external
+dependency.
 
-Other crates in the Tock kernel then include the `tockextern` crate, and use the
-dependencies through that namespace.
-
-This removes any ambiguity about when an external dependency is used throughout
-the Tock kernel, and makes such usages easier to search for. As Rust allows
-external dependencies to be used in a source file with the same syntax as other
-modules in the same crate, determining which code is external and which is part
-of the Tock kernel is difficult without deeper inspection. By including our own
-namespace we force the source file to include `use tockextern::` when using an
+The only crates that can use the newly created external dependency crates are
+board crates in the `boards/` directory. This ensures that boards which do not
+want to include the external dependency can avoid including the crate with the
 external dependency.
 
 ### Including Board-Specific External Dependencies
