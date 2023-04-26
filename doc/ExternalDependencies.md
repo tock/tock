@@ -5,7 +5,9 @@ External Dependencies
 
 <!-- toc -->
 
-- [Limited External Dependency Rationale](#limited-external-dependency-rationale)
+- [External Dependency Design](#external-dependency-design)
+  * [Rationale](#rationale)
+  * [Specific Approach Motivation](#specific-approach-motivation)
 - [External Dependency Selection](#external-dependency-selection)
   * [Core External Dependencies](#core-external-dependencies)
     + [Provide Important Functionality](#provide-important-functionality)
@@ -27,7 +29,13 @@ and policy for this is described in this document.
 
 
 
-## Limited External Dependency Rationale
+## External Dependency Design
+
+This document describes both Tock's external dependency policy and mechanism, as
+well as the rationale behind the approach.
+
+
+### Rationale
 
 Tock limits its use of external libraries for all crates in the kernel. This is
 done to promote safety, as auditing the Tock code only requires inspecting the
@@ -44,6 +52,41 @@ largely hidden from developers using the external crate. Lacking automated
 tools, managing dependencies is a manual process, and to limit overhead Tock
 generally avoids external dependencies.
 
+### Specific Approach Motivation
+
+The mechanism for including external dependencies is designed to satisfy the
+following goals. These goals were converged upon over multiple discussions of
+the Tock developers.
+
+Goals:
+
+- Boards which do not need or want the functionality provided by the external
+  dependency can ensure the dependency is not included in the kernel build.
+- Boards which do not use the dependency do not have to compile the dependency.
+- Boards should have discretion on which code to include in their build.
+- All uses of the external dependency in the Tock code base are explicit and
+  obvious.
+- The location within the Tock code tree for external dependencies is clear and
+  consistent, and there is a consistent format to document the dependency.
+- There is not undue overhead or boilerplate required to add an external
+  dependency.
+
+These goals necessitate a few design decisions. For example, as crates are the
+smallest unit of compilation in Rust, external dependencies must be included
+through new crates added to the Tock source tree so they can be individually
+included or excluded in specific builds. Also, crates provide a namespace to use
+to identify when external dependencies are being incorporated.
+
+Additionally, we avoid using traits or HIL-like interfaces for dependencies
+(i.e. core Tock capsules/modules would use a Tock-defined trait much like
+capsules use HILs, and a wrapper would use the external dependency to implement
+the trait) to avoid the overhead of implementing and maintaining a wrapper to
+implement the trait. While architecturally this has advantages, the overhead was
+deemed too burdensome for the expected benefit.
+
+We explicitly document the goals to help motivate the specific design in the
+remainder of this document. Also, this policy may change in the future, but
+these goals should be considered in any future updates.
 
 ## External Dependency Selection
 
