@@ -156,6 +156,7 @@ use crate::rcc::AHBPrescaler;
 use crate::rcc::APBPrescaler;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
+use crate::rcc::MCO1Source;
 use hsi::Hsi;
 use hsi::HSI_FREQUENCY_MHZ;
 use pll::Pll;
@@ -488,6 +489,16 @@ impl<'a> Clocks<'a> {
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         }
+    }
+
+    /// Set the clock source for the microcontroller clock output 1 (MCO1)
+    pub fn set_mco1_clock_source(&self, source: MCO1Source) {
+        self.rcc.set_mco1_clock_source(source);
+    }
+
+    /// Get the clock source of the MCO1
+    pub fn get_mco1_clock_source(&self) -> MCO1Source {
+        self.rcc.get_mco1_clock_source()
     }
 }
 

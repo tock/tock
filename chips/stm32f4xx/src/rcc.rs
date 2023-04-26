@@ -914,6 +914,19 @@ impl Rcc {
         }
     }
 
+    pub(crate) fn set_mco1_clock_source(&self, source: MCO1Source) {
+        self.registers.cfgr.modify(CFGR::MCO1.val(source as u32));
+    }
+
+    pub(crate) fn get_mco1_clock_source(&self) -> MCO1Source {
+        match self.registers.cfgr.read(CFGR::MCO1) {
+            0b00 => MCO1Source::HSI,
+            0b01 => MCO1Source::LSE,
+            0b10 => MCO1Source::HSE,
+            _ => MCO1Source::PLL
+        }
+    }
+
     fn configure_rng_clock(&self) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
         self.registers.cr.modify(CR::PLLON::SET);
@@ -1272,6 +1285,13 @@ pub enum SysClockSource {
     PLL = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR = 0b11, Uncomment this when support for PPLLR is added
+}
+
+pub enum MCO1Source {
+    HSI = 0b00,
+    LSE = 0b01,
+    HSE = 0b10,
+    PLL = 0b11,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
