@@ -323,6 +323,14 @@ register_bitfields![u32,
         OTGHSULPIEN OFFSET(30) NUMBITS(1) [],
         /// USB OTG HS clock enable
         OTGHSEN OFFSET(29) NUMBITS(1) [],
+        /// Ethernet MAC PTP enable
+        ETHMACPTPEN OFFSET(28) NUMBITS(1) [],
+        /// Ethernet MAC RX enable
+        ETHMACRXEN OFFSET(27) NUMBITS(1) [],
+        /// Ethernet MAC TX enable
+        ETHMACTXEN OFFSET(26) NUMBITS(1) [],
+        /// Ethernet MAC enable
+        ETHMACEN OFFSET(25) NUMBITS(1) [],
         /// DMA2 clock enable
         DMA2EN OFFSET(22) NUMBITS(1) [],
         /// DMA1 clock enable
@@ -1008,6 +1016,62 @@ impl Rcc {
         self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::CLEAR)
     }
 
+    // Ethernet MAC PTP clock
+
+    fn is_enabled_ethernet_macptp_clock(&self) -> bool {
+        self.registers.ahb1enr.is_set(AHB1ENR::ETHMACPTPEN)
+    }
+
+    fn enable_ethernet_macptp_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACPTPEN::SET);
+    }
+
+    fn disable_ethernet_macptp_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACPTPEN::CLEAR);
+    }
+
+    // Ethernet MAC RX clock
+
+    fn is_enabled_ethernet_macrx_clock(&self) -> bool {
+        self.registers.ahb1enr.is_set(AHB1ENR::ETHMACRXEN)
+    }
+
+    fn enable_ethernet_macrx_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACRXEN::SET);
+    }
+
+    fn disable_ethernet_macrx_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACRXEN::CLEAR);
+    }
+
+    // Ethernet MAC TX clock
+
+    fn is_enabled_ethernet_mactx_clock(&self) -> bool {
+        self.registers.ahb1enr.is_set(AHB1ENR::ETHMACTXEN)
+    }
+
+    fn enable_ethernet_mactx_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACTXEN::SET);
+    }
+
+    fn disable_ethernet_mactx_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACTXEN::CLEAR);
+    }
+
+    // Ethernet MAC clock
+
+    fn is_enabled_ethernet_mac_clock(&self) -> bool {
+        self.registers.ahb1enr.is_set(AHB1ENR::ETHMACEN)
+    }
+
+    fn enable_ethernet_mac_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACEN::SET);
+    }
+
+    fn disable_ethernet_mac_clock(&self) {
+        self.registers.ahb1enr.modify(AHB1ENR::ETHMACEN::CLEAR);
+    }
+
     // DMA1 clock
 
     fn is_enabled_dma1_clock(&self) -> bool {
@@ -1386,6 +1450,10 @@ pub enum PeripheralClockType {
 
 /// Peripherals clocked by HCLK1
 pub enum HCLK1 {
+    ETHMACPTPEN,
+    ETHMACRXEN,
+    ETHMACTXEN,
+    ETHMACEN,
     DMA1,
     DMA2,
     GPIOH,
@@ -1440,6 +1508,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
     fn is_enabled(&self) -> bool {
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
+                HCLK1::ETHMACPTPEN => self.rcc.is_enabled_ethernet_macptp_clock(),
+                HCLK1::ETHMACRXEN => self.rcc.is_enabled_ethernet_macrx_clock(),
+                HCLK1::ETHMACTXEN => self.rcc.is_enabled_ethernet_mactx_clock(),
+                HCLK1::ETHMACEN => self.rcc.is_enabled_ethernet_mac_clock(),
                 HCLK1::DMA1 => self.rcc.is_enabled_dma1_clock(),
                 HCLK1::DMA2 => self.rcc.is_enabled_dma2_clock(),
                 HCLK1::GPIOH => self.rcc.is_enabled_gpioh_clock(),
@@ -1477,6 +1549,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
     fn enable(&self) {
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
+                HCLK1::ETHMACPTPEN => self.rcc.enable_ethernet_macptp_clock(),
+                HCLK1::ETHMACRXEN => self.rcc.enable_ethernet_macrx_clock(),
+                HCLK1::ETHMACTXEN => self.rcc.enable_ethernet_mactx_clock(),
+                HCLK1::ETHMACEN => self.rcc.enable_ethernet_mac_clock(),
                 HCLK1::DMA1 => {
                     self.rcc.enable_dma1_clock();
                 }
@@ -1556,6 +1632,10 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
     fn disable(&self) {
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
+                HCLK1::ETHMACPTPEN => self.rcc.disable_ethernet_macptp_clock(),
+                HCLK1::ETHMACRXEN => self.rcc.disable_ethernet_macrx_clock(),
+                HCLK1::ETHMACTXEN => self.rcc.disable_ethernet_mactx_clock(),
+                HCLK1::ETHMACEN => self.rcc.disable_ethernet_mac_clock(),
                 HCLK1::DMA1 => {
                     self.rcc.disable_dma1_clock();
                 }
