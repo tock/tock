@@ -14,6 +14,7 @@ pub mod can_registers;
 pub mod interrupt_service;
 pub mod stm32f429zi_nvic;
 pub mod trng_registers;
+pub mod ethernet;
 
 // STM32F42xxx and STM32F43xxx has total of 91 interrupts
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
