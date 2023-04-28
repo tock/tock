@@ -899,8 +899,14 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    fn set_dma_transmition_threshold_control(&self, threshold: DmaTransmitThreshold)  {
+    fn set_dma_transmition_threshold_control(&self, threshold: DmaTransmitThreshold) -> Result<(), ErrorCode> {
+        if self.is_dma_transmition_enabled() {
+            return Err(ErrorCode::FAIL);
+        }
+
         self.dma_registers.dmaomr.modify(DMAOMR::TTC.val(threshold as u32));
+
+        Ok(())
     }
 
     fn get_dma_transmition_threshold_control(&self) -> DmaTransmitThreshold {
@@ -970,7 +976,8 @@ pub mod tests {
     fn test_dma_default_values(ethernet: &Ethernet) {
         assert_eq!(0, ethernet.get_transmit_descriptor_list_address());
         assert_eq!(DmaTransmitProcessState::Stopped, ethernet.get_transmit_process_state());
-        assert_eq!(0, ethernet.dma_registers.dmaomr.read(DMAOMR::TSF));
+        assert_eq!(false, ethernet.dma_abnormal_interruption());
+        assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
         assert_eq!(false, ethernet.is_dma_transmition_enabled());
     }
 
@@ -991,30 +998,37 @@ pub mod tests {
         debug!("Testing Ethernet basic configuration...");
 
         assert_eq!(Ok(()), ethernet.init());
+
         ethernet.set_ethernet_speed(EthernetSpeed::Speed100Mbs);
         assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_ethernet_speed());
         ethernet.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
         assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
+
         ethernet.enable_loopback_mode();
         assert_eq!(true, ethernet.is_loopback_mode_enabled());
         ethernet.disable_loopback_mode();
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
+
         ethernet.set_operation_mode(OperationMode::FullDuplex);
         assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
         ethernet.set_operation_mode(OperationMode::HalfDuplex);
         assert_eq!(OperationMode::HalfDuplex, ethernet.get_operation_mode());
+
         ethernet.enable_mac_transmitter();
         assert_eq!(true, ethernet.is_mac_transmiter_enabled());
         ethernet.disable_mac_transmitter();
         assert_eq!(false, ethernet.is_mac_transmiter_enabled());
+
         ethernet.enable_mac_receiver();
         assert_eq!(true, ethernet.is_mac_receiver_enabled());
         ethernet.disable_mac_receiver();
         assert_eq!(false, ethernet.is_mac_receiver_enabled());
+
         ethernet.enable_address_filter();
         assert_eq!(true, ethernet.is_address_filter_enabled());
         ethernet.disable_address_filter();
         assert_eq!(false, ethernet.is_address_filter_enabled());
+
         ethernet.set_mac_address0_high_register(0x4321);
         // NOTE: The actual value of this assert depends on the DEFAULT_MAC_ADDRESS
         assert_eq!(0x432156789ABC, ethernet.get_mac_address0());
@@ -1024,16 +1038,21 @@ pub mod tests {
         assert_eq!(0x112233445566, ethernet.get_mac_address0());
         ethernet.set_mac_address0(DEFAULT_MAC_ADDRESS);
         assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
+
         assert_eq!(Ok(()), ethernet.set_transmit_descriptor_list_address(0x12345));
         // The last two bits are ignore since the bus width is 32 bits
         assert_eq!(0x12344, ethernet.get_transmit_descriptor_list_address());
+
         assert_eq!(Ok(()), ethernet.enable_transmit_store_and_forward());
         assert_eq!(true, ethernet.is_transmit_store_and_forward_enabled());
-        ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold192);
+        assert_eq!(Ok(()), ethernet.disable_transmit_store_and_forward());
+        assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
+
+        assert_eq!(Ok(()), ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold192));
         assert_eq!(DmaTransmitThreshold::Threshold192, ethernet.get_dma_transmition_threshold_control());
-        ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold32);
+        assert_eq!(Ok(()), ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold32));
         assert_eq!(DmaTransmitThreshold::Threshold32, ethernet.get_dma_transmition_threshold_control());
-        ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold64);
+        assert_eq!(Ok(()), ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold64));
         assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmition_threshold_control());
 
         debug!("Finished testing Ethernet basic configuration...");
