@@ -3,7 +3,11 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
 use kernel::debug;
-use kernel::utilities::cells::OptionalCell;
+use kernel::platform::chip::ClockInterface;
+
+use crate::rcc;
+use crate::rcc::PeripheralClock;
+use crate::rcc::PeripheralClockType;
 
 register_structs! {
     /// Ethernet: media access control
@@ -578,42 +582,61 @@ pub enum DmaTransmitThreshold {
     Threshold16 = 0b111,
 }
 
-pub struct Ethernet {
+struct EthernetClocks<'a> {
+    mac: PeripheralClock<'a>,
+    mac_tx: PeripheralClock<'a>,
+    mac_rx: PeripheralClock<'a>,
+    mac_ptp: PeripheralClock<'a>,
+}
+
+impl<'a> EthernetClocks<'a> {
+    fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
+            mac: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACEN), rcc),
+            mac_tx: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACTXEN), rcc),
+            mac_rx: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACRXEN), rcc),
+            mac_ptp: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACPTPEN), rcc),
+        }
+    }
+
+    fn enable(&self) {
+        self.mac.enable();
+        self.mac_rx.enable();
+        self.mac_tx.enable();
+        self.mac_ptp.enable();
+    }
+}
+
+pub struct Ethernet<'a> {
     mac_registers: StaticRef<Ethernet_MacRegisters>,
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
-    init_error: OptionalCell<bool>,
+    clocks: EthernetClocks<'a>,
 }
 
 const DEFAULT_MAC_ADDRESS: u64 = 0x123456;
 
-impl Ethernet {
-    pub fn new() -> Self {
-        let ethernet = Self {
+impl<'a> Ethernet<'a> {
+    pub fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
             mac_registers: ETHERNET_MAC_BASE,
             dma_registers: ETHERNET_DMA_BASE,
-            init_error: OptionalCell::new(false),
-        };
-        ethernet.init();
-        // TODO: Remove these functions call
-        ethernet
+            clocks: EthernetClocks::new(rcc),
+        }
     }
 
-    fn init(&self) {
-        self.init_error.set(false);
-        self.init_dma();
+    fn init(&self) -> Result<(), ErrorCode> {
+        self.clocks.enable();
+        self.init_dma()?;
         self.init_mac();
+
+        Ok(())
     }
 
-    fn init_dma(&self) {
-        if self.reset_dma().is_err() {
-            self.init_error.set(true);
-            return;
-        }
+    fn init_dma(&self) -> Result<(), ErrorCode> {
+        self.reset_dma()?;
+        self.flush_dma_transmit_fifo()?;
 
-        if self.flush_dma_transmit_fifo().is_err() {
-            self.init_error.set(true);
-            return;
-        }
+        Ok(())
     }
 
     fn init_mac(&self) {
@@ -803,7 +826,7 @@ impl Ethernet {
     fn reset_dma(&self) -> Result<(), ErrorCode> {
         self.dma_registers.dmabmr.modify(DMABMR::SR::SET);
 
-        for _ in 0..1000 {
+        for _ in 0..100 {
             if self.dma_registers.dmabmr.read(DMABMR::SR) == 0 {
                 return Ok(());
             }
@@ -889,7 +912,7 @@ impl Ethernet {
         self.dma_registers.dmaomr.modify(DMAOMR::FTF::SET);
 
         // TODO: Adjust this value
-        for _ in 0..1000 {
+        for _ in 0..100 {
             if self.dma_registers.dmaomr.read(DMAOMR::FTF) == 0 {
                 return Ok(());
             }
@@ -934,7 +957,6 @@ pub mod tests {
     use super::*;
 
     fn test_mac_default_values(ethernet: &Ethernet) {
-        assert_eq!(Some(false), ethernet.init_error.extract());
         assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
         assert_eq!(OperationMode::HalfDuplex, ethernet.get_operation_mode());
@@ -948,8 +970,7 @@ pub mod tests {
         assert_eq!(false, ethernet.is_mac_tx_in_pause());
         assert_eq!(MacTxStatus::Idle, ethernet.get_mac_tx_status());
         assert_eq!(false, ethernet.is_mac_mii_active());
-        // NOTE: Why this address is 0 and not DEFAULT_MAC_ADDRESS
-        assert_eq!(0, ethernet.get_mac_address0());
+        assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
         assert_eq!(false, ethernet.is_mac_address1_enabled());
         assert_eq!(false, ethernet.is_mac_address2_enabled());
         assert_eq!(false, ethernet.is_mac_address3_enabled());
@@ -966,7 +987,7 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing Ethernet initialization...");
 
-        ethernet.init();
+        assert_eq!(Ok(()), ethernet.init());
         test_mac_default_values(ethernet);
         test_dma_default_values(ethernet);
 
