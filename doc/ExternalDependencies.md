@@ -88,6 +88,36 @@ We explicitly document the goals to help motivate the specific design in the
 remainder of this document. Also, this policy may change in the future, but
 these goals should be considered in any future updates.
 
+### Dependency Structure of Tock-Internal Crates
+
+Following from the above, an external dependency added to a crate which is
+depended on internally within Tock (e.g. the `kernel` crate) will have a higher
+impact than a dependency added to a crate with no reverse dependencies (e.g. a
+board crate). Thus, this policy is increasingly liberal with crate-types that
+have fewer reverse dependencies.
+
+This document considers Tock's crate structure by referring to the following
+types of crates internal to Tock:
+
+- the kernel crate: `kernel/`
+- arch crates: crates in the `arch/` directory
+- chip crates: crates in the `chips/` directory
+- board crates: crates in the `boards/` directory
+- capsule crates: crates in the `capsules/` directory
+
+Furthermore, this policy assumes the following rules regarding crate
+dependencies internal to Tock:
+
+- a _board crate_ is not a dependency of any other Tock-internal crate
+- a _chip crate_ is only a dependency of _board crates_ or other
+  _chip crates_
+- a _capsule crate_ is only a dependency of other _capsule crates_ or _board
+  crates_
+- an _arch crate_ may only depend on the _kernel crate_ and other
+  _arch crates_
+- the _kernel crate_ does not depend on _arch_, _chip_, _board_, or _capsule
+  crates_
+
 ## External Dependency Selection
 
 External dependencies can be added to Tock on a case-by-case basis. Each
@@ -95,11 +125,19 @@ dependency will be reviewed for inclusion, according to the criteria in this
 section. The requirements are intentionally strict.
 
 There are two general methods to for including an external dependency in the
-Tock kernel: core external dependencies, and board-specific external
-dependencies. Core external dependencies may be used in "core" Tock crates, such
-as the `kernel`, `chips`, and `capsules` crates. Board-specific external
-dependencies may _only_ be used by crates in the `board/` folder. The processes
-for inclusion between these two methods are different.
+Tock kernel: core external dependencies, and capsule- or board-specific
+external dependencies.
+
+- Core external dependencies may be used in "core" Tock crates, such as the
+  _kernel_, _arch_, and _chip crates_. Notably, individual boards generally do
+  not have a reasonable choice whether to depend on those crates.
+
+- Capsule-, or board-specific external dependencies may _only_ be in the
+  respective `boards/`-, or `chips/`-crates, or in a `capsules/`-crate that is
+  _not_
+
+  - `capsules/core`, or
+  - `capsules/extra`.
 
 ### Core External Dependencies
 
@@ -107,7 +145,7 @@ There are well-specified requirements for including a core external dependency.
 
 #### Provide Important Functionality
 
-The external crate must provide important functionality that couldn't
+The external crate must provide important functionality that could not
 easily or realistically be provided by the Tock developers.
 
 The list of currently accepted important functionality:
@@ -133,13 +171,11 @@ The external crate should have a limited sub-dependency tree. The fewer
 dependencies the crate introduces the more likely it is to be accepted. There is
 no set threshold, instead this is evaluated on a case-by-case basis.
 
-
 ### Board-Specific External Dependencies
 
-As board crates (i.e. crates in the `boards/` directory) are generally regarded
-as use-case specific, managed by specific board maintainers, and audited by the
-specific board maintainers, Tock is more flexible with including external
-dependencies in board crates.
+As board crates are generally regarded as use-case specific, managed by specific
+chip and board maintainers, and audited by those maintainers, Tock is more
+flexible with including external dependencies in those crates.
 
 Examples of when a board may want to use an external library:
 
@@ -147,35 +183,63 @@ Examples of when a board may want to use an external library:
   * Wireless implementations are difficult to get the correct timing.
   * Wireless protocols are also very expensive to certify.
 
-Note, however, that _only_ the crate in `boards/` may include an external
-dependency in its `Cargo.toml` file. Other crates in the kernel must not include
-the dependency, specifically a chip crate or the capsules crate. Therefore, a
-wrapper must be provided to interface Tock kernel code with the external
-dependency. This prevents external APIs from leaking directly into the Tock
-kernel.
+Note, however, that _only_ the board crate itself may include such an external
+dependency in its `Cargo.toml` file.
 
+A possible way to have other crates indirectly use such a dependency is through
+a wrapper-trait. Such traits abstract the external dependency in a way that
+allows other crates to still be built without the dependency included.
+
+### Capsule Crate-Specific External Dependencies
+
+Capsules are a mechanism to provide semi-trusted infrastructure to a Tock board,
+for instance non chip-specific peripheral drivers (see [Design](./Design.md)).
+As such, it can be desirable to utilize external dependencies to implement
+complex subsystems. Examples for this are wireless- or networking-protocols such
+as Bluetooth LE or TCP.
+
+To support such use-cases without forcing all boards to include external
+dependencies, capsules are split into multiple crates:
+
+- The `capsules/core` crate contains drivers and abstractions deemed essential
+  to most boards' operation, in addition to commonly used infrastructure and
+  _virtualizers_. It must not have any external dependencies.
+
+- The `capsules/extra` crate contains miscellaneous drivers and abstractions
+  which do not fit into other capsule crates. It must not have any external
+  dependencies.
+
+Capsule crates other than `core` and `extra` _may_ include external
+dependencies. The granularity of such crates may range from implementing an
+entire subsystem (e.g. a TCP/IP stack) to a single module providing some
+isolated functionality.  Whether an external dependency may be added to a given
+crate, and the granularity of said crate, is evaluated on a case-by-case
+basis. Concerns to take into account could be the utility, complexity and
+quality of the external dependency, and whether the capsule would provide value
+without this dependency.
+
+Newly contributed code or code from `capsules/extra` can be moved to a new
+capsule crate when deemed necessary; this is evaluated on a case-by-case basis.
 
 ## Including the Dependency
 
 To help ensure maintainability and to promote transparency with including
 external dependencies, Tock follows a specific policy for their inclusion.
 
-### Including Core External Dependencies
+### Including Capsule Crate-Specific External Dependencies
 
-The only crates that can contain external dependencies must be inside the
-`capsules/` directory. For each new dependency a new crate should be added
-within the `capsules/` directory. Only that crate can have the external
-dependency.
-
-The only crates that can use the newly created external dependency crates are
-board crates in the `boards/` directory. This ensures that boards which do not
-want to include the external dependency can avoid including the crate with the
-external dependency.
+Capsules other than `capsules/core` and `capsules/extra` may include external
+dependencies directly in their `Cargo.toml` file and use them directly.
 
 ### Including Board-Specific External Dependencies
 
-Boards may include external dependencies directly in their board's `Cargo.toml`
+Board crates may include external dependencies directly in their `Cargo.toml`
 file and use them directly.
+
+### Including Core External Dependencies
+
+As of now, no process for including core external dependencies has been
+established.
 
 ### Documenting the Dependency and its Tree
 
