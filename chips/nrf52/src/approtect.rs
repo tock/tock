@@ -79,7 +79,27 @@ impl Approtect {
                 // updated to recognize it.
                 self.registers.disable.write(Disable::DISABLE::SWDISABLE);
             }
-            _ => {
+
+            // Exhaustively list variants here to produce compiler error on
+            // adding a new variant, which would otherwise not match the above
+            // condition.
+            ficr::Variant::AAA0
+            | ficr::Variant::AAAA
+            | ficr::Variant::AAAB
+            | ficr::Variant::AAB0
+            | ficr::Variant::AABA
+            | ficr::Variant::AABB
+            | ficr::Variant::AAC0
+            | ficr::Variant::AACA
+            | ficr::Variant::AACB
+            | ficr::Variant::AAD0
+            | ficr::Variant::AAD1
+            | ficr::Variant::AADA
+            | ficr::Variant::AAE0
+            | ficr::Variant::AAEA
+            | ficr::Variant::ABBA
+            | ficr::Variant::BAAA
+            | ficr::Variant::CAAA => {
                 // All other revisions don't need this.
             }
         }
