@@ -10,7 +10,7 @@ External Dependencies
   * [Specific Approach Motivation](#specific-approach-motivation)
   * [Dependency Structure of Tock-Internal Crates](#dependency-structure-of-tock-internal-crates)
 - [External Dependency Selection](#external-dependency-selection)
-  * [Core External Dependencies](#core-external-dependencies)
+  * [General Guidelines for Dependency Selection](#general-guidelines-for-dependency-selection)
     + [Provide Important Functionality](#provide-important-functionality)
     + [Project Maturity](#project-maturity)
     + [Limited Sub-dependencies](#limited-sub-dependencies)
@@ -19,7 +19,6 @@ External Dependencies
 - [Including the Dependency](#including-the-dependency)
   * [Including Capsule Crate-Specific External Dependencies](#including-capsule-crate-specific-external-dependencies)
   * [Including Board-Specific External Dependencies](#including-board-specific-external-dependencies)
-  * [Including Core External Dependencies](#including-core-external-dependencies)
   * [Documenting the Dependency and its Tree](#documenting-the-dependency-and-its-tree)
 
 <!-- tocstop -->
@@ -128,30 +127,19 @@ dependency will be reviewed for inclusion, according to the criteria in this
 section. The requirements are intentionally strict.
 
 There are two general methods to for including an external dependency in the
-Tock kernel: core external dependencies, and capsule- or board-specific
-external dependencies.
+Tock kernel: capsule-specific or board-specific external dependencies.
 
-- Core external dependencies may be used in "core" Tock crates, such as the
-  _kernel_, _arch_, and _chip crates_. Notably, individual boards generally do
-  not have a reasonable choice whether to depend on those crates.
+### General Guidelines for Dependency Selection
 
-- Capsule-, or board-specific external dependencies may _only_ be in the
-  respective `boards/`-, or `chips/`-crates, or in a `capsules/`-crate that is
-  _not_
-
-  - `capsules/core`, or
-  - `capsules/extra`.
-
-### Core External Dependencies
-
-There are well-specified requirements for including a core external dependency.
+In general, the following guidelines can provide an indication whether an
+external dependency is suitable for inclusion in Tock.
 
 #### Provide Important Functionality
 
-The external crate must provide important functionality that could not
-easily or realistically be provided by the Tock developers.
+The external crate provides important functionality that could not easily or
+realistically be provided by the Tock developers.
 
-The list of currently accepted important functionality:
+Such functionality includes:
 
 * Cryptography libraries. Writing cryptographically secure code that is both
   correct and resistant to attacks is challenging. Leveraging validated,
@@ -160,13 +148,8 @@ The list of currently accepted important functionality:
 
 #### Project Maturity
 
-The external crate being added must be a mature project, with a high quality
+The external crate being added should be a mature project, with a high quality
 of code. The project must be well regarded in the Rust community.
-
-The top-level external crate must belong to one of the following set of
-repository organizations:
-
-* [RustCrypto](https://github.com/RustCrypto)
 
 #### Limited Sub-dependencies
 
@@ -238,11 +221,6 @@ dependencies directly in their `Cargo.toml` file and use them directly.
 
 Board crates may include external dependencies directly in their `Cargo.toml`
 file and use them directly.
-
-### Including Core External Dependencies
-
-As of now, no process for including core external dependencies has been
-established.
 
 ### Documenting the Dependency and its Tree
 
