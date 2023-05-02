@@ -40,7 +40,7 @@ The SVL can always be re-flashed if you want to.
 ## Debugging the board
 
 The SparkFun LoRa Thing Plus exposes JTAG via the small headers in the middle of
-the board. See the [SparkFun hookup guide](https://learn.sparkfun.com/tutorials/sparkfun-explorable-hookup-guide) for a picture of this.
+the board. See the [SparkFun hookup guide](https://learn.sparkfun.com/tutorials/sparkfun-explorable-hookup-guide/all) for a picture of this.
 
 SparkFun sell accessories you can use to connecting to this. It appears
 something like the J-Link BASE will work, but that hasn't been tested by Tock.
@@ -63,3 +63,41 @@ attach 1
 ```
 
 You can then use GDB to debug the board
+
+## Using LoRa with the board
+
+There is a work in progress port of a userspace LoRa library. This is based on
+the Semtech library. You can find the code for this at:
+https://github.com/alistair23/LoRaMac-node
+
+You can build the application by running the following in the `LoRaMac-node`
+directory:
+
+```shell
+$ mkdir build
+$ cd build
+$ cmake -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_TOOLCHAIN_FILE="../cmake/toolchain-arm-none-eabi.cmake" \
+        -DAPPLICATION="ping-pong" \
+        -DMODULATION="LORA" \
+        -DREGION_EU868="OFF" \
+        -DREGION_US915="OFF" \
+        -DREGION_CN779="OFF" \
+        -DREGION_EU433="OFF" \
+        -DREGION_AU915="ON" \
+        -DREGION_AS923="OFF" \
+        -DREGION_CN470="OFF" \
+        -DREGION_KR920="OFF" \
+        -DREGION_IN865="OFF" \
+        -DREGION_RU864="OFF" \
+        -DBOARD="Tock" \
+        -DUSE_RADIO_DEBUG="ON" ..
+$ make
+$ elf2tab -n ping-pong --stack 2048 --app-heap 1024 --kernel-heap 1024 --kernel-major 2 --kernel-minor 1 -v ./src/apps/ping-pong/ping-pong
+```
+
+Then in the Tock repo you can flash the app with:
+
+```shell
+$ make flash; APP=LoRaMac-node/build/src/apps/ping-pong//ping-pong.tbf make flash-app
+```

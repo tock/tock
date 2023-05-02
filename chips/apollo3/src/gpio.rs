@@ -116,7 +116,9 @@ impl Port<'_> {
         let mut count = 0;
         while irqs != 0 && count < self.pins.len() {
             if (irqs & 0b1) != 0 {
-                self.pins[count].handle_interrupt();
+                // Offset the count by 32 as it's the second GPIO bank
+                // (top 32 GPIOs)
+                self.pins[count + 32].handle_interrupt();
             }
             count += 1;
             irqs >>= 1;
@@ -153,6 +155,96 @@ impl Port<'_> {
                 panic!("rx_pin not supported");
             }
         }
+    }
+
+    /// This function configures some GPIO pins on the Apollo3 to allow
+    /// communication with a SX1262 LoRa module.
+    ///
+    /// The pin mapping is setup to match what is used by the NM180100 SoC (shown below)
+    ///
+    /// IOM3: Semtech SX1262
+    ///     Apollo 3 Pin Number | Apollo 3 Name | SX1262 Pin Number | SX1262 Name | SX1262 Description
+    ///                      H6 |       GPIO 36 |                19 |  NSS        | SPI slave select
+    ///                      J6 |       GPIO 38 |                17 |  MOSI       | SPI slave input
+    ///                      J5 |       GPIO 43 |                16 |  MISO       | SPI slave output
+    ///                      H5 |       GPIO 42 |                18 |  SCK        | SPI clock input
+    ///                      J8 |       GPIO 39 |                14 |  BUSY       | Radio busy indicator
+    ///                      J9 |       GPIO 40 |                13 |  DIO1       | Multipurpose digital I/O
+    ///                      H9 |       GPIO 47 |                6  |  DIO3       | Multipurpose digital I/O
+    ///                      J7 |       GPIO 44 |                15 |  NRESET     | Radio reset signal, active low
+    ///
+    /// This should be used by the lora_things_plus board or any other board using
+    /// the Apollo3 based NM180100 SoC. This function would also work for any
+    /// Apollo3 board using the same pins and IOM as specified above.
+    pub fn enable_sx1262_radio_pins(&self) {
+        let regs = GPIO_BASE;
+
+        regs.padkey.set(115);
+
+        // Pin 36 NSS
+        regs.padreg[9].modify(
+            PADREG::PAD0PULL::CLEAR + PADREG::PAD0INPEN::CLEAR + PADREG::PAD0FNCSEL.val(0x1),
+        );
+        regs.cfg[4].modify(CFG::GPIO4INCFG.val(0x00) + CFG::GPIO4OUTCFG.val(0x00));
+        regs.altpadcfgj
+            .modify(ALTPADCFG::PAD0_DS1::CLEAR + ALTPADCFG::PAD0_SR::CLEAR);
+
+        // Pin 39 Busy
+        regs.padreg[9].modify(
+            PADREG::PAD3INPEN::SET
+                + PADREG::PAD3STRNG::CLEAR
+                + PADREG::PAD3FNCSEL.val(0x3)
+                + PADREG::PAD3RSEL.val(0x0),
+        );
+        regs.cfg[4].modify(
+            CFG::GPIO7INCFG.val(0x00) + CFG::GPIO7OUTCFG.val(0x00) + CFG::GPIO7INTD.val(0x00),
+        );
+        regs.altpadcfgj
+            .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
+
+        // Pin 40 DIO1
+        regs.padreg[10].modify(
+            PADREG::PAD0PULL::CLEAR
+                + PADREG::PAD0INPEN::SET
+                + PADREG::PAD0STRING::CLEAR
+                + PADREG::PAD0FNCSEL.val(0x3)
+                + PADREG::PAD0RSEL.val(0x0),
+        );
+        regs.cfg[5].modify(
+            CFG::GPIO0INCFG.val(0x00) + CFG::GPIO0OUTCFG.val(0x00) + CFG::GPIO0INTD.val(0x00),
+        );
+        regs.altpadcfgk
+            .modify(ALTPADCFG::PAD0_DS1::CLEAR + ALTPADCFG::PAD0_SR::CLEAR);
+
+        // Pin 47 DIO3
+        regs.padreg[11].modify(
+            PADREG::PAD3PULL::CLEAR
+                + PADREG::PAD3INPEN::SET
+                + PADREG::PAD3STRNG::CLEAR
+                + PADREG::PAD3FNCSEL.val(0x3)
+                + PADREG::PAD3RSEL.val(0x0),
+        );
+        regs.cfg[5].modify(
+            CFG::GPIO7INCFG.val(0x00) + CFG::GPIO7OUTCFG.val(0x00) + CFG::GPIO7INTD.val(0x00),
+        );
+        regs.altpadcfgl
+            .modify(ALTPADCFG::PAD3_DS1::CLEAR + ALTPADCFG::PAD3_SR::CLEAR);
+
+        // Pin 44 NReset
+        regs.padreg[11].modify(
+            PADREG::PAD0PULL::CLEAR
+                + PADREG::PAD0INPEN::CLEAR
+                + PADREG::PAD0STRING::CLEAR
+                + PADREG::PAD0FNCSEL.val(0x3)
+                + PADREG::PAD0RSEL.val(0x0),
+        );
+        regs.cfg[5].modify(
+            CFG::GPIO4INCFG.val(0x00) + CFG::GPIO4OUTCFG.val(0x00) + CFG::GPIO4INTD.val(0x00),
+        );
+        regs.altpadcfgl
+            .modify(ALTPADCFG::PAD0_DS1::CLEAR + ALTPADCFG::PAD0_SR::CLEAR);
+
+        regs.padkey.set(0x00);
     }
 
     pub fn enable_i2c(&self, sda: &GpioPin, scl: &GpioPin) {
@@ -757,7 +849,10 @@ impl<'a> GpioPin<'a> {
     }
 
     pub fn handle_interrupt(&self) {
-        unimplemented!();
+        // Trigger the upcall
+        self.client.map(|client| {
+            client.fired();
+        });
     }
 }
 
@@ -1097,7 +1192,7 @@ impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
                 .set(!(1 << self.pin as usize) & regs.int0en.get());
         } else {
             regs.int1en
-                .set(!(1 << (self.pin as usize - 32)) & regs.int0en.get());
+                .set(!(1 << (self.pin as usize - 32)) & regs.int1en.get());
         }
 
         // Clear interrupt
