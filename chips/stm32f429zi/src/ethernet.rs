@@ -765,6 +765,7 @@ impl<'a> EthernetClocks<'a> {
 pub struct Ethernet<'a> {
     mac_registers: StaticRef<Ethernet_MacRegisters>,
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
+    transmit_descriptor: TransmitDescriptor,
     clocks: EthernetClocks<'a>,
 }
 
@@ -775,6 +776,7 @@ impl<'a> Ethernet<'a> {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
             dma_registers: ETHERNET_DMA_BASE,
+            transmit_descriptor: TransmitDescriptor::new(),
             clocks: EthernetClocks::new(rcc),
         }
     }
@@ -976,7 +978,7 @@ impl<'a> Ethernet<'a> {
     // TODO: Add receive demand pool request
 
     fn set_transmit_descriptor_list_address(&self, address: u32) -> Result<(), ErrorCode> {
-        if self.is_dma_transmition_enabled() == true {
+        if self.is_dma_transmission_enabled() == true {
             return Err(ErrorCode::FAIL);
         }
 
@@ -1004,11 +1006,11 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmasr.is_set(DMASR::AIS)
     }
 
-    fn has_dma_transmition_finished(&self) -> bool {
+    fn has_dma_transmission_finished(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::TS)
     }
 
-    fn clear_dma_transmition_completion_status(&self) {
+    fn clear_dma_transmission_completion_status(&self) {
         self.dma_registers.dmasr.modify(DMASR::TS::SET);
     }
 
@@ -1053,8 +1055,8 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    fn set_dma_transmition_threshold_control(&self, threshold: DmaTransmitThreshold) -> Result<(), ErrorCode> {
-        if self.is_dma_transmition_enabled() {
+    fn set_dma_transmission_threshold_control(&self, threshold: DmaTransmitThreshold) -> Result<(), ErrorCode> {
+        if self.is_dma_transmission_enabled() {
             return Err(ErrorCode::FAIL);
         }
 
@@ -1063,7 +1065,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn get_dma_transmition_threshold_control(&self) -> DmaTransmitThreshold {
+    fn get_dma_transmission_threshold_control(&self) -> DmaTransmitThreshold {
         match self.dma_registers.dmaomr.read(DMAOMR::TTC) {
             0b000 => DmaTransmitThreshold::Threshold64,
             0b001 => DmaTransmitThreshold::Threshold128,
@@ -1076,7 +1078,7 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn start_dma_transmition(&self) -> Result<(), ErrorCode> {
+    fn start_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Stopped {
             return Err(ErrorCode::FAIL);
         }
@@ -1086,7 +1088,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn stop_dma_transmition(&self) -> Result<(), ErrorCode> {
+    fn stop_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
             return Err(ErrorCode::FAIL);
         }
@@ -1096,7 +1098,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn is_dma_transmition_enabled(&self) -> bool {
+    fn is_dma_transmission_enabled(&self) -> bool {
         match self.dma_registers.dmaomr.read(DMAOMR::ST) {
             0 => false,
             _ => true,
@@ -1132,7 +1134,7 @@ pub mod tests {
         assert_eq!(DmaTransmitProcessState::Stopped, ethernet.get_transmit_process_state());
         assert_eq!(false, ethernet.dma_abnormal_interruption());
         assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
-        assert_eq!(false, ethernet.is_dma_transmition_enabled());
+        assert_eq!(false, ethernet.is_dma_transmission_enabled());
     }
 
     pub fn test_ethernet_init(ethernet: &Ethernet) {
@@ -1202,12 +1204,12 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.disable_transmit_store_and_forward());
         assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
 
-        assert_eq!(Ok(()), ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold192));
-        assert_eq!(DmaTransmitThreshold::Threshold192, ethernet.get_dma_transmition_threshold_control());
-        assert_eq!(Ok(()), ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold32));
-        assert_eq!(DmaTransmitThreshold::Threshold32, ethernet.get_dma_transmition_threshold_control());
-        assert_eq!(Ok(()), ethernet.set_dma_transmition_threshold_control(DmaTransmitThreshold::Threshold64));
-        assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmition_threshold_control());
+        assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold192));
+        assert_eq!(DmaTransmitThreshold::Threshold192, ethernet.get_dma_transmission_threshold_control());
+        assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold32));
+        assert_eq!(DmaTransmitThreshold::Threshold32, ethernet.get_dma_transmission_threshold_control());
+        assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold64));
+        assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmission_threshold_control());
 
         debug!("Finished testing Ethernet basic configuration...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
