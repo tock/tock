@@ -1212,7 +1212,7 @@ impl<'a> Ethernet<'a> {
 
         // Prepare transmit descriptor
         self.transmit_descriptor.set_buffer1_address(temporary_buffer.as_ptr() as u32);
-        self.transmit_descriptor.set_buffer1_size(15 as u16);
+        self.transmit_descriptor.set_buffer1_size(15 as u16)?;
         self.transmit_descriptor.set_as_first_segment();
         self.transmit_descriptor.set_as_last_segment();
         self.transmit_descriptor.enable_pad();
@@ -1221,6 +1221,8 @@ impl<'a> Ethernet<'a> {
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
+
+        while !self.transmit_descriptor.is_acquired() {}
 
         // Send a poll request to the DMA
         self.dma_transmit_poll_demand();
@@ -1235,7 +1237,12 @@ impl<'a> Ethernet<'a> {
             }
         }
 
-        Err(ErrorCode::FAIL)
+        if self.transmit_descriptor.error_occurred() {
+            Err(ErrorCode::FAIL)
+        }
+        else {
+            Err(ErrorCode::BUSY)
+        }
     }
 }
 
