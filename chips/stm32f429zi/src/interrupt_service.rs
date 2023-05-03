@@ -28,8 +28,9 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
             ethernet: crate::ethernet::Ethernet::new(rcc),
         }
     }
-    // Necessary for setting up circular dependencies and registering deferred calls
+    // Necessary for setting up circular dependencies
     pub fn init(&'static self) {
+        self.ethernet.init();
         self.stm32f4.setup_circular_deps();
         kernel::deferred_call::DeferredCallClient::register(&self.can1);
     }

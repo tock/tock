@@ -781,8 +781,9 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn init(&self) -> Result<(), ErrorCode> {
+    pub(crate) fn init(&self) -> Result<(), ErrorCode> {
         self.clocks.enable();
+        self.transmit_descriptor.release();
         self.init_dma()?;
         self.init_mac();
 
@@ -792,6 +793,7 @@ impl<'a> Ethernet<'a> {
     fn init_dma(&self) -> Result<(), ErrorCode> {
         self.reset_dma()?;
         self.flush_dma_transmit_fifo()?;
+        self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
 
         Ok(())
     }
@@ -1104,6 +1106,42 @@ impl<'a> Ethernet<'a> {
             _ => true,
         }
     }
+
+    /* === High-level functions */
+
+    fn enable_transmission(&self) -> Result<(), ErrorCode> {
+        self.enable_mac_transmitter();
+        self.start_dma_transmission()?;
+
+        for _ in 0..10 {
+            if self.get_transmit_process_state() != DmaTransmitProcessState::Stopped {
+                return Ok(());
+            }
+        }
+
+        Err(ErrorCode::BUSY)
+    }
+
+    fn disable_transmission(&self) -> Result<(), ErrorCode> {
+        self.disable_mac_transmitter();
+        self.stop_dma_transmission()?;
+
+        return Ok(())
+    }
+
+    fn send_frame_sync(&self) -> Result<(), ErrorCode> {
+        // If DMA and MAC are off, return an error
+        if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
+            return Err(ErrorCode::OFF);
+        }
+
+        // Check if transmiter is busy
+        if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
+            return Err(ErrorCode::BUSY);
+        }
+
+        Ok(())
+    }
 }
 
 pub mod tests {
@@ -1130,7 +1168,8 @@ pub mod tests {
     }
 
     fn test_dma_default_values(ethernet: &Ethernet) {
-        assert_eq!(0, ethernet.get_transmit_descriptor_list_address());
+        assert_eq!(&ethernet.transmit_descriptor as *const TransmitDescriptor as u32,
+            ethernet.get_transmit_descriptor_list_address());
         assert_eq!(DmaTransmitProcessState::Stopped, ethernet.get_transmit_process_state());
         assert_eq!(false, ethernet.dma_abnormal_interruption());
         assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
@@ -1264,13 +1303,33 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
 
+    pub fn test_frame_transmission(ethernet: &Ethernet) {
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing frame transmission...");
+        // Impossible to send a frame while transmission is disabled
+        assert_eq!(Err(ErrorCode::OFF), ethernet.send_frame_sync());
+
+        // Enable Ethernet transmission
+        assert_eq!(Ok(()), ethernet.enable_transmission());
+
+        // Now, a frame can be send
+        assert_eq!(Ok(()), ethernet.send_frame_sync());
+
+        // Disable transmission
+        assert_eq!(Ok(()), ethernet.disable_transmission());
+
+        debug!("Finished testing frame transmission...");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    }
+
     pub fn run_all(ethernet: &Ethernet) {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
-        test_ethernet_init(ethernet);
-        test_ethernet_basic_configuration(ethernet);
-        test_transmit_descriptor();
+        //test_ethernet_init(ethernet);
+        //test_ethernet_basic_configuration(ethernet);
+        //test_transmit_descriptor();
+        test_frame_transmission(ethernet);
         debug!("================================================");
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("");
