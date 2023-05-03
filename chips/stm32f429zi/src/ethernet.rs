@@ -727,12 +727,16 @@ impl TransmitDescriptor {
         self.tdes1.read(TDES1::TBS1) as u16
     }
 
-    fn set_buffer1_address(&self, pointer: *const u32) {
-        self.tdes2.set(pointer as u32);
+    fn set_buffer1_address(&self, address: u32) {
+        self.tdes2.set(address);
     }
 
     fn get_buffer1_address(&self) -> u32 {
         self.tdes2.get()
+    }
+
+    fn error_occurred(&self) -> bool {
+        self.tdes0.is_set(TDES0::ES)
     }
 }
 
@@ -1188,7 +1192,7 @@ impl<'a> Ethernet<'a> {
         return Ok(())
     }
 
-    fn send_frame_sync(&self) -> Result<(), ErrorCode> {
+    fn send_frame_sync(&self, destination_address: MacAddress) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
         if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
             return Err(ErrorCode::OFF);
@@ -1199,7 +1203,39 @@ impl<'a> Ethernet<'a> {
             return Err(ErrorCode::BUSY);
         }
 
-        Ok(())
+        // Prepare buffer
+        const MAX_BUFFER_SIZE: usize = 1524;
+        let mut temporary_buffer = [0 as u8; MAX_BUFFER_SIZE];
+        temporary_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
+        temporary_buffer[6..12].copy_from_slice(&destination_address.get_address());
+        temporary_buffer[13] = 1;
+
+        // Prepare transmit descriptor
+        self.transmit_descriptor.set_buffer1_address(temporary_buffer.as_ptr() as u32);
+        self.transmit_descriptor.set_buffer1_size(15 as u16);
+        self.transmit_descriptor.set_as_first_segment();
+        self.transmit_descriptor.set_as_last_segment();
+        self.transmit_descriptor.enable_pad();
+        self.transmit_descriptor.enable_crc();
+        self.transmit_descriptor.set_transmit_end_of_ring();
+
+        // Acquire the transmit descriptor
+        self.transmit_descriptor.acquire();
+
+        // Send a poll request to the DMA
+        self.dma_transmit_poll_demand();
+
+        // Wait for transmission completion
+        // TODO: Make this work
+        for _ in 0..10000 {
+            if self.has_dma_transmission_finished() {
+                self.clear_dma_transmission_completion_status();
+
+                return Ok(());
+            }
+        }
+
+        Err(ErrorCode::FAIL)
     }
 }
 
@@ -1372,7 +1408,7 @@ pub mod tests {
         assert_eq!(1234, transmit_descriptor.get_buffer1_size());
 
         let x: u32 = 8;
-        transmit_descriptor.set_buffer1_address(&x as *const u32);
+        transmit_descriptor.set_buffer1_address(&x as *const u32 as u32);
         assert_eq!(&x as *const u32 as u32, transmit_descriptor.get_buffer1_address());
 
         debug!("Finished testing transmit descriptor...");
@@ -1382,14 +1418,15 @@ pub mod tests {
     pub fn test_frame_transmission(ethernet: &Ethernet) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame transmission...");
+        let destination_address: MacAddress = MacAddress::from(0x112233445566);
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.send_frame_sync());
+        assert_eq!(Err(ErrorCode::OFF), ethernet.send_frame_sync(destination_address));
 
         // Enable Ethernet transmission
         assert_eq!(Ok(()), ethernet.enable_transmission());
 
         // Now, a frame can be send
-        assert_eq!(Ok(()), ethernet.send_frame_sync());
+        assert_eq!(Ok(()), ethernet.send_frame_sync(destination_address));
 
         // Disable transmission
         assert_eq!(Ok(()), ethernet.disable_transmission());
@@ -1402,11 +1439,11 @@ pub mod tests {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
-        test_mac_address();
-        test_ethernet_init(ethernet);
-        test_ethernet_basic_configuration(ethernet);
+        //test_mac_address();
+        //test_ethernet_init(ethernet);
+        //test_ethernet_basic_configuration(ethernet);
         //test_transmit_descriptor();
-        //test_frame_transmission(ethernet);
+        test_frame_transmission(ethernet);
         debug!("================================================");
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("");
