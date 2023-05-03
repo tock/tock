@@ -1,4 +1,5 @@
 use kernel::utilities::StaticRef;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite, InMemoryRegister};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
@@ -530,6 +531,7 @@ DMACHRBAR [
 ]
 ];
 
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MacAddress {
     address: [u8; 6],
 }
@@ -549,7 +551,34 @@ impl MacAddress {
     }
 
     pub fn get_address(&self) -> [u8; 6] {
+        // Never panics because address is never assigned to none
         self.address
+    }
+}
+
+impl From<u64> for MacAddress {
+    fn from(value: u64) -> Self {
+        let mut mac_address = MacAddress::new();
+        mac_address.set_address(value);
+        mac_address
+    }
+}
+
+impl From<MacAddress> for u64 {
+    fn from(mac_address: MacAddress) -> Self {
+        let mut result: u64 = 0;
+        for byte in mac_address.get_address() {
+            result += byte as u64;
+            result <<= 8;
+        }
+
+        result >> 8
+    }
+}
+
+impl Default for MacAddress {
+    fn default() -> Self {
+        MacAddress::from(DEFAULT_MAC_ADDRESS)
     }
 }
 
@@ -790,6 +819,7 @@ pub struct Ethernet<'a> {
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
     transmit_descriptor: TransmitDescriptor,
     clocks: EthernetClocks<'a>,
+    mac_address0: OptionalCell<MacAddress>,
 }
 
 const DEFAULT_MAC_ADDRESS: u64 = 0x123456789ABC;
@@ -801,6 +831,7 @@ impl<'a> Ethernet<'a> {
             dma_registers: ETHERNET_DMA_BASE,
             transmit_descriptor: TransmitDescriptor::new(),
             clocks: EthernetClocks::new(rcc),
+            mac_address0: OptionalCell::new(MacAddress::default()),
         }
     }
 
@@ -822,7 +853,7 @@ impl<'a> Ethernet<'a> {
     }
 
     fn init_mac(&self) {
-        self.set_mac_address0(DEFAULT_MAC_ADDRESS);
+        self.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
     }
 
     /* === MAC methods === */
@@ -952,14 +983,19 @@ impl<'a> Ethernet<'a> {
         self.mac_registers.maca0lr.set(value);
     }
 
-    fn set_mac_address0(&self, address: u64) {
+    fn set_mac_address0(&self, mac_address: MacAddress) {
+        let address: u64 = mac_address.into();
         let high_bits = ((address & 0xFFFF00000000) >> 32) as u16;
         self.set_mac_address0_high_register(high_bits);
         self.set_mac_address0_low_register((address & 0xFFFFFFFF) as u32);
+
+        let mut new_address = self.get_mac_address0();
+        new_address.set_address(address);
+        self.mac_address0.set(new_address);
     }
 
-    fn get_mac_address0(&self) -> u64 {
-        (self.mac_registers.maca0hr.read(MACA0HR::MACA0H) as u64) << 32 | self.mac_registers.maca0lr.get() as u64
+    fn get_mac_address0(&self) -> MacAddress {
+        self.mac_address0.extract().unwrap()
     }
 
     fn is_mac_address1_enabled(&self) -> bool {
@@ -1184,7 +1220,7 @@ pub mod tests {
         assert_eq!(false, ethernet.is_mac_tx_in_pause());
         assert_eq!(MacTxStatus::Idle, ethernet.get_mac_tx_status());
         assert_eq!(false, ethernet.is_mac_mii_active());
-        assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
+        assert_eq!(MacAddress::from(DEFAULT_MAC_ADDRESS), ethernet.get_mac_address0());
         assert_eq!(false, ethernet.is_mac_address1_enabled());
         assert_eq!(false, ethernet.is_mac_address2_enabled());
         assert_eq!(false, ethernet.is_mac_address3_enabled());
@@ -1218,8 +1254,10 @@ pub mod tests {
         let mut mac_address = MacAddress::new();
         assert_eq!([0; 6], mac_address.get_address());
         mac_address.set_address(DEFAULT_MAC_ADDRESS);
-        debug!("{:?}", mac_address.get_address());
         assert_eq!([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC], mac_address.get_address());
+        let mac_address = MacAddress::from(0x112233445566);
+        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get_address());
+        assert_eq!(0x112233445566 as u64, mac_address.into());
 
         debug!("Finished testing Ethernet MAC address struct");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -1263,13 +1301,14 @@ pub mod tests {
 
         ethernet.set_mac_address0_high_register(0x4321);
         // NOTE: The actual value of this assert depends on the DEFAULT_MAC_ADDRESS
-        assert_eq!(0x432156789ABC, ethernet.get_mac_address0());
+        assert_eq!(0x4321, ethernet.mac_registers.maca0hr.read(MACA0HR::MACA0H));
         ethernet.set_mac_address0_low_register(0xCBA98765);
-        assert_eq!(0x4321CBA98765, ethernet.get_mac_address0());
-        ethernet.set_mac_address0(0x112233445566);
-        assert_eq!(0x112233445566, ethernet.get_mac_address0());
-        ethernet.set_mac_address0(DEFAULT_MAC_ADDRESS);
-        assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
+        assert_eq!(0xCBA98765, ethernet.mac_registers.maca0lr.get());
+
+        ethernet.set_mac_address0(0x112233445566.into());
+        assert_eq!(MacAddress::from(0x112233445566), ethernet.get_mac_address0());
+        ethernet.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
+        assert_eq!(MacAddress::from(DEFAULT_MAC_ADDRESS), ethernet.get_mac_address0());
 
         assert_eq!(Ok(()), ethernet.set_transmit_descriptor_list_address(0x12345));
         // The last two bits are ignore since the bus width is 32 bits
@@ -1364,8 +1403,8 @@ pub mod tests {
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
         test_mac_address();
-        //test_ethernet_init(ethernet);
-        //test_ethernet_basic_configuration(ethernet);
+        test_ethernet_init(ethernet);
+        test_ethernet_basic_configuration(ethernet);
         //test_transmit_descriptor();
         //test_frame_transmission(ethernet);
         debug!("================================================");
