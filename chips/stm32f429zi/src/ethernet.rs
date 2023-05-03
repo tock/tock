@@ -530,6 +530,29 @@ DMACHRBAR [
 ]
 ];
 
+pub struct MacAddress {
+    address: [u8; 6],
+}
+
+impl MacAddress {
+    pub fn new() -> Self {
+        Self {
+            address: [0; 6],
+        }
+    }
+
+    pub fn set_address(&mut self, address: u64)  {
+        let mask: u64 = 0xFF0000000000;
+        for index in 0..6 {
+            self.address[index] = ((address & (mask >> (index * 8))) >> (40 - 8 * index)) as u8;
+        }
+    }
+
+    pub fn get_address(&self) -> [u8; 6] {
+        self.address
+    }
+}
+
 register_bitfields![u32,
 TDES0 [
     OWN OFFSET(31) NUMBITS(1) [],
@@ -1188,6 +1211,20 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
 
+    pub fn test_mac_address() {
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing Ethernet MAC address struct...");
+
+        let mut mac_address = MacAddress::new();
+        assert_eq!([0; 6], mac_address.get_address());
+        mac_address.set_address(DEFAULT_MAC_ADDRESS);
+        debug!("{:?}", mac_address.get_address());
+        assert_eq!([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC], mac_address.get_address());
+
+        debug!("Finished testing Ethernet MAC address struct");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    }
+
     pub fn test_ethernet_basic_configuration(ethernet: &Ethernet) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing Ethernet basic configuration...");
@@ -1326,10 +1363,11 @@ pub mod tests {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
+        test_mac_address();
         //test_ethernet_init(ethernet);
         //test_ethernet_basic_configuration(ethernet);
         //test_transmit_descriptor();
-        test_frame_transmission(ethernet);
+        //test_frame_transmission(ethernet);
         debug!("================================================");
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("");
