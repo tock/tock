@@ -1293,7 +1293,7 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn send_frame_sync(&self, destination_address: MacAddress) -> Result<(), ErrorCode> {
+    fn send_frame_sync(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
         if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
             return Err(ErrorCode::OFF);
@@ -1304,16 +1304,21 @@ impl<'a> Ethernet<'a> {
             return Err(ErrorCode::BUSY);
         }
 
+        // Set the buffer size and return an error if it is too big
+        let data_length = data.len();
+        self.transmit_descriptor.set_buffer1_size(data_length as u16)?;
+
         // Prepare buffer
         const MAX_BUFFER_SIZE: usize = 1524;
         let mut temporary_buffer = [0 as u8; MAX_BUFFER_SIZE];
         temporary_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
         temporary_buffer[6..12].copy_from_slice(&destination_address.get_address());
-        temporary_buffer[13] = 1;
+        temporary_buffer[12] = (data_length >> 1) as u8;
+        temporary_buffer[13] = data_length as u8;
+        temporary_buffer[14..(data_length + 14)].copy_from_slice(data);
 
         // Prepare transmit descriptor
         self.transmit_descriptor.set_buffer1_address(temporary_buffer.as_ptr() as u32);
-        self.transmit_descriptor.set_buffer1_size(15 as u16)?;
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
@@ -1537,13 +1542,13 @@ pub mod tests {
         debug!("Testing frame transmission...");
         let destination_address: MacAddress = MacAddress::from(0x112233445566);
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.send_frame_sync(destination_address));
+        assert_eq!(Err(ErrorCode::OFF), ethernet.send_frame_sync(destination_address, b"Hello!"));
 
         // Enable Ethernet transmission
         assert_eq!(Ok(()), ethernet.enable_transmission());
 
         // Now, a frame can be send
-        assert_eq!(Ok(()), ethernet.send_frame_sync(destination_address));
+        assert_eq!(Ok(()), ethernet.send_frame_sync(destination_address, b"Hello!"));
 
         // Disable transmission
         assert_eq!(Ok(()), ethernet.disable_transmission());
