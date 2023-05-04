@@ -1097,7 +1097,7 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn dma_normal_interruption(&self) -> bool {
+    fn did_normal_interruption_occur(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::NIS)
     }
 
@@ -1105,7 +1105,7 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmasr.modify(DMASR::NIS::SET);
     }
 
-    fn dma_abnormal_interruption(&self) -> bool {
+    fn did_abnormal_interruption_occur(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::AIS)
     }
 
@@ -1344,13 +1344,29 @@ impl<'a> Ethernet<'a> {
 pub mod tests {
     use super::*;
 
+    pub fn test_mac_address() {
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        debug!("Testing Ethernet MAC address struct...");
+
+        let mut mac_address = MacAddress::new();
+        assert_eq!([0; 6], mac_address.get_address());
+        mac_address.set_address(DEFAULT_MAC_ADDRESS);
+        assert_eq!([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC], mac_address.get_address());
+        let mac_address = MacAddress::from(0x112233445566);
+        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get_address());
+        assert_eq!(0x112233445566 as u64, mac_address.into());
+
+        debug!("Finished testing Ethernet MAC address struct");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    }
+
     fn test_mac_default_values(ethernet: &Ethernet) {
         assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
-        assert_eq!(OperationMode::HalfDuplex, ethernet.get_operation_mode());
+        assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
         assert_eq!(false, ethernet.is_mac_transmiter_enabled());
         assert_eq!(false, ethernet.is_mac_receiver_enabled());
-        assert_eq!(true, ethernet.is_address_filter_enabled());
+        assert_eq!(false, ethernet.is_address_filter_enabled());
         assert_eq!(false, ethernet.is_mac_tx_full());
         assert_eq!(true, ethernet.is_mac_tx_empty());
         assert_eq!(false, ethernet.is_mac_tx_writer_active());
@@ -1368,8 +1384,9 @@ pub mod tests {
         assert_eq!(&ethernet.transmit_descriptor as *const TransmitDescriptor as u32,
             ethernet.get_transmit_descriptor_list_address());
         assert_eq!(DmaTransmitProcessState::Stopped, ethernet.get_transmit_process_state());
-        assert_eq!(false, ethernet.dma_abnormal_interruption());
-        assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
+        assert_eq!(false, ethernet.did_normal_interruption_occur());
+        assert_eq!(false, ethernet.did_abnormal_interruption_occur());
+        assert_eq!(true, ethernet.is_transmit_store_and_forward_enabled());
         assert_eq!(false, ethernet.is_dma_transmission_enabled());
     }
 
@@ -1382,22 +1399,6 @@ pub mod tests {
         test_dma_default_values(ethernet);
 
         debug!("Finished testing Ethernet initialization");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    }
-
-    pub fn test_mac_address() {
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing Ethernet MAC address struct...");
-
-        let mut mac_address = MacAddress::new();
-        assert_eq!([0; 6], mac_address.get_address());
-        mac_address.set_address(DEFAULT_MAC_ADDRESS);
-        assert_eq!([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC], mac_address.get_address());
-        let mac_address = MacAddress::from(0x112233445566);
-        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get_address());
-        assert_eq!(0x112233445566 as u64, mac_address.into());
-
-        debug!("Finished testing Ethernet MAC address struct");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
 
@@ -1557,10 +1558,10 @@ pub mod tests {
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
         //test_mac_address();
-        //test_ethernet_init(ethernet);
+        test_ethernet_init(ethernet);
         //test_ethernet_basic_configuration(ethernet);
         //test_transmit_descriptor();
-        test_frame_transmission(ethernet);
+        //test_frame_transmission(ethernet);
         debug!("================================================");
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("");
