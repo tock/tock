@@ -10,6 +10,9 @@ use crate::rcc;
 use crate::rcc::PeripheralClock;
 use crate::rcc::PeripheralClockType;
 
+pub mod mac_address;
+use crate::ethernet::mac_address::MacAddress;
+
 register_structs! {
     /// Ethernet: media access control
 /// (MAC)
@@ -531,57 +534,6 @@ DMACHRBAR [
 ]
 ];
 
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub struct MacAddress {
-    address: [u8; 6],
-}
-
-impl MacAddress {
-    pub fn new() -> Self {
-        Self {
-            address: [0; 6],
-        }
-    }
-
-    pub fn set_address(&mut self, address: u64)  {
-        let mask: u64 = 0xFF0000000000;
-        for index in 0..6 {
-            self.address[index] = ((address & (mask >> (index * 8))) >> (40 - 8 * index)) as u8;
-        }
-    }
-
-    pub fn get_address(&self) -> [u8; 6] {
-        // Never panics because address is never assigned to none
-        self.address
-    }
-}
-
-impl From<u64> for MacAddress {
-    fn from(value: u64) -> Self {
-        let mut mac_address = MacAddress::new();
-        mac_address.set_address(value);
-        mac_address
-    }
-}
-
-impl From<MacAddress> for u64 {
-    fn from(mac_address: MacAddress) -> Self {
-        let mut result: u64 = 0;
-        for byte in mac_address.get_address() {
-            result += byte as u64;
-            result <<= 8;
-        }
-
-        result >> 8
-    }
-}
-
-impl Default for MacAddress {
-    fn default() -> Self {
-        MacAddress::from(DEFAULT_MAC_ADDRESS)
-    }
-}
-
 register_bitfields![u32,
 TDES0 [
     OWN OFFSET(31) NUMBITS(1) [],
@@ -847,7 +799,7 @@ impl<'a> Ethernet<'a> {
             dma_registers: ETHERNET_DMA_BASE,
             transmit_descriptor: TransmitDescriptor::new(),
             clocks: EthernetClocks::new(rcc),
-            mac_address0: OptionalCell::new(MacAddress::default()),
+            mac_address0: OptionalCell::new(MacAddress::new()),
         }
     }
 
@@ -1344,22 +1296,6 @@ impl<'a> Ethernet<'a> {
 pub mod tests {
     use super::*;
 
-    pub fn test_mac_address() {
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing Ethernet MAC address struct...");
-
-        let mut mac_address = MacAddress::new();
-        assert_eq!([0; 6], mac_address.get_address());
-        mac_address.set_address(DEFAULT_MAC_ADDRESS);
-        assert_eq!([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC], mac_address.get_address());
-        let mac_address = MacAddress::from(0x112233445566);
-        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get_address());
-        assert_eq!(0x112233445566 as u64, mac_address.into());
-
-        debug!("Finished testing Ethernet MAC address struct");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    }
-
     fn test_mac_default_values(ethernet: &Ethernet) {
         assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
@@ -1560,7 +1496,7 @@ pub mod tests {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
-        test_mac_address();
+        crate::ethernet::mac_address::tests::test_mac_address();
         test_ethernet_init(ethernet);
         test_ethernet_basic_configuration(ethernet);
         test_transmit_descriptor();
