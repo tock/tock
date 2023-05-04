@@ -853,6 +853,9 @@ impl<'a> Ethernet<'a> {
         self.flush_dma_transmit_fifo()?;
         self.enable_transmit_store_and_forward()?;
         self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
+        self.enable_normal_interruptions();
+        self.enable_transmit_interrupt();
+        self.enable_transmit_buffer_unavailable_interruption();
 
         Ok(())
     }
@@ -1088,11 +1091,19 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmasr.modify(DMASR::AIS::SET);
     }
 
-    fn has_dma_transmission_finished(&self) -> bool {
+    fn is_transmission_buffer_unavailable(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::TBUS)
+    }
+
+    fn clear_transmission_buffer_unavailable_status(&self) {
+        self.dma_registers.dmasr.modify(DMASR::TS::SET);
+    }
+
+    fn has_transmission_finished(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::TS)
     }
 
-    fn clear_dma_transmission_completion_status(&self) {
+    fn clear_transmission_completion_status(&self) {
         self.dma_registers.dmasr.modify(DMASR::TS::SET);
     }
 
@@ -1187,10 +1198,46 @@ impl<'a> Ethernet<'a> {
         }
     }
 
+    fn enable_normal_interruptions(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::NISE::SET);
+    }
+
+    fn disable_normal_interruptions(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::NISE::CLEAR);
+    }
+
+    fn are_normal_interruptions_enabled(&self) -> bool {
+        self.dma_registers.dmaier.is_set(DMAIER::NISE)
+    }
+
+    fn enable_transmit_interrupt(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::TIE::SET);
+    }
+
+    fn disable_transmit_interrupt(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::TIE::CLEAR);
+    }
+
+    fn is_transmit_interrupt_enabled(&self) -> bool {
+        self.dma_registers.dmaier.is_set(DMAIER::TIE)
+    }
+
+    fn enable_transmit_buffer_unavailable_interruption(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::TBUIE::SET);
+    }
+
+    fn disable_transmit_buffer_unavailable_interruption(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::TBUIE::CLEAR);
+    }
+
+    fn is_transmit_buffer_unavailable_interruption_enabled(&self) -> bool {
+        self.dma_registers.dmaier.is_set(DMAIER::TBUIE)
+    }
+
     fn get_current_host_transmit_descriptor_address(&self) -> u32 {
         self.dma_registers.dmachtdr.get()
     }
-    
+
     fn get_current_host_transmit_buffer_address(&self) -> u32 {
         self.dma_registers.dmachtbar.get()
     }
@@ -1215,6 +1262,16 @@ impl<'a> Ethernet<'a> {
         self.stop_dma_transmission()?;
 
         return Ok(())
+    }
+
+    pub(crate) fn handle_interrupt(&self) {
+        // TODO: Change this when chaining descriptors are implemented
+        if self.is_transmission_buffer_unavailable() {
+            self.clear_transmission_buffer_unavailable_status();
+        }
+        if self.has_transmission_finished() {
+            self.clear_transmission_completion_status();
+        }
     }
 
     fn send_frame_sync(&self, destination_address: MacAddress) -> Result<(), ErrorCode> {
@@ -1255,7 +1312,6 @@ impl<'a> Ethernet<'a> {
         for _ in 0..1000 {
             // TODO: Change condition once interruption are enabled
             if !self.transmit_descriptor.is_acquired() {
-                self.clear_dma_transmission_completion_status();
 
                 return Ok(());
             }
@@ -1385,6 +1441,16 @@ pub mod tests {
         assert_eq!(true, ethernet.is_transmit_store_and_forward_enabled());
         assert_eq!(Ok(()), ethernet.disable_transmit_store_and_forward());
         assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
+
+        ethernet.enable_normal_interruptions();
+        assert_eq!(true, ethernet.are_normal_interruptions_enabled());
+        ethernet.disable_normal_interruptions();
+        assert_eq!(false, ethernet.are_normal_interruptions_enabled());
+
+        ethernet.enable_transmit_interrupt();
+        assert_eq!(true, ethernet.is_transmit_interrupt_enabled());
+        ethernet.disable_transmit_interrupt();
+        assert_eq!(false, ethernet.is_transmit_interrupt_enabled());
 
         assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold192));
         assert_eq!(DmaTransmitThreshold::Threshold192, ethernet.get_dma_transmission_threshold_control());

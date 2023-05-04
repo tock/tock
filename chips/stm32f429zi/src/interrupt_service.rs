@@ -59,6 +59,10 @@ impl<'a> kernel::platform::chip::InterruptService for Stm32f429ziDefaultPeripher
                 self.can1.handle_error_status_interrupt();
                 true
             }
+            stm32f429zi_nvic::ETH => {
+                self.ethernet.handle_interrupt();
+                true
+            }
             _ => self.stm32f4.service_interrupt(interrupt),
         }
     }
