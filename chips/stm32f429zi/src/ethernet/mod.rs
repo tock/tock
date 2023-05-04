@@ -1118,10 +1118,10 @@ impl<'a> Ethernet<'a> {
         }
 
         if self.transmit_descriptor.error_occurred() {
-            Err(ErrorCode::FAIL)
+            Err(ErrorCode::FAIL) // An error occurred
         }
         else {
-            Err(ErrorCode::BUSY)
+            Err(ErrorCode::BUSY) // Transmitting the frame took too long
         }
     }
 }
