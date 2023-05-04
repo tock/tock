@@ -1286,12 +1286,7 @@ impl<'a> Ethernet<'a> {
         return Ok(())
     }
 
-    pub(crate) fn handle_interrupt(&self) {
-        // TODO: Change this when chaining descriptors are implemented
-        if self.is_transmission_buffer_unavailable() {
-            self.clear_transmission_buffer_unavailable_status();
-        }
-    }
+    pub(crate) fn handle_interrupt(&self) {}
 
     fn send_frame_sync(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
