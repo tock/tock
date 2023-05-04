@@ -61,18 +61,6 @@ impl TransmitDescriptor {
         }
     }
 
-    pub(in crate::ethernet) fn enable_interrupt_on_completion(&self) {
-        self.tdes0.modify(TDES0::IC::SET);
-    }
-
-    pub(in crate::ethernet) fn disable_interrupt_on_completion(&self) {
-        self.tdes0.modify(TDES0::IC::CLEAR);
-    }
-
-    pub(in crate::ethernet) fn is_interrupt_on_completion_enabled(&self) -> bool {
-        self.tdes0.is_set(TDES0::IC)
-    }
-
     pub(in crate::ethernet) fn acquire(&self) {
         self.tdes0.modify(TDES0::OWN::SET);
     }
@@ -83,6 +71,18 @@ impl TransmitDescriptor {
 
     pub(in crate::ethernet) fn is_acquired(&self) -> bool {
         self.tdes0.is_set(TDES0::OWN)
+    }
+
+    pub(in crate::ethernet) fn enable_interrupt_on_completion(&self) {
+        self.tdes0.modify(TDES0::IC::SET);
+    }
+
+    pub(in crate::ethernet) fn disable_interrupt_on_completion(&self) {
+        self.tdes0.modify(TDES0::IC::CLEAR);
+    }
+
+    pub(in crate::ethernet) fn is_interrupt_on_completion_enabled(&self) -> bool {
+        self.tdes0.is_set(TDES0::IC)
     }
 
     pub(in crate::ethernet) fn set_as_last_segment(&self) {
