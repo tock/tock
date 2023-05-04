@@ -641,6 +641,18 @@ impl TransmitDescriptor {
         }
     }
 
+    fn enable_interrupt_on_completion(&self) {
+        self.tdes0.modify(TDES0::IC::SET);
+    }
+
+    fn disable_interrupt_on_completion(&self) {
+        self.tdes0.modify(TDES0::IC::CLEAR);
+    }
+
+    fn is_interrupt_on_completion_enabled(&self) -> bool {
+        self.tdes0.is_set(TDES0::IC)
+    }
+
     fn acquire(&self) {
         self.tdes0.modify(TDES0::OWN::SET);
     }
@@ -841,11 +853,21 @@ impl<'a> Ethernet<'a> {
 
     pub fn init(&self) -> Result<(), ErrorCode> {
         self.clocks.enable();
-        self.transmit_descriptor.release();
+        self.init_transmit_descriptors();
         self.init_dma()?;
         self.init_mac();
 
         Ok(())
+    }
+
+    fn init_transmit_descriptors(&self) {
+        self.transmit_descriptor.release();
+        self.transmit_descriptor.enable_interrupt_on_completion();
+        self.transmit_descriptor.set_as_first_segment();
+        self.transmit_descriptor.set_as_last_segment();
+        self.transmit_descriptor.enable_pad();
+        self.transmit_descriptor.enable_crc();
+        self.transmit_descriptor.set_transmit_end_of_ring();
     }
 
     fn init_dma(&self) -> Result<(), ErrorCode> {
@@ -1269,9 +1291,6 @@ impl<'a> Ethernet<'a> {
         if self.is_transmission_buffer_unavailable() {
             self.clear_transmission_buffer_unavailable_status();
         }
-        if self.has_transmission_finished() {
-            self.clear_transmission_completion_status();
-        }
     }
 
     fn send_frame_sync(&self, destination_address: MacAddress) -> Result<(), ErrorCode> {
@@ -1295,11 +1314,6 @@ impl<'a> Ethernet<'a> {
         // Prepare transmit descriptor
         self.transmit_descriptor.set_buffer1_address(temporary_buffer.as_ptr() as u32);
         self.transmit_descriptor.set_buffer1_size(15 as u16)?;
-        self.transmit_descriptor.set_as_first_segment();
-        self.transmit_descriptor.set_as_last_segment();
-        self.transmit_descriptor.enable_pad();
-        self.transmit_descriptor.enable_crc();
-        self.transmit_descriptor.set_transmit_end_of_ring();
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
@@ -1311,7 +1325,8 @@ impl<'a> Ethernet<'a> {
         // Wait for transmission completion
         for _ in 0..1000 {
             // TODO: Change condition once interruption are enabled
-            if !self.transmit_descriptor.is_acquired() {
+            if self.has_transmission_finished() {
+                self.clear_transmission_completion_status();
 
                 return Ok(());
             }
@@ -1473,6 +1488,11 @@ pub mod tests {
         assert_eq!(true, transmit_descriptor.is_acquired());
         transmit_descriptor.release();
         assert_eq!(false, transmit_descriptor.is_acquired());
+
+        transmit_descriptor.enable_interrupt_on_completion();
+        assert_eq!(true, transmit_descriptor.is_interrupt_on_completion_enabled());
+        transmit_descriptor.disable_interrupt_on_completion();
+        assert_eq!(false, transmit_descriptor.is_interrupt_on_completion_enabled());
 
         transmit_descriptor.set_as_last_segment();
         assert_eq!(true, transmit_descriptor.is_last_segment());
