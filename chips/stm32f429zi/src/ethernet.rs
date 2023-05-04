@@ -839,7 +839,7 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    pub(crate) fn init(&self) -> Result<(), ErrorCode> {
+    pub fn init(&self) -> Result<(), ErrorCode> {
         self.clocks.enable();
         self.transmit_descriptor.release();
         self.init_dma()?;
@@ -851,6 +851,7 @@ impl<'a> Ethernet<'a> {
     fn init_dma(&self) -> Result<(), ErrorCode> {
         self.reset_dma()?;
         self.flush_dma_transmit_fifo()?;
+        self.enable_transmit_store_and_forward()?;
         self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
 
         Ok(())
@@ -858,6 +859,10 @@ impl<'a> Ethernet<'a> {
 
     fn init_mac(&self) {
         self.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
+        self.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
+        self.disable_loopback_mode();
+        self.set_operation_mode(OperationMode::FullDuplex);
+        self.disable_address_filter();
     }
 
     /* === MAC methods === */
@@ -1067,8 +1072,20 @@ impl<'a> Ethernet<'a> {
         }
     }
 
+    fn dma_normal_interruption(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::NIS)
+    }
+
+    fn clear_dma_normal_interruption(&self) {
+        self.dma_registers.dmasr.modify(DMASR::NIS::SET);
+    }
+
     fn dma_abnormal_interruption(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::AIS)
+    }
+
+    fn clear_dma_abnormal_interruption(&self) {
+        self.dma_registers.dmasr.modify(DMASR::AIS::SET);
     }
 
     fn has_dma_transmission_finished(&self) -> bool {
@@ -1170,6 +1187,14 @@ impl<'a> Ethernet<'a> {
         }
     }
 
+    fn get_current_host_transmit_descriptor_address(&self) -> u32 {
+        self.dma_registers.dmachtdr.get()
+    }
+    
+    fn get_current_host_transmit_buffer_address(&self) -> u32 {
+        self.dma_registers.dmachtbar.get()
+    }
+
     /* === High-level functions */
 
     fn enable_transmission(&self) -> Result<(), ErrorCode> {
@@ -1221,16 +1246,15 @@ impl<'a> Ethernet<'a> {
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
-
         while !self.transmit_descriptor.is_acquired() {}
 
         // Send a poll request to the DMA
         self.dma_transmit_poll_demand();
 
         // Wait for transmission completion
-        // TODO: Make this work
-        for _ in 0..10000 {
-            if self.has_dma_transmission_finished() {
+        for _ in 0..1000 {
+            // TODO: Change condition once interruption are enabled
+            if !self.transmit_descriptor.is_acquired() {
                 self.clear_dma_transmission_completion_status();
 
                 return Ok(());
