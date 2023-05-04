@@ -1475,6 +1475,9 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold64));
         assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmission_threshold_control());
 
+        // Restore Ethernet to its initial state
+        assert_eq!(Ok(()), ethernet.init());
+
         debug!("Finished testing Ethernet basic configuration...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
@@ -1557,11 +1560,11 @@ pub mod tests {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
-        //test_mac_address();
+        test_mac_address();
         test_ethernet_init(ethernet);
-        //test_ethernet_basic_configuration(ethernet);
-        //test_transmit_descriptor();
-        //test_frame_transmission(ethernet);
+        test_ethernet_basic_configuration(ethernet);
+        test_transmit_descriptor();
+        test_frame_transmission(ethernet);
         debug!("================================================");
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("");
