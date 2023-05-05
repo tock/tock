@@ -104,6 +104,8 @@ impl ReceiveDescriptor {
     pub(in crate::ethernet) fn set_buffer1_size(&self, size: usize) -> Result<(), ErrorCode> {
         if size >= 1 << 14 {
             return Err(ErrorCode::SIZE);
+        } else if size % 4 != 0 && size % 8 != 0 && size % 16 != 0 {
+            return Err(ErrorCode::FAIL);
         }
 
         self.rdes1.modify(RDES1::RBS1.val(size as u32));
@@ -126,6 +128,8 @@ impl ReceiveDescriptor {
     pub(in crate::ethernet) fn set_buffer2_size(&self, size: usize) -> Result<(), ErrorCode> {
         if size >= 1 << 14 {
             return Err(ErrorCode::SIZE);
+        } else if size % 4 != 0 && size % 8 != 0 && size % 16 != 0 {
+            return Err(ErrorCode::FAIL);
         }
 
         self.rdes1.modify(RDES1::RBS2.val(size as u32));
@@ -179,17 +183,30 @@ pub mod tests {
         receive_descriptor.clear_receive_end_of_ring();
         assert_eq!(false, receive_descriptor.is_receive_end_of_ring());
 
-        assert_eq!(Ok(()), receive_descriptor.set_buffer1_size(123));
-        assert_eq!(123, receive_descriptor.get_buffer1_size());
+        assert_eq!(Ok(()), receive_descriptor.set_buffer1_size(1024));
+        assert_eq!(1024, receive_descriptor.get_buffer1_size());
         assert_eq!(Err(ErrorCode::SIZE), receive_descriptor.set_buffer1_size(1 << 14));
-        assert_eq!(123, receive_descriptor.get_buffer1_size());
+        assert_eq!(1024, receive_descriptor.get_buffer1_size());
+        assert_eq!(Err(ErrorCode::FAIL), receive_descriptor.set_buffer1_size(1023));
+        assert_eq!(1024, receive_descriptor.get_buffer1_size());
 
         receive_descriptor.set_buffer1_address(0x0040000);
         assert_eq!(0x0040000, receive_descriptor.get_buffer1_address());
-
         let x: u32 = 2023;
         receive_descriptor.set_buffer1_address(&x as *const u32 as u32);
         assert_eq!(&x as *const u32 as u32, receive_descriptor.get_buffer1_address());
+
+        assert_eq!(Ok(()), receive_descriptor.set_buffer2_size(1024));
+        assert_eq!(1024, receive_descriptor.get_buffer2_size());
+        assert_eq!(Err(ErrorCode::SIZE), receive_descriptor.set_buffer2_size(1 << 14));
+        assert_eq!(1024, receive_descriptor.get_buffer2_size());
+        assert_eq!(Err(ErrorCode::FAIL), receive_descriptor.set_buffer2_size(1023));
+        assert_eq!(1024, receive_descriptor.get_buffer2_size());
+
+        receive_descriptor.set_buffer2_address(0x0040000);
+        assert_eq!(0x0040000, receive_descriptor.get_buffer2_address());
+        receive_descriptor.set_buffer2_address(&x as *const u32 as u32);
+        assert_eq!(&x as *const u32 as u32, receive_descriptor.get_buffer2_address());
 
         debug!("Finished testing receive descriptor...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
