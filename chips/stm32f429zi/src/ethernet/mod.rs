@@ -704,7 +704,9 @@ impl<'a> Ethernet<'a> {
     fn init_dma(&self) -> Result<(), ErrorCode> {
         self.reset_dma()?;
         self.flush_dma_transmit_fifo()?;
+        self.disable_flushing_received_frames();
         self.enable_transmit_store_and_forward()?;
+        self.enable_receive_store_and_forward()?;
 
         self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
         self.set_receive_descriptor_list_address(&self.receive_descriptor as *const ReceiveDescriptor as u32)?;
@@ -1051,6 +1053,10 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmasr.modify(DMASR::RS::SET)
     }
 
+    fn disable_flushing_received_frames(&self) {
+        self.dma_registers.dmaomr.modify(DMAOMR::DFRF::SET);
+    }
+
     fn enable_receive_store_and_forward(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Stopped {
             return Err(ErrorCode::FAIL);
@@ -1144,7 +1150,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn stop_dma_transmission(&self) -> Result<(), ErrorCode> {
+    fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
             return Err(ErrorCode::FAIL);
         }
@@ -1171,7 +1177,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
+    fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
             return Err(ErrorCode::FAIL);
         }
@@ -1261,7 +1267,7 @@ impl<'a> Ethernet<'a> {
     }
 
     fn disable_transmission(&self) -> Result<(), ErrorCode> {
-        self.stop_dma_transmission()?;
+        self.disable_dma_transmission()?;
         self.disable_mac_transmitter();
 
         Ok(())
@@ -1281,7 +1287,7 @@ impl<'a> Ethernet<'a> {
     }
 
     fn disable_reception(&self) -> Result<(), ErrorCode> {
-        self.disable_dma_transmission()?;
+        self.disable_dma_reception()?;
         self.disable_mac_receiver();
 
         Ok(())
@@ -1371,8 +1377,8 @@ impl<'a> Ethernet<'a> {
         }
 
         // Setup receive descriptor
-        self.receive_descriptor.set_buffer1_address(data.as_ptr() as u32);
-        self.receive_descriptor.set_buffer2_address(data.as_ptr() as u32);
+        self.receive_descriptor.set_buffer1_address(data.as_mut_ptr() as u32);
+        self.receive_descriptor.set_buffer2_address(data.as_mut_ptr() as u32);
         self.receive_descriptor.set_buffer1_size(data.len())?;
         self.receive_descriptor.set_buffer2_size(0)?;
 
@@ -1587,7 +1593,7 @@ pub mod tests {
         debug!("Testing frame reception...");
 
         let destination_address: MacAddress = MacAddress::from(0x112233445566);
-        const MAX_SIZE: usize = 1024;
+        const MAX_SIZE: usize = 128;
         let mut receive_buffer = [0 as u8; MAX_SIZE];
         // Impossible to get a frame while reception is disabled
         assert_eq!(Err(ErrorCode::OFF), ethernet.receive_frame(&mut receive_buffer));
@@ -1601,8 +1607,7 @@ pub mod tests {
         debug!("{:?}", ethernet.get_rx_fifo_fill_level());
 
         // Get a frame
-        ethernet.receive_frame(&mut receive_buffer[0..50]);
-        debug!("{:?}", &receive_buffer[0..50]);
+        //ethernet.receive_frame(&mut receive_buffer);
         //assert_eq!(Ok(()), ethernet.receive_frame(&mut receive_buffer));
 
         // Check frame integrity
@@ -1610,6 +1615,9 @@ pub mod tests {
 
         // Stop the interface
         assert_eq!(Ok(()), ethernet.stop_interface());
+
+        debug!("Finished testing frame reception...");
+        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
 
     pub fn run_all(ethernet: &Ethernet) {
@@ -1623,8 +1631,8 @@ pub mod tests {
         //super::receive_descriptor::tests::test_receive_descriptor();
         //test_frame_transmission(ethernet);
         test_frame_reception(ethernet);
-        debug!("================================================");
         debug!("Finished testing the Ethernet. Everything is alright!");
+        debug!("================================================");
         debug!("");
     }
 }
