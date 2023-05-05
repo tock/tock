@@ -887,7 +887,7 @@ impl<'a> Ethernet<'a> {
 
     fn set_mac_address0(&self, mac_address: MacAddress) {
         let address: u64 = mac_address.into();
-        let high_bits = ((address & 0xFFFF00000000) >> 32) as u16;
+        let high_bits = (address >> 32) as u16;
         self.set_mac_address0_high_register(high_bits);
         self.set_mac_address0_low_register((address & 0xFFFFFFFF) as u32);
 
@@ -1347,6 +1347,7 @@ impl<'a> Ethernet<'a> {
         temporary_buffer[12] = (data_length >> 8) as u8;
         temporary_buffer[13] = data_length as u8;
         temporary_buffer[14..(data_length + 14)].copy_from_slice(data);
+        debug!("Temporary buffer: {:?}", &temporary_buffer[0..32]);
 
         // Prepare transmit descriptor
         self.transmit_descriptor.set_buffer1_address(temporary_buffer.as_ptr() as u32);
