@@ -713,12 +713,12 @@ impl<'a> Ethernet<'a> {
         self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
         self.set_receive_descriptor_list_address(&self.receive_descriptor as *const ReceiveDescriptor as u32)?;
 
-        self.enable_normal_interruptions();
+        //self.enable_normal_interruptions();
 
-        self.enable_transmit_interrupt();
-        self.enable_receive_interrupt();
+        //self.enable_transmit_interrupt();
+        //self.enable_receive_interrupt();
 
-        self.enable_transmit_buffer_unavailable_interruption();
+        //self.enable_transmit_buffer_unavailable_interruption();
 
         Ok(())
     }
@@ -1337,14 +1337,14 @@ impl<'a> Ethernet<'a> {
 
         // Set the buffer size and return an error if it is too big
         let data_length = data.len();
-        self.transmit_descriptor.set_buffer1_size(data_length)?;
+        let frame_length = data_length + 14;
+        self.transmit_descriptor.set_buffer1_size(frame_length)?;
 
         // Prepare buffer
         const MAX_BUFFER_SIZE: usize = 1524;
         let mut temporary_buffer = [0 as u8; MAX_BUFFER_SIZE];
         temporary_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
         temporary_buffer[6..12].copy_from_slice(&destination_address.get_address());
-        let frame_length = data_length + 14;
         temporary_buffer[12] = (frame_length >> 8) as u8;
         temporary_buffer[13] = frame_length as u8;
         temporary_buffer[14..(data_length + 14)].copy_from_slice(data);
@@ -1399,7 +1399,7 @@ impl<'a> Ethernet<'a> {
 
         // Send a poll request to the DMA
         // TODO: Add interrupt for this
-         self.dma_receive_poll_demand();
+        self.dma_receive_poll_demand();
 
         // Wait for reception completion
         for _ in 0..1000 {
@@ -1620,7 +1620,7 @@ pub mod tests {
         // Get a frame
         ethernet.receive_frame(&mut receive_buffer);
         debug!("DMA Rx status: {:?}", ethernet.get_receive_process_state());
-        debug!("Buffer: {:?}", receive_buffer);
+        debug!("Buffer: {:?}", &receive_buffer[0..64]);
         //assert_eq!(Ok(()), ethernet.receive_frame(&mut receive_buffer));
 
         // Check frame integrity
