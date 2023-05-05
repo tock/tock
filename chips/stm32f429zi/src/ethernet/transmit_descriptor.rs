@@ -145,7 +145,7 @@ impl TransmitDescriptor {
         self.tdes0.is_set(TDES0::TER)
     }
 
-    pub(in crate::ethernet) fn set_buffer1_size(&self, size: u16) -> Result<(), ErrorCode> {
+    pub(in crate::ethernet) fn set_buffer1_size(&self, size: usize) -> Result<(), ErrorCode> {
         if size >= 1 << 14 {
             return Err(ErrorCode::SIZE);
         }

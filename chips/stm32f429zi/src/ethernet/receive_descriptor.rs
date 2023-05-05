@@ -101,7 +101,7 @@ impl ReceiveDescriptor {
         self.rdes1.is_set(RDES1::RER)
     }
 
-    pub(in crate::ethernet) fn set_buffer1_size(&self, size: u16) -> Result<(), ErrorCode> {
+    pub(in crate::ethernet) fn set_buffer1_size(&self, size: usize) -> Result<(), ErrorCode> {
         if size >= 1 << 14 {
             return Err(ErrorCode::SIZE);
         }
@@ -121,6 +121,32 @@ impl ReceiveDescriptor {
 
     pub(in crate::ethernet) fn get_buffer1_address(&self) -> u32 {
         self.rdes2.get()
+    }
+
+    pub(in crate::ethernet) fn set_buffer2_size(&self, size: usize) -> Result<(), ErrorCode> {
+        if size >= 1 << 14 {
+            return Err(ErrorCode::SIZE);
+        }
+
+        self.rdes1.modify(RDES1::RBS2.val(size as u32));
+
+        Ok(())
+    }
+
+    pub(in crate::ethernet) fn get_buffer2_size(&self) -> u16 {
+        self.rdes1.read(RDES1::RBS2) as u16
+    }
+
+    pub(in crate::ethernet) fn set_buffer2_address(&self, address: u32) {
+        self.rdes3.set(address);
+    }
+
+    pub(in crate::ethernet) fn get_buffer2_address(&self) -> u32 {
+        self.rdes3.get()
+    }
+
+    pub(in crate::ethernet) fn error_occurred(&self) -> bool {
+        self.rdes0.is_set(RDES0::ES) || self.rdes0.is_set(RDES0::DE)
     }
 }
 
