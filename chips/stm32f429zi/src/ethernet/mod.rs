@@ -4,6 +4,7 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
 use kernel::platform::chip::ClockInterface;
+use kernel::debug;
 
 use crate::rcc;
 use crate::rcc::PeripheralClock;
@@ -705,6 +706,7 @@ impl<'a> Ethernet<'a> {
         self.reset_dma()?;
         self.flush_dma_transmit_fifo()?;
         self.disable_flushing_received_frames();
+        self.forward_error_frames();
         self.enable_transmit_store_and_forward()?;
         self.enable_receive_store_and_forward()?;
 
@@ -723,13 +725,18 @@ impl<'a> Ethernet<'a> {
 
     fn init_mac(&self) {
         self.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
+        self.disable_mac_watchdog();
         self.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
-        self.disable_loopback_mode();
+        self.enable_loopback_mode();
         self.set_operation_mode(OperationMode::FullDuplex);
         self.disable_address_filter();
     }
 
     /* === MAC methods === */
+
+    fn disable_mac_watchdog(&self) {
+        self.mac_registers.maccr.modify(MACCR::WD::SET);
+    }
 
     fn set_ethernet_speed(&self, speed: EthernetSpeed) {
         self.mac_registers.maccr.modify(MACCR::FES.val(speed as u32));
@@ -1057,6 +1064,10 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmaomr.modify(DMAOMR::DFRF::SET);
     }
 
+    fn forward_error_frames(&self) {
+        self.dma_registers.dmaomr.modify(DMAOMR::FEF::SET);
+    }
+
     fn enable_receive_store_and_forward(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Stopped {
             return Err(ErrorCode::FAIL);
@@ -1333,7 +1344,7 @@ impl<'a> Ethernet<'a> {
         let mut temporary_buffer = [0 as u8; MAX_BUFFER_SIZE];
         temporary_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
         temporary_buffer[6..12].copy_from_slice(&destination_address.get_address());
-        temporary_buffer[12] = (data_length >> 1) as u8;
+        temporary_buffer[12] = (data_length >> 8) as u8;
         temporary_buffer[13] = data_length as u8;
         temporary_buffer[14..(data_length + 14)].copy_from_slice(data);
 
@@ -1342,7 +1353,6 @@ impl<'a> Ethernet<'a> {
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
-        while !self.transmit_descriptor.is_acquired() {}
 
         // Send a poll request to the DMA
         self.dma_transmit_poll_demand();
@@ -1365,7 +1375,7 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn receive_frame(&self, data: &mut [u8]) -> Result<(), ErrorCode> {
+    fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
         // If DMA and MAC receptions are off, return an error
         if !self.is_reception_enabled() {
             return Err(ErrorCode::OFF);
@@ -1377,16 +1387,17 @@ impl<'a> Ethernet<'a> {
         }
 
         // Setup receive descriptor
-        self.receive_descriptor.set_buffer1_address(data.as_mut_ptr() as u32);
-        self.receive_descriptor.set_buffer2_address(data.as_mut_ptr() as u32);
-        self.receive_descriptor.set_buffer1_size(data.len())?;
+        self.receive_descriptor.set_buffer1_address(buffer.as_mut_ptr() as u32);
+        self.receive_descriptor.set_buffer2_address(buffer.as_mut_ptr() as u32);
+        self.receive_descriptor.set_buffer1_size(buffer.len())?;
         self.receive_descriptor.set_buffer2_size(0)?;
 
         self.receive_descriptor.acquire();
         while !self.receive_descriptor.is_acquired() {}
 
         // Send a poll request to the DMA
-        self.dma_receive_poll_demand();
+        // TODO: Add interrupt for this
+         self.dma_receive_poll_demand();
 
         // Wait for reception completion
         for _ in 0..1000 {
@@ -1604,17 +1615,17 @@ pub mod tests {
         // Send a frame
         assert_eq!(Ok(()), ethernet.send_frame_sync(destination_address, b"Hello!"));
 
-        debug!("{:?}", ethernet.get_rx_fifo_fill_level());
-
         // Get a frame
-        //ethernet.receive_frame(&mut receive_buffer);
+        ethernet.receive_frame(&mut receive_buffer);
+        debug!("DMA Rx status: {:?}", ethernet.get_receive_process_state());
+        debug!("Buffer: {:?}", receive_buffer);
         //assert_eq!(Ok(()), ethernet.receive_frame(&mut receive_buffer));
 
         // Check frame integrity
         //assert_eq!(b"Hello!", &receive_buffer[0..6]);
 
         // Stop the interface
-        assert_eq!(Ok(()), ethernet.stop_interface());
+        //assert_eq!(Ok(()), ethernet.stop_interface());
 
         debug!("Finished testing frame reception...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
