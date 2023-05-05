@@ -705,10 +705,15 @@ impl<'a> Ethernet<'a> {
         self.reset_dma()?;
         self.flush_dma_transmit_fifo()?;
         self.enable_transmit_store_and_forward()?;
+
         self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
         self.set_receive_descriptor_list_address(&self.receive_descriptor as *const ReceiveDescriptor as u32)?;
+
         self.enable_normal_interruptions();
+
         self.enable_transmit_interrupt();
+        self.enable_receive_interrupt();
+
         self.enable_transmit_buffer_unavailable_interruption();
 
         Ok(())
@@ -1121,9 +1126,9 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn start_dma_transmission(&self) -> Result<(), ErrorCode> {
+    fn enable_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Stopped {
-            return Err(ErrorCode::FAIL);
+            return Err(ErrorCode::ALREADY);
         }
 
         self.dma_registers.dmaomr.modify(DMAOMR::ST::SET);
@@ -1148,9 +1153,9 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn start_dma_reception(&self) -> Result<(), ErrorCode> {
+    fn enable_dma_reception(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Stopped {
-            return Err(ErrorCode::FAIL);
+            return Err(ErrorCode::ALREADY);
         }
 
         self.dma_registers.dmaomr.modify(DMAOMR::SR::SET);
@@ -1158,7 +1163,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
+    fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
             return Err(ErrorCode::FAIL);
         }
@@ -1196,6 +1201,18 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmaier.is_set(DMAIER::TIE)
     }
 
+    fn enable_receive_interrupt(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::RIE::SET);
+    }
+
+    fn disable_receive_interrupt(&self) {
+        self.dma_registers.dmaier.modify(DMAIER::RIE::CLEAR);
+    }
+
+    fn is_receive_interrupt_enabled(&self) -> bool {
+        self.dma_registers.dmaier.is_set(DMAIER::RIE)
+    }
+
     fn enable_transmit_buffer_unavailable_interruption(&self) {
         self.dma_registers.dmaier.modify(DMAIER::TBUIE::SET);
     }
@@ -1223,8 +1240,8 @@ impl<'a> Ethernet<'a> {
     /* === High-level functions */
 
     fn enable_transmission(&self) -> Result<(), ErrorCode> {
+        self.enable_dma_transmission()?;
         self.enable_mac_transmitter();
-        self.start_dma_transmission()?;
 
         for _ in 0..10 {
             if self.get_transmit_process_state() != DmaTransmitProcessState::Stopped {
@@ -1236,10 +1253,44 @@ impl<'a> Ethernet<'a> {
     }
 
     fn disable_transmission(&self) -> Result<(), ErrorCode> {
-        self.disable_mac_transmitter();
         self.stop_dma_transmission()?;
+        self.disable_mac_transmitter();
 
-        return Ok(())
+        Ok(())
+    }
+
+    fn enable_reception(&self) -> Result<(), ErrorCode> {
+        self.enable_dma_reception()?;
+        self.enable_mac_receiver();
+
+        for _ in 0..10 {
+            if self.get_transmit_process_state() != DmaTransmitProcessState::Stopped {
+                return Ok(());
+            }
+        }
+
+        Err(ErrorCode::BUSY)
+    }
+
+    fn disable_reception(&self) -> Result<(), ErrorCode> {
+        self.disable_dma_transmission()?;
+        self.disable_mac_receiver();
+
+        Ok(())
+    }
+
+    fn start_interface(&self) -> Result<(), ErrorCode> {
+        self.enable_transmission()?;
+        self.enable_reception()?;
+
+        Ok(())
+    }
+
+    fn stop_interface(&self) -> Result<(), ErrorCode> {
+        self.disable_transmission()?;
+        self.enable_reception()?;
+
+        Ok(())
     }
 
     pub(crate) fn handle_interrupt(&self) {}
