@@ -1344,8 +1344,9 @@ impl<'a> Ethernet<'a> {
         let mut temporary_buffer = [0 as u8; MAX_BUFFER_SIZE];
         temporary_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
         temporary_buffer[6..12].copy_from_slice(&destination_address.get_address());
-        temporary_buffer[12] = (data_length >> 8) as u8;
-        temporary_buffer[13] = data_length as u8;
+        let frame_length = data_length + 14;
+        temporary_buffer[12] = (frame_length >> 8) as u8;
+        temporary_buffer[13] = frame_length as u8;
         temporary_buffer[14..(data_length + 14)].copy_from_slice(data);
         debug!("Temporary buffer: {:?}", &temporary_buffer[0..32]);
 
