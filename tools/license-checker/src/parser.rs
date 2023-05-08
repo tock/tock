@@ -24,7 +24,10 @@ use std::path::Path;
 use std::str::FromStr;
 use syntect::easy::ScopeRangeIterator;
 use syntect::highlighting::ScopeSelector;
+use syntect::parsing::syntax_definition::SyntaxDefinition;
 use syntect::parsing::{ParseState, ParsingError, ScopeError, ScopeStack, SyntaxSet};
+
+const FALLBACK_NAME: &str = "fallback";
 
 pub struct Cache {
     is_comment: ScopeSelector,
@@ -35,10 +38,16 @@ pub struct Cache {
 impl Default for Cache {
     fn default() -> Self {
         const COMMENT_SELECTOR: &str = "comment.line - comment.line.documentation";
+        const FALLBACK_SYNTAX: &str = include_str!("fallback_syntax.yaml");
+        let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
+        builder.add(
+            SyntaxDefinition::load_from_str(FALLBACK_SYNTAX, true, Some(FALLBACK_NAME))
+                .expect("Failed to parse fallback syntax"),
+        );
         Self {
             is_comment: ScopeSelector::from_str(COMMENT_SELECTOR).unwrap(),
             is_punctuation: ScopeSelector::from_str("punctuation").unwrap(),
-            syntax_set: SyntaxSet::load_defaults_newlines(),
+            syntax_set: builder.build(),
         }
     }
 }
@@ -96,7 +105,7 @@ pub enum LineContents<'l> {
 pub struct Parser<'cache> {
     cache: &'cache Cache,
     line: String,
-    parse_state: Option<ParseState>,
+    parse_state: ParseState,
     reader: BufReader<File>,
     scopes: ScopeStack,
 }
@@ -108,13 +117,14 @@ impl<'cache> Parser<'cache> {
         let syntax = match cache.syntax_set.find_syntax_for_file(path) {
             Err(error) if error.kind() == ErrorKind::InvalidData => return Err(ParseError::Binary),
             Err(error) => return Err(error.into()),
-            Ok(syntax) => syntax,
+            Ok(Some(syntax)) => syntax,
+            Ok(None) => cache.syntax_set.find_syntax_by_name(FALLBACK_NAME).unwrap(),
         };
 
         Ok(Self {
             cache,
             line: String::new(),
-            parse_state: syntax.map(ParseState::new),
+            parse_state: ParseState::new(syntax),
             reader: BufReader::new(File::open(path)?),
             scopes: ScopeStack::new(),
         })
@@ -133,13 +143,8 @@ impl<'cache> Parser<'cache> {
             return Err(ParseError::Eof);
         }
 
-        // Manual comment extraction for file types syntect doesn't recognize.
-        let Some(ref mut parse_state) = self.parse_state else {
-            return Ok(parse_unknown(&self.line));
-        };
-
         let cache = self.cache;
-        let ops = parse_state.parse_line(&self.line, &cache.syntax_set)?;
+        let ops = self.parse_state.parse_line(&self.line, &cache.syntax_set)?;
         let mut contents = None;
         let mut has_comment = false;
 
@@ -179,22 +184,6 @@ impl<'cache> Parser<'cache> {
             (Some(contents), _) => contents,
         })
     }
-}
-
-// Backup parser for file types that syntect doesn't recognize. Strips "# " and
-// "// " comment prefixes and assumes every no-whitespace line is a comment.
-fn parse_unknown(line: &str) -> LineContents {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return LineContents::Whitespace;
-    }
-    LineContents::Comment(if let Some(comment) = trimmed.strip_prefix("# ") {
-        comment
-    } else if let Some(comment) = trimmed.strip_prefix("// ") {
-        comment
-    } else {
-        trimmed
-    })
 }
 
 #[cfg(test)]
@@ -243,29 +232,67 @@ mod tests {
     }
 
     #[test]
-    fn fallback_parser() {
-        assert_eq!(parse_unknown(" \t "), Whitespace);
-        assert_eq!(parse_unknown("# Hash comment \n"), Comment("Hash comment"));
-        assert_eq!(
-            parse_unknown("// Slashes comment \n"),
-            Comment("Slashes comment")
-        );
-        assert_eq!(parse_unknown("Plain text \n"), Comment("Plain text"));
-    }
-
-    // Test with a file type that syntect doesn't recognize.
-    #[test]
-    fn unknown_file_type() {
+    fn fallback_number_signs() {
         const EXPECTED: &[LineContents] = &[
             Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
             Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
-            Comment("Copyright Tock Contributors 2022."),
-            Comment("Copyright Google LLC 2022."),
+            Comment("Copyright Tock Contributors 2023."),
+            Comment("Copyright Google LLC 2023."),
             Whitespace,
-            Comment("Syntect should not be able to recognize this file's type."),
-            Comment("Parser should adapt and automatically strip // and # comment prefixes."),
+            Other,
+            Other,
+            Other,
         ];
-        let path = Path::new("testdata/source.unknown_file_type");
+        let path = Path::new("testdata/number_signs.fallback");
+        assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
+    }
+
+    #[test]
+    fn fallback_shebang() {
+        const EXPECTED: &[LineContents] = &[
+            Comment("Shebang line here"),
+            Whitespace,
+            Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
+            Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
+            Comment("Copyright Tock Contributors 2023."),
+            Comment("Copyright Google LLC 2023."),
+            Whitespace,
+            Other,
+            Other,
+            Other,
+        ];
+        let path = Path::new("testdata/shebang.fallback");
+        assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
+    }
+
+    #[test]
+    fn fallback_slashes() {
+        const EXPECTED: &[LineContents] = &[
+            Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
+            Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
+            Comment("Copyright Tock Contributors 2023."),
+            Comment("Copyright Google LLC 2023."),
+            Whitespace,
+            Other,
+            Other,
+            Other,
+        ];
+        let path = Path::new("testdata/slashes.fallback");
+        assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
+    }
+
+    #[test]
+    fn plain_text() {
+        const EXPECTED: &[LineContents] = &[
+            Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
+            Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
+            Comment("Copyright Tock Contributors 2023."),
+            Comment("Copyright Google LLC 2023."),
+            Comment(""),
+            Comment("This is a plain text file; the license checker should recognize that it does"),
+            Comment("# not use a common comment syntax."),
+        ];
+        let path = Path::new("testdata/plain_text");
         assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
     }
 

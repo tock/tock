@@ -16,5 +16,5 @@ thiserror = "1.0.37"
 
 [dependencies.syntect]
 default-features = false
-features = ["default-syntaxes", "regex-onig"]
+features = ["default-syntaxes", "regex-onig", "yaml-load"]
 version = "5.0.0"
