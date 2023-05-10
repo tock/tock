@@ -291,16 +291,15 @@ delay.
 
 ### External Dependencies
 
-Generally it's best to avoid adding any external crates to the Tock project.
+Tock generally prohibits any external crates within the Tock kernel to avoid
+including external unsafe code. However, in certain situations Tock does allow
+external dependencies. This is decided on a case by case basis. For more details
+on this see [External Dependencies](ExternalDependencies.md).
 
-In certain situations Tock does allow external depenencies. This is decided on
-a case by case basis. For more details on this see
-[External Dependencies](ExternalDependencies.md).
-
-The other option to add an external library is to put specific portions of
-libraries into the `libraries` folder. This puts the library's source in the
-same repository, while keeping the library as a clearly separate crate. We do
-try to limit how often this happens.
+Tock uses some external libraries by vendoring them within the `libraries`
+folder. This puts the library's source in the same repository, while keeping the
+library as a clearly separate crate. This adds a maintenance requirement and
+complicates updates, so this is also used on a limited basis.
 
 ### Using `unsafe` and Capabilities
 

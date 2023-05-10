@@ -7,7 +7,6 @@ External Dependencies
 
 - [External Dependency Design](#external-dependency-design)
   * [Rationale](#rationale)
-  * [Specific Approach Motivation](#specific-approach-motivation)
   * [Dependency Structure of Tock-Internal Crates](#dependency-structure-of-tock-internal-crates)
 - [External Dependency Selection](#external-dependency-selection)
   * [General Guidelines for Dependency Selection](#general-guidelines-for-dependency-selection)
@@ -20,6 +19,7 @@ External Dependencies
   * [Including Capsule Crate-Specific External Dependencies](#including-capsule-crate-specific-external-dependencies)
   * [Including Board-Specific External Dependencies](#including-board-specific-external-dependencies)
   * [Documenting the Dependency and its Tree](#documenting-the-dependency-and-its-tree)
+- [Design Goals and Alternative Approaches](#design-goals-and-alternative-approaches)
 
 <!-- tocstop -->
 
@@ -27,8 +27,9 @@ Tock's general policy is the kernel does not include external dependencies (i.e.
 rust crates outside of the `tock/tock` repository) that are not part of the Rust
 standard library. However, on a limited, case-by-case basis with appropriate
 safeguards, external dependencies can be used in the Tock kernel. The rationale
-and policy for this is described in this document.
-
+and policy for this is described in this document. This document only applies to
+the Tock kernel binary itself, not userspace or other tools or binaries within
+the Tock project.
 
 
 ## External Dependency Design
@@ -47,48 +48,14 @@ external dependencies, verifying uses of `unsafe` are valid is more challenging
 to, particularly as external libraries evolve.
 
 External dependencies also typically themselves rely on dependencies, so
-including one external crate likely pulls in several external crate. As of Nov
-2022, cargo provides no mechanism for auditing and prohibiting `unsafe` in a
-dependency hierarchy. Also, the dependency chain for an external crate is
+including one external crate likely pulls in several external crates. As of May
+2023, cargo does not provide a robust way to audit and prohibit `unsafe` within
+a dependency hierarchy. Also, the dependency chain for an external crate is
 largely hidden from developers using the external crate. Lacking automated
 tools, managing dependencies is a manual process, and to limit overhead Tock
 generally avoids external dependencies.
 
-### Specific Approach Motivation
 
-The mechanism for including external dependencies is designed to satisfy the
-following goals. These goals were converged upon over multiple discussions of
-the Tock developers.
-
-Goals:
-
-- Boards which do not need or want the functionality provided by the external
-  dependency can ensure the dependency is not included in the kernel build.
-- Boards which do not use the dependency do not have to compile the dependency.
-- Boards should have discretion on which code to include in their build.
-- All uses of the external dependency in the Tock code base are explicit and
-  obvious.
-- The location within the Tock code tree for external dependencies is clear and
-  consistent, and there is a consistent format to document the dependency.
-- There is not undue overhead or boilerplate required to add an external
-  dependency.
-
-These goals necessitate a few design decisions. For example, as crates are the
-smallest unit of compilation in Rust, external dependencies must be included
-through new crates added to the Tock source tree so they can be individually
-included or excluded in specific builds. Also, crates provide a namespace to use
-to identify when external dependencies are being incorporated.
-
-Additionally, we avoid using traits or HIL-like interfaces for dependencies
-(i.e. core Tock capsules/modules would use a Tock-defined trait much like
-capsules use HILs, and a wrapper would use the external dependency to implement
-the trait) to avoid the overhead of implementing and maintaining a wrapper to
-implement the trait. While architecturally this has advantages, the overhead was
-deemed too burdensome for the expected benefit.
-
-We explicitly document the goals to help motivate the specific design in the
-remainder of this document. Also, this policy may change in the future, but
-these goals should be considered in any future updates.
 
 ### Dependency Structure of Tock-Internal Crates
 
@@ -111,12 +78,10 @@ Furthermore, this policy assumes the following rules regarding crate
 dependencies internal to Tock:
 
 - a _board crate_ is not a dependency of any other Tock-internal crate
-- a _chip crate_ is only a dependency of _board crates_ or other
-  _chip crates_
+- a _chip crate_ is only a dependency of _board crates_ or other _chip crates_
 - a _capsule crate_ is only a dependency of other _capsule crates_ or _board
   crates_
-- an _arch crate_ may only depend on the _kernel crate_ and other
-  _arch crates_
+- an _arch crate_ may only depend on the _kernel crate_ and other _arch crates_
 - the _kernel crate_ does not depend on _arch_, _chip_, _board_, or _capsule
   crates_
 
@@ -174,15 +139,17 @@ dependency in its `Cargo.toml` file.
 
 A possible way to have other crates indirectly use such a dependency is through
 a wrapper-trait. Such traits abstract the external dependency in a way that
-allows other crates to still be built without the dependency included.
+allows other crates to still be built without the dependency included. While
+using a wrapper-trait is not required, in certain scenarios wrapper-traits may
+be useful or desirable.
 
 ### Capsule Crate-Specific External Dependencies
 
 Capsules are a mechanism to provide semi-trusted infrastructure to a Tock board,
 for instance non chip-specific peripheral drivers (see [Design](./Design.md)).
-As such, it can be desirable to utilize external dependencies to implement
-complex subsystems. Examples for this are wireless- or networking-protocols such
-as Bluetooth LE or TCP.
+As such, external dependencies may be useful to implement complex subsystems.
+Examples for this are wireless or networking protocols such as Bluetooth Low
+Energy or TCP.
 
 To support such use-cases without forcing all boards to include external
 dependencies, capsules are split into multiple crates:
@@ -231,3 +198,40 @@ must be included in the PR that adds the external dependency.
 
 The Tock dependency tree can be generated by running `cargo tree`. The tree
 should be updated whenever a dependency change is made.
+
+## Design Goals and Alternative Approaches
+
+While exploring a policy for including external dependencies, the Tock project
+considered many options. This resulted in establishing a list of goals for an
+external dependency approach. These goals were converged upon over multiple
+discussions of the Tock developers.
+
+Goals:
+
+- Boards which do not need or want the functionality provided by the external
+  dependency can ensure the dependency is not included in the kernel build.
+- Boards which do not use the dependency do not have to compile the dependency.
+- Boards should have discretion on which code to include in their build.
+- All uses of the external dependency in the Tock code base are explicit and
+  obvious.
+- The location within the Tock code tree for external dependencies is clear and
+  consistent, and there is a consistent format to document the dependency.
+- There is not undue overhead or boilerplate required to add an external
+  dependency.
+
+These goals necessitate a few design decisions. For example, as crates are the
+smallest unit of compilation in Rust, external dependencies must be included
+through new crates added to the Tock source tree so they can be individually
+included or excluded in specific builds. Also, crates provide a namespace to use
+to identify when external dependencies are being incorporated.
+
+Additionally, we avoid using traits or HIL-like interfaces for dependencies
+(i.e. core Tock capsules/modules would use a Tock-defined trait much like
+capsules use HILs, and a wrapper would use the external dependency to implement
+the trait) to avoid the overhead of implementing and maintaining a wrapper to
+implement the trait. While architecturally this has advantages, the overhead was
+deemed too burdensome for the expected benefit.
+
+We explicitly document the goals to help motivate the specific design in the
+remainder of this document. Also, this policy may change in the future, but
+these goals should be considered in any future updates.
