@@ -4,15 +4,14 @@
 
 //! STimer driver for the Apollo3
 
-use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
-
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
 };
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 const STIMER_BASE: StaticRef<STimerRegisters> =
     unsafe { StaticRef::new(0x4000_8000 as *const STimerRegisters) };
@@ -114,13 +113,16 @@ impl<'a> STimer<'_> {
         let regs = self.registers;
 
         // Disable timer
-        regs.stcfg.modify(STCFG::COMPARE_A_EN::CLEAR);
+        regs.stcfg
+            .modify(STCFG::COMPARE_A_EN::CLEAR + STCFG::COMPARE_B_EN::CLEAR);
 
         // Disable interrupt
-        regs.stminten.modify(STMINT::COMPAREA::CLEAR);
+        regs.stminten
+            .modify(STMINT::COMPAREA::CLEAR + STMINT::COMPAREB::CLEAR);
 
         // Clear interrupt
-        regs.stmintclr.modify(STMINT::COMPAREA::SET);
+        regs.stmintclr
+            .modify(STMINT::COMPAREA::SET + STMINT::COMPAREB::SET);
 
         self.client.map(|client| client.alarm());
     }
@@ -169,15 +171,21 @@ impl<'a> Alarm<'a> for STimer<'a> {
         let regs = self.registers;
         let now = self.now();
         let mut expire = reference.wrapping_add(dt);
+
+        // Disable the compare
+        regs.stcfg
+            .modify(STCFG::COMPARE_A_EN::CLEAR + STCFG::COMPARE_B_EN::CLEAR);
+
         if !now.within_range(reference, expire) {
             expire = now;
         }
 
         // Enable interrupts
-        regs.stminten.modify(STMINT::COMPAREA::SET);
+        regs.stminten
+            .modify(STMINT::COMPAREA::SET + STMINT::COMPAREB::SET);
 
         // Set the delta, this can take a few goes
-        // See Errata 4.14 at at https://ambiqmicro.com/static/mcu/files/Apollo3_Blue_MCU_Errata_List_v2_0.pdf
+        // See Errata 4.14 at at https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
         let mut timer_delta = expire.wrapping_sub(now);
         let mut tries = 0;
 
@@ -193,8 +201,19 @@ impl<'a> Alarm<'a> for STimer<'a> {
             tries = tries + 1;
         }
 
+        // Timers can be missed, so set a second one a little larger
+        // See Errata 4.22 at at https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
+        timer_delta = timer_delta.wrapping_add(1.into());
+        tries = 0;
+
+        while Self::Ticks::from(regs.scmpr[1].get()) != expire && tries < 5 {
+            regs.scmpr[1].set(timer_delta.into_u32());
+            tries = tries + 1;
+        }
+
         // Enable the compare
-        regs.stcfg.modify(STCFG::COMPARE_A_EN::SET);
+        regs.stcfg
+            .modify(STCFG::COMPARE_A_EN::SET + STCFG::COMPARE_B_EN::SET);
     }
 
     fn get_alarm(&self) -> Self::Ticks {
