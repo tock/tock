@@ -544,6 +544,124 @@ DMACHRBAR [
 const ETHERNET_DMA_BASE: StaticRef<Ethernet_DmaRegisters> =
     unsafe { StaticRef::new(0x40029000 as *const Ethernet_DmaRegisters) };
 
+register_structs! {
+    /// Ethernet: MAC management counters
+    Ethernet_MmcRegisters {
+        /// Ethernet MMC control register
+        (0x000 => mmccr: ReadWrite<u32, MMCCR::Register>),
+        /// Ethernet MMC receive interrupt
+/// register
+        (0x004 => mmcrir: ReadWrite<u32, MMCRIR::Register>),
+        /// Ethernet MMC transmit interrupt
+/// register
+        (0x008 => mmctir: ReadOnly<u32, MMCTIR::Register>),
+        /// Ethernet MMC receive interrupt mask
+/// register
+        (0x00C => mmcrimr: ReadWrite<u32, MMCRIMR::Register>),
+        /// Ethernet MMC transmit interrupt mask
+/// register
+        (0x010 => mmctimr: ReadWrite<u32, MMCTIMR::Register>),
+        (0x014 => _reserved0),
+        /// Ethernet MMC transmitted good frames after a
+/// single collision counter
+        (0x04C => mmctgfsccr: ReadOnly<u32>),
+        /// Ethernet MMC transmitted good frames after
+/// more than a single collision
+        (0x050 => mmctgfmsccr: ReadOnly<u32>),
+        (0x054 => _reserved1),
+        /// Ethernet MMC transmitted good frames counter
+/// register
+        (0x068 => mmctgfcr: ReadOnly<u32>),
+        (0x06C => _reserved2),
+        /// Ethernet MMC received frames with CRC error
+/// counter register
+        (0x094 => mmcrfcecr: ReadOnly<u32>),
+        /// Ethernet MMC received frames with alignment
+/// error counter register
+        (0x098 => mmcrfaecr: ReadOnly<u32>),
+        (0x09C => _reserved3),
+        /// MMC received good unicast frames counter
+/// register
+        (0x0C4 => mmcrgufcr: ReadOnly<u32>),
+        (0x0C8 => @END),
+    }
+}
+register_bitfields![u32,
+MMCCR [
+    /// CR
+    CR OFFSET(0) NUMBITS(1) [],
+    /// CSR
+    CSR OFFSET(1) NUMBITS(1) [],
+    /// ROR
+    ROR OFFSET(2) NUMBITS(1) [],
+    /// MCF
+    MCF OFFSET(3) NUMBITS(1) [],
+    /// MCP
+    MCP OFFSET(4) NUMBITS(1) [],
+    /// MCFHP
+    MCFHP OFFSET(5) NUMBITS(1) []
+],
+MMCRIR [
+    /// RFCES
+    RFCES OFFSET(5) NUMBITS(1) [],
+    /// RFAES
+    RFAES OFFSET(6) NUMBITS(1) [],
+    /// RGUFS
+    RGUFS OFFSET(17) NUMBITS(1) []
+],
+MMCTIR [
+    /// TGFSCS
+    TGFSCS OFFSET(14) NUMBITS(1) [],
+    /// TGFMSCS
+    TGFMSCS OFFSET(15) NUMBITS(1) [],
+    /// TGFS
+    TGFS OFFSET(21) NUMBITS(1) []
+],
+MMCRIMR [
+    /// RFCEM
+    RFCEM OFFSET(5) NUMBITS(1) [],
+    /// RFAEM
+    RFAEM OFFSET(6) NUMBITS(1) [],
+    /// RGUFM
+    RGUFM OFFSET(17) NUMBITS(1) []
+],
+MMCTIMR [
+    /// TGFSCM
+    TGFSCM OFFSET(14) NUMBITS(1) [],
+    /// TGFMSCM
+    TGFMSCM OFFSET(15) NUMBITS(1) [],
+    /// TGFM
+    TGFM OFFSET(16) NUMBITS(1) []
+],
+MMCTGFSCCR [
+    /// TGFSCC
+    TGFSCC OFFSET(0) NUMBITS(32) []
+],
+MMCTGFMSCCR [
+    /// TGFMSCC
+    TGFMSCC OFFSET(0) NUMBITS(32) []
+],
+MMCTGFCR [
+    /// HTL
+    TGFC OFFSET(0) NUMBITS(32) []
+],
+MMCRFCECR [
+    /// RFCFC
+    RFCFC OFFSET(0) NUMBITS(32) []
+],
+MMCRFAECR [
+    /// RFAEC
+    RFAEC OFFSET(0) NUMBITS(32) []
+],
+MMCRGUFCR [
+    /// RGUFC
+    RGUFC OFFSET(0) NUMBITS(32) []
+]
+];
+
+const ETHERNET_MMC_BASE: StaticRef<Ethernet_MmcRegisters> =
+    unsafe { StaticRef::new(0x40028100 as *const Ethernet_MmcRegisters) };
+
 #[derive(PartialEq, Debug)]
 pub enum EthernetSpeed {
     Speed10Mbs = 0b0,
@@ -655,6 +773,7 @@ impl<'a> EthernetClocks<'a> {
 
 pub struct Ethernet<'a> {
     mac_registers: StaticRef<Ethernet_MacRegisters>,
+    mmc_registers: StaticRef<Ethernet_MmcRegisters>,
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
@@ -668,6 +787,7 @@ impl<'a> Ethernet<'a> {
     pub fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
+            mmc_registers: ETHERNET_MMC_BASE,
             dma_registers: ETHERNET_DMA_BASE,
             transmit_descriptor: TransmitDescriptor::new(),
             receive_descriptor: ReceiveDescriptor::new(),
@@ -713,12 +833,12 @@ impl<'a> Ethernet<'a> {
         self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
         self.set_receive_descriptor_list_address(&self.receive_descriptor as *const ReceiveDescriptor as u32)?;
 
-        //self.enable_normal_interruptions();
+        self.enable_normal_interruptions();
 
-        //self.enable_transmit_interrupt();
-        //self.enable_receive_interrupt();
+        self.enable_transmit_interrupt();
+        self.enable_receive_interrupt();
 
-        //self.enable_transmit_buffer_unavailable_interruption();
+        self.enable_transmit_buffer_unavailable_interruption();
 
         Ok(())
     }
@@ -727,7 +847,7 @@ impl<'a> Ethernet<'a> {
         self.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
         self.disable_mac_watchdog();
         self.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
-        self.enable_loopback_mode();
+        self.disable_loopback_mode();
         self.set_operation_mode(OperationMode::FullDuplex);
         self.disable_address_filter();
     }
@@ -1619,8 +1739,12 @@ pub mod tests {
 
         // Get a frame
         ethernet.receive_frame(&mut receive_buffer);
+        debug!("Rx FIFO level: {:?}", ethernet.get_rx_fifo_fill_level());
         debug!("DMA Rx status: {:?}", ethernet.get_receive_process_state());
         debug!("Buffer: {:?}", &receive_buffer[0..64]);
+        debug!("Error with CRC: {:?}", ethernet.mmc_registers.mmcrfcecr.get());
+        debug!("Error with alignment: {:?}", ethernet.mmc_registers.mmcrfaecr.get());
+        debug!("Transmitted frames: {:?}", ethernet.mmc_registers.mmctgfsccr.get());
         //assert_eq!(Ok(()), ethernet.receive_frame(&mut receive_buffer));
 
         // Check frame integrity
@@ -1642,8 +1766,8 @@ pub mod tests {
         //test_ethernet_basic_configuration(ethernet);
         //super::transmit_descriptor::tests::test_transmit_descriptor();
         //super::receive_descriptor::tests::test_receive_descriptor();
-        //test_frame_transmission(ethernet);
-        test_frame_reception(ethernet);
+        test_frame_transmission(ethernet);
+        //test_frame_reception(ethernet);
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
