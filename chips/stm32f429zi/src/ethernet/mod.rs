@@ -425,8 +425,8 @@ DMASR [
     RBUS OFFSET(7) NUMBITS(1) [],
     /// RPSS
     RPSS OFFSET(8) NUMBITS(1) [],
-    /// PWTS
-    PWTS OFFSET(9) NUMBITS(1) [],
+    /// RWTS
+    RWTS OFFSET(9) NUMBITS(1) [],
     /// ETS
     ETS OFFSET(10) NUMBITS(1) [],
     /// FBES
@@ -1125,13 +1125,52 @@ impl<'a> Ethernet<'a> {
     //fn clear_dma_abnormal_interrupt(&self) {
         //self.dma_registers.dmasr.modify(DMASR::AIS::SET);
     //}
-
     fn did_early_receive_interrupt_occur(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::ERS)
     }
 
     fn clear_early_receive_interrupt(&self) {
         self.dma_registers.dmasr.modify(DMASR::ERS::SET);
+    }
+
+    fn did_fatal_bus_error_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::FBES)
+    }
+
+    fn clear_fatal_bus_error_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::FBES::SET);
+    }
+
+    fn did_early_transmit_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::ETS)
+    }
+
+    fn clear_early_transmit_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::ETS::SET);
+    }
+
+    fn did_receive_watchdog_timeout_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::RWTS)
+    }
+
+    fn clear_receive_watchdog_timeout_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::RWTS::SET);
+    }
+
+    fn did_receive_process_stopped_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::RPSS)
+    }
+
+    fn clear_receive_process_stopped_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::RPSS::SET);
+    }
+
+    fn did_receive_buffer_unavailable_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::RBUS)
+    }
+
+    fn clear_receive_buffer_unavailable_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::RBUS::SET);
     }
     
     fn did_receive_interrupt_occur(&self) -> bool {
@@ -1142,12 +1181,44 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmasr.modify(DMASR::RS::SET);
     }
 
+    fn did_transmit_buffer_underflow_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::TUS)
+    }
+
+    fn clear_transmit_buffer_underflow_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::TUS::SET);
+    }
+
+    fn did_receive_fifo_overflow_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::ROS)
+    }
+
+    fn clear_receive_fifo_overflow_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::ROS::SET);
+    }
+
+    fn did_transmit_jabber_timeout_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::TJTS)
+    }
+
+    fn clear_transmit_jabber_timeout_interrupt(&self) {
+        self.dma_registers.dmasr.modify(DMASR::TJTS::SET);
+    }
+
     fn did_transmit_buffer_unavailable_interrupt_occur(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::TBUS)
     }
 
     fn clear_transmit_buffer_unavailable_interrupt(&self) {
         self.dma_registers.dmasr.modify(DMASR::TS::SET);
+    }
+
+    fn did_transmit_process_stopped_interrupt_occur(&self) -> bool {
+        self.dma_registers.dmasr.is_set(DMASR::TPSS)
+    }
+
+    fn clear_transmit_process_stopped_interrupt_occur(&self) {
+        self.dma_registers.dmasr.modify(DMASR::TPSS::SET);
     }
 
     fn did_transmit_interrupt_occur(&self) -> bool {
@@ -1606,37 +1677,66 @@ impl<'a> Ethernet<'a> {
 
     fn enable_all_interrupts(&self) {
         self.enable_all_normal_interrupts();
-        //self.enable_all_error_interrupts();
+        self.enable_all_error_interrupts();
     }
 
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
             debug!("Transmit interrupt");
             self.clear_transmit_interrupt();
-        }
-        if self.did_transmit_buffer_unavailable_interrupt_occur() {
+        } else if self.did_transmit_buffer_unavailable_interrupt_occur() {
             debug!("Transmit buffer unavailable");
             self.clear_transmit_buffer_unavailable_interrupt();
-        }
-        if self.did_receive_interrupt_occur() {
+        } else if self.did_receive_interrupt_occur() {
             debug!("Receive interrupt");
             self.clear_receive_interrupt();
-        }
-        if self.did_early_receive_interrupt_occur() {
+        } else if self.did_early_receive_interrupt_occur() {
             debug!("Early receive interrupt");
             self.clear_early_receive_interrupt();
+        }
+    }
+
+    fn handle_abnormal_interrupt(&self) {
+        if self.did_fatal_bus_error_interrupt_occur() {
+            debug!("Fatal bus error");
+            self.clear_fatal_bus_error_interrupt();
+        } else if self.did_early_transmit_interrupt_occur() {
+            debug!("Early transmit interrupt");
+            self.clear_early_transmit_interrupt();
+        } else if self.did_receive_watchdog_timeout_interrupt_occur() {
+            debug!("Receive watchdog timeout interrupt");
+            self.clear_receive_watchdog_timeout_interrupt();
+        } else if self.did_receive_process_stopped_interrupt_occur() {
+            debug!("Receive process stopped interrupt");
+            self.clear_receive_process_stopped_interrupt();
+        } else if self.did_receive_buffer_unavailable_interrupt_occur() {
+            debug!("Receive buffer unavailable interrupt");
+            self.clear_receive_buffer_unavailable_interrupt();
+        } else if self.did_transmit_buffer_underflow_interrupt_occur() {
+            debug!("Transmit buffer underflow interrupt");
+            self.clear_transmit_buffer_underflow_interrupt();
+        } else if self.did_receive_fifo_overflow_interrupt_occur() {
+            debug!("Receive buffer overflow interrupt");
+            self.clear_receive_fifo_overflow_interrupt();
+        } else if self.did_transmit_jabber_timeout_interrupt_occur() {
+            debug!("Transmit buffer timeout interrupt");
+            self.clear_transmit_jabber_timeout_interrupt()
+        } else if self.did_transmit_process_stopped_interrupt_occur() {
+            debug!("Transmit process stopped interrupt");
+            self.clear_transmit_process_stopped_interrupt_occur();
         }
     }
 
     pub(crate) fn handle_interrupt(&self) {
         if self.did_normal_interrupt_occur() {
             self.handle_normal_interrupt();
-        } else if self.did_abnormal_interrupt_occur() {
-            debug!("Abnormal interrupt");
+        }
+        if self.did_abnormal_interrupt_occur() {
+            self.handle_abnormal_interrupt();
         }
     }
 
-    fn send_frame_sync(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
+    fn transmit_frame(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
         if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
             return Err(ErrorCode::OFF);
@@ -1666,6 +1766,8 @@ impl<'a> Ethernet<'a> {
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
+
+        for _ in 0..100 {}
 
         // Send a poll request to the DMA
         self.dma_transmit_poll_demand();
@@ -1982,13 +2084,13 @@ pub mod tests {
         debug!("Testing frame transmission...");
         let destination_address: MacAddress = MacAddress::from(0x112233445566);
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.send_frame_sync(destination_address, b"Hello!"));
+        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_frame(destination_address, b"Hello!"));
 
         // Enable Ethernet transmission
         assert_eq!(Ok(()), ethernet.enable_transmission());
 
         // Now, a frame can be send
-        assert_eq!(Ok(()), ethernet.send_frame_sync(destination_address, b"Hello!"));
+        assert_eq!(Ok(()), ethernet.transmit_frame(destination_address, b"Hello!"));
         assert_eq!(true, ethernet.is_mac_tx_empty());
         assert_eq!(MacTxReaderStatus::Idle, ethernet.get_mac_tx_reader_status());
         assert_eq!(MacTxWriterStatus::Idle, ethernet.get_mac_tx_writer_status());
@@ -2016,7 +2118,7 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.start_interface());
 
         // Send a frame
-        assert_eq!(Ok(()), ethernet.send_frame_sync(destination_address, b"Hello!"));
+        assert_eq!(Ok(()), ethernet.transmit_frame(destination_address, b"Hello!"));
 
         // Get a frame
         ethernet.receive_frame(&mut receive_buffer);
