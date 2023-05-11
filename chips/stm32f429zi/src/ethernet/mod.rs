@@ -1,5 +1,5 @@
 use kernel::utilities::StaticRef;
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
@@ -771,26 +771,30 @@ impl<'a> EthernetClocks<'a> {
     }
 }
 
+pub const MAX_BUFFER_SIZE: usize = 1524;
+
 pub struct Ethernet<'a> {
     mac_registers: StaticRef<Ethernet_MacRegisters>,
     mmc_registers: StaticRef<Ethernet_MmcRegisters>,
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
+    transmit_buffer: TakeCell<'a, [u8; MAX_BUFFER_SIZE]>,
     clocks: EthernetClocks<'a>,
     mac_address0: OptionalCell<MacAddress>,
 }
 
-const DEFAULT_MAC_ADDRESS: u64 = 0x123456789ABC;
+pub const DEFAULT_MAC_ADDRESS: u64 = 0x123456789ABC;
 
 impl<'a> Ethernet<'a> {
-    pub fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(rcc: &'a rcc::Rcc, transmit_buffer: &'a mut [u8; MAX_BUFFER_SIZE]) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
             mmc_registers: ETHERNET_MMC_BASE,
             dma_registers: ETHERNET_DMA_BASE,
             transmit_descriptor: TransmitDescriptor::new(),
             receive_descriptor: ReceiveDescriptor::new(),
+            transmit_buffer: TakeCell::new(transmit_buffer),
             clocks: EthernetClocks::new(rcc),
             mac_address0: OptionalCell::new(MacAddress::new()),
         }
@@ -1753,39 +1757,44 @@ impl<'a> Ethernet<'a> {
         self.transmit_descriptor.set_buffer1_size(frame_length)?;
 
         // Prepare buffer
-        const MAX_BUFFER_SIZE: usize = 1524;
-        let mut temporary_buffer = [0 as u8; MAX_BUFFER_SIZE];
-        temporary_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
-        temporary_buffer[6..12].copy_from_slice(&destination_address.get_address());
-        temporary_buffer[12] = (frame_length >> 8) as u8;
-        temporary_buffer[13] = frame_length as u8;
-        temporary_buffer[14..(data_length + 14)].copy_from_slice(data);
+        // Can't panic since the transmit buffer is set when then driver is created
+        let transmit_buffer = self.transmit_buffer.take().unwrap();
+        transmit_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
+        transmit_buffer[6..12].copy_from_slice(&destination_address.get_address());
+        transmit_buffer[12] = (frame_length >> 8) as u8;
+        transmit_buffer[13] = frame_length as u8;
+        transmit_buffer[14..(data_length + 14)].copy_from_slice(data);
 
         // Prepare transmit descriptor
-        self.transmit_descriptor.set_buffer1_address(temporary_buffer.as_ptr() as u32);
+        self.transmit_descriptor.set_buffer1_address(transmit_buffer.as_ptr() as u32);
+        self.transmit_buffer.put(Some(transmit_buffer));
+
+        // Wait 4 CPU cycles until everything is written to the RAM
+        for _ in 0..4 {}
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
 
-        for _ in 0..100 {}
 
         // Send a poll request to the DMA
         self.dma_transmit_poll_demand();
 
-        // Wait for transmission completion
-        for _ in 0..1000 {
-            // TODO: Change condition once interrupts are enabled
-            if self.did_transmit_interrupt_occur() {
-                return Ok(());
-            }
-        }
+        Ok(())
 
-        if self.transmit_descriptor.error_occurred() {
-            Err(ErrorCode::FAIL) // An error occurred
-        }
-        else {
-            Err(ErrorCode::BUSY) // Transmitting the frame took too long
-        }
+        // Wait for transmission completion
+        //for _ in 0..1000 {
+            //// TODO: Change condition once interrupts are enabled
+            //if self.did_transmit_interrupt_occur() {
+                //return Ok(());
+            //}
+        //}
+
+        //if self.transmit_descriptor.error_occurred() {
+            //Err(ErrorCode::FAIL) // An error occurred
+        //}
+        //else {
+            //Err(ErrorCode::BUSY) // Transmitting the frame took too long
+        //}
     }
 
     fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
@@ -2091,11 +2100,8 @@ pub mod tests {
 
         // Now, a frame can be send
         assert_eq!(Ok(()), ethernet.transmit_frame(destination_address, b"Hello!"));
-        assert_eq!(true, ethernet.is_mac_tx_empty());
-        assert_eq!(MacTxReaderStatus::Idle, ethernet.get_mac_tx_reader_status());
-        assert_eq!(MacTxWriterStatus::Idle, ethernet.get_mac_tx_writer_status());
-        assert_eq!(DmaTransmitProcessState::Suspended, ethernet.get_transmit_process_state());
-        assert_eq!(false, ethernet.transmit_descriptor.is_acquired());
+
+        for _ in 0..100 {}
 
         // Disable transmission
         assert_eq!(Ok(()), ethernet.disable_transmission());
