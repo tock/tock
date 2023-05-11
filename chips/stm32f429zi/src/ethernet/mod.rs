@@ -780,6 +780,7 @@ pub struct Ethernet<'a> {
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
     transmit_buffer: TakeCell<'a, [u8; MAX_BUFFER_SIZE]>,
+    transmit_client: OptionalCell<&'a dyn TransmitClient>,
     clocks: EthernetClocks<'a>,
     mac_address0: OptionalCell<MacAddress>,
 }
@@ -795,6 +796,7 @@ impl<'a> Ethernet<'a> {
             transmit_descriptor: TransmitDescriptor::new(),
             receive_descriptor: ReceiveDescriptor::new(),
             transmit_buffer: TakeCell::new(transmit_buffer),
+            transmit_client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
             mac_address0: OptionalCell::new(MacAddress::new()),
         }
@@ -1684,17 +1686,45 @@ impl<'a> Ethernet<'a> {
         self.enable_all_error_interrupts();
     }
 
+    fn disable_all_normal_interrupts(&self) {
+        self.disable_normal_interrupts();
+        self.disable_early_receive_interrupt();
+        self.disable_receive_interrupt();
+        self.disable_transmit_buffer_unavailable_interrupt();
+        self.disable_transmit_interrupt();
+    }
+
+    fn disable_all_error_interrupts(&self) {
+        self.disable_abnormal_interrupt_summary();
+        self.disable_early_receive_interrupt();
+        self.disable_fatal_bus_error_interrupt();
+        self.disable_early_transmit_interrupt();
+        self.disable_receive_watchdog_timeout_interrupt();
+        self.disable_receive_process_stopped_interrupt();
+        self.disable_receive_buffer_unavailable();
+        self.disable_underflow_interrupt();
+        self.disable_overflow_interrupt();
+        self.disable_transmit_jabber_interrupt();
+        self.disable_transmit_process_stopped_interrupt();
+    }
+
+    fn disable_all_interrupts(&self) {
+        self.disable_all_normal_interrupts();
+        self.disable_all_error_interrupts();
+    }
+
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
-            debug!("Transmit interrupt");
             self.clear_transmit_interrupt();
-        } else if self.did_transmit_buffer_unavailable_interrupt_occur() {
+            debug!("{:?}", self.mmc_registers.mmctir.read(MMCTIR::TGFS));
+            self.transmit_client.map(|client| client.transmitted_frame(Ok(())));
+        } if self.did_transmit_buffer_unavailable_interrupt_occur() {
             debug!("Transmit buffer unavailable");
             self.clear_transmit_buffer_unavailable_interrupt();
-        } else if self.did_receive_interrupt_occur() {
+        } if self.did_receive_interrupt_occur() {
             debug!("Receive interrupt");
             self.clear_receive_interrupt();
-        } else if self.did_early_receive_interrupt_occur() {
+        } if self.did_early_receive_interrupt_occur() {
             debug!("Early receive interrupt");
             self.clear_early_receive_interrupt();
         }
@@ -1704,28 +1734,28 @@ impl<'a> Ethernet<'a> {
         if self.did_fatal_bus_error_interrupt_occur() {
             debug!("Fatal bus error");
             self.clear_fatal_bus_error_interrupt();
-        } else if self.did_early_transmit_interrupt_occur() {
+        } if self.did_early_transmit_interrupt_occur() {
             debug!("Early transmit interrupt");
             self.clear_early_transmit_interrupt();
-        } else if self.did_receive_watchdog_timeout_interrupt_occur() {
+        } if self.did_receive_watchdog_timeout_interrupt_occur() {
             debug!("Receive watchdog timeout interrupt");
             self.clear_receive_watchdog_timeout_interrupt();
-        } else if self.did_receive_process_stopped_interrupt_occur() {
+        } if self.did_receive_process_stopped_interrupt_occur() {
             debug!("Receive process stopped interrupt");
             self.clear_receive_process_stopped_interrupt();
-        } else if self.did_receive_buffer_unavailable_interrupt_occur() {
+        } if self.did_receive_buffer_unavailable_interrupt_occur() {
             debug!("Receive buffer unavailable interrupt");
             self.clear_receive_buffer_unavailable_interrupt();
-        } else if self.did_transmit_buffer_underflow_interrupt_occur() {
+        } if self.did_transmit_buffer_underflow_interrupt_occur() {
             debug!("Transmit buffer underflow interrupt");
             self.clear_transmit_buffer_underflow_interrupt();
-        } else if self.did_receive_fifo_overflow_interrupt_occur() {
+        } if self.did_receive_fifo_overflow_interrupt_occur() {
             debug!("Receive buffer overflow interrupt");
             self.clear_receive_fifo_overflow_interrupt();
-        } else if self.did_transmit_jabber_timeout_interrupt_occur() {
+        } if self.did_transmit_jabber_timeout_interrupt_occur() {
             debug!("Transmit buffer timeout interrupt");
             self.clear_transmit_jabber_timeout_interrupt()
-        } else if self.did_transmit_process_stopped_interrupt_occur() {
+        } if self.did_transmit_process_stopped_interrupt_occur() {
             debug!("Transmit process stopped interrupt");
             self.clear_transmit_process_stopped_interrupt_occur();
         }
@@ -1740,7 +1770,11 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn transmit_frame(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
+    fn transmit_frame(&self,
+        transmit_client: &'a dyn TransmitClient,
+        destination_address: MacAddress,
+        data: &[u8]
+    ) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
         if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
             return Err(ErrorCode::OFF);
@@ -1750,6 +1784,8 @@ impl<'a> Ethernet<'a> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
             return Err(ErrorCode::BUSY);
         }
+
+        self.transmit_client.set(transmit_client);
 
         // Set the buffer size and return an error if it is too big
         let data_length = data.len();
@@ -1780,21 +1816,6 @@ impl<'a> Ethernet<'a> {
         self.dma_transmit_poll_demand();
 
         Ok(())
-
-        // Wait for transmission completion
-        //for _ in 0..1000 {
-            //// TODO: Change condition once interrupts are enabled
-            //if self.did_transmit_interrupt_occur() {
-                //return Ok(());
-            //}
-        //}
-
-        //if self.transmit_descriptor.error_occurred() {
-            //Err(ErrorCode::FAIL) // An error occurred
-        //}
-        //else {
-            //Err(ErrorCode::BUSY) // Transmitting the frame took too long
-        //}
     }
 
     fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
@@ -1815,33 +1836,58 @@ impl<'a> Ethernet<'a> {
         self.receive_descriptor.set_buffer2_size(0)?;
 
         self.receive_descriptor.acquire();
-        while !self.receive_descriptor.is_acquired() {}
+        //while !self.receive_descriptor.is_acquired() {}
 
-        // Send a poll request to the DMA
-        // TODO: Add interrupt for this
-        self.dma_receive_poll_demand();
+        //// Send a poll request to the DMA
+        //// TODO: Add interrupt for this
+        //self.dma_receive_poll_demand();
+
+        Ok(())
 
         // Wait for reception completion
-        for _ in 0..1000 {
-            if self.has_reception_finished() {
-                self.clear_reception_completion_status();
+        //for _ in 0..1000 {
+            //if self.has_reception_finished() {
+                //self.clear_reception_completion_status();
 
-                return Ok(());
-            }
-        }
+                //return Ok(());
+            //}
+        //}
 
-        if self.receive_descriptor.error_occurred() {
-            Err(ErrorCode::FAIL)
-        }
-        else {
-            Err(ErrorCode::BUSY)
-        }
+        //if self.receive_descriptor.error_occurred() {
+            //Err(ErrorCode::FAIL)
+        //}
+        //else {
+            //Err(ErrorCode::BUSY)
+        //}
     }
+}
+
+pub trait TransmitClient {
+    fn transmitted_frame(&self, transmit_status: Result<(), ErrorCode>);
 }
 
 pub mod tests {
     use super::*;
     use kernel::debug;
+
+    pub struct DummyTransmitClient {
+        pub(self) transmit_status: OptionalCell<Result<(), ErrorCode>>
+    }
+
+    impl DummyTransmitClient {
+        pub fn new() -> Self {
+            Self {
+                transmit_status: OptionalCell::empty()
+            }
+        }
+    }
+
+    impl TransmitClient for DummyTransmitClient {
+        fn transmitted_frame(&self, transmit_status: Result<(), ErrorCode>) {
+            self.transmit_status.set(transmit_status);
+            debug!("DummyTransmitClient::transmitted_frame() called!");
+        }
+    }
 
     fn test_mac_default_values(ethernet: &Ethernet) {
         assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
@@ -2088,20 +2134,24 @@ pub mod tests {
     }
 
 
-    pub fn test_frame_transmission(ethernet: &Ethernet) {
+    pub fn test_frame_transmission<'a>(ethernet: &'a Ethernet<'a>, transmit_client: &'a DummyTransmitClient) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame transmission...");
         let destination_address: MacAddress = MacAddress::from(0x112233445566);
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_frame(destination_address, b"Hello!"));
+        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_frame(transmit_client, destination_address, b"Hello!"));
 
         // Enable Ethernet transmission
         assert_eq!(Ok(()), ethernet.enable_transmission());
 
         // Now, a frame can be send
-        assert_eq!(Ok(()), ethernet.transmit_frame(destination_address, b"Hello!"));
+        assert_eq!(Ok(()), ethernet.transmit_frame(transmit_client, destination_address, b"Hello!"));
+        debug!("{:?}", ethernet.get_transmit_process_state());
 
+        // Wait for transmit to complete
         for _ in 0..100 {}
+        debug!("{:?}", ethernet.get_transmit_process_state());
+        debug!("{:?}", ethernet.transmit_descriptor.error_occurred());
 
         // Disable transmission
         assert_eq!(Ok(()), ethernet.disable_transmission());
@@ -2110,43 +2160,36 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     }
 
-    pub fn test_frame_reception(ethernet: &Ethernet) {
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing frame reception...");
+    //pub fn test_frame_reception(ethernet: &Ethernet) {
+        //debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        //debug!("Testing frame reception...");
 
-        let destination_address: MacAddress = MacAddress::from(0x112233445566);
-        const MAX_SIZE: usize = 128;
-        let mut receive_buffer = [0 as u8; MAX_SIZE];
-        // Impossible to get a frame while reception is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.receive_frame(&mut receive_buffer));
+        //let destination_address: MacAddress = MacAddress::from(0x112233445566);
+        //const MAX_SIZE: usize = 128;
+        //let mut receive_buffer = [0 as u8; MAX_SIZE];
+        //// Impossible to get a frame while reception is disabled
+        //assert_eq!(Err(ErrorCode::OFF), ethernet.receive_frame(&mut receive_buffer));
 
-        // Start both reception and transmission
-        assert_eq!(Ok(()), ethernet.start_interface());
+        //// Start both reception and transmission
+        //assert_eq!(Ok(()), ethernet.start_interface());
 
-        // Send a frame
-        assert_eq!(Ok(()), ethernet.transmit_frame(destination_address, b"Hello!"));
+        //// Send a frame
+        //assert_eq!(Ok(()), ethernet.transmit_frame(destination_address, b"Hello!"));
 
-        // Get a frame
-        ethernet.receive_frame(&mut receive_buffer);
-        debug!("Rx FIFO level: {:?}", ethernet.get_rx_fifo_fill_level());
-        debug!("DMA Rx status: {:?}", ethernet.get_receive_process_state());
-        debug!("Buffer: {:?}", &receive_buffer[0..64]);
-        debug!("Error with CRC: {:?}", ethernet.mmc_registers.mmcrfcecr.get());
-        debug!("Error with alignment: {:?}", ethernet.mmc_registers.mmcrfaecr.get());
-        debug!("Transmitted frames: {:?}", ethernet.mmc_registers.mmctgfsccr.get());
+        //// Get a frame
         //assert_eq!(Ok(()), ethernet.receive_frame(&mut receive_buffer));
 
-        // Check frame integrity
-        //assert_eq!(b"Hello!", &receive_buffer[0..6]);
+        //// Check frame integrity
+        ////assert_eq!(b"Hello!", &receive_buffer[0..6]);
 
-        // Stop the interface
-        //assert_eq!(Ok(()), ethernet.stop_interface());
+        //// Stop the interface
+        ////assert_eq!(Ok(()), ethernet.stop_interface());
 
-        debug!("Finished testing frame reception...");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    }
+        //debug!("Finished testing frame reception...");
+        //debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    //}
 
-    pub fn run_all(ethernet: &Ethernet) {
+    pub fn run_all<'a>(ethernet: &'a Ethernet<'a>, transmit_client: &'a DummyTransmitClient) {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
@@ -2156,7 +2199,7 @@ pub mod tests {
         //test_ethernet_interrupts(ethernet);
         //super::transmit_descriptor::tests::test_transmit_descriptor();
         //super::receive_descriptor::tests::test_receive_descriptor();
-        test_frame_transmission(ethernet);
+        test_frame_transmission(ethernet, transmit_client);
         //test_frame_reception(ethernet);
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
