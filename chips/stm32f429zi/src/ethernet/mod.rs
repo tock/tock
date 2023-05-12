@@ -1756,13 +1756,17 @@ impl<'a> Ethernet<'a> {
             return Err(ErrorCode::BUSY);
         }
 
-        self.transmit_client.set(transmit_client);
-
         // Set the buffer size and return an error if it is too big
         let data_length = data.len();
-        // CHANGE THIS
-        let frame_length = (data_length + 14) % 4  + data_length + 14;
-        self.transmit_descriptor.set_buffer1_size(frame_length)?;
+        let buffer_length = data_length + 14;
+        // WARNING: this assumes automatic padding and CRC generation
+        let frame_length = if buffer_length < 60 {
+            64
+        } else {
+            buffer_length + 4
+        };
+
+        self.transmit_descriptor.set_buffer1_size(buffer_length)?;
 
         // Prepare buffer
         // Can't panic since the transmit buffer is set when the driver is created
@@ -1777,13 +1781,16 @@ impl<'a> Ethernet<'a> {
         self.transmit_descriptor.set_buffer1_address(transmit_buffer.as_ptr() as u32);
         self.transmit_buffer.put(Some(transmit_buffer));
 
+        // Set the transmit client
+        self.transmit_client.set(transmit_client);
+
+        // Acquire the transmit descriptor
+        self.transmit_descriptor.acquire();
+
         // Wait 4 CPU cycles until everything is written to the RAM
         for _ in 0..4 {
             nop();
         }
-
-        // Acquire the transmit descriptor
-        self.transmit_descriptor.acquire();
 
         // Send a poll request to the DMA
         self.dma_transmit_poll_demand();
@@ -2171,7 +2178,7 @@ pub mod tests {
             }
             ethernet.handle_interrupt();
         }
-        debug!("Received buffer: {:?}", &receive_buffer[0..32]);
+        debug!("Received buffer: {:?}", &receive_buffer[0..64]);
         debug!("RX FIFO fill level: {:?}", ethernet.get_rx_fifo_fill_level());
         debug!("Receive process state: {:?}", ethernet.get_receive_process_state());
         debug!("Good unicast received frames: {:?}", ethernet.mmc_registers.mmcrgufcr.get());
