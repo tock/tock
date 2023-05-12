@@ -20,13 +20,13 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a crate::dma::Dma1<'a>,
         dma2: &'a crate::dma::Dma2<'a>,
-        transmit_buffer: &'a mut [u8; crate::ethernet::MAX_BUFFER_SIZE],
+        ethernet_transmit_buffer: &'a mut [u8; crate::ethernet::MAX_BUFFER_SIZE],
     ) -> Self {
         Self {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
             trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
             can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
-            ethernet: crate::ethernet::Ethernet::new(rcc, transmit_buffer),
+            ethernet: crate::ethernet::Ethernet::new(rcc, ethernet_transmit_buffer),
         }
     }
     // Necessary for setting up circular dependencies
