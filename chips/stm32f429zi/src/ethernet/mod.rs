@@ -6,6 +6,12 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
 use kernel::platform::chip::ClockInterface;
+use kernel::hil::ethernet::MacAddress;
+use kernel::hil::ethernet::OperationMode;
+use kernel::hil::ethernet::EthernetSpeed;
+use kernel::hil::ethernet::Configure;
+use kernel::hil::ethernet::Transmit;
+use kernel::hil::ethernet::Receive;
 use kernel::hil::ethernet::TransmitClient;
 use kernel::hil::ethernet::ReceiveClient;
 
@@ -13,8 +19,8 @@ use crate::rcc;
 use crate::rcc::PeripheralClock;
 use crate::rcc::PeripheralClockType;
 
+// TODO: Remove this
 pub mod mac_address;
-use crate::ethernet::mac_address::MacAddress;
 
 pub mod transmit_descriptor;
 use crate::ethernet::transmit_descriptor::TransmitDescriptor;
@@ -665,17 +671,6 @@ MMCRGUFCR [
 const ETHERNET_MMC_BASE: StaticRef<Ethernet_MmcRegisters> =
     unsafe { StaticRef::new(0x40028100 as *const Ethernet_MmcRegisters) };
 
-#[derive(PartialEq, Debug)]
-pub enum EthernetSpeed {
-    Speed10Mbs = 0b0,
-    Speed100Mbs = 0b1,
-}
-
-#[derive(PartialEq, Debug)]
-pub enum OperationMode {
-    HalfDuplex = 0b0,
-    FullDuplex = 0b1,
-}
 
 #[derive(PartialEq, Debug)]
 pub enum MacTxReaderStatus {
@@ -810,16 +805,6 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    pub fn init(&self) -> Result<(), ErrorCode> {
-        self.clocks.enable();
-        self.init_transmit_descriptors();
-        self.init_receive_descriptors();
-        self.init_dma()?;
-        self.init_mac();
-
-        Ok(())
-    }
-
     fn init_transmit_descriptors(&self) {
         self.transmit_descriptor.release();
         self.transmit_descriptor.enable_interrupt_on_completion();
@@ -853,13 +838,15 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn init_mac(&self) {
+    fn init_mac(&self) -> Result<(), ErrorCode> {
         self.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
         self.disable_mac_watchdog();
-        self.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
-        self.disable_loopback_mode();
-        self.set_operation_mode(OperationMode::FullDuplex);
+        self.set_speed(EthernetSpeed::Speed10Mbs)?;
+        self.set_loopback_mode(false)?;
+        self.set_operation_mode(OperationMode::FullDuplex)?;
         self.disable_address_filter();
+
+        Ok(())
     }
 
     /* === MAC methods === */
@@ -887,15 +874,15 @@ impl<'a> Ethernet<'a> {
         self.mac_registers.maccr.modify(MACCR::LM::CLEAR);
     }
 
-    fn is_loopback_mode_enabled(&self) -> bool {
+    fn internal_is_loopback_mode_enabled(&self) -> bool {
         self.mac_registers.maccr.is_set(MACCR::LM)
     }
 
-    fn set_operation_mode(&self, operation_mode: OperationMode) {
+    fn internal_set_operation_mode(&self, operation_mode: OperationMode) {
         self.mac_registers.maccr.modify(MACCR::DM.val(operation_mode as u32));
     }
 
-    fn get_operation_mode(&self) -> OperationMode {
+    fn internal_get_operation_mode(&self) -> OperationMode {
         match self.mac_registers.maccr.is_set(MACCR::DM) {
             false => OperationMode::HalfDuplex,
             true => OperationMode::FullDuplex,
@@ -1603,7 +1590,11 @@ impl<'a> Ethernet<'a> {
 
     /* === High-level functions */
 
-    fn enable_transmission(&self) -> Result<(), ErrorCode> {
+    fn is_mac_enabled(&self) -> bool {
+        self.is_mac_receiver_enabled() || self.is_mac_transmiter_enabled()
+    }
+
+    fn enable_transmitter(&self) -> Result<(), ErrorCode> {
         self.enable_dma_transmission()?;
         self.enable_mac_transmitter();
 
@@ -1616,14 +1607,14 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    fn disable_transmission(&self) -> Result<(), ErrorCode> {
+    fn disable_transmitter(&self) -> Result<(), ErrorCode> {
         self.disable_dma_transmission()?;
         self.disable_mac_transmitter();
 
         Ok(())
     }
 
-    fn enable_reception(&self) -> Result<(), ErrorCode> {
+    fn enable_receiver(&self) -> Result<(), ErrorCode> {
         self.enable_dma_reception()?;
         self.enable_mac_receiver();
 
@@ -1636,7 +1627,7 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    fn disable_reception(&self) -> Result<(), ErrorCode> {
+    fn disable_receiver(&self) -> Result<(), ErrorCode> {
         self.disable_dma_reception()?;
         self.disable_mac_receiver();
 
@@ -1645,20 +1636,6 @@ impl<'a> Ethernet<'a> {
 
     fn is_reception_enabled(&self) -> bool {
         self.is_mac_receiver_enabled()  && self.get_receive_process_state() != DmaReceiveProcessState::Stopped
-    }
-
-    fn start_interface(&self) -> Result<(), ErrorCode> {
-        self.enable_transmission()?;
-        self.enable_reception()?;
-
-        Ok(())
-    }
-
-    fn stop_interface(&self) -> Result<(), ErrorCode> {
-        self.disable_transmission()?;
-        self.disable_reception()?;
-
-        Ok(())
     }
 
     fn enable_all_normal_interrupts(&self) {
@@ -1739,7 +1716,6 @@ impl<'a> Ethernet<'a> {
     }
 
     fn transmit_frame(&self,
-        transmit_client: &'a dyn TransmitClient,
         destination_address: MacAddress,
         data: &[u8]
     ) -> Result<(), ErrorCode> {
@@ -1778,9 +1754,6 @@ impl<'a> Ethernet<'a> {
         self.transmit_descriptor.set_buffer1_address(transmit_buffer.as_ptr() as u32);
         self.transmit_buffer.put(Some(transmit_buffer));
 
-        // Set the transmit client
-        self.transmit_client.set(transmit_client);
-
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
 
@@ -1795,7 +1768,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn receive_frame(&self, receive_client: &'a dyn ReceiveClient, buffer: &mut [u8]) -> Result<(), ErrorCode> {
+    fn internal_receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
         // If DMA and MAC receptions are off, return an error
         if !self.is_reception_enabled() {
             return Err(ErrorCode::OFF);
@@ -1805,8 +1778,6 @@ impl<'a> Ethernet<'a> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
             return Err(ErrorCode::BUSY);
         }
-
-        self.receive_client.set(receive_client);
 
         // Setup receive descriptor
         self.receive_descriptor.set_buffer1_address(buffer.as_mut_ptr() as u32);
@@ -1821,6 +1792,113 @@ impl<'a> Ethernet<'a> {
         self.dma_receive_poll_demand();
 
         Ok(())
+    }
+}
+
+impl Configure for Ethernet<'_> {
+    fn init(&self) -> Result<(), ErrorCode> {
+        self.clocks.enable();
+        self.init_transmit_descriptors();
+        self.init_receive_descriptors();
+        self.init_dma()?;
+        self.init_mac()?;
+
+        Ok(())
+    }
+
+    fn set_operation_mode(&self, operation_mode: OperationMode) -> Result<(), ErrorCode> {
+        if self.is_mac_enabled() {
+            return Err(ErrorCode::FAIL);
+        }
+
+        self.internal_set_operation_mode(operation_mode);
+
+        Ok(())
+    }
+
+    fn get_operation_mode(&self) -> OperationMode {
+        self.internal_get_operation_mode()
+    }
+
+    fn set_speed(&self, speed: EthernetSpeed) -> Result<(), ErrorCode> {
+        if self.is_mac_enabled() {
+            return Err(ErrorCode::FAIL);
+        }
+
+        self.set_ethernet_speed(speed);
+
+        Ok(())
+    }
+
+    fn get_speed(&self) -> EthernetSpeed {
+        self.get_ethernet_speed()
+    }
+
+    fn set_loopback_mode(&self, enable: bool) -> Result<(), ErrorCode> {
+        match enable {
+            false => self.disable_loopback_mode(),
+            true => self.enable_loopback_mode()
+        };
+
+        Ok(())
+    }
+
+    fn is_loopback_mode_enabled(&self) -> bool {
+        self.internal_is_loopback_mode_enabled()
+    }
+
+    fn set_mac_address(&self, mac_address: MacAddress) -> Result<(), ErrorCode> {
+        self.set_mac_address0(mac_address);
+
+        Ok(())
+    }
+
+    fn get_mac_address(&self) -> MacAddress {
+        self.get_mac_address0()
+    }
+
+    fn start_transmitter(&self) -> Result<(), ErrorCode> {
+        self.enable_transmitter()
+    }
+
+    fn stop_transmitter(&self) -> Result<(), ErrorCode> {
+        self.disable_transmitter()
+    }
+
+    fn is_transmitter_up(&self) -> bool {
+        self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
+    }
+
+    fn start_receiver(&self) -> Result<(), ErrorCode> {
+        self.enable_receiver()
+    }
+
+    fn stop_receiver(&self) -> Result<(), ErrorCode> {
+        self.disable_receiver()
+    }
+
+    fn is_receiver_up(&self) -> bool {
+        self.is_mac_receiver_enabled() && self.is_dma_reception_enabled()
+    }
+}
+
+impl<'a> Transmit<'a> for Ethernet<'a> {
+    fn set_transmit_client(&self, transmit_client: &'a dyn TransmitClient) {
+        self.transmit_client.set(transmit_client);
+    }
+
+    fn transmit_data(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
+        self.transmit_frame(destination_address, data)
+    }
+}
+
+impl<'a> Receive<'a> for Ethernet<'a> {
+    fn set_receive_client(&self, receive_client: &'a dyn ReceiveClient) {
+        self.receive_client.set(receive_client);
+    }
+
+    fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
+        self.internal_receive_frame(buffer)
     }
 }
 
@@ -1879,7 +1957,7 @@ pub mod tests {
     }
 
     fn test_mac_default_values(ethernet: &Ethernet) {
-        assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
+        assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_speed());
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
         assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
         assert_eq!(false, ethernet.is_mac_transmiter_enabled());
@@ -1912,7 +1990,7 @@ pub mod tests {
         assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmission_threshold_control());
 
         assert_eq!(&ethernet.receive_descriptor as *const ReceiveDescriptor as u32, ethernet.get_receive_descriptor_list_address());
-        assert_eq!(false, ethernet.is_receive_store_and_forward_enabled());
+        assert_eq!(true, ethernet.is_receive_store_and_forward_enabled());
         assert_eq!(false, ethernet.is_dma_reception_enabled());
         assert_eq!(DmaReceiveThreshold::Threshold64, ethernet.get_dma_receive_threshold_control());
 
@@ -1989,19 +2067,19 @@ pub mod tests {
 
         assert_eq!(Ok(()), ethernet.init());
 
-        ethernet.set_ethernet_speed(EthernetSpeed::Speed100Mbs);
-        assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_ethernet_speed());
-        ethernet.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
-        assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
+        assert_eq!(Ok(()), ethernet.set_speed(EthernetSpeed::Speed100Mbs));
+        assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_speed());
+        assert_eq!(Ok(()), ethernet.set_speed(EthernetSpeed::Speed10Mbs));
+        assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_speed());
 
-        ethernet.enable_loopback_mode();
+        assert_eq!(Ok(()), ethernet.set_loopback_mode(true));
         assert_eq!(true, ethernet.is_loopback_mode_enabled());
-        ethernet.disable_loopback_mode();
+        assert_eq!(Ok(()), ethernet.set_loopback_mode(false));
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
 
-        ethernet.set_operation_mode(OperationMode::FullDuplex);
+        assert_eq!(Ok(()), ethernet.set_operation_mode(OperationMode::FullDuplex));
         assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
-        ethernet.set_operation_mode(OperationMode::HalfDuplex);
+        assert_eq!(Ok(()), ethernet.set_operation_mode(OperationMode::HalfDuplex));
         assert_eq!(OperationMode::HalfDuplex, ethernet.get_operation_mode());
 
         ethernet.enable_address_filter();
@@ -2126,20 +2204,21 @@ pub mod tests {
     pub fn test_frame_transmission<'a>(ethernet: &'a Ethernet<'a>, transmit_client: &'a DummyTransmitClient) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame transmission...");
+        ethernet.set_transmit_client(transmit_client);
         let destination_address: MacAddress = MacAddress::from(DEFAULT_MAC_ADDRESS);
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_frame(transmit_client, destination_address, b"Hello!"));
+        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_data(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
         ethernet.handle_interrupt();
 
         // Enable Ethernet transmission
-        assert_eq!(Ok(()), ethernet.enable_transmission());
+        assert_eq!(Ok(()), ethernet.start_transmitter());
         ethernet.handle_interrupt();
 
         // Now, frames can be send
         for frame_index in 0..100000 {
-            assert_eq!(Ok(()), ethernet.transmit_frame(transmit_client, destination_address, b"Hello!"));
-            assert_eq!(DmaTransmitProcessState::WaitingForStatus, ethernet.get_transmit_process_state());
-            for _ in 0..100 {
+            assert_eq!(Ok(()), ethernet.transmit_data(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
+            assert_eq!(DmaTransmitProcessState::ReadingData, ethernet.get_transmit_process_state());
+            for _ in 0..200 {
                 nop();
             }
             ethernet.handle_interrupt();
@@ -2150,7 +2229,7 @@ pub mod tests {
         debug!("Transmitted frames: {:?}", transmit_client.number_transmitted_frames.take());
 
         // Disable transmission
-        assert_eq!(Ok(()), ethernet.disable_transmission());
+        assert_eq!(Ok(()), ethernet.disable_transmitter());
         ethernet.handle_interrupt();
 
         debug!("Finished testing frame transmission...");
@@ -2159,25 +2238,25 @@ pub mod tests {
 
     pub fn test_frame_reception<'a>(
         ethernet: &'a Ethernet<'a>,
-        transmit_client: &'a DummyTransmitClient,
         receive_client: &'a DummyReceiveClient
     ) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame reception...");
+        ethernet.receive_client.set(receive_client);
         // Impossible to get a frame while reception is disabled
         let receive_buffer = receive_client.receive_buffer.take().unwrap();
         assert_eq!(
             Err(ErrorCode::OFF),
-            ethernet.receive_frame(receive_client, receive_buffer)
+            ethernet.receive_frame(receive_buffer)
         );
         ethernet.handle_interrupt();
 
         // Enable reception
-        assert_eq!(Ok(()), ethernet.enable_reception());
+        assert_eq!(Ok(()), ethernet.enable_receiver());
         ethernet.handle_interrupt();
 
-        for frame_index in 0..100000 {
-            assert_ne!(Err(ErrorCode::OFF), ethernet.receive_frame(receive_client, receive_buffer));
+        for _frame_index in 0..100000 {
+            assert_ne!(Err(ErrorCode::OFF), ethernet.receive_frame(receive_buffer));
             // Simulate a delay
             for _ in 0..100 {
                 nop();
@@ -2185,9 +2264,9 @@ pub mod tests {
             ethernet.handle_interrupt();
             assert_eq!(false, ethernet.receive_descriptor.error_occurred());
         }
-        debug!("Received buffer: {:?}", &receive_buffer[0..64]);
-        debug!("RX FIFO fill level: {:?}", ethernet.get_rx_fifo_fill_level());
-        debug!("Receive process state: {:?}", ethernet.get_receive_process_state());
+        let message = b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!";
+        let message_length = message.len();
+        assert_eq!(message, &receive_buffer[14..(message_length + 14)]);
         debug!("Good unicast received frames: {:?}", ethernet.mmc_registers.mmcrgufcr.get());
         debug!("CRC errors: {:?}", ethernet.mmc_registers.mmcrfcecr.get());
         debug!("Alignment errors: {:?}", ethernet.mmc_registers.mmcrfaecr.get());
@@ -2195,7 +2274,7 @@ pub mod tests {
         debug!("Received frames: {:?}", receive_client.number_frames_received.take());
 
         // Stop reception
-        assert_eq!(Ok(()), ethernet.disable_reception());
+        assert_eq!(Ok(()), ethernet.disable_receiver());
         ethernet.handle_interrupt();
         receive_client.receive_buffer.put(Some(receive_buffer));
 
@@ -2218,7 +2297,7 @@ pub mod tests {
         //super::transmit_descriptor::tests::test_transmit_descriptor();
         //super::receive_descriptor::tests::test_receive_descriptor();
         //test_frame_transmission(ethernet, transmit_client);
-        test_frame_reception(ethernet, transmit_client, receive_client);
+        test_frame_reception(ethernet, receive_client);
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
