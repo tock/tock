@@ -7,7 +7,6 @@ pub trait TransmitClient {
 pub trait ReceiveClient {
     fn received_frame(&self,
         receive_status: Result<(), ErrorCode>,
-        received_frame: &mut [u8],
         received_frame_length: usize
     );
 }

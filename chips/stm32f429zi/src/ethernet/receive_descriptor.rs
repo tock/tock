@@ -65,6 +65,10 @@ impl ReceiveDescriptor {
         self.rdes0.is_set(RDES0::OWN)
     }
 
+    pub(in crate::ethernet) fn get_frame_length(&self) -> usize {
+        self.rdes0.read(RDES0::FL) as usize
+    }
+
     pub(in crate::ethernet) fn enable_interrupt_on_completion(&self) {
         self.rdes1.modify(RDES1::DIC::CLEAR);
     }
