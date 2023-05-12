@@ -927,18 +927,15 @@ impl<'a> Ethernet<'a> {
     }
 
     fn enable_address_filter(&self) {
-        // TODO: Decide whether to use receive all or promiscuous mode
-        // TODO: Add source address filtering and hash filtering
-        self.mac_registers.macffr.modify(MACFFR::PM::CLEAR);
+        self.mac_registers.macffr.modify(MACFFR::RA::CLEAR);
     }
 
     fn disable_address_filter(&self) {
-        // TODO: Same as above
-        self.mac_registers.macffr.modify(MACFFR::PM::SET);
+        self.mac_registers.macffr.modify(MACFFR::RA::SET);
     }
 
     fn is_address_filter_enabled(&self) -> bool {
-        !self.mac_registers.macffr.is_set(MACFFR::PM)
+        !self.mac_registers.macffr.is_set(MACFFR::RA)
     }
 
     fn is_mac_tx_full(&self) -> bool {
@@ -2220,8 +2217,8 @@ pub mod tests {
         //test_ethernet_interrupts(ethernet);
         //super::transmit_descriptor::tests::test_transmit_descriptor();
         //super::receive_descriptor::tests::test_receive_descriptor();
-        test_frame_transmission(ethernet, transmit_client);
-        //test_frame_reception(ethernet, transmit_client, receive_client);
+        //test_frame_transmission(ethernet, transmit_client);
+        test_frame_reception(ethernet, transmit_client, receive_client);
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
