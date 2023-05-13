@@ -89,39 +89,53 @@ pub enum EthernetType {
 
 // No method panics
 impl EthernetFrame {
-    fn set_destination(&mut self, destination_mac_address: MacAddress) {
+    pub fn set_destination(&mut self, destination_mac_address: MacAddress) {
         self.0[DESTINATION_FIELD].copy_from_slice(&destination_mac_address.get_address());
     }
 
-    fn get_destination(&self) -> MacAddress {
+    pub fn get_destination(&self) -> MacAddress {
         MacAddress::new(self.0[DESTINATION_FIELD].try_into().unwrap())
     }
 
-    fn set_source(&mut self, source_mac_address: MacAddress) {
+    pub fn set_source(&mut self, source_mac_address: MacAddress) {
         self.0[SOURCE_FIELD].copy_from_slice(&source_mac_address.get_address());
     }
 
-    fn get_source(&self) -> MacAddress {
+    pub fn get_source(&self) -> MacAddress {
         MacAddress::new(self.0[SOURCE_FIELD].try_into().unwrap())
     }
 
-    fn set_length_no_vlan(&mut self, length: u16) {
+    pub fn set_length_no_vlan(&mut self, length: u16) {
         self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].copy_from_slice(&length.to_be_bytes());
     }
 
-    fn get_length_no_vlan(&self) -> u16 {
+    pub fn get_length_no_vlan(&self) -> u16 {
         u16::from_be_bytes(self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].try_into().unwrap())
     }
 
-    fn get_type_no_vlan(&self) -> EthernetType {
+    pub fn get_type_no_vlan(&self) -> EthernetType {
         match u16::from_be_bytes(self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].try_into().unwrap()) {
             x if x <= 1500 => EthernetType::RawFrame,
             _ => EthernetType::Unknown
         }
     }
 
-    fn get_header_no_vlan(&self) -> [u8; HEADER_NO_VLAN_FIELD.end] {
+    pub fn get_header_no_vlan(&self) -> [u8; HEADER_NO_VLAN_FIELD.end] {
         self.0[HEADER_NO_VLAN_FIELD].try_into().unwrap()
+    }
+
+    pub fn set_payload_no_vlan(&mut self, payload: &[u8]) -> Result<(), ErrorCode> {
+        if payload.len() > MAX_FRAME_LENGTH - HEADER_NO_VLAN_FIELD.end {
+            return Err(ErrorCode::SIZE);
+        }
+
+        self.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())].copy_from_slice(payload);
+
+        Ok(())
+    }
+
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
     }
 }
 
@@ -280,5 +294,9 @@ mod tests {
         assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
                     0x12, 0x34, 0x56, 0x78, 0x90, 0xAB,
                     0x05, 0xDD], ethernet_frame.get_header_no_vlan());
+
+        let payload = b"TockOS is great!";
+        ethernet_frame.set_payload_no_vlan(payload);
+        assert_eq!(payload, &ethernet_frame.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())]);
     }
 }
