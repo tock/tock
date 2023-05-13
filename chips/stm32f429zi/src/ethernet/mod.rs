@@ -781,7 +781,7 @@ pub struct Ethernet<'a> {
     mac_address0: OptionalCell<MacAddress>,
 }
 
-pub const DEFAULT_MAC_ADDRESS: u64 = 0xD45D6462951A;
+const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62, 0x95, 0x1A]);
 
 impl<'a> Ethernet<'a> {
     pub fn new(
@@ -798,7 +798,7 @@ impl<'a> Ethernet<'a> {
             transmit_client: OptionalCell::empty(),
             receive_client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
-            mac_address0: OptionalCell::new(MacAddress::new()),
+            mac_address0: OptionalCell::new(DEFAULT_MAC_ADDRESS),
         }
     }
 
@@ -836,7 +836,6 @@ impl<'a> Ethernet<'a> {
     }
 
     fn init_mac(&self) -> Result<(), ErrorCode> {
-        self.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
         self.disable_mac_watchdog();
         self.set_speed(EthernetSpeed::Speed10Mbs)?;
         self.set_loopback_mode(false)?;
@@ -1002,9 +1001,7 @@ impl<'a> Ethernet<'a> {
         self.set_mac_address0_high_register(high_bits);
         self.set_mac_address0_low_register((address & 0xFFFFFFFF) as u32);
 
-        let mut new_address = self.get_mac_address0();
-        new_address.set_address(address);
-        self.mac_address0.set(new_address);
+        self.mac_address0.replace(mac_address);
     }
 
     fn get_mac_address0(&self) -> MacAddress {
@@ -1972,7 +1969,7 @@ pub mod tests {
         assert_eq!(false, ethernet.is_mac_rx_writer_active());
 
         assert_eq!(false, ethernet.is_mac_mii_active());
-        assert_eq!(MacAddress::from(DEFAULT_MAC_ADDRESS), ethernet.get_mac_address0());
+        assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
         assert_eq!(false, ethernet.is_mac_address1_enabled());
         assert_eq!(false, ethernet.is_mac_address2_enabled());
         assert_eq!(false, ethernet.is_mac_address3_enabled());
@@ -2092,8 +2089,8 @@ pub mod tests {
 
         ethernet.set_mac_address0(0x112233445566.into());
         assert_eq!(MacAddress::from(0x112233445566), ethernet.get_mac_address0());
-        ethernet.set_mac_address0(DEFAULT_MAC_ADDRESS.into());
-        assert_eq!(MacAddress::from(DEFAULT_MAC_ADDRESS), ethernet.get_mac_address0());
+        ethernet.set_mac_address0(DEFAULT_MAC_ADDRESS);
+        assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
 
         ethernet.enable_normal_interrupts();
         assert_eq!(true, ethernet.are_normal_interrupts_enabled());
@@ -2202,7 +2199,7 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame transmission...");
         ethernet.set_transmit_client(transmit_client);
-        let destination_address: MacAddress = MacAddress::from(DEFAULT_MAC_ADDRESS);
+        let destination_address: MacAddress = DEFAULT_MAC_ADDRESS;
         // Impossible to send a frame while transmission is disabled
         assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_data(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
         ethernet.handle_interrupt();
