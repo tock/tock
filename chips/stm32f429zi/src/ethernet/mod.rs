@@ -1845,6 +1845,12 @@ impl Configure for Ethernet<'_> {
     fn get_mac_address(&self) -> MacAddress {
         self.get_mac_address0()
     }
+}
+
+impl<'a> Transmit<'a> for Ethernet<'a> {
+    fn set_transmit_client(&self, transmit_client: &'a dyn TransmitClient) {
+        self.transmit_client.set(transmit_client);
+    }
 
     fn start_transmitter(&self) -> Result<(), ErrorCode> {
         self.enable_transmitter()
@@ -1858,6 +1864,16 @@ impl Configure for Ethernet<'_> {
         self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
     }
 
+    fn transmit_data(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
+        self.transmit_frame(destination_address, data)
+    }
+}
+
+impl<'a> Receive<'a> for Ethernet<'a> {
+    fn set_receive_client(&self, receive_client: &'a dyn ReceiveClient) {
+        self.receive_client.set(receive_client);
+    }
+
     fn start_receiver(&self) -> Result<(), ErrorCode> {
         self.enable_receiver()
     }
@@ -1868,22 +1884,6 @@ impl Configure for Ethernet<'_> {
 
     fn is_receiver_up(&self) -> bool {
         self.is_mac_receiver_enabled() && self.is_dma_reception_enabled()
-    }
-}
-
-impl<'a> Transmit<'a> for Ethernet<'a> {
-    fn set_transmit_client(&self, transmit_client: &'a dyn TransmitClient) {
-        self.transmit_client.set(transmit_client);
-    }
-
-    fn transmit_data(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
-        self.transmit_frame(destination_address, data)
-    }
-}
-
-impl<'a> Receive<'a> for Ethernet<'a> {
-    fn set_receive_client(&self, receive_client: &'a dyn ReceiveClient) {
-        self.receive_client.set(receive_client);
     }
 
     fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
