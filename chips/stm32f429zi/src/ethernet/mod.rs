@@ -19,9 +19,6 @@ use crate::rcc;
 use crate::rcc::PeripheralClock;
 use crate::rcc::PeripheralClockType;
 
-// TODO: Remove this
-pub mod mac_address;
-
 pub mod transmit_descriptor;
 use crate::ethernet::transmit_descriptor::TransmitDescriptor;
 
@@ -2290,7 +2287,6 @@ pub mod tests {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
-        //super::mac_address::tests::test_mac_address();
         //test_ethernet_init(ethernet);
         //test_ethernet_basic_configuration(ethernet);
         //test_ethernet_interrupts(ethernet);

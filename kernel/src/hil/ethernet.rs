@@ -1,46 +1,57 @@
 use crate::ErrorCode;
+use core::fmt;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub struct MacAddress {
-    address: [u8; 6],
-}
+pub struct MacAddress([u8; 6]);
 
 impl MacAddress {
-    pub fn new() -> Self {
-        Self {
-            address: [0; 6],
-        }
-    }
+    pub const BROADCAST_MAC_ADDRESS: MacAddress = MacAddress([0xFF; 6]);
 
-    pub fn set_address(&mut self, address: u64) {
-        let mask: u64 = 0xFF0000000000;
-        for index in 0..6 {
-            self.address[index] = ((address & (mask >> (index * 8))) >> (40 - 8 * index)) as u8;
-        }
+    pub fn set_address(&mut self, bytes: [u8; 6]) {
+        // Can't panic
+        self.0.copy_from_slice(&bytes);
     }
 
     pub fn get_address(&self) -> [u8; 6] {
-        self.address
+        self.0
+    }
+
+    pub fn is_broadcast(&self) -> bool {
+        self.get_address() == [0xFF; 6]
+    }
+    
+    pub fn is_multicast(&self) -> bool {
+        self.get_address()[0] & 0x1 != 0
+    }
+
+    pub fn is_unicast(&self) -> bool {
+        !self.is_multicast() && !self.is_broadcast()
+    }
+}
+
+impl Default for MacAddress {
+    fn default() -> Self {
+        Self {
+            0: [0; 6]
+        }
     }
 }
 
 impl From<u64> for MacAddress {
     fn from(value: u64) -> Self {
-        let mut mac_address = MacAddress::new();
-        mac_address.set_address(value);
-        mac_address
+        // Can't panic
+        MacAddress(value.to_be_bytes()[2..8].try_into().unwrap())
     }
 }
 
-impl From<MacAddress> for u64 {
-    fn from(mac_address: MacAddress) -> Self {
-        let mut result: u64 = 0;
-        for byte in mac_address.get_address() {
-            result += byte as u64;
-            result <<= 8;
-        }
-
-        result >> 8
+impl fmt::Display for MacAddress {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "{:02x}-{:02x}-{:02x}-{:02x}-{:02x}-{:02x}",
+            self.get_address()[0], self.get_address()[1], self.get_address()[2],
+            self.get_address()[3], self.get_address()[4], self.get_address()[5]
+        )
     }
 }
 
@@ -129,4 +140,33 @@ pub trait ReceiveClient {
         receive_status: Result<(), ErrorCode>,
         received_frame_length: usize
     );
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_mac_address() {
+        let mut mac_address = MacAddress::default();
+        assert_eq!([0; 6], mac_address.get_address());
+        mac_address = MacAddress::from(0x112233445566);
+        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get_address());
+        mac_address.set_address([0x12, 0x34, 0x56, 0x78, 0x90, 0xAB]);
+        assert_eq!([0x12, 0x34, 0x56, 0x78, 0x90, 0xAB], mac_address.get_address());
+
+        assert_eq!(false, mac_address.is_broadcast());
+        assert_eq!(false, mac_address.is_multicast());
+        assert_eq!(true, mac_address.is_unicast());
+
+        mac_address = MacAddress([0xFF; 6]);
+        assert_eq!(true, mac_address.is_broadcast());
+        assert_eq!(true, mac_address.is_multicast());
+        assert_eq!(false, mac_address.is_unicast());
+
+        mac_address = MacAddress([0x13, 0x34, 0x56, 0x78, 0x90, 0xAB]);
+        assert_eq!(false, mac_address.is_broadcast());
+        assert_eq!(true, mac_address.is_multicast());
+        assert_eq!(false, mac_address.is_unicast());
+    }
 }
