@@ -7,6 +7,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::ErrorCode;
 use kernel::platform::chip::ClockInterface;
 use kernel::hil::ethernet::MacAddress;
+use kernel::hil::ethernet::EthernetFrame;
 use kernel::hil::ethernet::OperationMode;
 use kernel::hil::ethernet::EthernetSpeed;
 use kernel::hil::ethernet::Configure;
@@ -766,15 +767,13 @@ impl<'a> EthernetClocks<'a> {
     }
 }
 
-pub const MAX_BUFFER_SIZE: usize = 1524;
-
 pub struct Ethernet<'a> {
     mac_registers: StaticRef<Ethernet_MacRegisters>,
     mmc_registers: StaticRef<Ethernet_MmcRegisters>,
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
-    transmit_buffer: TakeCell<'a, [u8; MAX_BUFFER_SIZE]>,
+    transmit_frame: TakeCell<'a, EthernetFrame>,
     transmit_client: OptionalCell<&'a dyn TransmitClient>,
     receive_client: OptionalCell<&'a dyn ReceiveClient>,
     clocks: EthernetClocks<'a>,
@@ -782,11 +781,12 @@ pub struct Ethernet<'a> {
 }
 
 const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62, 0x95, 0x1A]);
+const MAX_BUFFER_SIZE: usize = 1536;
 
 impl<'a> Ethernet<'a> {
     pub fn new(
         rcc: &'a rcc::Rcc,
-        transmit_buffer: &'a mut [u8; MAX_BUFFER_SIZE],
+        transmit_frame: &'a mut EthernetFrame,
     ) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
@@ -794,7 +794,7 @@ impl<'a> Ethernet<'a> {
             dma_registers: ETHERNET_DMA_BASE,
             transmit_descriptor: TransmitDescriptor::new(),
             receive_descriptor: ReceiveDescriptor::new(),
-            transmit_buffer: TakeCell::new(transmit_buffer),
+            transmit_frame: TakeCell::new(transmit_frame),
             transmit_client: OptionalCell::empty(),
             receive_client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
@@ -1724,29 +1724,20 @@ impl<'a> Ethernet<'a> {
         }
 
         // Set the buffer size and return an error if it is too big
-        let data_length = data.len();
+        let data_length = data.len() as u16;
         let buffer_length = data_length + 14;
-        // WARNING: this assumes automatic padding and CRC generation
-        let frame_length = if buffer_length < 60 {
-            64
-        } else {
-            buffer_length + 4
-        };
 
-        self.transmit_descriptor.set_buffer1_size(buffer_length)?;
+        self.transmit_descriptor.set_buffer1_size(buffer_length as usize)?;
 
-        // Prepare buffer
-        // Can't panic since the transmit buffer is set when the driver is created
-        let transmit_buffer = self.transmit_buffer.take().unwrap();
-        transmit_buffer[0..6].copy_from_slice(&self.get_mac_address0().get_address());
-        transmit_buffer[6..12].copy_from_slice(&destination_address.get_address());
-        transmit_buffer[12] = (frame_length >> 8) as u8;
-        transmit_buffer[13] = frame_length as u8;
-        transmit_buffer[14..(data_length + 14)].copy_from_slice(data);
+        // Prepare the frame
+        let transmit_frame = self.transmit_frame.take().unwrap();
+        transmit_frame.set_destination(destination_address);
+        transmit_frame.set_length_no_vlan(data_length);
+        transmit_frame.set_payload_no_vlan(data)?;
 
-        // Prepare transmit descriptor
-        self.transmit_descriptor.set_buffer1_address(transmit_buffer.as_ptr() as u32);
-        self.transmit_buffer.put(Some(transmit_buffer));
+        // Prepare the transmit descriptor
+        self.transmit_descriptor.set_buffer1_address(transmit_frame.as_ptr() as u32);
+        self.transmit_frame.put(Some(transmit_frame));
 
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
@@ -1843,6 +1834,10 @@ impl Configure for Ethernet<'_> {
 
     fn set_mac_address(&self, mac_address: MacAddress) -> Result<(), ErrorCode> {
         self.set_mac_address0(mac_address);
+        // Can't panic
+        let transmit_frame = self.transmit_frame.take().unwrap();
+        transmit_frame.set_source(mac_address);
+        self.transmit_frame.put(Some(transmit_frame));
 
         Ok(())
     }

@@ -1,6 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
+use kernel::hil::ethernet::EthernetFrame;
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
@@ -20,13 +21,13 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a crate::dma::Dma1<'a>,
         dma2: &'a crate::dma::Dma2<'a>,
-        ethernet_transmit_buffer: &'a mut [u8; crate::ethernet::MAX_BUFFER_SIZE],
+        ethernet_transmit_frame: &'a mut EthernetFrame,
     ) -> Self {
         Self {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
             trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
             can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
-            ethernet: crate::ethernet::Ethernet::new(rcc, ethernet_transmit_buffer),
+            ethernet: crate::ethernet::Ethernet::new(rcc, ethernet_transmit_frame),
         }
     }
     // Necessary for setting up circular dependencies
