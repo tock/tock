@@ -185,41 +185,21 @@ pub trait Configure {
     }
 
     fn get_mac_address(&self) -> MacAddress;
-    
-    fn start_transmitter(&self) -> Result<(), ErrorCode>;
-
-    fn stop_transmitter(&self) -> Result<(), ErrorCode>;
-
-    fn is_transmitter_up(&self) -> bool;
-
-    fn start_receiver(&self) -> Result<(), ErrorCode>;
-
-    fn stop_receiver(&self) -> Result<(), ErrorCode>;
-
-    fn is_receiver_up(&self) -> bool;
-
-    fn start(&self) -> Result<(), ErrorCode> {
-        self.start_transmitter()?;
-        self.start_receiver()
-    }
-
-    fn stop(&self) -> Result<(), ErrorCode> {
-        self.stop_transmitter()?;
-        self.stop_receiver()
-    }
-
-    fn is_up(&self) -> bool {
-        self.is_transmitter_up() && self.is_receiver_up()
-    }
 }
 
 pub trait Transmit<'a> {
     fn set_transmit_client(&self, transmit_client: &'a dyn TransmitClient);
+    fn start_transmitter(&self) -> Result<(), ErrorCode>;
+    fn stop_transmitter(&self) -> Result<(), ErrorCode>;
+    fn is_transmitter_up(&self) -> bool;
     fn transmit_data(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode>;
 }
 
 pub trait Receive<'a> {
     fn set_receive_client(&self, receive_client: &'a dyn ReceiveClient);
+    fn start_receiver(&self) -> Result<(), ErrorCode>;
+    fn stop_receiver(&self) -> Result<(), ErrorCode>;
+    fn is_receiver_up(&self) -> bool;
     fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode>;
 }
 
