@@ -1,5 +1,6 @@
 use crate::ErrorCode;
 use core::fmt;
+use core::ops::Range;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct MacAddress([u8; 6]);
@@ -68,6 +69,67 @@ impl fmt::Display for MacAddress {
             self.get_address()[0], self.get_address()[1], self.get_address()[2],
             self.get_address()[3], self.get_address()[4], self.get_address()[5]
         )
+    }
+}
+
+pub const MAX_FRAME_LENGTH: usize = 1536;
+pub const DESTINATION_FIELD: Range<usize> = 0..6;
+pub const SOURCE_FIELD: Range<usize> = 6..12;
+pub const LENGTH_OR_TYPE_NO_VLAN_FIELD: Range<usize> = 12..14;
+pub const HEADER_NO_VLAN_FIELD: Range<usize> = 0..14;
+
+pub struct EthernetFrame([u8; MAX_FRAME_LENGTH]);
+
+#[repr(u16)]
+#[derive(PartialEq, Debug)]
+pub enum EthernetType {
+    RawFrame = 0,
+    Unknown = 1501,
+}
+
+// No method panics
+impl EthernetFrame {
+    fn set_destination(&mut self, destination_mac_address: MacAddress) {
+        self.0[DESTINATION_FIELD].copy_from_slice(&destination_mac_address.get_address());
+    }
+
+    fn get_destination(&self) -> MacAddress {
+        MacAddress::new(self.0[DESTINATION_FIELD].try_into().unwrap())
+    }
+
+    fn set_source(&mut self, source_mac_address: MacAddress) {
+        self.0[SOURCE_FIELD].copy_from_slice(&source_mac_address.get_address());
+    }
+
+    fn get_source(&self) -> MacAddress {
+        MacAddress::new(self.0[SOURCE_FIELD].try_into().unwrap())
+    }
+
+    fn set_length_no_vlan(&mut self, length: u16) {
+        self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].copy_from_slice(&length.to_be_bytes());
+    }
+
+    fn get_length_no_vlan(&self) -> u16 {
+        u16::from_be_bytes(self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].try_into().unwrap())
+    }
+
+    fn get_type_no_vlan(&self) -> EthernetType {
+        match u16::from_be_bytes(self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].try_into().unwrap()) {
+            x if x <= 1500 => EthernetType::RawFrame,
+            _ => EthernetType::Unknown
+        }
+    }
+
+    fn get_header_no_vlan(&self) -> [u8; HEADER_NO_VLAN_FIELD.end] {
+        self.0[HEADER_NO_VLAN_FIELD].try_into().unwrap()
+    }
+}
+
+impl Default for EthernetFrame {
+    fn default() -> Self {
+        Self {
+            0: [0; MAX_FRAME_LENGTH]
+        }
     }
 }
 
@@ -159,11 +221,11 @@ pub trait ReceiveClient {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
 
     #[test]
-    pub fn test_mac_address() {
+    fn test_mac_address() {
         let mut mac_address = MacAddress::default();
         assert_eq!([0; 6], mac_address.get_address());
         assert_eq!(0x0 as u64, mac_address.into());
@@ -189,5 +251,34 @@ pub mod tests {
         assert_eq!(false, mac_address.is_broadcast());
         assert_eq!(true, mac_address.is_multicast());
         assert_eq!(false, mac_address.is_unicast());
+    }
+
+    #[test]
+    fn test_frame() {
+        let mut ethernet_frame = EthernetFrame::default();
+        assert_eq!(MacAddress::from(0x0), ethernet_frame.get_destination());
+        assert_eq!(MacAddress::from(0x0), ethernet_frame.get_source());
+        assert_eq!(0x0, ethernet_frame.get_length_no_vlan());
+
+        let destination_mac_address = MacAddress::new([0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
+        ethernet_frame.set_destination(destination_mac_address);
+        assert_eq!(destination_mac_address, ethernet_frame.get_destination());
+
+        let source_mac_address = MacAddress::new([0x12, 0x34, 0x56, 0x78, 0x90, 0xAB]);
+        ethernet_frame.set_source(source_mac_address);
+        assert_eq!(source_mac_address, ethernet_frame.get_source());
+
+        ethernet_frame.set_length_no_vlan(123);
+        assert_eq!(123, ethernet_frame.get_length_no_vlan());
+
+        assert_eq!(EthernetType::RawFrame, ethernet_frame.get_type_no_vlan());
+        ethernet_frame.set_length_no_vlan(1500);
+        assert_eq!(EthernetType::RawFrame, ethernet_frame.get_type_no_vlan());
+        ethernet_frame.set_length_no_vlan(1501);
+        assert_eq!(EthernetType::Unknown, ethernet_frame.get_type_no_vlan());
+
+        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+                    0x12, 0x34, 0x56, 0x78, 0x90, 0xAB,
+                    0x05, 0xDD], ethernet_frame.get_header_no_vlan());
     }
 }
