@@ -192,7 +192,7 @@ pub trait Transmit<'a> {
     fn start_transmitter(&self) -> Result<(), ErrorCode>;
     fn stop_transmitter(&self) -> Result<(), ErrorCode>;
     fn is_transmitter_up(&self) -> bool;
-    fn transmit_data(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode>;
+    fn transmit_raw_frame(&self, destination_address: MacAddress, data: &'static [u8]) -> Result<(), ErrorCode>;
 }
 
 pub trait Receive<'a> {
@@ -200,7 +200,7 @@ pub trait Receive<'a> {
     fn start_receiver(&self) -> Result<(), ErrorCode>;
     fn stop_receiver(&self) -> Result<(), ErrorCode>;
     fn is_receiver_up(&self) -> bool;
-    fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode>;
+    fn receive_raw_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode>;
 }
 
 pub trait TransmitClient {
