@@ -1753,7 +1753,7 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn internal_receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
+    fn internal_receive_raw_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
         // If DMA and MAC receptions are off, return an error
         if !self.is_reception_enabled() {
             return Err(ErrorCode::OFF);
@@ -1864,7 +1864,7 @@ impl<'a> Transmit<'a> for Ethernet<'a> {
         self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
     }
 
-    fn transmit_data(&self, destination_address: MacAddress, data: &[u8]) -> Result<(), ErrorCode> {
+    fn transmit_raw_frame(&self, destination_address: MacAddress, data: &'static [u8]) -> Result<(), ErrorCode> {
         self.transmit_frame(destination_address, data)
     }
 }
@@ -1886,8 +1886,8 @@ impl<'a> Receive<'a> for Ethernet<'a> {
         self.is_mac_receiver_enabled() && self.is_dma_reception_enabled()
     }
 
-    fn receive_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
-        self.internal_receive_frame(buffer)
+    fn receive_raw_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
+        self.internal_receive_raw_frame(buffer)
     }
 }
 
@@ -2196,7 +2196,7 @@ pub mod tests {
         ethernet.set_transmit_client(transmit_client);
         let destination_address: MacAddress = DEFAULT_MAC_ADDRESS;
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_data(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
+        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_raw_frame(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
         ethernet.handle_interrupt();
 
         // Enable Ethernet transmission
@@ -2205,7 +2205,7 @@ pub mod tests {
 
         // Now, frames can be send
         for frame_index in 0..100000 {
-            assert_eq!(Ok(()), ethernet.transmit_data(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
+            assert_eq!(Ok(()), ethernet.transmit_raw_frame(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
             assert_eq!(DmaTransmitProcessState::ReadingData, ethernet.get_transmit_process_state());
             for _ in 0..200 {
                 nop();
@@ -2236,7 +2236,7 @@ pub mod tests {
         let receive_buffer = receive_client.receive_buffer.take().unwrap();
         assert_eq!(
             Err(ErrorCode::OFF),
-            ethernet.receive_frame(receive_buffer)
+            ethernet.receive_raw_frame(receive_buffer)
         );
         ethernet.handle_interrupt();
 
@@ -2245,7 +2245,7 @@ pub mod tests {
         ethernet.handle_interrupt();
 
         for _frame_index in 0..100000 {
-            assert_ne!(Err(ErrorCode::OFF), ethernet.receive_frame(receive_buffer));
+            assert_ne!(Err(ErrorCode::OFF), ethernet.receive_raw_frame(receive_buffer));
             // Simulate a delay
             for _ in 0..100 {
                 nop();
