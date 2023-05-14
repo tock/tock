@@ -137,6 +137,10 @@ impl EthernetFrame {
     pub fn as_ptr(&self) -> *const u8 {
         self.0.as_ptr()
     }
+
+    pub fn as_mut_ptr(&mut self) -> *mut u8 {
+        self.0.as_mut_ptr()
+    }
 }
 
 impl Default for EthernetFrame {
