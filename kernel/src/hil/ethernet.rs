@@ -200,7 +200,7 @@ pub trait Receive<'a> {
     fn start_receiver(&self) -> Result<(), ErrorCode>;
     fn stop_receiver(&self) -> Result<(), ErrorCode>;
     fn is_receiver_up(&self) -> bool;
-    fn receive_raw_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode>;
+    fn receive_raw_frame(&self, frame: &'static mut EthernetFrame) -> Result<(), ErrorCode>;
 }
 
 pub trait TransmitClient {
@@ -210,7 +210,8 @@ pub trait TransmitClient {
 pub trait ReceiveClient {
     fn received_frame(&self,
         receive_status: Result<(), ErrorCode>,
-        received_frame_length: usize
+        received_frame_length: usize,
+        received_frame: &'static mut EthernetFrame
     );
 }
 
@@ -276,7 +277,7 @@ mod tests {
                     0x05, 0xDD], ethernet_frame.get_header_no_vlan());
 
         let payload = b"TockOS is great!";
-        ethernet_frame.set_payload_no_vlan(payload);
+        assert_eq!(Ok(()), ethernet_frame.set_payload_no_vlan(payload));
         assert_eq!(payload, &ethernet_frame.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())]);
     }
 }
