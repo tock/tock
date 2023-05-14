@@ -134,6 +134,11 @@ impl EthernetFrame {
         Ok(())
     }
 
+    pub fn get_payload_no_vlan(&self) -> &[u8; MAX_FRAME_LENGTH - HEADER_NO_VLAN_FIELD.end] {
+        // Can't panic
+        (&self.0[HEADER_NO_VLAN_FIELD.end..]).try_into().unwrap()
+    }
+
     pub fn as_ptr(&self) -> *const u8 {
         self.0.as_ptr()
     }
@@ -286,7 +291,8 @@ mod tests {
 
         let payload = b"TockOS is great!";
         assert_eq!(Ok(()), ethernet_frame.set_payload_no_vlan(payload));
-        assert_eq!(payload, &ethernet_frame.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())]);
+        assert_eq!(payload,
+            &ethernet_frame.get_payload_no_vlan()[0..payload.len()]);
 
         assert_eq!(MAX_FRAME_LENGTH, ethernet_frame.len());
     }
