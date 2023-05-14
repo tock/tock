@@ -1711,7 +1711,7 @@ impl<'a> Ethernet<'a> {
 
     fn transmit_frame(&self,
         destination_address: MacAddress,
-        data: &[u8]
+        payload: &'static [u8]
     ) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
         if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
@@ -1724,16 +1724,16 @@ impl<'a> Ethernet<'a> {
         }
 
         // Set the buffer size and return an error if it is too big
-        let data_length = data.len() as u16;
-        let buffer_length = data_length + 14;
+        let payload_length = payload.len() as u16;
+        let buffer_length = payload_length + 14;
 
         self.transmit_descriptor.set_buffer1_size(buffer_length as usize)?;
 
         // Prepare the frame
         let transmit_frame = self.transmit_frame.take().unwrap();
         transmit_frame.set_destination(destination_address);
-        transmit_frame.set_length_no_vlan(data_length);
-        transmit_frame.set_payload_no_vlan(data)?;
+        transmit_frame.set_length_no_vlan(payload_length);
+        transmit_frame.set_payload_no_vlan(payload)?;
 
         // Prepare the transmit descriptor
         self.transmit_descriptor.set_buffer1_address(transmit_frame.as_ptr() as u32);
@@ -1864,8 +1864,8 @@ impl<'a> Transmit<'a> for Ethernet<'a> {
         self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
     }
 
-    fn transmit_raw_frame(&self, destination_address: MacAddress, data: &'static [u8]) -> Result<(), ErrorCode> {
-        self.transmit_frame(destination_address, data)
+    fn transmit_raw_frame(&self, destination_address: MacAddress, payload: &'static [u8]) -> Result<(), ErrorCode> {
+        self.transmit_frame(destination_address, payload)
     }
 }
 
