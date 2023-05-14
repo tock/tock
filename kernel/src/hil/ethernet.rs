@@ -141,6 +141,10 @@ impl EthernetFrame {
     pub fn as_mut_ptr(&mut self) -> *mut u8 {
         self.0.as_mut_ptr()
     }
+
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl Default for EthernetFrame {
@@ -283,5 +287,7 @@ mod tests {
         let payload = b"TockOS is great!";
         assert_eq!(Ok(()), ethernet_frame.set_payload_no_vlan(payload));
         assert_eq!(payload, &ethernet_frame.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())]);
+
+        assert_eq!(MAX_FRAME_LENGTH, ethernet_frame.len());
     }
 }
