@@ -126,7 +126,6 @@ impl EthernetFrame {
     }
 
     pub fn get_header_no_vlan(&self) -> [u8; HEADER_NO_VLAN_FIELD.end] {
-        // Can't panic
         self.0[HEADER_NO_VLAN_FIELD].try_into().unwrap()
     }
 
@@ -135,14 +134,12 @@ impl EthernetFrame {
             return Err(ErrorCode::SIZE);
         }
 
-        // Can't panic
         self.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())].copy_from_slice(payload);
 
         Ok(())
     }
 
     pub fn get_payload_no_vlan(&self) -> &[u8; MAX_FRAME_LENGTH - HEADER_NO_VLAN_FIELD.end] {
-        // Can't panic
         (&self.0[HEADER_NO_VLAN_FIELD.end..]).try_into().unwrap()
     }
 
@@ -167,6 +164,17 @@ impl Default for EthernetFrame {
         Self {
             0: [0; MAX_FRAME_LENGTH]
         }
+    }
+}
+
+impl fmt::Display for EthernetFrame {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "Type: {:?}\nDestination: {}\nSource: {}\nLength: {}\nPayload: {:?}",
+            self.get_type_no_vlan(), self.get_destination(), self.get_source(),
+            self.get_payload_length_no_vlan(), self.get_payload_no_vlan()
+        )
     }
 }
 
