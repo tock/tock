@@ -1718,7 +1718,7 @@ impl<'a> Ethernet<'a> {
 
     fn transmit_frame(&self,
         destination_address: MacAddress,
-        payload: &'static [u8]
+        payload: &[u8]
     ) -> Result<(), ErrorCode> {
         // If DMA and MAC are off, return an error
         if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
@@ -1881,7 +1881,7 @@ impl<'a> Transmit<'a> for Ethernet<'a> {
         self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
     }
 
-    fn transmit_raw_frame(&self, destination_address: MacAddress, payload: &'static [u8]) -> Result<(), ErrorCode> {
+    fn transmit_raw_frame(&self, destination_address: MacAddress, payload: &[u8]) -> Result<(), ErrorCode> {
         self.transmit_frame(destination_address, payload)
     }
 }
