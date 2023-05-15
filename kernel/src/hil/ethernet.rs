@@ -23,15 +23,20 @@ impl MacAddress {
         self.0
     }
 
-    pub fn is_broadcast(&self) -> bool {
-        *self == Self::BROADCAST_MAC_ADDRESS
+    pub const fn is_broadcast(&self) -> bool {
+        self.0[0] == 0xFF &&
+        self.0[1] == 0xFF &&
+        self.0[2] == 0xFF &&
+        self.0[3] == 0xFF &&
+        self.0[4] == 0xFF &&
+        self.0[5] == 0xFF
     }
 
     pub const fn is_multicast(&self) -> bool {
-        self.get_address()[0] & 0x1 != 0
+        self.0[0] & 0x1 != 0
     }
 
-    pub fn is_unicast(&self) -> bool {
+    pub const fn is_unicast(&self) -> bool {
         !self.is_multicast() && !self.is_broadcast()
     }
 }
