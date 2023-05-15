@@ -208,7 +208,7 @@ pub trait Transmit<'a> {
     fn transmit_raw_frame(
         &self,
         destination_address: MacAddress,
-        payload: &'static [u8]
+        payload: &[u8]
     ) -> Result<(), ErrorCode>;
 }
 
