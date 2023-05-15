@@ -774,6 +774,7 @@ pub struct Ethernet<'a> {
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
     transmit_frame: TakeCell<'a, EthernetFrame>,
+    receive_frame: TakeCell<'static, EthernetFrame>,
     transmit_client: OptionalCell<&'a dyn TransmitClient>,
     receive_client: OptionalCell<&'a dyn ReceiveClient>,
     clocks: EthernetClocks<'a>,
@@ -781,7 +782,6 @@ pub struct Ethernet<'a> {
 }
 
 const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62, 0x95, 0x1A]);
-const MAX_BUFFER_SIZE: usize = 1536;
 
 impl<'a> Ethernet<'a> {
     pub fn new(
@@ -795,6 +795,7 @@ impl<'a> Ethernet<'a> {
             transmit_descriptor: TransmitDescriptor::new(),
             receive_descriptor: ReceiveDescriptor::new(),
             transmit_frame: TakeCell::new(transmit_frame),
+            receive_frame: TakeCell::empty(),
             transmit_client: OptionalCell::empty(),
             receive_client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
@@ -1666,7 +1667,13 @@ impl<'a> Ethernet<'a> {
         } if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
         } if self.did_receive_interrupt_occur() {
-            self.receive_client.map(|client| client.received_frame(Ok(()), self.receive_descriptor.get_frame_length()));
+            self.receive_client.map(|client|
+                client.received_frame(
+                    Ok(()),
+                    self.receive_descriptor.get_frame_length(),
+                    self.receive_frame.take().unwrap()
+                )
+            );
             self.clear_receive_interrupt();
         } if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
@@ -1753,22 +1760,31 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    fn internal_receive_raw_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
+    fn internal_receive_raw_frame(&self, frame: &'static mut EthernetFrame) -> Result<(), ErrorCode> {
         // If DMA and MAC receptions are off, return an error
         if !self.is_reception_enabled() {
+            self.receive_client.map(|receive_client|
+                receive_client.received_frame(Err(ErrorCode::OFF), 0, frame)
+            );
             return Err(ErrorCode::OFF);
         }
 
         // Check if reception is busy
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
+            self.receive_client.map(|receive_client|
+                receive_client.received_frame(Err(ErrorCode::OFF), 0, frame)
+            );
             return Err(ErrorCode::BUSY);
         }
 
         // Setup receive descriptor
-        self.receive_descriptor.set_buffer1_address(buffer.as_mut_ptr() as u32);
-        self.receive_descriptor.set_buffer2_address(buffer.as_mut_ptr() as u32);
-        self.receive_descriptor.set_buffer1_size(buffer.len())?;
+        self.receive_descriptor.set_buffer1_address(frame.as_mut_ptr() as u32);
+        self.receive_descriptor.set_buffer2_address(frame.as_mut_ptr() as u32);
+        self.receive_descriptor.set_buffer1_size(frame.len())?;
         self.receive_descriptor.set_buffer2_size(0)?;
+
+        // Save the frame
+        self.receive_frame.put(Some(frame));
 
         // DMA becomes the owner of the descriptor
         self.receive_descriptor.acquire();
@@ -1886,7 +1902,7 @@ impl<'a> Receive<'a> for Ethernet<'a> {
         self.is_mac_receiver_enabled() && self.is_dma_reception_enabled()
     }
 
-    fn receive_raw_frame(&self, buffer: &mut [u8]) -> Result<(), ErrorCode> {
+    fn receive_raw_frame(&self, buffer: &'static mut EthernetFrame) -> Result<(), ErrorCode> {
         self.internal_receive_raw_frame(buffer)
     }
 }
@@ -1918,16 +1934,16 @@ pub mod tests {
 
     pub struct DummyReceiveClient<'a> {
         pub(self) receive_status: OptionalCell<Result<(), ErrorCode>>,
-        pub(self) receive_buffer: TakeCell<'a, [u8; MAX_BUFFER_SIZE]>,
+        pub(self) receive_frame: TakeCell<'a, EthernetFrame>,
         pub(self) number_bytes_received: Cell<usize>,
         pub(self) number_frames_received: Cell<usize>
     }
 
     impl<'a> DummyReceiveClient<'a> {
-        pub fn new(receive_buffer: &'a mut [u8; MAX_BUFFER_SIZE]) -> Self {
+        pub fn new(receive_frame: &'static mut EthernetFrame) -> Self {
             Self {
                 receive_status: OptionalCell::empty(),
-                receive_buffer: TakeCell::new(receive_buffer),
+                receive_frame: TakeCell::new(receive_frame),
                 number_bytes_received: Cell::new(0),
                 number_frames_received: Cell::new(0)
             }
@@ -1937,11 +1953,13 @@ pub mod tests {
     impl<'a> ReceiveClient for DummyReceiveClient<'a> {
         fn received_frame(&self,
             receive_status: Result<(), ErrorCode>,
-            received_frame_length: usize
+            receive_frame_length: usize,
+            receive_frame: &'static mut EthernetFrame
         ) {
             self.receive_status.set(receive_status);
-            self.number_bytes_received.replace(self.number_bytes_received.get() + received_frame_length);
+            self.number_bytes_received.replace(self.number_bytes_received.get() + receive_frame_length);
             self.number_frames_received.replace(self.number_frames_received.get() + 1);
+            self.receive_frame.put(Some(receive_frame));
         }
     }
 
@@ -2227,16 +2245,16 @@ pub mod tests {
 
     pub fn test_frame_reception<'a>(
         ethernet: &'a Ethernet<'a>,
-        receive_client: &'a DummyReceiveClient
+        receive_client: &'static DummyReceiveClient
     ) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame reception...");
         ethernet.receive_client.set(receive_client);
         // Impossible to get a frame while reception is disabled
-        let receive_buffer = receive_client.receive_buffer.take().unwrap();
+        let receive_frame = receive_client.receive_frame.take().unwrap();
         assert_eq!(
             Err(ErrorCode::OFF),
-            ethernet.receive_raw_frame(receive_buffer)
+            ethernet.receive_raw_frame(receive_frame)
         );
         ethernet.handle_interrupt();
 
@@ -2245,7 +2263,8 @@ pub mod tests {
         ethernet.handle_interrupt();
 
         for _frame_index in 0..100000 {
-            assert_ne!(Err(ErrorCode::OFF), ethernet.receive_raw_frame(receive_buffer));
+            let receive_frame = receive_client.receive_frame.take().unwrap();
+            assert_ne!(Err(ErrorCode::OFF), ethernet.receive_raw_frame(receive_frame));
             // Simulate a delay
             for _ in 0..100 {
                 nop();
@@ -2255,7 +2274,8 @@ pub mod tests {
         }
         let message = b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!";
         let message_length = message.len();
-        assert_eq!(message, &receive_buffer[14..(message_length + 14)]);
+        let receive_frame = receive_client.receive_frame.take().unwrap();
+        assert_eq!(message, &receive_frame.get_payload_no_vlan()[0..message_length]);
         debug!("Good unicast received frames: {:?}", ethernet.mmc_registers.mmcrgufcr.get());
         debug!("CRC errors: {:?}", ethernet.mmc_registers.mmcrfcecr.get());
         debug!("Alignment errors: {:?}", ethernet.mmc_registers.mmcrfaecr.get());
@@ -2265,7 +2285,7 @@ pub mod tests {
         // Stop reception
         assert_eq!(Ok(()), ethernet.disable_receiver());
         ethernet.handle_interrupt();
-        receive_client.receive_buffer.put(Some(receive_buffer));
+        receive_client.receive_frame.put(Some(receive_frame));
 
         debug!("Finished testing frame reception...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -2274,7 +2294,7 @@ pub mod tests {
     pub fn run_all<'a>(
         ethernet: &'a Ethernet<'a>,
         transmit_client: &'a DummyTransmitClient,
-        receive_client: &'a DummyReceiveClient
+        receive_client: &'static DummyReceiveClient
     ) {
         debug!("");
         debug!("================================================");
