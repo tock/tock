@@ -213,7 +213,7 @@ pub trait Receive<'a> {
     fn start_receiver(&self) -> Result<(), ErrorCode>;
     fn stop_receiver(&self) -> Result<(), ErrorCode>;
     fn is_receiver_up(&self) -> bool;
-    fn receive_raw_frame(&self, frame: &'static mut EthernetFrame) -> Result<(), ErrorCode>;
+    fn receive_raw_frame(&self, frame: &'static mut EthernetFrame) -> Result<(), (ErrorCode, &'static mut EthernetFrame)>;
 }
 
 pub trait TransmitClient {
