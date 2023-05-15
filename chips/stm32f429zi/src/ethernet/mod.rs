@@ -1939,16 +1939,16 @@ pub mod tests {
     }
 
     pub struct DummyReceiveClient<'a> {
-        pub(self) receive_status: OptionalCell<Result<(), ErrorCode>>,
+        pub(self) ethernet: &'a Ethernet<'a>,
         pub(self) receive_frame: TakeCell<'a, EthernetFrame>,
         pub(self) number_bytes_received: Cell<usize>,
         pub(self) number_frames_received: Cell<usize>
     }
 
     impl<'a> DummyReceiveClient<'a> {
-        pub fn new(receive_frame: &'static mut EthernetFrame) -> Self {
+        pub fn new(ethernet: &'a Ethernet<'a>, receive_frame: &'static mut EthernetFrame) -> Self {
             Self {
-                receive_status: OptionalCell::empty(),
+                ethernet,
                 receive_frame: TakeCell::new(receive_frame),
                 number_bytes_received: Cell::new(0),
                 number_frames_received: Cell::new(0)
@@ -1962,10 +1962,13 @@ pub mod tests {
             receive_frame_length: usize,
             receive_frame: &'static mut EthernetFrame
         ) {
-            self.receive_status.set(receive_status);
+            assert_eq!(Ok(()), receive_status);
+            let number_frames_received = self.number_frames_received.get() + 1;
             self.number_bytes_received.replace(self.number_bytes_received.get() + receive_frame_length);
-            self.number_frames_received.replace(self.number_frames_received.get() + 1);
-            self.receive_frame.put(Some(receive_frame));
+            self.number_frames_received.replace(number_frames_received);
+            if number_frames_received < 1_000_000 {
+                self.ethernet.receive_raw_frame(receive_frame);
+            }
         }
     }
 
