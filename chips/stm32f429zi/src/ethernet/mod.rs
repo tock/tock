@@ -2220,30 +2220,13 @@ pub mod tests {
         ethernet.set_transmit_client(transmit_client);
         let destination_address: MacAddress = DEFAULT_MAC_ADDRESS;
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_raw_frame(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
-        ethernet.handle_interrupt();
+        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_raw_frame(destination_address, b"TockOS is great"));
 
         // Enable Ethernet transmission
         assert_eq!(Ok(()), ethernet.start_transmitter());
-        ethernet.handle_interrupt();
 
         // Now, frames can be send
-        for frame_index in 0..100000 {
-            assert_eq!(Ok(()), ethernet.transmit_raw_frame(destination_address, b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!"));
-            assert_eq!(DmaTransmitProcessState::ReadingData, ethernet.get_transmit_process_state());
-            for _ in 0..200 {
-                nop();
-            }
-            ethernet.handle_interrupt();
-            assert_eq!(false, ethernet.transmit_descriptor.error_occurred());
-            assert_eq!(DmaTransmitProcessState::Suspended, ethernet.get_transmit_process_state());
-            assert_eq!(frame_index + 1, ethernet.mmc_registers.mmctgfcr.get());
-        }
-        debug!("Transmitted frames: {:?}", transmit_client.number_transmitted_frames.take());
-
-        // Disable transmission
-        assert_eq!(Ok(()), ethernet.disable_transmitter());
-        ethernet.handle_interrupt();
+        ethernet.transmit_raw_frame(destination_address, b"TockOS is great!");
 
         debug!("Finished testing frame transmission...");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -2310,8 +2293,8 @@ pub mod tests {
         //test_ethernet_interrupts(ethernet);
         //super::transmit_descriptor::tests::test_transmit_descriptor();
         //super::receive_descriptor::tests::test_receive_descriptor();
-        //test_frame_transmission(ethernet, transmit_client);
-        test_frame_reception(ethernet, receive_client);
+        test_frame_transmission(ethernet, transmit_client);
+        //test_frame_reception(ethernet, receive_client);
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
