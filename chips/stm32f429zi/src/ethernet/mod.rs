@@ -1913,24 +1913,28 @@ pub mod tests {
     use super::*;
     use kernel::debug;
 
-    pub struct DummyTransmitClient {
-        pub(self) transmit_status: OptionalCell<Result<(), ErrorCode>>,
+    pub struct DummyTransmitClient<'a> {
+        pub(self) ethernet: &'a Ethernet<'a>,
         pub(self) number_transmitted_frames: Cell<usize>
     }
 
-    impl DummyTransmitClient {
-        pub fn new() -> Self {
+    impl<'a> DummyTransmitClient<'a> {
+        pub fn new(ethernet: &'a Ethernet<'a>) -> Self {
             Self {
-                transmit_status: OptionalCell::empty(),
+                ethernet,
                 number_transmitted_frames: Cell::new(0)
             }
         }
     }
 
-    impl TransmitClient for DummyTransmitClient {
+    impl<'a> TransmitClient for DummyTransmitClient<'a> {
         fn transmitted_frame(&self, transmit_status: Result<(), ErrorCode>) {
-            self.transmit_status.set(transmit_status);
-            self.number_transmitted_frames.replace(self.number_transmitted_frames.get() + 1);
+            assert_eq!(Ok(()), transmit_status);
+            let number_transmitted_frames = self.number_transmitted_frames.take() + 1;
+            self.number_transmitted_frames.replace(number_transmitted_frames);
+            if number_transmitted_frames < 1_000_000 {
+                assert_eq!(Ok(()), self.ethernet.transmit_raw_frame(DEFAULT_MAC_ADDRESS, b"TockOS is great!"));
+            }
         }
     }
 
