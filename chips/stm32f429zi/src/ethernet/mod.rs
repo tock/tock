@@ -1732,18 +1732,19 @@ impl<'a> Ethernet<'a> {
 
         // Set the buffer size and return an error if it is too big
         let payload_length = payload.len() as u16;
-        let buffer_length = payload_length + 14;
 
-        self.transmit_descriptor.set_buffer1_size(buffer_length as usize)?;
 
         // Prepare the frame
         let transmit_frame = self.transmit_frame.take().unwrap();
-        transmit_frame.set_destination(destination_address);
-        transmit_frame.set_length_no_vlan(payload_length);
         transmit_frame.set_payload_no_vlan(payload)?;
+        transmit_frame.set_destination(destination_address);
+        transmit_frame.set_payload_length_no_vlan(payload_length);
 
         // Prepare the transmit descriptor
         self.transmit_descriptor.set_buffer1_address(transmit_frame.as_ptr() as u32);
+        self.transmit_descriptor.set_buffer1_size(transmit_frame.len() as usize)?;
+
+        // Put back the transmit frame
         self.transmit_frame.put(Some(transmit_frame));
 
         // Acquire the transmit descriptor
