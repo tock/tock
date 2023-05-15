@@ -105,11 +105,11 @@ impl EthernetFrame {
         MacAddress::new(self.0[SOURCE_FIELD].try_into().unwrap())
     }
 
-    pub fn set_length_no_vlan(&mut self, length: u16) {
+    pub fn set_payload_length_no_vlan(&mut self, length: u16) {
         self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].copy_from_slice(&length.to_be_bytes());
     }
 
-    pub fn get_length_no_vlan(&self) -> u16 {
+    pub fn get_payload_length_no_vlan(&self) -> u16 {
         u16::from_be_bytes(self.0[LENGTH_OR_TYPE_NO_VLAN_FIELD].try_into().unwrap())
     }
 
@@ -121,6 +121,7 @@ impl EthernetFrame {
     }
 
     pub fn get_header_no_vlan(&self) -> [u8; HEADER_NO_VLAN_FIELD.end] {
+        // Can't panic
         self.0[HEADER_NO_VLAN_FIELD].try_into().unwrap()
     }
 
@@ -129,6 +130,7 @@ impl EthernetFrame {
             return Err(ErrorCode::SIZE);
         }
 
+        // Can't panic
         self.0[HEADER_NO_VLAN_FIELD.end..(HEADER_NO_VLAN_FIELD.end + payload.len())].copy_from_slice(payload);
 
         Ok(())
@@ -147,8 +149,11 @@ impl EthernetFrame {
         self.0.as_mut_ptr()
     }
 
-    pub const fn len(&self) -> usize {
-        self.0.len()
+    pub fn len(&self) -> usize {
+        match self.get_type_no_vlan() {
+            EthernetType::RawFrame => self.get_payload_length_no_vlan() as usize + HEADER_NO_VLAN_FIELD.end,
+            EthernetType::Unknown => 0
+        }
     }
 }
 
@@ -273,7 +278,7 @@ mod tests {
         let mut ethernet_frame = EthernetFrame::default();
         assert_eq!(MacAddress::from(0x0), ethernet_frame.get_destination());
         assert_eq!(MacAddress::from(0x0), ethernet_frame.get_source());
-        assert_eq!(0x0, ethernet_frame.get_length_no_vlan());
+        assert_eq!(0x0, ethernet_frame.get_payload_length_no_vlan());
 
         let destination_mac_address = MacAddress::new([0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
         ethernet_frame.set_destination(destination_mac_address);
@@ -283,13 +288,13 @@ mod tests {
         ethernet_frame.set_source(source_mac_address);
         assert_eq!(source_mac_address, ethernet_frame.get_source());
 
-        ethernet_frame.set_length_no_vlan(123);
-        assert_eq!(123, ethernet_frame.get_length_no_vlan());
+        ethernet_frame.set_payload_length_no_vlan(123);
+        assert_eq!(123, ethernet_frame.get_payload_length_no_vlan());
 
         assert_eq!(EthernetType::RawFrame, ethernet_frame.get_type_no_vlan());
-        ethernet_frame.set_length_no_vlan(1500);
+        ethernet_frame.set_payload_length_no_vlan(1500);
         assert_eq!(EthernetType::RawFrame, ethernet_frame.get_type_no_vlan());
-        ethernet_frame.set_length_no_vlan(1501);
+        ethernet_frame.set_payload_length_no_vlan(1501);
         assert_eq!(EthernetType::Unknown, ethernet_frame.get_type_no_vlan());
 
         assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
@@ -301,6 +306,7 @@ mod tests {
         assert_eq!(payload,
             &ethernet_frame.get_payload_no_vlan()[0..payload.len()]);
 
-        assert_eq!(MAX_FRAME_LENGTH, ethernet_frame.len());
+        ethernet_frame.set_payload_length_no_vlan(payload.len() as u16);
+        assert_eq!(payload.len() + HEADER_NO_VLAN_FIELD.end, ethernet_frame.len());
     }
 }
