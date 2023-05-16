@@ -83,6 +83,7 @@ pub const SOURCE_FIELD: Range<usize> = 6..12;
 pub const LENGTH_OR_TYPE_NO_VLAN_FIELD: Range<usize> = 12..14;
 pub const HEADER_NO_VLAN_FIELD: Range<usize> = 0..14;
 
+#[derive(PartialEq, Debug)]
 pub struct EthernetFrame([u8; MAX_FRAME_LENGTH]);
 
 #[repr(u16)]
