@@ -140,7 +140,7 @@ impl<'a> Pll<'a> {
     // # Returns
     //
     // An instance of the PLL clock.
-    pub(crate) fn new(rcc: &'a Rcc) -> Self {
+    pub(in crate::clocks) fn new(rcc: &'a Rcc) -> Self {
         const PLLP: usize = match DEFAULT_PLLP_VALUE {
             PLLP::DivideBy2 => 2,
             PLLP::DivideBy4 => 4,

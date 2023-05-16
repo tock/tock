@@ -945,53 +945,6 @@ impl Rcc {
         }
     }
 
-    /* Main PLL clock*/
-
-    // The main PLL clock must not be configured as the sistem clock.
-    pub(crate) fn disable_pll_clock(&self) {
-        self.registers.cr.modify(CR::PLLON::CLEAR);
-    }
-
-    pub(crate) fn enable_pll_clock(&self) {
-        self.registers.cr.modify(CR::PLLON::SET);
-    }
-
-    pub(crate) fn is_enabled_pll_clock(&self) -> bool {
-        self.registers.cr.is_set(CR::PLLON)
-    }
-
-    // The PLL clock is locked when its signal is stable
-    pub(crate) fn is_locked_pll_clock(&self) -> bool {
-        self.registers.cr.is_set(CR::PLLRDY)
-    }
-
-    // This method must be called only when all PLL clocks are disabled
-    pub(crate) fn set_pll_clocks_source(&self, source: PllSource) {
-        self.registers
-            .pllcfgr
-            .modify(PLLCFGR::PLLSRC.val(source as u32));
-    }
-
-    // This method must be called only when all PLL clocks are disabled
-    pub(crate) fn set_pll_clocks_m_divider(&self, m: PLLM) {
-        self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
-    }
-
-    // This method must be called only if the main PLL clock is disabled
-    pub(crate) fn set_pll_clock_n_multiplier(&self, n: usize) {
-        self.registers.pllcfgr.modify(PLLCFGR::PLLN.val(n as u32));
-    }
-
-    // This method must be called only if the main PLL clock is disabled
-    pub(crate) fn set_pll_clock_p_divider(&self, p: PLLP) {
-        self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
-    }
-
-    // This method must be called only if the main PLL clock is disabled
-    pub(crate) fn set_pll_clock_q_divider(&self, q: PLLQ) {
-        self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
-    }
-
     fn configure_rng_clock(&self) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
         self.registers.cr.modify(CR::PLLON::SET);

@@ -239,7 +239,7 @@ const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
 
 impl<'a> Clocks<'a> {
     // The constructor must be called when the default peripherals are created
-    pub(crate) fn new(rcc: &'a Rcc) -> Self {
+    pub(in crate) fn new(rcc: &'a Rcc) -> Self {
         Self {
             rcc,
             flash: OptionalCell::empty(),

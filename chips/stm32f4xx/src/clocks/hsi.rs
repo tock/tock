@@ -61,7 +61,7 @@ impl<'a> Hsi<'a> {
     /// # Returns
     ///
     /// An instance of the HSI clock.
-    pub fn new(rcc: &'a Rcc) -> Self {
+    pub(in crate::clocks) fn new(rcc: &'a Rcc) -> Self {
         Self { rcc }
     }
 
