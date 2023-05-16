@@ -1913,6 +1913,9 @@ pub mod tests {
     use super::*;
     use kernel::debug;
 
+    const NUMBER_FRAMES_TRANSMIT_RECEIVE: usize = 1_000_000;
+    const MESSAGE: &'static [u8] = b"TockOS is great!";
+
     pub struct DummyTransmitClient<'a> {
         pub(self) ethernet: &'a Ethernet<'a>,
         pub(self) number_transmitted_frames: Cell<usize>
@@ -1932,8 +1935,12 @@ pub mod tests {
             assert_eq!(Ok(()), transmit_status);
             let number_transmitted_frames = self.number_transmitted_frames.take() + 1;
             self.number_transmitted_frames.replace(number_transmitted_frames);
-            if number_transmitted_frames < 1_000_000 {
-                assert_eq!(Ok(()), self.ethernet.transmit_raw_frame(DEFAULT_MAC_ADDRESS, b"TockOS is great!"));
+            if number_transmitted_frames < NUMBER_FRAMES_TRANSMIT_RECEIVE {
+                assert_eq!(Ok(()), self.ethernet.transmit_raw_frame(DEFAULT_MAC_ADDRESS, MESSAGE));
+            } else {
+                assert_eq!(self.ethernet.mmc_registers.mmctgfcr.get() as usize, NUMBER_FRAMES_TRANSMIT_RECEIVE);
+                debug!("Finished testing Ethernet transmit...");
+                debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
             }
         }
     }
@@ -1966,8 +1973,16 @@ pub mod tests {
             let number_frames_received = self.number_frames_received.get() + 1;
             self.number_bytes_received.replace(self.number_bytes_received.get() + receive_frame_length);
             self.number_frames_received.replace(number_frames_received);
-            if number_frames_received < 1_000_000 {
-                self.ethernet.receive_raw_frame(receive_frame);
+            assert_eq!(MESSAGE, &receive_frame.get_payload_no_vlan()[0..(MESSAGE.len())]);
+            if number_frames_received < NUMBER_FRAMES_TRANSMIT_RECEIVE {
+                assert_eq!(Ok(()), self.ethernet.receive_raw_frame(receive_frame));
+            } else {
+                self.receive_frame.put(Some(receive_frame));
+                debug!("Good unicast received frames: {:?}", self.ethernet.mmc_registers.mmcrgufcr.get());
+                debug!("CRC errors: {:?}", self.ethernet.mmc_registers.mmcrfcecr.get());
+                debug!("Alignment errors: {:?}", self.ethernet.mmc_registers.mmcrfaecr.get());
+                debug!("Finished testing frame reception...");
+                debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
             }
         }
     }
@@ -2223,16 +2238,13 @@ pub mod tests {
         ethernet.set_transmit_client(transmit_client);
         let destination_address: MacAddress = DEFAULT_MAC_ADDRESS;
         // Impossible to send a frame while transmission is disabled
-        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_raw_frame(destination_address, b"TockOS is great"));
+        assert_eq!(Err(ErrorCode::OFF), ethernet.transmit_raw_frame(destination_address, MESSAGE));
 
         // Enable Ethernet transmission
         assert_eq!(Ok(()), ethernet.start_transmitter());
 
         // Now, frames can be send
-        ethernet.transmit_raw_frame(destination_address, b"TockOS is great!");
-
-        debug!("Finished testing frame transmission...");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        assert_eq!(Ok(()), ethernet.transmit_raw_frame(destination_address, MESSAGE));
     }
 
     pub fn test_frame_reception<'a>(
@@ -2241,46 +2253,20 @@ pub mod tests {
     ) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame reception...");
-        //ethernet.receive_client.set(receive_client);
-        //// Impossible to get a frame while reception is disabled
-        //let receive_frame = receive_client.receive_frame.take().unwrap();
-        //assert_eq!(
-            //Err(ErrorCode::OFF),
-            //ethernet.receive_raw_frame(receive_frame)
-        //);
-        //ethernet.handle_interrupt();
+        ethernet.receive_client.set(receive_client);
+        // Impossible to get a frame while reception is disabled
+        let receive_frame = receive_client.receive_frame.take().unwrap();
+        let (error_code, receive_frame) = match ethernet.receive_raw_frame(receive_frame) {
+            Err((error, receive_frame)) => (error, receive_frame),
+            Ok(()) => panic!("Reception of a frame while the receiver is off should return an error")
+        };
+        assert_eq!(ErrorCode::OFF, error_code);
 
-        //// Enable reception
-        //assert_eq!(Ok(()), ethernet.enable_receiver());
-        //ethernet.handle_interrupt();
+        // Enable reception
+        assert_eq!(Ok(()), ethernet.enable_receiver());
 
-        //for _frame_index in 0..100000 {
-            //let receive_frame = receive_client.receive_frame.take().unwrap();
-            //assert_ne!(Err(ErrorCode::OFF), ethernet.receive_raw_frame(receive_frame));
-            //// Simulate a delay
-            //for _ in 0..100 {
-                //nop();
-            //}
-            //ethernet.handle_interrupt();
-            //assert_eq!(false, ethernet.receive_descriptor.error_occurred());
-        //}
-        //let message = b"TockOS is an embedded operating system designed for running multiple concurrent, mutually distrustful applications on Cortex-M and RISC-V based embedded platforms!";
-        //let message_length = message.len();
-        //let receive_frame = receive_client.receive_frame.take().unwrap();
-        //assert_eq!(message, &receive_frame.get_payload_no_vlan()[0..message_length]);
-        //debug!("Good unicast received frames: {:?}", ethernet.mmc_registers.mmcrgufcr.get());
-        //debug!("CRC errors: {:?}", ethernet.mmc_registers.mmcrfcecr.get());
-        //debug!("Alignment errors: {:?}", ethernet.mmc_registers.mmcrfaecr.get());
-        //debug!("Received bytes: {:?}", receive_client.number_bytes_received.take());
-        //debug!("Received frames: {:?}", receive_client.number_frames_received.take());
-
-        //// Stop reception
-        //assert_eq!(Ok(()), ethernet.disable_receiver());
-        //ethernet.handle_interrupt();
-        //receive_client.receive_frame.put(Some(receive_frame));
-
-        debug!("Finished testing frame reception...");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        // Now a frame can be received
+        assert_eq!(Ok(()), ethernet.receive_raw_frame(receive_frame));
     }
 
     pub fn run_all<'a>(
@@ -2297,7 +2283,7 @@ pub mod tests {
         //super::transmit_descriptor::tests::test_transmit_descriptor();
         //super::receive_descriptor::tests::test_receive_descriptor();
         test_frame_transmission(ethernet, transmit_client);
-        //test_frame_reception(ethernet, receive_client);
+        test_frame_reception(ethernet, receive_client);
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
