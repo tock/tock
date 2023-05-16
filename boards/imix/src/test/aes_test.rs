@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test that AES (either CTR or CBC mode) is working properly.
 //!
 //! To test CBC mode, add the following line to the imix boot sequence:
@@ -21,8 +25,8 @@
 //!     aes_test CTR passed: (CTR Dec Ctr Src/Dst)
 //! ```
 
-use capsules::test::aes::TestAes128Cbc;
-use capsules::test::aes::TestAes128Ctr;
+use capsules_extra::test::aes::TestAes128Cbc;
+use capsules_extra::test::aes::TestAes128Ctr;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 use sam4l::aes::Aes;

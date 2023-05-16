@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 target
 build/*
 *.rlib
@@ -68,6 +72,7 @@ package-lock.json
 
 # OpenTitan test build
 boards/opentitan/earlgrey-*/binary*
+boards/opentitan/earlgrey-*/verilator_build/
 
 # FuseSoC build files
 boards/swervolf/binary.hex

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use crate::clocks;
 use core::cell::Cell;
 use core::cmp;
@@ -288,7 +292,7 @@ impl<'a> Spi<'a> {
         }
     }
 
-    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
+    pub(crate) fn set_clocks(&self, clocks: &'a clocks::Clocks) {
         self.clocks.set(clocks);
     }
 

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implementation of the SAM4L CRCCU.
 //!
 //! See datasheet section "41. Cyclic Redundancy Check Calculation Unit (CRCCU)".
@@ -48,10 +52,9 @@
 //
 // - Support continuous-mode CRC
 
-use crate::deferred_call_tasks::Task;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
@@ -65,8 +68,6 @@ use kernel::ErrorCode;
 // Base address of CRCCU registers.  See "7.1 Product Mapping"
 pub const BASE_ADDRESS: StaticRef<CrccuRegisters> =
     unsafe { StaticRef::new(0x400A4000 as *const CrccuRegisters) };
-
-static DEFERRED_CALL: DeferredCall<Task> = unsafe { DeferredCall::new(Task::CRCCU) };
 
 #[repr(C)]
 pub struct CrccuRegisters {
@@ -265,11 +266,13 @@ pub struct Crccu<'a> {
     // Must be aligned to a 512-byte boundary, which is guaranteed by
     // the struct definition.
     descriptor: Descriptor,
+
+    deferred_call: DeferredCall,
 }
 
 impl Crccu<'_> {
     pub fn new(base_addr: StaticRef<CrccuRegisters>) -> Self {
-        Crccu {
+        Self {
             registers: base_addr,
             client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
@@ -277,6 +280,7 @@ impl Crccu<'_> {
             current_full_buffer: Cell::new((0 as *mut u8, 0)),
             compute_requested: Cell::new(false),
             descriptor: Descriptor::new(),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -364,8 +368,9 @@ impl Crccu<'_> {
             }
         }
     }
-
-    pub fn handle_deferred_call(&self) {
+}
+impl DeferredCallClient for Crccu<'_> {
+    fn handle_deferred_call(&self) {
         // A deferred call is currently only issued on a call to
         // compute, in which case we need to provide the CRC to the
         // client
@@ -383,6 +388,10 @@ impl Crccu<'_> {
         self.client.map(|client| {
             client.crc_done(Ok(result));
         });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 
@@ -533,7 +542,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
 
         // Request a deferred call such that we can provide the result
         // back to the client
-        DEFERRED_CALL.set();
+        self.deferred_call.set();
 
         Ok(())
     }

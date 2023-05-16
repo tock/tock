@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test the behavior of a single alarm.
 //! To add this test, include the line
 //! ```
@@ -12,7 +16,7 @@
 //! debug_gpio on pin XX so you can more precisely check
 //! the timings with a logic analyzer.
 
-use capsules::test::alarm_edge_cases::TestAlarmEdgeCases;
+use capsules_core::test::alarm_edge_cases::TestAlarmEdgeCases;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;

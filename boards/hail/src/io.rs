@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
@@ -25,7 +29,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         // Here, we create a second instance of the USART0 struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
@@ -47,6 +51,7 @@ impl IoWrite for Writer {
             uart.send_byte(regs_manager, c);
             while !uart.tx_ready(regs_manager) {}
         }
+        buf.len()
     }
 }
 

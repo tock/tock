@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 #![no_std]
 
 pub mod adc;
@@ -12,6 +16,7 @@ pub mod bme280;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
+pub mod can;
 pub mod ccs811;
 pub mod cdc;
 pub mod console;
@@ -53,6 +58,7 @@ pub mod panic_button;
 pub mod process_console;
 pub mod process_printer;
 pub mod proximity;
+pub mod pwm;
 pub mod rf233;
 pub mod rng;
 pub mod sched;

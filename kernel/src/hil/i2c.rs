@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interface for I2C master and slave peripherals.
 
 use crate::ErrorCode;
@@ -74,20 +78,20 @@ pub trait I2CMaster {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
     fn write(
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
     fn read(
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 }
 
@@ -113,8 +117,8 @@ pub trait SMBusMaster: I2CMaster {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 
     /// Write data via the I2C Master device in an SMBus compatible way.
@@ -132,7 +136,7 @@ pub trait SMBusMaster: I2CMaster {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 
     /// Read data via the I2C Master device in an SMBus compatible way.
@@ -150,7 +154,7 @@ pub trait SMBusMaster: I2CMaster {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 }
 
@@ -163,12 +167,12 @@ pub trait I2CSlave {
     fn write_receive(
         &self,
         data: &'static mut [u8],
-        max_len: u8,
+        max_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
     fn read_send(
         &self,
         data: &'static mut [u8],
-        max_len: u8,
+        max_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
     fn listen(&self);
 }
@@ -192,7 +196,7 @@ pub trait I2CHwSlaveClient {
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
-        length: u8,
+        length: usize,
         transmission_type: SlaveTransmissionType,
     );
 
@@ -220,11 +224,12 @@ pub trait I2CDevice {
     fn write_read(
         &self,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
-    fn write(&self, data: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])>;
-    fn read(&self, buffer: &'static mut [u8], len: u8) -> Result<(), (Error, &'static mut [u8])>;
+    fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])>;
+    fn read(&self, buffer: &'static mut [u8], len: usize)
+        -> Result<(), (Error, &'static mut [u8])>;
 }
 
 pub trait SMBusDevice: I2CDevice {
@@ -244,8 +249,8 @@ pub trait SMBusDevice: I2CDevice {
     fn smbus_write_read(
         &self,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 
     /// Write data to a slave device in an SMBus compatible way.
@@ -261,7 +266,7 @@ pub trait SMBusDevice: I2CDevice {
     fn smbus_write(
         &self,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 
     /// Read data from a slave device in an SMBus compatible way.
@@ -277,7 +282,7 @@ pub trait SMBusDevice: I2CDevice {
     fn smbus_read(
         &self,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (Error, &'static mut [u8])>;
 }
 

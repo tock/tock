@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 # For more information on Tock's make system and the CI setup, see the docs at
 # https://github.com/tock/tock/tree/master/doc/CodeReview.md#3-continuous-integration
 
@@ -157,6 +161,9 @@ allstack stack stack-analysis:
 		do $(MAKE) --no-print-directory -C "boards/$$f" stack-analysis || exit 1;\
 		done
 
+.PHONY: licensecheck
+licensecheck:
+	@cargo run --manifest-path=tools/license-checker/Cargo.toml --release
 
 ## Commands
 .PHONY: clean
@@ -209,7 +216,8 @@ ci-nosetup:
 prepush:\
 	format\
 	ci-job-clippy\
-	ci-job-syntax
+	ci-job-syntax\
+	licensecheck
 	$(call banner,Pre-Push checks all passed!)
 	# Note: Tock runs additional and more intense CI checks on all PRs.
 	# If one of these error, you can run `make ci-job-NAME` to test locally.
@@ -334,7 +342,7 @@ ci-runner-netlify:\
 
 ### ci-runner-github-format jobs:
 .PHONY: ci-job-format
-ci-job-format:
+ci-job-format: licensecheck
 	$(call banner,CI-Job: Format Check)
 	@NOWARNINGS=true TOCK_FORMAT_MODE=diff $(MAKE) format
 
@@ -475,7 +483,7 @@ ci-setup-tools:
 define ci_job_tools
 	$(call banner,CI-Job: Tools)
 	@NOWARNINGS=true RUSTFLAGS="-D warnings" \
-		cargo build --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
+		cargo test --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
 endef
 
 .PHONY: ci-job-tools
@@ -508,7 +516,7 @@ ci-job-cargo-test-build:
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=dbc4f48b5ab3e6d85f78aa4df6bd6ad561c3d152
+QEMU_COMMIT_HASH=6dffbe36af79e26a4d23f94a9a1c1201de99c261
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support

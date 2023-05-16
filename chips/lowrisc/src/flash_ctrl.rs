@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Flash Controller
 
 use core::cell::Cell;
@@ -45,26 +49,27 @@ register_structs! {
         (0x154 => bank1_info2_regwen: [ReadWrite<u32, BANK_INFO_REGWEN::Register>; 2]),
         (0x15C => bank1_info2_page_cfg: [ReadWrite<u32, BANK_INFO_PAGE_CFG::Register>; 2]),
 
-        (0x164 => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
-        (0x168 => mp_bank_cfg_shadowed: ReadWrite<u32, MP_BANK_CFG::Register>),
-        (0x16C => op_status: ReadWrite<u32, OP_STATUS::Register>),
-        (0x170 => status: ReadOnly<u32, STATUS::Register>),
-        (0x174 => debug_state: ReadOnly<u32>),
-        (0x178 => err_code: ReadWrite<u32, ERR_CODE::Register>),
-        (0x17C => std_fault_status: ReadOnly<u32>),
-        (0x180 => fault_status: ReadOnly<u32>),
-        (0x184 => err_addr: ReadOnly<u32>),
-        (0x188 => ecc_single_err_cnt: ReadOnly<u32>),
-        (0x18C => ecc_single_addr: [ReadOnly<u32>; 2]),
-        (0x194 => phy_alert_cfg: ReadOnly<u32>),
-        (0x198 => phy_status: ReadOnly<u32, PHY_STATUS::Register>),
-        (0x19C => scratch: ReadWrite<u32, SCRATCH::Register>),
-        (0x1A0 => fifo_lvl: ReadWrite<u32, FIFO_LVL::Register>),
-        (0x1A4 => fifo_rst: ReadWrite<u32, FIFO_RST::Register>),
-        (0x1A8 => curr_fifo_lvl: WriteOnly<u32>),
-        (0x1AC => prog_fifo: WriteOnly<u32>),
-        (0x1B0 => rd_fifo: ReadOnly<u32>),
-        (0x1B4=> @END),
+        (0x164 => hw_info_cfg_override: ReadWrite<u32>),
+        (0x168 => bank_cfg_regwen: ReadWrite<u32, BANK_CFG_REGWEN::Register>),
+        (0x16C => mp_bank_cfg_shadowed: ReadWrite<u32, MP_BANK_CFG::Register>),
+        (0x170 => op_status: ReadWrite<u32, OP_STATUS::Register>),
+        (0x174 => status: ReadOnly<u32, STATUS::Register>),
+        (0x178 => debug_state: ReadOnly<u32>),
+        (0x17C => err_code: ReadWrite<u32, ERR_CODE::Register>),
+        (0x180 => std_fault_status: ReadOnly<u32>),
+        (0x184 => fault_status: ReadOnly<u32>),
+        (0x188 => err_addr: ReadOnly<u32>),
+        (0x18C => ecc_single_err_cnt: ReadOnly<u32>),
+        (0x190 => ecc_single_addr: [ReadOnly<u32>; 2]),
+        (0x198 => phy_alert_cfg: ReadOnly<u32>),
+        (0x19C => phy_status: ReadOnly<u32, PHY_STATUS::Register>),
+        (0x1A0 => scratch: ReadWrite<u32, SCRATCH::Register>),
+        (0x1A4 => fifo_lvl: ReadWrite<u32, FIFO_LVL::Register>),
+        (0x1A8 => fifo_rst: ReadWrite<u32, FIFO_RST::Register>),
+        (0x1AC => curr_fifo_lvl: WriteOnly<u32>),
+        (0x1B0 => prog_fifo: WriteOnly<u32>),
+        (0x1B4 => rd_fifo: ReadOnly<u32>),
+        (0x1B8=> @END),
     }
 }
 

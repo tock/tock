@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tests the log storage interface in linear mode. For testing in circular mode, see
 //! log_test.rs.
 //!
@@ -11,7 +15,6 @@
 //! ```rust
 //! test::linear_log_test::run(
 //!     mux_alarm,
-//!     dynamic_deferred_caller,
 //!     &nrf52840_peripherals.nrf52.nvmc,
 //! );
 //! ```
@@ -19,11 +22,10 @@
 //! and use the `USER` and `RESET` buttons to manually erase the log and reboot the imix,
 //! respectively.
 
-use capsules::log;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::log;
 use core::cell::Cell;
 use kernel::debug_verbose;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -39,11 +41,7 @@ use nrf52840::{
 // Allocate 8 KiB volume for log storage (the nano33ble page size is 4 KiB).
 storage_volume!(LINEAR_TEST_LOG, 8);
 
-pub unsafe fn run(
-    mux_alarm: &'static MuxAlarm<'static, Rtc>,
-    deferred_caller: &'static DynamicDeferredCall,
-    flash_controller: &'static Nvmc,
-) {
+pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: &'static Nvmc) {
     // Set up flash controller.
     flash_controller.configure_writeable();
     flash_controller.configure_eraseable();
@@ -52,20 +50,10 @@ pub unsafe fn run(
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
         Log,
-        log::Log::new(
-            &LINEAR_TEST_LOG,
-            &flash_controller,
-            pagebuffer,
-            deferred_caller,
-            false
-        )
+        log::Log::new(&LINEAR_TEST_LOG, &flash_controller, pagebuffer, false)
     );
     flash::HasClient::set_client(flash_controller, log);
-    log.initialize_callback_handle(
-        deferred_caller
-            .register(log)
-            .expect("no deferred call slot available for log storage"),
-    );
+    kernel::deferred_call::DeferredCallClient::register(log);
 
     let alarm = static_init!(
         VirtualMuxAlarm<'static, Rtc>,

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Peripheral implementations for the STM32F4xx MCU.
 //!
 //! STM32F446RE: <https://www.st.com/en/microcontrollers/stm32f4.html>
@@ -11,8 +15,8 @@ pub mod nvic;
 
 // Peripherals
 pub mod adc;
+pub mod can;
 pub mod dbg;
-pub mod deferred_calls;
 pub mod dma;
 pub mod exti;
 pub mod fsmc;

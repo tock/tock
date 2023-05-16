@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! IO Master Driver (I2C and SPI)
 
 use core::cell::Cell;
@@ -690,8 +694,8 @@ impl<'a> Iom<'_> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
         let mut offsetlo = 0;
@@ -755,7 +759,7 @@ impl<'a> Iom<'_> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -801,7 +805,7 @@ impl<'a> Iom<'_> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -898,8 +902,8 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
@@ -914,7 +918,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
@@ -929,7 +933,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, buffer));
@@ -946,8 +950,8 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -974,7 +978,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -1001,7 +1005,7 @@ impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         let regs = self.registers;
 
@@ -1277,7 +1281,7 @@ impl<'a> SpiMaster for Iom<'a> {
     }
 
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
-        if self.op.get() != Operation::SPI {
+        if self.op.get() != Operation::SPI && self.op.get() != Operation::None {
             return Err(ErrorCode::BUSY);
         }
 
@@ -1343,7 +1347,7 @@ impl<'a> SpiMaster for Iom<'a> {
     }
 
     fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
-        if self.op.get() != Operation::SPI {
+        if self.op.get() != Operation::SPI && self.op.get() != Operation::None {
             return Err(ErrorCode::BUSY);
         }
 
@@ -1365,7 +1369,7 @@ impl<'a> SpiMaster for Iom<'a> {
     }
 
     fn set_phase(&self, phase: ClockPhase) -> Result<(), ErrorCode> {
-        if self.op.get() != Operation::SPI {
+        if self.op.get() != Operation::SPI && self.op.get() != Operation::None {
             return Err(ErrorCode::BUSY);
         }
 

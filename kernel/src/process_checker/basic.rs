@@ -1,10 +1,12 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Sample implementations of application credentials checkers, used
 //! to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
-use crate::dynamic_deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
-};
+use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha256};
 use crate::process::{Process, ShortID};
@@ -22,31 +24,25 @@ use tock_tbf::types::TbfFooterV2CredentialsType;
 /// Binary with the same process name as an existing one it fails the
 /// uniqueness check and is not run.
 pub struct AppCheckerSimulated<'a> {
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn Client<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
 
 impl<'a> AppCheckerSimulated<'a> {
-    pub fn new(call: &'a DynamicDeferredCall) -> AppCheckerSimulated<'a> {
-        AppCheckerSimulated {
-            deferred_caller: call,
-            handle: OptionalCell::empty(),
+    pub fn new() -> Self {
+        Self {
+            deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
         }
     }
-
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
 }
 
-impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
-    fn call(&self, _handle: DeferredCallHandle) {
+impl<'a> DeferredCallClient for AppCheckerSimulated<'a> {
+    fn handle_deferred_call(&self) {
         self.client.map(|c| {
             c.check_done(
                 Ok(CheckResult::Pass),
@@ -54,6 +50,10 @@ impl<'a> DynamicDeferredCallClient for AppCheckerSimulated<'a> {
                 self.binary.take().unwrap(),
             )
         });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 
@@ -67,17 +67,14 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        self.handle
-            .map_or(Err((ErrorCode::FAIL, credentials, binary)), |handle| {
-                if self.credentials.is_none() {
-                    self.credentials.replace(credentials);
-                    self.binary.replace(binary);
-                    self.deferred_caller.set(*handle);
-                    Ok(())
-                } else {
-                    Err((ErrorCode::BUSY, credentials, binary))
-                }
-            })
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
     }
 
     fn set_client(&self, client: &'a dyn Client<'a>) {
@@ -258,6 +255,134 @@ impl Compress for AppCheckerSha256 {
             | (credentials.data()[1] as u32) << 16
             | (credentials.data()[2] as u32) << 8
             | (credentials.data()[3] as u32);
+        match core::num::NonZeroU32::new(id) {
+            Some(nzid) => ShortID::Fixed(nzid),
+            None => ShortID::LocallyUnique, // Should never be generated
+        }
+    }
+}
+
+/// A sample Credentials Checking Policy that loads and runs Userspace
+/// Binaries that have RSA3072 or RSA4096 credentials. It uses the
+/// public key stored in the credentials as the Application
+/// Identifier, and the bottom 31 bits of the public key as the
+/// ShortID. WARNING: this policy does not actually check the RSA
+/// signature: it always blindly assumes it is correct. This checker
+/// exists to test that the Tock boot sequence correctly handles
+/// ID collisions and version numbers.
+pub struct AppCheckerRsaSimulated<'a> {
+    deferred_call: DeferredCall,
+    client: OptionalCell<&'a dyn Client<'a>>,
+    credentials: OptionalCell<TbfFooterV2Credentials>,
+    binary: OptionalCell<&'a [u8]>,
+}
+
+impl<'a> AppCheckerRsaSimulated<'a> {
+    pub fn new() -> AppCheckerRsaSimulated<'a> {
+        Self {
+            deferred_call: DeferredCall::new(),
+            client: OptionalCell::empty(),
+            credentials: OptionalCell::empty(),
+            binary: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
+    fn handle_deferred_call(&self) {
+        // This checker does not actually verify the RSA signature; it
+        // assumes the signature is valid and so accepts any RSA
+        // signature. This checker is intended for testing kernel
+        // process loading logic, and not for real uses requiring
+        // integrity or authenticity.
+        self.client.map(|c| {
+            let binary = self.binary.take().unwrap();
+            let cred = self.credentials.take().unwrap();
+            let result = if cred.format() == TbfFooterV2CredentialsType::Rsa3072Key
+                || cred.format() == TbfFooterV2CredentialsType::Rsa4096Key
+            {
+                Ok(CheckResult::Accept)
+            } else {
+                Ok(CheckResult::Pass)
+            };
+
+            c.check_done(result, cred, binary)
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+}
+
+impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
+    fn require_credentials(&self) -> bool {
+        true
+    }
+
+    fn check_credentials(
+        &self,
+        credentials: TbfFooterV2Credentials,
+        binary: &'a [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
+    }
+
+    fn set_client(&self, client: &'a dyn Client<'a>) {
+        self.client.replace(client);
+    }
+}
+
+impl AppUniqueness for AppCheckerRsaSimulated<'_> {
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
+        let cred_a = process_a.get_credentials();
+        let cred_b = process_b.get_credentials();
+
+        // If it doesn't have credentials, it is by definition
+        // different. It should not be runnable (this checker requires
+        // credentials), but if this returned false it could block
+        // runnable processes from running.
+        cred_a.map_or(true, |a| {
+            cred_b.map_or(true, |b| {
+                // Two IDs are different if they have a different format,
+                // different length (should not happen, but worth checking for
+                // the next test), or any byte of them differs.
+                if a.format() != b.format() {
+                    true
+                } else if a.data().len() != b.data().len() {
+                    true
+                } else {
+                    for (aval, bval) in a.data().iter().zip(b.data().iter()) {
+                        if aval != bval {
+                            return true;
+                        }
+                    }
+                    false
+                }
+            })
+        })
+    }
+}
+
+impl Compress for AppCheckerRsaSimulated<'_> {
+    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
+        // Should never trigger, as we only approve RSA3072 and RSA4096 credentials.
+        let data = credentials.data();
+        if data.len() < 4 {
+            return ShortID::LocallyUnique;
+        }
+        let id: u32 = 0x8000000 as u32
+            | (data[0] as u32) << 24
+            | (data[1] as u32) << 16
+            | (data[2] as u32) << 8
+            | (data[3] as u32);
         match core::num::NonZeroU32::new(id) {
             Some(nzid) => ShortID::Fixed(nzid),
             None => ShortID::LocallyUnique, // Should never be generated

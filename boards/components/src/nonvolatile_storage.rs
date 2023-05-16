@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for non-volatile storage Drivers.
 //!
 //! This provides one component, NonvolatileStorageComponent, which provides
@@ -19,8 +23,8 @@
 //! ));
 //! ```
 
-use capsules::nonvolatile_storage_driver::NonvolatileStorage;
-use capsules::nonvolatile_to_pages::NonvolatileToPages;
+use capsules_extra::nonvolatile_storage_driver::NonvolatileStorage;
+use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -32,11 +36,13 @@ use kernel::hil;
 macro_rules! nonvolatile_storage_component_static {
     ($F:ty $(,)?) => {{
         let page = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
-        let ntp =
-            kernel::static_buf!(capsules::nonvolatile_to_pages::NonvolatileToPages<'static, $F>);
-        let ns =
-            kernel::static_buf!(capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>);
-        let buffer = kernel::static_buf!([u8; capsules::nonvolatile_storage_driver::BUF_LEN]);
+        let ntp = kernel::static_buf!(
+            capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
+        );
+        let ns = kernel::static_buf!(
+            capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>
+        );
+        let buffer = kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
         (page, ntp, ns, buffer)
     };};
@@ -91,7 +97,7 @@ impl<
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
         &'static mut MaybeUninit<NonvolatileStorage<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::nonvolatile_storage_driver::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]>,
     );
     type Output = &'static NonvolatileStorage<'static>;
 
@@ -100,7 +106,7 @@ impl<
 
         let buffer = static_buffer
             .3
-            .write([0; capsules::nonvolatile_storage_driver::BUF_LEN]);
+            .write([0; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
         let flash_pagebuffer = static_buffer
             .0

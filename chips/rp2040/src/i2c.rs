@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use crate::clocks;
 use crate::resets;
 use core::cell::Cell;
@@ -411,8 +415,8 @@ impl<'a> I2c<'a> {
     fn write_then_read(
         &self,
         addr: u8,
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), hil::i2c::Error> {
         let state = self.state.get();
         assert!(state != State::Uninitialized);
@@ -527,7 +531,7 @@ impl<'a> I2c<'a> {
         self.rw_index.set(idx + 1);
     }
 
-    fn read(&self, addr: u8, len: u8) -> Result<(), hil::i2c::Error> {
+    fn read(&self, addr: u8, len: usize) -> Result<(), hil::i2c::Error> {
         let state = self.state.get();
         assert!(state != State::Uninitialized);
         if state != State::Idle {
@@ -703,8 +707,8 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        write_len: u8,
-        read_len: u8,
+        write_len: usize,
+        read_len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.buf.put(Some(data));
 
@@ -720,7 +724,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         data: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         // Setting read_len to 0 will result in having just a write
         self.write_read(addr, data, len, 0)
@@ -730,7 +734,7 @@ impl<'a> hil::i2c::I2CMaster for I2c<'a> {
         &self,
         addr: u8,
         buffer: &'static mut [u8],
-        len: u8,
+        len: usize,
     ) -> Result<(), (hil::i2c::Error, &'static mut [u8])> {
         self.buf.put(Some(buffer));
 

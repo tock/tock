@@ -1,6 +1,9 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use crate::chip::E310xDefaultPeripherals;
 use crate::interrupts;
-use e310x::deferred_call_tasks::DeferredCallTask;
 
 #[repr(transparent)]
 pub struct E310G003DefaultPeripherals<'a> {
@@ -8,15 +11,17 @@ pub struct E310G003DefaultPeripherals<'a> {
 }
 
 impl<'a> E310G003DefaultPeripherals<'a> {
-    pub unsafe fn new() -> Self {
+    pub unsafe fn new(clock_frequency: u32) -> Self {
         Self {
-            e310x: E310xDefaultPeripherals::new(),
+            e310x: E310xDefaultPeripherals::new(clock_frequency),
         }
     }
+
+    pub fn init(&'static self) {
+        self.e310x.init();
+    }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
-    for E310G003DefaultPeripherals<'a>
-{
+impl<'a> kernel::platform::chip::InterruptService for E310G003DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.e310x.uart0.handle_interrupt(),
@@ -30,9 +35,5 @@ impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
             _ => return self.e310x.service_interrupt(interrupt),
         }
         true
-    }
-
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        self.e310x.service_deferred_call(task)
     }
 }

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
@@ -24,7 +28,7 @@ type QemuRv32VirtPMP = PMP<8>;
 
 pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
-pub struct QemuRv32VirtChip<'a, I: InterruptService<()> + 'a> {
+pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: QemuRv32VirtPMP,
     plic: &'a Plic,
@@ -55,7 +59,7 @@ impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService<()> for QemuRv32VirtDefaultPeripherals<'a> {
+impl<'a> InterruptService for QemuRv32VirtDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.uart0.handle_interrupt(),
@@ -71,13 +75,9 @@ impl<'a> InterruptService<()> for QemuRv32VirtDefaultPeripherals<'a> {
         }
         true
     }
-
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
-    }
 }
 
-impl<'a, I: InterruptService<()> + 'a> QemuRv32VirtChip<'a, I> {
+impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
     pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a QemuRv32VirtClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
@@ -106,7 +106,7 @@ impl<'a, I: InterruptService<()> + 'a> QemuRv32VirtChip<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> Chip for QemuRv32VirtChip<'a, I> {
+impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     type MPU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
@@ -131,7 +131,9 @@ impl<'a, I: InterruptService<()> + 'a> Chip for QemuRv32VirtChip<'a, I> {
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET) && self.plic.get_saved_interrupts().is_none() {
+            if !mip.any_matching_bits_set(mip::mtimer::SET)
+                && self.plic.get_saved_interrupts().is_none()
+            {
                 break;
             }
         }

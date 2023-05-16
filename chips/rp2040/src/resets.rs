@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, FieldValue, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -355,5 +359,13 @@ impl Resets {
             value = !value & 0xFFFFF;
             while (self.registers.reset_done.get() & value) != value {}
         }
+    }
+
+    pub fn watchdog_reset_all_except(&self, peripherals: &'static [Peripheral]) {
+        let mut value = 0xFFFFFF;
+        for peripheral in peripherals {
+            value ^= peripheral.get_reset_field_set().value;
+        }
+        self.registers.wdsel.set(value);
     }
 }

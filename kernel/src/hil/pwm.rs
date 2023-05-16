@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interfaces for Pulse Width Modulation output.
 
 use crate::ErrorCode;
@@ -7,7 +11,7 @@ pub trait Pwm {
     /// The chip-dependent type of a PWM pin.
     type Pin;
 
-    /// Generate a PWM single on the given pin at the given frequency and duty
+    /// Generate a PWM signal on the given pin at the given frequency and duty
     /// cycle.
     ///
     /// - `frequency_hz` is specified in Hertz.

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! QEMU's memory mapped 16550 UART
 
 use core::cell::Cell;
@@ -208,11 +212,11 @@ pub struct Uart16550<'a> {
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
     tx_buffer: TakeCell<'static, [u8]>,
-    _rx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
-    _rx_len: Cell<usize>,
-    _rx_index: Cell<usize>,
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_len: Cell<usize>,
+    rx_index: Cell<usize>,
 }
 
 impl<'a> Uart16550<'a> {
@@ -227,11 +231,11 @@ impl<'a> Uart16550<'a> {
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             tx_buffer: TakeCell::empty(),
-            _rx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
-            _rx_len: Cell::new(0),
-            _rx_index: Cell::new(0),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
         }
     }
 }
@@ -259,18 +263,14 @@ impl<'a> Uart16550<'a> {
                 self.transmit_continue();
             }
         }
+        // Check whether we've received some new data.
+        else if iir.matches_all(IIR::Identification::ReceiveDataAvailable) {
+            self.receive();
+        }
         // We don't care about MSC interrupts, but have to ack the
         // interrupt by reading MSR
         else if iir.matches_all(IIR::Identification::ModemStatusChange) {
             let _ = self.regs.msr.get();
-        }
-        // We don't care about RDA interrupts, but have to ack the
-        // interrupt by reading RBR
-        else if iir.matches_all(IIR::Identification::ReceiveDataAvailable) {
-            // Read in a while loop, until no more data in the FIFO
-            while self.regs.lsr.is_set(LSR::DataAvailable) {
-                let _ = self.regs.rbr_thr.get();
-            }
         }
         // We don't care about LSC interrupts, but have to ack the
         // interrupt by reading LSR
@@ -343,6 +343,34 @@ impl<'a> Uart16550<'a> {
             // Callback to the client
             self.tx_client
                 .map(move |client| client.transmitted_buffer(tx_data, self.tx_len.get(), Ok(())));
+        }
+    }
+
+    fn receive(&self) {
+        // Receive interrupts must only be enabled when we're currently holding
+        // a buffer to receive data into:
+        let rx_buffer = self.rx_buffer.take().expect("UART 16550: no rx buffer");
+        let len = self.rx_len.get();
+        let mut index = self.rx_index.get();
+
+        // Read in a while loop, until no more data in the FIFO
+        while self.regs.lsr.is_set(LSR::DataAvailable) && index < len {
+            rx_buffer[index] = self.regs.rbr_thr.get();
+            index += 1;
+        }
+
+        // Check whether we've read sufficient data:
+        if index == len {
+            // We're done, disable interrupts and return to the client:
+            self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
+
+            self.rx_client.map(move |client| {
+                client.received_buffer(rx_buffer, len, Ok(()), hil::uart::Error::None)
+            });
+        } else {
+            // Store the new index and place the buffer back:
+            self.rx_index.set(index);
+            self.rx_buffer.replace(rx_buffer);
         }
     }
 }
@@ -449,17 +477,36 @@ impl<'a> hil::uart::Receive<'a> for Uart16550<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        // Receive is currently unsupported
-        Err((ErrorCode::FAIL, rx_buffer))
+        // Ensure the provided buffer holds at least `rx_len` bytes, and
+        // `rx_len` is strictly positive (otherwise we'd need to use deferred
+        // calls):
+        if rx_buffer.len() < rx_len && rx_len > 0 {
+            return Err((ErrorCode::SIZE, rx_buffer));
+        }
+
+        // Store the receive buffer and byte count. We cannot call into the
+        // generic receive routine here, as the client callback needs to be
+        // called from another call stack. Hence simply enable interrupts here.
+        self.rx_buffer.replace(rx_buffer);
+        self.rx_len.set(rx_len);
+        self.rx_index.set(0);
+
+        // Enable receive interrupts:
+        self.regs.ier.modify(IER::ReceivedDataAvailable::SET);
+
+        Ok(())
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
+        // Currently unsupported as we'd like to avoid using deferred
+        // calls. Needs to be migrated to the new UART HIL anyways.
         Err(ErrorCode::FAIL)
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
+        // Currently unsupported.
         Err(ErrorCode::FAIL)
     }
 }

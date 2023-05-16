@@ -1,13 +1,17 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for any proximity sensor.
 //!
 //! Usage
 //! -----
 //! ```rust
-//! let proximity = ProximityComponent::new(apds9960, board_kernel, capsules::proximity::DRIVER_NUM)
+//! let proximity = ProximityComponent::new(apds9960, board_kernel, capsules_extra::proximity::DRIVER_NUM)
 //!     .finalize(components::proximity_component_static!());
 //! ```
 
-use capsules::proximity::ProximitySensor;
+use capsules_extra::proximity::ProximitySensor;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -17,7 +21,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! proximity_component_static {
     () => {{
-        kernel::static_buf!(capsules::proximity::ProximitySensor<'static>)
+        kernel::static_buf!(capsules_extra::proximity::ProximitySensor<'static>)
     };};
 }
 

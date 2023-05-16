@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for Nucleo-F429ZI development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
@@ -8,11 +12,10 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -43,28 +46,39 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+// Function for the process console to use to reboot the board
+fn reset() -> ! {
+    unsafe {
+        cortexm4::scb::reset();
+    }
+    loop {
+        cortexm4::support::nop();
+    }
+}
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF429ZI {
-    console: &'static capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, stm32f429zi::gpio::Pin<'static>>,
         3,
     >,
-    button: &'static capsules::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    button: &'static capsules_core::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
-    rng: &'static capsules::rng::RngDriver<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
+    rng: &'static capsules_core::rng::RngDriver<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -74,15 +88,16 @@ impl SyscallDriverLookup for NucleoF429ZI {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
             _ => f(None),
         }
     }
@@ -238,10 +253,26 @@ unsafe fn set_pin_primary_functions(
     gpio_ports.get_pin(PinId::PC02).map(|pin| {
         pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
+
+    gpio_ports.get_pin(PinId::PD00).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF9 is CAN_RX
+        pin.set_alternate_function(AlternateFunction::AF9);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
+    });
+    gpio_ports.get_pin(PinId::PD01).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF9 is CAN_TX
+        pin.set_alternate_function(AlternateFunction::AF9);
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
-unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::trng::Trng) {
+unsafe fn setup_peripherals(
+    tim2: &stm32f429zi::tim2::Tim2,
+    trng: &stm32f429zi::trng::Trng,
+    can1: &'static stm32f429zi::can::Can,
+) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
 
@@ -252,6 +283,9 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::
 
     // RNG
     trng.enable_clock();
+
+    // CAN
+    can1.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -260,7 +294,7 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2, trng: &stm32f429zi::
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> (
+unsafe fn create_peripherals() -> (
     &'static mut Stm32f429ziDefaultPeripherals<'static>,
     &'static stm32f429zi::syscfg::Syscfg<'static>,
     &'static stm32f429zi::dma::Dma1<'static>,
@@ -292,11 +326,11 @@ unsafe fn get_peripherals() -> (
 pub unsafe fn main() {
     stm32f429zi::init();
 
-    let (peripherals, syscfg, dma1) = get_peripherals();
+    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2, &peripherals.trng);
+    setup_peripherals(&base_peripherals.tim2, &peripherals.trng, &peripherals.can1);
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -308,14 +342,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let chip = static_init!(
         stm32f429zi::chip::Stm32f4xx<Stm32f429ziDefaultPeripherals>,
         stm32f429zi::chip::Stm32f4xx::new(peripherals)
@@ -326,12 +352,8 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart3.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(
-        &base_peripherals.usart3,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart3, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     io::WRITER.set_initialized();
 
@@ -345,7 +367,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -368,7 +390,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f429zi::gpio::Pin,
             (
@@ -389,7 +411,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(stm32f429zi::tim2::Tim2));
@@ -397,7 +419,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f429zi::gpio::Pin,
             // Arduino like RX/TX
@@ -511,11 +533,11 @@ pub unsafe fn main() {
     ));
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
+        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+        capsules_extra::temperature::TemperatureSensor<'static>,
+        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
@@ -540,7 +562,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,
@@ -556,10 +578,20 @@ pub unsafe fn main() {
     // RNG
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
+        capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
     .finalize(components::rng_component_static!());
+
+    // CAN
+    let can = components::can::CanComponent::new(
+        board_kernel,
+        capsules_extra::can::DRIVER_NUM,
+        &peripherals.can1,
+    )
+    .finalize(components::can_component_static!(
+        stm32f429zi::can::Can<'static>
+    ));
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -567,6 +599,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset),
     )
     .finalize(components::process_console_component_static!(
         stm32f429zi::tim2::Tim2
@@ -593,6 +626,7 @@ pub unsafe fn main() {
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
+        can: can,
     };
 
     // // Optional kernel tests

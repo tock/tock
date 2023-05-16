@@ -1,0 +1,39 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+# Copyright Google LLC 2022.
+
+/.git/
+/COPYRIGHT
+/LICENSE-APACHE
+/LICENSE-MIT
+
+# Files that do not support comments.
+*.json
+*.md
+/rust-toolchain
+
+# We're a bit more permissive in the doc/ directory.
+/doc/**/*.svg
+/doc/**/*.txt
+
+# Files that are not authored by Tock contributors.
+/boards/apollo3/ambiq/am_defines.py
+/boards/apollo3/ambiq/ambiq_bin2board.py
+/boards/apollo3/ambiq/keys_info.py
+/boards/arty_e21/core/sifive_coreip_E21_AHB_rtl_eval_v19_05p1_release_arty_a7_100t.mcs
+/boards/arty_e21/core/sifive_coreip_E21_FPGA_Evaluation_v19_02_rc0.mcs
+/tools/sha256sum/src/main.rs
+
+# These files are part of the license checker's test suite, and are designed to
+# produce license checker errors.
+/tools/license-checker/testdata/error_missing.rs
+/tools/license-checker/testdata/many_errors.rs
+/tools/license-checker/testdata/no_copyright.rs
+/tools/license-checker/testdata/no_spdx.rs
+
+# File types that the license checker does not support but should support (see
+# issue #3417)
+*.ld
+*.jlink
+*.xml

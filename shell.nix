@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 # Shell expression for the Nix package manager
 #
 # This nix expression creates an environment with necessary packages installed:
@@ -21,14 +25,22 @@ let
 
     tockloader = buildPythonPackage rec {
       pname = "tockloader";
-      version = "1.8.0";
+      version = "1.9.0";
       name = "${pname}-${version}";
 
-      propagatedBuildInputs = [ argcomplete colorama crcmod pyserial pytoml tqdm ];
+      propagatedBuildInputs = [
+        argcomplete
+        colorama
+        crcmod
+        pyserial
+        pytoml
+        tqdm
+        questionary
+      ];
 
       src = fetchPypi {
         inherit pname version;
-        sha256 = "0qniwkhgiwm9bayf1l9s3i83k0f7qm0iqgvjljdj4pf86lqllbb7";
+        sha256 = "sha256-7W55jugVtamFUL8N3dD1LFLJP2UDQb74V6o96rd/tEg=";
       };
     };
   });

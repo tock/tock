@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Support for the 32-bit RISC-V architecture.
 
 #![crate_name = "rv32i"]
@@ -444,6 +448,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     let res;
     asm!(
     "
+      .balign 16
       .option push
       .option norelax
       .option norvc

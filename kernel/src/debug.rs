@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Support for in-kernel debugging.
 //!
 //! For printing, this module uses an internal buffer to write the strings into.
@@ -60,6 +64,7 @@ use crate::hil;
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessPrinter;
+use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::{MapCell, TakeCell};
@@ -69,21 +74,23 @@ use crate::ErrorCode;
 /// core::fmt::Write), but io::Write isn't available in no_std (due to std::io::Error not being
 /// available).
 ///
-/// Also, in our use cases, writes are infaillible, so the write function just doesn't return
-/// anything.
+/// Also, in our use cases, writes are infaillible, so the write function cannot return an Error,
+/// however it might not be able to write everything, so it returns  the number of bytes written.
 ///
 /// See also the tracking issue: <https://github.com/rust-lang/rfcs/issues/2262>
 pub trait IoWrite {
-    fn write(&mut self, buf: &[u8]);
+    fn write(&mut self, buf: &[u8]) -> usize;
 
-    fn write_ring_buffer<'a>(&mut self, buf: &RingBuffer<'a, u8>) {
+    fn write_ring_buffer<'a>(&mut self, buf: &RingBuffer<'a, u8>) -> usize {
         let (left, right) = buf.as_slices();
+        let mut total = 0;
         if let Some(slice) = left {
-            self.write(slice);
+            total += self.write(slice);
         }
         if let Some(slice) = right {
-            self.write(slice);
+            total += self.write(slice);
         }
+        total
     }
 }
 
@@ -428,11 +435,11 @@ impl DebugWriter {
     }
 
     /// Write as many of the bytes from the internal_buffer to the output
-    /// mechanism as possible.
-    fn publish_bytes(&self) {
+    /// mechanism as possible, returning the number written.
+    fn publish_bytes(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
-        self.internal_buffer.map(|ring_buffer| {
+        self.internal_buffer.map_or(0, |ring_buffer| {
             if let Some(out_buffer) = self.output_buffer.take() {
                 let mut count = 0;
 
@@ -456,12 +463,19 @@ impl DebugWriter {
                         self.output_buffer.put(None);
                     }
                 }
+                count
+            } else {
+                0
             }
-        });
+        })
     }
 
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
         self.internal_buffer.take()
+    }
+
+    fn available_len(&self) -> usize {
+        self.internal_buffer.map_or(0, |rb| rb.available_len())
     }
 }
 
@@ -495,22 +509,26 @@ impl DebugWriterWrapper {
         self.dw.map_or(0, |dw| dw.get_count())
     }
 
-    fn publish_bytes(&self) {
-        self.dw.map(|dw| {
-            dw.publish_bytes();
-        });
+    fn publish_bytes(&self) -> usize {
+        self.dw.map_or(0, |dw| dw.publish_bytes())
     }
 
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
         self.dw.map_or(None, |dw| dw.extract())
     }
+
+    fn available_len(&self) -> usize {
+        const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
+        self.dw
+            .map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
+    }
 }
 
 impl IoWrite for DebugWriterWrapper {
-    fn write(&mut self, bytes: &[u8]) {
+    fn write(&mut self, bytes: &[u8]) -> usize {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
-        self.dw.map(|dw| {
-            dw.internal_buffer.map(|ring_buffer| {
+        self.dw.map_or(0, |dw| {
+            dw.internal_buffer.map_or(0, |ring_buffer| {
                 let available_len_for_msg =
                     ring_buffer.available_len().saturating_sub(FULL_MSG.len());
 
@@ -518,6 +536,7 @@ impl IoWrite for DebugWriterWrapper {
                     for &b in bytes {
                         ring_buffer.enqueue(b);
                     }
+                    bytes.len()
                 } else {
                     for &b in &bytes[..available_len_for_msg] {
                         ring_buffer.enqueue(b);
@@ -527,9 +546,10 @@ impl IoWrite for DebugWriterWrapper {
                     for &b in FULL_MSG {
                         ring_buffer.enqueue(b);
                     }
+                    available_len_for_msg
                 }
-            });
-        });
+            })
+        })
     }
 }
 
@@ -553,6 +573,27 @@ pub fn debug_println(args: Arguments) {
     let _ = write(writer, args);
     let _ = writer.write_str("\r\n");
     writer.publish_bytes();
+}
+
+pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
+    let writer = unsafe { get_debug_writer() };
+    let mut total = 0;
+    for b in slice.iter() {
+        let buf: [u8; 1] = [b.get(); 1];
+        let count = writer.write(&buf);
+        if count > 0 {
+            total = total + count;
+        } else {
+            break;
+        }
+    }
+    writer.publish_bytes();
+    total
+}
+
+pub fn debug_available_len() -> usize {
+    let writer = unsafe { get_debug_writer() };
+    writer.available_len()
 }
 
 fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
@@ -586,11 +627,19 @@ macro_rules! debug {
         debug!("")
     });
     ($msg:expr $(,)?) => ({
-        $crate::debug::debug_println(format_args!($msg))
+        $crate::debug::debug_println(format_args!($msg));
     });
     ($fmt:expr, $($arg:tt)+) => ({
-        $crate::debug::debug_println(format_args!($fmt, $($arg)+))
+        $crate::debug::debug_println(format_args!($fmt, $($arg)+));
     });
+}
+
+/// In-kernel `println()` debugging that can take a process slice.
+#[macro_export]
+macro_rules! debug_process_slice {
+    ($msg:expr $(,)?) => {{
+        $crate::debug::debug_slice($msg)
+    }};
 }
 
 /// In-kernel `println()` debugging with filename and line numbers.
@@ -649,7 +698,7 @@ macro_rules! debug_expr {
 }
 
 pub trait Debug {
-    fn write(&self, buf: &'static mut [u8], len: usize);
+    fn write(&self, buf: &'static mut [u8], len: usize) -> usize;
 }
 
 #[cfg(debug = "true")]

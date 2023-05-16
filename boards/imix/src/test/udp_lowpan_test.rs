@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! `udp_lowpan_test.rs`: Kernel test suite for the UDP/6LoWPAN stack
 //!
 //! This file tests port binding and sending and receiving messages from kernel space.
@@ -117,16 +121,16 @@
 
 use super::super::imix_components::test::mock_udp::MockUDPComponent;
 use crate::mock_udp_component_static;
-use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::net::ipv6::ipv6_send::IP6SendStruct;
-use capsules::net::network_capabilities::{
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::net::ipv6::ip_utils::IPAddr;
+use capsules_extra::net::ipv6::ipv6_send::IP6SendStruct;
+use capsules_extra::net::network_capabilities::{
     AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
 };
-use capsules::net::udp::udp_port_table::UdpPortManager;
-use capsules::net::udp::udp_recv::MuxUdpReceiver;
-use capsules::net::udp::udp_send::MuxUdpSender;
-use capsules::test::udp::MockUdp;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::net::udp::udp_port_table::UdpPortManager;
+use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
+use capsules_extra::net::udp::udp_send::MuxUdpSender;
+use capsules_extra::test::udp::MockUdp;
 use core::cell::Cell;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
@@ -172,7 +176,7 @@ pub unsafe fn initialize_all(
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) -> &'static LowpanTest<
     'static,
-    capsules::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
 > {
     let create_cap = create_capability!(NetworkCapabilityCreationCapability);
     let net_cap = static_init!(

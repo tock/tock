@@ -1,0 +1,20 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+# Copyright Google LLC 2022.
+
+[package]
+name = "license-checker"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { features = ["derive"], version = "4.0.29" }
+ignore = "0.4"
+thiserror = "1.0.37"
+
+[dependencies.syntect]
+default-features = false
+features = ["default-syntaxes", "regex-onig"]
+version = "5.0.0"

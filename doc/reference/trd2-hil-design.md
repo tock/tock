@@ -4,7 +4,8 @@ Design of Kernel Hardware Interface Layers (HILs)
 **TRD: 2** <br/>
 **Working Group:** Kernel<br/>
 **Type:** Best Current Practice<br/>
-**Status:** Final<br/>
+**Status:** Obsolete<br/>
+**Obsoleted By:** 3 <br/>
 **Author:** Brad Campbell, Philip Levis <br/>
 
 Abstract

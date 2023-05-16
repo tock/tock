@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for any Temperature sensor.
 //!
 //! Usage
@@ -7,7 +11,7 @@
 //!     .finalize(components::temperature_component_static!());
 //! ```
 
-use capsules::temperature::TemperatureSensor;
+use capsules_extra::temperature::TemperatureSensor;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -17,7 +21,7 @@ use kernel::hil;
 #[macro_export]
 macro_rules! temperature_component_static {
     () => {{
-        kernel::static_buf!(capsules::temperature::TemperatureSensor<'static>)
+        kernel::static_buf!(capsules_extra::temperature::TemperatureSensor<'static>)
     };};
 }
 

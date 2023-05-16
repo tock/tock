@@ -1,15 +1,20 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 #![no_std]
 
 pub mod adc;
 pub mod chip;
 pub mod clocks;
-pub mod deferred_call_tasks;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
+pub mod pwm;
 pub mod resets;
 pub mod spi;
 pub mod sysinfo;
+pub mod test;
 pub mod timer;
 pub mod uart;
 pub mod usb;

@@ -1,3 +1,8 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Leon Schuermann <leon@is.currently.online> 2023.
+// Copyright Tock Contributors 2023.
+
 //! Ethernet network cards
 
 use crate::errorcode::ErrorCode;

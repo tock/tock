@@ -1,6 +1,13 @@
-use kernel::utilities::registers::interfaces::ReadWriteable;
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+
+use crate::resets;
 
 register_structs! {
 
@@ -97,20 +104,32 @@ register_bitfields![u32,
 const WATCHDOG_BASE: StaticRef<WatchdogRegisters> =
     unsafe { StaticRef::new(0x40058000 as *const WatchdogRegisters) };
 
-pub struct Watchdog {
+pub struct Watchdog<'a> {
     registers: StaticRef<WatchdogRegisters>,
+    resets: OptionalCell<&'a resets::Resets>,
 }
 
-impl Watchdog {
-    pub const fn new() -> Watchdog {
+impl<'a> Watchdog<'a> {
+    pub const fn new() -> Watchdog<'a> {
         Watchdog {
             registers: WATCHDOG_BASE,
+            resets: OptionalCell::empty(),
         }
+    }
+
+    pub fn resolve_dependencies(&self, resets: &'a resets::Resets) {
+        self.resets.set(resets);
     }
 
     pub fn start_tick(&self, cycles_in_mhz: u32) {
         self.registers
             .tick
             .modify(TICK::CYCLES.val(cycles_in_mhz) + TICK::ENABLE::SET);
+    }
+
+    pub fn reboot(&self) {
+        self.resets
+            .map(|resets| resets.watchdog_reset_all_except(&[]));
+        self.registers.ctrl.write(CTRL::TRIGGER::SET);
     }
 }

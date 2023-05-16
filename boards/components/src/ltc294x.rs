@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for LPS25HB pressure sensor.
 //!
 //! Usage
@@ -10,9 +14,9 @@
 //!     .finalize(components::ltc294x_driver_component_static!());
 //! ```
 
-use capsules::ltc294x::LTC294XDriver;
-use capsules::ltc294x::LTC294X;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::ltc294x::LTC294XDriver;
+use capsules_extra::ltc294x::LTC294X;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -22,9 +26,10 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! ltc294x_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
-        let ltc294x = kernel::static_buf!(capsules::ltc294x::LTC294X<'static>);
-        let buffer = kernel::static_buf!([u8; capsules::ltc294x::BUF_LEN]);
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+        let ltc294x = kernel::static_buf!(capsules_extra::ltc294x::LTC294X<'static>);
+        let buffer = kernel::static_buf!([u8; capsules_extra::ltc294x::BUF_LEN]);
 
         (i2c_device, ltc294x, buffer)
     };};
@@ -33,7 +38,7 @@ macro_rules! ltc294x_component_static {
 #[macro_export]
 macro_rules! ltc294x_driver_component_static {
     () => {{
-        kernel::static_buf!(capsules::ltc294x::LTC294XDriver<'static>)
+        kernel::static_buf!(capsules_extra::ltc294x::LTC294XDriver<'static>)
     };};
 }
 
@@ -61,14 +66,14 @@ impl Component for Ltc294xComponent {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static>>,
         &'static mut MaybeUninit<LTC294X<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::ltc294x::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::ltc294x::BUF_LEN]>,
     );
     type Output = &'static LTC294X<'static>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let ltc294x_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
 
-        let buffer = s.2.write([0; capsules::ltc294x::BUF_LEN]);
+        let buffer = s.2.write([0; capsules_extra::ltc294x::BUF_LEN]);
 
         let ltc294x =
             s.1.write(LTC294X::new(ltc294x_i2c, self.interrupt_pin, buffer));

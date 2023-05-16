@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 # This is a configuration file for the labeler github action.
 # The labeler action runs uses this configuration to automatically
 # label each PR submitted to the Tock repository, by applying labels

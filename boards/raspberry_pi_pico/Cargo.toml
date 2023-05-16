@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 [package]
 name = "raspberry_pi_pico"
 version.workspace = true
@@ -7,9 +11,10 @@ edition.workspace = true
 
 [dependencies]
 cortexm0p = { path = "../../arch/cortex-m0p" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 rp2040 = { path = "../../chips/rp2040" }
 components = { path = "../components" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

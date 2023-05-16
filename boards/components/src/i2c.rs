@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for I2C.
 //!
 //! This provides two components.
@@ -17,44 +21,37 @@
 
 // Author: Alexandru Radovici <msg4alex@gmail.com>
 
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! i2c_mux_component_static {
     () => {{
-        kernel::static_buf!(capsules::virtual_i2c::MuxI2C<'static>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>)
     };};
 }
 
 #[macro_export]
 macro_rules! i2c_component_static {
     () => {{
-        kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>)
     };};
 }
 
 pub struct I2CMuxComponent {
     i2c: &'static dyn i2c::I2CMaster,
     smbus: Option<&'static dyn i2c::SMBusMaster>,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl I2CMuxComponent {
     pub fn new(
         i2c: &'static dyn i2c::I2CMaster,
         smbus: Option<&'static dyn i2c::SMBusMaster>,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
-        I2CMuxComponent {
-            i2c,
-            smbus,
-            deferred_caller,
-        }
+        I2CMuxComponent { i2c, smbus }
     }
 }
 
@@ -63,11 +60,8 @@ impl Component for I2CMuxComponent {
     type Output = &'static MuxI2C<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus, self.deferred_caller));
-
-        mux_i2c.initialize_callback_handle(
-            self.deferred_caller.register(mux_i2c).unwrap(), // Unwrap fail = no deferred call slot available for I2C mux
-        );
+        let mux_i2c = static_buffer.write(MuxI2C::new(self.i2c, self.smbus));
+        kernel::deferred_call::DeferredCallClient::register(mux_i2c);
 
         self.i2c.set_master_client(mux_i2c);
 

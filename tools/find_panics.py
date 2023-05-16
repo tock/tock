@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 # Prints out the source locations of panics in a Tock kernel ELF
 #
 # This tool attempts to trace all panic locations in a Tock kernel ELF by

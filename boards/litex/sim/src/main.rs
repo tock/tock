@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for a LiteX SoC running in a Verilated simulation
 
 #![no_std]
@@ -5,10 +9,9 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
@@ -49,7 +52,14 @@ struct LiteXSimInterruptablePeripherals {
     ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
 }
 
-impl InterruptService<()> for LiteXSimInterruptablePeripherals {
+impl LiteXSimInterruptablePeripherals {
+    // Resolve any recursive dependencies and set up deferred calls:
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(self.uart0);
+    }
+}
+
+impl InterruptService for LiteXSimInterruptablePeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt as usize {
             socc::UART_INTERRUPT => {
@@ -70,10 +80,6 @@ impl InterruptService<()> for LiteXSimInterruptablePeripherals {
             }
             _ => false,
         }
-    }
-
-    unsafe fn service_deferred_call(&self, _task: ()) -> bool {
-        false
     }
 }
 
@@ -107,15 +113,15 @@ pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LiteXSim {
-    gpio_driver: &'static capsules::gpio::GPIO<
+    gpio_driver: &'static capsules_core::gpio::GPIO<
         'static,
         litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
     >,
-    button_driver: &'static capsules::button::Button<
+    button_driver: &'static capsules_core::button::Button<
         'static,
         litex_vexriscv::gpio::LiteXGPIOPin<'static, 'static, socc::SoCRegisterFmt>,
     >,
-    led_driver: &'static capsules::led::LedDriver<
+    led_driver: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<
             'static,
@@ -123,12 +129,12 @@ struct LiteXSim {
         >,
         8,
     >,
-    console: &'static capsules::console::Console<'static>,
-    lldb: &'static capsules::low_level_debug::LowLevelDebug<
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
-        capsules::virtual_uart::UartDevice<'static>,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<
             'static,
@@ -140,7 +146,7 @@ struct LiteXSim {
             >,
         >,
     >,
-    ethernet_app_tap: &'static capsules::ethernet_app_tap::TapDriver<
+    ethernet_app_tap: &'static capsules_extra::ethernet_app_tap::TapDriver<
         'static,
         litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
     >,
@@ -166,13 +172,13 @@ impl SyscallDriverLookup for LiteXSim {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::button::DRIVER_NUM => f(Some(self.button_driver)),
-            capsules::led::DRIVER_NUM => f(Some(self.led_driver)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio_driver)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules::ethernet_app_tap::DRIVER_NUM => f(Some(self.ethernet_app_tap)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button_driver)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led_driver)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio_driver)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_extra::ethernet_app_tap::DRIVER_NUM => f(Some(self.ethernet_app_tap)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -244,14 +250,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     // --------- TIMER & UPTIME CORE; ALARM INITIALIZATION ----------
 
     // Initialize the hardware timer
@@ -319,7 +317,7 @@ pub unsafe fn main() {
     virtual_alarm_user.setup();
 
     let alarm = static_init!(
-        capsules::alarm::AlarmDriver<
+        capsules_core::alarm::AlarmDriver<
             'static,
             VirtualMuxAlarm<
                 'static,
@@ -331,9 +329,9 @@ pub unsafe fn main() {
                 >,
             >,
         >,
-        capsules::alarm::AlarmDriver::new(
+        capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
-            board_kernel.create_grant(capsules::alarm::DRIVER_NUM, &memory_allocation_cap)
+            board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
         )
     );
     virtual_alarm_user.set_alarm_client(alarm);
@@ -379,12 +377,9 @@ pub unsafe fn main() {
                     as *const litex_vexriscv::uart::LiteXUartRegisters<socc::SoCRegisterFmt>,
             ),
             None, // LiteX simulator has no UART phy
-            dynamic_deferred_caller,
         )
     );
-    uart0.initialize(
-        dynamic_deferred_caller.register(uart0).unwrap(), // Unwrap fail = dynamic deferred caller out of slots
-    );
+    uart0.initialize();
 
     PANIC_REFERENCES.uart = Some(uart0);
 
@@ -392,9 +387,8 @@ pub unsafe fn main() {
     //
     // The baudrate is ingnored, as no UART phy is present in the
     // verilated simulation.
-    let uart_mux =
-        components::console::UartMuxComponent::new(uart0, 115200, dynamic_deferred_caller)
-            .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
@@ -426,28 +420,33 @@ pub unsafe fn main() {
 
     // Setup the userspace Ethernet TAP driver:
     let ethmac0_tap_txbuf = static_init!(
-        [u8; capsules::ethernet_app_tap::MAX_MTU],
-        [0; capsules::ethernet_app_tap::MAX_MTU]
+        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
     );
     let ethmac0_tap_rxbufs = static_init!(
         [(
-            [u8; capsules::ethernet_app_tap::MAX_MTU],
+            [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
             u16,
             Option<u64>,
             bool
         ); 16],
-        [([0; capsules::ethernet_app_tap::MAX_MTU], 0, None, false); 16]
+        [(
+            [0; capsules_extra::ethernet_app_tap::MAX_MTU],
+            0,
+            None,
+            false
+        ); 16]
     );
 
     let ethmac0_tap = static_init!(
-        capsules::ethernet_app_tap::TapDriver<
+        capsules_extra::ethernet_app_tap::TapDriver<
             'static,
             litex_vexriscv::liteeth::LiteEth<socc::SoCRegisterFmt>,
         >,
-        capsules::ethernet_app_tap::TapDriver::new(
+        capsules_extra::ethernet_app_tap::TapDriver::new(
             ethmac0,
             board_kernel.create_grant(
-                capsules::ethernet_app_tap::DRIVER_NUM,
+                capsules_extra::ethernet_app_tap::DRIVER_NUM,
                 &memory_allocation_cap
             ),
             ethmac0_tap_txbuf,
@@ -476,7 +475,7 @@ pub unsafe fn main() {
 
     let gpio_driver = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper_owned!(
             GPIOPin,
             16 => gpio0.get_gpio_pin(16).unwrap(),
@@ -532,7 +531,7 @@ pub unsafe fn main() {
 
     let button_driver = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper_owned!(
             GPIOPin,
             (
@@ -590,6 +589,7 @@ pub unsafe fn main() {
             ethmac0,
         }
     );
+    interrupt_service.init();
 
     let chip = static_init!(
         litex_vexriscv::chip::LiteXVexRiscv<
@@ -620,7 +620,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -630,7 +630,7 @@ pub unsafe fn main() {
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
-        capsules::low_level_debug::DRIVER_NUM,
+        capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::low_level_debug_component_static!());

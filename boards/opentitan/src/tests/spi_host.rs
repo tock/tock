@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
@@ -140,26 +144,24 @@ fn spi_host_transfer_partial() {
     spi_host.set_client(cb);
     cb.reset();
 
-    #[cfg(feature = "hardware_tests")]
-    {
-        let tx = cb.tx_data.take().unwrap();
-        let rx = cb.rx_data.take().unwrap();
-        cb.tx_len.set(tx.len());
+    let tx = cb.tx_data.take().unwrap();
+    let rx = cb.rx_data.take().unwrap();
+    cb.tx_len.set(tx.len());
 
-        //Set SPI_HOST0 Configs
-        spi_host.specify_chip_select(0).ok();
-        spi_host.set_rate(100000).ok();
-        spi_host.set_polarity(ClockPolarity::IdleLow).ok();
-        spi_host.set_phase(ClockPhase::SampleLeading).ok();
+    //Set SPI_HOST0 Configs
+    spi_host.specify_chip_select(0).ok();
+    spi_host.set_rate(100000).ok();
+    spi_host.set_polarity(ClockPolarity::IdleLow).ok();
+    spi_host.set_phase(ClockPhase::SampleLeading).ok();
 
-        assert_eq!(
-            spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
-            Ok(())
-        );
-        run_kernel_op(5000);
+    assert_eq!(
+        spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
+        Ok(())
+    );
+    run_kernel_op(5000);
 
-        assert_eq!(cb.transfer_done.get(), true);
-    }
+    assert_eq!(cb.transfer_done.get(), true);
+
     run_kernel_op(100);
     debug!("    [ok]");
     run_kernel_op(100);
@@ -180,26 +182,23 @@ fn spi_host_transfer_single() {
     spi_host.set_client(cb);
     cb.reset();
 
-    #[cfg(feature = "hardware_tests")]
-    {
-        let tx = cb.tx_data.take().unwrap();
-        let rx = cb.rx_data.take().unwrap();
-        cb.tx_len.set(tx.len());
+    let tx = cb.tx_data.take().unwrap();
+    let rx = cb.rx_data.take().unwrap();
+    cb.tx_len.set(tx.len());
 
-        //Set SPI_HOST0 Configs
-        spi_host.specify_chip_select(0).ok();
-        spi_host.set_rate(100000).ok();
-        spi_host.set_polarity(ClockPolarity::IdleLow).ok();
-        spi_host.set_phase(ClockPhase::SampleLeading).ok();
+    //Set SPI_HOST0 Configs
+    spi_host.specify_chip_select(0).ok();
+    spi_host.set_rate(100000).ok();
+    spi_host.set_polarity(ClockPolarity::IdleLow).ok();
+    spi_host.set_phase(ClockPhase::SampleLeading).ok();
 
-        assert_eq!(
-            spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
-            Ok(())
-        );
-        run_kernel_op(5000);
+    assert_eq!(
+        spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
+        Ok(())
+    );
+    run_kernel_op(5000);
 
-        assert_eq!(cb.transfer_done.get(), true);
-    }
+    assert_eq!(cb.transfer_done.get(), true);
 
     run_kernel_op(100);
     debug!("    [ok]");
@@ -210,20 +209,18 @@ fn spi_host_transfer_single() {
 
     cb.reset();
 
-    #[cfg(feature = "hardware_tests")]
-    {
-        let tx2 = cb.tx_data.take().unwrap();
-        let rx2 = cb.rx_data.take().unwrap();
-        cb.tx_len.set(tx2.len());
+    let tx2 = cb.tx_data.take().unwrap();
+    let rx2 = cb.rx_data.take().unwrap();
+    cb.tx_len.set(tx2.len());
 
-        assert_eq!(
-            spi_host.read_write_bytes(tx2, Some(rx2), cb.tx_len.get()),
-            Ok(())
-        );
-        run_kernel_op(5000);
+    assert_eq!(
+        spi_host.read_write_bytes(tx2, Some(rx2), cb.tx_len.get()),
+        Ok(())
+    );
+    run_kernel_op(5000);
 
-        assert_eq!(cb.transfer_done.get(), true);
-    }
+    assert_eq!(cb.transfer_done.get(), true);
+
     run_kernel_op(100);
     debug!("    [ok]");
     run_kernel_op(100);

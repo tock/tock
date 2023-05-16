@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Reference Manual for the Imxrt-1052 development board
 //!
 //! - <https://www.nxp.com/webapp/Download?colCode=IMXRT1050RM>
@@ -6,12 +10,11 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -69,20 +72,20 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Imxrt1050EVKB {
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, imxrt1050::gpt::Gpt1<'static>>,
     >,
-    button: &'static capsules::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
+    button: &'static capsules_core::button::Button<'static, imxrt1050::gpio::Pin<'static>>,
+    console: &'static capsules_core::console::Console<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, imxrt1050::gpio::Pin<'static>>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, imxrt1050::gpio::Pin<'static>>,
         1,
     >,
-    ninedof: &'static capsules::ninedof::NineDof<'static>,
+    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm7::systick::SysTick,
@@ -95,13 +98,13 @@ impl SyscallDriverLookup for Imxrt1050EVKB {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             _ => f(None),
         }
     }
@@ -223,7 +226,7 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn get_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
+unsafe fn create_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
@@ -240,7 +243,7 @@ unsafe fn get_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPer
 pub unsafe fn main() {
     imxrt1050::init();
 
-    let peripherals = get_peripherals();
+    let peripherals = create_peripherals();
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
@@ -255,14 +258,6 @@ pub unsafe fn main() {
     setup_peripherals(peripherals);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
-
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
@@ -313,12 +308,8 @@ pub unsafe fn main() {
     // Enable clock
     peripherals.lpuart1.enable_clock();
 
-    let lpuart_mux = components::console::UartMuxComponent::new(
-        &peripherals.lpuart1,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let lpuart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart1, 115200)
+        .finalize(components::uart_mux_component_static!());
     io::WRITER.set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
@@ -331,7 +322,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         lpuart_mux,
     )
     .finalize(components::console_component_static!());
@@ -350,7 +341,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             imxrt1050::gpio::Pin,
             (
@@ -370,7 +361,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(imxrt1050::gpt::Gpt1));
@@ -379,7 +370,7 @@ pub unsafe fn main() {
     // For now we expose only two pins
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             imxrt1050::gpio::Pin<'static>,
             // The User Led
@@ -444,9 +435,8 @@ pub unsafe fn main() {
         .set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
     use imxrt1050::gpio::PinId;
-    let mux_i2c =
-        components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None, dynamic_deferred_caller)
-            .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None)
+        .finalize(components::i2c_mux_component_static!());
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
@@ -457,9 +447,11 @@ pub unsafe fn main() {
     .finalize(components::fxos8700_component_static!());
 
     // Ninedof
-    let ninedof =
-        components::ninedof::NineDofComponent::new(board_kernel, capsules::ninedof::DRIVER_NUM)
-            .finalize(components::ninedof_component_static!(fxos8700));
+    let ninedof = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules_extra::ninedof::DRIVER_NUM,
+    )
+    .finalize(components::ninedof_component_static!(fxos8700));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
@@ -498,6 +490,7 @@ pub unsafe fn main() {
         lpuart_mux,
         mux_alarm,
         process_printer,
+        None,
     )
     .finalize(components::process_console_component_static!(
         imxrt1050::gpt::Gpt1

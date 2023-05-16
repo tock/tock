@@ -1,21 +1,23 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interrupt mapping and DMA channel setup.
 
-use crate::deferred_call_tasks::Task;
 use crate::pm;
 
 use core::fmt::Write;
 use cortexm4::{self, CortexM4, CortexMVariant};
-use kernel::deferred_call;
 use kernel::platform::chip::{Chip, InterruptService};
 
-pub struct Sam4l<I: InterruptService<Task> + 'static> {
+pub struct Sam4l<I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     pub pm: &'static crate::pm::PowerManager,
     interrupt_service: &'static I,
 }
 
-impl<I: InterruptService<Task> + 'static> Sam4l<I> {
+impl<I: InterruptService + 'static> Sam4l<I> {
     pub unsafe fn new(pm: &'static crate::pm::PowerManager, interrupt_service: &'static I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -109,10 +111,7 @@ impl Sam4lDefaultPeripherals {
         }
     }
 
-    // Sam4l was the only chip that partially initialized some drivers in new, I
-    // have moved that initialization to this helper function.
-    // TODO: Delete explanation
-    pub fn setup_dma(&'static self) {
+    pub fn setup_circular_deps(&'static self) {
         use crate::dma;
         self.usart0
             .set_dma(&self.dma_channels[0], &self.dma_channels[1]);
@@ -150,9 +149,17 @@ impl Sam4lDefaultPeripherals {
 
         self.adc.set_dma(&self.dma_channels[13]);
         self.dma_channels[13].initialize(&self.adc, dma::DMAWidth::Width16Bit);
+
+        // REGISTER ALL PERIPHERALS WITH DEFERRED CALLS
+        kernel::deferred_call::DeferredCallClient::register(&self.crccu);
+        kernel::deferred_call::DeferredCallClient::register(&self.flash_controller);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart0);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart1);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart2);
+        kernel::deferred_call::DeferredCallClient::register(&self.usart3);
     }
 }
-impl InterruptService<Task> for Sam4lDefaultPeripherals {
+impl InterruptService for Sam4lDefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -225,32 +232,16 @@ impl InterruptService<Task> for Sam4lDefaultPeripherals {
         }
         true
     }
-    unsafe fn service_deferred_call(&self, task: Task) -> bool {
-        match task {
-            crate::deferred_call_tasks::Task::Flashcalw => self.flash_controller.handle_interrupt(),
-            crate::deferred_call_tasks::Task::CRCCU => self.crccu.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart0 => self.usart0.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart1 => self.usart1.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart2 => self.usart2.handle_deferred_call(),
-            crate::deferred_call_tasks::Task::Usart3 => self.usart3.handle_deferred_call(),
-        }
-        true
-    }
 }
 
-impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
+impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(task) = deferred_call::DeferredCall::next_pending() {
-                    match self.interrupt_service.service_deferred_call(task) {
-                        true => {}
-                        false => panic!("unhandled deferred call task"),
-                    }
-                } else if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4::nvic::next_pending() {
                     match self.interrupt_service.service_interrupt(interrupt) {
                         true => {}
                         false => panic!("unhandled interrupt"),
@@ -266,7 +257,7 @@ impl<I: InterruptService<Task> + 'static> Chip for Sam4l<I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() || deferred_call::has_tasks() }
+        unsafe { cortexm4::nvic::has_pending() }
     }
 
     fn mpu(&self) -> &cortexm4::mpu::MPU {
