@@ -171,8 +171,16 @@ register_bitfields! [u32,
             ABBA = 0x41424241,
             /// AAD0
             AAD0 = 0x41414430,
+            /// AAD1
+            AAD1 = 0x41414431,
+            /// AADA
+            AADA = 0x41414441,
             /// AAE0
             AAE0 = 0x41414530,
+            /// AAEA
+            AAEA = 0x41414541,
+            /// AAF0
+            AAF0 = 0x41414630,
             /// BAAA
             BAAA = 0x42414141,
             /// CAAA
@@ -238,7 +246,7 @@ register_bitfields! [u32,
 /// Variant describes part variant, hardware version, and production configuration.
 #[derive(PartialEq, Debug)]
 #[repr(u32)]
-enum Variant {
+pub(crate) enum Variant {
     AAA0 = 0x41414130,
     AAAA = 0x41414141,
     AAAB = 0x41414142,
@@ -248,9 +256,13 @@ enum Variant {
     AAC0 = 0x41414330,
     AACA = 0x41414341,
     AACB = 0x41414342,
-    ABBA = 0x41424241,
     AAD0 = 0x41414430,
+    AAD1 = 0x41414431,
+    AADA = 0x41414441,
     AAE0 = 0x41414530,
+    AAEA = 0x41414541,
+    AAF0 = 0x41414630,
+    ABBA = 0x41424241,
     BAAA = 0x42414141,
     CAAA = 0x43414141,
     Unspecified = 0xffffffff,
@@ -310,7 +322,7 @@ pub struct Ficr {
 }
 
 impl Ficr {
-    const fn new() -> Ficr {
+    pub(crate) const fn new() -> Ficr {
         Ficr {
             registers: FICR_BASE,
         }
@@ -325,7 +337,9 @@ impl Ficr {
         }
     }
 
-    fn variant(&self) -> Variant {
+    pub(crate) fn variant(&self) -> Variant {
+        // If you update this, make sure to update
+        // `has_updated_approtect_logic()` as well.
         match self.registers.info_variant.get() {
             0x41414130 => Variant::AAA0,
             0x41414141 => Variant::AAAA,
@@ -338,10 +352,29 @@ impl Ficr {
             0x41414342 => Variant::AACB,
             0x41424241 => Variant::ABBA,
             0x41414430 => Variant::AAD0,
+            0x41414431 => Variant::AAD1,
+            0x41414441 => Variant::AADA,
             0x41414530 => Variant::AAE0,
+            0x41414541 => Variant::AAEA,
+            0x41414630 => Variant::AAF0,
             0x42414141 => Variant::BAAA,
             0x43414141 => Variant::CAAA,
             _ => Variant::Unspecified,
+        }
+    }
+
+    /// Returns if this variant of the nRF52 has the updated APPROTECT logic.
+    /// This changed occurred towards the end of 2021 with chips becoming widely
+    /// available/used in 2023.
+    ///
+    /// See https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect
+    /// for more information.
+    pub(crate) fn has_updated_approtect_logic(&self) -> bool {
+        // We assume that an unspecified version means that it is new and this
+        // module hasn't been updated to recognize it.
+        match self.variant() {
+            Variant::AAF0 | Variant::Unspecified => true,
+            _ => false,
         }
     }
 

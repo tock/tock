@@ -7,6 +7,7 @@
 //! Minimal implementation to support activation of the reset button on
 //! nRF52-DK.
 
+use crate::ficr;
 use enum_primitive::cast::FromPrimitive;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
@@ -59,6 +60,8 @@ register_bitfields! [u32,
         PALL OFFSET(0) NUMBITS(8) [
             /// Enable
             ENABLED = 0x00,
+            /// Disable for later nRF52 variants
+            HWDISABLE = 0x5a,
             /// Disable
             DISABLED = 0xff
         ]
@@ -178,14 +181,39 @@ impl Uicr {
     }
 
     pub fn is_ap_protect_enabled(&self) -> bool {
-        // Here we compare to DISABLED value because any other value should enable the protection.
-        !self
-            .registers
-            .approtect
-            .matches_all(ApProtect::PALL::DISABLED)
+        // We need to understand the variant of this nRF52 chip to correctly
+        // implement this function. Newer versions use a different value to
+        // indicate disabled.
+        let factory_config = ficr::Ficr::new();
+        let disabled_val = if factory_config.has_updated_approtect_logic() {
+            ApProtect::PALL::HWDISABLE
+        } else {
+            ApProtect::PALL::DISABLED
+        };
+
+        // Here we compare to the correct DISABLED value because any other value
+        // should enable the protection.
+        !self.registers.approtect.matches_all(disabled_val)
     }
 
     pub fn set_ap_protect(&self) {
         self.registers.approtect.write(ApProtect::PALL::ENABLED);
+    }
+
+    /// Disable the access port protection in the UICR register. This is stored
+    /// in flash and is persistent. This behavior can also be accomplished
+    /// outside of tock by running `nrfjprog --recover`.
+    pub fn disable_ap_protect(&self) {
+        // We need to understand the variant of this nRF52 chip to correctly
+        // implement this function.
+        let factory_config = ficr::Ficr::new();
+        if factory_config.has_updated_approtect_logic() {
+            // Newer revisions of the chip require setting the APPROTECT
+            // register to `HwDisable`.
+            self.registers.approtect.write(ApProtect::PALL::HWDISABLE);
+        } else {
+            // All other revisions just use normal disable.
+            self.registers.approtect.write(ApProtect::PALL::DISABLED);
+        }
     }
 }
