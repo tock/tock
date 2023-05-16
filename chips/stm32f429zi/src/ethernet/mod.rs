@@ -1911,7 +1911,7 @@ impl<'a> Receive<'a> for Ethernet<'a> {
 
 pub mod tests {
     use super::*;
-    use kernel::debug;
+    use kernel::{debug, static_init};
 
     const NUMBER_FRAMES_TRANSMIT_RECEIVE: usize = 1_000_000;
     const MESSAGE: &'static [u8] = b"TockOS is great!";
@@ -2232,9 +2232,10 @@ pub mod tests {
     }
 
 
-    pub fn test_frame_transmission<'a>(ethernet: &'a Ethernet<'a>, transmit_client: &'a DummyTransmitClient) {
+    pub unsafe fn test_frame_transmission(ethernet: &'static Ethernet<'static>) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame transmission...");
+        let transmit_client = static_init!(DummyTransmitClient, DummyTransmitClient::new(ethernet));
         ethernet.set_transmit_client(transmit_client);
         let destination_address: MacAddress = DEFAULT_MAC_ADDRESS;
         // Impossible to send a frame while transmission is disabled
@@ -2247,12 +2248,11 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.transmit_raw_frame(destination_address, MESSAGE));
     }
 
-    pub fn test_frame_reception<'a>(
-        ethernet: &'a Ethernet<'a>,
-        receive_client: &'static DummyReceiveClient
-    ) {
+    pub unsafe fn test_frame_reception(ethernet: &'static Ethernet<'static>) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing frame reception...");
+        let receive_frame = static_init!(EthernetFrame, EthernetFrame::default());
+        let receive_client = static_init!(DummyReceiveClient, DummyReceiveClient::new(ethernet, receive_frame));
         ethernet.receive_client.set(receive_client);
         // Impossible to get a frame while reception is disabled
         let receive_frame = receive_client.receive_frame.take().unwrap();
@@ -2269,21 +2269,15 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.receive_raw_frame(receive_frame));
     }
 
-    pub fn run_all<'a>(
-        ethernet: &'a Ethernet<'a>,
-        transmit_client: &'a DummyTransmitClient,
-        receive_client: &'static DummyReceiveClient
-    ) {
+    pub fn run_all_unit_tests(ethernet: &Ethernet) {
         debug!("");
         debug!("================================================");
         debug!("Starting testing the Ethernet...");
-        //test_ethernet_init(ethernet);
-        //test_ethernet_basic_configuration(ethernet);
-        //test_ethernet_interrupts(ethernet);
-        //super::transmit_descriptor::tests::test_transmit_descriptor();
-        //super::receive_descriptor::tests::test_receive_descriptor();
-        test_frame_transmission(ethernet, transmit_client);
-        test_frame_reception(ethernet, receive_client);
+        test_ethernet_init(ethernet);
+        test_ethernet_basic_configuration(ethernet);
+        test_ethernet_interrupts(ethernet);
+        super::transmit_descriptor::tests::test_transmit_descriptor();
+        super::receive_descriptor::tests::test_receive_descriptor();
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
