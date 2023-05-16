@@ -41,6 +41,7 @@ pub enum NUM {
     Udp                   = 0x30002,
     LoRaPhySPI            = 0x30003,
     LoRaPhyGPIO           = 0x30004,
+    Thread                = 0x30005,
 
     // Cryptography
     Rng                   = 0x40001,

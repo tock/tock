@@ -206,6 +206,7 @@ pub struct Platform {
     >,
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    thread_driver: &'static capsules_extra::net::thread::driver::RadioDriver<'static>,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     i2c_master_slave:
         &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
@@ -243,6 +244,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             _ => f(None),
         }
     }
@@ -530,6 +532,19 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
+    let (thread_driver, _) = components::thread_network::ThreadComponent::new(
+        board_kernel,
+        capsules_extra::net::thread::driver::DRIVER_NUM,
+        &base_peripherals.ieee802154_radio,
+        aes_mux,
+        PAN_ID,
+        serial_num_bottom_16,
+    )
+    .finalize(components::thread_network_component_static!(
+        nrf52840::ieee802154_radio::Radio,
+        nrf52840::aes::AesECB<'static>
+    ));
+
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
@@ -704,6 +719,7 @@ pub unsafe fn main() {
         alarm,
         analog_comparator,
         nonvolatile_storage,
+        thread_driver,
         udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
