@@ -60,6 +60,7 @@ impl<'a> Stm32f4xxDefaultPeripherals<'a> {
             ),
             gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
             i2c1: crate::i2c::I2C::new(rcc),
+            pll: crate::pll::Pll::new(rcc),
             spi3: crate::spi::Spi::new(
                 crate::spi::SPI3_BASE,
                 crate::spi::SpiClock(crate::rcc::PeripheralClock::new(
