@@ -51,6 +51,7 @@ register_structs! {
     }
 }
 
+#[allow(dead_code)]
 impl TransmitDescriptor {
     pub(in crate::ethernet) fn new() -> Self {
         Self {
@@ -145,6 +146,10 @@ impl TransmitDescriptor {
         self.tdes0.is_set(TDES0::TER)
     }
 
+    pub(in crate::ethernet) fn get_error_summary(&self) -> bool {
+        self.tdes0.is_set(TDES0::ES)
+    }
+
     pub(in crate::ethernet) fn set_buffer1_size(&self, size: usize) -> Result<(), ErrorCode> {
         if size >= 1 << 14 {
             return Err(ErrorCode::SIZE);
@@ -159,6 +164,20 @@ impl TransmitDescriptor {
         self.tdes1.read(TDES1::TBS1) as u16
     }
 
+    pub(in crate::ethernet) fn set_buffer2_size(&self, size: usize) -> Result<(), ErrorCode> {
+        if size >= 1 << 14 {
+            return Err(ErrorCode::SIZE);
+        }
+
+        self.tdes1.modify(TDES1::TBS2.val(size as u32));
+
+        Ok(())
+    }
+
+    pub(in crate::ethernet) fn get_buffer2_size(&self) -> u16 {
+        self.tdes1.read(TDES1::TBS2) as u16
+    }
+
     pub(in crate::ethernet) fn set_buffer1_address(&self, address: u32) {
         self.tdes2.set(address);
     }
@@ -167,19 +186,21 @@ impl TransmitDescriptor {
         self.tdes2.get()
     }
 
-    pub(in crate::ethernet) fn error_occurred(&self) -> bool {
-        self.tdes0.is_set(TDES0::ES)
+    pub(in crate::ethernet) fn set_buffer2_address(&self, address: u32) {
+        self.tdes3.set(address);
+    }
+
+    pub(in crate::ethernet) fn get_buffer2_address(&self) -> u32 {
+        self.tdes3.get()
     }
 }
 
+#[cfg(test)]
 pub mod tests {
     use super::*;
-    use kernel::debug;
 
+    #[test]
     pub fn test_transmit_descriptor() {
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing Ethernet basic configuration...");
-
         let transmit_descriptor = TransmitDescriptor::new();
 
         transmit_descriptor.acquire();
@@ -202,31 +223,35 @@ pub mod tests {
         transmit_descriptor.clear_as_first_segment();
         assert_eq!(false, transmit_descriptor.is_first_segment());
 
-        transmit_descriptor.disable_crc();
-        assert_eq!(true, transmit_descriptor.is_crc_disabled());
-        transmit_descriptor.enable_crc();
-        assert_eq!(false, transmit_descriptor.is_crc_disabled());
-
-        transmit_descriptor.disable_pad();
-        assert_eq!(true, transmit_descriptor.is_pad_disabled());
-        transmit_descriptor.enable_pad();
-        assert_eq!(false, transmit_descriptor.is_pad_disabled());
-
         transmit_descriptor.set_transmit_end_of_ring();
         assert_eq!(true, transmit_descriptor.is_transmit_end_of_ring());
         transmit_descriptor.clear_transmit_end_of_ring();
         assert_eq!(false, transmit_descriptor.is_transmit_end_of_ring());
 
-        assert_eq!(Ok(()), transmit_descriptor.set_buffer1_size(1234));
-        assert_eq!(1234, transmit_descriptor.get_buffer1_size());
-        assert_eq!(Err(ErrorCode::SIZE), transmit_descriptor.set_buffer1_size(60102));
-        assert_eq!(1234, transmit_descriptor.get_buffer1_size());
+        assert_eq!(Ok(()), transmit_descriptor.set_buffer1_size(1024));
+        assert_eq!(1024, transmit_descriptor.get_buffer1_size());
+        assert_eq!(Err(ErrorCode::SIZE), transmit_descriptor.set_buffer1_size(1 << 14));
+        assert_eq!(1024, transmit_descriptor.get_buffer1_size());
 
-        let x: u32 = 8;
+        transmit_descriptor.set_buffer1_address(0x0040000);
+        assert_eq!(0x0040000, transmit_descriptor.get_buffer1_address());
+        let x: u32 = 2023;
         transmit_descriptor.set_buffer1_address(&x as *const u32 as u32);
         assert_eq!(&x as *const u32 as u32, transmit_descriptor.get_buffer1_address());
 
-        debug!("Finished testing transmit descriptor...");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        assert_eq!(Ok(()), transmit_descriptor.set_buffer2_size(1024));
+        assert_eq!(1024, transmit_descriptor.get_buffer2_size());
+        assert_eq!(Err(ErrorCode::SIZE), transmit_descriptor.set_buffer2_size(1 << 14));
+        assert_eq!(1024, transmit_descriptor.get_buffer2_size());
+
+        transmit_descriptor.set_buffer2_address(0x0040000);
+        assert_eq!(0x0040000, transmit_descriptor.get_buffer2_address());
+        transmit_descriptor.set_buffer2_address(&x as *const u32 as u32);
+        assert_eq!(&x as *const u32 as u32, transmit_descriptor.get_buffer2_address());
+
+        transmit_descriptor.tdes0.modify(TDES0::ES::SET);
+        assert_eq!(true, transmit_descriptor.get_error_summary());
+        transmit_descriptor.tdes0.modify(TDES0::ES::CLEAR);
+        assert_eq!(false, transmit_descriptor.get_error_summary());
     }
 }

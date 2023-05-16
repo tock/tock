@@ -43,6 +43,7 @@ register_structs! {
     }
 }
 
+#[allow(dead_code)]
 impl ReceiveDescriptor {
     pub(in crate::ethernet) fn new() -> Self {
         Self {
@@ -152,20 +153,14 @@ impl ReceiveDescriptor {
     pub(in crate::ethernet) fn get_buffer2_address(&self) -> u32 {
         self.rdes3.get()
     }
-
-    pub(in crate::ethernet) fn error_occurred(&self) -> bool {
-        self.rdes0.is_set(RDES0::ES) || self.rdes0.is_set(RDES0::DE)
-    }
 }
 
+#[cfg(test)]
 pub mod tests {
     use super::*;
-    use kernel::debug;
 
+    #[test]
     pub fn test_receive_descriptor() {
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing receive descriptor...");
-
         let receive_descriptor = ReceiveDescriptor::new();
 
         receive_descriptor.acquire();
@@ -173,14 +168,25 @@ pub mod tests {
         receive_descriptor.release();
         assert_eq!(false, receive_descriptor.is_acquired());
 
+        receive_descriptor.rdes0.modify(RDES0::FL.val(1234));
+        assert_eq!(1234, receive_descriptor.get_frame_length());
+        receive_descriptor.rdes0.modify(RDES0::FL.val(0));
+        assert_eq!(0, receive_descriptor.get_frame_length());
+
         receive_descriptor.enable_interrupt_on_completion();
         assert_eq!(true, receive_descriptor.is_interrupt_on_completion_enabled());
         receive_descriptor.disable_interrupt_on_completion();
         assert_eq!(false, receive_descriptor.is_interrupt_on_completion_enabled());
 
+        receive_descriptor.rdes0.modify(RDES0::LS::SET);
+        assert_eq!(true, receive_descriptor.is_last_segment());
+        receive_descriptor.rdes0.modify(RDES0::LS::CLEAR);
         assert_eq!(false, receive_descriptor.is_last_segment());
+
+        receive_descriptor.rdes0.modify(RDES0::FS::SET);
+        assert_eq!(true, receive_descriptor.is_first_segment());
+        receive_descriptor.rdes0.modify(RDES0::FS::CLEAR);
         assert_eq!(false, receive_descriptor.is_first_segment());
-        assert_eq!(false, receive_descriptor.get_error_summary());
 
         receive_descriptor.set_receive_end_of_ring();
         assert_eq!(true, receive_descriptor.is_receive_end_of_ring());
@@ -212,7 +218,9 @@ pub mod tests {
         receive_descriptor.set_buffer2_address(&x as *const u32 as u32);
         assert_eq!(&x as *const u32 as u32, receive_descriptor.get_buffer2_address());
 
-        debug!("Finished testing receive descriptor...");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        receive_descriptor.rdes0.modify(RDES0::ES::SET);
+        assert_eq!(true, receive_descriptor.get_error_summary());
+        receive_descriptor.rdes0.modify(RDES0::ES::CLEAR);
+        assert_eq!(false, receive_descriptor.get_error_summary());
     }
 }

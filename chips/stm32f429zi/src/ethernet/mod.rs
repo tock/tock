@@ -2276,8 +2276,6 @@ pub mod tests {
         test_ethernet_init(ethernet);
         test_ethernet_basic_configuration(ethernet);
         test_ethernet_interrupts(ethernet);
-        super::transmit_descriptor::tests::test_transmit_descriptor();
-        super::receive_descriptor::tests::test_receive_descriptor();
         debug!("Finished testing the Ethernet. Everything is alright!");
         debug!("================================================");
         debug!("");
