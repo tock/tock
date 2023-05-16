@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::write_volatile;
@@ -21,13 +25,14 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         for b in buf {
             // Print to a special address for simulation output
             unsafe {
                 write_volatile(0x8000_1008 as *mut u8, *b as u8);
             }
         }
+        buf.len()
     }
 }
 

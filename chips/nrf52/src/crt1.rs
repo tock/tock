@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use cortexm4::{
     initialize_ram_jump_to_main, nvic, scb, unhandled_interrupt, CortexM4, CortexMVariant,
 };

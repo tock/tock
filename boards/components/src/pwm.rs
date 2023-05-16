@@ -1,5 +1,9 @@
-use capsules::pwm::Pwm;
-use capsules::virtual_pwm::{MuxPwm, PwmPinUser};
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
+use capsules_core::virtualizers::virtual_pwm::{MuxPwm, PwmPinUser};
+use capsules_extra::pwm::Pwm;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -9,14 +13,14 @@ use kernel::hil::pwm;
 #[macro_export]
 macro_rules! pwm_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_pwm::MuxPwm<'static, $A>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_pwm::MuxPwm<'static, $A>)
     };};
 }
 
 #[macro_export]
 macro_rules! pwm_pin_user_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_pwm::PwmPinUser<'static, $A>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, $A>)
     };};
 }
 
@@ -33,7 +37,7 @@ macro_rules! pwm_syscall_component_helper {
                 $($P,)*
             ]
         );
-        let pwm = kernel::static_buf!(capsules::pwm::Pwm<'static, NUM_DRIVERS>);
+        let pwm = kernel::static_buf!(capsules_extra::pwm::Pwm<'static, NUM_DRIVERS>);
         (pwm, drivers)
     };};
 }
@@ -108,7 +112,7 @@ impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
         &'static mut MaybeUninit<Pwm<'static, NUM_PINS>>,
         &'static [&'static dyn kernel::hil::pwm::PwmPin; NUM_PINS],
     );
-    type Output = &'static capsules::pwm::Pwm<'static, NUM_PINS>;
+    type Output = &'static capsules_extra::pwm::Pwm<'static, NUM_PINS>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -116,7 +120,7 @@ impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
 
         let pwm = static_buffer
             .0
-            .write(capsules::pwm::Pwm::new(static_buffer.1, grant_adc));
+            .write(capsules_extra::pwm::Pwm::new(static_buffer.1, grant_adc));
 
         pwm
     }

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interfaces for implementing microcontrollers in Tock.
 
 use crate::platform::mpu;
@@ -66,7 +70,7 @@ pub trait Chip {
     unsafe fn print_state(&self, writer: &mut dyn Write);
 }
 
-/// Interface for handling interrupts and deferred calls on a hardware chip.
+/// Interface for handling interrupts on a hardware chip.
 ///
 /// Each board must construct an implementation of this trait to handle specific
 /// interrupts. When an interrupt (identified by number) has triggered and
@@ -102,13 +106,10 @@ pub trait Chip {
 /// where the kernel instructs the `nrf52` crate to handle interrupts, and if
 /// there is an interrupt ready then that interrupt is passed through the
 /// InterruptService objects until something can service it.
-pub trait InterruptService<T> {
+pub trait InterruptService {
     /// Service an interrupt, if supported by this chip. If this interrupt
     /// number is not supported, return false.
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
-
-    /// Service a deferred call. If this task is not supported, return false.
-    unsafe fn service_deferred_call(&self, task: T) -> bool;
 }
 
 /// Generic operations that clock-like things are expected to support.

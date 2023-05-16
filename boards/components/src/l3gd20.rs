@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the L3GD20 sensor.
 //!
 //! Uses a SPI Interface.
@@ -9,8 +13,8 @@
 //!     components::l3gd20_component_static!(stm32f429zi::spi::Spi));
 //! ```
 
-use capsules::l3gd20::L3gd20Spi;
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_extra::l3gd20::L3gd20Spi;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -22,11 +26,13 @@ use kernel::hil::spi::SpiMasterDevice;
 #[macro_export]
 macro_rules! l3gd20_component_static {
     ($A:ty $(,)?) => {{
-        let txbuffer = kernel::static_buf!([u8; capsules::l3gd20::TX_BUF_LEN]);
-        let rxbuffer = kernel::static_buf!([u8; capsules::l3gd20::RX_BUF_LEN]);
+        let txbuffer = kernel::static_buf!([u8; capsules_extra::l3gd20::TX_BUF_LEN]);
+        let rxbuffer = kernel::static_buf!([u8; capsules_extra::l3gd20::RX_BUF_LEN]);
 
-        let spi = kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $A>);
-        let l3gd20spi = kernel::static_buf!(capsules::l3gd20::L3gd20Spi<'static>);
+        let spi = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $A>
+        );
+        let l3gd20spi = kernel::static_buf!(capsules_extra::l3gd20::L3gd20Spi<'static>);
 
         (spi, l3gd20spi, txbuffer, rxbuffer)
     };};
@@ -59,8 +65,8 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20Component<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<L3gd20Spi<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::l3gd20::TX_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::l3gd20::RX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::l3gd20::TX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::l3gd20::RX_BUF_LEN]>,
     );
     type Output = &'static L3gd20Spi<'static>;
 
@@ -73,8 +79,12 @@ impl<S: 'static + spi::SpiMaster> Component for L3gd20Component<S> {
             .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
         spi_device.setup();
 
-        let txbuffer = static_buffer.2.write([0; capsules::l3gd20::TX_BUF_LEN]);
-        let rxbuffer = static_buffer.3.write([0; capsules::l3gd20::RX_BUF_LEN]);
+        let txbuffer = static_buffer
+            .2
+            .write([0; capsules_extra::l3gd20::TX_BUF_LEN]);
+        let rxbuffer = static_buffer
+            .3
+            .write([0; capsules_extra::l3gd20::RX_BUF_LEN]);
 
         let l3gd20 = static_buffer
             .1

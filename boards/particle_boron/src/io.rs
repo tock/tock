@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::ErrorCode;
@@ -46,7 +50,7 @@ impl uart::TransmitClient for DummyUsbClient {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         if !self.initialized {
             self.initialized = true;
         }
@@ -114,6 +118,7 @@ impl IoWrite for Writer {
                 DUMMY.fired.set(false);
             });
         }
+        buf.len()
     }
 }
 

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 set -ex
 
 ${OBJCOPY} --output-target=binary ${OBJCOPY_FLAGS} ${1} redboard-artemis-nano-tests.bin

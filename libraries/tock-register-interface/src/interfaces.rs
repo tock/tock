@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interfaces (traits) to register types
 //!
 //! This module contains traits which reflect standardized interfaces
@@ -230,16 +234,29 @@ pub trait Readable {
         field.is_set(self.get())
     }
 
+    /// Check if any bits corresponding to the mask in the passed `FieldValue` are set.
+    /// This function is identical to `is_set()` but operates on a `FieldValue` rather
+    /// than a `Field`, allowing for checking if any bits are set across multiple,
+    /// non-contiguous portions of a bitfield.
     #[inline]
-    /// Check if any specified parts of a field match
-    fn matches_any(&self, field: FieldValue<Self::T, Self::R>) -> bool {
-        field.matches_any(self.get())
+    fn any_matching_bits_set(&self, field: FieldValue<Self::T, Self::R>) -> bool {
+        field.any_matching_bits_set(self.get())
     }
 
     #[inline]
     /// Check if all specified parts of a field match
     fn matches_all(&self, field: FieldValue<Self::T, Self::R>) -> bool {
         field.matches_all(self.get())
+    }
+
+    /// Check if any of the passed parts of a field exactly match the contained
+    /// value. This allows for matching on unset bits, or matching on specific values
+    /// in multi-bit fields.
+    #[inline]
+    fn matches_any(&self, fields: &[FieldValue<Self::T, Self::R>]) -> bool {
+        fields
+            .iter()
+            .any(|field| self.get() & field.mask() == field.value)
     }
 }
 

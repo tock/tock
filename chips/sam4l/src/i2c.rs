@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implementation of the SAM4L TWIMS peripheral.
 //!
 //! The implementation, especially of repeated starts, is quite sensitive to the
@@ -1027,7 +1031,7 @@ impl I2CHw {
             let interrupts = status.bitand(imr.get());
 
             // Check for errors.
-            if interrupts.matches_any(
+            if interrupts.any_matching_bits_set(
                 StatusSlave::BUSERR::SET
                     + StatusSlave::SMBPECERR::SET
                     + StatusSlave::SMBTOUT::SET

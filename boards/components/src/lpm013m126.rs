@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for the Japan Display LPM013M126 display.
 //!
 //! Usage
@@ -17,7 +21,6 @@
 //!         disp_pin,
 //!         extcomin_pin,
 //!         alarm_mux,
-//!         dynamic_deferred_caller,
 //!     )
 //!     .finalize(
 //!         components::lpm013m126_component_static!(
@@ -32,12 +35,11 @@
 //! // wait for `ScreenClient::screen_is_ready` callback
 //! ```
 
-use capsules::lpm013m126::Lpm013m126;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_extra::lpm013m126::Lpm013m126;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::gpio;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
 use kernel::hil::time::Alarm;
@@ -94,13 +96,16 @@ impl<'a, P: gpio::Pin> gpio::Input for Inverted<'a, P> {
 #[macro_export]
 macro_rules! lpm013m126_component_static {
     ($A:ty, $P:ty, $S:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let buffer = kernel::static_buf!([u8; capsules::lpm013m126::BUF_LEN]);
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
+        let buffer = kernel::static_buf!([u8; capsules_extra::lpm013m126::BUF_LEN]);
         let chip_select = kernel::static_buf!(components::lpm013m126::Inverted<'static, $P>);
-        let spi_device =
-            kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let spi_device = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
+        );
         let lpm013m126 = kernel::static_buf!(
-            capsules::lpm013m126::Lpm013m126<
+            capsules_extra::lpm013m126::Lpm013m126<
                 'static,
                 VirtualMuxAlarm<'static, $A>,
                 $P,
@@ -124,7 +129,6 @@ where
     disp: &'static P,
     extcomin: &'static P,
     alarm_mux: &'static MuxAlarm<'static, A>,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
 impl<A, P, S> Lpm013m126Component<A, P, S>
@@ -141,7 +145,6 @@ where
         disp: &'static P,
         extcomin: &'static P,
         alarm_mux: &'static MuxAlarm<'static, A>,
-        deferred_caller: &'static DynamicDeferredCall,
     ) -> Self {
         Self {
             spi,
@@ -149,7 +152,6 @@ where
             disp,
             extcomin,
             alarm_mux,
-            deferred_caller,
         }
     }
 }
@@ -162,7 +164,7 @@ where
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<[u8; capsules::lpm013m126::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::lpm013m126::BUF_LEN]>,
         &'static mut MaybeUninit<Inverted<'static, P>>,
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<
@@ -180,7 +182,7 @@ where
         let lpm013m126_alarm = s.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         lpm013m126_alarm.setup();
 
-        let buffer = s.1.write([0; capsules::lpm013m126::BUF_LEN]);
+        let buffer = s.1.write([0; capsules_extra::lpm013m126::BUF_LEN]);
 
         let chip_select = s.2.write(Inverted(self.chip_select));
 
@@ -194,13 +196,16 @@ where
                 self.extcomin,
                 self.disp,
                 lpm013m126_alarm,
-                self.deferred_caller,
                 buffer,
             )
             .unwrap(),
         );
         spi_device.set_client(lpm013m126);
         lpm013m126_alarm.set_alarm_client(lpm013m126);
+        // Because this capsule uses multiple deferred calls internally, this
+        // takes care of registering the deferred calls as well. Thus there is
+        // no need to explicitly call
+        // `kernel::deferred_call::DeferredCallClient::register`.
         lpm013m126.setup().unwrap();
         lpm013m126
     }

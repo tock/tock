@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Generic support for all Cortex-M platforms.
 
 #![crate_name = "cortexm"]
@@ -125,19 +129,28 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
     use core::arch::asm;
     asm!(
         "
-    // Set thread mode to privileged to switch back to kernel mode.
-    mov r0, #0
-    msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
-    isb
+    // Use the CONTROL register to set the thread mode to privileged to switch
+    // back to kernel mode.
+    //
+    // CONTROL[1]: Stack status
+    //   0 = Default stack (MSP) is used
+    //   1 = Alternate stack is used
+    // CONTROL[0]: Mode
+    //   0 = Privileged in thread mode
+    //   1 = User state in thread mode
+    mov r0, #0                        // r0 = 0
+    msr CONTROL, r0                   // CONTROL = 0
+    // CONTROL writes must be followed by an Instruction Synchronization Barrier
+    // (ISB). https://developer.arm.com/documentation/dai0321/latest
+    isb                               // synchronization barrier
 
-    movw LR, #0xFFF9
-    movt LR, #0xFFFF
+    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
+    // instructs the CPU to run in thread mode with the main (kernel) stack.
+    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
 
-    // This will resume in the switch to user function where application state
+    // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
-    bx   LR
+    bx lr
     ",
         options(noreturn)
     );
@@ -159,22 +172,31 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     asm!(
         "
     // First check to see which direction we are going in. If the link register
-    // is something other than 0xfffffff9, then we are coming from an app which
+    // is something other than 0xFFFFFFF9, then we are coming from an app which
     // has called a syscall.
-    cmp lr, #0xfffffff9
-    bne 100f // to_kernel
+    cmp lr, #0xFFFFFFF9               // LR ≟ 0xFFFFFFF9
+    bne 100f // to_kernel             // if LR != 0xFFFFFFF9, jump to to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
-    // application. Set thread mode to unprivileged to run the application.
-    mov r0, #1
-    msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    // application. Use the CONTROL register to set the thread mode to
+    // unprivileged to run the application.
+    //
+    // CONTROL[1]: Stack status
+    //   0 = Default stack (MSP) is used
+    //   1 = Alternate stack is used
+    // CONTROL[0]: Mode
+    //   0 = Privileged in thread mode
+    //   1 = User state in thread mode
+    mov r0, #1                        // r0 = 1
+    msr CONTROL, r0                   // CONTROL = 1
+    // CONTROL writes must be followed by an Instruction Synchronization Barrier
+    // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // This is a special address to return Thread mode with Process stack
-    movw lr, #0xfffd
-    movt lr, #0xffff
+    // Set the link register to the special EXC_RETURN value of 0xFFFFFFFD which
+    // instructs the CPU to run in thread mode with the process stack.
+    ldr lr, =0xFFFFFFFD               // LR = 0xFFFFFFFD
+
     // Switch to the app.
     bx lr
 
@@ -183,21 +205,32 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
     // `SYSCALL_FIRED` which is stored in the syscall file.
     // `UserspaceKernelBoundary` will use this variable to decide why the app
     // stopped executing.
-    ldr r0, =SYSCALL_FIRED
-    mov r1, #1
-    str r1, [r0, #0]
+    ldr r0, =SYSCALL_FIRED            // r0 = &SYSCALL_FIRED
+    mov r1, #1                        // r1 = 1
+    str r1, [r0]                      // *SYSCALL_FIRED = 1
 
-    // Set thread mode to privileged as we switch back to the kernel.
-    mov r0, #0
-    msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    // Use the CONTROL register to set the thread mode to privileged to switch
+    // back to kernel mode.
+    //
+    // CONTROL[1]: Stack status
+    //   0 = Default stack (MSP) is used
+    //   1 = Alternate stack is used
+    // CONTROL[0]: Mode
+    //   0 = Privileged in thread mode
+    //   1 = User state in thread mode
+    mov r0, #0                        // r0 = 0
+    msr CONTROL, r0                   // CONTROL = 0
+    // CONTROL writes must be followed by an Instruction Synchronization Barrier
+    // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // This is a special address to return Thread mode with Main stack
-    movw LR, #0xFFF9
-    movt LR, #0xFFFF
-    bx lr",
+    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
+    // instructs the CPU to run in thread mode with the main (kernel) stack.
+    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
+
+    // Return to the kernel.
+    bx lr
+    ",
         options(noreturn)
     );
 }
@@ -216,18 +249,25 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
     use core::arch::asm;
     asm!(
         "
-    // Set thread mode to privileged to ensure we are executing as the kernel.
-    // This may be redundant if the interrupt happened while the kernel code
-    // was executing.
-    mov r0, #0
-    msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    // Use the CONTROL register to set the thread mode to privileged to ensure
+    // we are executing as the kernel. This may be redundant if the interrupt
+    // happened while the kernel code was executing.
+    //
+    // CONTROL[1]: Stack status
+    //   0 = Default stack (MSP) is used
+    //   1 = Alternate stack is used
+    // CONTROL[0]: Mode
+    //   0 = Privileged in thread mode
+    //   1 = User state in thread mode
+    mov r0, #0                        // r0 = 0
+    msr CONTROL, r0                   // CONTROL = 0
+    // CONTROL writes must be followed by an Instruction Synchronization Barrier
+    // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // This is a special address to return Thread mode with Main stack
-    movw LR, #0xFFF9
-    movt LR, #0xFFFF
+    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
+    // instructs the CPU to run in thread mode with the main (kernel) stack.
+    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
 
     // Now need to disable the interrupt that fired in the NVIC to ensure it
     // does not trigger again before the scheduler has a chance to handle it. We
@@ -239,46 +279,34 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
 
     // Find the ISR number (`index`) by looking at the low byte of the IPSR
     // registers.
-    mrs r0, IPSR       // r0 = Interrupt Program Status Register (IPSR)
-    and r0, #0xff      // r0 = r0 & 0xFF
-    sub r0, #16        // ISRs start at 16, so subtract 16 to get zero-indexed.
+    mrs r0, IPSR                      // r0 = Interrupt Program Status Register (IPSR)
+    and r0, #0xff                     // r0 = r0 & 0xFF; Get lowest 8 bits
+    sub r0, #16                       // r0 = r0 - 16;   ISRs start at 16, so subtract 16 to get zero-indexed.
 
     // Now disable that interrupt in the NVIC.
     // High level:
     //    r0 = index
     //    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
-    //
-    lsrs r2, r0, #5    // r2 = r0 / 32
-
+    lsrs r2, r0, #5                   // r2 = r0 / 32
     // r0 = 1 << (r0 & 31)
-    movs r3, #1        // r3 = 1
-    and r0, r0, #31    // r0 = r0 & 31
-    lsl r0, r3, r0     // r0 = r3 << r0
+    movs r3, #1                       // r3 = 1
+    and r0, r0, #31                   // r0 = r0 & 31
+    lsl r0, r3, r0                    // r0 = r3 << r0
 
     // Load the ICER register address.
-    mov r3, #0xe180    // r3 = &NVIC.ICER
-    movt r3, #0xe000
+    ldr r3, =0xe000e180               // r3 = &NVIC.ICER
 
     // Here:
     // - `r2` is index / 32
     // - `r3` is &NVIC.ICER
     // - `r0` is 1 << (index & 31)
-    //
-    // So we just do:
-    //
-    //  `*(r3 + r2 * 4) = r0`
-    //
-    str r0, [r3, r2, lsl #2]
+    str r0, [r3, r2, lsl #2]          // *(r3 + r2 * 4) = r0
 
-    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
-     * at this point. So set it here again so the interrupt does not get lost
-     * in service_pending_interrupts()
-     * */
-    /* r3 = &NVIC.ISPR */
-    mov r3, #0xe200
-    movt r3, #0xe000
-    /* Set pending bit */
-    str r0, [r3, r2, lsl #2]
+    // The pending bit in ISPR might be reset by hardware for pulse interrupts
+    // at this point. So set it here again so the interrupt does not get lost in
+    // `service_pending_interrupts()`.
+    ldr r3, =0xe000e200               // r3 = &NVIC.ISPR
+    str r0, [r3, r2, lsl #2]          // *(r3 + r2 * 4) = r0
 
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
@@ -392,43 +420,44 @@ pub unsafe fn switch_to_user_arm_v7m(
     // process's registers, we do in fact clobber r6, r7 and r9. So, we work
     // around this by doing our own manual saving of r6 using r2, r7 using r3,
     // r9 using r12, and then mark those as clobbered.
-    mov r2, r6
-    mov r3, r7
-    mov r12, r9
+    mov r2, r6                        // r2 = r6
+    mov r3, r7                        // r3 = r7
+    mov r12, r9                       // r12 = r8
 
     // The arguments passed in are:
     // - `r0` is the bottom of the user stack
     // - `r1` is a reference to `CortexMStoredState.regs`
 
     // Load bottom of stack into Process Stack Pointer.
-    msr psp, r0  // PSP = r0
+    msr psp, r0                       // PSP = r0
 
     // Load non-hardware-stacked registers from the process stored state. Ensure
     // that the address register (right now r1) is stored in a callee saved
     // register.
-    ldmia r1, {{r4-r11}}
+    ldmia r1, {{r4-r11}}              // r4 = r1[0], r5 = r1[1], ...
 
-    // SWITCH
-    svc 0xff   // It doesn't matter which SVC number we use here as it has no
-               // defined meaning for the Cortex-M syscall interface. Data being
-               // returned from a syscall is transferred on the app's stack.
+    // Generate a SVC exception to handle the context switch from kernel to
+    // userspace. It doesn't matter which SVC number we use here as it is not
+    // used in the exception handler. Data being returned from a syscall is
+    // transferred on the app's stack.
+    svc 0xff
 
     // When execution returns here we have switched back to the kernel from the
     // application.
 
     // Push non-hardware-stacked registers into the saved state for the
     // application.
-    stmia r1, {{r4-r11}}
+    stmia r1, {{r4-r11}}              // r1[0] = r4, r1[1] = r5, ...
 
     // Update the user stack pointer with the current value after the
     // application has executed.
-    mrs r0, PSP   // r0 = PSP
+    mrs r0, PSP                       // r0 = PSP
 
-    // Need to restore r6, r7 and r12 since we clobbered them when switching to and
-    // from the app.
-    mov r6, r2
-    mov r7, r3
-    mov r9, r12
+    // Need to restore r6, r7 and r12 since we clobbered them when switching to
+    // and from the app.
+    mov r6, r2                        // r6 = r2
+    mov r7, r3                        // r7 = r3
+    mov r9, r12                       // r9 = r12
     ",
     inout("r0") user_stack,
     in("r1") process_regs,

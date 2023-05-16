@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for TicKV KV System Driver.
 //!
 //! This provides one component, TicKVComponent, which provides
@@ -32,9 +36,9 @@
 //!    hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
 //! ```
 
-use capsules::tickv::TicKVStore;
-use capsules::virtual_flash::FlashUser;
-use capsules::virtual_flash::MuxFlash;
+use capsules_core::virtualizers::virtual_flash::FlashUser;
+use capsules_core::virtualizers::virtual_flash::MuxFlash;
+use capsules_extra::tickv::TicKVStore;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -47,11 +51,12 @@ use kernel::hil::hasher::Hasher;
 #[macro_export]
 macro_rules! tickv_component_static {
     ($F:ty, $H:ty) => {{
-        let flash = kernel::static_buf!(capsules::virtual_flash::FlashUser<'static, $F>);
+        let flash =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_flash::FlashUser<'static, $F>);
         let tickv = kernel::static_buf!(
-            capsules::tickv::TicKVStore<
+            capsules_extra::tickv::TicKVStore<
                 'static,
-                capsules::virtual_flash::FlashUser<'static, $F>,
+                capsules_core::virtualizers::virtual_flash::FlashUser<'static, $F>,
                 $H,
             >
         );

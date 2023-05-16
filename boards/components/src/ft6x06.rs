@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the Ft6x06 Touch Panel.
 //!
 //! Usage
@@ -11,9 +15,9 @@
 //!    .finalize(components::ft6x06_component_static!(mux_i2c));
 //! ```
 
-use capsules::ft6x06::Ft6x06;
-use capsules::ft6x06::NO_TOUCH;
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::ft6x06::Ft6x06;
+use capsules_extra::ft6x06::NO_TOUCH;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
@@ -22,10 +26,10 @@ use kernel::hil::gpio;
 #[macro_export]
 macro_rules! ft6x06_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice);
+        let i2c_device = kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
         let buffer = kernel::static_buf!([u8; 17]);
         let events_buffer = kernel::static_buf!([kernel::hil::touch::TouchEvent; 2]);
-        let ft6x06 = kernel::static_buf!(capsules::ft6x06::Ft6x06<'static>);
+        let ft6x06 = kernel::static_buf!(capsules_extra::ft6x06::Ft6x06<'static>);
 
         (i2c_device, ft6x06, buffer, events_buffer)
     };};

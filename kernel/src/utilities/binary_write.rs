@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Basic binary write interface and supporting structs.
 //!
 //! This simple trait provides a synchronous interface for printing an arbitrary

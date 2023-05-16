@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for the MX25R6435F flash chip.
 //!
 //! Usage
@@ -17,9 +21,9 @@
 //! ));
 //! ```
 
-use capsules::mx25r6435f::MX25R6435F;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_extra::mx25r6435f::MX25R6435F;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
@@ -30,20 +34,23 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! mx25r6435f_component_static {
     ($S:ty, $P:ty, $A:ty $(,)?) => {{
-        let spi_device =
-            kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let spi_device = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
+        );
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let mx25r6435f = kernel::static_buf!(
-            capsules::mx25r6435f::MX25R6435F<
+            capsules_extra::mx25r6435f::MX25R6435F<
                 'static,
-                capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
                 $P,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 
-        let tx_buf = kernel::static_buf!([u8; capsules::mx25r6435f::TX_BUF_LEN]);
-        let rx_buf = kernel::static_buf!([u8; capsules::mx25r6435f::RX_BUF_LEN]);
+        let tx_buf = kernel::static_buf!([u8; capsules_extra::mx25r6435f::TX_BUF_LEN]);
+        let rx_buf = kernel::static_buf!([u8; capsules_extra::mx25r6435f::RX_BUF_LEN]);
 
         (spi_device, alarm, mx25r6435f, tx_buf, rx_buf)
     };};
@@ -96,8 +103,8 @@ impl<
         &'static mut MaybeUninit<
             MX25R6435F<'static, VirtualSpiMasterDevice<'static, S>, P, VirtualMuxAlarm<'static, A>>,
         >,
-        &'static mut MaybeUninit<[u8; capsules::mx25r6435f::TX_BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules::mx25r6435f::RX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::mx25r6435f::TX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::mx25r6435f::RX_BUF_LEN]>,
     );
     type Output = &'static MX25R6435F<
         'static,
@@ -114,17 +121,23 @@ impl<
         let mx25r6435f_virtual_alarm = static_buffer.1.write(VirtualMuxAlarm::new(self.mux_alarm));
         mx25r6435f_virtual_alarm.setup();
 
-        let tx_buf = static_buffer.3.write([0; capsules::mx25r6435f::TX_BUF_LEN]);
-        let rx_buf = static_buffer.4.write([0; capsules::mx25r6435f::RX_BUF_LEN]);
+        let tx_buf = static_buffer
+            .3
+            .write([0; capsules_extra::mx25r6435f::TX_BUF_LEN]);
+        let rx_buf = static_buffer
+            .4
+            .write([0; capsules_extra::mx25r6435f::RX_BUF_LEN]);
 
-        let mx25r6435f = static_buffer.2.write(capsules::mx25r6435f::MX25R6435F::new(
-            mx25r6435f_spi,
-            mx25r6435f_virtual_alarm,
-            tx_buf,
-            rx_buf,
-            self.write_protect_pin,
-            self.hold_pin,
-        ));
+        let mx25r6435f = static_buffer
+            .2
+            .write(capsules_extra::mx25r6435f::MX25R6435F::new(
+                mx25r6435f_spi,
+                mx25r6435f_virtual_alarm,
+                tx_buf,
+                rx_buf,
+                self.write_protect_pin,
+                self.hold_pin,
+            ));
         mx25r6435f_spi.setup();
         mx25r6435f_spi.set_client(mx25r6435f);
         mx25r6435f_virtual_alarm.set_alarm_client(mx25r6435f);

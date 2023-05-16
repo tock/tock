@@ -1,10 +1,14 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for starting up nrf52 platforms.
 //! Contains 3 components, NrfStartupComponent, NrfClockComponent,
 //! and UartChannelComponent, as well as two helper structs for
 //! intializing Uart on Nordic boards.
 
-use capsules::segger_rtt::SeggerRtt;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::segger_rtt::SeggerRtt;
 use components;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
@@ -38,6 +42,13 @@ impl<'a> Component for NrfStartupComponent<'a> {
     type StaticInput = ();
     type Output = ();
     fn finalize(self, _s: Self::StaticInput) -> Self::Output {
+        // Disable APPROTECT in software. This is required as of newer nRF52
+        // hardware revisions. See
+        // https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect.
+        // If run on older HW revisions this function will do nothing.
+        let approtect = nrf52::approtect::Approtect::new();
+        approtect.sw_disable_approtect();
+
         // Make non-volatile memory writable and activate the reset button
         let uicr = nrf52::uicr::Uicr::new();
 
@@ -53,6 +64,12 @@ impl<'a> Component for NrfStartupComponent<'a> {
         // Only enabling the NFC pin protection requires an erase.
         if self.nfc_as_gpios {
             erase_uicr |= !uicr.is_nfc_pins_protection_enabled();
+        }
+
+        // On new nRF52 variants we need to ensure that the APPROTECT field in UICR is
+        // set to `HwDisable`.
+        if uicr.is_ap_protect_enabled() {
+            erase_uicr = true;
         }
 
         if erase_uicr {
@@ -92,6 +109,13 @@ impl<'a> Component for NrfStartupComponent<'a> {
         // Check if we need to free the NFC pins for GPIO
         if self.nfc_as_gpios {
             uicr.set_nfc_pins_protection(true);
+            while !self.nvmc.is_ready() {}
+            needs_soft_reset = true;
+        }
+
+        // If APPROTECT was not already disabled, ensure it is set to disabled.
+        if uicr.is_ap_protect_enabled() {
+            uicr.disable_ap_protect();
             while !self.nvmc.is_ready() {}
             needs_soft_reset = true;
         }

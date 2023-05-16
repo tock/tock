@@ -10,22 +10,15 @@ board developed by the Raspberry Pi Foundation and is based on the RP2040 chip.
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
-## Installing elf2uf2
+## Installing elf2uf2-rs
 
-The Raspberry Pi Pico RP2040 uses UF2 files for flashing. Tock compiles to an ELF file.
-The `elf2uf2` utility is needed to transform the Tock ELF file into an UF2 file.
+The Nano RP2040 uses UF2 files for flashing. Tock compiles to an ELF file.
+The `elf2uf2-rs` utility is needed to transform the Tock ELF file into an UF2 file.
 
 To install `elf2uf2`, run the commands:
 
 ```bash
-$ git clone https://github.com/raspberrypi/pico-sdk
-$ cd pico-sdk
-$ cd tools/elf2uf2
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
-$ sudo cp elf2uf2 /usr/local/bin
+$ cargo install elf2uf2-rs
 ```
 
 ## Flashing the kernel

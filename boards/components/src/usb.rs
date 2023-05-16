@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Generic component for initializing a USB device given a USBController.
 //!
 //! This provides one Component, UsbComponent, which implements
@@ -8,7 +12,7 @@
 //! ```rust
 //! let usb_driver = components::usb::UsbComponent::new(
 //!     board_kernel,
-//!     capsules::usb::usb_user::DRIVER_NUM,
+//!     capsules_extra::usb::usb_user::DRIVER_NUM,
 //!     &peripherals.usbc,
 //! )
 //! .finalize(components::usb_component_static!(sam4l::usbc::Usbc));
@@ -23,11 +27,11 @@ use kernel::hil::usb::UsbController;
 #[macro_export]
 macro_rules! usb_component_static {
     ($U:ty $(,)?) => {{
-        let usb_client = kernel::static_buf!(capsules::usb::usbc_client::Client<'static, $U>);
+        let usb_client = kernel::static_buf!(capsules_extra::usb::usbc_client::Client<'static, $U>);
         let usb_driver = kernel::static_buf!(
-            capsules::usb::usb_user::UsbSyscallDriver<
+            capsules_extra::usb::usb_user::UsbSyscallDriver<
                 'static,
-                capsules::usb::usbc_client::Client<'static, $U>,
+                capsules_extra::usb::usbc_client::Client<'static, $U>,
             >
         );
         (usb_client, usb_driver)
@@ -52,34 +56,35 @@ impl<U: UsbController<'static> + 'static> UsbComponent<U> {
 
 impl<U: UsbController<'static> + 'static> Component for UsbComponent<U> {
     type StaticInput = (
-        &'static mut MaybeUninit<capsules::usb::usbc_client::Client<'static, U>>,
+        &'static mut MaybeUninit<capsules_extra::usb::usbc_client::Client<'static, U>>,
         &'static mut MaybeUninit<
-            capsules::usb::usb_user::UsbSyscallDriver<
+            capsules_extra::usb::usb_user::UsbSyscallDriver<
                 'static,
-                capsules::usb::usbc_client::Client<'static, U>,
+                capsules_extra::usb::usbc_client::Client<'static, U>,
             >,
         >,
     );
-    type Output = &'static capsules::usb::usb_user::UsbSyscallDriver<
+    type Output = &'static capsules_extra::usb::usb_user::UsbSyscallDriver<
         'static,
-        capsules::usb::usbc_client::Client<'static, U>,
+        capsules_extra::usb::usbc_client::Client<'static, U>,
     >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         // Configure the USB controller
-        let usb_client = s.0.write(capsules::usb::usbc_client::Client::new(
+        let usb_client = s.0.write(capsules_extra::usb::usbc_client::Client::new(
             &self.usbc,
-            capsules::usb::usbc_client::MAX_CTRL_PACKET_SIZE_SAM4L,
+            capsules_extra::usb::usbc_client::MAX_CTRL_PACKET_SIZE_SAM4L,
         ));
         self.usbc.set_client(usb_client);
 
         // Configure the USB userspace driver
-        let usb_driver = s.1.write(capsules::usb::usb_user::UsbSyscallDriver::new(
-            usb_client,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
-        ));
+        let usb_driver =
+            s.1.write(capsules_extra::usb::usb_user::UsbSyscallDriver::new(
+                usb_client,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            ));
 
         usb_driver
     }

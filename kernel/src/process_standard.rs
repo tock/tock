@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock default Process implementation.
 //!
 //! `ProcessStandard` is an implementation for a userspace process running on
@@ -242,6 +246,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.app_id.get()
     }
 
+    fn binary_version(&self) -> u32 {
+        self.header.get_binary_version()
+    }
+
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -300,10 +308,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         c
     }
 
-    // Enqueue the initialization function of a process onto its task list;
-    // this is used to start a process. Should only be called when a process
-    // is in the `State::Unstarted` state. If this returns `Err` the process
-    // will not start execution.
+    // Enqueue the initialization function of a process onto its task
+    // list; this is used to start a process. Should only be called
+    // when a process is in the `State::Terminated` or
+    // `State::CredentialsApproved` state. If this returns `Err` the
+    // process will not start execution.
     fn enqueue_init_task(
         &self,
         _cap: &dyn capabilities::ProcessInitCapability,
@@ -448,7 +457,23 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn terminate(&self, completion_code: Option<u32>) {
-        if !self.is_running() {
+        // A process can be terminated if it is running, in the
+        // Faulted state, or in the CredentialsApproved state;
+        // otherwise, you cannot terminate it and this method
+        // return early.
+        //
+        // The kernel can terminate in the Faulted state to return the
+        // process to a state in which it can run again (e.g., reset
+        // it).
+        //
+        // The kernel can terminate in the CredentialsApproved state
+        // because this state means the process is ready to run and
+        // will be started in a future core scheduler loop; terminate
+        // allows the kernel to prevent this before it starts running.
+        if self.is_running() == false
+            && self.get_state() != State::Faulted
+            && self.get_state() != State::CredentialsApproved
+        {
             return;
         }
 

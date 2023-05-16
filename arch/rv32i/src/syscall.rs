@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Kernel-userland system call interface for RISC-V architecture.
 
 use core::convert::TryInto;
@@ -242,85 +246,39 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // will issue arbitrary memory accesses (acting as a compiler
         // fence).
         asm!("
-          // Before switching to the app we need to save the kernel registers to
-          // the kernel stack. We then save the stack pointer in the mscratch
-          // CSR (0x340) so we can retrieve it after returning to the kernel
-          // from the app.
+          // Before switching to the app we need to save some kernel registers
+          // to the kernel stack, specifically ones which we can't mark as
+          // clobbered in the asm!() block. We then save the stack pointer in
+          // the mscratch CSR (0x340) so we can retrieve it after returning to
+          // the kernel from the app.
           //
           // A few values get saved to the kernel stack, including an app
           // register temporarily after entering the trap handler. Here is a
           // memory map to make it easier to keep track:
           //
           // ```
-          // 34*4(sp):          <- original stack pointer
-          // 33*4(sp):
-          // 32*4(sp): x31
-          // 31*4(sp): x30
-          // 30*4(sp): x29
-          // 29*4(sp): x28
-          // 28*4(sp): x27
-          // 27*4(sp): x26
-          // 26*4(sp): x25
-          // 25*4(sp): x24
-          // 24*4(sp): x23
-          // 23*4(sp): x22
-          // 22*4(sp): x21
-          // 21*4(sp): x20
-          // 20*4(sp): x19
-          // 19*4(sp): x18
-          // 18*4(sp): x17
-          // 17*4(sp): x16
-          // 16*4(sp): x15
-          // 15*4(sp): x14
-          // 14*4(sp): x13
-          // 13*4(sp): x12
-          // 12*4(sp): x11
-          // 11*4(sp): x10
-          // 10*4(sp): x9
-          //  9*4(sp): x8
-          //  8*4(sp): x7
-          //  7*4(sp): x6
-          //  6*4(sp): x5
-          //  5*4(sp): x4
-          //  4*4(sp): x3
-          //  3*4(sp): x1
+          //  8*4(sp):          <- original stack pointer
+          //  7*4(sp):
+          //  6*4(sp): x9
+          //  5*4(sp): x8
+          //  4*4(sp): x4
+          //  3*4(sp): x3
           //  2*4(sp): _return_to_kernel (100) (address to resume after trap)
           //  1*4(sp): *state   (Per-process StoredState struct)
           //  0*4(sp): app s0   <- new stack pointer
           // ```
 
-          addi sp, sp, -34*4  // Move the stack pointer down to make room.
+          addi sp, sp, -8*4  // Move the stack pointer down to make room.
 
-          sw   x1,  3*4(sp)    // Save all of the registers on the kernel stack.
-          sw   x3,  4*4(sp)
-          sw   x4,  5*4(sp)
-          sw   x5,  6*4(sp)
-          sw   x6,  7*4(sp)
-          sw   x7,  8*4(sp)
-          sw   x8,  9*4(sp)
-          sw   x9,  10*4(sp)
-          sw   x10, 11*4(sp)
-          sw   x11, 12*4(sp)
-          sw   x12, 13*4(sp)
-          sw   x13, 14*4(sp)
-          sw   x14, 15*4(sp)
-          sw   x15, 16*4(sp)
-          sw   x16, 17*4(sp)
-          sw   x17, 18*4(sp)
-          sw   x18, 19*4(sp)
-          sw   x19, 20*4(sp)
-          sw   x20, 21*4(sp)
-          sw   x21, 22*4(sp)
-          sw   x22, 23*4(sp)
-          sw   x23, 24*4(sp)
-          sw   x24, 25*4(sp)
-          sw   x25, 26*4(sp)
-          sw   x26, 27*4(sp)
-          sw   x27, 28*4(sp)
-          sw   x28, 29*4(sp)
-          sw   x29, 30*4(sp)
-          sw   x30, 31*4(sp)
-          sw   x31, 32*4(sp)
+          // Save all registers on the kernel stack which cannot be clobbered
+          // by an asm!() block. These are mostly registers which have a
+          // designated purpose (e.g. stack pointer) or are used internally
+          // by LLVM.
+          //   x2             // sp -> saved in mscratch CSR below
+          sw   x3,  3*4(sp)   // gp (can't be clobbered / used as an operand)
+          sw   x4,  4*4(sp)   // tp (can't be clobbered / used as an operand)
+          sw   x8,  5*4(sp)   // fp (can't be clobbered / used as an operand)
+          sw   x9,  6*4(sp)   // s1 (used internally by LLVM)
 
           sw   a0, 1*4(sp)    // Store process state pointer on stack as well.
                               // We need to have this available for after the app
@@ -422,38 +380,18 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
           // We have already stored the app registers in the trap handler. We
           // can restore the kernel registers before resuming kernel code.
-          lw   x1,  3*4(sp)
-          lw   x3,  4*4(sp)
-          lw   x4,  5*4(sp)
-          lw   x5,  6*4(sp)
-          lw   x6,  7*4(sp)
-          lw   x7,  8*4(sp)
-          lw   x8,  9*4(sp)
-          lw   x9,  10*4(sp)
-          lw   x10, 11*4(sp)
-          lw   x11, 12*4(sp)
-          lw   x12, 13*4(sp)
-          lw   x13, 14*4(sp)
-          lw   x14, 15*4(sp)
-          lw   x15, 16*4(sp)
-          lw   x16, 17*4(sp)
-          lw   x17, 18*4(sp)
-          lw   x18, 19*4(sp)
-          lw   x19, 20*4(sp)
-          lw   x20, 21*4(sp)
-          lw   x21, 22*4(sp)
-          lw   x22, 23*4(sp)
-          lw   x23, 24*4(sp)
-          lw   x24, 25*4(sp)
-          lw   x25, 26*4(sp)
-          lw   x26, 27*4(sp)
-          lw   x27, 28*4(sp)
-          lw   x28, 29*4(sp)
-          lw   x29, 30*4(sp)
-          lw   x30, 31*4(sp)
-          lw   x31, 32*4(sp)
+          //   x2            // sp -> loaded from mscratch by the trap handler
+          lw   x3,  3*4(sp)  // gp (can't be clobbered / used as an operand)
+          lw   x4,  4*4(sp)  // tp (can't be clobbered / used as an operand)
+          lw   x8,  5*4(sp)  // fp (can't be clobbered / used as an operand)
+          lw   x9,  6*4(sp)  // s1 (used internally by LLVM)
 
-          addi sp, sp, 34*4   // Reset kernel stack pointer
+          lw   a0,  1*4(sp)  // Restore the the process state pointer such that
+                             // we don't need to mark it as clobbered.
+                             // Otherwise, this would cause Rust to stack a
+                             // register which we already manually save.
+
+          addi sp, sp, 8*4   // Reset kernel stack pointer
           ",
 
           // The register to put the state struct pointer in is not
@@ -461,6 +399,16 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
           // as that is overwritten prior to being accessed
           // (although stored and later restored) in the assembly
           in("a0") state as *mut Riscv32iStoredState,
+
+          // Clobber all registers which can be marked as clobbered, except
+          // for `a0` / `x10`. By making it retain the value of `&mut state`,
+          // which we need to stack manually anyway, we can avoid Rust/LLVM
+          // stacking it redundantly for us.
+          out("x1") _, out("x5") _, out("x6") _, out("x7") _, out("x11") _,
+          out("x12") _, out("x13") _, out("x14") _, out("x15") _, out("x16") _,
+          out("x17") _, out("x18") _, out("x19") _, out("x20") _, out("x21") _,
+          out("x22") _, out("x23") _, out("x24") _, out("x25") _, out("x26") _,
+          out("x27") _, out("x28") _, out("x29") _, out("x30") _, out("x31") _,
         );
 
         let ret = match mcause::Trap::from(state.mcause as usize) {

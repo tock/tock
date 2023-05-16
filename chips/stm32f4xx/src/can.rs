@@ -8,10 +8,9 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::deferred_calls::DeferredCallTask;
 use crate::rcc;
 use core::cell::Cell;
-use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -388,9 +387,6 @@ register_bitfields![u32,
     ]
 ];
 
-static DEFERRED_CALL: DeferredCall<DeferredCallTask> =
-    unsafe { DeferredCall::new(DeferredCallTask::Can) };
-
 #[derive(Copy, Clone, PartialEq)]
 enum CanState {
     Initialization,
@@ -470,6 +466,7 @@ pub struct Can<'a> {
     rx_buffer: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
     tx_buffer: TakeCell<'static, [u8; can::STANDARD_CAN_PACKET_SIZE]>,
 
+    deferred_call: DeferredCall,
     // deferred call task action
     deferred_action: OptionalCell<AsyncAction>,
 }
@@ -496,6 +493,7 @@ impl<'a> Can<'a> {
             transmit_client: OptionalCell::empty(),
             rx_buffer: TakeCell::empty(),
             tx_buffer: TakeCell::empty(),
+            deferred_call: DeferredCall::new(),
             deferred_action: OptionalCell::empty(),
         }
     }
@@ -1003,45 +1001,6 @@ impl<'a> Can<'a> {
         }
     }
 
-    pub fn handle_deferred_task(&self) {
-        match self.deferred_action.take() {
-            Some(action) => match action {
-                AsyncAction::Enable => {
-                    if let Err(enable_err) = self.enter_normal_mode() {
-                        self.controller_client.map(|controller_client| {
-                            controller_client.state_changed(self.can_state.get().into());
-                            controller_client.enabled(Err(enable_err));
-                        });
-                    }
-                    self.controller_client.map(|controller_client| {
-                        controller_client.state_changed(can::State::Running);
-                        controller_client.enabled(Ok(()));
-                    });
-                }
-                AsyncAction::AbortReceive => {
-                    if let Some(rx) = self.rx_buffer.take() {
-                        self.receive_client
-                            .map(|receive_client| receive_client.stopped(rx));
-                    }
-                }
-                AsyncAction::Disabled => {
-                    self.controller_client.map(|controller_client| {
-                        controller_client.state_changed(self.can_state.get().into());
-                        controller_client.disabled(Ok(()));
-                    });
-                }
-                AsyncAction::EnableError(err) => {
-                    self.controller_client.map(|controller_client| {
-                        controller_client.state_changed(self.can_state.get().into());
-                        controller_client.enabled(Err(err));
-                    });
-                }
-            },
-            // todo no action set
-            None => todo!(),
-        }
-    }
-
     pub fn enable_irq(&self, interrupt: CanInterruptMode) {
         match interrupt {
             CanInterruptMode::TransmitInterrupt => {
@@ -1108,6 +1067,51 @@ impl<'a> Can<'a> {
         self.disable_irq(CanInterruptMode::Fifo0Interrupt);
         self.disable_irq(CanInterruptMode::Fifo1Interrupt);
         self.disable_irq(CanInterruptMode::ErrorAndStatusChangeInterrupt);
+    }
+}
+
+impl DeferredCallClient for Can<'_> {
+    fn register(&'static self) {
+        self.deferred_call.register(self)
+    }
+
+    fn handle_deferred_call(&self) {
+        match self.deferred_action.take() {
+            Some(action) => match action {
+                AsyncAction::Enable => {
+                    if let Err(enable_err) = self.enter_normal_mode() {
+                        self.controller_client.map(|controller_client| {
+                            controller_client.state_changed(self.can_state.get().into());
+                            controller_client.enabled(Err(enable_err));
+                        });
+                    }
+                    self.controller_client.map(|controller_client| {
+                        controller_client.state_changed(can::State::Running);
+                        controller_client.enabled(Ok(()));
+                    });
+                }
+                AsyncAction::AbortReceive => {
+                    if let Some(rx) = self.rx_buffer.take() {
+                        self.receive_client
+                            .map(|receive_client| receive_client.stopped(rx));
+                    }
+                }
+                AsyncAction::Disabled => {
+                    self.controller_client.map(|controller_client| {
+                        controller_client.state_changed(self.can_state.get().into());
+                        controller_client.disabled(Ok(()));
+                    });
+                }
+                AsyncAction::EnableError(err) => {
+                    self.controller_client.map(|controller_client| {
+                        controller_client.state_changed(self.can_state.get().into());
+                        controller_client.enabled(Err(err));
+                    });
+                }
+            },
+            // todo no action set
+            None => todo!(),
+        }
     }
 }
 
@@ -1257,7 +1261,7 @@ impl<'a> can::Controller for Can<'_> {
                                 self.deferred_action.set(AsyncAction::EnableError(err));
                             }
                         }
-                        DEFERRED_CALL.set();
+                        self.deferred_call.set();
                         r
                     }
                 }
@@ -1277,7 +1281,7 @@ impl<'a> can::Controller for Can<'_> {
                 } else {
                     // set a Disable deferred action
                     self.deferred_action.set(AsyncAction::Disabled);
-                    DEFERRED_CALL.set();
+                    self.deferred_call.set();
                 }
                 Ok(())
             }
@@ -1416,7 +1420,7 @@ impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
                 } else {
                     // set a AbortReceive deferred action
                     self.deferred_action.set(AsyncAction::AbortReceive);
-                    DEFERRED_CALL.set();
+                    self.deferred_call.set();
                     Ok(())
                 }
             }

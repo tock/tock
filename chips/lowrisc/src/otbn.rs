@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! OTBN Control
 
 use core::cell::Cell;
@@ -166,6 +170,10 @@ impl<'a> Otbn<'a> {
         if !self.registers.status.matches_all(STATUS::STATUS::IDLE) {
             // OTBN is performing an operation, we can't make any changes
             return Err(ErrorCode::BUSY);
+        }
+        // Instruction memory is too large to fit
+        if (input.len() / 4) > self.registers.imem.len() {
+            return Err(ErrorCode::SIZE);
         }
 
         for i in 0..(input.len() / 4) {

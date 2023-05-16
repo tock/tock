@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use cortexm4;
@@ -12,7 +16,7 @@ use crate::PROCESS_PRINTER;
 
 enum Writer {
     Uninitialized,
-    WriterRtt(&'static capsules::segger_rtt::SeggerRttMemory<'static>),
+    WriterRtt(&'static capsules_extra::segger_rtt::SeggerRttMemory<'static>),
 }
 
 static mut WRITER: Writer = Writer::Uninitialized;
@@ -25,7 +29,7 @@ fn wait() {
 
 /// Set the RTT memory buffer used to output panic messages.
 pub unsafe fn set_rtt_memory(
-    rtt_memory: &'static mut capsules::segger_rtt::SeggerRttMemory<'static>,
+    rtt_memory: &'static mut capsules_extra::segger_rtt::SeggerRttMemory<'static>,
 ) {
     WRITER = Writer::WriterRtt(rtt_memory);
 }
@@ -38,7 +42,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         match self {
             Writer::Uninitialized => {}
             Writer::WriterRtt(rtt_memory) => {
@@ -62,6 +66,7 @@ impl IoWrite for Writer {
                 }
             }
         };
+        buf.len()
     }
 }
 

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
@@ -20,11 +24,12 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         let uart = esp32::uart::Uart::new(esp32::uart::UART0_BASE);
         uart.disable_tx_interrupt();
         uart.disable_rx_interrupt();
         uart.transmit_sync(buf);
+        buf.len()
     }
 }
 

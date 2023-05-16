@@ -19,6 +19,7 @@ Process Console
   * [`terminate` and `boot`](#terminate-and-boot)
   * [`fault`](#fault)
   * [`panic`](#panic)
+  * [`reset`](#reset)
   * [`kernel`](#kernel)
   * [`process`](#process)
   * [`commands history`](#commands-history)
@@ -38,6 +39,7 @@ Setup
         uart_mux,
         mux_alarm,
         process_printer,
+        Some(reset_function),
     )
     .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
@@ -85,6 +87,7 @@ tock$
   - [`boot n`](#terminate-and-boot) - tries to restart a Terminated process with name n
   - [`fault n`](#fault) - forces the process with name n into a fault state
   - [`panic`](#panic) - causes the kernel to run the panic handler
+  - [`reset`](#reset) - causes the board to reset
   - [`kernel`](#kernel) - prints the kernel memory map
   - [`process n`](#process) - prints the memory map of process with name n
   - [`commands history`](#commands-history) - scrolls through inserted user commands
@@ -540,6 +543,14 @@ tock$
     To debug, run `make debug RAM_START=0x20006000 FLASH_INIT=0x4085d`
     in the app's folder and open the .lst file.
 ```
+
+### `reset`
+  - You can also reset the board with the `reset` command:
+
+```text
+    tock$ reset
+```
+
 ### `kernel`
   - You can view the kernel memory map with the `kernel` command:
 
@@ -640,6 +651,7 @@ tock$
           uart_mux,
           mux_alarm,
           process_printer,
+          Some(reset_function),
       )
       .finalize(components::process_console_component_static!(
           nrf52833::rtc::Rtc,

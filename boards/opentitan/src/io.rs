@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
@@ -20,7 +24,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         // This creates a second instance of the UART peripheral, and should only be used
         // during panic.
         earlgrey::uart::Uart::new(
@@ -28,6 +32,7 @@ impl IoWrite for Writer {
             earlgrey::chip_config::CONFIG.peripheral_freq,
         )
         .transmit_sync(buf);
+        buf.len()
     }
 }
 
