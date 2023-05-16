@@ -9,9 +9,7 @@ impl MacAddress {
     pub const BROADCAST_MAC_ADDRESS: MacAddress = MacAddress([0xFF; 6]);
 
     pub const fn new(bytes: [u8; 6]) -> Self {
-        Self {
-            0: bytes
-        }
+        Self(bytes)
     }
 
     pub fn set_address(&mut self, bytes: &[u8; 6]) {
