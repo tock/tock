@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 
+use kernel::hil::ethernet::{EthernetAdapter, EthernetAdapterClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::ErrorCode;
@@ -42,18 +43,17 @@ register_bitfields![u64,
 ];
 
 pub struct VirtIONet<'a> {
-    id: Cell<usize>,
     rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
     txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
     tx_header: OptionalCell<&'static mut [u8; 12]>,
+    tx_packet_info: Cell<(u16, usize)>,
     rx_header: OptionalCell<&'static mut [u8]>,
     rx_buffer: OptionalCell<&'static mut [u8]>,
-    client: OptionalCell<&'a dyn VirtIONetClient>,
+    client: OptionalCell<&'a dyn EthernetAdapterClient>,
 }
 
 impl<'a> VirtIONet<'a> {
     pub fn new(
-        id: usize,
         txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
         tx_header: &'static mut [u8; 12],
         rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
@@ -64,22 +64,14 @@ impl<'a> VirtIONet<'a> {
         rxqueue.enable_used_callbacks();
 
         VirtIONet {
-            id: Cell::new(id),
             rxqueue,
             txqueue,
             tx_header: OptionalCell::new(tx_header),
-            client: OptionalCell::empty(),
+            tx_packet_info: Cell::new((0, 0)),
             rx_header: OptionalCell::new(rx_header),
             rx_buffer: OptionalCell::new(rx_buffer),
+            client: OptionalCell::empty(),
         }
-    }
-
-    pub fn id(&self) -> usize {
-        self.id.get()
-    }
-
-    pub fn set_client(&self, client: &'a dyn VirtIONetClient) {
-        self.client.set(client);
     }
 
     // This is not executed as part of the `device_initialized` hook to avoid
@@ -108,69 +100,6 @@ impl<'a> VirtIONet<'a> {
             .provide_buffer_chain(&mut buffer_chain)
             .unwrap();
     }
-
-    pub fn return_rx_buffer(&self, buf: &'static mut [u8]) {
-        assert!(self.rx_buffer.is_none());
-        assert!(self.rx_header.is_some());
-        self.rx_buffer.replace(buf);
-
-        // Re-register the RX buffer with the Virtqueue:
-        self.enable_rx();
-    }
-
-    pub fn send_packet(
-        &self,
-        packet: &'static mut [u8],
-        packet_len: usize,
-    ) -> Result<(), (&'static mut [u8], ErrorCode)> {
-        // Try to get a hold of the header buffer
-        //
-        // Otherwise, the device is currently busy transmissing a buffer
-        //
-        // TODO: Implement simultaneous transmissions
-        let mut packet_buf = Some(VirtqueueBuffer {
-            buf: packet,
-            len: packet_len,
-            device_writeable: false,
-        });
-
-        let header_buf = self
-            .tx_header
-            .take()
-            .ok_or(ErrorCode::BUSY)
-            .map_err(|ret| (packet_buf.take().unwrap().buf, ret))?;
-
-        // Write the header
-        //
-        // TODO: Can this be done more elegantly using a struct of registers?
-        header_buf[0] = 0; // flags -> we don't want checksumming
-        header_buf[1] = 0; // gso -> no checksumming or fragmentation
-        header_buf[2] = 0; // hdr_len_low
-        header_buf[3] = 0; // hdr_len_high
-        header_buf[4] = 0; // gso_size
-        header_buf[5] = 0; // gso_size
-        header_buf[6] = 0; // csum_start
-        header_buf[7] = 0; // csum_start
-        header_buf[8] = 0; // csum_offset
-        header_buf[9] = 0; // csum_offsetb
-        header_buf[10] = 0; // num_buffers
-        header_buf[11] = 0; // num_buffers
-
-        let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: header_buf,
-                len: 12,
-                device_writeable: false,
-            }),
-            packet_buf.take(),
-        ];
-
-        self.txqueue
-            .provide_buffer_chain(&mut buffer_chain)
-            .map_err(move |ret| (buffer_chain[1].take().unwrap().buf, ret))?;
-
-        Ok(())
-    }
 }
 
 impl<'a> SplitVirtqueueClient<'static> for VirtIONet<'a> {
@@ -188,9 +117,13 @@ impl<'a> SplitVirtqueueClient<'static> for VirtIONet<'a> {
             self.rx_header.replace(rx_header);
 
             let rx_buffer = buffer_chain[1].take().expect("No rx content buffer").buf;
-            self.client.map(move |client| {
-                client.packet_received(self.id.get(), rx_buffer, bytes_used - 12)
-            });
+            self.client
+                .map(|client| client.rx_packet(&rx_buffer[..(bytes_used - 12)], None));
+            self.rx_buffer.replace(rx_buffer);
+
+            // Re-run enable RX to provide the RX buffer chain back to the
+            // device:
+            self.enable_rx();
         } else if queue_number == self.txqueue.queue_number().unwrap() {
             // Sent a packet
 
@@ -198,8 +131,11 @@ impl<'a> SplitVirtqueueClient<'static> for VirtIONet<'a> {
             self.tx_header.replace(header_buf.try_into().unwrap());
 
             let packet_buf = buffer_chain[1].take().expect("No packet buffer").buf;
+
+            let (packet_len, packet_id) = self.tx_packet_info.get();
+
             self.client
-                .map(move |client| client.packet_sent(self.id.get(), packet_buf));
+                .map(move |client| client.tx_done(Ok(()), packet_buf, packet_len, packet_id, None));
         } else {
             panic!("Callback from unknown queue");
         }
@@ -241,7 +177,65 @@ impl<'a> VirtIODeviceDriver for VirtIONet<'a> {
     }
 }
 
-pub trait VirtIONetClient {
-    fn packet_sent(&self, id: usize, buffer: &'static mut [u8]);
-    fn packet_received(&self, id: usize, buffer: &'static mut [u8], len: usize);
+impl<'a> EthernetAdapter<'a> for VirtIONet<'a> {
+    fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
+        self.client.set(client);
+    }
+
+    fn transmit(
+        &self,
+        packet: &'static mut [u8],
+        len: u16,
+        packet_identifier: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // Try to get a hold of the header buffer
+        //
+        // Otherwise, the device is currently busy transmissing a buffer
+        //
+        // TODO: Implement simultaneous transmissions
+        let mut packet_buf = Some(VirtqueueBuffer {
+            buf: packet,
+            len: len as usize,
+            device_writeable: false,
+        });
+
+        let header_buf = self
+            .tx_header
+            .take()
+            .ok_or(ErrorCode::BUSY)
+            .map_err(|ret| (ret, packet_buf.take().unwrap().buf))?;
+
+        // Write the header
+        //
+        // TODO: Can this be done more elegantly using a struct of registers?
+        header_buf[0] = 0; // flags -> we don't want checksumming
+        header_buf[1] = 0; // gso -> no checksumming or fragmentation
+        header_buf[2] = 0; // hdr_len_low
+        header_buf[3] = 0; // hdr_len_high
+        header_buf[4] = 0; // gso_size
+        header_buf[5] = 0; // gso_size
+        header_buf[6] = 0; // csum_start
+        header_buf[7] = 0; // csum_start
+        header_buf[8] = 0; // csum_offset
+        header_buf[9] = 0; // csum_offsetb
+        header_buf[10] = 0; // num_buffers
+        header_buf[11] = 0; // num_buffers
+
+        let mut buffer_chain = [
+            Some(VirtqueueBuffer {
+                buf: header_buf,
+                len: 12,
+                device_writeable: false,
+            }),
+            packet_buf.take(),
+        ];
+
+        self.tx_packet_info.set((len, packet_identifier));
+
+        self.txqueue
+            .provide_buffer_chain(&mut buffer_chain)
+            .map_err(move |ret| (ret, buffer_chain[1].take().unwrap().buf))?;
+
+        Ok(())
+    }
 }
