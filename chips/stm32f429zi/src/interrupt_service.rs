@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 use kernel::hil::ethernet::EthernetFrame;
+use kernel::hil::ethernet::Configure;
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
@@ -32,7 +33,7 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
     }
     // Necessary for setting up circular dependencies
     pub fn init(&'static self) {
-        self.ethernet.init();
+        let _ = self.ethernet.init();
         self.stm32f4.setup_circular_deps();
         kernel::deferred_call::DeferredCallClient::register(&self.can1);
     }
