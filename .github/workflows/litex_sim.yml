@@ -129,8 +129,8 @@ jobs:
           # memory addresses such that tockloader can place the non-PIC apps
           # into the kernel binary properly.
           export TOCK_TARGETS="\
-            rv32imc|rv32imc.0x00080060.0x40008000|0x00080060|0x40008000
-            rv32imc|rv32imc.0x00088060.0x40010000|0x00088060|0x40010000"
+            rv32imc|rv32imc.0x00080060.0x40010000|0x00080060|0x40010000
+            rv32imc|rv32imc.0x00088060.0x40018000|0x00088060|0x40018000"
           export LIBTOCK_C_APPS="\
             c_hello \
             tests/console_timeout \
