@@ -230,6 +230,7 @@ impl<
                 .5
                 .write(capsules_extra::net::thread::driver::RadioDriver::new(
                     userspace_mac,
+                    aes_ccm,
                     self.board_kernel.create_grant(self.driver_num, &grant_cap),
                     radio_buffer,
                 ));

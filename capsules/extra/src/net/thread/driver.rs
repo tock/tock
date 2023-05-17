@@ -8,15 +8,20 @@
 //! frames. Also provides a minimal list-based interface for managing keys and
 //! known link neighbors, which is needed for 802.15.4 security.
 
+use crate::ieee802154::framer::Framer;
+use crate::ieee802154::mac::AwakeMac;
 use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
-use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
-use crate::net::thread::{device, framer};
+use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u32, encode_u8, SResult};
+use crate::net::thread::{device, framer, mac};
+use capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM;
 
 use core::cell::Cell;
 use core::cmp::min;
+use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::hil::radio::Radio;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -177,7 +182,7 @@ pub struct App {
 pub struct RadioDriver<'a> {
     /// Underlying MAC device, possibly multiplexed
     mac: &'a dyn device::MacDevice<'a>,
-
+    encry: &'a dyn AES128CCM<'a>,
     /// List of (short address, long address) pairs representing IEEE 802.15.4
     /// neighbors.
     neighbors: MapCell<[DeviceDescriptor; MAX_NEIGHBORS]>,
@@ -216,6 +221,7 @@ pub struct RadioDriver<'a> {
 impl<'a> RadioDriver<'a> {
     pub fn new(
         mac: &'a dyn device::MacDevice<'a>,
+        encry: &'a dyn AES128CCM<'a>,
         grant: Grant<
             App,
             UpcallCount<2>,
@@ -226,6 +232,7 @@ impl<'a> RadioDriver<'a> {
     ) -> Self {
         Self {
             mac,
+            encry,
             neighbors: MapCell::new(Default::default()),
             num_neighbors: Cell::new(0),
             keys: MapCell::new(Default::default()),
@@ -605,6 +612,62 @@ impl SyscallDriver for RadioDriver<'_> {
         match command_number {
             0 => {
                 kernel::debug!("We have successfully called our first tock capsule.");
+
+                // let dst_addr = 55;
+                // let security_needed = kernel::option(SecurityLevel::EncMic32, 0);
+
+                // let frame = self.kernel_tx.take().map_or(Err(ErrorCode::NOMEM), |kbuf| {
+                //     // Prepare the frame headers
+                //     kernel::debug!("Pre encryption {:?}", kbuf);
+                //     Ok(())
+                // });
+
+                fn get_ccm_nonce(
+                    device_addr: &[u8; 8],
+                    frame_counter: u32,
+                    level: SecurityLevel,
+                ) -> [u8; 13] {
+                    let mut nonce = [0u8; 13];
+                    let encode_ccm_nonce = |buf: &mut [u8]| {
+                        let off = enc_consume!(buf; encode_bytes, device_addr.as_ref());
+                        let off = enc_consume!(buf, off; encode_u32, frame_counter);
+                        let off = enc_consume!(buf, off; encode_u8, level as u8);
+                        stream_done!(off);
+                    };
+                    match encode_ccm_nonce(&mut nonce).done() {
+                        None => {
+                            // This should not be possible
+                            panic!("Failed to produce ccm nonce");
+                        }
+                        Some(_) => nonce,
+                    }
+                }
+
+                let device_addr = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x35];
+                let frame_counter = 0;
+                let level = SecurityLevel::EncMic32;
+                let key = [
+                    0x54, 0x45, 0xf4, 0x15, 0x8f, 0xd7, 0x59, 0x12, 0x17, 0x58, 0x09, 0xf8, 0xb5,
+                    0x7a, 0x66, 0xa4,
+                ];
+
+                let nonce = get_ccm_nonce(&device_addr, frame_counter, level);
+
+                kernel::debug!("NONCE : {:?}", nonce);
+
+                self.encry.set_key(&key);
+                self.encry.set_nonce(&nonce);
+
+                self.kernel_tx.take().map_or(Err(ErrorCode::NOMEM), |kbuf| {
+                    self.encry.crypt(kbuf, 0, 0, 0, 0, false, true);
+                    Ok(())
+                });
+
+                self.kernel_tx.take().map_or(Err(ErrorCode::NOMEM), |kbuf| {
+                    kernel::debug!("Post encryption {:?}", kbuf);
+                    Ok(())
+                });
+
                 CommandReturn::success()
             }
             1 => {

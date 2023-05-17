@@ -131,6 +131,10 @@ impl Frame {
         self.buf
     }
 
+    pub fn tester(self) {
+        kernel::debug!("Ava is here!!");
+    }
+
     /// Calculates how much more data this frame can hold
     pub fn remaining_data_capacity(&self) -> usize {
         self.buf.len() - radio::PSDU_OFFSET - radio::MFR_SIZE - self.info.secured_length()
