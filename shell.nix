@@ -33,7 +33,7 @@ let
         colorama
         crcmod
         pyserial
-        pytoml
+        toml
         tqdm
         questionary
       ];
