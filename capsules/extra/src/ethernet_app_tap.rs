@@ -542,7 +542,6 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
 
                 // Set the internal state to be non-acked, such that
                 // we won't try to write more packets to the buffer:
-                debug!("write_packet: rx_packet_pending set.");
                 grant.rx_packet_pending = Some(len);
 
                 // Inform the application:
@@ -670,7 +669,6 @@ impl<'a, E: EthernetAdapter<'a>> EthernetAdapterClient for TapDriver<'a, E> {
     }
 
     fn rx_packet(&self, packet: &[u8], timestamp: Option<u64>) {
-        debug!("Kernel RX pkt len {}", packet.len());
         if let Some(process_id) = self.current_app.get() {
             // Attempt to write the packet into the application buffer first. If
             // that doesn't work, enqueue it in the kernel-internal ring buffer:
@@ -679,7 +677,6 @@ impl<'a, E: EthernetAdapter<'a>> EthernetAdapterClient for TapDriver<'a, E> {
             // Depending on the error code, the packet was successfully written,
             // must be discarded, or shall be enqueued:
             if let Err(ErrorCode::BUSY) = res {
-                debug!("Enqueueing!");
                 // We couldn't write the packet directly to the app, instead
                 // write it to the ring buffer.
                 self.rx_packets
@@ -688,7 +685,6 @@ impl<'a, E: EthernetAdapter<'a>> EthernetAdapterClient for TapDriver<'a, E> {
                         let mut pbuf: [u8; MAX_MTU] = [0; MAX_MTU];
 
                         if packet.len() < pbuf.len() && !ring_buffer.is_full() {
-                            debug!("Kernel enqueue packet");
                             pbuf[0..(packet.len())].copy_from_slice(packet);
 
                             ring_buffer.enqueue((
@@ -811,7 +807,6 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                        match rx_packet_pending {
                            Err(e) => CommandReturn::failure(e),
                            Ok(Some(len)) => {
-                               debug!("Pending check: PENDING!");
                                CommandReturn::success_u32((1 << 31) | (len as u32))
                            },
                            Ok(None) => {
