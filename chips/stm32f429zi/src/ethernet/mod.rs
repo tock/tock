@@ -1814,6 +1814,16 @@ impl Configure for Ethernet<'_> {
     fn get_mac_address(&self) -> MacAddress {
         self.get_mac_address0()
     }
+
+    // TODO: Remove this once Transmit trait is implemented
+    fn start_transmit(&self) -> Result<(), ErrorCode> {
+        self.enable_transmitter()
+    }
+
+    // TODO: Remove this once Receive trait is implemented
+    fn start_receive(&self) -> Result<(), ErrorCode> {
+        self.enable_receiver()
+    }
 }
 
 impl<'a> EthernetAdapter<'a> for Ethernet<'a> {

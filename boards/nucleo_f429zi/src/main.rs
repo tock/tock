@@ -345,6 +345,9 @@ fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
     let ethernet = &peripherals.ethernet;
     assert_eq!(Ok(()), ethernet.init());
+    // TODO: Remove these calls once Transmit and Receive HILs are implemented
+    assert_eq!(Ok(()), ethernet.start_transmit());
+    assert_eq!(Ok(()), ethernet.start_receive());
 }
 
 /// Statically initialize the core peripherals for the chip.

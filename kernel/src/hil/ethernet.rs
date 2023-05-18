@@ -221,6 +221,12 @@ pub trait Configure {
     }
 
     fn get_mac_address(&self) -> MacAddress;
+
+    // TODO: Move this into the Transmit trait
+    fn start_transmit(&self) -> Result<(), ErrorCode>;
+
+    // TODO: Move this into the Receive trait
+    fn start_receive(&self) -> Result<(), ErrorCode>;
 }
 
 pub trait Transmit<'a> {
