@@ -7,7 +7,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::ErrorCode;
 use kernel::platform::chip::ClockInterface;
 use kernel::hil::ethernet::MacAddress;
-use kernel::hil::ethernet::EthernetFrame;
 use kernel::hil::ethernet::OperationMode;
 use kernel::hil::ethernet::EthernetSpeed;
 use kernel::hil::ethernet::Configure;
@@ -767,13 +766,14 @@ impl<'a> EthernetClocks<'a> {
 
 pub struct Ethernet<'a> {
     mac_registers: StaticRef<Ethernet_MacRegisters>,
-    mmc_registers: StaticRef<Ethernet_MmcRegisters>,
+    _mmc_registers: StaticRef<Ethernet_MmcRegisters>,
     dma_registers: StaticRef<Ethernet_DmaRegisters>,
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
     transmit_packet: TakeCell<'static, [u8]>,
     transmit_packet_length: OptionalCell<u16>,
     packet_identifier: OptionalCell<usize>,
+    received_packet: TakeCell<'static, [u8]>,
     client: OptionalCell<&'a dyn EthernetAdapterClient>,
     clocks: EthernetClocks<'a>,
     mac_address0: OptionalCell<MacAddress>,
@@ -784,17 +784,18 @@ const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62,
 impl<'a> Ethernet<'a> {
     pub fn new(
         rcc: &'a rcc::Rcc,
-        _transmit_frame: &'a mut EthernetFrame,
+        received_packet: &'static mut [u8],
     ) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
-            mmc_registers: ETHERNET_MMC_BASE,
+            _mmc_registers: ETHERNET_MMC_BASE,
             dma_registers: ETHERNET_DMA_BASE,
             transmit_descriptor: TransmitDescriptor::new(),
             receive_descriptor: ReceiveDescriptor::new(),
             transmit_packet: TakeCell::empty(),
             transmit_packet_length: OptionalCell::empty(),
             packet_identifier: OptionalCell::empty(),
+            received_packet: TakeCell::new(received_packet),
             client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
             mac_address0: OptionalCell::new(DEFAULT_MAC_ADDRESS),
@@ -1033,7 +1034,7 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmabmr.modify(DMABMR::SR::SET);
 
         for _ in 0..100 {
-            if self.dma_registers.dmabmr.read(DMABMR::SR) == 0 {
+            if !self.dma_registers.dmabmr.is_set(DMABMR::SR) {
                 return Ok(());
             }
         }
@@ -1608,6 +1609,10 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
+    fn is_transmission_enabled(&self) -> bool {
+        self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
+    }
+
     fn enable_receiver(&self) -> Result<(), ErrorCode> {
         self.enable_dma_reception()?;
         self.enable_mac_receiver();
@@ -1629,7 +1634,7 @@ impl<'a> Ethernet<'a> {
     }
 
     fn is_reception_enabled(&self) -> bool {
-        self.is_mac_receiver_enabled()  && self.get_receive_process_state() != DmaReceiveProcessState::Stopped
+        self.is_mac_receiver_enabled() && self.is_dma_reception_enabled()
     }
 
     fn enable_all_normal_interrupts(&self) {
@@ -1661,18 +1666,25 @@ impl<'a> Ethernet<'a> {
 
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
-            //self.transmit_client.map(|client| client.transmitted_frame(Ok(())));
+            self.client.map(|client|
+                client.tx_done(
+                    Ok(()),
+                    self.transmit_packet.take().unwrap(),
+                    self.transmit_packet_length.take().unwrap(),
+                    self.packet_identifier.take().unwrap(),
+                    None
+                )
+            );
             self.clear_transmit_interrupt();
         } if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
         } if self.did_receive_interrupt_occur() {
-            //self.receive_client.map(|client|
-                //client.received_frame(
-                    //Ok(()),
-                    //self.receive_descriptor.get_frame_length(),
-                    //self.receive_frame.take().unwrap()
-                //)
-            //);
+            self.client.map(|client| {
+                let received_packet = self.received_packet.take().unwrap();
+                client.rx_packet(self.received_packet.take().unwrap(), None);
+                self.received_packet.put(Some(received_packet));
+                assert_eq!(Ok(()), self.receive_packet());
+            });
             self.clear_receive_interrupt();
         } if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
@@ -1713,6 +1725,31 @@ impl<'a> Ethernet<'a> {
         if self.did_abnormal_interrupt_occur() {
             self.handle_abnormal_interrupt();
         }
+    }
+
+    fn receive_packet(&self) -> Result<(), ErrorCode> {
+        // Check if DMA and MAC core are enabled
+        if !self.is_reception_enabled() {
+            return Err(ErrorCode::OFF);
+        }
+
+        let received_packet = self.received_packet.take().unwrap();
+        self.receive_descriptor.set_buffer1_address(received_packet.as_ptr() as u32);
+        self.receive_descriptor.set_buffer1_size(received_packet.len())?;
+        self.receive_descriptor.set_buffer2_size(0)?;
+        self.received_packet.put(Some(received_packet));
+
+        // Acquire the receive descriptor
+        self.receive_descriptor.acquire();
+
+        // Wait 4 CPU cycles until everything is written to the RAM
+        for _ in 0..4 {
+            nop();
+        }
+
+        self.dma_receive_poll_demand();
+
+        Ok(())
     }
 }
 
@@ -1784,6 +1821,7 @@ impl Configure for Ethernet<'_> {
 impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
     fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
         self.client.set(client);
+        assert_eq!(Ok(()), self.receive_packet());
     }
 
     fn transmit(
@@ -1793,7 +1831,7 @@ impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
         packet_identifier: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Check if DMA and MAC core are enabled
-        if !self.is_mac_transmiter_enabled() || self.get_transmit_process_state() == DmaTransmitProcessState::Stopped {
+        if !self.is_transmission_enabled() {
             return Err((ErrorCode::OFF, packet));
         }
 
@@ -1807,7 +1845,9 @@ impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
         if let Err(ErrorCode::SIZE) = self.transmit_descriptor.set_buffer1_size(len as usize) {
             return Err((ErrorCode::SIZE, packet));
         }
-        let _ = self.transmit_descriptor.set_buffer2_size(0);
+        if let Err(ErrorCode::SIZE) = self.transmit_descriptor.set_buffer2_size(0) {
+            return Err((ErrorCode::SIZE, packet));
+        }
 
         // Store the transmit packet
         self.transmit_packet.replace(packet);
@@ -1821,7 +1861,7 @@ impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
         // Acquire the transmit descriptor
         self.transmit_descriptor.acquire();
 
-        // Wait 4 CPU cycles until everythigng is written to the RAM
+        // Wait 4 CPU cycles until everything is written to the RAM
         for _ in 0..4 {
             nop();
         }
@@ -1884,6 +1924,7 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing Ethernet initialization...");
 
+        // This is broken for some reasons
         assert_eq!(Ok(()), ethernet.init());
         test_mac_default_values(ethernet);
         test_dma_default_values(ethernet);

@@ -16,11 +16,14 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::ethernet::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+use stm32f429zi::syscfg::EthernetInterface;
+use stm32f429zi::rcc::{APBPrescaler, SysClockSource, MCO1Source};
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
 
@@ -288,6 +291,62 @@ unsafe fn setup_peripherals(
     can1.enable_clock();
 }
 
+fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
+    // RMII_REF_CLK
+    gpio_ports.get_pin(PinId::PA01).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_RX_DV
+    gpio_ports.get_pin(PinId::PA07).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_RX_D0
+    gpio_ports.get_pin(PinId::PC04).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_RX_D1
+    gpio_ports.get_pin(PinId::PC05).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_TX_EN
+    gpio_ports.get_pin(PinId::PG11).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_TX_D0
+    gpio_ports.get_pin(PinId::PG13).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_TX_D1
+    gpio_ports.get_pin(PinId::PB13).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // MCO1
+    gpio_ports.get_pin(PinId::PA08).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+}
+
+fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
+    setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
+    let ethernet = &peripherals.ethernet;
+    let _ = ethernet.init();
+}
+
 /// Statically initialize the core peripherals for the chip.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -306,6 +365,7 @@ unsafe fn create_peripherals() -> (
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(rcc)
     );
+    syscfg.configure_ethernet_interface_mode(EthernetInterface::RMII);
     let exti = static_init!(
         stm32f429zi::exti::Exti,
         stm32f429zi::exti::Exti::new(syscfg)
@@ -313,9 +373,12 @@ unsafe fn create_peripherals() -> (
     let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
     let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
 
+    // TODO: Remove hard coded buffer length
+    let receive_buffer = static_init!([u8; 1526], [0; 1526]);
+
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
-        Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2, receive_buffer)
     );
     (peripherals, syscfg, dma1)
 }
@@ -634,6 +697,14 @@ pub unsafe fn main() {
     // //
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+    let clocks = &peripherals.stm32f4.clocks;
+    assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::PLL));
+    assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
+    assert_eq!(Ok(()), clocks.pll.enable());
+    assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
+    assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
+    //setup_ethernet(&peripherals);
+    stm32f429zi::ethernet::tests::run_all_unit_tests(&peripherals.ethernet);
 
     debug!("Initialization complete. Entering main loop");
 

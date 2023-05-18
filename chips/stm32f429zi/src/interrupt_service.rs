@@ -1,8 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
-use kernel::hil::ethernet::EthernetFrame;
-use kernel::hil::ethernet::Configure;
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
@@ -22,18 +20,17 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a crate::dma::Dma1<'a>,
         dma2: &'a crate::dma::Dma2<'a>,
-        ethernet_transmit_frame: &'a mut EthernetFrame,
+        ethernet_receive_buffer: &'static mut [u8],
     ) -> Self {
         Self {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
             trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
             can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
-            ethernet: crate::ethernet::Ethernet::new(rcc, ethernet_transmit_frame),
+            ethernet: crate::ethernet::Ethernet::new(rcc, ethernet_receive_buffer),
         }
     }
     // Necessary for setting up circular dependencies
     pub fn init(&'static self) {
-        let _ = self.ethernet.init();
         self.stm32f4.setup_circular_deps();
         kernel::deferred_call::DeferredCallClient::register(&self.can1);
     }
