@@ -337,14 +337,14 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     // MCO1
     gpio_ports.get_pin(PinId::PA08).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
-        pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_alternate_function(AlternateFunction::AF0);
     });
 }
 
 fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
     let ethernet = &peripherals.ethernet;
-    let _ = ethernet.init();
+    assert_eq!(Ok(()), ethernet.init());
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -365,6 +365,7 @@ unsafe fn create_peripherals() -> (
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(rcc)
     );
+    syscfg.enable_clock();
     syscfg.configure_ethernet_interface_mode(EthernetInterface::RMII);
     let exti = static_init!(
         stm32f429zi::exti::Exti,
@@ -703,7 +704,7 @@ pub unsafe fn main() {
     assert_eq!(Ok(()), clocks.pll.enable());
     assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
     assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
-    //setup_ethernet(&peripherals);
+    setup_ethernet(&peripherals);
     stm32f429zi::ethernet::tests::run_all_unit_tests(&peripherals.ethernet);
 
     debug!("Initialization complete. Entering main loop");
