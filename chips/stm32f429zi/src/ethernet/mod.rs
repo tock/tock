@@ -1760,8 +1760,6 @@ impl Configure for Ethernet<'_> {
         self.init_receive_descriptors();
         self.init_dma()?;
         self.init_mac()?;
-        self.enable_transmitter()?;
-        self.enable_receiver()?;
 
         Ok(())
     }
