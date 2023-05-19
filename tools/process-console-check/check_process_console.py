@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+'''
+Script to test basic functionalities of the process console.
+
+In order to run this script on your board, first find the
+serial port name of the board.
+
+Make sure you have flashed your board and pressed several times
+the "RESET"/"REBOOT" button from the board.
+
+If you want to re-run the script make sure you again
+press the "RESET"/"REBOOT" button, in order to clear
+the command history and the current output
+'''
+
 from serial import Serial, SerialException
 from time import sleep
 
