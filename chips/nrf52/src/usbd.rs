@@ -23,31 +23,31 @@ use crate::power;
 // replaced with better error handling.
 macro_rules! debug_events {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_tasks {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_packets {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_info {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! internal_warn {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
