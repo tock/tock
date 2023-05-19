@@ -38,6 +38,7 @@ pub mod humidity;
 pub mod i2c;
 pub mod ieee802154;
 pub mod isl29035;
+pub mod keyboard_hid;
 pub mod kv_system;
 pub mod l3gd20;
 pub mod led;

@@ -659,7 +659,7 @@ pub unsafe fn main() {
     //     );
 
     //--------------------------------------------------------------------------
-    // USB CTAP EXAMPLE
+    // USB EXAMPLES
     //--------------------------------------------------------------------------
     // Uncomment to experiment with this.
 
@@ -673,6 +673,8 @@ pub unsafe fn main() {
     //     ]
     // );
 
+    // CTAP Example
+    //
     // let (ctap, _ctap_driver) = components::ctap::CtapComponent::new(
     //     board_kernel,
     //     capsules_extra::ctap::DRIVER_NUM,
@@ -685,6 +687,23 @@ pub unsafe fn main() {
 
     // ctap.enable();
     // ctap.attach();
+
+    // Keyboard HID Example
+    //
+    // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
+    //     board_kernel,
+    //     capsules_core::driver::KeyboardHid,
+    //     &nrf52840_peripherals.usbd,
+    //     0x1915, // Nordic Semiconductor
+    //     0x503a,
+    //     strings,
+    // )
+    // .finalize(components::keyboard_hid_component_static!(
+    //     nrf52840::usbd::Usbd
+    // ));
+
+    // keyboard_hid.enable();
+    // keyboard_hid.attach();
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
