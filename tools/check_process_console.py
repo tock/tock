@@ -18,6 +18,9 @@ the "RESET"/"REBOOT" button from the board.
 If you want to re-run the script make sure you again
 press the "RESET"/"REBOOT" button, in order to clear
 the command history and the current output
+
+If you have multiple serial ports to the same board
+run the script for every serial port
 '''
 
 from serial import Serial, SerialException
@@ -384,7 +387,7 @@ def test_cariage_return(port: SerialPort):
 
     print("Test if cursor is reseting")
 
-    print("Insert command help and return")
+    print("Insert command 'help' and return")
     port.send_input("help\r")
 
     print("Move up in the command history")
@@ -433,7 +436,7 @@ def test_newline_return(port: SerialPort):
 
     print("Test if cursor is reseting")
 
-    print("Insert command help and return")
+    print("Insert command 'help' and return")
     port.send_input("help\r")
 
     print("Move up in the command history")
