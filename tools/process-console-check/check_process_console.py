@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 
 '''
+Licensed under the Apache License, Version 2.0 or the MIT License.
+SPDX-License-Identifier: Apache-2.0 OR MIT
+Copyright Tock Contributors 2023.
+'''
+
+'''
 Script to test basic functionalities of the process console.
 
 In order to run this script on your board, first find the
