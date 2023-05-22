@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Provides userspace control of buttons on a board.
 //!
 //! This allows for much more cross platform controlling of buttons without
@@ -150,6 +154,9 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
         let pins = self.pins;
         match command_num {
             // return button count
+            // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
+            // but this driver is unchanged since it has been stabilized. It will be brought into
+            // compliance as part of the next major release of Tock.
             0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable interrupts for a button

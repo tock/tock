@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! SyscallDriver for the Silicon Labs SI7021 temperature/humidity sensor.
 //!
 //! <https://www.silabs.com/products/sensors/humidity-sensors/Pages/si7013-20-21.aspx>

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Mapping of capsules to their syscall driver number.
 
 use enum_primitive::cast::FromPrimitive;
@@ -35,6 +39,8 @@ pub enum NUM {
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
+    LoRaPhySPI            = 0x30003,
+    LoRaPhyGPIO           = 0x30004,
 
     // Cryptography
     Rng                   = 0x40001,

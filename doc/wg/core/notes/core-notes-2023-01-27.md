@@ -1,4 +1,4 @@
-# Tock Core Notes 2022-12-16
+# Tock Core Notes 2022-01-27
 
 Attendees:
 - Alexandru Radovici

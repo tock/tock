@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! A bare-bones client of the USB hardware interface.
 //!
 //! It responds to standard device requests and can be enumerated.

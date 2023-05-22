@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::{self, Write};
 
 use kernel::debug::{self, IoWrite};
@@ -30,10 +34,11 @@ impl<'a> Writer<'a> {
 }
 
 impl IoWrite for Writer<'_> {
-    fn write(&mut self, bytes: &[u8]) {
+    fn write(&mut self, bytes: &[u8]) -> usize {
         for byte in bytes {
             self.output.send_byte(*byte);
         }
+        bytes.len()
     }
 }
 

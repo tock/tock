@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use cortexm4;
@@ -40,7 +44,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         match self {
             Writer::WriterUart(ref mut initialized) => {
                 // Here, we create a second instance of the Uarte struct.
@@ -84,6 +88,7 @@ impl IoWrite for Writer {
                 }
             }
         };
+        buf.len()
     }
 }
 

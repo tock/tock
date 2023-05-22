@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for WeAct STM32F401CCU6 Core Board
 //!
 //! - <https://github.com/WeActTC/MiniF4-STM32F4x1>
