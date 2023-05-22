@@ -111,12 +111,17 @@ pub struct AppCheckerSha256 {
     hash: TakeCell<'static, [u8; 32]>,
     binary: OptionalCell<&'static [u8]>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
+    /// Whether a SHA256 credential is required or not. If this is `false`, then
+    /// the process will run without a SHA256 credential. If `true`, a process
+    /// will only run with the SHA256 credential.
+    required: bool,
 }
 
 impl AppCheckerSha256 {
     pub fn new(
         hash: &'static dyn Sha256Verifier<'static>,
         buffer: &'static mut [u8; 32],
+        required: bool,
     ) -> AppCheckerSha256 {
         AppCheckerSha256 {
             hasher: hash,
@@ -124,13 +129,14 @@ impl AppCheckerSha256 {
             hash: TakeCell::new(buffer),
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
+            required,
         }
     }
 }
 
 impl AppCredentialsChecker<'static> for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
-        true
+        self.required
     }
 
     fn check_credentials(
@@ -141,6 +147,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
         self.credentials.set(credentials);
         match credentials.format() {
             TbfFooterV2CredentialsType::SHA256 => {
+                crate::debug!("check sha256");
                 self.hash.map(|h| {
                     for i in 0..32 {
                         h[i] = credentials.data()[i];
