@@ -200,7 +200,7 @@ impl ProcessId {
     }
 }
 
-/// A compressed form of an Application Identifer.
+/// A compressed form of an Application Identifier.
 #[derive(Clone, Copy)]
 pub enum ShortID {
     LocallyUnique,
@@ -334,7 +334,7 @@ pub trait Process {
 
     /// Put this process in the fault state. This will trigger the
     /// `FaultResponse` for this process to occur.
-    fn set_fault_state(&self);
+    fn set_fault_state(&self, fault_policy: &dyn ProcessFaultPolicy);
 
     /// Returns how many times this process has been restarted.
     fn get_restart_count(&self) -> usize;
@@ -659,13 +659,17 @@ pub trait Process {
     ///    stack since the process no longer has access to its stack.
     ///
     /// If it fails, the process will be put into the faulted state.
-    fn set_syscall_return_value(&self, return_value: SyscallReturn);
+    fn set_syscall_return_value(
+        &self,
+        return_value: SyscallReturn,
+        fault_policy: &dyn ProcessFaultPolicy,
+    );
 
     /// Set the function that is to be executed when the process is resumed.
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    fn set_process_function(&self, callback: FunctionCall);
+    fn set_process_function(&self, callback: FunctionCall, fault_policy: &dyn ProcessFaultPolicy);
 
     /// Context switch to a specific process.
     ///

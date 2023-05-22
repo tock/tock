@@ -66,7 +66,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
 impl<C: ProcessManagementCapability> gpio::Client for DebugProcessRestart<'_, C> {
     fn fired(&self) {
         if self.pin.read_activation(self.mode) == gpio::ActivationState::Active {
-            self.kernel.hardfault_all_apps(&self.capability);
+            // self.kernel.hardfault_all_apps(&self.capability);
         }
     }
 }

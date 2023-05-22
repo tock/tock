@@ -404,10 +404,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    fn set_fault_state(&self) {
+    fn set_fault_state(&self, fault_policy: &dyn ProcessFaultPolicy) {
         // Use the per-process fault policy to determine what action the kernel
         // should take since the process faulted.
-        let action = self.fault_policy.action(self);
+        let action = fault_policy.action(self);
         let state = self.state.get();
         // Accidentally calling faulted on an unchecked or failed process should
         // not make it eventually runnable.
@@ -1045,7 +1045,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.completion_code.extract()
     }
 
-    fn set_syscall_return_value(&self, return_value: SyscallReturn) {
+    fn set_syscall_return_value(
+        &self,
+        return_value: SyscallReturn,
+        fault_policy: &dyn ProcessFaultPolicy,
+    ) {
         match self.stored_state.map(|stored_state| unsafe {
             // Actually set the return value for a particular process.
             //
@@ -1070,18 +1074,18 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // If we get an `Err`, then the UKB implementation could not set
                 // the return value, likely because the process's stack is no
                 // longer accessible to it. All we can do is fault.
-                self.set_fault_state();
+                self.set_fault_state(fault_policy);
             }
 
             None => {
                 // We should never be here since `stored_state` should always be
                 // occupied.
-                self.set_fault_state();
+                self.set_fault_state(fault_policy);
             }
         }
     }
 
-    fn set_process_function(&self, callback: FunctionCall) {
+    fn set_process_function(&self, callback: FunctionCall, fault_policy: &dyn ProcessFaultPolicy) {
         // See if we can actually enqueue this function for this process.
         // Architecture-specific code handles actually doing this since the
         // exact method is both architecture- and implementation-specific.
@@ -1117,13 +1121,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 // the details of the particular architecture this is running
                 // on. This process has essentially faulted, so we mark it as
                 // such.
-                self.set_fault_state();
+                self.set_fault_state(fault_policy);
             }
 
             None => {
                 // We should never be here since `stored_state` should always be
                 // occupied.
-                self.set_fault_state();
+                self.set_fault_state(fault_policy);
             }
         }
     }

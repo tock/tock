@@ -378,13 +378,13 @@ impl Kernel {
     /// function. This restricts general capsules from being able to call this
     /// function, since capsules should not be able to arbitrarily restart all
     /// apps.
-    pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
-        for p in self.processes.iter() {
-            p.map(|process| {
-                process.set_fault_state();
-            });
-        }
-    }
+    // pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
+    //     for p in self.processes.iter() {
+    //         p.map(|process| {
+    //             process.set_fault_state();
+    //         });
+    //     }
+    // }
 
     /// Perform one iteration of the core Tock kernel loop.
     ///
@@ -610,7 +610,7 @@ impl Kernel {
                                 .is_err()
                             {
                                 // Let process deal with it as appropriate.
-                                process.set_fault_state();
+                                process.set_fault_state(resources.process_fault_policy());
                             }
                         }
                         Some(ContextSwitchReason::SyscallFired { syscall }) => {
@@ -633,7 +633,7 @@ impl Kernel {
                             // Something went wrong when switching to this
                             // process. Indicate this by putting it in a fault
                             // state.
-                            process.set_fault_state();
+                            process.set_fault_state(resources.process_fault_policy());
                         }
                     }
                 }
@@ -656,7 +656,7 @@ impl Kernel {
                                         ccb.argument3,
                                     );
                                 }
-                                process.set_process_function(ccb);
+                                process.set_process_function(ccb, resources.process_fault_policy());
                             }
                             Task::IPC((otherapp, ipc_type)) => {
                                 ipc.map_or_else(
@@ -806,7 +806,10 @@ impl Kernel {
                 // Check all other syscalls for filtering.
                 if let Err(response) = resources.syscall_filter().filter_syscall(process, &syscall)
                 {
-                    process.set_syscall_return_value(SyscallReturn::Failure(response));
+                    process.set_syscall_return_value(
+                        SyscallReturn::Failure(response),
+                        resources.process_fault_policy(),
+                    );
 
                     if config::CONFIG.trace_syscalls {
                         debug!(
@@ -835,7 +838,7 @@ impl Kernel {
                         rval
                     );
                 }
-                process.set_syscall_return_value(rval);
+                process.set_syscall_return_value(rval, resources.process_fault_policy());
             }
             Syscall::Yield { which, address } => {
                 if config::CONFIG.trace_syscalls {
@@ -1025,7 +1028,7 @@ impl Kernel {
                             );
                         }
 
-                        process.set_syscall_return_value(rval);
+                        process.set_syscall_return_value(rval,resources.process_fault_policy());
                     }
                     Syscall::Command {
                         driver_number,
@@ -1051,7 +1054,7 @@ impl Kernel {
                                 res,
                             );
                         }
-                        process.set_syscall_return_value(res);
+                        process.set_syscall_return_value(res,resources.process_fault_policy());
                     }
                     Syscall::ReadWriteAllow {
                         driver_number,
@@ -1168,7 +1171,7 @@ impl Kernel {
                                 res
                             );
                         }
-                        process.set_syscall_return_value(res);
+                        process.set_syscall_return_value(res,resources.process_fault_policy());
                     }
                     Syscall::UserspaceReadableAllow {
                         driver_number,
@@ -1247,7 +1250,7 @@ impl Kernel {
                                 res
                             );
                         }
-                        process.set_syscall_return_value(res);
+                        process.set_syscall_return_value(res,resources.process_fault_policy());
                     }
                     Syscall::ReadOnlyAllow {
                         driver_number,
@@ -1365,7 +1368,7 @@ impl Kernel {
                             );
                         }
 
-                        process.set_syscall_return_value(res);
+                        process.set_syscall_return_value(res,resources.process_fault_policy());
                     }
                     Syscall::Yield { .. }
                     | Syscall::Exit { .. }
@@ -1386,7 +1389,10 @@ impl Kernel {
                 1 => process.try_restart(Some(completion_code as u32)),
                 // The process called an invalid variant of the Exit
                 // system call class.
-                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
+                _ => process.set_syscall_return_value(
+                    SyscallReturn::Failure(ErrorCode::NOSUPPORT),
+                    resources.process_fault_policy(),
+                ),
             },
         }
     }

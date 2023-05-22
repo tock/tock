@@ -624,7 +624,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     .process_each_capability(&self.capability, |proc| {
                                         let proc_name = proc.get_process_name();
                                         if proc_name == name {
-                                            proc.set_fault_state();
+                                            // proc.set_fault_state();
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,

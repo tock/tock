@@ -10,6 +10,7 @@ use crate::platform::scheduler_timer;
 use crate::platform::watchdog;
 use crate::process;
 use crate::process_checker::CredentialsCheckingPolicy;
+use crate::process_policies::ProcessFaultPolicy;
 use crate::scheduler::Scheduler;
 use crate::syscall;
 use crate::syscall_driver::SyscallDriver;
@@ -31,6 +32,10 @@ pub trait KernelResources<C: Chip> {
     /// The implementation of the process fault handling mechanism the kernel
     /// will use.
     type ProcessFault: ProcessFault;
+
+    /// The implementation of the process fault response policy the kernel
+    /// will use.
+    type ProcessFaultPolicy: ProcessFaultPolicy;
 
     /// The implementation of the Credentials Checking Policy the kernel
     /// will use.
@@ -62,6 +67,10 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the ProcessFault handler
     /// this platform wants the kernel to use.
     fn process_fault(&self) -> &Self::ProcessFault;
+
+    /// Returns a reference to the implementation of the ProcessFaultPolicy
+    /// this platform wants the kernel to use.
+    fn process_fault_policy(&self) -> &Self::ProcessFaultPolicy;
 
     /// Returns a reference to the implementation of the credentials
     /// checking policy this platform wants the kernel to use.

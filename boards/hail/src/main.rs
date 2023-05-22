@@ -95,6 +95,7 @@ struct Hail {
     dac: &'static capsules_extra::dac::Dac<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    fault_policy: &'static kernel::process::ThresholdRestartThenPanicFaultPolicy,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -134,6 +135,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
+    type ProcessFaultPolicy = kernel::process::ThresholdRestartThenPanicFaultPolicy;
     type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
@@ -148,6 +150,9 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
+    }
+    fn process_fault_policy(&self) -> &Self::ProcessFaultPolicy {
+        &self.fault_policy
     }
     fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
@@ -524,6 +529,7 @@ pub unsafe fn main() {
         dac,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
+        fault_policy,
     };
 
     // Setup the UART bus for nRF51 serialization..
