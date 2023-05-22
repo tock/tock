@@ -231,7 +231,6 @@ CARGO_FLAGS ?=
 #   https://github.com/tock/tock/pull/2847 for more details.
 CARGO_FLAGS_TOCK ?= \
   $(VERBOSE_FLAGS) \
-  -Z build-std=core,compiler_builtins \
   --target=$(TARGET) \
   --package $(PLATFORM) \
   --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)

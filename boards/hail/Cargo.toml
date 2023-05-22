@@ -17,3 +17,5 @@ sam4l = { path = "../../chips/sam4l" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+rsa-sw = { path = "../../capsules/rsa_sw" }
+emballoc = "0.1.2"

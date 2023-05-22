@@ -49,6 +49,7 @@ members = [
     "boards/weact_f401ccu6/",
     "capsules/core",
     "capsules/extra",
+    "capsules/rsa_sw",
     "chips/apollo3",
     "chips/arty_e21_chip",
     "chips/e310_g002",

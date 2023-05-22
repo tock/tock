@@ -17,12 +17,13 @@ mod custom_fault_policy;
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::hil::digest::Digest;
 use kernel::hil::led::LedLow;
+use kernel::hil::public_key_crypto::signature::SignatureVerify;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process_checker::basic::AppCheckerSha256;
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -50,7 +51,12 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1200] = [0; 0x1200];
+pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
+
+#[global_allocator]
+static ALLOCATOR: emballoc::Allocator<16000> = emballoc::Allocator::new();
+
+extern crate alloc;
 
 // Function for the process console to use to reboot the board
 fn reset() -> ! {
@@ -100,7 +106,7 @@ struct Hail {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     fault_policy: &'static custom_fault_policy::CredentialedFaultPolicy,
-    credentials_checking_policy: &'static AppCheckerSha256,
+    credentials_checking_policy: &'static kernel::process_checker::rsa::AppCheckerRsa2048,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -141,7 +147,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type SyscallFilter = ();
     type ProcessFault = ();
     type ProcessFaultPolicy = custom_fault_policy::CredentialedFaultPolicy;
-    type CredentialsCheckingPolicy = AppCheckerSha256;
+    type CredentialsCheckingPolicy = kernel::process_checker::rsa::AppCheckerRsa2048;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -508,18 +514,36 @@ pub unsafe fn main() {
         custom_fault_policy::CredentialedFaultPolicy::new()
     );
 
-    let sha256_checker_buf = static_init!([u8; 32], [0; 32]);
-    let sha = static_init!(
+    ///////
+    // App Credential Checker
+    ///////
+
+    let sha256_hash_buf = static_init!([u8; 32], [0; 32]);
+    let rsa2048_signature_buf = static_init!([u8; 256], [0; 256]);
+
+    let sha256 = static_init!(
         capsules_extra::sha256::Sha256Software<'static>,
         capsules_extra::sha256::Sha256Software::new()
     );
-    kernel::deferred_call::DeferredCallClient::register(sha);
+    sha256.register();
+
+    let rsa2048verifier = static_init!(
+        rsa_sw::verifier::RsaSignatureVerifier<'static, 32, 256>,
+        rsa_sw::verifier::RsaSignatureVerifier::new()
+    );
+    rsa2048verifier.register();
 
     let checker = static_init!(
-        AppCheckerSha256,
-        AppCheckerSha256::new(sha, sha256_checker_buf, false)
+        kernel::process_checker::rsa::AppCheckerRsa2048,
+        kernel::process_checker::rsa::AppCheckerRsa2048::new(
+            sha256,
+            rsa2048verifier,
+            sha256_hash_buf,
+            rsa2048_signature_buf
+        )
     );
-    sha.set_client(checker);
+    sha256.set_client(checker);
+    rsa2048verifier.set_verify_client(checker);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
