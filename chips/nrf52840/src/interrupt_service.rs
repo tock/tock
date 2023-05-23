@@ -16,9 +16,9 @@ pub struct Nrf52840DefaultPeripherals<'a> {
 }
 
 impl<'a> Nrf52840DefaultPeripherals<'a> {
-    pub unsafe fn new() -> Self {
+    pub unsafe fn new(adc_sample_buf: &'static mut [u8; 2]) -> Self {
         Self {
-            nrf52: Nrf52DefaultPeripherals::new(),
+            nrf52: Nrf52DefaultPeripherals::new(adc_sample_buf),
             usbd: crate::usbd::Usbd::new(),
             gpio_port: crate::gpio::nrf52840_gpio_create(),
         }

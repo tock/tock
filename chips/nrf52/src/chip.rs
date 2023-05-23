@@ -52,7 +52,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
 }
 
 impl<'a> Nrf52DefaultPeripherals<'a> {
-    pub fn new() -> Self {
+    pub fn new(adc_sample_buf: &'static mut [u8; 2]) -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
             ecb: crate::aes::AesECB::new(),
@@ -71,7 +71,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             spim1: crate::spi::SPIM::new(1),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
-            adc: crate::adc::Adc::new(),
+            adc: crate::adc::Adc::new(adc_sample_buf),
             nvmc: crate::nvmc::Nvmc::new(),
             clock: crate::clock::Clock::new(),
             pwm0: crate::pwm::Pwm::new(),

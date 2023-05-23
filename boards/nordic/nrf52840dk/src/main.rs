@@ -254,9 +254,10 @@ impl SyscallDriverLookup for Platform {
 #[inline(never)]
 unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
     // Initialize chip peripheral drivers
+    let adc_sample_buffer = static_init!([u8; 2], [0; 2]);
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new()
+        Nrf52840DefaultPeripherals::new(adc_sample_buffer)
     );
 
     nrf52840_peripherals

@@ -5,7 +5,7 @@
 //! ADC driver for the nRF52. Uses the SAADC peripheral.
 
 use kernel::hil;
-use kernel::utilities::cells::{OptionalCell, VolatileCell};
+use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -60,7 +60,7 @@ struct AdcRegisters {
     samplerate: ReadWrite<u32, SAMPLERATE::Register>,
     _reserved6: [u8; 48],
     /// Pointer to store samples to
-    result_ptr: VolatileCell<*const u16>,
+    result_ptr: VolatileCell<*const u8>,
     /// Number of 16 bit samples to save in RAM
     result_maxcnt: ReadWrite<u32, RESULT_MAXCNT::Register>,
     /// Number of 16 bit samples recorded to RAM
@@ -244,9 +244,6 @@ pub enum AdcChannel {
 const SAADC_BASE: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x40007000 as *const AdcRegisters) };
 
-// Buffer to save completed sample to.
-static mut SAMPLE: [u16; 1] = [0; 1];
-
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
 pub enum AdcChannelGain {
@@ -326,13 +323,15 @@ impl AdcChannelSetup {
 
 pub struct Adc {
     registers: StaticRef<AdcRegisters>,
+    sample: TakeCell<'static, [u8; 2]>,
     client: OptionalCell<&'static dyn hil::adc::Client>,
 }
 
 impl Adc {
-    pub const fn new() -> Self {
+    pub fn new(sample_buf: &'static mut [u8; 2]) -> Self {
         Self {
             registers: SAADC_BASE,
+            sample: TakeCell::new(sample_buf),
             client: OptionalCell::empty(),
         }
     }
@@ -364,7 +363,8 @@ impl Adc {
             // ADC is stopped. Disable and return value.
             self.registers.enable.write(ENABLE::ENABLE::CLEAR);
 
-            let val = unsafe { SAMPLE[0] as i16 };
+            let val = self.sample.map_or(0, |buf| u16::from_le_bytes(*buf) as i16);
+
             self.client.map(|client| {
                 // shift left to meet the ADC HIL requirement
                 client.sample_ready(if val < 0 { 0 } else { val << 4 } as u16);
@@ -402,9 +402,9 @@ impl hil::adc::Adc for Adc {
             .result_maxcnt
             .write(RESULT_MAXCNT::MAXCNT.val(1));
         // Where to put the reading.
-        unsafe {
-            self.registers.result_ptr.set(SAMPLE.as_ptr());
-        }
+        self.sample.map(|buf| {
+            self.registers.result_ptr.set(buf.as_ptr());
+        });
 
         // No automatic sampling, will trigger manually.
         self.registers.samplerate.write(SAMPLERATE::MODE::Task);
