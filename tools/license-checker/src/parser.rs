@@ -4,10 +4,15 @@
 // Copyright Google LLC 2022.
 
 //! A partial parser that parses source code files *just well enough* to find
-//! license headers.
+//! license headers. `Parser` needs some slow-to-initialize resources, so each
+//! `Parser` must be initialized with a reference to a `Cache` instance.
 //!
-//! `Parser` needs some slow-to-initialize resources, so each `Parser` must be
-//! initialized with a reference to a `Cache` instance.
+//! It is built on top of the [`syntect`](https://crates.io/crates/syntect)
+//! crate. `syntect` is designed to perform syntax highlighting for text
+//! editors, and can therefore parse a variety of common languages. However, it
+//! cannot parse every language present in the Tock project. For languages that
+//! `syntect` does not have a definition for, we use a fallback syntax, defined
+//! in `fallback_syntax.yaml`.
 
 // It is not obvious how we should handle having multiple comments on one line,
 // e.g.:
