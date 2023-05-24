@@ -60,7 +60,6 @@ const PLAINTEXT_END: usize = 32;
 const CIPHERTEXT_START: usize = 33;
 #[allow(dead_code)]
 const CIPHERTEXT_END: usize = 47;
-const MAX_LENGTH: usize = 128;
 
 const AESECB_BASE: StaticRef<AesEcbRegisters> =
     unsafe { StaticRef::new(0x4000E000 as *const AesEcbRegisters) };
@@ -139,8 +138,6 @@ pub struct AesECB<'a> {
     /// Input either plaintext or ciphertext to be encrypted or decrypted.
     input: TakeCell<'static, [u8]>,
     output: TakeCell<'static, [u8]>,
-    /// Keystream to be XOR'ed with the input.
-    keystream: Cell<[u8; MAX_LENGTH]>,
     current_idx: Cell<usize>,
     start_idx: Cell<usize>,
     end_idx: Cell<usize>,
@@ -154,7 +151,6 @@ impl<'a> AesECB<'a> {
             client: OptionalCell::empty(),
             input: TakeCell::empty(),
             output: TakeCell::empty(),
-            keystream: Cell::new([0; MAX_LENGTH]),
             current_idx: Cell::new(0),
             start_idx: Cell::new(0),
             end_idx: Cell::new(0),
@@ -325,74 +321,47 @@ impl<'a> AesECB<'a> {
         self.disable_interrupts();
 
         if self.registers.event_endecb.get() == 1 {
+            let (start, end, take) = self.get_start_end_take();
+            let start_idx = self.start_idx.get();
+            let current_idx = self.current_idx.get();
+
             match self.mode.get() {
                 AESMode::CTR => {
-                    let current_idx = self.current_idx.get();
-
-                    let (start, end, take) = self.get_start_end_take();
-
-                    let mut ks = self.keystream.get();
-
-                    // Append keystream to the KEYSTREAM array
+                    // Fill in the ciphertext in the output buffer.
                     if take > 0 {
-                        for i in 0..take {
-                            ks[current_idx + i] = unsafe { ECB_DATA[i + PLAINTEXT_END] }
-                        }
-                        self.current_idx.set(current_idx + take);
-                        self.update_ctr();
-                    }
-
-                    // More bytes to encrypt!!!
-                    if start + take < end {
-                        self.crypt();
-                    } else {
-                        // Entire keystream generated we are done!
-                        // XOR keystream the input.
-                        self.input.take().map_or_else(
+                        self.input.map_or_else(
                             || {
-                                self.output.take().map(|output| {
-                                    let start = self.start_idx.get();
-                                    let end = self.end_idx.get();
+                                // No input buffer, so source data comes from
+                                // output buffer.
+                                self.output.map(|output| {
+                                    for i in 0..take {
+                                        let in_byte = output[start + i];
+                                        let keystream_byte = unsafe { ECB_DATA[i + PLAINTEXT_END] };
 
-                                    for (i, out) in
-                                        output.as_mut()[start..end].iter_mut().enumerate()
-                                    {
-                                        *out = ks[i] ^ *out;
+                                        output[start + i] = keystream_byte ^ in_byte;
                                     }
-
-                                    self.client
-                                        .map(move |client| client.crypt_done(None, output));
                                 });
                             },
                             |input| {
-                                self.output.take().map(|output| {
-                                    let start = self.start_idx.get();
-                                    let end = self.end_idx.get();
-                                    let len = end - start;
+                                self.output.map(|output| {
+                                    let start_idx = self.start_idx.get();
 
-                                    for ((i, out), inp) in output.as_mut()[start..end]
-                                        .iter_mut()
-                                        .enumerate()
-                                        .zip(input.as_ref()[0..len].iter())
-                                    {
-                                        *out = ks[i] ^ *inp;
+                                    for i in 0..take {
+                                        let in_byte = input[start + i];
+                                        let keystream_byte = unsafe { ECB_DATA[i + PLAINTEXT_END] };
+
+                                        output[start_idx + current_idx + i] =
+                                            keystream_byte ^ in_byte;
                                     }
-
-                                    self.client
-                                        .map(move |client| client.crypt_done(Some(input), output));
                                 });
                             },
                         );
-                    }
 
-                    self.keystream.set(ks);
+                        self.update_ctr();
+                    }
                 }
 
                 AESMode::ECB => {
-                    let start_idx = self.start_idx.get();
-                    let current_idx = self.current_idx.get();
-                    let (start, end, take) = self.get_start_end_take();
-
                     // Copy ciphertext to output.
                     if take > 0 {
                         self.output.map(|output| {
@@ -407,24 +376,8 @@ impl<'a> AesECB<'a> {
                             }
                         });
                     }
-
-                    self.current_idx.set(current_idx + take);
-
-                    if start + take < end {
-                        // More to do.
-                        self.crypt();
-                    } else {
-                        self.output.take().map(|output| {
-                            self.client
-                                .map(move |client| client.crypt_done(self.input.take(), output));
-                        });
-                    }
                 }
                 AESMode::CBC => {
-                    let start_idx = self.start_idx.get();
-                    let current_idx = self.current_idx.get();
-                    let (start, end, take) = self.get_start_end_take();
-
                     // Copy ciphertext to both output AND the ECB payload to use
                     // on the next iteration.
                     if take > 0 {
@@ -441,19 +394,21 @@ impl<'a> AesECB<'a> {
                             }
                         });
                     }
-
-                    self.current_idx.set(current_idx + take);
-
-                    if start + take < end {
-                        // More to do.
-                        self.crypt();
-                    } else {
-                        self.output.take().map(|output| {
-                            self.client
-                                .map(move |client| client.crypt_done(self.input.take(), output));
-                        });
-                    }
                 }
+            }
+
+            // Advance through the buffer.
+            self.current_idx.set(current_idx + take);
+
+            // Check if we are done or if we need to crypt another block.
+            if start + take < end {
+                // More to do.
+                self.crypt();
+            } else {
+                self.output.take().map(|output| {
+                    self.client
+                        .map(move |client| client.crypt_done(self.input.take(), output));
+                });
             }
         }
     }
