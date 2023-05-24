@@ -284,9 +284,15 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for Te
         self.aes.disable();
 
         // Continue testing with other configurations
-        if self.encrypting.get() {
-            self.encrypting.set(false);
+        if self.use_source.get() {
+            self.use_source.set(false);
             self.run();
+        } else {
+            if self.encrypting.get() {
+                self.encrypting.set(false);
+                self.use_source.set(true);
+                self.run();
+            }
         }
     }
 }
@@ -435,13 +441,13 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
         self.aes.disable();
 
         // Continue testing with other configurations
-        if self.encrypting.get() {
-            self.encrypting.set(false);
+        if self.use_source.get() {
+            self.use_source.set(false);
             self.run();
         } else {
-            if self.use_source.get() {
-                self.use_source.set(false);
-                self.encrypting.set(true);
+            if self.encrypting.get() {
+                self.encrypting.set(false);
+                self.use_source.set(true);
                 self.run();
             }
         }
@@ -490,13 +496,13 @@ impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for Te
         self.aes.disable();
 
         // Continue testing with other configurations
-        if self.encrypting.get() {
-            self.encrypting.set(false);
+        if self.use_source.get() {
+            self.use_source.set(false);
             self.run();
         } else {
-            if self.use_source.get() {
-                self.use_source.set(false);
-                self.encrypting.set(true);
+            if self.encrypting.get() {
+                self.encrypting.set(false);
+                self.use_source.set(true);
                 self.run();
             }
         }
