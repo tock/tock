@@ -207,8 +207,10 @@ pub struct Platform {
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
-    i2c_master_slave:
-        &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
+    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+        'static,
+        nrf52840::i2c::TWI,
+    >,
     spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
@@ -614,7 +616,7 @@ pub unsafe fn main() {
     let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
 
     let i2c_master_slave = static_init!(
-        I2CMasterSlaveDriver,
+        I2CMasterSlaveDriver<nrf52840::i2c::TWI>,
         I2CMasterSlaveDriver::new(
             &base_peripherals.twi1,
             i2c_master_buffer,

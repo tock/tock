@@ -31,6 +31,7 @@ use capsules_extra::bus::{Bus8080Bus, I2CMasterBus, SpiMasterBus};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::bus8080;
+use kernel::hil::i2c;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterDevice};
 
 // Setup static space for the objects.
@@ -148,13 +149,13 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
     }
 }
 
-pub struct I2CMasterBusComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct I2CMasterBusComponent<I: 'static + i2c::I2CMaster> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     address: u8,
 }
 
-impl I2CMasterBusComponent {
-    pub fn new(i2c_mux: &'static MuxI2C<'static>, address: u8) -> I2CMasterBusComponent {
+impl<I: 'static + i2c::I2CMaster> I2CMasterBusComponent<I> {
+    pub fn new(i2c_mux: &'static MuxI2C<'static, I>, address: u8) -> I2CMasterBusComponent<I> {
         I2CMasterBusComponent {
             i2c_mux: i2c_mux,
             address: address,
@@ -162,13 +163,13 @@ impl I2CMasterBusComponent {
     }
 }
 
-impl Component for I2CMasterBusComponent {
+impl<I: 'static + i2c::I2CMaster> Component for I2CMasterBusComponent<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CMasterBus<'static, I2CDevice<'static>>>,
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CMasterBus<'static, I2CDevice<'static, I>>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 1]>,
     );
-    type Output = &'static I2CMasterBus<'static, I2CDevice<'static>>;
+    type Output = &'static I2CMasterBus<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let i2c_device = static_buffer

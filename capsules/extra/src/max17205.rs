@@ -108,9 +108,9 @@ pub trait MAX17205Client {
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>);
 }
 
-pub struct MAX17205<'a> {
-    i2c_lower: &'a dyn i2c::I2CDevice,
-    i2c_upper: &'a dyn i2c::I2CDevice,
+pub struct MAX17205<'a, I: i2c::I2CDevice> {
+    i2c_lower: &'a I,
+    i2c_upper: &'a I,
     state: Cell<State>,
     soc: Cell<u16>,
     soc_mah: Cell<u16>,
@@ -119,12 +119,8 @@ pub struct MAX17205<'a> {
     client: OptionalCell<&'static dyn MAX17205Client>,
 }
 
-impl<'a> MAX17205<'a> {
-    pub fn new(
-        i2c_lower: &'a dyn i2c::I2CDevice,
-        i2c_upper: &'a dyn i2c::I2CDevice,
-        buffer: &'static mut [u8],
-    ) -> MAX17205<'a> {
+impl<'a, I: i2c::I2CDevice> MAX17205<'a, I> {
+    pub fn new(i2c_lower: &'a I, i2c_upper: &'a I, buffer: &'static mut [u8]) -> MAX17205<'a, I> {
         MAX17205 {
             i2c_lower: i2c_lower,
             i2c_upper: i2c_upper,
@@ -216,7 +212,7 @@ impl<'a> MAX17205<'a> {
     }
 }
 
-impl i2c::I2CClient for MAX17205<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Result<(), i2c::Error>) {
         match self.state.get() {
             State::SetupReadStatus => {
@@ -399,15 +395,15 @@ impl i2c::I2CClient for MAX17205<'_> {
 #[derive(Default)]
 pub struct App {}
 
-pub struct MAX17205Driver<'a> {
-    max17205: &'a MAX17205<'a>,
+pub struct MAX17205Driver<'a, I: i2c::I2CDevice> {
+    max17205: &'a MAX17205<'a, I>,
     owning_process: OptionalCell<ProcessId>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
-impl<'a> MAX17205Driver<'a> {
+impl<'a, I: i2c::I2CDevice> MAX17205Driver<'a, I> {
     pub fn new(
-        max: &'a MAX17205,
+        max: &'a MAX17205<I>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         Self {
@@ -418,7 +414,7 @@ impl<'a> MAX17205Driver<'a> {
     }
 }
 
-impl MAX17205Client for MAX17205Driver<'_> {
+impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
             let _ = self.apps.enter(*pid, |_app, upcalls| {
@@ -511,7 +507,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     }
 }
 
-impl SyscallDriver for MAX17205Driver<'_> {
+impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
     // Setup callback.
     //
     // ### `subscribe_num`

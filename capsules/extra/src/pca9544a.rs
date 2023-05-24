@@ -65,17 +65,17 @@ enum ControlField {
 #[derive(Default)]
 pub struct App {}
 
-pub struct PCA9544A<'a> {
-    i2c: &'a dyn i2c::I2CDevice,
+pub struct PCA9544A<'a, I: i2c::I2CDevice> {
+    i2c: &'a I,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a> PCA9544A<'a> {
+impl<'a, I: i2c::I2CDevice> PCA9544A<'a, I> {
     pub fn new(
-        i2c: &'a dyn i2c::I2CDevice,
+        i2c: &'a I,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
@@ -142,7 +142,7 @@ impl<'a> PCA9544A<'a> {
     }
 }
 
-impl i2c::I2CClient for PCA9544A<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadControl(field) => {
@@ -179,7 +179,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
     }
 }
 
-impl SyscallDriver for PCA9544A<'_> {
+impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
     // Setup callback for event done.
     //
     // ### `subscribe_num`
