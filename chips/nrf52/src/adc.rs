@@ -499,24 +499,8 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = AdcChannelSetup;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
-        // Positive goes to the channel passed in, negative not connected.
-        self.registers.ch[0]
-            .pselp
-            .write(PSEL::PSEL.val(channel.channel as u32));
-        self.registers.ch[0].pseln.write(PSEL::PSEL::NotConnected);
-
-        // Configure the ADC for a single read.
-        self.registers.ch[0].config.write(
-            CONFIG::GAIN.val(channel.gain as u32)
-                + CONFIG::REFSEL::VDD1_4
-                + CONFIG::TACQ.val(channel.sampling_time as u32)
-                + CONFIG::RESP.val(channel.resp as u32)
-                + CONFIG::RESN.val(channel.resn as u32)
-                + CONFIG::MODE::SE,
-        );
-
-        // Set max resolution (with oversampling).
-        self.registers.resolution.write(RESOLUTION::VAL::bit12);
+        self.setup_channel(channel);
+        self.setup_resolution();
 
         // Do one measurement.
         self.registers
