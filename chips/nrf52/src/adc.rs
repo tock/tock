@@ -328,12 +328,15 @@ impl AdcChannelSetup {
 
 #[derive(Clone, Copy)]
 enum AdcMode {
+    Idle,
+    Calibrate,
     Single,
     HighSpeed,
 }
 
 pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
+    reference: Cell<usize>,
     mode: Cell<AdcMode>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
     highspeed_client: OptionalCell<&'a dyn hil::adc::HighSpeedClient>,
@@ -348,7 +351,9 @@ impl<'a> Adc<'a> {
     pub fn new() -> Self {
         Self {
             registers: SAADC_BASE,
-            mode: Cell::new(AdcMode::Single),
+            // Default to 3.3 V VDD reference.
+            reference: Cell::new(3300),
+            mode: Cell::new(AdcMode::Idle),
             client: OptionalCell::empty(),
             highspeed_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
@@ -358,7 +363,10 @@ impl<'a> Adc<'a> {
         }
     }
 
+    // Calibrate and measure the actual VDD of the board.
     pub fn calibrate(&self) {
+        self.mode.set(AdcMode::Calibrate);
+
         // Enable the ADC
         self.registers.enable.write(ENABLE::ENABLE::SET);
         self.registers.inten.write(INTEN::CALIBRATEDONE::SET);
@@ -367,6 +375,77 @@ impl<'a> Adc<'a> {
 
     pub fn handle_interrupt(&self) {
         match self.mode.get() {
+            AdcMode::Calibrate => {
+                if self.registers.events_calibratedone.is_set(EVENT::EVENT) {
+                    self.registers
+                        .events_calibratedone
+                        .write(EVENT::EVENT::CLEAR);
+
+                    // After calibration, read VDD to set our voltage reference.
+                    self.registers.ch[0].pselp.write(PSEL::PSEL::VDD);
+                    self.registers.ch[0].pseln.write(PSEL::PSEL::NotConnected);
+
+                    // Configure the ADC for a single read.
+                    self.registers.ch[0].config.write(
+                        CONFIG::GAIN::Gain1_6
+                            + CONFIG::REFSEL::Internal
+                            + CONFIG::TACQ::us10
+                            + CONFIG::RESP::Bypass
+                            + CONFIG::RESN::Bypass
+                            + CONFIG::MODE::SE,
+                    );
+
+                    self.setup_resolution();
+                    self.setup_sample_count(1);
+
+                    // Where to put the reading.
+                    unsafe {
+                        self.registers.result_ptr.set(SAMPLE.as_ptr());
+                    }
+
+                    // No automatic sampling, will trigger manually.
+                    self.registers.samplerate.write(SAMPLERATE::MODE::Task);
+
+                    // Enable the ADC
+                    self.registers.enable.write(ENABLE::ENABLE::SET);
+
+                    // Enable started, sample end, and stopped interrupts.
+                    self.registers
+                        .inten
+                        .write(INTEN::STARTED::SET + INTEN::END::SET + INTEN::STOPPED::SET);
+
+                    self.registers.tasks_start.write(TASK::TASK::SET);
+
+                    // self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+                } else if self.registers.events_started.is_set(EVENT::EVENT) {
+                    self.registers.events_started.write(EVENT::EVENT::CLEAR);
+                    // ADC has started, now issue the sample.
+                    self.registers.tasks_sample.write(TASK::TASK::SET);
+                } else if self.registers.events_end.is_set(EVENT::EVENT) {
+                    self.registers.events_end.write(EVENT::EVENT::CLEAR);
+                    // Reading finished. Turn off the ADC.
+                    self.registers.tasks_stop.write(TASK::TASK::SET);
+                } else if self.registers.events_stopped.is_set(EVENT::EVENT) {
+                    self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
+                    // ADC is stopped. Disable and return value.
+                    self.registers.enable.write(ENABLE::ENABLE::CLEAR);
+
+                    let reading = unsafe { SAMPLE[0] as i16 } as usize;
+
+                    // reading = val * (gain/ref) * 2^12
+                    //         = val * ((1/6)/0.6 V) * 2^12
+                    //         = val * 1/3600 mV * 2^12
+                    // val = (reading * 3600 mV) / 2^12
+                    let val = (reading * 3600) / (1 << 12);
+
+                    // If the reading looks like it exists in a reasonable range
+                    // than save this as the reference.
+                    if val > 1000 && val < 5100 {
+                        self.reference.set(val);
+                    }
+                }
+            }
+
             AdcMode::Single => {
                 // Determine what event occurred.
                 if self.registers.events_calibratedone.is_set(EVENT::EVENT) {
@@ -446,6 +525,8 @@ impl<'a> Adc<'a> {
                     self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
                 }
             }
+
+            AdcMode::Idle => {}
         }
     }
 
@@ -548,7 +629,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     }
 
     fn get_voltage_reference_mv(&self) -> Option<usize> {
-        Some(3300)
+        Some(self.reference.get())
     }
 
     fn set_client(&self, client: &'a dyn hil::adc::Client) {
