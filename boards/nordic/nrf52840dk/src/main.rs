@@ -844,6 +844,7 @@ pub unsafe fn main() {
     };
 
     let _ = platform.pconsole.start();
+    base_peripherals.adc.calibrate();
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
