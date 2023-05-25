@@ -344,14 +344,13 @@ pub unsafe fn main() {
     let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
         .finalize(components::pwm_mux_component_static!(nrf52833::pwm::Pwm));
 
-    let virtual_pwm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser::new(
-            mux_pwm,
-            nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
-        )
-    );
-    virtual_pwm_buzzer.add_to_mux();
+    let virtual_pwm_buzzer = components::pwm::PwmPinUserComponent::new(
+        &mux_pwm,
+        nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32),
+    )
+    .finalize(components::pwm_pin_user_component_static!(
+        nrf52833::pwm::Pwm
+    ));
 
     let virtual_alarm_buzzer = static_init!(
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
@@ -401,17 +400,17 @@ pub unsafe fn main() {
 
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
+    let virtual_pwm_driver = components::pwm::PwmPinUserComponent::new(
+        &mux_pwm,
+        nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32),
+    )
+    .finalize(components::pwm_pin_user_component_static!(
+        nrf52833::pwm::Pwm
+    ));
+
     let pwm =
-        components::pwm::PwmVirtualComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
-            .finalize(components::pwm_syscall_component_helper!(
-                components::pwm::PwmPinComponent::new(
-                    &mux_pwm,
-                    nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32)
-                )
-                .finalize(components::pwm_pin_user_component_static!(
-                    nrf52833::pwm::Pwm
-                ))
-            ));
+        components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
+            .finalize(components::pwm_driver_component_helper!(virtual_pwm_driver));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
