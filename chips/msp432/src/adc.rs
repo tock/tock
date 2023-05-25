@@ -502,8 +502,8 @@ pub struct Adc<'a> {
     dma_src: u8,
     buffer1: TakeCell<'static, [u16]>,
     buffer2: TakeCell<'static, [u16]>,
-    client: OptionalCell<&'static dyn hil::adc::Client>,
-    highspeed_client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
+    client: OptionalCell<&'a dyn hil::adc::Client>,
+    highspeed_client: OptionalCell<&'a dyn hil::adc::HighSpeedClient>,
 }
 
 impl Adc<'_> {
@@ -742,7 +742,7 @@ impl<'a> Adc<'a> {
     }
 }
 
-impl dma::DmaClient for Adc<'_> {
+impl<'a> dma::DmaClient for Adc<'a> {
     fn transfer_done(
         &self,
         _tx_buf: Option<&'static mut [u8]>,
@@ -767,7 +767,7 @@ impl dma::DmaClient for Adc<'_> {
     }
 }
 
-impl hil::adc::Adc for Adc<'_> {
+impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
@@ -892,12 +892,12 @@ impl hil::adc::Adc for Adc<'_> {
         self.ref_module.map(|ref_mod| ref_mod.ref_voltage_mv())
     }
 
-    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+    fn set_client(&self, client: &'a dyn hil::adc::Client) {
         self.client.set(client);
     }
 }
 
-impl hil::adc::AdcHighSpeed for Adc<'_> {
+impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
     fn sample_highspeed(
         &self,
         channel: &Self::Channel,
@@ -994,7 +994,7 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         }
     }
 
-    fn set_highspeed_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
+    fn set_highspeed_client(&self, client: &'a dyn hil::adc::HighSpeedClient) {
         self.highspeed_client.set(client);
     }
 }
