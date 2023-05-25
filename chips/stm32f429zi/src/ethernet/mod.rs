@@ -837,7 +837,7 @@ impl<'a> Ethernet<'a> {
 
     fn init_mac(&self) -> Result<(), ErrorCode> {
         self.disable_mac_watchdog();
-        self.set_speed(EthernetSpeed::Speed10Mbs)?;
+        self.set_speed(EthernetSpeed::Speed100Mbs)?;
         self.set_loopback_mode(false)?;
         self.set_operation_mode(OperationMode::FullDuplex)?;
         self.disable_address_filter();
@@ -1681,7 +1681,7 @@ impl<'a> Ethernet<'a> {
         } if self.did_receive_interrupt_occur() {
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
-                client.rx_packet(self.received_packet.take().unwrap(), None);
+                client.rx_packet(received_packet, None);
                 self.received_packet.put(Some(received_packet));
                 assert_eq!(Ok(()), self.receive_packet());
             });
@@ -1727,7 +1727,7 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn receive_packet(&self) -> Result<(), ErrorCode> {
+    pub fn receive_packet(&self) -> Result<(), ErrorCode> {
         // Check if DMA and MAC core are enabled
         if !self.is_reception_enabled() {
             return Err(ErrorCode::OFF);
@@ -1829,7 +1829,6 @@ impl Configure for Ethernet<'_> {
 impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
     fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
         self.client.set(client);
-        assert_eq!(Ok(()), self.receive_packet());
     }
 
     fn transmit(

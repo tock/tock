@@ -17,6 +17,7 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::ethernet::Configure;
+use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -82,6 +83,7 @@ struct NucleoF429ZI {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
+    tap_ethernet: &'static capsules_extra::ethernet_app_tap::TapDriver<'static, stm32f429zi::ethernet::Ethernet<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -101,6 +103,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::ethernet_app_tap::DRIVER_NUM => f(Some(self.tap_ethernet)),
             _ => f(None),
         }
     }
@@ -378,7 +381,7 @@ unsafe fn create_peripherals() -> (
     let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
 
     // TODO: Remove hard coded buffer length
-    let receive_buffer = static_init!([u8; 1526], [0; 1526]);
+    let receive_buffer = static_init!([u8; capsules_extra::ethernet_app_tap::MAX_MTU], [0; capsules_extra::ethernet_app_tap::MAX_MTU]);
 
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
@@ -661,6 +664,48 @@ pub unsafe fn main() {
         stm32f429zi::can::Can<'static>
     ));
 
+    // Create transmit buffer for tap Ethernet
+    let tap_transmit_buffer = static_init!(
+        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+    );
+
+    // Create receive buffers for tap Ethernet
+    let tap_receive_buffers = static_init!(
+        [(
+            [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+            u16,
+            Option<u64>,
+            bool
+        ); 2],
+        [(
+            [0; capsules_extra::ethernet_app_tap::MAX_MTU],
+            0,
+            None,
+            false
+        ); 2]
+    );
+
+    // Create tap ethernet
+    let tap_ethernet = static_init!(
+        capsules_extra::ethernet_app_tap::TapDriver<
+            'static,
+            stm32f429zi::ethernet::Ethernet<'static>
+        >,
+        capsules_extra::ethernet_app_tap::TapDriver::new(
+            &peripherals.ethernet,
+            board_kernel.create_grant(
+                capsules_extra::ethernet_app_tap::DRIVER_NUM,
+                &memory_allocation_capability
+            ),
+            tap_transmit_buffer,
+            tap_receive_buffers,
+        )
+    );
+
+    // Set client for the Ethernet firmware
+    peripherals.ethernet.set_client(tap_ethernet);
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -695,12 +740,15 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         can: can,
+        tap_ethernet
     };
 
     // // Optional kernel tests
     // //
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+
+    // Setup Ethernet
     let clocks = &peripherals.stm32f4.clocks;
     assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::PLL));
     assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
@@ -708,7 +756,8 @@ pub unsafe fn main() {
     assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
     assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
     setup_ethernet(&peripherals);
-    stm32f429zi::ethernet::tests::run_all_unit_tests(&peripherals.ethernet);
+    assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
+    //stm32f429zi::ethernet::tests::run_all_unit_tests(&peripherals.ethernet);
 
     debug!("Initialization complete. Entering main loop");
 

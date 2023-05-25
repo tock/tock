@@ -213,7 +213,7 @@ pub const DRIVER_NUM: usize = capsules_core::driver::NUM::EthernetTAP as usize;
 
 /// Maximum size of a packet which can be transmitted over the underlying
 /// [`EthernetAdapter`] device. Currently hard-coded to `1522` bytes.
-pub const MAX_MTU: usize = 1522;
+pub const MAX_MTU: usize = 1524;
 
 mod upcall {
     pub const _DRIVER_RELEASED: usize = 0;
