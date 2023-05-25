@@ -22,14 +22,14 @@ macro_rules! temperature_rp2040_adc_component_static {
     };};
 }
 
-pub struct TemperatureRp2040Component<A: 'static + adc::Adc> {
+pub struct TemperatureRp2040Component<A: 'static + adc::Adc<'static>> {
     adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     slope: f32,
     v_27: f32,
 }
 
-impl<A: 'static + adc::Adc> TemperatureRp2040Component<A> {
+impl<A: 'static + adc::Adc<'static>> TemperatureRp2040Component<A> {
     pub fn new(
         adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
@@ -45,7 +45,7 @@ impl<A: 'static + adc::Adc> TemperatureRp2040Component<A> {
     }
 }
 
-impl<A: 'static + adc::Adc> Component for TemperatureRp2040Component<A> {
+impl<A: 'static + adc::Adc<'static>> Component for TemperatureRp2040Component<A> {
     type StaticInput = (
         &'static mut MaybeUninit<AdcDevice<'static, A>>,
         &'static mut MaybeUninit<TemperatureRp2040<'static>>,

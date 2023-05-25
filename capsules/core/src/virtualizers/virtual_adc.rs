@@ -12,13 +12,13 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 /// ADC Mux
-pub struct MuxAdc<'a, A: hil::adc::Adc> {
+pub struct MuxAdc<'a, A: hil::adc::Adc<'a>> {
     adc: &'a A,
     devices: List<'a, AdcDevice<'a, A>>,
     inflight: OptionalCell<&'a AdcDevice<'a, A>>,
 }
 
-impl<'a, A: hil::adc::Adc> hil::adc::Client for MuxAdc<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> hil::adc::Client for MuxAdc<'a, A> {
     fn sample_ready(&self, sample: u16) {
         self.inflight.take().map(|inflight| {
             for node in self.devices.iter() {
@@ -35,7 +35,7 @@ impl<'a, A: hil::adc::Adc> hil::adc::Client for MuxAdc<'a, A> {
     }
 }
 
-impl<'a, A: hil::adc::Adc> MuxAdc<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> MuxAdc<'a, A> {
     pub const fn new(adc: &'a A) -> MuxAdc<'a, A> {
         MuxAdc {
             adc: adc,
@@ -78,7 +78,7 @@ pub(crate) enum Operation {
 }
 
 /// Virtual ADC device
-pub struct AdcDevice<'a, A: hil::adc::Adc> {
+pub struct AdcDevice<'a, A: hil::adc::Adc<'a>> {
     mux: &'a MuxAdc<'a, A>,
     channel: A::Channel,
     operation: OptionalCell<Operation>,
@@ -86,7 +86,7 @@ pub struct AdcDevice<'a, A: hil::adc::Adc> {
     client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
-impl<'a, A: hil::adc::Adc> AdcDevice<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> AdcDevice<'a, A> {
     pub const fn new(mux: &'a MuxAdc<'a, A>, channel: A::Channel) -> AdcDevice<'a, A> {
         let adc_user = AdcDevice {
             mux: mux,
@@ -103,13 +103,13 @@ impl<'a, A: hil::adc::Adc> AdcDevice<'a, A> {
     }
 }
 
-impl<'a, A: hil::adc::Adc> ListNode<'a, AdcDevice<'a, A>> for AdcDevice<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> ListNode<'a, AdcDevice<'a, A>> for AdcDevice<'a, A> {
     fn next(&'a self) -> &'a ListLink<'a, AdcDevice<'a, A>> {
         &self.next
     }
 }
 
-impl<A: hil::adc::Adc> hil::adc::AdcChannel for AdcDevice<'_, A> {
+impl<'a, A: hil::adc::Adc<'a>> hil::adc::AdcChannel<'a> for AdcDevice<'a, A> {
     fn sample(&self) -> Result<(), ErrorCode> {
         self.operation.set(Operation::OneSample);
         self.mux.do_next_op();
@@ -133,7 +133,7 @@ impl<A: hil::adc::Adc> hil::adc::AdcChannel for AdcDevice<'_, A> {
     fn get_voltage_reference_mv(&self) -> Option<usize> {
         self.mux.get_voltage_reference_mv()
     }
-    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+    fn set_client(&self, client: &'a dyn hil::adc::Client) {
         self.client.set(client);
     }
 }

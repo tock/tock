@@ -34,7 +34,7 @@ impl<I: InterruptService + 'static> Sam4l<I> {
 /// constructed manually in main.rs.
 pub struct Sam4lDefaultPeripherals {
     pub acifc: crate::acifc::Acifc<'static>,
-    pub adc: crate::adc::Adc,
+    pub adc: crate::adc::Adc<'static>,
     pub aes: crate::aes::Aes<'static>,
     pub ast: crate::ast::Ast<'static>,
     pub crccu: crate::crccu::Crccu<'static>,

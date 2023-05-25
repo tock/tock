@@ -82,7 +82,7 @@ struct Hail {
         >,
     >,
     nrf51822: &'static capsules_extra::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, sam4l::gpio::GPIOPin<'static>>,
