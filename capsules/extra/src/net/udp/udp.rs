@@ -18,10 +18,10 @@ use crate::net::stream::SResult;
 /// for the various fields of the header, to avoid confusion with endian-ness.
 #[derive(Copy, Clone, Debug)]
 pub struct UDPHeader {
-    pub src_port: u16,
-    pub dst_port: u16,
-    pub len: u16,
-    pub cksum: u16,
+    src_port: u16,
+    dst_port: u16,
+    len: u16,
+    cksum: u16,
 }
 
 impl Default for UDPHeader {
