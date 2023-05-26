@@ -119,7 +119,7 @@ macro_rules! ieee802154_component_static {
 }
 
 pub struct Ieee802154Component<
-    R: 'static + kernel::hil::radio::Radio,
+    R: 'static + kernel::hil::radio::Radio<'static>,
     A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
 > {
     board_kernel: &'static kernel::Kernel,
@@ -131,7 +131,7 @@ pub struct Ieee802154Component<
 }
 
 impl<
-        R: 'static + kernel::hil::radio::Radio,
+        R: 'static + kernel::hil::radio::Radio<'static>,
         A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
     > Ieee802154Component<R, A>
 {
@@ -155,7 +155,7 @@ impl<
 }
 
 impl<
-        R: 'static + kernel::hil::radio::Radio,
+        R: 'static + kernel::hil::radio::Radio<'static>,
         A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
     > Component for Ieee802154Component<R, A>
 {
