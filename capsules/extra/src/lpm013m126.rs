@@ -189,7 +189,7 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
     /// so edges need to be cached.
     frame_buffer: OptionalCell<FrameBuffer<'static>>,
 
-    client: OptionalCell<&'static dyn ScreenClient>,
+    client: OptionalCell<&'a dyn ScreenClient>,
     /// Buffer for incoming pixel data, coming from the client.
     /// It's not submitted directly anywhere.
     buffer: TakeCell<'static, [u8]>,
@@ -363,7 +363,7 @@ where
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> Screen for Lpm013m126<'a, A, P, S>
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> Screen<'a> for Lpm013m126<'a, A, P, S>
 where
     Self: 'static,
 {
@@ -473,7 +473,7 @@ where
         Ok(())
     }
 
-    fn set_client(&self, client: Option<&'static dyn ScreenClient>) {
+    fn set_client(&self, client: Option<&'a dyn ScreenClient>) {
         if let Some(client) = client {
             self.client.set(client);
         } else {

@@ -85,7 +85,7 @@ pub struct Touch<'a> {
     /// 90 deg (clockwise), 180 deg (upside-down), 270 deg(clockwise).
     /// The touch gets the rotation from the screen and
     /// updates the touch (x, y) position
-    screen: Option<&'a dyn hil::screen::Screen>,
+    screen: Option<&'a dyn hil::screen::Screen<'a>>,
     apps: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     screen_rotation_offset: Cell<ScreenRotation>,
 }
@@ -94,7 +94,7 @@ impl<'a> Touch<'a> {
     pub fn new(
         touch: Option<&'a dyn hil::touch::Touch<'a>>,
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
-        screen: Option<&'a dyn hil::screen::Screen>,
+        screen: Option<&'a dyn hil::screen::Screen<'a>>,
         grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> Touch<'a> {
         Touch {
