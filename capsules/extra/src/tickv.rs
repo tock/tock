@@ -260,7 +260,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> flash::Client<F> for TicKVStore<'a, F, H> {
             Operation::Init => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
                 | Ok(tickv::success_codes::SuccessCode::Written) => {
-                    self.operation.set(Operation::None)
+                    self.complete_init();
                 }
                 _ => {}
             },
