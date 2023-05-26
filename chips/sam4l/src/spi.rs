@@ -186,8 +186,8 @@ pub enum SpiRole {
 }
 
 /// Abstraction of the SPI Hardware
-pub struct SpiHw {
-    client: OptionalCell<&'static dyn SpiMasterClient>,
+pub struct SpiHw<'a> {
+    client: OptionalCell<&'a dyn SpiMasterClient>,
     dma_read: OptionalCell<&'static DMAChannel>,
     dma_write: OptionalCell<&'static DMAChannel>,
     // keep track of which how many DMA transfers are pending to correctly
@@ -196,15 +196,15 @@ pub struct SpiHw {
     dma_length: Cell<usize>,
 
     // Slave client is distinct from master client
-    slave_client: OptionalCell<&'static dyn SpiSlaveClient>,
+    slave_client: OptionalCell<&'a dyn SpiSlaveClient>,
     role: Cell<SpiRole>,
-    pm: &'static pm::PowerManager,
+    pm: &'a pm::PowerManager,
 }
 
 const SPI_BASE: StaticRef<SpiRegisters> =
     unsafe { StaticRef::new(0x40008000 as *const SpiRegisters) };
 
-impl PeripheralManagement<pm::Clock> for SpiHw {
+impl PeripheralManagement<pm::Clock> for SpiHw<'_> {
     type RegisterType = SpiRegisters;
 
     fn get_registers(&self) -> &SpiRegisters {
@@ -226,11 +226,11 @@ impl PeripheralManagement<pm::Clock> for SpiHw {
     }
 }
 
-type SpiRegisterManager<'a> = PeripheralManager<'a, SpiHw, pm::Clock>;
+type SpiRegisterManager<'a> = PeripheralManager<'a, SpiHw<'a>, pm::Clock>;
 
-impl SpiHw {
+impl<'a> SpiHw<'a> {
     /// Creates a new SPI object, with peripheral 0 selected
-    pub const fn new(pm: &'static pm::PowerManager) -> SpiHw {
+    pub const fn new(pm: &'a pm::PowerManager) -> SpiHw<'a> {
         SpiHw {
             client: OptionalCell::empty(),
             dma_read: OptionalCell::empty(),
@@ -244,7 +244,7 @@ impl SpiHw {
         }
     }
 
-    fn init_as_role(&self, spi: &SpiRegisterManager, role: SpiRole) {
+    fn init_as_role(&self, spi: &'a SpiRegisterManager<'a>, role: SpiRole) {
         self.role.set(role);
 
         if role == SpiRole::SpiMaster {
@@ -375,7 +375,7 @@ impl SpiHw {
         }
     }
 
-    pub fn set_active_peripheral(&self, peripheral: Peripheral) {
+    pub fn set_active_peripheral(&'a self, peripheral: Peripheral) {
         // Slave cannot set active peripheral
         if self.role.get() == SpiRole::SpiMaster {
             let spi = &SpiRegisterManager::new(&self);
@@ -410,7 +410,7 @@ impl SpiHw {
 
     /// Returns the value of CSR0, CSR1, CSR2, or CSR3,
     /// whichever corresponds to the active peripheral
-    fn get_active_csr<'a>(
+    fn get_active_csr(
         &self,
         spi: &'a SpiRegisterManager,
     ) -> &'a registers::ReadWrite<u32, ChipSelectParams::Register> {
@@ -450,7 +450,7 @@ impl SpiHw {
     // The write buffer has to be mutable because it's passed back to
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
-        &self,
+        &'a self,
         write_buffer: Option<&'static mut [u8]>,
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
@@ -519,10 +519,10 @@ impl SpiHw {
     }
 }
 
-impl spi::SpiMaster for SpiHw {
+impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
     type ChipSelect = u8;
 
-    fn set_client(&self, client: &'static dyn SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.client.set(client);
     }
 
@@ -652,9 +652,9 @@ impl spi::SpiMaster for SpiHw {
     }
 }
 
-impl spi::SpiSlave for SpiHw {
+impl<'a> spi::SpiSlave<'a> for SpiHw<'a> {
     // Set to None to disable the whole thing
-    fn set_client(&self, client: Option<&'static dyn SpiSlaveClient>) {
+    fn set_client(&self, client: Option<&'a dyn SpiSlaveClient>) {
         self.slave_client.insert(client);
     }
 
@@ -715,7 +715,7 @@ impl spi::SpiSlave for SpiHw {
     }
 }
 
-impl DMAClient for SpiHw {
+impl DMAClient for SpiHw<'_> {
     fn transfer_done(&self, _pid: DMAPeripheral) {
         // Only callback that the transfer is done if either:
         // 1) The transfer was TX only and TX finished

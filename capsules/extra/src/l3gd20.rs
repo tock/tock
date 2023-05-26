@@ -185,7 +185,7 @@ enum L3gd20Status {
 pub struct App {}
 
 pub struct L3gd20Spi<'a> {
-    spi: &'a dyn spi::SpiMasterDevice,
+    spi: &'a dyn spi::SpiMasterDevice<'a>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
     status: Cell<L3gd20Status>,

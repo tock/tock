@@ -105,7 +105,7 @@ pub static mut RXBUFFER: [u8; 515] = [0; 515];
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
 pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
-    spi: &'a dyn hil::spi::SpiMasterDevice,
+    spi: &'a dyn hil::spi::SpiMasterDevice<'a>,
     state: Cell<SpiState>,
     after_state: Cell<SpiState>,
 
@@ -121,7 +121,7 @@ pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
 
-    client: OptionalCell<&'static dyn SDCardClient>,
+    client: OptionalCell<&'a dyn SDCardClient>,
     client_buffer: TakeCell<'static, [u8]>,
     client_offset: Cell<usize>,
 }

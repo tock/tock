@@ -50,7 +50,7 @@ pub struct Sam4lDefaultPeripherals {
     pub i2c1: crate::i2c::I2CHw<'static>,
     pub i2c2: crate::i2c::I2CHw<'static>,
     pub i2c3: crate::i2c::I2CHw<'static>,
-    pub spi: crate::spi::SpiHw,
+    pub spi: crate::spi::SpiHw<'static>,
     pub trng: crate::trng::Trng<'static>,
     pub usart0: crate::usart::USART<'static>,
     pub usart1: crate::usart::USART<'static>,

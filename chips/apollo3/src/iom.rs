@@ -1029,7 +1029,7 @@ impl<'a> hil::i2c::SMBusMaster<'a> for Iom<'a> {
     }
 }
 
-impl<'a> SpiMaster for Iom<'a> {
+impl<'a> SpiMaster<'a> for Iom<'a> {
     type ChipSelect = &'a crate::gpio::GpioPin<'a>;
 
     fn init(&self) -> Result<(), ErrorCode> {
@@ -1059,7 +1059,7 @@ impl<'a> SpiMaster for Iom<'a> {
         Ok(())
     }
 
-    fn set_client(&self, client: &'static dyn SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.spi_master_client.set(client);
     }
 

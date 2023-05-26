@@ -56,7 +56,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     /// The module providing a `Flash` interface.
     driver: &'a F,
     /// Callback to the user of this capsule.
-    client: OptionalCell<&'static dyn hil::nonvolatile_storage::NonvolatileStorageClient<'static>>,
+    client: OptionalCell<&'a dyn hil::nonvolatile_storage::NonvolatileStorageClient>,
     /// Buffer correctly sized for the underlying flash page size.
     pagebuffer: TakeCell<'static, F::Page>,
     /// Current state of this capsule.
@@ -91,10 +91,10 @@ impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'static>
+impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
     for NonvolatileToPages<'a, F>
 {
-    fn set_client(&self, client: &'static dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
+    fn set_client(&self, client: &'a dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(client);
     }
 
