@@ -1666,6 +1666,7 @@ impl<'a> Ethernet<'a> {
 
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
+            self.clear_transmit_interrupt();
             self.client.map(|client|
                 client.tx_done(
                     Ok(()),
@@ -1675,17 +1676,16 @@ impl<'a> Ethernet<'a> {
                     None
                 )
             );
-            self.clear_transmit_interrupt();
         } if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
         } if self.did_receive_interrupt_occur() {
+            self.clear_receive_interrupt();
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
                 client.rx_packet(received_packet, None);
                 self.received_packet.put(Some(received_packet));
                 assert_eq!(Ok(()), self.receive_packet());
             });
-            self.clear_receive_interrupt();
         } if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
         }
@@ -1708,8 +1708,9 @@ impl<'a> Ethernet<'a> {
             debug!("Transmit buffer underflow interrupt");
             self.clear_transmit_buffer_underflow_interrupt();
         } if self.did_receive_fifo_overflow_interrupt_occur() {
-            debug!("Receive buffer overflow interrupt");
             self.clear_receive_fifo_overflow_interrupt();
+            assert_eq!(Ok(()), self.receive_packet());
+            debug!("Receive buffer overflow interrupt");
         } if self.did_transmit_jabber_timeout_interrupt_occur() {
             debug!("Transmit buffer jabber timeout interrupt");
             self.clear_transmit_jabber_timeout_interrupt();
