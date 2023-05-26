@@ -45,8 +45,8 @@ impl SyscallDriver for Dac<'_> {
         match command_num {
             0 /* check if present */ => CommandReturn::success(),
 
-            // enable the dac
-            1 => CommandReturn::from(self.dac.initialize()),
+            // enable the dac. no-op as using the dac will enable it.
+            1 => CommandReturn::success(),
 
             // set the dac output
             2 => CommandReturn::from(self.dac.set_value(data)),
