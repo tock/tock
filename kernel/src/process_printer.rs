@@ -151,6 +151,13 @@ impl ProcessPrinter for ProcessPrinterText {
             None => bww.write_str(" Completion Code: None\r\n"),
         };
 
+        let _ = match process.get_credentials() {
+            Some(credential) => {
+                bww.write_fmt(format_args!(" Credential: {:?}\r\n", credential.format()))
+            }
+            None => bww.write_str(" Credential: None\r\n"),
+        };
+
         let _ = bww.write_fmt(format_args!(
             "\
                  \r\n\
