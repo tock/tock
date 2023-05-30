@@ -26,9 +26,11 @@
 //! let pca9544a_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x70));
+//! let pca9544a_buffer = static_init!([u8; capsules::pca9544a::BUFFER_LENGTH],
+//!                                    [0; capsules::pca9544a::BUFFER_LENGTH]);
 //! let pca9544a = static_init!(
 //!     capsules::pca9544a::PCA9544A<'static>,
-//!     capsules::pca9544a::PCA9544A::new(pca9544a_i2c, &mut capsules::pca9544a::BUFFER));
+//!     capsules::pca9544a::PCA9544A::new(pca9544a_i2c, pca9544a_buffer));
 //! pca9544a_i2c.set_client(pca9544a);
 //! ```
 
@@ -44,7 +46,7 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Pca9544a as usize;
 
-pub static mut BUFFER: [u8; 5] = [0; 5];
+pub const BUFFER_LENGTH: usize = 5;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {

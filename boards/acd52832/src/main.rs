@@ -384,6 +384,10 @@ pub unsafe fn main() {
         capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::I2CDevice::new(i2c_mux, 0x40)
     );
+    let mcp230xx_buffer = static_init!(
+        [u8; capsules_extra::mcp230xx::BUFFER_LENGTH],
+        [0; capsules_extra::mcp230xx::BUFFER_LENGTH]
+    );
     let mcp23017 = static_init!(
         capsules_extra::mcp230xx::MCP230xx<
             'static,
@@ -393,7 +397,7 @@ pub unsafe fn main() {
             mcp23017_i2c,
             Some(mcp_pin0),
             Some(mcp_pin1),
-            &mut capsules_extra::mcp230xx::BUFFER,
+            mcp230xx_buffer,
             8,
             2
         )

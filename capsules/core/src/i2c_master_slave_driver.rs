@@ -26,9 +26,7 @@ use kernel::{ErrorCode, ProcessId};
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 
-pub static mut BUFFER1: [u8; 256] = [0; 256];
-pub static mut BUFFER2: [u8; 256] = [0; 256];
-pub static mut BUFFER3: [u8; 256] = [0; 256];
+pub const BUFFER_LENGTH: usize = 256;
 
 /// Syscall driver number.
 use crate::driver;

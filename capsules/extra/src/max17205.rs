@@ -28,10 +28,12 @@
 //! let max17205_i2c_upper = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x0B));
+//! let max17205_buffer = static_init!([u8; capsules::max17205::BUFFER_LENGTH],
+//!                                    [0; capsules::max17205::BUFFER_LENGTH]);
 //! let max17205 = static_init!(
 //!     capsules::max17205::MAX17205<'static>,
 //!     capsules::max17205::MAX17205::new(max17205_i2c_lower, max17205_i2c_upper,
-//!                                       &mut capsules::max17205::BUFFER));
+//!                                       max17205_buffer));
 //! max17205_i2c.set_client(max17205);
 //!
 //! // For userspace.
@@ -53,7 +55,7 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Max17205 as usize;
 
-pub static mut BUFFER: [u8; 8] = [0; 8];
+pub const BUFFER_LENGTH: usize = 8;
 
 // Addresses 0x000 - 0x0FF, 0x180 - 0x1FF can be written as blocks
 // Addresses 0x100 - 0x17F must be written by word

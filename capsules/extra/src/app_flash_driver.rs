@@ -19,11 +19,11 @@
 //! ```
 //! # use kernel::static_init;
 //!
-//! pub static mut APP_FLASH_BUFFER: [u8; 512] = [0; 512];
+//! let app_flash_buffer = static_init!([u8; 512], [0; 512]);
 //! let app_flash = static_init!(
 //!     capsules::app_flash_driver::AppFlash<'static>,
 //!     capsules::app_flash_driver::AppFlash::new(nv_to_page,
-//!         board_kernel.create_grant(&grant_cap), &mut APP_FLASH_BUFFER));
+//!         board_kernel.create_grant(&grant_cap), app_flash_buffer));
 //! ```
 
 use core::cmp;

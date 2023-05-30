@@ -424,11 +424,15 @@ unsafe fn setup() -> (
 
     digest.set_sha_client(sha);
 
+    let i2c_master_buffer = static_init!(
+        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master::BUFFER_LENGTH]
+    );
     let i2c_master = static_init!(
         capsules_core::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
         capsules_core::i2c_master::I2CMasterDriver::new(
             &peripherals.i2c0,
-            &mut capsules_core::i2c_master::BUF,
+            i2c_master_buffer,
             board_kernel.create_grant(
                 capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_cap

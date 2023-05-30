@@ -31,7 +31,7 @@ use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Tsl2561 as usize;
 
 // Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 4] = [0; 4];
+pub const BUFFER_LENGTH: usize = 4;
 
 /// Command register defines
 const COMMAND_REG: u8 = 0x80;
