@@ -123,8 +123,8 @@ impl ScreenPixelFormat {
     }
 }
 
-pub trait ScreenSetup {
-    fn set_client(&self, client: Option<&'static dyn ScreenSetupClient>);
+pub trait ScreenSetup<'a> {
+    fn set_client(&self, client: Option<&'a dyn ScreenSetupClient>);
 
     /// Sets the screen resolution (in pixels). Returns ENOSUPPORT if the resolution is
     /// not supported. The function should return Ok(()) if the request is registered
@@ -185,7 +185,7 @@ pub trait ScreenSetup {
 }
 
 /// The basic trait for screens
-pub trait Screen {
+pub trait Screen<'a> {
     /// Returns a tuple (width, height) with the current resolution (in pixels)
     /// This function is synchronous as the driver should know this value without
     /// requesting it from the screen.
@@ -241,7 +241,7 @@ pub trait Screen {
     fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode>;
 
     /// Set the object to receive the asynchronous command callbacks.
-    fn set_client(&self, client: Option<&'static dyn ScreenClient>);
+    fn set_client(&self, client: Option<&'a dyn ScreenClient>);
 
     /// Sets the display brightness value
     ///
@@ -290,9 +290,9 @@ pub trait Screen {
     fn set_invert(&self, enabled: bool) -> Result<(), ErrorCode>;
 }
 
-pub trait ScreenAdvanced: Screen + ScreenSetup {}
+pub trait ScreenAdvanced<'a>: Screen<'a> + ScreenSetup<'a> {}
 // Provide blanket implementations for trait group
-impl<T: Screen + ScreenSetup> ScreenAdvanced for T {}
+impl<'a, T: Screen<'a> + ScreenSetup<'a>> ScreenAdvanced<'a> for T {}
 
 pub trait ScreenSetupClient {
     /// The screen will call this function to notify that a command has finished.
