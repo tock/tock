@@ -42,13 +42,13 @@ macro_rules! ft6x06_component_static {
     };};
 }
 
-pub struct Ft6x06Component<I: 'static + i2c::I2CMaster> {
+pub struct Ft6x06Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
 }
 
-impl<I: 'static + i2c::I2CMaster> Ft6x06Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Ft6x06Component<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -62,7 +62,7 @@ impl<I: 'static + i2c::I2CMaster> Ft6x06Component<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Ft6x06Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Ft6x06Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<Ft6x06<'static, I2CDevice<'static, I>>>,

@@ -48,13 +48,16 @@ macro_rules! si7021_component_static {
     };};
 }
 
-pub struct SI7021Component<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> {
+pub struct SI7021Component<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
+{
     i2c_mux: &'static MuxI2C<'static, I>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     i2c_address: u8,
 }
 
-impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> SI7021Component<A, I> {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
+    SI7021Component<A, I>
+{
     pub fn new(
         i2c: &'static MuxI2C<'static, I>,
         alarm: &'static MuxAlarm<'static, A>,
@@ -68,7 +71,7 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> SI7021Compo
     }
 }
 
-impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> Component
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Component
     for SI7021Component<A, I>
 {
     type StaticInput = (

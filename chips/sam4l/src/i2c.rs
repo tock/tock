@@ -548,15 +548,15 @@ impl ClockInterface for TWISClock {
 }
 
 /// Abstraction of the I2C hardware
-pub struct I2CHw {
+pub struct I2CHw<'a> {
     master_mmio_address: StaticRef<TWIMRegisters>,
     slave_mmio_address: Option<StaticRef<TWISRegisters>>,
     master_clock: TWIMClock,
     slave_clock: TWISClock,
     dma: OptionalCell<&'static DMAChannel>,
     dma_pids: (DMAPeripheral, DMAPeripheral),
-    master_client: Cell<Option<&'static dyn hil::i2c::I2CHwMasterClient>>,
-    slave_client: Cell<Option<&'static dyn hil::i2c::I2CHwSlaveClient>>,
+    master_client: Cell<Option<&'a dyn hil::i2c::I2CHwMasterClient>>,
+    slave_client: Cell<Option<&'a dyn hil::i2c::I2CHwSlaveClient>>,
     on_deck: Cell<Option<(DMAPeripheral, usize)>>,
 
     slave_enabled: Cell<bool>,
@@ -570,7 +570,7 @@ pub struct I2CHw {
     pm: &'static pm::PowerManager,
 }
 
-impl PeripheralManagement<TWIMClock> for I2CHw {
+impl<'a> PeripheralManagement<TWIMClock> for I2CHw<'a> {
     type RegisterType = TWIMRegisters;
 
     fn get_registers(&self) -> &TWIMRegisters {
@@ -595,12 +595,12 @@ impl PeripheralManagement<TWIMClock> for I2CHw {
         }
     }
 }
-type TWIMRegisterManager<'a> = PeripheralManager<'a, I2CHw, TWIMClock>;
+type TWIMRegisterManager<'a, 'm> = PeripheralManager<'m, I2CHw<'a>, TWIMClock>;
 
-impl PeripheralManagement<TWISClock> for I2CHw {
+impl<'a> PeripheralManagement<TWISClock> for I2CHw<'a> {
     type RegisterType = TWISRegisters;
 
-    fn get_registers<'a>(&'a self) -> &'a TWISRegisters {
+    fn get_registers<'b>(&'b self) -> &'b TWISRegisters {
         &*self.slave_mmio_address.as_ref().unwrap() // Unwrap fail = Access of non-existent slave
     }
 
@@ -622,7 +622,7 @@ impl PeripheralManagement<TWISClock> for I2CHw {
         }
     }
 }
-type TWISRegisterManager<'a> = PeripheralManager<'a, I2CHw, TWISClock>;
+type TWISRegisterManager<'a, 'm> = PeripheralManager<'m, I2CHw<'a>, TWISClock>;
 
 const fn create_twims_clocks(
     master: pm::Clock,
@@ -633,7 +633,7 @@ const fn create_twims_clocks(
 
 // Need to implement the `new` function on the I2C device as a constructor.
 // This gets called from the device tree.
-impl I2CHw {
+impl<'a> I2CHw<'a> {
     fn new(
         base_addr: StaticRef<TWIMRegisters>,
         slave_base_addr: Option<StaticRef<TWISRegisters>>,
@@ -641,7 +641,7 @@ impl I2CHw {
         dma_rx: DMAPeripheral,
         dma_tx: DMAPeripheral,
         pm: &'static pm::PowerManager,
-    ) -> I2CHw {
+    ) -> I2CHw<'a> {
         I2CHw {
             master_mmio_address: base_addr,
             slave_mmio_address: slave_base_addr,
@@ -1347,12 +1347,12 @@ impl I2CHw {
     }
 }
 
-impl DMAClient for I2CHw {
+impl<'a> DMAClient for I2CHw<'a> {
     fn transfer_done(&self, _pid: DMAPeripheral) {}
 }
 
-impl hil::i2c::I2CMaster for I2CHw {
-    fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
+impl<'a> hil::i2c::I2CMaster<'a> for I2CHw<'a> {
+    fn set_master_client(&self, client: &'a dyn hil::i2c::I2CHwMasterClient) {
         self.master_client.set(Some(client));
     }
     /// This enables the entire I2C peripheral
@@ -1429,8 +1429,8 @@ impl hil::i2c::I2CMaster for I2CHw {
     }
 }
 
-impl hil::i2c::I2CSlave for I2CHw {
-    fn set_slave_client(&self, client: &'static dyn hil::i2c::I2CHwSlaveClient) {
+impl<'a> hil::i2c::I2CSlave<'a> for I2CHw<'a> {
+    fn set_slave_client(&self, client: &'a dyn hil::i2c::I2CHwSlaveClient) {
         self.slave_client.set(Some(client));
     }
     fn enable(&self) {

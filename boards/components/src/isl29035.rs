@@ -66,12 +66,17 @@ macro_rules! ambient_light_component_static {
     };};
 }
 
-pub struct Isl29035Component<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> {
+pub struct Isl29035Component<
+    A: 'static + time::Alarm<'static>,
+    I: 'static + i2c::I2CMaster<'static>,
+> {
     i2c_mux: &'static MuxI2C<'static, I>,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> Isl29035Component<A, I> {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
+    Isl29035Component<A, I>
+{
     pub fn new(i2c: &'static MuxI2C<'static, I>, alarm: &'static MuxAlarm<'static, A>) -> Self {
         Isl29035Component {
             i2c_mux: i2c,
@@ -80,7 +85,7 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> Isl29035Com
     }
 }
 
-impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster> Component
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Component
     for Isl29035Component<A, I>
 {
     type StaticInput = (

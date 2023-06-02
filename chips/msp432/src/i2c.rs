@@ -271,8 +271,8 @@ impl<'a> I2c<'a> {
     }
 }
 
-impl<'a> i2c::I2CMaster for I2c<'a> {
-    fn set_master_client(&self, master_client: &'static dyn i2c::I2CHwMasterClient) {
+impl<'a> i2c::I2CMaster<'a> for I2c<'a> {
+    fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }
 

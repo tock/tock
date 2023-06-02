@@ -37,14 +37,14 @@ struct Transaction {
     read_len: OptionalCell<usize>,
 }
 
-pub struct I2CMasterDriver<'a, I: 'a + i2c::I2CMaster> {
+pub struct I2CMasterDriver<'a, I: i2c::I2CMaster<'a>> {
     i2c: &'a I,
     buf: TakeCell<'static, [u8]>,
     tx: MapCell<Transaction>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
 }
 
-impl<'a, I: 'a + i2c::I2CMaster> I2CMasterDriver<'a, I> {
+impl<'a, I: i2c::I2CMaster<'a>> I2CMasterDriver<'a, I> {
     pub fn new(
         i2c: &'a I,
         buf: &'static mut [u8],
@@ -120,7 +120,7 @@ pub enum Cmd {
 }
 }
 
-impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
+impl<'a, I: i2c::I2CMaster<'a>> SyscallDriver for I2CMasterDriver<'a, I> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -191,7 +191,7 @@ impl<'a, I: 'a + i2c::I2CMaster> SyscallDriver for I2CMasterDriver<'a, I> {
     }
 }
 
-impl<'a, I: 'a + i2c::I2CMaster> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
+impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.processid, |_, kernel_data| {

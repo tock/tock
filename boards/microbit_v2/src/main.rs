@@ -120,7 +120,7 @@ pub struct MicroBit {
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
         'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI>,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI<'static>>,
     >,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
@@ -460,7 +460,9 @@ pub unsafe fn main() {
     );
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
-        .finalize(components::i2c_mux_component_static!(nrf52833::i2c::TWI));
+        .finalize(components::i2c_mux_component_static!(
+            nrf52833::i2c::TWI<'static>
+        ));
 
     // LSM303AGR
 
@@ -471,7 +473,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_component_static!(nrf52833::i2c::TWI));
+    .finalize(components::lsm303agr_component_static!(
+        nrf52833::i2c::TWI<'static>
+    ));
 
     if let Err(error) = lsm303agr.configure(
         capsules_extra::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,

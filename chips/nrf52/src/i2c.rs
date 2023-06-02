@@ -28,10 +28,10 @@ const INSTANCES: [StaticRef<TwiRegisters>; 2] = unsafe {
 ///
 /// A `TWI` instance wraps a `registers::TWI` together with
 /// additional data necessary to implement an asynchronous interface.
-pub struct TWI {
+pub struct TWI<'a> {
     registers: StaticRef<TwiRegisters>,
-    client: OptionalCell<&'static dyn hil::i2c::I2CHwMasterClient>,
-    slave_client: OptionalCell<&'static dyn hil::i2c::I2CHwSlaveClient>,
+    client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
+    slave_client: OptionalCell<&'a dyn hil::i2c::I2CHwSlaveClient>,
     buf: TakeCell<'static, [u8]>,
     slave_read_buf: TakeCell<'static, [u8]>,
 }
@@ -44,7 +44,7 @@ pub enum Speed {
     K400 = 0x06400000,
 }
 
-impl TWI {
+impl<'a> TWI<'a> {
     fn new(registers: StaticRef<TwiRegisters>) -> Self {
         Self {
             registers,
@@ -195,8 +195,8 @@ impl TWI {
     }
 }
 
-impl hil::i2c::I2CMaster for TWI {
-    fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
+impl<'a> hil::i2c::I2CMaster<'a> for TWI<'a> {
+    fn set_master_client(&self, client: &'a dyn hil::i2c::I2CHwMasterClient) {
         self.client.set(client);
     }
 
@@ -297,8 +297,8 @@ impl hil::i2c::I2CMaster for TWI {
     }
 }
 
-impl hil::i2c::I2CSlave for TWI {
-    fn set_slave_client(&self, client: &'static dyn hil::i2c::I2CHwSlaveClient) {
+impl<'a> hil::i2c::I2CSlave<'a> for TWI<'a> {
+    fn set_slave_client(&self, client: &'a dyn hil::i2c::I2CHwSlaveClient) {
         self.slave_client.set(client);
     }
 
@@ -365,7 +365,7 @@ impl hil::i2c::I2CSlave for TWI {
     }
 }
 
-impl hil::i2c::I2CMasterSlave for TWI {}
+impl<'a> hil::i2c::I2CMasterSlave<'a> for TWI<'a> {}
 
 // The SPI0_TWI0 and SPI1_TWI1 interrupts are dispatched to the
 // correct handler by the service_pending_interrupts() routine in

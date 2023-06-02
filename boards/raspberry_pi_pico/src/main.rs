@@ -94,7 +94,7 @@ pub struct RaspberryPiPico {
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
+    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static, 'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -507,7 +507,7 @@ pub unsafe fn main() {
 
     let i2c0 = &peripherals.i2c0;
     let i2c = static_init!(
-        I2CMasterDriver<I2c>,
+        I2CMasterDriver<I2c<'static, 'static>>,
         I2CMasterDriver::new(
             i2c0,
             &mut capsules_core::i2c_master::BUF,

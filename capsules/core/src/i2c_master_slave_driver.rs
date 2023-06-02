@@ -60,7 +60,7 @@ enum MasterAction {
     WriteRead(u8),
 }
 
-pub struct I2CMasterSlaveDriver<'a, I: hil::i2c::I2CMasterSlave> {
+pub struct I2CMasterSlaveDriver<'a, I: hil::i2c::I2CMasterSlave<'a>> {
     i2c: &'a I,
     listening: Cell<bool>,
     master_action: Cell<MasterAction>, // Whether we issued a write or read as master
@@ -76,7 +76,7 @@ pub struct I2CMasterSlaveDriver<'a, I: hil::i2c::I2CMasterSlave> {
     >,
 }
 
-impl<'a, I: hil::i2c::I2CMasterSlave> I2CMasterSlaveDriver<'a, I> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> I2CMasterSlaveDriver<'a, I> {
     pub fn new(
         i2c: &'a I,
         master_buffer: &'static mut [u8],
@@ -102,7 +102,9 @@ impl<'a, I: hil::i2c::I2CMasterSlave> I2CMasterSlaveDriver<'a, I> {
     }
 }
 
-impl<I: hil::i2c::I2CMasterSlave> hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_, I> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwMasterClient
+    for I2CMasterSlaveDriver<'a, I>
+{
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
         // Map I2C error to a number we can pass back to the application
         let status = kernel::errorcode::into_statuscode(match status {
@@ -189,7 +191,9 @@ impl<I: hil::i2c::I2CMasterSlave> hil::i2c::I2CHwMasterClient for I2CMasterSlave
     }
 }
 
-impl<I: hil::i2c::I2CMasterSlave> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_, I> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwSlaveClient
+    for I2CMasterSlaveDriver<'a, I>
+{
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
@@ -273,7 +277,7 @@ impl<I: hil::i2c::I2CMasterSlave> hil::i2c::I2CHwSlaveClient for I2CMasterSlaveD
     }
 }
 
-impl<I: hil::i2c::I2CMasterSlave> SyscallDriver for I2CMasterSlaveDriver<'_, I> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver<'a, I> {
     fn command(
         &self,
         command_num: usize,

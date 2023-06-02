@@ -92,7 +92,10 @@ pub struct NanoRP2040Connect {
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm6dsoxtr: &'static capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<
         'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, rp2040::i2c::I2c<'static>>,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<
+            'static,
+            rp2040::i2c::I2c<'static, 'static>,
+        >,
     >,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -456,8 +459,9 @@ pub unsafe fn main() {
     let gpio_scl = peripherals.pins.get_pin(RPGpio::GPIO13);
     gpio_sda.set_function(GpioFunction::I2C);
     gpio_scl.set_function(GpioFunction::I2C);
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None)
-        .finalize(components::i2c_mux_component_static!(rp2040::i2c::I2c));
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None).finalize(
+        components::i2c_mux_component_static!(rp2040::i2c::I2c<'static, 'static>),
+    );
 
     let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
         mux_i2c,
@@ -465,7 +469,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm6dsoxtr::DRIVER_NUM,
     )
-    .finalize(components::lsm6ds_i2c_component_static!(rp2040::i2c::I2c));
+    .finalize(components::lsm6ds_i2c_component_static!(
+        rp2040::i2c::I2c<'static, 'static>
+    ));
 
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,

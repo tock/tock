@@ -44,18 +44,23 @@ macro_rules! i2c_component_static {
     };};
 }
 
-pub struct I2CMuxComponent<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster = NoSMBus> {
+pub struct I2CMuxComponent<
+    I: 'static + i2c::I2CMaster<'static>,
+    S: 'static + i2c::SMBusMaster<'static> = NoSMBus,
+> {
     i2c: &'static I,
     smbus: Option<&'static S>,
 }
 
-impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> I2CMuxComponent<I, S> {
+impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>>
+    I2CMuxComponent<I, S>
+{
     pub fn new(i2c: &'static I, smbus: Option<&'static S>) -> Self {
         I2CMuxComponent { i2c, smbus }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> Component
+impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>> Component
     for I2CMuxComponent<I, S>
 {
     type StaticInput = &'static mut MaybeUninit<MuxI2C<'static, I, S>>;
@@ -71,12 +76,12 @@ impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> Component
     }
 }
 
-pub struct I2CComponent<I: 'static + i2c::I2CMaster> {
+pub struct I2CComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     address: u8,
 }
 
-impl<I: 'static + i2c::I2CMaster> I2CComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> I2CComponent<I> {
     pub fn new(mux: &'static MuxI2C<'static, I>, address: u8) -> Self {
         I2CComponent {
             i2c_mux: mux,
@@ -85,7 +90,7 @@ impl<I: 'static + i2c::I2CMaster> I2CComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for I2CComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CComponent<I> {
     type StaticInput = &'static mut MaybeUninit<I2CDevice<'static, I>>;
     type Output = &'static I2CDevice<'static, I>;
 
