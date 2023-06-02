@@ -657,15 +657,9 @@ unsafe fn setup() -> (
     kernel::deferred_call::DeferredCallClient::register(ccm_mux);
     peripherals.aes.set_client(ccm_mux);
 
-    let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
-    let ccm_client = static_init!(
-        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
-        virtual_aes_ccm::VirtualAES128CCM::new(ccm_mux, crypt_buf1)
+    let ccm_client = components::aes::AesVirtualComponent::new(ccm_mux).finalize(
+        components::aes_virtual_component_static!(earlgrey::aes::Aes<'static>),
     );
-    ccm_client.setup();
-
-    let aes_source_buffer = static_init!([u8; 16], [0; 16]);
-    let aes_dest_buffer = static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
 
     let crypt_buf2 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
     let gcm_client = static_init!(
@@ -677,24 +671,17 @@ unsafe fn setup() -> (
     );
     ccm_client.set_client(gcm_client);
 
-    let aes = static_init!(
-        capsules_extra::symmetric_encryption::aes::AesDriver<
+    let aes = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        gcm_client,
+    )
+    .finalize(components::aes_driver_component_static!(
+        aes_gcm::Aes128Gcm<
             'static,
-            aes_gcm::Aes128Gcm<
-                'static,
-                virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
-            >,
+            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
-        capsules_extra::symmetric_encryption::aes::AesDriver::new(
-            gcm_client,
-            aes_source_buffer,
-            aes_dest_buffer,
-            board_kernel.create_grant(
-                capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
-                &memory_allocation_cap
-            )
-        )
-    );
+    ));
 
     AES = Some(gcm_client);
 
