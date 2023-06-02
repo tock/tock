@@ -241,7 +241,6 @@ pub struct SPIM<'a> {
     registers: StaticRef<SpimRegisters>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
-    initialized: Cell<bool>,
     busy: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -254,7 +253,6 @@ impl<'a> SPIM<'a> {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),
             chip_select: OptionalCell::empty(),
-            initialized: Cell::new(false),
             busy: Cell::new(false),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
@@ -275,6 +273,9 @@ impl<'a> SPIM<'a> {
             self.chip_select.map(|cs| cs.set());
             self.registers.events_end.write(EVENT::EVENT::CLEAR);
 
+            // When we are no longer active or busy we can disable the
+            // peripheral.
+            self.disable();
             self.busy.set(false);
 
             self.client.map(|client| match self.tx_buf.take() {
@@ -318,7 +319,6 @@ impl<'a> SPIM<'a> {
         self.registers.psel_mosi.set(mosi);
         self.registers.psel_miso.set(miso);
         self.registers.psel_sck.set(sck);
-        self.enable();
     }
 
     /// Enables `SPIM` peripheral.
@@ -344,8 +344,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     }
 
     fn init(&self) -> Result<(), ErrorCode> {
-        self.registers.intenset.write(INTE::END::Enable);
-        self.initialized.set(true);
         Ok(())
     }
 
@@ -359,7 +357,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
         rx_buf: Option<&'static mut [u8]>,
         len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
-        debug_assert!(self.initialized.get());
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
         debug_assert!(self.rx_buf.is_none());
@@ -395,22 +392,25 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
 
         // Start the transfer
         self.busy.set(true);
+
+        // Start and enable the SPIM peripheral. The SPIM peripheral is only
+        // enabled when the busy flag is set.
+        self.registers.intenset.write(INTE::END::Enable);
+        self.enable();
+
         self.registers.tasks_start.write(TASK::TASK::SET);
         Ok(())
     }
 
     fn write_byte(&self, _val: u8) -> Result<(), ErrorCode> {
-        debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
     fn read_byte(&self) -> Result<u8, ErrorCode> {
-        debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
     fn read_write_byte(&self, _val: u8) -> Result<u8, ErrorCode> {
-        debug_assert!(self.initialized.get());
         unimplemented!("SPI: Use `read_write_bytes()` instead.");
     }
 
@@ -426,15 +426,12 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
 
     // Returns the actual rate set
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
-        debug_assert!(self.initialized.get());
         let f = Frequency::from_spi_rate(rate);
         self.registers.frequency.set(f as u32);
         Ok(f.into_spi_rate())
     }
 
     fn get_rate(&self) -> u32 {
-        debug_assert!(self.initialized.get());
-
         // Reset value is a valid frequency (250kbps), so .expect
         // should be safe here
         let f = Frequency::from_register(self.registers.frequency.get()).unwrap(); // Unwrap fail = nrf52 unknown spi rate
@@ -442,8 +439,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     }
 
     fn set_polarity(&self, polarity: hil::spi::ClockPolarity) -> Result<(), ErrorCode> {
-        debug_assert!(self.initialized.get());
-        debug_assert!(self.initialized.get());
         let new_polarity = match polarity {
             hil::spi::ClockPolarity::IdleLow => CONFIG::CPOL::ActiveHigh,
             hil::spi::ClockPolarity::IdleHigh => CONFIG::CPOL::ActiveLow,
@@ -453,7 +448,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     }
 
     fn get_polarity(&self) -> hil::spi::ClockPolarity {
-        debug_assert!(self.initialized.get());
         match self.registers.config.read(CONFIG::CPOL) {
             0 => hil::spi::ClockPolarity::IdleLow,
             1 => hil::spi::ClockPolarity::IdleHigh,
@@ -462,7 +456,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     }
 
     fn set_phase(&self, phase: hil::spi::ClockPhase) -> Result<(), ErrorCode> {
-        debug_assert!(self.initialized.get());
         let new_phase = match phase {
             hil::spi::ClockPhase::SampleLeading => CONFIG::CPHA::SampleOnLeadingEdge,
             hil::spi::ClockPhase::SampleTrailing => CONFIG::CPHA::SampleOnTrailingEdge,
@@ -472,7 +465,6 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     }
 
     fn get_phase(&self) -> hil::spi::ClockPhase {
-        debug_assert!(self.initialized.get());
         match self.registers.config.read(CONFIG::CPHA) {
             0 => hil::spi::ClockPhase::SampleLeading,
             1 => hil::spi::ClockPhase::SampleTrailing,
