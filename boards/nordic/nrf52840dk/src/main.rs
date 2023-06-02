@@ -215,7 +215,7 @@ pub struct Platform {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
-            nrf52840::spi::SPIM,
+            nrf52840::spi::SPIM<'static>,
         >,
     >,
     scheduler: &'static RoundRobinSched<'static>,
