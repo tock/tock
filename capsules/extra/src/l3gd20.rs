@@ -201,7 +201,7 @@ pub struct L3gd20Spi<'a> {
 
 impl<'a> L3gd20Spi<'a> {
     pub fn new(
-        spi: &'a dyn spi::SpiMasterDevice,
+        spi: &'a dyn spi::SpiMasterDevice<'a>,
         txbuffer: &'static mut [u8; L3GD20_TX_SIZE],
         rxbuffer: &'static mut [u8; L3GD20_RX_SIZE],
         grants: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
