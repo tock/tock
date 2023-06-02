@@ -45,7 +45,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub spim1: crate::spi::SPIM,
     pub twi1: crate::i2c::TWI,
     pub spim2: crate::spi::SPIM,
-    pub adc: crate::adc::Adc,
+    pub adc: crate::adc::Adc<'a>,
     pub nvmc: crate::nvmc::Nvmc,
     pub clock: crate::clock::Clock,
     pub pwm0: crate::pwm::Pwm,

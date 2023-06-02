@@ -138,7 +138,7 @@ struct Imix {
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
