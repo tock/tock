@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Components for using PWM.
+
 use capsules_core::virtualizers::virtual_pwm::{MuxPwm, PwmPinUser};
 use capsules_extra::pwm::Pwm;
 use core::mem::MaybeUninit;
@@ -25,7 +27,7 @@ macro_rules! pwm_pin_user_component_static {
 }
 
 #[macro_export]
-macro_rules! pwm_syscall_component_helper {
+macro_rules! pwm_driver_component_helper {
     ($($P:expr),+ $(,)?) => {{
         use kernel::count_expressions;
         use kernel::static_init;
@@ -63,21 +65,21 @@ impl<P: 'static + pwm::Pwm> Component for PwmMuxComponent<P> {
     }
 }
 
-pub struct PwmPinComponent<P: 'static + pwm::Pwm> {
+pub struct PwmPinUserComponent<P: 'static + pwm::Pwm> {
     pwm_mux: &'static MuxPwm<'static, P>,
     channel: P::Pin,
 }
 
-impl<P: 'static + pwm::Pwm> PwmPinComponent<P> {
+impl<P: 'static + pwm::Pwm> PwmPinUserComponent<P> {
     pub fn new(mux: &'static MuxPwm<'static, P>, channel: P::Pin) -> Self {
-        PwmPinComponent {
+        PwmPinUserComponent {
             pwm_mux: mux,
             channel: channel,
         }
     }
 }
 
-impl<P: 'static + pwm::Pwm> Component for PwmPinComponent<P> {
+impl<P: 'static + pwm::Pwm> Component for PwmPinUserComponent<P> {
     type StaticInput = &'static mut MaybeUninit<PwmPinUser<'static, P>>;
     type Output = &'static PwmPinUser<'static, P>;
 
@@ -90,24 +92,24 @@ impl<P: 'static + pwm::Pwm> Component for PwmPinComponent<P> {
     }
 }
 
-pub struct PwmVirtualComponent<const NUM_PINS: usize> {
+pub struct PwmDriverComponent<const NUM_PINS: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<const NUM_PINS: usize> PwmVirtualComponent<NUM_PINS> {
+impl<const NUM_PINS: usize> PwmDriverComponent<NUM_PINS> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> PwmVirtualComponent<NUM_PINS> {
-        PwmVirtualComponent {
+    ) -> PwmDriverComponent<NUM_PINS> {
+        PwmDriverComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,
         }
     }
 }
 
-impl<const NUM_PINS: usize> Component for PwmVirtualComponent<NUM_PINS> {
+impl<const NUM_PINS: usize> Component for PwmDriverComponent<NUM_PINS> {
     type StaticInput = (
         &'static mut MaybeUninit<Pwm<'static, NUM_PINS>>,
         &'static [&'static dyn kernel::hil::pwm::PwmPin; NUM_PINS],
