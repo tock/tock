@@ -9,17 +9,9 @@
 //! `Parser` needs some slow-to-initialize resources, so each `Parser` must be
 //! initialized with a reference to a `Cache` instance.
 
-// It is not obvious how we should handle having multiple comments on one line,
-// e.g.:
-//
-//     /* Comment A */ /* Comment B */ // Comment C
-//
-// To avoid answering that question, this parser only recognizes line comments.
-// That effectively requires license headers to be before any block comments. If
-// that is an issue, we can adapt this parser to read block comments as well.
-
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, ErrorKind};
+use std::ops::Range;
 use std::path::Path;
 use std::str::FromStr;
 use syntect::easy::ScopeRangeIterator;
@@ -37,7 +29,8 @@ pub struct Cache {
 
 impl Default for Cache {
     fn default() -> Self {
-        const COMMENT_SELECTOR: &str = "comment.line - comment.line.documentation";
+        const COMMENT_SELECTOR: &str =
+            "comment - comment.block.documentation - comment.line.documentation";
         const FALLBACK_SYNTAX: &str = include_str!("fallback_syntax.yaml");
         let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
         builder.add(
@@ -46,33 +39,21 @@ impl Default for Cache {
         );
         Self {
             is_comment: ScopeSelector::from_str(COMMENT_SELECTOR).unwrap(),
-            is_punctuation: ScopeSelector::from_str("punctuation").unwrap(),
+            is_punctuation: ScopeSelector::from_str("punctuation.definition.comment").unwrap(),
             syntax_set: builder.build(),
         }
     }
 }
 
 #[derive(Debug, thiserror::Error)]
+#[rustfmt::skip]
 pub enum ParseError {
-    /// Returned when we discover the file is binary (not valid UTF-8)
-    #[error("binary file")]
-    Binary,
-
-    /// Returned at the end of the file.
-    #[error("end-of-file")]
-    Eof,
-
-    #[error("bad byte span")]
-    BadSpan,
-
-    #[error("io error {0}")]
-    IoError(#[from] io::Error),
-
-    #[error("parse error {0}")]
-    ParsingError(#[from] ParsingError),
-
-    #[error("scope error {0}")]
-    ScopeError(#[from] ScopeError),
+    #[error("binary file")]     Binary,
+    #[error("end-of-file")]     Eof,
+    #[error("bad byte span")]   BadSpan,
+    #[error("io error {0}")]    IoError(#[from] io::Error),
+    #[error("parse error {0}")] ParsingError(#[from] ParsingError),
+    #[error("scope error {0}")] ScopeError(#[from] ScopeError),
 }
 
 impl PartialEq for ParseError {
@@ -90,15 +71,16 @@ impl PartialEq for ParseError {
 /// Indicates what a particular line of source code contains.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LineContents<'l> {
-    /// This line of code consists only of whitespace and comments. The
+    /// This line of code consists only of whitespace and one comment. The
     /// contained string slice points to the contents of the comment with
     /// whitespace trimmed away.
     Comment(&'l str),
 
-    /// This line only contains whitespace.
+    /// This line is not a comment and contains only whitespace.
     Whitespace,
 
-    /// This line contains something that is not a comment or whitespace.
+    /// This line contains more than one comment (e.g. /* A */ /* B */) or text
+    /// that is neither whitespace nor part of a comment.
     Other,
 }
 
@@ -130,7 +112,8 @@ impl<'cache> Parser<'cache> {
         })
     }
 
-    /// Parses the next line and returns its contents. Returns None at EOF.
+    /// Parses the next line and returns its contents. Returns
+    /// Err(ParseError::Eof) at EOF.
     pub fn next(&mut self) -> Result<LineContents, ParseError> {
         self.line.clear();
         let bytes_read = match self.reader.read_line(&mut self.line) {
@@ -143,45 +126,99 @@ impl<'cache> Parser<'cache> {
             return Err(ParseError::Eof);
         }
 
-        let cache = self.cache;
-        let ops = self.parse_state.parse_line(&self.line, &cache.syntax_set)?;
-        let mut contents = None;
-        let mut has_comment = false;
-
-        for (byte_span, op) in ScopeRangeIterator::new(&ops, &self.line) {
-            self.scopes.apply(op)?;
-            // Shortcut execution when we've already classified this line.
-            if contents.is_some() {
-                continue;
-            }
-
-            // Syntaxes sometimes push and pop spurious scopes; don't bother
-            // checking the scopes until we have a non-empty span.
-            if byte_span.is_empty() {
-                continue;
-            }
-
-            let scopes = self.scopes.as_slice();
-            let span = self.line.get(byte_span).ok_or(ParseError::BadSpan)?;
-            if cache.is_comment.does_match(scopes).is_none() {
-                if !span.chars().all(char::is_whitespace) {
-                    contents = Some(LineContents::Other);
-                }
-                continue;
-            }
-            has_comment = true;
-            // Skip the comment's punctuation (e.g. "//")
-            if cache.is_punctuation.does_match(scopes).is_some() {
-                continue;
-            }
-
-            contents = Some(LineContents::Comment(span.trim()));
+        // Comments are assumed to take the following overall form, using SGML
+        // as a pathological example:
+        //
+        //     <!-- -- -- -- ------ Hello, world! -------- -- -- -- -- -->
+        // |--Opening punctuation--|--Body text--|--Closing punctuation--|
+        //
+        // The opening punctuation and closing punctuation are both optional --
+        // e.g. line comments do not have closing punctuation. The opening and
+        // closing punctuation consist of a mix of whitespace and non-whitespace
+        // punctuation characters.
+        //
+        // Yes, this means that the boundary between opening punctuation and the
+        // body text is vague if that boundary consists of whitespace. That is
+        // fine because the comment body will be trimmed, so the final return is
+        // deterministic.
+        enum State {
+            // All text processed so far has been whitespace and not part of a
+            // comment.
+            WhitespaceOnly,
+            // The loop has processed comment-begin punctuation (#, //, /*)
+            // and/or comment whitespace but no comment text.
+            CommentStart,
+            // The loop has processed comment body text. The range is the byte
+            // span of the comment body, possibly with some whitespace trimmed
+            // off.
+            CommentBody(Range<usize>),
+            // The loop has processed comment-end punctuation (*/). The range is
+            // the same as for CommentBody.
+            CommentEnd(Range<usize>),
+            // This line fits the criteria of LineContents::Other.
+            Other,
         }
 
-        Ok(match (contents, has_comment) {
-            (None, false) => LineContents::Whitespace,
-            (None, true) => LineContents::Comment(""),
-            (Some(contents), _) => contents,
+        let cache = self.cache;
+        let ops = self.parse_state.parse_line(&self.line, &cache.syntax_set)?;
+        let mut state = match cache.is_comment.does_match(self.scopes.as_slice()) {
+            None => State::WhitespaceOnly,
+            Some(_) => State::CommentStart,
+        };
+
+        for (span, op) in ScopeRangeIterator::new(&ops, &self.line) {
+            self.scopes.apply(op)?;
+            // Syntaxes sometimes push and pop spurious scopes; don't bother
+            // checking the scopes until we have a non-empty span.
+            if span.is_empty() {
+                continue;
+            }
+
+            // Classification applied to each span based on what scopes apply.
+            enum FragmentType {
+                Whitespace, // Whitespace OUTSIDE a comment.
+                CommentPunctuation,
+                CommentText,
+                Other,
+            }
+            let scopes = self.scopes.as_slice();
+            let span_str = self.line.get(span.clone()).ok_or(ParseError::BadSpan)?;
+            let fragment_type = match cache.is_comment.does_match(scopes) {
+                None => match span_str.chars().all(char::is_whitespace) {
+                    true => FragmentType::Whitespace,
+                    false => FragmentType::Other,
+                },
+                Some(_) => match cache.is_punctuation.does_match(scopes) {
+                    Some(_) => FragmentType::CommentPunctuation,
+                    None => FragmentType::CommentText,
+                },
+            };
+            state = match (state, fragment_type) {
+                (_, FragmentType::Other) => State::Other,
+                (State::WhitespaceOnly, FragmentType::Whitespace) => State::WhitespaceOnly,
+                (State::WhitespaceOnly, FragmentType::CommentPunctuation) => State::CommentStart,
+                (State::WhitespaceOnly, FragmentType::CommentText) => State::CommentBody(span),
+                (State::CommentStart, FragmentType::CommentText) => State::CommentBody(span),
+                (State::CommentStart, _) => State::CommentStart,
+                (State::CommentBody(old_span), FragmentType::CommentPunctuation) => {
+                    State::CommentEnd(old_span)
+                }
+                (State::CommentBody(old_span), _) if span.start == old_span.end => {
+                    State::CommentBody(old_span.start..span.end)
+                }
+                (State::CommentBody(_), _) => State::Other, // Disjointed comments
+                (State::CommentEnd(_), FragmentType::CommentText) => State::Other,
+                (State::CommentEnd(old_span), _) => State::CommentEnd(old_span),
+                (State::Other, _) => State::Other,
+            };
+        }
+
+        Ok(match state {
+            State::WhitespaceOnly => LineContents::Whitespace,
+            State::CommentStart => LineContents::Comment(""),
+            State::CommentBody(span) => LineContents::Comment(self.line[span].trim()),
+            State::CommentEnd(span) => LineContents::Comment(self.line[span].trim()),
+            State::Other => LineContents::Other,
         })
     }
 }
@@ -229,6 +266,22 @@ mod tests {
         ];
         let by_first_line = Path::new("testdata/by_first_line");
         assert_produces(Parser::new(&Cache::default(), by_first_line), EXPECTED);
+    }
+
+    #[test]
+    fn fallback_block_comments() {
+        const EXPECTED: &[LineContents] = &[
+            Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
+            Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
+            Comment("Copyright Tock Contributors 2023."),
+            Comment("Copyright Google LLC 2023."),
+            Whitespace,
+            Comment(""),
+            Comment("This file contains two styles of block comment."),
+            Comment(""),
+        ];
+        let path = Path::new("testdata/block_comments.ld");
+        assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
     }
 
     #[test]
@@ -311,8 +364,8 @@ mod tests {
             Other,
             Comment(""),
             Whitespace,
-            Other,
-            Other,
+            Comment("Multi-line comment. The next comment contains only whitespace."),
+            Comment(""),
             Comment(""),
             Whitespace,
             Other,
@@ -322,6 +375,22 @@ mod tests {
             Other,
         ];
         let path = Path::new("testdata/variety.rs");
+        assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
+    }
+
+    #[test]
+    fn xml_block_comments() {
+        const EXPECTED: &[LineContents] = &[
+            Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
+            Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
+            Comment("Copyright Tock Contributors 2023."),
+            Comment("Copyright Google LLC 2023."),
+            Whitespace,
+            Comment(""),
+            Comment("This file contains two styles of block comment."),
+            Comment(""),
+        ];
+        let path = Path::new("testdata/block_comments.xml");
         assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
     }
 }

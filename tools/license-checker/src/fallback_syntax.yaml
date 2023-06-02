@@ -25,6 +25,10 @@ contexts:
       scope: punctuation.definition.comment.fallback
       push: [has_slashes_comments, slashes_comment]
 
+    - match: "^/\\*"
+      scope: punctuation.definition.comment.fallback
+      push: [has_slashstar_comments, slashstar_comment]
+
     # If none of the above matchers match, and this line is not entirely
     # whitespace, then assume the filetype does not support comments.
     - match: "\\S"
@@ -50,9 +54,19 @@ contexts:
     - match: $\n?
       pop: true
 
+  # /* */ -style comments. This does not allow for nested comments.
+  has_slashstar_comments:
+    - match: "^/\\*"
+      scope: punctuation.definition.comment.fallback
+      push: slashstar_comment
+
+  slashstar_comment:
+    - meta_scope: comment.block.fallback
+    - match: "\\*/"
+      scope: punctuation.definition.comment.fallback
+      pop: true
+
   # Context used for files that do not have comments, e.g. plain text files. For
   # these, we consider every line to be a comment.
   has_no_comments:
-    # TODO: This should probably be changed to comment.block.fallback once the
-    # license checker supports block comments.
-    - meta_scope: comment.line.fallback
+    - meta_scope: comment.block.fallback
