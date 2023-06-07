@@ -6,3 +6,4 @@
 syntect should not recognize this file type. Instead, the license checker
 // should use the fallback parser, which should identify that this file uses
 /* number signs for its comments. */
+#Lines starting with a '#' without a space are comments too.
