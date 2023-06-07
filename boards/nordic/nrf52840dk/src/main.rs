@@ -315,6 +315,13 @@ pub unsafe fn main() {
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
+    // Configure kernel debug GPIOs as early as possible.
+    kernel::debug::assign_gpios(
+        Some(&nrf52840_peripherals.gpio_port[LED1_PIN]),
+        Some(&nrf52840_peripherals.gpio_port[LED2_PIN]),
+        Some(&nrf52840_peripherals.gpio_port[LED3_PIN]),
+    );
+
     // Choose the channel for serial output. This board can be configured to use
     // either the Segger RTT channel or via UART with traditional TX/RX GPIO
     // pins.
@@ -355,13 +362,6 @@ pub unsafe fn main() {
         &base_peripherals.nvmc,
     )
     .finalize(());
-
-    // Configure kernel debug GPIOs as early as possible.
-    kernel::debug::assign_gpios(
-        Some(&nrf52840_peripherals.gpio_port[LED1_PIN]),
-        Some(&nrf52840_peripherals.gpio_port[LED2_PIN]),
-        Some(&nrf52840_peripherals.gpio_port[LED3_PIN]),
-    );
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
