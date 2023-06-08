@@ -185,7 +185,9 @@ impl<'a> SyscallDriver for RngDriver<'a> {
                 CommandReturn::success()
             }
 
-            1 /* Ask for a given number of random bytes */ => self
+            1 /* Ask for a given number of random bytes */ => {
+                let mut needs_get = false;
+                let result = self
                 .apps
                 .enter(processid, |app, _| {
                     app.remaining = data;
@@ -196,12 +198,17 @@ impl<'a> SyscallDriver for RngDriver<'a> {
                     // result arrives anyways
                     if !self.getting_randomness.get() {
                         self.getting_randomness.set(true);
-                        let _ = self.rng.get();
+                        needs_get = true;
                     }
 
                     CommandReturn::success()
                 })
-                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
+                .unwrap_or_else(|err| CommandReturn::failure(err.into()));
+                if needs_get {
+                    let _ = self.rng.get();
+                }
+                result
+            }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
