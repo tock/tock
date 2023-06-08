@@ -23,31 +23,31 @@ use crate::power;
 // replaced with better error handling.
 macro_rules! debug_events {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_tasks {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_packets {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! debug_info {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
 macro_rules! internal_warn {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // kernel::debug!($( $arg ),+)
     };
 }
 
@@ -607,7 +607,9 @@ register_bitfields! [u32,
             REVA = 0,
             REVB = 1,
             REVC = 2,
-            REVD = 3
+            REVD = 3,
+            REVE = 4,
+            REVF = 5,
         ]
     ]
 ];
@@ -743,6 +745,15 @@ impl<'a> Usbd<'a> {
         self.power.set(power);
     }
 
+    // ERRATA
+    //
+    // There are known issues with nRF52840 USB hardware, and we check if
+    // specific errata apply given different versions of the chip.
+    //
+    // Reference
+    // https://github.com/NordicSemiconductor/nrfx/blob/master/mdk/nrf52_erratas.h
+    // for how the different errata apply.
+
     fn has_errata_166(&self) -> bool {
         true
     }
@@ -758,7 +769,9 @@ impl<'a> Usbd<'a> {
             && match CHIPINFO_BASE.chip_revision.read_as_enum(ChipRevision::REV) {
                 Some(ChipRevision::REV::Value::REVB)
                 | Some(ChipRevision::REV::Value::REVC)
-                | Some(ChipRevision::REV::Value::REVD) => true,
+                | Some(ChipRevision::REV::Value::REVD)
+                | Some(ChipRevision::REV::Value::REVE)
+                | Some(ChipRevision::REV::Value::REVF) => true,
                 Some(ChipRevision::REV::Value::REVA) | None => false,
             }
     }
@@ -916,7 +929,10 @@ impl<'a> Usbd<'a> {
                     chip_revision.get()
                 );
             }
-            Some(ChipRevision::REV::Value::REVC) | Some(ChipRevision::REV::Value::REVD) => {
+            Some(ChipRevision::REV::Value::REVC)
+            | Some(ChipRevision::REV::Value::REVD)
+            | Some(ChipRevision::REV::Value::REVE)
+            | Some(ChipRevision::REV::Value::REVF) => {
                 debug_info!(
                     "Your chip is NRF52840 revision {}. The USB stack was tested on your chip :)",
                     chip_revision.get()
