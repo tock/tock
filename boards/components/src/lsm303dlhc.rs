@@ -49,7 +49,7 @@ macro_rules! lsm303dlhc_component_static {
     };};
 }
 
-pub struct Lsm303dlhcI2CComponent<I: 'static + i2c::I2CMaster> {
+pub struct Lsm303dlhcI2CComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     accelerometer_i2c_address: u8,
     magnetometer_i2c_address: u8,
@@ -57,7 +57,7 @@ pub struct Lsm303dlhcI2CComponent<I: 'static + i2c::I2CMaster> {
     driver_num: usize,
 }
 
-impl<I: 'static + i2c::I2CMaster> Lsm303dlhcI2CComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Lsm303dlhcI2CComponent<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         accelerometer_i2c_address: Option<u8>,
@@ -77,7 +77,7 @@ impl<I: 'static + i2c::I2CMaster> Lsm303dlhcI2CComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Lsm303dlhcI2CComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Lsm303dlhcI2CComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<I2CDevice<'static, I>>,

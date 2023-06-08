@@ -849,7 +849,7 @@ impl<'a> Iom<'_> {
     }
 }
 
-impl<'a> hil::i2c::I2CMaster for Iom<'a> {
+impl<'a> hil::i2c::I2CMaster<'a> for Iom<'a> {
     fn set_master_client(&self, i2c_master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.i2c_master_client.set(i2c_master_client);
     }
@@ -945,7 +945,7 @@ impl<'a> hil::i2c::I2CMaster for Iom<'a> {
     }
 }
 
-impl<'a> hil::i2c::SMBusMaster for Iom<'a> {
+impl<'a> hil::i2c::SMBusMaster<'a> for Iom<'a> {
     fn smbus_write_read(
         &self,
         addr: u8,

@@ -42,12 +42,12 @@ macro_rules! bme280_component_static {
     };};
 }
 
-pub struct Bme280Component<I: 'static + i2c::I2CMaster> {
+pub struct Bme280Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
 }
 
-impl<I: 'static + i2c::I2CMaster> Bme280Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Bme280Component<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Bme280Component {
             i2c_mux: i2c,
@@ -56,7 +56,7 @@ impl<I: 'static + i2c::I2CMaster> Bme280Component<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Bme280Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Bme280Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 26]>,

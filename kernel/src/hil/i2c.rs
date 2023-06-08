@@ -70,8 +70,8 @@ pub enum SlaveTransmissionType {
 }
 
 /// Interface for an I2C Master hardware driver.
-pub trait I2CMaster {
-    fn set_master_client(&self, master_client: &'static dyn I2CHwMasterClient);
+pub trait I2CMaster<'a> {
+    fn set_master_client(&self, master_client: &'a dyn I2CHwMasterClient);
     fn enable(&self);
     fn disable(&self);
     fn write_read(
@@ -98,7 +98,7 @@ pub trait I2CMaster {
 /// Interface for an SMBus Master hardware driver.
 /// The device implementing this will also seperately implement
 /// I2CMaster.
-pub trait SMBusMaster: I2CMaster {
+pub trait SMBusMaster<'a>: I2CMaster<'a> {
     /// Write data then read data via the I2C Master device in an SMBus
     /// compatible way.
     ///
@@ -159,8 +159,8 @@ pub trait SMBusMaster: I2CMaster {
 }
 
 /// Interface for an I2C Slave hardware driver.
-pub trait I2CSlave {
-    fn set_slave_client(&self, slave_client: &'static dyn I2CHwSlaveClient);
+pub trait I2CSlave<'a> {
+    fn set_slave_client(&self, slave_client: &'a dyn I2CHwSlaveClient);
     fn enable(&self);
     fn disable(&self);
     fn set_address(&self, addr: u8) -> Result<(), Error>;
@@ -179,7 +179,7 @@ pub trait I2CSlave {
 
 /// Convenience type for capsules that need hardware that supports both
 /// Master and Slave modes.
-pub trait I2CMasterSlave: I2CMaster + I2CSlave {}
+pub trait I2CMasterSlave<'a>: I2CMaster<'a> + I2CSlave<'a> {}
 // Provide blanket implementations for trait group
 // impl<T: I2CMaster + I2CSlave> I2CMasterSlave for T {}
 
@@ -295,8 +295,8 @@ pub trait I2CClient {
 
 pub struct NoSMBus;
 
-impl I2CMaster for NoSMBus {
-    fn set_master_client(&self, _master_client: &'static dyn I2CHwMasterClient) {}
+impl<'a> I2CMaster<'a> for NoSMBus {
+    fn set_master_client(&self, _master_client: &'a dyn I2CHwMasterClient) {}
     fn enable(&self) {}
     fn disable(&self) {}
     fn write_read(
@@ -326,7 +326,7 @@ impl I2CMaster for NoSMBus {
     }
 }
 
-impl SMBusMaster for NoSMBus {
+impl<'a> SMBusMaster<'a> for NoSMBus {
     fn smbus_write_read(
         &self,
         _addr: u8,

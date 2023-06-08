@@ -54,14 +54,14 @@ macro_rules! lsm6ds_i2c_component_static {
     };};
 }
 
-pub struct Lsm6dsoxtrI2CComponent<I: 'static + i2c::I2CMaster> {
+pub struct Lsm6dsoxtrI2CComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<I: 'static + i2c::I2CMaster> Lsm6dsoxtrI2CComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Lsm6dsoxtrI2CComponent<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -77,7 +77,7 @@ impl<I: 'static + i2c::I2CMaster> Lsm6dsoxtrI2CComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Lsm6dsoxtrI2CComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Lsm6dsoxtrI2CComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 8]>,

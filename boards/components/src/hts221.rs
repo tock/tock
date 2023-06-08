@@ -37,12 +37,12 @@ macro_rules! hts221_component_static {
     };};
 }
 
-pub struct Hts221Component<I: 'static + i2c::I2CMaster> {
+pub struct Hts221Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
 }
 
-impl<I: 'static + i2c::I2CMaster> Hts221Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Hts221Component<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Hts221Component {
             i2c_mux: i2c,
@@ -51,7 +51,7 @@ impl<I: 'static + i2c::I2CMaster> Hts221Component<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Hts221Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Hts221Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 17]>,

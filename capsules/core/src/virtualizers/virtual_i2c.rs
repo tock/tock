@@ -14,7 +14,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient, NoSMBus};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 // `NoSMBus` provides a placeholder for `SMBusMaster` in case the board doesn't have a SMBus
-pub struct MuxI2C<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
+pub struct MuxI2C<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> {
     i2c: &'a I,
     smbus: Option<&'a S>,
     i2c_devices: List<'a, I2CDevice<'a, I, S>>,
@@ -25,7 +25,7 @@ pub struct MuxI2C<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
     deferred_call: DeferredCall,
 }
 
-impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CHwMasterClient for MuxI2C<'_, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CHwMasterClient for MuxI2C<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         if self.i2c_inflight.is_some() {
             self.i2c_inflight.take().map(move |device| {
@@ -40,7 +40,7 @@ impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CHwMasterClient for MuxI2C<'_, I,
     }
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> MuxI2C<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
     pub fn new(i2c: &'a I, smbus: Option<&'a S>) -> Self {
         Self {
             i2c,
@@ -185,7 +185,7 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> MuxI2C<'a, I, S> {
     }
 }
 
-impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> DeferredCallClient for MuxI2C<'_, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> DeferredCallClient for MuxI2C<'a, I, S> {
     fn handle_deferred_call(&self) {
         self.do_next_op();
     }
@@ -204,7 +204,7 @@ enum Op {
     CommandComplete(Result<(), Error>),
 }
 
-pub struct I2CDevice<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
+pub struct I2CDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> {
     mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
     enabled: Cell<bool>,
@@ -214,7 +214,7 @@ pub struct I2CDevice<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster = NoSMBus> {
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CDevice<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
     pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> I2CDevice<'a, I, S> {
         I2CDevice {
             mux: mux,
@@ -233,7 +233,7 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CDevice<'a, I, S> {
     }
 }
 
-impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CClient for I2CDevice<'_, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for I2CDevice<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         self.client.map(move |client| {
             client.command_complete(buffer, status);
@@ -241,7 +241,7 @@ impl<I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CClient for I2CDevice<'_, I, S> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> ListNode<'a, I2CDevice<'a, I, S>>
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, I2CDevice<'a, I, S>>
     for I2CDevice<'a, I, S>
 {
     fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a, I, S>> {
@@ -249,7 +249,7 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> ListNode<'a, I2CDevice<'a, I, S
     }
 }
 
-impl<I: i2c::I2CMaster> i2c::I2CDevice for I2CDevice<'_, I> {
+impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -307,7 +307,7 @@ impl<I: i2c::I2CMaster> i2c::I2CDevice for I2CDevice<'_, I> {
     }
 }
 
-pub struct SMBusDevice<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> {
+pub struct SMBusDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> {
     mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
     enabled: Cell<bool>,
@@ -317,7 +317,7 @@ pub struct SMBusDevice<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> {
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> SMBusDevice<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
     pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> SMBusDevice<'a, I, S> {
         if mux.smbus.is_none() {
             panic!("There is no SMBus to attach to");
@@ -340,7 +340,7 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> SMBusDevice<'a, I, S> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CClient for SMBusDevice<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for SMBusDevice<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         self.client.map(move |client| {
             client.command_complete(buffer, status);
@@ -348,7 +348,7 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> I2CClient for SMBusDevice<'a, I
     }
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> ListNode<'a, SMBusDevice<'a, I, S>>
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, SMBusDevice<'a, I, S>>
     for SMBusDevice<'a, I, S>
 {
     fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a, I, S>> {
@@ -356,7 +356,7 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> ListNode<'a, SMBusDevice<'a, I,
     }
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> i2c::I2CDevice for SMBusDevice<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice for SMBusDevice<'a, I, S> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -414,7 +414,9 @@ impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> i2c::I2CDevice for SMBusDevice<
     }
 }
 
-impl<'a, I: i2c::I2CMaster, S: i2c::SMBusMaster> i2c::SMBusDevice for SMBusDevice<'a, I, S> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::SMBusDevice
+    for SMBusDevice<'a, I, S>
+{
     fn smbus_write_read(
         &self,
         data: &'static mut [u8],

@@ -149,12 +149,12 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
     }
 }
 
-pub struct I2CMasterBusComponent<I: 'static + i2c::I2CMaster> {
+pub struct I2CMasterBusComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     address: u8,
 }
 
-impl<I: 'static + i2c::I2CMaster> I2CMasterBusComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> I2CMasterBusComponent<I> {
     pub fn new(i2c_mux: &'static MuxI2C<'static, I>, address: u8) -> I2CMasterBusComponent<I> {
         I2CMasterBusComponent {
             i2c_mux: i2c_mux,
@@ -163,7 +163,7 @@ impl<I: 'static + i2c::I2CMaster> I2CMasterBusComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for I2CMasterBusComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterBusComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CMasterBus<'static, I2CDevice<'static, I>>>,
         &'static mut MaybeUninit<I2CDevice<'static, I>>,

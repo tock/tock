@@ -714,8 +714,8 @@ impl<'a> Lpi2c<'a> {
     }
 }
 
-impl i2c::I2CMaster for Lpi2c<'_> {
-    fn set_master_client(&self, master_client: &'static dyn I2CHwMasterClient) {
+impl<'a> i2c::I2CMaster<'a> for Lpi2c<'a> {
+    fn set_master_client(&self, master_client: &'a dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }
     fn enable(&self) {

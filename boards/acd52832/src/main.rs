@@ -85,7 +85,10 @@ pub struct Platform {
         'static,
         capsules_extra::mcp230xx::MCP230xx<
             'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52832::i2c::TWI<'static>,
+            >,
         >,
     >,
     light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
@@ -359,7 +362,7 @@ pub unsafe fn main() {
 
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52832::i2c::TWI>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52832::i2c::TWI<'static>>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(i2c_mux);
@@ -381,13 +384,16 @@ pub unsafe fn main() {
     )
     .finalize();
     let mcp23017_i2c = static_init!(
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI<'static>>,
         capsules_core::virtualizers::virtual_i2c::I2CDevice::new(i2c_mux, 0x40)
     );
     let mcp23017 = static_init!(
         capsules_extra::mcp230xx::MCP230xx<
             'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52832::i2c::TWI<'static>,
+            >,
         >,
         capsules_extra::mcp230xx::MCP230xx::new(
             mcp23017_i2c,
@@ -410,7 +416,10 @@ pub unsafe fn main() {
     // administrative layer that provides a single interface to them all.
     let async_gpio_ports = static_init!(
         [&'static capsules_extra::mcp230xx::MCP230xx<
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52832::i2c::TWI<'static>,
+            >,
         >; 1],
         [mcp23017]
     );
@@ -421,7 +430,10 @@ pub unsafe fn main() {
             'static,
             capsules_extra::mcp230xx::MCP230xx<
                 'static,
-                capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI>,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                    'static,
+                    nrf52832::i2c::TWI<'static>,
+                >,
             >,
         >,
         capsules_extra::gpio_async::GPIOAsync::new(

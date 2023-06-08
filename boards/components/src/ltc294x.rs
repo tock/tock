@@ -48,13 +48,13 @@ macro_rules! ltc294x_driver_component_static {
     };};
 }
 
-pub struct Ltc294xComponent<I: 'static + i2c::I2CMaster> {
+pub struct Ltc294xComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: Option<&'static dyn gpio::InterruptPin<'static>>,
 }
 
-impl<I: 'static + i2c::I2CMaster> Ltc294xComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Ltc294xComponent<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -68,7 +68,7 @@ impl<I: 'static + i2c::I2CMaster> Ltc294xComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Ltc294xComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Ltc294xComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<LTC294X<'static, I2CDevice<'static, I>>>,
@@ -92,13 +92,13 @@ impl<I: 'static + i2c::I2CMaster> Component for Ltc294xComponent<I> {
     }
 }
 
-pub struct Ltc294xDriverComponent<I: 'static + i2c::I2CMaster> {
+pub struct Ltc294xDriverComponent<I: 'static + i2c::I2CMaster<'static>> {
     ltc294x: &'static LTC294X<'static, I2CDevice<'static, I>>,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<I: 'static + i2c::I2CMaster> Ltc294xDriverComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Ltc294xDriverComponent<I> {
     pub fn new(
         ltc294x: &'static LTC294X<'static, I2CDevice<'static, I>>,
         board_kernel: &'static kernel::Kernel,
@@ -112,7 +112,7 @@ impl<I: 'static + i2c::I2CMaster> Ltc294xDriverComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Ltc294xDriverComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Ltc294xDriverComponent<I> {
     type StaticInput = &'static mut MaybeUninit<LTC294XDriver<'static, I2CDevice<'static, I>>>;
     type Output = &'static LTC294XDriver<'static, I2CDevice<'static, I>>;
 

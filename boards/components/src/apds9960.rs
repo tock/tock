@@ -28,13 +28,13 @@ macro_rules! apds9960_component_static {
     };};
 }
 
-pub struct Apds9960Component<I: 'static + i2c::I2CMaster> {
+pub struct Apds9960Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
 }
 
-impl<I: 'static + i2c::I2CMaster> Apds9960Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Apds9960Component<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -48,7 +48,7 @@ impl<I: 'static + i2c::I2CMaster> Apds9960Component<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Apds9960Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Apds9960Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<APDS9960<'static, I2CDevice<'static, I>>>,

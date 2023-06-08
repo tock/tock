@@ -56,13 +56,13 @@ macro_rules! bmp280_component_static {
     };};
 }
 
-pub struct Bmp280Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> {
+pub struct Bmp280Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> Bmp280Component<A, I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Bmp280Component<A, I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -76,7 +76,9 @@ impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> Bmp280Component<A
     }
 }
 
-impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster> Component for Bmp280Component<A, I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Component
+    for Bmp280Component<A, I>
+{
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

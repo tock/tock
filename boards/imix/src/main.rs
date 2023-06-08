@@ -448,14 +448,14 @@ pub unsafe fn main() {
 
     // # I2C and I2C Sensors
     let mux_i2c = static_init!(
-        MuxI2C<'static, sam4l::i2c::I2CHw>,
+        MuxI2C<'static, sam4l::i2c::I2CHw<'static>>,
         MuxI2C::new(&peripherals.i2c2, None)
     );
     kernel::deferred_call::DeferredCallClient::register(mux_i2c);
     peripherals.i2c2.set_master_client(mux_i2c);
 
     let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm).finalize(
-        components::isl29035_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw),
+        components::isl29035_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw<'static>),
     );
     let ambient_light = AmbientLightComponent::new(
         board_kernel,
@@ -465,7 +465,7 @@ pub unsafe fn main() {
     .finalize(components::ambient_light_component_static!());
 
     let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40).finalize(
-        components::si7021_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw),
+        components::si7021_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw<'static>),
     );
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
@@ -481,7 +481,9 @@ pub unsafe fn main() {
     .finalize(components::humidity_component_static!());
 
     let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
-        .finalize(components::fxos8700_component_static!(sam4l::i2c::I2CHw));
+        .finalize(components::fxos8700_component_static!(
+            sam4l::i2c::I2CHw<'static>
+        ));
 
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,

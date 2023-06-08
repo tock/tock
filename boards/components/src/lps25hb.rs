@@ -30,7 +30,7 @@ macro_rules! lps25hb_component_static {
     };};
 }
 
-pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster> {
+pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
@@ -38,7 +38,7 @@ pub struct Lps25hbComponent<I: 'static + i2c::I2CMaster> {
     driver_num: usize,
 }
 
-impl<I: 'static + i2c::I2CMaster> Lps25hbComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Lps25hbComponent<I> {
     pub fn new(
         i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -56,7 +56,7 @@ impl<I: 'static + i2c::I2CMaster> Lps25hbComponent<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Lps25hbComponent<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Lps25hbComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<LPS25HB<'static, I2CDevice<'static, I>>>,

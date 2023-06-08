@@ -42,13 +42,13 @@ macro_rules! fxos8700_component_static {
     };};
 }
 
-pub struct Fxos8700Component<I: 'static + i2c::I2CMaster> {
+pub struct Fxos8700Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     gpio: &'static dyn gpio::InterruptPin<'static>,
 }
 
-impl<I: 'static + i2c::I2CMaster> Fxos8700Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Fxos8700Component<I> {
     pub fn new<'a>(
         i2c: &'static MuxI2C<'static, I>,
         i2c_address: u8,
@@ -62,7 +62,7 @@ impl<I: 'static + i2c::I2CMaster> Fxos8700Component<I> {
     }
 }
 
-impl<I: 'static + i2c::I2CMaster> Component for Fxos8700Component<I> {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Fxos8700Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; capsules_extra::fxos8700cq::BUF_LEN]>,

@@ -39,8 +39,8 @@ macro_rules! mlx90614_component_static {
 }
 
 pub struct Mlx90614SMBusComponent<
-    I: 'static + i2c::I2CMaster,
-    S: 'static + i2c::SMBusMaster = NoSMBus,
+    I: 'static + i2c::I2CMaster<'static>,
+    S: 'static + i2c::SMBusMaster<'static> = NoSMBus,
 > {
     i2c_mux: &'static MuxI2C<'static, I, S>,
     i2c_address: u8,
@@ -48,7 +48,9 @@ pub struct Mlx90614SMBusComponent<
     driver_num: usize,
 }
 
-impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> Mlx90614SMBusComponent<I, S> {
+impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>>
+    Mlx90614SMBusComponent<I, S>
+{
     pub fn new(
         i2c: &'static MuxI2C<'static, I, S>,
         i2c_address: u8,
@@ -64,7 +66,7 @@ impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> Mlx90614SMBusCo
     }
 }
 
-impl<I: 'static + i2c::I2CMaster, S: 'static + i2c::SMBusMaster> Component
+impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>> Component
     for Mlx90614SMBusComponent<I, S>
 {
     type StaticInput = (
