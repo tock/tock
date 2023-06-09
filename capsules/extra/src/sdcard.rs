@@ -34,6 +34,11 @@
 //!      capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
 //! sdcard_virtual_alarm.setup();
 //!
+//! let sdcard_tx_buffer = static_init!([u8; capsules::sdcard::TXRX_BUFFER_LENGTH],
+//!                                     [0; capsules::sdcard::TXRX_BUFFER_LENGTH]);
+//! let sdcard_rx_buffer = static_init!([u8; capsules::sdcard::TXRX_BUFFER_LENGTH],
+//!                                     [0; capsules::sdcard::TXRX_BUFFER_LENGTH]);
+//!
 //! let sdcard = static_init!(
 //!     capsules::sdcard::SDCard<
 //!         'static,
@@ -41,11 +46,14 @@
 //!     capsules::sdcard::SDCard::new(sdcard_spi,
 //!                                   sdcard_virtual_alarm,
 //!                                   Some(&SD_DETECT_PIN),
-//!                                   &mut capsules::sdcard::TXBUFFER,
-//!                                   &mut capsules::sdcard::RXBUFFER));
+//!                                   sdcard_tx_buffer,
+//!                                   sdcard_rx_buffer));
 //! sdcard_spi.set_client(sdcard);
 //! sdcard_virtual_alarm.set_alarm_client(sdcard);
 //! SD_DETECT_PIN.set_client(sdcard);
+//!
+//! let sdcard_kernel_buffer = static_init!([u8; capsules::sdcard::KERNEL_BUFFER_LENGTH],
+//!                                         [0; capsules::sdcard::KERNEL_BUFFER_LENGTH]);
 //!
 //! let sdcard_driver = static_init!(
 //!     capsules::sdcard::SDCardDriver<
@@ -53,7 +61,7 @@
 //!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>>,
 //!     capsules::sdcard::SDCardDriver::new(
 //!         sdcard,
-//!         &mut capsules::sdcard::KERNEL_BUFFER,
+//!         sdcard_kernel_buffer,
 //!         board_kernel.create_grant(
 //!             capsules::sdcard::DRIVER_NUM,
 //!             &memory_allocation_capability)));
@@ -100,8 +108,7 @@ mod rw_allow {
 ///
 ///  * RXBUFFER must be greater than or equal to TXBUFFER in length
 ///  * Both RXBUFFER and TXBUFFER must be longer  than the SD card's block size
-pub static mut TXBUFFER: [u8; 515] = [0; 515];
-pub static mut RXBUFFER: [u8; 515] = [0; 515];
+pub const TXRX_BUFFER_LENGTH: usize = 515;
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
 pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
@@ -1467,7 +1474,7 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 pub struct App;
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
-pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
+pub const KERNEL_BUFFER_LENGTH: usize = 512;
 
 /// Functions for SDCardDriver
 impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {

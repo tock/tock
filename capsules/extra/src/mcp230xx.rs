@@ -36,12 +36,14 @@
 //! let mcp230xx_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_mux, 0x20));
+//! let mcp230xx_buffer = static_init!([u8; capsules::mcp230xx::BUFFER_LENGTH],
+//!                                    [0; capsules::mcp230xx::BUFFER_LENGTH]);
 //! let mcp230xx = static_init!(
 //!     capsules::mcp230xx::MCP230xx<'static>,
 //!     capsules::mcp230xx::MCP230xx::new(mcp230xx_i2c,
 //!                                       Some(&sam4l::gpio::PA[04]),
 //!                                       None,
-//!                                       &mut capsules::mcp230xx::BUFFER,
+//!                                       mcp230xx_buffer,
 //!                                       8, // How many pins in a bank
 //!                                       1, // How many pin banks on the chip
 //!                                       ));
@@ -75,7 +77,7 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 // Buffer to use for I2C messages
-pub static mut BUFFER: [u8; 7] = [0; 7];
+pub const BUFFER_LENGTH: usize = 7;
 
 #[allow(dead_code)]
 #[derive(Debug)]

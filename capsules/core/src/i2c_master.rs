@@ -27,7 +27,7 @@ mod rw_allow {
 #[derive(Default)]
 pub struct App;
 
-pub static mut BUF: [u8; 64] = [0; 64];
+pub const BUFFER_LENGTH: usize = 64;
 
 struct Transaction {
     /// The buffer containing the bytes to transmit as it should be returned to

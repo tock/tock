@@ -315,11 +315,15 @@ unsafe fn setup() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Init the I2C device attached via Qwiic
+    let i2c_master_buffer = static_init!(
+        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master::BUFFER_LENGTH]
+    );
     let i2c_master = static_init!(
         capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
         capsules_core::i2c_master::I2CMasterDriver::new(
             &peripherals.iom0,
-            &mut capsules_core::i2c_master::BUF,
+            i2c_master_buffer,
             board_kernel.create_grant(
                 capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_cap
