@@ -673,19 +673,15 @@ pub unsafe fn main() {
     //     ]
     // );
 
-    // let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
-    // let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
-
     // let (ctap, _ctap_driver) = components::ctap::CtapComponent::new(
-    //     &peripherals.usbd,
+    //     board_kernel,
+    //     capsules_extra::ctap::DRIVER_NUM,
+    //     &nrf52840_peripherals.usbd,
     //     0x1915, // Nordic Semiconductor
     //     0x503a, // lowRISC generic FS USB
     //     strings,
-    //     board_kernel,
-    //     ctap_send_buffer,
-    //     ctap_recv_buffer,
     // )
-    // .finalize(components::usb_ctap_component_helper!(nrf52840::usbd::Usbd));
+    // .finalize(components::ctap_component_static!(nrf52840::usbd::Usbd));
 
     // ctap.enable();
     // ctap.attach();
