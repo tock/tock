@@ -40,6 +40,7 @@ fn tickv_append_key() {
                     'static,
                     FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
                     capsules_extra::sip_hash::SipHasher24,
+                    2048,
                 >,
                 TicKVKeyType,
             >,

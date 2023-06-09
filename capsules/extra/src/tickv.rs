@@ -75,12 +75,14 @@ impl<'a, F: Flash> TickFSFlashCtrl<'a, F> {
     }
 }
 
-impl<'a, F: Flash> tickv::flash_controller::FlashController<2048> for TickFSFlashCtrl<'a, F> {
+impl<'a, F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashController<PAGE_SIZE>
+    for TickFSFlashCtrl<'a, F>
+{
     fn read_region(
         &self,
         region_number: usize,
         _offset: usize,
-        _buf: &mut [u8; 2048],
+        _buf: &mut [u8; PAGE_SIZE],
     ) -> Result<(), tickv::error_codes::ErrorCode> {
         if self
             .flash
@@ -100,12 +102,12 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<2048> for TickFSFlas
         let data_buf = self.flash_read_buffer.take().unwrap();
 
         for (i, d) in buf.iter().enumerate() {
-            data_buf.as_mut()[i + (address % 2048)] = *d;
+            data_buf.as_mut()[i + (address % PAGE_SIZE)] = *d;
         }
 
         if self
             .flash
-            .write_page(self.region_offset + (address / 2048), data_buf)
+            .write_page(self.region_offset + (address / PAGE_SIZE), data_buf)
             .is_err()
         {
             return Err(tickv::error_codes::ErrorCode::WriteFail);
@@ -123,8 +125,8 @@ impl<'a, F: Flash> tickv::flash_controller::FlashController<2048> for TickFSFlas
 
 pub type TicKVKeyType = [u8; 8];
 
-pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>> {
-    tickv: AsyncTicKV<'a, TickFSFlashCtrl<'a, F>, 2048>,
+pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE: usize> {
+    tickv: AsyncTicKV<'a, TickFSFlashCtrl<'a, F>, PAGE_SIZE>,
     hasher: &'a H,
     operation: Cell<Operation>,
     next_operation: Cell<Operation>,
@@ -138,16 +140,16 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>> {
     client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H, PAGE_SIZE> {
     pub fn new(
         flash: &'a F,
         hasher: &'a H,
-        tickfs_read_buf: &'static mut [u8; 2048],
+        tickfs_read_buf: &'static mut [u8; PAGE_SIZE],
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
         flash_size: usize,
-    ) -> TicKVStore<'a, F, H> {
-        let tickv = AsyncTicKV::<TickFSFlashCtrl<F>, 2048>::new(
+    ) -> TicKVStore<'a, F, H, PAGE_SIZE> {
+        let tickv = AsyncTicKV::<TickFSFlashCtrl<F>, PAGE_SIZE>::new(
             TickFSFlashCtrl::new(flash, flash_read_buffer, region_offset),
             tickfs_read_buf,
             flash_size,
@@ -225,7 +227,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<8> for TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
+    for TicKVStore<'a, F, H, PAGE_SIZE>
+{
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
         self.unhashed_key_buf.replace(data);
         self.hasher.run(self.key_buf.take().unwrap()).unwrap();
@@ -242,7 +246,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> hasher::Client<8> for TicKVStore<'a, F, H> 
     }
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> flash::Client<F> for TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
+    for TicKVStore<'a, F, H, PAGE_SIZE>
+{
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
         self.tickv.set_read_buffer(pagebuffer.as_mut());
         self.tickv
@@ -377,7 +383,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>> flash::Client<F> for TicKVStore<'a, F, H> {
     }
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>> KVSystem<'a> for TicKVStore<'a, F, H> {
+impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
+    for TicKVStore<'a, F, H, PAGE_SIZE>
+{
     type K = TicKVKeyType;
 
     fn set_client(&self, client: &'a dyn kv_system::Client<Self::K>) {

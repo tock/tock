@@ -78,6 +78,7 @@ static mut TICKV: Option<
             lowrisc::flash_ctrl::FlashCtrl<'static>,
         >,
         capsules_extra::sip_hash::SipHasher24<'static>,
+        2048,
     >,
 > = None;
 // Test access to AES
@@ -177,6 +178,7 @@ struct EarlGrey {
                 lowrisc::flash_ctrl::FlashCtrl<'static>,
             >,
             capsules_extra::sip_hash::SipHasher24<'static>,
+            2048,
         >,
         [u8; 8],
     >,
@@ -542,7 +544,8 @@ unsafe fn setup() -> (
     )
     .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
-        capsules_extra::sip_hash::SipHasher24
+        capsules_extra::sip_hash::SipHasher24,
+        2048
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
     sip_hash.set_client(tickv);
@@ -555,6 +558,7 @@ unsafe fn setup() -> (
                     lowrisc::flash_ctrl::FlashCtrl,
                 >,
                 capsules_extra::sip_hash::SipHasher24<'static>,
+                2048,
             >,
             capsules_extra::tickv::TicKVKeyType,
         ),
@@ -567,6 +571,7 @@ unsafe fn setup() -> (
                     lowrisc::flash_ctrl::FlashCtrl,
                 >,
                 capsules_extra::sip_hash::SipHasher24<'static>,
+                2048,
             >,
             capsules_extra::tickv::TicKVKeyType,
         ),
@@ -582,6 +587,7 @@ unsafe fn setup() -> (
         capsules_extra::tickv::TicKVStore<
             capsules_core::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
             capsules_extra::sip_hash::SipHasher24<'static>,
+            2048,
         >,
         capsules_extra::tickv::TicKVKeyType,
     ));
