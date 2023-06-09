@@ -120,12 +120,22 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
             app.index = start + tmp_len;
             tmp_len
         });
+
+        let rlen = kernel_data
+            .get_readwrite_processbuffer(rw_allow::READ)
+            .map_or(0, |read| read.len());
+
         // TODO verify SPI return value
-        let _ = self.spi_master.read_write_bytes(
-            self.kernel_write.take().unwrap(),
-            self.kernel_read.take(),
-            write_len,
-        );
+        let _ = if rlen == 0 {
+            self.spi_master
+                .read_write_bytes(self.kernel_write.take().unwrap(), None, write_len)
+        } else {
+            self.spi_master.read_write_bytes(
+                self.kernel_write.take().unwrap(),
+                self.kernel_read.take(),
+                write_len,
+            )
+        };
     }
 }
 
@@ -322,7 +332,9 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                     src
                 });
 
-                self.kernel_read.put(rbuf);
+                if rbuf.is_some() {
+                    self.kernel_read.put(rbuf);
+                }
                 self.kernel_write.replace(writebuf);
 
                 if app.index == app.len {
