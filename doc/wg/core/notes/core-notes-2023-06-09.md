@@ -38,7 +38,7 @@
  - Pat: Similar. Going to be a couple weeks, but interested.
  - Branden: One way this could work is for Brad to come up with a task list and put it out there, and then the rest of us can tag on
  - Brad: I am a little worried about "last-minute code", since we have a much higher expectation of code reliability these days compared to like five years ago
- - Pat: Maybe we should have an earlier deadline for beta testing
+ - Pat: Maybe we should have an earlier deadline for beta testing. We can do a real, "virtual tutorial" with some of our students as attendees. Force use to have the whole thing written in advance and work through any bugs / technical glitches
  - Brad: Seems reasonable
  - Branden: I'm a little concerned that Amit or Alex might have stronger concerns about exactly what the tutorial covers
  - Brad: I think the userspace side is the biggest open question there. The kernel side we've got a few ideas put together
