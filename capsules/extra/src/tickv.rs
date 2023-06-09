@@ -266,7 +266,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
             Operation::Init => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
                 | Ok(tickv::success_codes::SuccessCode::Written) => {
-                    self.operation.set(Operation::None)
+                    self.complete_init();
                 }
                 _ => {}
             },
