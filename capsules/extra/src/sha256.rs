@@ -14,6 +14,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
 use kernel::hil::digest::Client;
 use kernel::hil::digest::Sha256;
+use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::LeasableBuffer;
@@ -478,4 +479,12 @@ impl Sha256 for Sha256Software<'_> {
     fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
+}
+
+impl<'a> DigestDataHash<'a, 32> for Sha256Software<'a> {
+    fn set_client(&'a self, _client: &'a dyn ClientDataHash<32>) {}
+}
+
+impl<'a> DigestDataVerify<'a, 32> for Sha256Software<'a> {
+    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<32>) {}
 }
