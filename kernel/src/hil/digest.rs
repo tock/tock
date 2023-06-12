@@ -246,14 +246,20 @@ pub trait Digest<'a, const L: usize>:
 /// Computes a digest (cryptographic hash) over data.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {}
-impl<'a, T: DigestData<'a, L> + DigestHash<'a, L>, const L: usize> DigestDataHash<'a, L> for T {}
+pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {
+    /// Set the client instance which will receive `hash_done()` and
+    /// `add_data_done()` callbacks.
+    fn set_client(&'a self, client: &'a dyn ClientDataHash<L>);
+}
 
-/// Verify a digest over data.
+/// Verify a digest (cryptographic hash) over data.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
-pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {}
-impl<'a, T: DigestData<'a, L> + DigestVerify<'a, L>, const L: usize> DigestDataVerify<'a, L> for T {}
+pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {
+    /// Set the client instance which will receive `verify_done()` and
+    /// `add_data_done()` callbacks.
+    fn set_client(&'a self, client: &'a dyn ClientDataVerify<L>);
+}
 
 pub trait Sha224 {
     /// Call before adding data to perform Sha224
