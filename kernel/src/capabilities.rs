@@ -84,9 +84,9 @@ pub unsafe trait MemoryAllocationCapability {}
 /// restricted.
 pub unsafe trait ExternalProcessCapability {}
 
-/// The `SuperuserStorageCapability` capability allows the holder to create
-/// permissions to access any stored values on the system.
-pub unsafe trait SuperuserStorageCapability {}
+/// The KernelruserStorageCapability` capability allows the holder to create
+/// permissions to access kernel-only stored values on the system.
+pub unsafe trait KerneluserStorageCapability {}
 
 /// The `UdpDriverCapability` capability allows the holder to use two functions
 /// only allowed by the UDP driver. The first is the `driver_send_to()` function

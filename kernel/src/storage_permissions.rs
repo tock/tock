@@ -38,11 +38,11 @@ pub struct StoragePermissions {
     /// The identifier for this storage user when creating new objects. If
     /// `None` there is no `write_id` for these permissions.
     write_id: Option<NonZeroU32>,
-    /// If `superuser` is true, this permission grants full access to all stored
-    /// items. New items created with `superuser == true` will use the specified
-    /// ID if  `write_id.is_some()`, otherwise new items will be created with
-    /// the reserved ID (i.e., 0).
-    superuser: bool,
+    /// If `kerneluser` is true, this permission grants access to all objects
+    /// stored stored with `write_id` 0. New items created with `kerneluser ==
+    /// true` will use the specified ID if  `write_id.is_some()`, otherwise new
+    /// items will be created with the reserved ID (i.e., 0).
+    kerneluser: bool,
 }
 
 impl StoragePermissions {
@@ -61,7 +61,7 @@ impl StoragePermissions {
             write_count: write_count_capped,
             write_permissions,
             write_id,
-            superuser: false,
+            kerneluser: false,
         }
     }
 
@@ -69,7 +69,7 @@ impl StoragePermissions {
     /// kernel to read/update any stored item, and allows the kernel to write
     /// items that will not be accessible to any clients without superuser
     /// permissions.
-    pub fn new_kernel_permissions(_cap: &dyn capabilities::SuperuserStorageCapability) -> Self {
+    pub fn new_kernel_permissions(_cap: &dyn capabilities::KerneluserStorageCapability) -> Self {
         let read_permissions: [u32; 8] = [0; 8];
         let write_permissions: [u32; 8] = [0; 8];
         StoragePermissions {
@@ -78,56 +78,46 @@ impl StoragePermissions {
             write_count: 0,
             write_permissions,
             write_id: None,
-            superuser: true,
+            kerneluser: true,
         }
     }
 
     /// Check if this permission object grants read access to the specified
     /// `storage_id`. Returns `true` if access is permitted, `false` otherwise.
     pub fn check_read_permission(&self, storage_id: u32) -> bool {
-        if self.superuser {
-            // Superuser grants all permissions.
-            true
+        if storage_id == 0 {
+            // Only kerneluser can read ID 0.
+            self.kerneluser
         } else {
-            if storage_id == 0 {
-                // Only superuser can read ID 0.
-                false
-            } else {
-                // Otherwise check if given storage_id is in read permissions
-                // array.
-                self.read_permissions
-                    .get(0..self.read_count)
-                    .unwrap_or(&[])
-                    .contains(&storage_id)
-            }
+            // Otherwise check if given storage_id is in read permissions
+            // array.
+            self.read_permissions
+                .get(0..self.read_count)
+                .unwrap_or(&[])
+                .contains(&storage_id)
         }
     }
 
     /// Check if this permission object grants write access to the specified
     /// `storage_id`. Returns `true` if access is permitted, `false` otherwise.
     pub fn check_write_permission(&self, storage_id: u32) -> bool {
-        if self.superuser {
-            // Superuser grants all permissions.
-            true
+        if storage_id == 0 {
+            // Only kerneluser can access ID 0.
+            self.kerneluser
         } else {
-            if storage_id == 0 {
-                // Only superuser can access ID 0.
-                false
-            } else {
-                // Otherwise check if given storage_id is in read permissions
-                // array.
-                self.write_permissions
-                    .get(0..self.write_count)
-                    .unwrap_or(&[])
-                    .contains(&storage_id)
-            }
+            // Otherwise check if given storage_id is in read permissions
+            // array.
+            self.write_permissions
+                .get(0..self.write_count)
+                .unwrap_or(&[])
+                .contains(&storage_id)
         }
     }
 
     /// Get the `write_id` for saving items to the storage.
     pub fn get_write_id(&self) -> Option<u32> {
-        if self.superuser {
-            // If superuser, write_id is 0 unless specifically set.
+        if self.kerneluser {
+            // If kerneluser, write_id is 0 unless specifically set.
             Some(self.write_id.map_or(0, |wid| wid.get()))
         } else {
             self.write_id.map_or(None, |wid| Some(wid.get()))
