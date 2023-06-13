@@ -36,6 +36,5 @@
 # issue #3417)
 *.ld
 !/tools/license-checker/testdata/block_comments.ld
-*.jlink
 *.xml
 !/tools/license-checker/testdata/block_comments.xml

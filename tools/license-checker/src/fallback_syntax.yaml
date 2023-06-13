@@ -35,7 +35,7 @@ contexts:
       push: has_no_comments
 
   has_number_comments:
-    - match: "^# "
+    - match: "^#"
       scope: punctuation.definition.comment.fallback
       push: number_comment
 

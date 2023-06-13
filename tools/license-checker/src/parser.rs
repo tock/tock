@@ -300,6 +300,7 @@ mod tests {
             Other,
             Other,
             Other,
+            Comment("Lines starting with a '#' without a space are comments too."),
         ];
         let path = Path::new("testdata/number_signs.fallback");
         assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
