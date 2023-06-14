@@ -41,8 +41,7 @@
 //! ```
 //! /// Doc comments
 //! /** of any type **/
-//! /*
-//!  * Block comments with leading asterisks on each line. This style is
+//! /* Block comments with leading asterisks on each line. This style is
 //!  * difficult to support in a filetype-agnostic way.
 //!  */
 //! ```
@@ -71,7 +70,13 @@
 //! Copyright Tock Contributors 2023.
 //! */
 //! ```
-//! because it is preceded by an empty comment, not a blank line.
+//! because it is preceded by an empty comment, not a blank line. Instead, in
+//! languages that lack a line comment syntax, use the following style:
+//! ```
+//! /* Licensed under the Apache License, Version 2.0 or the MIT License. */
+//! /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+//! /* Copyright Tock Contributors 2023.                                  */
+//! ```
 //!
 //! # Design philosophy
 //! This license checker is designed to catch easy-to-make and hard-to-catch
