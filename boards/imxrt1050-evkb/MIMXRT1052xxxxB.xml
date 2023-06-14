@@ -1,3 +1,7 @@
+<!-- Licensed under the Apache License, Version 2.0 or the MIT License. -->
+<!-- SPDX-License-Identifier: Apache-2.0 OR MIT                         -->
+<!-- Copyright Tock Contributors 2020.                                  -->
+
 <directory>
  <chips chipVendor='NXP' >
   <chip name='MIMXRT1052xxxxB' xml_file='MIMXRT1052xxxxB_part.xml' />
