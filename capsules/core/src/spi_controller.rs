@@ -54,7 +54,7 @@ pub struct App {
     index: usize,
 }
 
-pub struct Spi<'a, S: SpiMasterDevice> {
+pub struct Spi<'a, S: SpiMasterDevice<'a>> {
     spi_master: &'a S,
     busy: Cell<bool>,
     kernel_read: TakeCell<'static, [u8]>,
@@ -69,7 +69,7 @@ pub struct Spi<'a, S: SpiMasterDevice> {
     current_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, S: SpiMasterDevice> Spi<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
     pub fn new(
         spi_master: &'a S,
         grants: Grant<
@@ -139,7 +139,7 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
     // 2: read/write buffers
     //   - requires write buffer registered with allow
     //   - read buffer optional
@@ -288,7 +288,7 @@ impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
     }
 }
 
-impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
+impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(
         &self,
         writebuf: &'static mut [u8],

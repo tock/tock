@@ -139,9 +139,9 @@ register_bitfields![u32,
     ],
 ];
 
-pub struct SpiHost {
+pub struct SpiHost<'a> {
     registers: StaticRef<SpiHostRegisters>,
-    client: OptionalCell<&'static dyn hil::spi::SpiMasterClient>,
+    client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     busy: Cell<bool>,
     chip_select: Cell<u32>,
     cpu_clk: u32,
@@ -158,7 +158,7 @@ const SPI_HOST_CMD_BIDIRECTIONAL: u32 = 3;
 // SPI Host Command Speed: Standard SPI
 const SPI_HOST_CMD_STANDARD_SPI: u32 = 0;
 
-impl SpiHost {
+impl<'a> SpiHost<'a> {
     pub fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
         SpiHost {
             registers: base,
@@ -552,7 +552,7 @@ impl SpiHost {
     }
 }
 
-impl hil::spi::SpiMaster for SpiHost {
+impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
     type ChipSelect = u32;
 
     fn init(&self) -> Result<(), ErrorCode> {
@@ -573,7 +573,7 @@ impl hil::spi::SpiMaster for SpiHost {
         Ok(())
     }
 
-    fn set_client(&self, client: &'static dyn hil::spi::SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn hil::spi::SpiMasterClient) {
         self.client.set(client);
     }
 

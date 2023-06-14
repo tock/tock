@@ -48,7 +48,7 @@ pub struct PeripheralApp {
     index: usize,
 }
 
-pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
+pub struct SpiPeripheral<'a, S: SpiSlaveDevice<'a>> {
     spi_slave: &'a S,
     busy: Cell<bool>,
     kernel_read: TakeCell<'static, [u8]>,
@@ -63,7 +63,7 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice> {
     current_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
+impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
     pub fn new(
         spi_slave: &'a S,
         grants: Grant<
@@ -123,7 +123,7 @@ impl<'a, S: SpiSlaveDevice> SpiPeripheral<'a, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> SyscallDriver for SpiPeripheral<'_, S> {
+impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
     /// Provide read/write buffers to SpiPeripheral
     ///
     /// - allow_num 0: Provides a buffer to receive transfers into.
@@ -256,7 +256,7 @@ impl<S: SpiSlaveDevice> SyscallDriver for SpiPeripheral<'_, S> {
     }
 }
 
-impl<S: SpiSlaveDevice> SpiSlaveClient for SpiPeripheral<'_, S> {
+impl<'a, S: SpiSlaveDevice<'a>> SpiSlaveClient for SpiPeripheral<'a, S> {
     fn read_write_done(
         &self,
         writebuf: Option<&'static mut [u8]>,

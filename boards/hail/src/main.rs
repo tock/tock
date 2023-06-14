@@ -78,7 +78,7 @@ struct Hail {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
-            sam4l::spi::SpiHw,
+            sam4l::spi::SpiHw<'static>,
         >,
     >,
     nrf51822: &'static capsules_extra::nrf51822_serialization::Nrf51822Serialization<'static>,

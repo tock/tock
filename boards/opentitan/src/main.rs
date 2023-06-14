@@ -158,7 +158,7 @@ struct EarlGrey {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
-            lowrisc::spi_host::SpiHost,
+            lowrisc::spi_host::SpiHost<'static>,
         >,
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,

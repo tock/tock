@@ -122,7 +122,7 @@ impl Default for App {
 
 pub struct NonvolatileStorage<'a> {
     // The underlying physical storage device.
-    driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
+    driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
     // Per-app state.
     apps: Grant<
         App,
@@ -147,8 +147,7 @@ pub struct NonvolatileStorage<'a> {
 
     // Optional client for the kernel. Only needed if the kernel intends to use
     // this nonvolatile storage.
-    kernel_client:
-        OptionalCell<&'static dyn hil::nonvolatile_storage::NonvolatileStorageClient<'static>>,
+    kernel_client: OptionalCell<&'a dyn hil::nonvolatile_storage::NonvolatileStorageClient>,
     // Whether the kernel is waiting for a read/write.
     kernel_pending_command: Cell<bool>,
     // Whether the kernel wanted a read/write.
@@ -163,7 +162,7 @@ pub struct NonvolatileStorage<'a> {
 
 impl<'a> NonvolatileStorage<'a> {
     pub fn new(
-        driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
+        driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
         grant: Grant<
             App,
             UpcallCount<2>,
@@ -427,7 +426,7 @@ impl<'a> NonvolatileStorage<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for NonvolatileStorage<'_> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'_> {
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
@@ -492,8 +491,8 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for Nonvolatile
 }
 
 /// Provide an interface for the kernel.
-impl hil::nonvolatile_storage::NonvolatileStorage<'static> for NonvolatileStorage<'_> {
-    fn set_client(&self, client: &'static dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
+impl<'a> hil::nonvolatile_storage::NonvolatileStorage<'a> for NonvolatileStorage<'a> {
+    fn set_client(&self, client: &'a dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.kernel_client.set(client);
     }
 

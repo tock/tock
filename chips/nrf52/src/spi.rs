@@ -237,10 +237,10 @@ impl Frequency {
 ///
 /// A `SPIM` instance wraps a `registers::spim::SPIM` together with
 /// addition data necessary to implement an asynchronous interface.
-pub struct SPIM {
+pub struct SPIM<'a> {
     registers: StaticRef<SpimRegisters>,
-    client: OptionalCell<&'static dyn hil::spi::SpiMasterClient>,
-    chip_select: OptionalCell<&'static dyn hil::gpio::Pin>,
+    client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
+    chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
     initialized: Cell<bool>,
     busy: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
@@ -248,8 +248,8 @@ pub struct SPIM {
     transfer_len: Cell<usize>,
 }
 
-impl SPIM {
-    pub fn new(instance: usize) -> SPIM {
+impl<'a> SPIM<'a> {
+    pub fn new(instance: usize) -> SPIM<'a> {
         SPIM {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),
@@ -336,10 +336,10 @@ impl SPIM {
     }
 }
 
-impl hil::spi::SpiMaster for SPIM {
-    type ChipSelect = &'static dyn hil::gpio::Pin;
+impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
+    type ChipSelect = &'a dyn hil::gpio::Pin;
 
-    fn set_client(&self, client: &'static dyn hil::spi::SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn hil::spi::SpiMasterClient) {
         self.client.set(client);
     }
 

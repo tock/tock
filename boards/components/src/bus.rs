@@ -94,7 +94,7 @@ impl<B: 'static + bus8080::Bus8080<'static>> Component for Bus8080BusComponent<B
     }
 }
 
-pub struct SpiMasterBusComponent<S: 'static + spi::SpiMaster> {
+pub struct SpiMasterBusComponent<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
     baud_rate: u32,
@@ -102,7 +102,7 @@ pub struct SpiMasterBusComponent<S: 'static + spi::SpiMaster> {
     clock_polarity: ClockPolarity,
 }
 
-impl<S: 'static + spi::SpiMaster> SpiMasterBusComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> SpiMasterBusComponent<S> {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
@@ -120,7 +120,7 @@ impl<S: 'static + spi::SpiMaster> SpiMasterBusComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for SpiMasterBusComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Component for SpiMasterBusComponent<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>>,

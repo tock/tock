@@ -152,7 +152,7 @@ struct Imix {
     >,
     spi: &'static capsules_core::spi_controller::Spi<
         'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
@@ -492,8 +492,9 @@ pub unsafe fn main() {
     .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
-        .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi).finalize(
+        components::spi_mux_component_static!(sam4l::spi::SpiHw<'static>),
+    );
 
     let spi_syscalls = SpiSyscallComponent::new(
         board_kernel,
@@ -501,9 +502,12 @@ pub unsafe fn main() {
         2,
         capsules_core::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
-    let rf233_spi = SpiComponent::new(mux_spi, 3)
-        .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
+    .finalize(components::spi_syscall_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
+    let rf233_spi = SpiComponent::new(mux_spi, 3).finalize(components::spi_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
     let rf233 = components::rf233::RF233Component::new(
         rf233_spi,
         &peripherals.pa[09], // reset
@@ -512,7 +516,9 @@ pub unsafe fn main() {
         &peripherals.pa[08],
         RADIO_CHANNEL,
     )
-    .finalize(components::rf233_component_static!(sam4l::spi::SpiHw));
+    .finalize(components::rf233_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -641,7 +647,10 @@ pub unsafe fn main() {
         serial_num_bottom_16,
     )
     .finalize(components::ieee802154_component_static!(
-        capsules_extra::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+        capsules_extra::rf233::RF233<
+            'static,
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
+        >,
         sam4l::aes::Aes<'static>
     ));
 

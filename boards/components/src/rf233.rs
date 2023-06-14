@@ -41,7 +41,7 @@ macro_rules! rf233_component_static {
     };};
 }
 
-pub struct RF233Component<S: SpiMaster + 'static> {
+pub struct RF233Component<S: SpiMaster<'static> + 'static> {
     spi: &'static VirtualSpiMasterDevice<'static, S>,
     reset: &'static dyn hil::gpio::Pin,
     sleep: &'static dyn hil::gpio::Pin,
@@ -50,7 +50,7 @@ pub struct RF233Component<S: SpiMaster + 'static> {
     channel: u8,
 }
 
-impl<S: SpiMaster + 'static> RF233Component<S> {
+impl<S: SpiMaster<'static> + 'static> RF233Component<S> {
     pub fn new(
         spi: &'static VirtualSpiMasterDevice<'static, S>,
         reset: &'static dyn hil::gpio::Pin,
@@ -70,7 +70,7 @@ impl<S: SpiMaster + 'static> RF233Component<S> {
     }
 }
 
-impl<S: SpiMaster + 'static> Component for RF233Component<S> {
+impl<S: SpiMaster<'static> + 'static> Component for RF233Component<S> {
     type StaticInput = &'static mut MaybeUninit<RF233<'static, VirtualSpiMasterDevice<'static, S>>>;
     type Output = &'static RF233<'static, VirtualSpiMasterDevice<'static, S>>;
 

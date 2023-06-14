@@ -38,14 +38,14 @@ macro_rules! l3gd20_component_static {
     };};
 }
 
-pub struct L3gd20Component<S: 'static + spi::SpiMaster> {
+pub struct L3gd20Component<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<S: 'static + spi::SpiMaster> L3gd20Component<S> {
+impl<S: 'static + spi::SpiMaster<'static>> L3gd20Component<S> {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
@@ -61,7 +61,7 @@ impl<S: 'static + spi::SpiMaster> L3gd20Component<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for L3gd20Component<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Component for L3gd20Component<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<L3gd20Spi<'static>>,

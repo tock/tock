@@ -14,14 +14,14 @@ use kernel::ErrorCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
 /// at most one outstanding Spi request.
-pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster> {
+pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster<'a>> {
     spi: &'a Spi,
     devices: List<'a, VirtualSpiMasterDevice<'a, Spi>>,
     inflight: OptionalCell<&'a VirtualSpiMasterDevice<'a, Spi>>,
     deferred_call: DeferredCall,
 }
 
-impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -41,7 +41,7 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for MuxSpiMaster<'_, Sp
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
     pub fn new(spi: &'a Spi) -> Self {
         Self {
             spi,
@@ -132,7 +132,7 @@ impl<'a, Spi: hil::spi::SpiMaster> MuxSpiMaster<'a, Spi> {
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> DeferredCallClient for MuxSpiMaster<'a, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> DeferredCallClient for MuxSpiMaster<'a, Spi> {
     fn handle_deferred_call(&self) {
         self.do_next_op();
     }
@@ -151,7 +151,7 @@ enum Op {
 
 // Structure used to store the SPI configuration of a client/virtual device,
 // so it can restored on each operation.
-struct SpiConfiguration<Spi: hil::spi::SpiMaster> {
+struct SpiConfiguration<'a, Spi: hil::spi::SpiMaster<'a>> {
     chip_select: Spi::ChipSelect,
     polarity: hil::spi::ClockPolarity,
     phase: hil::spi::ClockPhase,
@@ -161,16 +161,16 @@ struct SpiConfiguration<Spi: hil::spi::SpiMaster> {
 // Have to do this manually because otherwise the Copy and Clone are parameterized
 // by Spi::ChipSelect and don't work for Cells.
 // https://stackoverflow.com/questions/63132174/how-do-i-fix-the-method-clone-exists-but-the-following-trait-bounds-were-not
-impl<Spi: hil::spi::SpiMaster> Copy for SpiConfiguration<Spi> {}
-impl<Spi: hil::spi::SpiMaster> Clone for SpiConfiguration<Spi> {
-    fn clone(&self) -> SpiConfiguration<Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> Copy for SpiConfiguration<'a, Spi> {}
+impl<'a, Spi: hil::spi::SpiMaster<'a>> Clone for SpiConfiguration<'a, Spi> {
+    fn clone(&self) -> SpiConfiguration<'a, Spi> {
         *self
     }
 }
 
-pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
+pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster<'a>> {
     mux: &'a MuxSpiMaster<'a, Spi>,
-    configuration: Cell<SpiConfiguration<Spi>>,
+    configuration: Cell<SpiConfiguration<'a, Spi>>,
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
@@ -178,7 +178,7 @@ pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster> {
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> VirtualSpiMasterDevice<'a, Spi> {
     pub fn new(
         mux: &'a MuxSpiMaster<'a, Spi>,
         chip_select: Spi::ChipSelect,
@@ -205,7 +205,9 @@ impl<'a, Spi: hil::spi::SpiMaster> VirtualSpiMasterDevice<'a, Spi> {
     }
 }
 
-impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDevice<'_, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterClient
+    for VirtualSpiMasterDevice<'a, Spi>
+{
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],
@@ -219,7 +221,7 @@ impl<Spi: hil::spi::SpiMaster> hil::spi::SpiMasterClient for VirtualSpiMasterDev
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
+impl<'a, Spi: hil::spi::SpiMaster<'a>> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
     for VirtualSpiMasterDevice<'a, Spi>
 {
     fn next(&'a self) -> &'a ListLink<'a, VirtualSpiMasterDevice<'a, Spi>> {
@@ -227,7 +229,9 @@ impl<'a, Spi: hil::spi::SpiMaster> ListNode<'a, VirtualSpiMasterDevice<'a, Spi>>
     }
 }
 
-impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMasterDevice<'a, Spi> {
+impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterDevice<'a>
+    for VirtualSpiMasterDevice<'a, Spi>
+{
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.client.set(client);
     }
@@ -313,12 +317,12 @@ impl<'a, Spi: hil::spi::SpiMaster> hil::spi::SpiMasterDevice for VirtualSpiMaste
     }
 }
 
-pub struct SpiSlaveDevice<'a, Spi: hil::spi::SpiSlave> {
+pub struct SpiSlaveDevice<'a, Spi: hil::spi::SpiSlave<'a>> {
     spi: &'a Spi,
     client: OptionalCell<&'a dyn hil::spi::SpiSlaveClient>,
 }
 
-impl<'a, Spi: hil::spi::SpiSlave> SpiSlaveDevice<'a, Spi> {
+impl<'a, Spi: hil::spi::SpiSlave<'a>> SpiSlaveDevice<'a, Spi> {
     pub const fn new(spi: &'a Spi) -> SpiSlaveDevice<'a, Spi> {
         SpiSlaveDevice {
             spi: spi,
@@ -327,7 +331,7 @@ impl<'a, Spi: hil::spi::SpiSlave> SpiSlaveDevice<'a, Spi> {
     }
 }
 
-impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for SpiSlaveDevice<'_, Spi> {
+impl<'a, Spi: hil::spi::SpiSlave<'a>> hil::spi::SpiSlaveClient for SpiSlaveDevice<'a, Spi> {
     fn read_write_done(
         &self,
         write_buffer: Option<&'static mut [u8]>,
@@ -347,7 +351,7 @@ impl<Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveClient for SpiSlaveDevice<'_, Sp
     }
 }
 
-impl<'a, Spi: hil::spi::SpiSlave> hil::spi::SpiSlaveDevice for SpiSlaveDevice<'a, Spi> {
+impl<'a, Spi: hil::spi::SpiSlave<'a>> hil::spi::SpiSlaveDevice<'a> for SpiSlaveDevice<'a, Spi> {
     fn set_client(&self, client: &'a dyn hil::spi::SpiSlaveClient) {
         self.client.set(client);
     }
