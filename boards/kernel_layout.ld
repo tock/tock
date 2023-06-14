@@ -1,3 +1,7 @@
+/* Licensed under the Apache License, Version 2.0 or the MIT License. */
+/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/* Copyright Tock Contributors 2023.                                  */
+
 /*
  * This is the generic linker script for Tock. For most developers, it should
  * be sufficient to define {ROM/PROG/RAM}_{ORIGIN/LENGTH} (6 variables, the
