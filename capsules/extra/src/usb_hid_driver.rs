@@ -2,34 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Provides userspace with access CTAP devices over any transport
-//! layer (USB HID, BLE, NFC). Currently only USB HID is supported.
-//!
-//! Setup
-//! -----
-//!
-//! You need a device that provides the `hil::usb::UsbController` and
-//! `hil::usb_hid::UsbHid` trait.
-//!
-//! ```rust
-//!     let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
-//!     let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
-//!
-//!     let (ctap, ctap_driver) = components::ctap::CtapComponent::new(
-//!         &earlgrey::usbdev::USB,
-//!         0x1337, // My important company
-//!         0x0DEC, // My device name
-//!         strings,
-//!         board_kernel,
-//!         ctap_send_buffer,
-//!         ctap_recv_buffer,
-//!     )
-//!     .finalize(components::usb_ctap_component_helper!(lowrisc::usbdev::Usb));
-//!
-//!     ctap.enable();
-//!     ctap.attach();
-//! ```
-//!
+//! Provides userspace with access to USB HID devices with a simple syscall
+//! interface.
 
 use core::cell::Cell;
 use core::marker::PhantomData;
@@ -40,10 +14,6 @@ use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
-
-/// Syscall driver number.
-use capsules_core::driver;
-pub const DRIVER_NUM: usize = driver::NUM::CtapHid as usize;
 
 /// Ids for read-write allow buffers
 mod rw_allow {
@@ -65,7 +35,7 @@ impl Default for App {
     }
 }
 
-pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
+pub struct UsbHidDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
     app: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
@@ -76,14 +46,14 @@ pub struct CtapDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     recv_buffer: TakeCell<'static, [u8; 64]>,
 }
 
-impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
+impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> UsbHidDriver<'a, U> {
     pub fn new(
         usb: Option<&'a U>,
         send_buffer: &'static mut [u8; 64],
         recv_buffer: &'static mut [u8; 64],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
-    ) -> CtapDriver<'a, U> {
-        CtapDriver {
+    ) -> UsbHidDriver<'a, U> {
+        UsbHidDriver {
             usb: usb,
             app: grant,
             processid: OptionalCell::empty(),
@@ -94,7 +64,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> CtapDriver<'a, U> {
     }
 }
 
-impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::UsbHid<'a, [u8; 64]> for CtapDriver<'a, U> {
+impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::UsbHid<'a, [u8; 64]> for UsbHidDriver<'a, U> {
     fn send_buffer(
         &'a self,
         send: &'static mut [u8; 64],
@@ -134,7 +104,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::UsbHid<'a, [u8; 64]> for Cta
     }
 }
 
-impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for CtapDriver<'a, U> {
+impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for UsbHidDriver<'a, U> {
     fn packet_received(
         &'a self,
         _result: Result<(), ErrorCode>,
@@ -198,14 +168,14 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Cta
     }
 }
 
-impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
-    // Subscribe to CtapDriver events.
+impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U> {
+    // Subscribe to UsbHidDriver events.
     //
     // ### `subscribe_num`
     //
-    // - `0`: Subscribe to interrupts from Ctap events.
+    // - `0`: Subscribe to interrupts from HID events.
     //        The callback signature is `fn(direction: u32)`
-    //        `fn(0)` indicates a packet was recieved
+    //        `fn(0)` indicates a packet was received
     //        `fn(1)` indicates a packet was transmitted
 
     fn command(
@@ -217,7 +187,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
     ) -> CommandReturn {
         let can_access = self.processid.map_or(true, |owning_app| {
             if owning_app == &processid {
-                // We own the Ctap device
+                // We own the HID device
                 true
             } else {
                 false
@@ -229,8 +199,10 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
         }
 
         match command_num {
+            0 => CommandReturn::success(),
+
             // Send data
-            0 => self
+            1 => self
                 .app
                 .enter(processid, |_, kernel_data| {
                     self.processid.set(processid);
@@ -257,8 +229,9 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
+
             // Allow receive
-            1 => self
+            2 => self
                 .app
                 .enter(processid, |app, _| {
                     self.processid.set(processid);
@@ -280,25 +253,8 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
+
             // Cancel send
-            2 => self
-                .app
-                .enter(processid, |_app, _| {
-                    self.processid.set(processid);
-                    if let Some(usb) = self.usb {
-                        match usb.receive_cancel() {
-                            Ok(buf) => {
-                                self.recv_buffer.replace(buf);
-                                CommandReturn::success()
-                            }
-                            Err(err) => CommandReturn::failure(err),
-                        }
-                    } else {
-                        CommandReturn::failure(ErrorCode::NOSUPPORT)
-                    }
-                })
-                .unwrap_or_else(|err| err.into()),
-            // Cancel receive
             3 => self
                 .app
                 .enter(processid, |_app, _| {
@@ -316,6 +272,26 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
                     }
                 })
                 .unwrap_or_else(|err| err.into()),
+
+            // Cancel receive
+            4 => self
+                .app
+                .enter(processid, |_app, _| {
+                    self.processid.set(processid);
+                    if let Some(usb) = self.usb {
+                        match usb.receive_cancel() {
+                            Ok(buf) => {
+                                self.recv_buffer.replace(buf);
+                                CommandReturn::success()
+                            }
+                            Err(err) => CommandReturn::failure(err),
+                        }
+                    } else {
+                        CommandReturn::failure(ErrorCode::NOSUPPORT)
+                    }
+                })
+                .unwrap_or_else(|err| err.into()),
+
             // Send or receive
             // This command has two parts.
             //    Part 1: Receive
@@ -330,7 +306,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for CtapDriver<'a, U> {
             //            outcome as calling the Allow receive command.
             //            As well as that we will then send the data in the
             //            send buffer.
-            4 => self
+            5 => self
                 .app
                 .enter(processid, |app, kernel_data| {
                     if let Some(usb) = self.usb {
