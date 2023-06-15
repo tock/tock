@@ -177,6 +177,10 @@ pub trait KVSystem<'a> {
 
     /// Appends the key/value pair.
     ///
+    /// If the key already exists in the store and has not been invalidated then
+    /// the append operation will fail. To update an existing key to a new value
+    /// the key must first be invalidated.
+    ///
     /// `key`: A hashed key. This key will be used in future to retrieve
     ///        or remove the `value`.
     /// `value`: A buffer containing the data to be stored to flash.
@@ -188,7 +192,7 @@ pub trait KVSystem<'a> {
     ///    `BUSY`: An operation is already in progress
     ///    `INVAL`: An invalid parameter was passed
     ///    `NODEVICE`: No KV store was setup
-    ///    `ENOSUPPORT`: The key could not be added due to a collision.
+    ///    `NOSUPPORT`: The key could not be added due to a collision.
     ///    `NOMEM`: The key could not be added due to no more space.
     fn append_key(
         &self,
