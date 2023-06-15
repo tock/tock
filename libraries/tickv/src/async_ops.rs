@@ -339,8 +339,13 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
                     (ret, None)
                 }
                 _ => {
+                    let ret_buf = match self.tickv.state.get() {
+                        State::AppendKey(_) => self.value.take(),
+                        State::GetKey(_) => self.buf.take(),
+                        _ => None,
+                    };
                     self.tickv.state.set(State::None);
-                    (ret, self.buf.take())
+                    (ret, ret_buf)
                 }
             },
         }
