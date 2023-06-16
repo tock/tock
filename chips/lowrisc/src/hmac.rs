@@ -319,6 +319,8 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
         regs.wipe_secret.set(1 as u32);
         self.cancelled.set(true);
     }
+
+    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<32> + 'a)) {}
 }
 
 impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
@@ -341,6 +343,8 @@ impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
 
         Ok(())
     }
+
+    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<32> + 'a)) {}
 }
 
 impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
@@ -352,6 +356,8 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
 
         self.run(compare)
     }
+
+    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<32> + 'a)) {}
 }
 
 impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {

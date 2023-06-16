@@ -12,8 +12,8 @@
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
-use kernel::hil::digest::Client;
 use kernel::hil::digest::Sha256;
+use kernel::hil::digest::{Client, ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -330,6 +330,8 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
     fn clear_data(&self) {
         self.initialize();
     }
+
+    fn set_data_client(&'a self, _client: &'a (dyn ClientData<32> + 'a)) {}
 }
 
 impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
@@ -354,6 +356,8 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
             Ok(())
         }
     }
+
+    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<32> + 'a)) {}
 }
 
 impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
@@ -371,6 +375,8 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
             Ok(())
         }
     }
+
+    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<32> + 'a)) {}
 }
 
 impl<'a> Digest<'a, 32> for Sha256Software<'a> {

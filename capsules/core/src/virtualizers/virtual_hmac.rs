@@ -116,6 +116,8 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
             self.mux.hmac.clear_data()
         }
     }
+
+    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<L> + 'a)) {}
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
@@ -142,6 +144,8 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
             }
         }
     }
+
+    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<L> + 'a)) {}
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
@@ -166,6 +170,8 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
             }
         }
     }
+
+    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<L> + 'a)) {}
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
