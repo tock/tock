@@ -102,7 +102,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                 let static_buffer_len =
                                                     buf.len().min(unhashed_key.len());
 
-                                                // Copy the data into the static buffer
+                                                // Copy the data into the
+                                                // cleared static buffer.
+                                                buf.fill(0);
                                                 unhashed_key[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
@@ -142,7 +144,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                 let static_buffer_len =
                                                     buf.len().min(unhashed_key.len());
 
-                                                // Copy the data into the static buffer
+                                                // Copy the data into the
+                                                // cleared static buffer.
+                                                buf.fill(0);
                                                 unhashed_key[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
@@ -162,7 +166,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                 // Determine the size of the static buffer we have
                                                 static_buffer_len = buf.len().min(value.len());
 
-                                                // Copy the data into the static buffer
+                                                // Copy the data into the
+                                                // cleared static buffer.
+                                                buf.fill(0);
                                                 value[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
@@ -205,7 +211,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                                 let static_buffer_len =
                                                     buf.len().min(unhashed_key.len());
 
-                                                // Copy the data into the static buffer
+                                                // Copy the data into the
+                                                // cleared static buffer.
+                                                buf.fill(0);
                                                 unhashed_key[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
