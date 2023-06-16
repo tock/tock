@@ -6,7 +6,8 @@
 #
 # Script used to install additional requirements to the base Netlify image.
 #
-# Should not be used or relied on outside of Netlify context.
+# Should not be used or relied on outside of Netlify context
+# (exception: the docs-ci GitHub actions workflow, see issue #3428).
 #
 #  Author: Pat Pannuto <pat.pannuto@gmail.com>
 
