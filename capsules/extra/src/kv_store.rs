@@ -366,9 +366,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                                     }
                                     Err((key, value, e)) => {
                                         self.hashed_key.replace(key);
+                                        self.header_value.replace(value);
                                         node.operation.clear();
                                         node.client.map(move |cb| {
-                                            cb.get_complete(e, unhashed_key, value);
+                                            cb.delete_complete(e, unhashed_key);
                                         });
                                     }
                                 }
@@ -420,8 +421,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                 match op {
                     Operation::Set => {}
                     Operation::Delete => {
-                        node.operation.clear();
-
                         let mut access_allowed = false;
 
                         if result.is_ok() {
@@ -493,9 +492,15 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                                 if read_allowed {
                                     cb.get_complete(result, unhashed_key, ret_buf);
                                 } else {
-                                    // The operation failed or the caller doesn't have permission,
-                                    // just return an error (and an empty buffer)
-                                    cb.get_complete(Err(ErrorCode::FAIL), unhashed_key, ret_buf);
+                                    // The operation failed or the caller
+                                    // doesn't have permission, just return the
+                                    // error for key not found (and an empty
+                                    // buffer).
+                                    cb.get_complete(
+                                        Err(ErrorCode::NOSUPPORT),
+                                        unhashed_key,
+                                        ret_buf,
+                                    );
                                 }
                             });
                         });
@@ -526,7 +531,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
             });
         });
 
-        self.perform_cleanup.set(true);
+        self.perform_cleanup.set(false);
         self.do_next_op();
     }
 
