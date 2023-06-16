@@ -127,8 +127,8 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType + Default> Comp
 macro_rules! kv_driver_component_static {
     ($K:ty, $T:ty $(,)?) => {{
         let kv = kernel::static_buf!(capsules_extra::kv_driver::KVSystemDriver<'static, $K, $T>);
-        let data_buffer = kernel::static_buf!([u8; 32]);
-        let dest_buffer = kernel::static_buf!([u8; 48]);
+        let data_buffer = kernel::static_buf!([u8; 64]);
+        let dest_buffer = kernel::static_buf!([u8; 64]);
 
         (kv, data_buffer, dest_buffer)
     };};
@@ -159,16 +159,16 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
 {
     type StaticInput = (
         &'static mut MaybeUninit<KVSystemDriver<'static, K, T>>,
-        &'static mut MaybeUninit<[u8; 32]>,
-        &'static mut MaybeUninit<[u8; 48]>,
+        &'static mut MaybeUninit<[u8; 64]>,
+        &'static mut MaybeUninit<[u8; 64]>,
     );
     type Output = &'static KVSystemDriver<'static, K, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let data_buffer = static_buffer.1.write([0; 32]);
-        let dest_buffer = static_buffer.2.write([0; 48]);
+        let data_buffer = static_buffer.1.write([0; 64]);
+        let dest_buffer = static_buffer.2.write([0; 64]);
 
         let driver = static_buffer.0.write(KVSystemDriver::new(
             self.kv,
