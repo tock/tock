@@ -45,7 +45,7 @@ use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Operation {
     None,
     Init,
@@ -273,7 +273,8 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
 
                 match ret {
                     Ok(tickv::success_codes::SuccessCode::Complete)
-                    | Ok(tickv::success_codes::SuccessCode::Written) => {
+                    | Ok(tickv::success_codes::SuccessCode::Written)
+                    | Err(tickv::error_codes::ErrorCode::BufferTooSmall(_)) => {
                         self.operation.set(Operation::None);
                         self.client.map(|cb| {
                             cb.get_value_complete(
@@ -284,11 +285,15 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                         });
                     }
                     Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) | Ok(_) => {}
-                    _ => {
+                    Err(e) => {
+                        let get_tock_err = match e {
+                            tickv::error_codes::ErrorCode::KeyNotFound => ErrorCode::NOSUPPORT,
+                            _ => ErrorCode::FAIL,
+                        };
                         self.operation.set(Operation::None);
                         self.client.map(|cb| {
                             cb.get_value_complete(
-                                Err(ErrorCode::FAIL),
+                                Err(get_tock_err),
                                 self.key_buffer.take().unwrap(),
                                 self.ret_buffer.take().unwrap(),
                             );
@@ -308,13 +313,14 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     }
                     Ok(tickv::success_codes::SuccessCode::Queued) => {}
                     Err(e) => {
+                        self.operation.set(Operation::None);
+
                         let tock_hil_error = match e {
                             tickv::error_codes::ErrorCode::KeyAlreadyExists => ErrorCode::NOSUPPORT,
                             tickv::error_codes::ErrorCode::RegionFull => ErrorCode::NOMEM,
                             tickv::error_codes::ErrorCode::FlashFull => ErrorCode::NOMEM,
                             _ => ErrorCode::FAIL,
                         };
-
                         self.client.map(|cb| {
                             cb.append_key_complete(
                                 Err(tock_hil_error),
@@ -363,7 +369,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     cb.append_key_complete(
                         Ok(()),
                         self.key_buffer.take().unwrap(),
-                        self.tickv.get_stored_value_buffer().unwrap(),
+                        self.value_buffer.take().unwrap(),
                     );
                 });
             }
