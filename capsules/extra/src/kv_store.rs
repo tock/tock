@@ -451,6 +451,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                                 }
 
                                 Err((key, e)) => {
+                                    node.operation.clear();
                                     self.hashed_key.replace(key);
                                     node.unhashed_key.take().map(|unhashed_key| {
                                         node.client.map(move |cb| {
@@ -460,6 +461,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                                 }
                             }
                         } else {
+                            node.operation.clear();
                             self.hashed_key.replace(key);
                             node.unhashed_key.take().map(|unhashed_key| {
                                 node.client.map(move |cb| {
