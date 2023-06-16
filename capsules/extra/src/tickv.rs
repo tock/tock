@@ -432,7 +432,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
 
-                match self.tickv.append_key(u64::from_le_bytes(*key), value) {
+                match self.tickv.append_key(u64::from_be_bytes(*key), value) {
                     Ok(_ret) => {
                         self.key_buffer.replace(key);
                         Ok(())
@@ -478,7 +478,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             Operation::None => {
                 self.operation.set(Operation::GetKey);
 
-                match self.tickv.get_key(u64::from_le_bytes(*key), ret_buf) {
+                match self.tickv.get_key(u64::from_be_bytes(*key), ret_buf) {
                     Ok(_ret) => {
                         self.key_buffer.replace(key);
                         Ok(())
@@ -516,7 +516,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             Operation::None => {
                 self.operation.set(Operation::InvalidateKey);
 
-                match self.tickv.invalidate_key(u64::from_le_bytes(*key)) {
+                match self.tickv.invalidate_key(u64::from_be_bytes(*key)) {
                     Ok(_ret) => {
                         self.key_buffer.replace(key);
                         Ok(())
