@@ -172,7 +172,7 @@ impl fmt::Debug for ProcessLoadError {
 /// footers in the TBF for cryptographic credentials for binary
 /// integrity, passing them to the checker to decide whether the
 /// process has sufficient credentials to run.
-#[inline(always)]
+#[inline(never)]
 pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
     kernel_resources: &KR,
@@ -207,7 +207,7 @@ where
 /// credentials can call this method instead of `load_and_check_processes`
 /// because it results in a smaller kernel, as it does not invoke
 /// the credential checking state machine.
-#[inline(always)]
+#[inline(never)]
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
