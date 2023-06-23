@@ -149,8 +149,11 @@ macro_rules! compress {
 }
 
 fn read_le_u64(input: &[u8]) -> u64 {
-    let (int_bytes, _rest) = input.split_at(mem::size_of::<u64>());
-    u64::from_le_bytes(int_bytes.try_into().unwrap())
+    let mut eight_buf: [u8; 8] = [0; 8];
+    for i in 0..8 {
+        eight_buf[i] = *input.get(i).unwrap_or(&0);
+    }
+    u64::from_le_bytes(eight_buf)
 }
 
 fn read_le_u16(input: &[u8]) -> u16 {
