@@ -68,39 +68,6 @@ pub trait KeyType: Eq + Copy + Clone + Sized + AsRef<[u8]> + AsMut<[u8]> {}
 impl KeyType for [u8; 8] {}
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
-pub trait StoreClient<K: KeyType> {
-    /// This callback is called when the get operation completes.
-    ///
-    /// - `result`: Nothing on success, 'ErrorCode' on error
-    /// - `key`: The key buffer
-    /// - `ret_buf`: The ret_buf buffer
-    fn get_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        key: &'static mut [u8],
-        ret_buf: &'static mut [u8],
-    );
-
-    /// This callback is called when the set operation completes.
-    ///
-    /// - `result`: Nothing on success, 'ErrorCode' on error
-    /// - `key`: The key buffer
-    /// - `value`: The value buffer
-    fn set_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        key: &'static mut [u8],
-        value: &'static mut [u8],
-    );
-
-    /// This callback is called when the delete operation completes.
-    ///
-    /// - `result`: Nothing on success, 'ErrorCode' on error
-    /// - `key`: The key buffer
-    fn delete_complete(&self, result: Result<(), ErrorCode>, key: &'static mut [u8]);
-}
-
-/// Implement this trait and use `set_client()` in order to receive callbacks.
 pub trait Client<K: KeyType> {
     /// This callback is called when the append_key operation completes.
     ///
@@ -123,7 +90,7 @@ pub trait Client<K: KeyType> {
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut K,
-        value: &'static mut [u8],
+        value: LeasableMutableBuffer<'static, u8>,
     );
 
     /// This callback is called when the get_value operation completes.
@@ -135,7 +102,7 @@ pub trait Client<K: KeyType> {
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut K,
-        ret_buf: &'static mut [u8],
+        ret_buf: LeasableMutableBuffer<'static, u8>,
     );
 
     /// This callback is called when the invalidate_key operation completes.
@@ -199,12 +166,12 @@ pub trait KVSystem<'a> {
     fn append_key(
         &self,
         key: &'static mut Self::K,
-        value: &'static mut [u8],
+        value: LeasableMutableBuffer<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut Self::K,
-            &'static mut [u8],
+            LeasableMutableBuffer<'static, u8>,
             Result<(), ErrorCode>,
         ),
     >;
@@ -226,12 +193,12 @@ pub trait KVSystem<'a> {
     fn get_value(
         &self,
         key: &'static mut Self::K,
-        ret_buf: &'static mut [u8],
+        ret_buf: LeasableMutableBuffer<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut Self::K,
-            &'static mut [u8],
+            LeasableMutableBuffer<'static, u8>,
             Result<(), ErrorCode>,
         ),
     >;
@@ -255,15 +222,16 @@ pub trait KVSystem<'a> {
 
     /// Perform a garbage collection on the KV Store.
     ///
-    /// For implementations that don't require garbage collecting this can just
-    /// be a NOP that returns `Ok(0)`.
+    /// For implementations that don't require garbage collecting this should
+    /// return `Err(ErrorCode::ALREADY)`.
     ///
-    /// On success the number of bytes freed will be returned.
+    /// On success nothing will be returned.
     /// On error a `Result<(), ErrorCode>` will be returned.
     ///
-    /// The possible `Result<(), ErrorCode>`s are:
-    /// - `BUSY`: An operation is already in progress
-    /// - `INVAL`: An invalid parameter was passed
-    /// - `NODEVICE`: No KV store was setup
-    fn garbage_collect(&self) -> Result<usize, Result<(), ErrorCode>>;
+    /// The possible `ErrorCode`s are:
+    /// - `BUSY`: An operation is already in progress.
+    /// - `ALREADY`: Nothing to be done. Callback will not trigger.
+    /// - `INVAL`: An invalid parameter was passed.
+    /// - `NODEVICE`: No KV store was setup.
+    fn garbage_collect(&self) -> Result<(), ErrorCode>;
 }

@@ -79,11 +79,48 @@ impl KeyHeader {
     }
 }
 
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+pub trait StoreClient<K: KeyType> {
+    /// This callback is called when the get operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    /// - `ret_buf`: The ret_buf buffer
+    fn get_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
+    );
+
+    /// This callback is called when the set operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    /// - `value`: The value buffer
+    fn set_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
+    );
+
+    /// This callback is called when the delete operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    fn delete_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+    );
+}
+
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
     mux_kv: &'a MuxKVStore<'a, K, T>,
     next: ListLink<'a, KVStore<'a, K, T>>,
 
-    client: OptionalCell<&'a dyn kv_system::StoreClient<T>>,
+    client: OptionalCell<&'a dyn StoreClient<T>>,
     operation: OptionalCell<Operation>,
 
     unhashed_key: TakeCell<'static, [u8]>,
@@ -116,7 +153,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         self.mux_kv.users.push_head(self);
     }
 
-    pub fn set_client(&self, client: &'a dyn kv_system::StoreClient<T>) {
+    pub fn set_client(&self, client: &'a dyn StoreClient<T>) {
         self.client.set(client);
     }
 
