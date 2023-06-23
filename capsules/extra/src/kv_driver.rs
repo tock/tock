@@ -9,6 +9,7 @@ use capsules_core::driver;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
 
+use crate::kv_store;
 use crate::kv_store::KVStore;
 use core::cell::Cell;
 use kernel::grant::Grant;
@@ -17,6 +18,7 @@ use kernel::hil::kv_system;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::{ErrorCode, ProcessId};
 
 /// Ids for read-only allow buffers
@@ -93,22 +95,20 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                     if let Some(operation) = app.op.get() {
                         match operation {
                             UserSpaceOp::Get => {
-                                kernel_data
+                                let unhashed_key_len = kernel_data
                                     .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
                                     .and_then(|buffer| {
                                         buffer.enter(|unhashed_key| {
                                             self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the static buffer we have
+                                                // Determine the size of the
+                                                // static buffer we have and
+                                                // copy the contents.
                                                 let static_buffer_len =
                                                     buf.len().min(unhashed_key.len());
-
-                                                // Copy the data into the
-                                                // cleared static buffer.
-                                                buf.fill(0);
                                                 unhashed_key[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                                Ok(())
+                                                Ok(static_buffer_len)
                                             })
                                         })
                                     })
@@ -120,11 +120,18 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                             let perms = processid
                                                 .get_storage_permissions()
                                                 .ok_or(ErrorCode::INVAL)?;
+
+                                            let mut unhashed_key =
+                                                LeasableMutableBuffer::new(data_buffer);
+                                            unhashed_key.slice(..unhashed_key_len);
+
+                                            let value = LeasableMutableBuffer::new(dest_buffer);
+
                                             if let Err((data, dest, e)) =
-                                                self.kv.get(data_buffer, dest_buffer, perms)
+                                                self.kv.get(unhashed_key, value, perms)
                                             {
-                                                self.data_buffer.replace(data);
-                                                self.dest_buffer.replace(dest);
+                                                self.data_buffer.replace(data.take());
+                                                self.dest_buffer.replace(dest.take());
                                                 return Err(e);
                                             }
                                             Ok(())
@@ -135,44 +142,41 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                 }
                             }
                             UserSpaceOp::Set => {
-                                kernel_data
+                                let unhashed_key_len = kernel_data
                                     .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
                                     .and_then(|buffer| {
                                         buffer.enter(|unhashed_key| {
                                             self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the static buffer we have
+                                                // Determine the size of the
+                                                // static buffer we have and
+                                                // copy the contents.
                                                 let static_buffer_len =
                                                     buf.len().min(unhashed_key.len());
-
-                                                // Copy the data into the
-                                                // cleared static buffer.
-                                                buf.fill(0);
                                                 unhashed_key[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                                Ok(())
+                                                Ok(static_buffer_len)
                                             })
                                         })
                                     })
                                     .unwrap_or(Err(ErrorCode::RESERVE))?;
 
-                                let mut static_buffer_len = 0;
-
-                                kernel_data
+                                let value_len = kernel_data
                                     .get_readonly_processbuffer(ro_allow::VALUE)
                                     .and_then(|buffer| {
                                         buffer.enter(|value| {
                                             self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the static buffer we have
-                                                static_buffer_len = buf.len().min(value.len());
+                                                // Determine the size of the
+                                                // static buffer we have for the
+                                                // value and copy the contents.
+                                                let header_size = self.kv.header_size();
+                                                let copy_len =
+                                                    (buf.len() - header_size).min(value.len());
+                                                value[..copy_len].copy_to_slice(
+                                                    &mut buf[header_size..(copy_len + header_size)],
+                                                );
 
-                                                // Copy the data into the
-                                                // cleared static buffer.
-                                                buf.fill(0);
-                                                value[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                                Ok(())
+                                                Ok(copy_len)
                                             })
                                         })
                                     })
@@ -184,14 +188,20 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                             let perms = processid
                                                 .get_storage_permissions()
                                                 .ok_or(ErrorCode::INVAL)?;
-                                            if let Err((data, dest, e)) = self.kv.set(
-                                                data_buffer,
-                                                dest_buffer,
-                                                static_buffer_len,
-                                                perms,
-                                            ) {
-                                                self.data_buffer.replace(data);
-                                                self.dest_buffer.replace(dest);
+
+                                            let mut unhashed_key =
+                                                LeasableMutableBuffer::new(data_buffer);
+                                            unhashed_key.slice(..unhashed_key_len);
+
+                                            let header_size = self.kv.header_size();
+                                            let mut value = LeasableMutableBuffer::new(dest_buffer);
+                                            value.slice(header_size..(value_len + header_size));
+
+                                            if let Err((data, dest, e)) =
+                                                self.kv.set(unhashed_key, value, perms)
+                                            {
+                                                self.data_buffer.replace(data.take());
+                                                self.dest_buffer.replace(dest.take());
                                                 return Err(e);
                                             }
                                             Ok(())
@@ -202,22 +212,20 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                 }
                             }
                             UserSpaceOp::Delete => {
-                                kernel_data
+                                let unhashed_key_len = kernel_data
                                     .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
                                     .and_then(|buffer| {
                                         buffer.enter(|unhashed_key| {
                                             self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the static buffer we have
+                                                // Determine the size of the
+                                                // static buffer we have and
+                                                // copy the contents.
                                                 let static_buffer_len =
                                                     buf.len().min(unhashed_key.len());
-
-                                                // Copy the data into the
-                                                // cleared static buffer.
-                                                buf.fill(0);
                                                 unhashed_key[..static_buffer_len]
                                                     .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                                Ok(())
+                                                Ok(static_buffer_len)
                                             })
                                         })
                                     })
@@ -227,8 +235,12 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                     let perms = processid
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
-                                    if let Err((data, e)) = self.kv.delete(data_buffer, perms) {
-                                        self.data_buffer.replace(data);
+
+                                    let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
+                                    unhashed_key.slice(..unhashed_key_len);
+
+                                    if let Err((data, e)) = self.kv.delete(unhashed_key, perms) {
+                                        self.data_buffer.replace(data.take());
                                         return Err(e);
                                     }
                                     Ok(())
@@ -268,17 +280,17 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
     }
 }
 
-impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::StoreClient<T>
+impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::StoreClient<T>
     for KVSystemDriver<'a, K, T>
 {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
-        key: &'static mut [u8],
-        ret_buf: &'static mut [u8],
+        key: LeasableMutableBuffer<'static, u8>,
+        ret_buf: LeasableMutableBuffer<'static, u8>,
     ) {
-        self.data_buffer.replace(key);
-        self.dest_buffer.replace(ret_buf);
+        self.data_buffer.replace(key.take());
+        self.dest_buffer.replace(ret_buf.take());
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
@@ -332,11 +344,11 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
     fn set_complete(
         &self,
         result: Result<(), ErrorCode>,
-        key: &'static mut [u8],
-        value: &'static mut [u8],
+        key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
     ) {
-        self.data_buffer.replace(key);
-        self.dest_buffer.replace(value);
+        self.data_buffer.replace(key.take());
+        self.dest_buffer.replace(value.take());
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
@@ -358,8 +370,12 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
         });
     }
 
-    fn delete_complete(&self, result: Result<(), ErrorCode>, key: &'static mut [u8]) {
-        self.data_buffer.replace(key);
+    fn delete_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: LeasableMutableBuffer<'static, u8>,
+    ) {
+        self.data_buffer.replace(key.take());
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {

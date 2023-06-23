@@ -53,7 +53,7 @@ macro_rules! kv_store_mux_component_static {
     ($K:ty, $T:ty $(,)?) => {{
         let key = kernel::static_buf!($T);
         let mux = kernel::static_buf!(capsules_extra::kv_store::MuxKVStore<'static, $K, $T>);
-        let buffer = kernel::static_buf!([u8; 9]);
+        let buffer = kernel::static_buf!([u8; capsules_extra::kv_store::HEADER_LENGTH]);
 
         (mux, key, buffer)
     };};
@@ -80,13 +80,15 @@ impl<K: 'static + KVSystem<'static> + KVSystem<'static, K = T>, T: 'static + Key
     type StaticInput = (
         &'static mut MaybeUninit<MuxKVStore<'static, K, T>>,
         &'static mut MaybeUninit<T>,
-        &'static mut MaybeUninit<[u8; 9]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::kv_store::HEADER_LENGTH]>,
     );
     type Output = &'static MuxKVStore<'static, K, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let key_buf = static_buffer.1.write(T::default());
-        let buffer = static_buffer.2.write([0; 9]);
+        let buffer = static_buffer
+            .2
+            .write([0; capsules_extra::kv_store::HEADER_LENGTH]);
 
         let mux = static_buffer
             .0
