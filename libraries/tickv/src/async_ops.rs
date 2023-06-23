@@ -105,7 +105,7 @@
 //!
 //! // Add a key
 //! static mut VALUE: [u8; 32] = [0x23; 32];
-//! let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+//! let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
 //!
 //! match ret {
 //!     Err((_buf, ErrorCode::ReadNotReady(reg))) => {
@@ -139,6 +139,8 @@ type ContinueReturn = (
     Result<SuccessCode, ErrorCode>,
     // Buf Buffer
     Option<&'static mut [u8]>,
+    // Length of valid data inside of the buffer.
+    usize,
 );
 
 /// The struct storing all of the TicKV information for the async implementation.
@@ -147,7 +149,7 @@ pub struct AsyncTicKV<'a, C: FlashController<S>, const S: usize> {
     pub tickv: TicKV<'a, C, S>,
     key: Cell<Option<u64>>,
     value: Cell<Option<&'static mut [u8]>>,
-    buf: Cell<Option<&'static mut [u8]>>,
+    value_length: Cell<usize>,
 }
 
 impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
@@ -162,7 +164,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
             tickv: TicKV::<C, S>::new(controller, read_buffer, flash_size),
             key: Cell::new(None),
             value: Cell::new(None),
-            buf: Cell::new(None),
+            value_length: Cell::new(0),
         }
     }
 
@@ -555,13 +557,13 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
             static mut VALUE: [u8; 32] = [0x23; 32];
 
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -572,7 +574,7 @@ mod tests {
                 _ => unreachable!(),
             }
 
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -596,7 +598,7 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
@@ -604,7 +606,7 @@ mod tests {
             static mut BUF: [u8; 32] = [0; 32];
 
             println!("Add key ONE");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -633,7 +635,7 @@ mod tests {
             }
 
             println!("Add key ONE again");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -648,7 +650,7 @@ mod tests {
             }
 
             println!("Add key TWO");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -716,7 +718,7 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
@@ -724,7 +726,7 @@ mod tests {
             static mut BUF: [u8; 32] = [0; 32];
 
             println!("Add key ONE");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -772,7 +774,7 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
@@ -790,7 +792,7 @@ mod tests {
             }
 
             println!("Add key ONE");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -873,7 +875,7 @@ mod tests {
             println!("Add Key ONE");
             unsafe {
                 tickv
-                    .append_key(get_hashed_key(b"ONE"), &mut VALUE)
+                    .append_key(get_hashed_key(b"ONE"), &mut VALUE, 32)
                     .unwrap();
             }
         }

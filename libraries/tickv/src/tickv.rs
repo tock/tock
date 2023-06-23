@@ -139,7 +139,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         };
 
         match key_ret {
-            Ok(ret) => Ok(ret),
+            Ok((ret, _len)) => Ok(ret),
             Err(e) => {
                 match e {
                     ErrorCode::ReadNotReady(reg) => {
@@ -642,15 +642,15 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
     /// Retrieves the value from flash storage.
     ///
-    /// `hash`: A hashed key.
-    /// `buf`: A buffer to store the value to.
+    /// - `hash`: A hashed key.
+    /// - `buf`: A buffer to store the value to.
     ///
-    /// On success nothing will be returned.
-    /// On error a `ErrorCode` will be returned.
+    /// On success a `SuccessCode` will be returned and the length of the value
+    /// for the corresponding key. On error a `ErrorCode` will be returned.
     ///
-    /// If a power loss occurs before success is returned the data is
-    /// assumed to be lost.
-    pub fn get_key(&self, hash: u64, buf: &mut [u8]) -> Result<SuccessCode, ErrorCode> {
+    /// If a power loss occurs before success is returned the data is assumed to
+    /// be lost.
+    pub fn get_key(&self, hash: u64, buf: &mut [u8]) -> Result<(SuccessCode, usize), ErrorCode> {
         let region = self.get_region(hash);
 
         let mut region_offset: isize = 0;
@@ -703,31 +703,28 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                             .ok_or(ErrorCode::ObjectTooLarge)?,
                     );
 
+                    // The size of the stored object's actual data;
+                    let value_length = total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN;
+
                     // Make sure if will fit in the buffer
-                    if buf.len() < (total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
+                    if buf.len() < value_length {
                         // The entire value is not going to fit,
                         // Let's still copy in what we can and return an error
                         for i in 0..buf.len() {
-                            *buf.get_mut(i).ok_or(ErrorCode::BufferTooSmall(
-                                total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
-                            ))? = *region_data.get(offset + HEADER_LENGTH + i).ok_or(
-                                ErrorCode::BufferTooSmall(
-                                    total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
-                                ),
-                            )?;
+                            *buf.get_mut(i)
+                                .ok_or(ErrorCode::BufferTooSmall(value_length))? = *region_data
+                                .get(offset + HEADER_LENGTH + i)
+                                .ok_or(ErrorCode::BufferTooSmall(value_length))?;
                         }
 
                         self.read_buffer.replace(Some(region_data));
-                        return Err(ErrorCode::BufferTooSmall(
-                            total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
-                        ));
+                        return Err(ErrorCode::BufferTooSmall(value_length));
                     }
 
                     // Copy in the value
-                    for i in 0..(total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN) {
-                        *buf.get_mut(i).ok_or(ErrorCode::BufferTooSmall(
-                            total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN,
-                        ))? = *region_data
+                    for i in 0..value_length {
+                        *buf.get_mut(i)
+                            .ok_or(ErrorCode::BufferTooSmall(value_length))? = *region_data
                             .get(offset + HEADER_LENGTH + i)
                             .ok_or(ErrorCode::CorruptData)?;
                         check_sum.update(&[*buf.get(i).ok_or(ErrorCode::CorruptData)?])
@@ -759,7 +756,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     }
 
                     self.read_buffer.replace(Some(region_data));
-                    return Ok(SuccessCode::Complete);
+                    return Ok((SuccessCode::Complete, value_length));
                 }
                 Err((cont, e)) => {
                     self.read_buffer.replace(Some(region_data));
