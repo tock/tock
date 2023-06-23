@@ -227,7 +227,7 @@ pub struct TbfHeaderV2Permissions<const L: usize> {
 /// A list of persistent access permissions
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2PersistentAcl<const L: usize> {
-    write_id: u32,
+    write_id: Option<core::num::NonZeroU32>,
     read_length: u16,
     read_ids: [u32; L],
     access_length: u16,
@@ -518,11 +518,11 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<
     fn try_from(b: &[u8]) -> Result<TbfHeaderV2PersistentAcl<L>, Self::Error> {
         let mut read_end = 6;
 
-        let write_id = u32::from_le_bytes(
+        let write_id = core::num::NonZeroU32::new(u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
-        );
+        ));
 
         let read_length = u16::from_le_bytes(
             b.get(4..6)
@@ -877,10 +877,10 @@ impl TbfHeader {
 
     /// Get the process `write_id`.
     /// Returns `None` if a `write_id` is not included.
-    pub fn get_persistent_acl_write_id(&self) -> Option<u32> {
+    pub fn get_persistent_acl_write_id(&self) -> Option<core::num::NonZeroU32> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some(persistent_acls.write_id),
+                Some(persistent_acls) => persistent_acls.write_id,
                 _ => None,
             },
             _ => None,
