@@ -195,18 +195,30 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         &self,
         hash: u64,
         value: &'static mut [u8],
-    ) -> Result<SuccessCode, (Option<&'static mut [u8]>, ErrorCode)> {
-        match self.tickv.append_key(hash, value) {
-            Ok(code) => Ok(code),
+        length: usize,
+    ) -> Result<SuccessCode, (&'static mut [u8], ErrorCode)> {
+        match self.tickv.append_key(hash, &value[0..length]) {
+            Ok(_code) => {
+                // Ok is a problem, since that means no asynchronous operations
+                // were called, which means our client will never get a
+                // callback. We need to error.
+                Err((value, ErrorCode::WriteFail))
+            }
             Err(e) => match e {
                 ErrorCode::ReadNotReady(_)
                 | ErrorCode::EraseNotReady(_)
                 | ErrorCode::WriteNotReady(_) => {
+                    // This is what we expect, since it means we are going
+                    // an asynchronous operation which this interface expects.
                     self.key.replace(Some(hash));
                     self.value.replace(Some(value));
-                    Err((None, e))
+                    self.value_length.set(length);
+                    Ok(SuccessCode::Queued)
                 }
-                _ => Err((Some(value), e)),
+                _ => {
+                    // On any other error we report the error.
+                    Err((value, e))
+                }
             },
         }
     }
@@ -225,18 +237,23 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         &self,
         hash: u64,
         buf: &'static mut [u8],
-    ) -> Result<SuccessCode, (Option<&'static mut [u8]>, ErrorCode)> {
+    ) -> Result<SuccessCode, (&'static mut [u8], ErrorCode)> {
         match self.tickv.get_key(hash, buf) {
-            Ok(code) => Ok(code),
+            Ok(_code) => {
+                // Ok is a problem, since that means no asynchronous operations
+                // were called, which means our client will never get a
+                // callback. We need to error.
+                Err((buf, ErrorCode::ReadFail))
+            }
             Err(e) => match e {
                 ErrorCode::ReadNotReady(_)
                 | ErrorCode::EraseNotReady(_)
                 | ErrorCode::WriteNotReady(_) => {
                     self.key.replace(Some(hash));
-                    self.buf.replace(Some(buf));
-                    Err((None, e))
+                    self.value.replace(Some(buf));
+                    Ok(SuccessCode::Queued)
                 }
-                _ => Err((Some(buf), e)),
+                _ => Err((buf, e)),
             },
         }
     }
@@ -253,20 +270,23 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     /// assumed to be lost.
     pub fn invalidate_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
         match self.tickv.invalidate_key(hash) {
-            Ok(code) => Ok(code),
-            Err(e) => {
+            Ok(_code) => Err(ErrorCode::WriteFail),
+            Err(_e) => {
                 self.key.replace(Some(hash));
-                Err(e)
+                Ok(SuccessCode::Queued)
             }
         }
     }
 
     /// Perform a garbage collection on TicKV
     ///
-    /// On success the number of bytes freed will be returned.
+    /// On success nothing is returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn garbage_collect(&self) -> Result<usize, ErrorCode> {
-        self.tickv.garbage_collect()
+    pub fn garbage_collect(&self) -> Result<(), ErrorCode> {
+        match self.tickv.garbage_collect() {
+            Ok(_code) => Err(ErrorCode::EraseFail),
+            Err(_e) => Ok(()),
+        }
     }
 
     /// Copy data from `read_buffer` argument to the internal read_buffer.
@@ -295,52 +315,48 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     ///        An option of the buf buffer used
     /// The buffers will only be returned on a non async error or on success.
     pub fn continue_operation(&self) -> ContinueReturn {
-        let ret = match self.tickv.state.get() {
-            State::Init(_) => self.tickv.initialise(self.key.get().unwrap()),
+        let (ret, length) = match self.tickv.state.get() {
+            State::Init(_) => (self.tickv.initialise(self.key.get().unwrap()), 0),
             State::AppendKey(_) => {
                 let value = self.value.take().unwrap();
-                let ret = self.tickv.append_key(self.key.get().unwrap(), value);
+                let value_length = self.value_length.get();
+                let ret = self
+                    .tickv
+                    .append_key(self.key.get().unwrap(), &value[0..value_length]);
                 self.value.replace(Some(value));
-                ret
+                (ret, 0)
             }
             State::GetKey(_) => {
-                let buf = self.buf.take().unwrap();
+                let buf = self.value.take().unwrap();
                 let ret = self.tickv.get_key(self.key.get().unwrap(), buf);
-                self.buf.replace(Some(buf));
-                ret
+                self.value.replace(Some(buf));
+                match ret {
+                    Ok((s, len)) => (Ok(s), len),
+                    Err(e) => (Err(e), 0),
+                }
             }
-            State::InvalidateKey(_) => self.tickv.invalidate_key(self.key.get().unwrap()),
+            State::InvalidateKey(_) => (self.tickv.invalidate_key(self.key.get().unwrap()), 0),
             State::GarbageCollect(_) => match self.tickv.garbage_collect() {
-                Ok(_) => Ok(SuccessCode::Complete),
-                Err(e) => Err(e),
+                Ok(_) => (Ok(SuccessCode::Complete), 0),
+                Err(e) => (Err(e), 0),
             },
             _ => unreachable!(),
         };
 
         match ret {
             Ok(_) => {
-                let ret_buf = match self.tickv.state.get() {
-                    State::AppendKey(_) => self.value.take(),
-                    State::GetKey(_) => self.buf.take(),
-                    _ => None,
-                };
                 self.tickv.state.set(State::None);
-                (ret, ret_buf)
+                (ret, self.value.take(), length)
             }
             Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => (ret, None),
+                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => (ret, None, 0),
                 ErrorCode::WriteNotReady(_) => {
                     self.tickv.state.set(State::None);
-                    (ret, None)
+                    (ret, None, 0)
                 }
                 _ => {
-                    let ret_buf = match self.tickv.state.get() {
-                        State::AppendKey(_) => self.value.take(),
-                        State::GetKey(_) => self.buf.take(),
-                        _ => None,
-                    };
                     self.tickv.state.set(State::None);
-                    (ret, ret_buf)
+                    (ret, self.value.take(), 0)
                 }
             },
         }
