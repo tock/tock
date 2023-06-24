@@ -18,7 +18,7 @@ pub trait Client<const L: usize> {
     /// data supplied to `add_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_data_done(&self, result: Result<(), ErrorCode>, data: &'static [u8]);
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
 
     /// This callback is called when the data has been added to the hash
     /// engine.
@@ -26,7 +26,11 @@ pub trait Client<const L: usize> {
     /// data supplied to `add_mut_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
+    fn add_mut_data_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    );
 
     /// This callback is called when a hash is computed.
     /// On error or success `hash` will contain a reference to the original
@@ -60,7 +64,7 @@ pub trait Hasher<'a, const L: usize> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])>;
+    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)>;
 
     /// Add data to the hash block. This is the data that will be used
     /// for the hash function.
@@ -75,7 +79,7 @@ pub trait Hasher<'a, const L: usize> {
     fn add_mut_data(
         &self,
         data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])>;
+    ) -> Result<usize, (ErrorCode, LeasableMutableBuffer<'static, u8>)>;
 
     /// Request the implementation to generate a hash and stores the returned
     /// hash in the memory location specified.
