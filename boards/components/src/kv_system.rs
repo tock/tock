@@ -39,7 +39,7 @@
 //!    ));
 //! ```
 
-use capsules_extra::kv_driver::KVSystemDriver;
+use capsules_extra::kv_driver::KVStoreDriver;
 use capsules_extra::kv_store::{KVStore, MuxKVStore};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -135,7 +135,7 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
 #[macro_export]
 macro_rules! kv_driver_component_static {
     ($K:ty, $T:ty $(,)?) => {{
-        let kv = kernel::static_buf!(capsules_extra::kv_driver::KVSystemDriver<'static, $K, $T>);
+        let kv = kernel::static_buf!(capsules_extra::kv_driver::KVStoreDriver<'static, $K, $T>);
         let data_buffer = kernel::static_buf!([u8; 32]);
         let dest_buffer = kernel::static_buf!([u8; 48]);
 
@@ -167,11 +167,11 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
     for KVDriverComponent<K, T>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<KVSystemDriver<'static, K, T>>,
+        &'static mut MaybeUninit<KVStoreDriver<'static, K, T>>,
         &'static mut MaybeUninit<[u8; 32]>,
         &'static mut MaybeUninit<[u8; 48]>,
     );
-    type Output = &'static KVSystemDriver<'static, K, T>;
+    type Output = &'static KVStoreDriver<'static, K, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -179,7 +179,7 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> Component
         let data_buffer = static_buffer.1.write([0; 32]);
         let dest_buffer = static_buffer.2.write([0; 48]);
 
-        let driver = static_buffer.0.write(KVSystemDriver::new(
+        let driver = static_buffer.0.write(KVStoreDriver::new(
             self.kv,
             data_buffer,
             dest_buffer,

@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! KV Driver
+//! KV Store Userspace Driver.
 //!
+//! Provides userspace access to key-value store. Access is restricted based on
+//! `StoragePermissions` so processes must have the required permissions in
+//! their TBF headers to use this interface.
 
 use capsules_core::driver;
 /// Syscall driver number.
@@ -11,7 +14,8 @@ pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
 
 use crate::kv_store;
 use crate::kv_store::KVStore;
-use core::cell::Cell;
+use core::cmp;
+use kernel::errorcode;
 use kernel::grant::Grant;
 use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
 use kernel::hil::kv_system;
@@ -45,28 +49,43 @@ mod upcalls {
     pub const COUNT: u8 = 1;
 }
 
-pub struct KVSystemDriver<
+#[derive(Copy, Clone, PartialEq)]
+enum UserSpaceOp {
+    Get,
+    Set,
+    Delete,
+}
+
+/// Contents of the grant for each app.
+#[derive(Default)]
+pub struct App {
+    op: OptionalCell<UserSpaceOp>,
+}
+
+/// Capsule that provides userspace access to a key-value store.
+pub struct KVStoreDriver<
     'a,
     K: kv_system::KVSystem<'a> + kv_system::KVSystem<'a, K = T>,
     T: 'static + kv_system::KeyType,
 > {
+    /// Underlying k-v store implementation.
     kv: &'a KVStore<'a, K, T>,
-
-    active: Cell<bool>,
-
+    /// Grant storage for each app.
     apps: Grant<
         App,
         UpcallCount<{ upcalls::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
+    /// App that is actively using the k-v store.
     processid: OptionalCell<ProcessId>,
-
+    /// Key buffer.
     data_buffer: TakeCell<'static, [u8]>,
+    /// Value buffer.
     dest_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDriver<'a, K, T> {
+impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver<'a, K, T> {
     pub fn new(
         kv: &'a KVStore<'a, K, T>,
         data_buffer: &'static mut [u8],
@@ -77,10 +96,9 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> KVSystemDriver<'a, K, T> {
-        KVSystemDriver {
+    ) -> KVStoreDriver<'a, K, T> {
+        KVStoreDriver {
             kv,
-            active: Cell::new(false),
             apps: grant,
             processid: OptionalCell::empty(),
             data_buffer: TakeCell::new(data_buffer),
@@ -92,146 +110,33 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
-                    if let Some(operation) = app.op.get() {
-                        match operation {
-                            UserSpaceOp::Get => {
-                                let unhashed_key_len = kernel_data
-                                    .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
-                                    .and_then(|buffer| {
-                                        buffer.enter(|unhashed_key| {
-                                            self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the
-                                                // static buffer we have and
-                                                // copy the contents.
-                                                let static_buffer_len =
-                                                    buf.len().min(unhashed_key.len());
-                                                unhashed_key[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
+                    let unhashed_key_len = if app.op.is_some() {
+                        // For all operations we need to copy in the unhashed
+                        // key.
+                        kernel_data
+                            .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
+                            .and_then(|buffer| {
+                                buffer.enter(|unhashed_key| {
+                                    self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                        // Determine the size of the static
+                                        // buffer we have and copy the contents.
+                                        let static_buffer_len = buf.len().min(unhashed_key.len());
+                                        unhashed_key[..static_buffer_len]
+                                            .copy_to_slice(&mut buf[..static_buffer_len]);
 
-                                                Ok(static_buffer_len)
-                                            })
-                                        })
+                                        Ok(static_buffer_len)
                                     })
-                                    .unwrap_or(Err(ErrorCode::RESERVE))?;
+                                })
+                            })
+                            .unwrap_or(Err(ErrorCode::RESERVE))?
+                    } else {
+                        0
+                    };
 
-                                if let Some(Some(Err(e))) =
-                                    self.data_buffer.take().map(|data_buffer| {
-                                        self.dest_buffer.take().map(|dest_buffer| {
-                                            let perms = processid
-                                                .get_storage_permissions()
-                                                .ok_or(ErrorCode::INVAL)?;
-
-                                            let mut unhashed_key =
-                                                LeasableMutableBuffer::new(data_buffer);
-                                            unhashed_key.slice(..unhashed_key_len);
-
-                                            let value = LeasableMutableBuffer::new(dest_buffer);
-
-                                            if let Err((data, dest, e)) =
-                                                self.kv.get(unhashed_key, value, perms)
-                                            {
-                                                self.data_buffer.replace(data.take());
-                                                self.dest_buffer.replace(dest.take());
-                                                return Err(e);
-                                            }
-                                            Ok(())
-                                        })
-                                    })
-                                {
-                                    return e;
-                                }
-                            }
-                            UserSpaceOp::Set => {
-                                let unhashed_key_len = kernel_data
-                                    .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
-                                    .and_then(|buffer| {
-                                        buffer.enter(|unhashed_key| {
-                                            self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the
-                                                // static buffer we have and
-                                                // copy the contents.
-                                                let static_buffer_len =
-                                                    buf.len().min(unhashed_key.len());
-                                                unhashed_key[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                                Ok(static_buffer_len)
-                                            })
-                                        })
-                                    })
-                                    .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                                let value_len = kernel_data
-                                    .get_readonly_processbuffer(ro_allow::VALUE)
-                                    .and_then(|buffer| {
-                                        buffer.enter(|value| {
-                                            self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the
-                                                // static buffer we have for the
-                                                // value and copy the contents.
-                                                let header_size = self.kv.header_size();
-                                                let copy_len =
-                                                    (buf.len() - header_size).min(value.len());
-                                                value[..copy_len].copy_to_slice(
-                                                    &mut buf[header_size..(copy_len + header_size)],
-                                                );
-
-                                                Ok(copy_len)
-                                            })
-                                        })
-                                    })
-                                    .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                                if let Some(Some(Err(e))) =
-                                    self.data_buffer.take().map(|data_buffer| {
-                                        self.dest_buffer.take().map(|dest_buffer| {
-                                            let perms = processid
-                                                .get_storage_permissions()
-                                                .ok_or(ErrorCode::INVAL)?;
-
-                                            let mut unhashed_key =
-                                                LeasableMutableBuffer::new(data_buffer);
-                                            unhashed_key.slice(..unhashed_key_len);
-
-                                            let header_size = self.kv.header_size();
-                                            let mut value = LeasableMutableBuffer::new(dest_buffer);
-                                            value.slice(header_size..(value_len + header_size));
-
-                                            if let Err((data, dest, e)) =
-                                                self.kv.set(unhashed_key, value, perms)
-                                            {
-                                                self.data_buffer.replace(data.take());
-                                                self.dest_buffer.replace(dest.take());
-                                                return Err(e);
-                                            }
-                                            Ok(())
-                                        })
-                                    })
-                                {
-                                    return e;
-                                }
-                            }
-                            UserSpaceOp::Delete => {
-                                let unhashed_key_len = kernel_data
-                                    .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
-                                    .and_then(|buffer| {
-                                        buffer.enter(|unhashed_key| {
-                                            self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                                // Determine the size of the
-                                                // static buffer we have and
-                                                // copy the contents.
-                                                let static_buffer_len =
-                                                    buf.len().min(unhashed_key.len());
-                                                unhashed_key[..static_buffer_len]
-                                                    .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                                Ok(static_buffer_len)
-                                            })
-                                        })
-                                    })
-                                    .unwrap_or(Err(ErrorCode::RESERVE))?;
-
-                                if let Some(Err(e)) = self.data_buffer.take().map(|data_buffer| {
+                    match app.op.extract() {
+                        Some(UserSpaceOp::Get) => {
+                            if let Some(Some(Err(e))) = self.data_buffer.take().map(|data_buffer| {
+                                self.dest_buffer.take().map(|dest_buffer| {
                                     let perms = processid
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
@@ -239,16 +144,88 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
                                     let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
                                     unhashed_key.slice(..unhashed_key_len);
 
-                                    if let Err((data, e)) = self.kv.delete(unhashed_key, perms) {
+                                    let value = LeasableMutableBuffer::new(dest_buffer);
+
+                                    if let Err((data, dest, e)) =
+                                        self.kv.get(unhashed_key, value, perms)
+                                    {
                                         self.data_buffer.replace(data.take());
+                                        self.dest_buffer.replace(dest.take());
                                         return Err(e);
                                     }
                                     Ok(())
-                                }) {
-                                    return e;
-                                }
+                                })
+                            }) {
+                                return e;
                             }
                         }
+                        Some(UserSpaceOp::Set) => {
+                            let value_len = kernel_data
+                                .get_readonly_processbuffer(ro_allow::VALUE)
+                                .and_then(|buffer| {
+                                    buffer.enter(|value| {
+                                        self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                            // Determine the size of the static
+                                            // buffer we have for the value and
+                                            // copy the contents.
+                                            let header_size = self.kv.header_size();
+                                            let copy_len =
+                                                (buf.len() - header_size).min(value.len());
+                                            value[..copy_len].copy_to_slice(
+                                                &mut buf[header_size..(copy_len + header_size)],
+                                            );
+
+                                            Ok(copy_len)
+                                        })
+                                    })
+                                })
+                                .unwrap_or(Err(ErrorCode::RESERVE))?;
+
+                            if let Some(Some(Err(e))) = self.data_buffer.take().map(|data_buffer| {
+                                self.dest_buffer.take().map(|dest_buffer| {
+                                    let perms = processid
+                                        .get_storage_permissions()
+                                        .ok_or(ErrorCode::INVAL)?;
+
+                                    let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
+                                    unhashed_key.slice(..unhashed_key_len);
+
+                                    let header_size = self.kv.header_size();
+                                    let mut value = LeasableMutableBuffer::new(dest_buffer);
+                                    value.slice(header_size..(value_len + header_size));
+
+                                    if let Err((data, dest, e)) =
+                                        self.kv.set(unhashed_key, value, perms)
+                                    {
+                                        self.data_buffer.replace(data.take());
+                                        self.dest_buffer.replace(dest.take());
+                                        return Err(e);
+                                    }
+                                    Ok(())
+                                })
+                            }) {
+                                return e;
+                            }
+                        }
+                        Some(UserSpaceOp::Delete) => {
+                            if let Some(Err(e)) = self.data_buffer.take().map(|data_buffer| {
+                                let perms = processid
+                                    .get_storage_permissions()
+                                    .ok_or(ErrorCode::INVAL)?;
+
+                                let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
+                                unhashed_key.slice(..unhashed_key_len);
+
+                                if let Err((data, e)) = self.kv.delete(unhashed_key, perms) {
+                                    self.data_buffer.replace(data.take());
+                                    return Err(e);
+                                }
+                                Ok(())
+                            }) {
+                                return e;
+                            }
+                        }
+                        _ => {}
                     }
 
                     Ok(())
@@ -258,87 +235,90 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
     }
 
     fn check_queue(&self) {
-        for appiter in self.apps.iter() {
-            let started_command = appiter.enter(|app, _| {
-                // If an app is already running let it complete
-                if self.processid.is_some() {
-                    return true;
-                }
+        // If an app is already running let it complete.
+        if self.processid.is_some() {
+            return;
+        }
 
+        for appiter in self.apps.iter() {
+            let processid = appiter.processid();
+            let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |processid| {
+                if app.op.is_some() {
                     // Mark this driver as being in use.
                     self.processid.set(processid);
-                    // Actually make the buzz happen.
                     self.run() == Ok(())
-                })
+                } else {
+                    false
+                }
             });
             if started_command {
                 break;
+            } else {
+                self.processid.clear();
             }
         }
     }
 }
 
 impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::StoreClient<T>
-    for KVSystemDriver<'a, K, T>
+    for KVStoreDriver<'a, K, T>
 {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
         key: LeasableMutableBuffer<'static, u8>,
-        ret_buf: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
     ) {
         self.data_buffer.replace(key.take());
-        self.dest_buffer.replace(ret_buf.take());
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
-                if app.op.get().map(|op| op == UserSpaceOp::Get).is_some() {
+                if app.op.contains(&UserSpaceOp::Get) {
+                    app.op.clear();
+
                     if let Err(e) = result {
                         upcalls
                             .schedule_upcall(
                                 upcalls::VALUE,
-                                (kernel::errorcode::into_statuscode(e.into()), 0, 0),
+                                (errorcode::into_statuscode(e.into()), 0, 0),
                             )
                             .ok();
                     } else {
-                        self.dest_buffer.map(|buf| {
-                            let ret = upcalls
-                                .get_readwrite_processbuffer(rw_allow::VALUE)
-                                .and_then(|buffer| {
-                                    buffer.mut_enter(|data| {
-                                        // Determine the size of the static buffer we have
-                                        let static_buffer_len = buf.len();
-                                        let data_len = data.len();
-
-                                        if data_len < static_buffer_len {
-                                            data.copy_from_slice(&buf[..data_len]);
-                                        } else {
-                                            data[..static_buffer_len].copy_from_slice(&buf);
-                                        }
-                                        Ok(())
-                                    })
+                        let value_len = value.len();
+                        let ret = upcalls
+                            .get_readwrite_processbuffer(rw_allow::VALUE)
+                            .and_then(|buffer| {
+                                buffer.mut_enter(|appslice| {
+                                    let copy_len = cmp::min(value_len, appslice.len());
+                                    appslice[..copy_len].copy_from_slice(&value[..copy_len]);
+                                    Ok(())
                                 })
-                                .unwrap_or(Err(ErrorCode::RESERVE));
+                            })
+                            .unwrap_or(Err(ErrorCode::RESERVE));
 
-                            if ret == Err(ErrorCode::RESERVE) {
-                                upcalls
-                                    .schedule_upcall(
-                                        upcalls::VALUE,
-                                        (kernel::errorcode::into_statuscode(ret.into()), 0, 0),
-                                    )
-                                    .ok();
-                            } else {
-                                upcalls.schedule_upcall(upcalls::VALUE, (0, 0, 0)).ok();
-                            }
-                        });
-
-                        self.processid.clear();
+                        // Signal the upcall, and return the length of the
+                        // value. Userspace should be careful to check for an
+                        // error and only read the portion that would fit in the
+                        // buffer if the value was larger than the provided
+                        // processbuffer.
+                        upcalls
+                            .schedule_upcall(
+                                upcalls::VALUE,
+                                (errorcode::into_statuscode(ret.into()), value_len, 0),
+                            )
+                            .ok();
                     }
                 }
+
+                self.dest_buffer.replace(value.take());
             })
         });
+
+        // We have completed the operation so see if there is a queued operation
+        // to run next.
+        self.processid.clear();
+        self.check_queue();
     }
 
     fn set_complete(
@@ -350,24 +330,23 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::Sto
         self.data_buffer.replace(key.take());
         self.dest_buffer.replace(value.take());
 
+        // Signal the upcall and clear the requested op. We have to do a lot of
+        // checking for robustness, but there is no reason this should fail.
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
-                if app.op.get().map(|op| op == UserSpaceOp::Set).is_some() {
-                    if let Err(e) = result {
-                        upcalls
-                            .schedule_upcall(
-                                upcalls::VALUE,
-                                (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                            )
-                            .ok();
-                    } else {
-                        upcalls.schedule_upcall(upcalls::VALUE, (0, 0, 0)).ok();
-
-                        self.processid.clear();
-                    }
+                if app.op.contains(&UserSpaceOp::Set) {
+                    app.op.clear();
+                    upcalls
+                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
+                        .ok();
                 }
             })
         });
+
+        // We have completed the operation so see if there is a queued operation
+        // to run next.
+        self.processid.clear();
+        self.check_queue();
     }
 
     fn delete_complete(
@@ -379,27 +358,24 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::Sto
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
-                if app.op.get().map(|op| op == UserSpaceOp::Delete).is_some() {
-                    if let Err(e) = result {
-                        upcalls
-                            .schedule_upcall(
-                                upcalls::VALUE,
-                                (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                            )
-                            .ok();
-                    } else {
-                        upcalls.schedule_upcall(upcalls::VALUE, (0, 0, 0)).ok();
-
-                        self.processid.clear();
-                    }
+                if app.op.contains(&UserSpaceOp::Delete) {
+                    app.op.clear();
+                    upcalls
+                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
+                        .ok();
                 }
             })
         });
+
+        // We have completed the operation so see if there is a queued operation
+        // to run next.
+        self.processid.clear();
+        self.check_queue();
     }
 }
 
 impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
-    for KVSystemDriver<'a, K, T>
+    for KVStoreDriver<'a, K, T>
 {
     fn command(
         &self,
@@ -408,42 +384,20 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
         _data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
-        let match_or_empty_or_nonexistant = self.processid.map_or(true, |owning_app| {
-            // We have recorded that an app has ownership of the KV Store.
-
-            // If the KV Store is still active, then we need to wait for the operation
-            // to finish and the app, whether it exists or not (it may have crashed),
-            // still owns this capsule. If the KV Store is not active, then
-            // we need to verify that that application still exists, and remove
-            // it as owner if not.
-            if self.active.get() {
-                owning_app == processid
-            } else {
-                // Check the app still exists.
-                //
-                // If the `.enter()` succeeds, then the app is still valid, and
-                // we can check if the owning app matches the one that called
-                // the command. If the `.enter()` fails, then the owning app no
-                // longer exists and we return `true` to signify the
-                // "or_nonexistant" case.
-                self.apps
-                    .enter(owning_app, |_, _| owning_app == processid)
-                    .unwrap_or(true)
-            }
-        });
-
         match command_num {
             // check if present
             0 => CommandReturn::success(),
 
             // get, set, delete
             1 | 2 | 3 => {
-                if match_or_empty_or_nonexistant {
+                if self.processid.is_none() {
+                    // Nothing is using the KV store, so we can handle this
+                    // request.
                     self.processid.set(processid);
                     let _ = self.apps.enter(processid, |app, _| match command_num {
-                        1 => app.op.set(Some(UserSpaceOp::Get)),
-                        2 => app.op.set(Some(UserSpaceOp::Set)),
-                        3 => app.op.set(Some(UserSpaceOp::Delete)),
+                        1 => app.op.set(UserSpaceOp::Get),
+                        2 => app.op.set(UserSpaceOp::Set),
+                        3 => app.op.set(UserSpaceOp::Delete),
                         _ => {}
                     });
                     let ret = self.run();
@@ -456,21 +410,21 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
                         CommandReturn::success()
                     }
                 } else {
-                    // There is an active app, so queue this request (if possible).
+                    // There is an active app, so queue this request (if
+                    // possible).
                     self.apps
                         .enter(processid, |app, _| {
-                            // Some app is using the storage, we must wait.
-                            if app.pending_run_app.is_some() {
-                                // No more room in the queue, nowhere to store this
-                                // request.
+                            if app.op.is_some() {
+                                // No more room in the queue, nowhere to store
+                                // this request.
                                 CommandReturn::failure(ErrorCode::NOMEM)
                             } else {
-                                // We can store this, so lets do it.
-                                app.pending_run_app = Some(processid);
+                                // This app has not already queued a command so
+                                // we can store this.
                                 match command_num {
-                                    1 => app.op.set(Some(UserSpaceOp::Get)),
-                                    2 => app.op.set(Some(UserSpaceOp::Set)),
-                                    3 => app.op.set(Some(UserSpaceOp::Delete)),
+                                    1 => app.op.set(UserSpaceOp::Get),
+                                    2 => app.op.set(UserSpaceOp::Set),
+                                    3 => app.op.set(UserSpaceOp::Delete),
                                     _ => {}
                                 }
                                 CommandReturn::success()
@@ -488,17 +442,4 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
         self.apps.enter(processid, |_, _| {})
     }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-enum UserSpaceOp {
-    Get,
-    Set,
-    Delete,
-}
-
-#[derive(Default)]
-pub struct App {
-    pending_run_app: Option<ProcessId>,
-    op: Cell<Option<UserSpaceOp>>,
 }
