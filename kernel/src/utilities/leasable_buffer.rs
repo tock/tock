@@ -137,6 +137,22 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
         self.active_slice().as_ptr()
     }
 
+    /// Returns a slice of the currently accessible portion of the
+    /// LeasableBuffer.
+    pub fn as_slice(&mut self) -> &mut [T] {
+        &mut self.internal[self.active_range.clone()]
+    }
+
+    /// Returns `true` if the LeasableBuffer is sliced internally.
+    ///
+    /// This is a useful check when switching between code that uses
+    /// LeasableBuffers and code that uses traditional slice-and-length. Since
+    /// slice-and-length _only_ supports using the entire buffer it is not valid
+    /// to try to use a sliced LeasableBuffer.
+    pub fn is_sliced(&self) -> bool {
+        self.internal.len() != self.len()
+    }
+
     /// Reduces the range of the LeasableBuffer that is accessible. This should be called
     /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
     /// a lower layer. For example: if the application layer has a 1500 byte packet
@@ -162,6 +178,25 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
             start: new_start,
             end: new_end,
         };
+    }
+
+    /// Increase the range of the LeasableBuffer that is accessible to the left
+    /// of the starting point of the currently available range.
+    ///
+    /// This is particularly useful to insert a header before the current
+    /// contents of the buffer.
+    ///
+    /// This returns `Ok(())` if there is room to increase the range the
+    /// requested number of elements to the left. This returns `Err(())` if
+    /// there is not enough room, and the accessible range remains unchanged.
+    pub fn unslice_left(&mut self, left: usize) -> Result<(), ()> {
+        let new_start = self.active_range.start.checked_sub(left).ok_or(())?;
+
+        self.active_range = Range {
+            start: new_start,
+            end: self.active_range.end,
+        };
+        Ok(())
     }
 }
 
@@ -222,6 +257,22 @@ impl<'a, T> LeasableBuffer<'a, T> {
         self.active_slice().as_ptr()
     }
 
+    /// Returns a slice of the currently accessible portion of the
+    /// LeasableBuffer.
+    pub fn as_slice(&self) -> &[T] {
+        &self.internal[self.active_range.clone()]
+    }
+
+    /// Returns `true` if the LeasableBuffer is sliced internally.
+    ///
+    /// This is a useful check when switching between code that uses
+    /// LeasableBuffers and code that uses traditional slice-and-length. Since
+    /// slice-and-length _only_ supports using the entire buffer it is not valid
+    /// to try to use a sliced LeasableBuffer.
+    pub fn is_sliced(&self) -> bool {
+        self.internal.len() != self.len()
+    }
+
     /// Reduces the range of the LeasableBuffer that is accessible. This should be called
     /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
     /// a lower layer. For example: if the application layer has a 1500 byte packet
@@ -247,6 +298,25 @@ impl<'a, T> LeasableBuffer<'a, T> {
             start: new_start,
             end: new_end,
         };
+    }
+
+    /// Increase the range of the LeasableBuffer that is accessible to the left
+    /// of the starting point of the currently available range.
+    ///
+    /// This is particularly useful to insert a header before the current
+    /// contents of the buffer.
+    ///
+    /// This returns `Ok(())` if there is room to increase the range the
+    /// requested number of elements to the left. This returns `Err(())` if
+    /// there is not enough room, and the accessible range remains unchanged.
+    pub fn unslice_left(&mut self, left: usize) -> Result<(), ()> {
+        let new_start = self.active_range.start.checked_sub(left).ok_or(())?;
+
+        self.active_range = Range {
+            start: new_start,
+            end: self.active_range.end,
+        };
+        Ok(())
     }
 }
 
