@@ -40,7 +40,8 @@ use core::cell::Cell;
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableBuffer;
 use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
@@ -134,7 +135,7 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE:
     value_buffer: Cell<Option<&'static mut [u8]>>,
     key_buffer: TakeCell<'static, [u8; 8]>,
     ret_buffer: TakeCell<'static, [u8]>,
-    unhashed_key_buf: TakeCell<'static, [u8]>,
+    unhashed_key_buf: MapCell<LeasableMutableBuffer<'static, u8>>,
     key_buf: TakeCell<'static, [u8; 8]>,
 
     client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
@@ -163,7 +164,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
             value_buffer: Cell::new(None),
             key_buffer: TakeCell::empty(),
             ret_buffer: TakeCell::empty(),
-            unhashed_key_buf: TakeCell::empty(),
+            unhashed_key_buf: MapCell::empty(),
             key_buf: TakeCell::empty(),
             client: OptionalCell::empty(),
         }
@@ -230,12 +231,16 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
     for TicKVStore<'a, F, H, PAGE_SIZE>
 {
-    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(
+        &self,
+        _result: Result<(), ErrorCode>,
+        data: LeasableMutableBuffer<'static, u8>,
+    ) {
         self.unhashed_key_buf.replace(data);
         self.hasher.run(self.key_buf.take().unwrap()).unwrap();
     }
 
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
 
     fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
@@ -438,20 +443,17 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
 
     fn generate_key(
         &self,
-        unhashed_key: &'static mut [u8],
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
         key_buf: &'static mut Self::K,
     ) -> Result<
         (),
         (
-            &'static mut [u8],
+            LeasableMutableBuffer<'static, u8>,
             &'static mut Self::K,
             Result<(), ErrorCode>,
         ),
     > {
-        if let Err((e, buf)) = self
-            .hasher
-            .add_mut_data(LeasableMutableBuffer::new(unhashed_key))
-        {
+        if let Err((e, buf)) = self.hasher.add_mut_data(unhashed_key) {
             return Err((buf, key_buf, Err(e)));
         }
 
