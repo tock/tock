@@ -172,7 +172,7 @@ fn u8to64_le(buf: &[u8], start: usize, len: usize) -> u64 {
         i += 2
     }
     if i < len {
-        out |= (*buf.get(start + i).unwrap() as u64) << (i * 8);
+        out |= (buf[start + i] as u64) << (i * 8);
         i += 1;
     }
     debug_assert_eq!(i, len);
@@ -187,9 +187,8 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
     fn add_data(
         &self,
         data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])> {
+    ) -> Result<usize, (ErrorCode, LeasableBuffer<'static, u8>)> {
         let length = data.len();
-        let msg = data.take();
         let mut hasher = self.hasher.get();
 
         hasher.length += length;
@@ -198,7 +197,8 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
 
         if hasher.ntail != 0 {
             needed = 8 - hasher.ntail;
-            hasher.tail |= u8to64_le(msg, 0, cmp::min(length, needed)) << (8 * hasher.ntail);
+            hasher.tail |=
+                u8to64_le(data.as_slice(), 0, cmp::min(length, needed)) << (8 * hasher.ntail);
             if length < needed {
                 hasher.ntail += length;
                 return Ok(length);
@@ -217,7 +217,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
 
         let mut i = needed;
         while i < len - left {
-            let mi = read_le_u64(&msg[i..]);
+            let mi = read_le_u64(&data[i..]);
 
             hasher.state.v3 ^= mi;
             compress!(&mut hasher.state);
@@ -227,14 +227,12 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
             i += 8;
         }
 
-        hasher.tail = u8to64_le(msg, i, left);
+        hasher.tail = u8to64_le(data.as_slice(), i, left);
         hasher.ntail = left;
 
         self.hasher.set(hasher);
         self.data_buffer
-            .set(Some(LeasableBufferDynamic::Immutable(LeasableBuffer::new(
-                msg,
-            ))));
+            .set(Some(LeasableBufferDynamic::Immutable(data)));
 
         self.add_data_deferred_call.set(true);
         self.deferred_call.set();
@@ -244,10 +242,9 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
 
     fn add_mut_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])> {
+        mut data: LeasableMutableBuffer<'static, u8>,
+    ) -> Result<usize, (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
         let length = data.len();
-        let msg = data.take();
         let mut hasher = self.hasher.get();
 
         hasher.length += length;
@@ -256,7 +253,8 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
 
         if hasher.ntail != 0 {
             needed = 8 - hasher.ntail;
-            hasher.tail |= u8to64_le(msg, 0, cmp::min(length, needed)) << (8 * hasher.ntail);
+            hasher.tail |=
+                u8to64_le(data.as_slice(), 0, cmp::min(length, needed)) << (8 * hasher.ntail);
             if length < needed {
                 hasher.ntail += length;
                 return Ok(length);
@@ -275,7 +273,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
 
         let mut i = needed;
         while i < len - left {
-            let mi = read_le_u64(&msg[i..]);
+            let mi = read_le_u64(&data[i..]);
 
             hasher.state.v3 ^= mi;
             compress!(&mut hasher.state);
@@ -285,13 +283,12 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
             i += 8;
         }
 
-        hasher.tail = u8to64_le(msg, i, left);
+        hasher.tail = u8to64_le(data.as_slice(), i, left);
         hasher.ntail = left;
 
         self.hasher.set(hasher);
-        self.data_buffer.set(Some(LeasableBufferDynamic::Mutable(
-            LeasableMutableBuffer::new(msg),
-        )));
+        self.data_buffer
+            .set(Some(LeasableBufferDynamic::Mutable(data)));
 
         self.add_data_deferred_call.set(true);
         self.deferred_call.set();
@@ -362,8 +359,8 @@ impl<'a> DeferredCallClient for SipHasher24<'a> {
 
             self.client.map(|client| {
                 self.data_buffer.take().map(|buffer| match buffer {
-                    LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b.take()),
-                    LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b.take()),
+                    LeasableBufferDynamic::Immutable(b) => client.add_data_done(Ok(()), b),
+                    LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(Ok(()), b),
                 });
             });
         }
