@@ -58,6 +58,7 @@
 //!    hil::flash
 //! ```
 
+use crate::utilities::leasable_buffer::LeasableMutableBuffer;
 use crate::ErrorCode;
 
 /// The type of keys, this should define the output size of the digest
@@ -109,7 +110,7 @@ pub trait Client<K: KeyType> {
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: &'static mut [u8],
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
         key_buf: &'static mut K,
     );
 
@@ -165,12 +166,12 @@ pub trait KVSystem<'a> {
     /// On error the unhashed_key, key_buf and `Result<(), ErrorCode>` will be returned.
     fn generate_key(
         &self,
-        unhashed_key: &'static mut [u8],
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
         key_buf: &'static mut Self::K,
     ) -> Result<
         (),
         (
-            &'static mut [u8],
+            LeasableMutableBuffer<'static, u8>,
             &'static mut Self::K,
             Result<(), ErrorCode>,
         ),
