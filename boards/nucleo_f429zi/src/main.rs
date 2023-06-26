@@ -48,7 +48,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
 
 // Function for the process console to use to reboot the board
 fn reset() -> ! {
@@ -338,12 +338,14 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     });
 
     // MCO1
-    gpio_ports.get_pin(PinId::PA08).map(|pin| {
-        pin.set_mode(Mode::AlternateFunctionMode);
-        pin.set_alternate_function(AlternateFunction::AF0);
-    });
+    // Uncomment this if you need to generate 50MHz reference clock using PLL
+    //gpio_ports.get_pin(PinId::PA08).map(|pin| {
+        //pin.set_mode(Mode::AlternateFunctionMode);
+        //pin.set_alternate_function(AlternateFunction::AF0);
+    //});
 }
 
+// Helper function to initialize and start the ethernet peripheral
 fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
     let ethernet = &peripherals.ethernet;
@@ -380,13 +382,16 @@ unsafe fn create_peripherals() -> (
     let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
     let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
 
-    // TODO: Remove hard coded buffer length
-    let receive_buffer = static_init!([u8; capsules_extra::ethernet_app_tap::MAX_MTU], [0; capsules_extra::ethernet_app_tap::MAX_MTU]);
+    let receive_buffer = static_init!([u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]);
 
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
-        Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2, receive_buffer)
+        Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
+
+    peripherals.ethernet.set_received_packet_buffer(receive_buffer);
+
     (peripherals, syscfg, dma1)
 }
 
@@ -677,13 +682,13 @@ pub unsafe fn main() {
             u16,
             Option<u64>,
             bool
-        ); 2],
+        ); 4],
         [(
             [0; capsules_extra::ethernet_app_tap::MAX_MTU],
             0,
             None,
             false
-        ); 2]
+        ); 4]
     );
 
     // Create tap ethernet
