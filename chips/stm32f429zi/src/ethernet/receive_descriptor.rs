@@ -60,6 +60,7 @@ register_structs! {
 
 #[allow(dead_code)]
 impl ReceiveDescriptor {
+    const MAX_RECEIVE_BUFFER_LENGTH: usize = 1 << 14;
     pub(in crate::ethernet) fn new() -> Self {
         Self {
             rdes0: InMemoryRegister::new(0),
@@ -122,7 +123,7 @@ impl ReceiveDescriptor {
     }
 
     pub(in crate::ethernet) fn set_buffer1_size(&self, size: usize) -> Result<(), ErrorCode> {
-        if size >= 1 << 14 {
+        if size >= Self::MAX_RECEIVE_BUFFER_LENGTH {
             return Err(ErrorCode::SIZE);
         } else if size % 4 != 0 && size % 8 != 0 && size % 16 != 0 {
             return Err(ErrorCode::FAIL);

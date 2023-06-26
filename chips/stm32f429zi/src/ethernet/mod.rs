@@ -811,7 +811,7 @@ pub struct Ethernet<'a> {
     transmit_packet: TakeCell<'static, [u8]>,
     transmit_packet_length: OptionalCell<u16>,
     packet_identifier: OptionalCell<usize>,
-    received_packet: TakeCell<'static, [u8]>,
+    received_packet: TakeCell<'a, [u8]>,
     client: OptionalCell<&'a dyn EthernetAdapterClient>,
     clocks: EthernetClocks<'a>,
     mac_address0: OptionalCell<MacAddress>,
@@ -823,7 +823,7 @@ impl<'a> Ethernet<'a> {
     /// Ethernet constructor
     pub fn new(
         rcc: &'a rcc::Rcc,
-        received_packet: &'static mut [u8],
+        //received_packet: &'static mut [u8],
     ) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
@@ -834,7 +834,7 @@ impl<'a> Ethernet<'a> {
             transmit_packet: TakeCell::empty(),
             transmit_packet_length: OptionalCell::empty(),
             packet_identifier: OptionalCell::empty(),
-            received_packet: TakeCell::new(received_packet),
+            received_packet: TakeCell::empty(),
             client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
             mac_address0: OptionalCell::new(DEFAULT_MAC_ADDRESS),
@@ -882,6 +882,11 @@ impl<'a> Ethernet<'a> {
         self.disable_address_filter();
 
         Ok(())
+    }
+
+    /// Set the received packet buffer for incoming packets
+    pub fn set_received_packet_buffer(&self, received_packet_buffer: &'a mut [u8]) {
+        self.received_packet.put(Some(received_packet_buffer));
     }
 
     /* === MAC methods === */
@@ -1787,17 +1792,18 @@ impl<'a> Ethernet<'a> {
     /// # Errors
     ///
     /// + [Err]\([ErrorCode::OFF]\): the reception of the Ethernet peripheral is off
-    /// + [Err]\([ErrorCode::SIZE]\): the reception buffer is too big
+    ///
+    /// # Panics
+    ///
+    /// This method panics if no receive packet buffer has been set
     pub fn receive_packet(&self) -> Result<(), ErrorCode> {
         // Check if DMA and MAC core are enabled
         if !self.is_reception_enabled() {
             return Err(ErrorCode::OFF);
         }
 
-        // Can't panic
         let received_packet = self.received_packet.take().unwrap();
         self.receive_descriptor.set_buffer1_address(received_packet.as_ptr() as u32);
-        // TODO: Return an error when constructing the structure instead here
         self.receive_descriptor.set_buffer1_size(received_packet.len())?;
         self.receive_descriptor.set_buffer2_size(0)?;
         self.received_packet.put(Some(received_packet));
