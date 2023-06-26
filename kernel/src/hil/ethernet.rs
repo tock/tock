@@ -27,12 +27,12 @@ impl MacAddress {
     }
 
     pub const fn is_broadcast(&self) -> bool {
-        self.0[0] == 0xFF &&
-        self.0[1] == 0xFF &&
-        self.0[2] == 0xFF &&
-        self.0[3] == 0xFF &&
-        self.0[4] == 0xFF &&
-        self.0[5] == 0xFF
+        self.0[0] == 0xFF
+            && self.0[1] == 0xFF
+            && self.0[2] == 0xFF
+            && self.0[3] == 0xFF
+            && self.0[4] == 0xFF
+            && self.0[5] == 0xFF
     }
 
     pub const fn is_multicast(&self) -> bool {
@@ -46,9 +46,7 @@ impl MacAddress {
 
 impl Default for MacAddress {
     fn default() -> Self {
-        Self {
-            0: [0; 6]
-        }
+        Self { 0: [0; 6] }
     }
 }
 
@@ -72,8 +70,12 @@ impl fmt::Display for MacAddress {
         write!(
             formatter,
             "{:02x}-{:02x}-{:02x}-{:02x}-{:02x}-{:02x}",
-            self.get()[0], self.get()[1], self.get()[2],
-            self.get()[3], self.get()[4], self.get()[5]
+            self.get()[0],
+            self.get()[1],
+            self.get()[2],
+            self.get()[3],
+            self.get()[4],
+            self.get()[5]
         )
     }
 }
