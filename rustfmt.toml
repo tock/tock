@@ -2,9 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2022.
 
-# Tock uses rustfmt's default configuration.
-#
-# This empty configuration file exists so that when rustfmt is run within this
+# Tock uses rustfmt's default configuration for formatting style.
+
+# Configure rustfmt to error when it cannot format a file. This helps avoid
+# issues where rust code is silently not formatted because rustfmt encounters
+# something it cannot format. Typically, this happens when a comment is inserted
+# somewhere that rustfmt doesn't handle.
+error_on_unformatted = true
+
+# This configuration file is important so that when rustfmt is run within this
 # repository, it does not search parent directories for a rustfmt.toml file.
 # This allows projects with their own rustfmt.toml file to include tock as a
 # submodule without changing the behavior of `make prepush`.
