@@ -285,7 +285,7 @@ impl<'a> TimerA<'a> {
         self.registers.ctl.modify(
             TAxCTL::TASSEL::ACLK         // Set ACLK as clock source
                 + TAxCTL::ID::DividedBy8        // Divide the clock source by 8 -> 4096Hz
-                + TAxCTL::MC::ContinuousMode    // Setup for contiuous mode    
+                + TAxCTL::MC::ContinuousMode    // Setup for contiuous mode
                 + TAxCTL::TAIE::CLEAR           // Disable interrupts
                 + TAxCTL::TAIFG::CLEAR, // Clear any pending interrupts
         );
@@ -436,7 +436,7 @@ impl<'a> InternalTimer for TimerA<'a> {
 
         self.registers.ctl.modify(
             TAxCTL::TASSEL::SMCLK    // Set SMCLK as clock source
-            + TAxCTL::MC::UpMode            // Setup for up-mode    
+            + TAxCTL::MC::UpMode            // Setup for up-mode
             + TAxCTL::TAIE::CLEAR           // Disable interrupts
             + TAxCTL::TAIFG::CLEAR, // Clear any pending interrupts
         );
