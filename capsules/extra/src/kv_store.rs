@@ -548,10 +548,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                                 });
 
                                 if read_allowed {
-                                    ret_buf.as_slice().copy_within(
-                                        HEADER_LENGTH..(HEADER_LENGTH + header.length as usize),
-                                        0,
-                                    );
+                                    // Remove the header from the accessible
+                                    // portion of the buffer.
+                                    ret_buf.slice(HEADER_LENGTH..);
                                 }
                             }
                         }
