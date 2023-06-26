@@ -1684,8 +1684,9 @@ impl<'a> Ethernet<'a> {
                 let received_packet = self.received_packet.take().unwrap();
                 client.rx_packet(received_packet, None);
                 self.received_packet.put(Some(received_packet));
-                assert_eq!(Ok(()), self.receive_packet());
             });
+            // Receive the following packet
+            assert_eq!(Ok(()), self.receive_packet());
         } if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
         }
