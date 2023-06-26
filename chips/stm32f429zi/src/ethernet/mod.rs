@@ -1718,9 +1718,11 @@ impl<'a> Ethernet<'a> {
                     None
                 )
             );
-        } if self.did_transmit_buffer_unavailable_interrupt_occur() {
+        }
+        if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
-        } if self.did_receive_interrupt_occur() {
+        }
+        if self.did_receive_interrupt_occur() {
             self.clear_receive_interrupt();
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
@@ -1729,7 +1731,8 @@ impl<'a> Ethernet<'a> {
             });
             // Receive the following packet
             assert_eq!(Ok(()), self.receive_packet());
-        } if self.did_early_receive_interrupt_occur() {
+        }
+        if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
         }
     }
@@ -1738,26 +1741,34 @@ impl<'a> Ethernet<'a> {
         if self.did_fatal_bus_error_interrupt_occur() {
             self.clear_fatal_bus_error_interrupt();
             panic!("Fatal bus error");
-        } if self.did_early_transmit_interrupt_occur() {
+        }
+        if self.did_early_transmit_interrupt_occur() {
             self.clear_early_transmit_interrupt();
-        } if self.did_receive_watchdog_timeout_interrupt_occur() {
+        }
+        if self.did_receive_watchdog_timeout_interrupt_occur() {
             debug!("Receive watchdog timeout interrupt");
             self.clear_receive_watchdog_timeout_interrupt();
-        } if self.did_receive_process_stopped_interrupt_occur() {
+        }
+        if self.did_receive_process_stopped_interrupt_occur() {
             self.clear_receive_process_stopped_interrupt();
-        } if self.did_receive_buffer_unavailable_interrupt_occur() {
+        }
+        if self.did_receive_buffer_unavailable_interrupt_occur() {
             self.clear_receive_buffer_unavailable_interrupt();
-        } if self.did_transmit_buffer_underflow_interrupt_occur() {
+        }
+        if self.did_transmit_buffer_underflow_interrupt_occur() {
             debug!("Transmit buffer underflow interrupt");
             self.clear_transmit_buffer_underflow_interrupt();
-        } if self.did_receive_fifo_overflow_interrupt_occur() {
+        }
+        if self.did_receive_fifo_overflow_interrupt_occur() {
             self.clear_receive_fifo_overflow_interrupt();
             assert_eq!(Ok(()), self.receive_packet());
             debug!("Receive buffer overflow interrupt");
-        } if self.did_transmit_jabber_timeout_interrupt_occur() {
+        }
+        if self.did_transmit_jabber_timeout_interrupt_occur() {
             debug!("Transmit buffer jabber timeout interrupt");
             self.clear_transmit_jabber_timeout_interrupt();
-        } if self.did_transmit_process_stopped_interrupt_occur() {
+        }
+        if self.did_transmit_process_stopped_interrupt_occur() {
             self.clear_transmit_process_stopped_interrupt_occur();
         }
     }
