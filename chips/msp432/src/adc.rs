@@ -633,38 +633,36 @@ impl<'a> Adc<'a> {
         self.stop();
 
         for i in 0..AVAILABLE_ADC_CHANNELS {
+            // Set the input for the channel
+            // Set Reference voltage to Internal AVCC for Vref+ and AVSS (GND) for Vref-
+            // Configure the channel for single-ended mode
+            // Disable comparator window
             self.registers.mctl[i].modify(
-                // Set the input for the channel
                 MCTLx::INCHx.val(i as u32)
-                // Set Reference voltage to Internal AVCC for Vref+ and AVSS (GND) for Vref-
-                + MCTLx::VRSEL::AvccAvss
-                // Configure the channel for single-ended mode
-                + MCTLx::DIF::SingleEnded
-                // Disable comparator window
-                + MCTLx::WINC::CLEAR,
+                    + MCTLx::VRSEL::AvccAvss
+                    + MCTLx::DIF::SingleEnded
+                    + MCTLx::WINC::CLEAR,
             );
         }
 
+        // Set predivider of the ADC-clock to 1
+        // Set divider of the ADC-clock to 1
+        // Set ADC-clock source to HSMCLK
+        // Set the sample-and-hold time to 4 clock-cyles for channel 0-7 and 24-31
+        // Set the sample-and-hold time to 4 clock-cyles for channel 8-23
         self.registers.ctl0.modify(
-            // Set predivider of the ADC-clock to 1
             CTL0::PDIV::PreDivideBy1
-            // Set divider of the ADC-clock to 1
-            + CTL0::DIVx::DivideBy1
-            // Set ADC-clock source to HSMCLK
-            + CTL0::SSELx::HSMCLK
-            // Set the sample-and-hold time to 4 clock-cyles for channel 0-7 and 24-31
-            + CTL0::SHTOx::Cycles4
-            // Set the sample-and-hold time to 4 clock-cyles for channel 8-23
-            + CTL0::SHT1x::Cycles4,
+                + CTL0::DIVx::DivideBy1
+                + CTL0::SSELx::HSMCLK
+                + CTL0::SHTOx::Cycles4
+                + CTL0::SHT1x::Cycles4,
         );
 
+        // Enable the battery monitor on channel 23 (measures 1/2 * AVCC)
+        // Enable the internal temperature sensor on channel 22
+        // Set the ADC resolution
         self.registers.ctl1.modify(
-            // Enable the battery monitor on channel 23 (measures 1/2 * AVCC)
-            CTL1::BATMAP::Selected
-            // Enable the internal temperature sensor on channel 22
-            + CTL1::TCMAP::Selected
-            // Set the ADC resolution
-            + CTL1::RES.val(self.resolution as u32),
+            CTL1::BATMAP::Selected + CTL1::TCMAP::Selected + CTL1::RES.val(self.resolution as u32),
         );
 
         let dma_conf = dma::DmaConfig {
@@ -789,17 +787,17 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
 
         self.enable_interrupt(*channel);
 
+        // Set ADC to mode where a single channel gets sampled once
+        // Set the sample-and-hold source select to software-based
+        // Set the sampling-timer for generating the sample-period
+        // Enable conversation
+        // Start conversation
         self.registers.ctl0.modify(
-            // Set ADC to mode where a single channel gets sampled once
             CTL0::CONSEQx::SingleChannelSingleConversion
-            // Set the sample-and-hold source select to software-based
-            + CTL0::SHSx::SCBit
-            // Set the sampling-timer for generating the sample-period
-            + CTL0::SHP::SET
-            // Enable conversation
-            + CTL0::ENC::SET
-            // Start conversation
-            + CTL0::SC::SET,
+                + CTL0::SHSx::SCBit
+                + CTL0::SHP::SET
+                + CTL0::ENC::SET
+                + CTL0::SC::SET,
         );
 
         Ok(())
@@ -834,17 +832,17 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
 
         self.enable_interrupt(*channel);
 
+        // Set ADC to mode where a single channel gets sampled continuously
+        // Set the sample-and-hold source select to timer-triggered
+        // Use TIMER_A3 to generate the SAMPCON signal
+        // Enable multiple sample and conversions
+        // Enable conversation
         self.registers.ctl0.modify(
-            // Set ADC to mode where a single channel gets sampled continuously
             CTL0::CONSEQx::RepeatSingleChannel
-            // Set the sample-and-hold source select to timer-triggered
-            + CTL0::SHSx::Source7
-            // Use TIMER_A3 to generate the SAMPCON signal
-            + CTL0::SHP::CLEAR
-            // Enable multiple sample and conversions
-            + CTL0::MSC::SET
-            // Enable conversation
-            + CTL0::ENC::SET,
+                + CTL0::SHSx::Source7
+                + CTL0::SHP::CLEAR
+                + CTL0::MSC::SET
+                + CTL0::ENC::SET,
         );
 
         Ok(())
@@ -928,17 +926,17 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             .ctl1
             .modify(CTL1::STARTADDx.val(*channel as u32));
 
+        // Set ADC to mode where a single channel gets sampled continuously
+        // Set the sample-and-hold source select to timer-triggered
+        // Use TIMER_A3 to generate the SAMPCON signal
+        // Enable multiple sample and conversions
+        // Enable conversation
         self.registers.ctl0.modify(
-            // Set ADC to mode where a single channel gets sampled continuously
             CTL0::CONSEQx::RepeatSingleChannel
-            // Set the sample-and-hold source select to timer-triggered
-            + CTL0::SHSx::Source7
-            // Use TIMER_A3 to generate the SAMPCON signal
-            + CTL0::SHP::CLEAR
-            // Enable multiple sample and conversions
-            + CTL0::MSC::SET
-            // Enable conversation
-            + CTL0::ENC::SET,
+                + CTL0::SHSx::Source7
+                + CTL0::SHP::CLEAR
+                + CTL0::MSC::SET
+                + CTL0::ENC::SET,
         );
 
         let adc_reg = &self.registers.mem[*channel as usize] as *const ReadWrite<u32> as *const ();
