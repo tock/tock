@@ -242,16 +242,17 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
 
         for appiter in self.apps.iter() {
             let processid = appiter.processid();
-            let started_command = appiter.enter(|app, _| {
+            let has_pending_op = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
-                if app.op.is_some() {
-                    // Mark this driver as being in use.
-                    self.processid.set(processid);
-                    self.run() == Ok(())
-                } else {
-                    false
-                }
+                app.op.is_some()
             });
+            let started_command = if has_pending_op {
+                // Mark this driver as being in use.
+                self.processid.set(processid);
+                self.run() == Ok(())
+            } else {
+                false
+            };
             if started_command {
                 break;
             } else {
