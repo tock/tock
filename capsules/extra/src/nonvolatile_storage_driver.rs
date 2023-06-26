@@ -556,23 +556,22 @@ impl SyscallDriver for NonvolatileStorage<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 /* This driver exists. */ => {
-                CommandReturn::success()
-            }
+            0 => CommandReturn::success(),
 
-            1 /* How many bytes are accessible from userspace */ => {
+            1 => {
+                // How many bytes are accessible from userspace
                 // TODO: Would break on 64-bit platforms
                 CommandReturn::success_u32(self.userspace_length as u32)
-            },
+            }
 
-            2 /* Issue a read command */ => {
-                let res =
-                    self.enqueue_command(
-                        NonvolatileCommand::UserspaceRead,
-                        offset,
-                        length,
-                        Some(processid),
-                    );
+            2 => {
+                // Issue a read command
+                let res = self.enqueue_command(
+                    NonvolatileCommand::UserspaceRead,
+                    offset,
+                    length,
+                    Some(processid),
+                );
 
                 match res {
                     Ok(()) => CommandReturn::success(),
@@ -580,14 +579,14 @@ impl SyscallDriver for NonvolatileStorage<'_> {
                 }
             }
 
-            3 /* Issue a write command */ => {
-                let res =
-                    self.enqueue_command(
-                        NonvolatileCommand::UserspaceWrite,
-                        offset,
-                        length,
-                        Some(processid),
-                    );
+            3 => {
+                // Issue a write command
+                let res = self.enqueue_command(
+                    NonvolatileCommand::UserspaceWrite,
+                    offset,
+                    length,
+                    Some(processid),
+                );
 
                 match res {
                     Ok(()) => CommandReturn::success(),

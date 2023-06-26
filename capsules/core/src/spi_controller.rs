@@ -202,84 +202,97 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
 
         match command_num {
             // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-            2 /* read_write_bytes */ => {
+            1 => {
+                // read_write_byte
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
+            }
+            2 => {
+                // read_write_bytes
                 if self.busy.get() {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.grants.enter(process_id, |app, kernel_data| {
-                    // When we do a read/write, the read part is optional.
-                    // So there are three cases:
-                    // 1) Write and read buffers present: len is min of lengths
-                    // 2) Only write buffer present: len is len of write
-                    // 3) No write buffer present: no operation
-                    let wlen = kernel_data
-                        .get_readonly_processbuffer(ro_allow::WRITE)
-                        .map_or(0, |write| write.len());
-                    let rlen = kernel_data
-                        .get_readwrite_processbuffer(rw_allow::READ)
-                        .map_or(0, |read| read.len());
-                    // Note that non-shared and 0-sized read buffers both report 0 as size
-                    let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
+                self.grants
+                    .enter(process_id, |app, kernel_data| {
+                        // When we do a read/write, the read part is optional.
+                        // So there are three cases:
+                        // 1) Write and read buffers present: len is min of lengths
+                        // 2) Only write buffer present: len is len of write
+                        // 3) No write buffer present: no operation
+                        let wlen = kernel_data
+                            .get_readonly_processbuffer(ro_allow::WRITE)
+                            .map_or(0, |write| write.len());
+                        let rlen = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::READ)
+                            .map_or(0, |read| read.len());
+                        // Note that non-shared and 0-sized read buffers both report 0 as size
+                        let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
 
-                    if len >= arg1 && arg1 > 0 {
-                        app.len = arg1;
-                        app.index = 0;
-                        self.busy.set(true);
-                        self.do_next_read_write(app, kernel_data);
-                        CommandReturn::success()
-                    } else {
-                        /* write buffer too small, or zero length write */
-                        CommandReturn::failure(ErrorCode::INVAL)
-                    }
-                }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
+                        if len >= arg1 && arg1 > 0 {
+                            app.len = arg1;
+                            app.index = 0;
+                            self.busy.set(true);
+                            self.do_next_read_write(app, kernel_data);
+                            CommandReturn::success()
+                        } else {
+                            /* write buffer too small, or zero length write */
+                            CommandReturn::failure(ErrorCode::INVAL)
+                        }
+                    })
+                    .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
-            3 /* set chip select */ => {
+            3 => {
+                // set chip select
                 // XXX: TODO: do nothing, for now, until we fix interface
                 // so virtual instances can use multiple chip selects
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
-            4 /* get chip select */ => {
+            4 => {
+                // get chip select *
                 // XXX: We don't really know what chip select is being used
                 // since we can't set it. Return error until set chip select
                 // works.
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
-            5 /* set baud rate */ => {
+            5 => {
+                // set baud rate
                 match self.spi_master.set_rate(arg1 as u32) {
                     Ok(()) => CommandReturn::success(),
-                    Err (error) => CommandReturn::failure(error.into())
+                    Err(error) => CommandReturn::failure(error.into()),
                 }
             }
-            6 /* get baud rate */ => {
+            6 => {
+                // get baud rate
                 CommandReturn::success_u32(self.spi_master.get_rate() as u32)
             }
-            7 /* set phase */ => {
+            7 => {
+                // set phase
                 match match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into())
+                    Err(error) => CommandReturn::failure(error.into()),
                 }
             }
-            8 /* get phase */ => {
+            8 => {
+                // get phase
                 CommandReturn::success_u32(self.spi_master.get_phase() as u32)
             }
-            9 /* set polarity */ => {
+            9 => {
+                // set polarity
                 match match arg1 {
                     0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
-                }
-                {
+                } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into())
+                    Err(error) => CommandReturn::failure(error.into()),
                 }
             }
-            10 /* get polarity */ => {
+            10 => {
+                // get polarity
                 CommandReturn::success_u32(self.spi_master.get_polarity() as u32)
             }
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

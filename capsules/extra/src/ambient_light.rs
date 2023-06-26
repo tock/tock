@@ -96,12 +96,12 @@ impl SyscallDriver for AmbientLight<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandReturn::success(),
+            0 => CommandReturn::success(),
             1 => {
                 let _ = self.enqueue_sensor_reading(processid);
                 CommandReturn::success()
             }
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

@@ -195,20 +195,23 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                 };
                 let now = self.alarm.now();
                 match cmd_type {
-                    0 /* check if present */ => (CommandReturn::success(), false),
-                    1 /* Get clock frequency */ => {
+                    0 => (CommandReturn::success(), false),
+                    1 => {
+                        // Get clock frequency
                         let freq = <A::Frequency>::frequency();
                         (CommandReturn::success_u32(freq), false)
-                    },
-                    2 /* capture time */ => {
+                    }
+                    2 => {
+                        // capture time
                         (CommandReturn::success_u32(now.into_u32()), false)
-                    },
-                    3 /* Stop */ => {
+                    }
+                    3 => {
+                        // Stop
                         match td.expiration {
                             Expiration::Disabled => {
                                 // Request to stop when already stopped
                                 (CommandReturn::failure(ErrorCode::ALREADY), false)
-                            },
+                            }
                             _ => {
                                 td.expiration = Expiration::Disabled;
                                 let new_num_armed = self.num_armed.get() - 1;
@@ -216,22 +219,25 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                                 (CommandReturn::success(), true)
                             }
                         }
-                    },
-                    4 /* Deprecated in 2.0, used to be: set absolute expiration */ => {
+                    }
+                    4 => {
+                        // Deprecated in 2.0, used to be: set absolute expiration
                         (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
-                    },
-                    5 /* Set relative expiration */ => {
+                    }
+                    5 => {
+                        // Set relative expiration
                         let reference = now.into_u32() as usize;
                         let dt = data;
                         // if previously unarmed, but now will become armed
                         rearm(reference, dt)
-                    },
-                    6 /* Set absolute expiration with reference point */ => {
+                    }
+                    6 => {
+                        // Set absolute expiration with reference point
                         let reference = data;
                         let dt = data2;
                         rearm(reference, dt)
                     }
-                    _ => (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
+                    _ => (CommandReturn::failure(ErrorCode::NOSUPPORT), false),
                 }
             })
             .map_or_else(
