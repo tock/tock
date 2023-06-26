@@ -59,6 +59,14 @@ impl From<u64> for MacAddress {
     }
 }
 
+impl From<MacAddress> for u64 {
+    fn from(address: MacAddress) -> Self {
+        let mut bytes = [0 as u8; 8];
+        bytes[2..].copy_from_slice(address.get());
+        u64::from_be_bytes(bytes)
+    }
+}
+
 impl fmt::Display for MacAddress {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -128,9 +136,11 @@ mod tests {
 
         mac_address = MacAddress::from(0x112233445566);
         assert_eq!(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get());
+        assert_eq!(0x112233445566 as u64, mac_address.into());
 
         mac_address.set(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB]);
         assert_eq!(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB], mac_address.get());
+        assert_eq!(0x1234567890AB as u64, mac_address.into());
 
         assert_eq!(false, mac_address.is_broadcast());
         assert_eq!(false, mac_address.is_multicast());
