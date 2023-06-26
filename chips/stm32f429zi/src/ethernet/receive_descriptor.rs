@@ -1,20 +1,15 @@
-#![deny(missing_docs)]
-#![deny(dead_code)]
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright 2023 OxidOS Automotive SRL
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
 //
 // TODO: Add author
 // Author:  <>
-
+#![deny(missing_docs)]
+#![deny(dead_code)]
 //! Receive descriptor for Ethernet DMA
 
-use kernel::utilities::registers::{register_bitfields, register_structs, InMemoryRegister};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, InMemoryRegister};
 use kernel::ErrorCode;
 
 register_bitfields![u32,
@@ -192,9 +187,15 @@ pub mod tests {
         assert_eq!(0, receive_descriptor.get_frame_length());
 
         receive_descriptor.enable_interrupt_on_completion();
-        assert_eq!(true, receive_descriptor.is_interrupt_on_completion_enabled());
+        assert_eq!(
+            true,
+            receive_descriptor.is_interrupt_on_completion_enabled()
+        );
         receive_descriptor.disable_interrupt_on_completion();
-        assert_eq!(false, receive_descriptor.is_interrupt_on_completion_enabled());
+        assert_eq!(
+            false,
+            receive_descriptor.is_interrupt_on_completion_enabled()
+        );
 
         receive_descriptor.rdes0.modify(RDES0::LS::SET);
         assert_eq!(true, receive_descriptor.is_last_segment());
@@ -213,28 +214,46 @@ pub mod tests {
 
         assert_eq!(Ok(()), receive_descriptor.set_buffer1_size(1024));
         assert_eq!(1024, receive_descriptor.get_buffer1_size());
-        assert_eq!(Err(ErrorCode::SIZE), receive_descriptor.set_buffer1_size(1 << 14));
+        assert_eq!(
+            Err(ErrorCode::SIZE),
+            receive_descriptor.set_buffer1_size(1 << 14)
+        );
         assert_eq!(1024, receive_descriptor.get_buffer1_size());
-        assert_eq!(Err(ErrorCode::FAIL), receive_descriptor.set_buffer1_size(1023));
+        assert_eq!(
+            Err(ErrorCode::FAIL),
+            receive_descriptor.set_buffer1_size(1023)
+        );
         assert_eq!(1024, receive_descriptor.get_buffer1_size());
 
         receive_descriptor.set_buffer1_address(0x0040000);
         assert_eq!(0x0040000, receive_descriptor.get_buffer1_address());
         let x: u32 = 2023;
         receive_descriptor.set_buffer1_address(&x as *const u32 as u32);
-        assert_eq!(&x as *const u32 as u32, receive_descriptor.get_buffer1_address());
+        assert_eq!(
+            &x as *const u32 as u32,
+            receive_descriptor.get_buffer1_address()
+        );
 
         assert_eq!(Ok(()), receive_descriptor.set_buffer2_size(1024));
         assert_eq!(1024, receive_descriptor.get_buffer2_size());
-        assert_eq!(Err(ErrorCode::SIZE), receive_descriptor.set_buffer2_size(1 << 14));
+        assert_eq!(
+            Err(ErrorCode::SIZE),
+            receive_descriptor.set_buffer2_size(1 << 14)
+        );
         assert_eq!(1024, receive_descriptor.get_buffer2_size());
-        assert_eq!(Err(ErrorCode::FAIL), receive_descriptor.set_buffer2_size(1023));
+        assert_eq!(
+            Err(ErrorCode::FAIL),
+            receive_descriptor.set_buffer2_size(1023)
+        );
         assert_eq!(1024, receive_descriptor.get_buffer2_size());
 
         receive_descriptor.set_buffer2_address(0x0040000);
         assert_eq!(0x0040000, receive_descriptor.get_buffer2_address());
         receive_descriptor.set_buffer2_address(&x as *const u32 as u32);
-        assert_eq!(&x as *const u32 as u32, receive_descriptor.get_buffer2_address());
+        assert_eq!(
+            &x as *const u32 as u32,
+            receive_descriptor.get_buffer2_address()
+        );
 
         receive_descriptor.rdes0.modify(RDES0::ES::SET);
         assert_eq!(true, receive_descriptor.get_error_summary());

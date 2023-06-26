@@ -1,16 +1,11 @@
-#![deny(missing_docs)]
-#![deny(dead_code)]
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright 2023 OxidOS Automotive SRL
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
 //
 // TODO: Add author
 // Author:  <>
-//
+#![deny(missing_docs)]
+#![deny(dead_code)]
 //! Ethernet firmware for STM32F429ZI
 //!
 //! # Usage
@@ -37,18 +32,18 @@
 
 use cortexm4::support::nop;
 use kernel::debug;
-use kernel::utilities::StaticRef;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::ErrorCode;
-use kernel::platform::chip::ClockInterface;
-use kernel::hil::ethernet::MacAddress;
-use kernel::hil::ethernet::OperationMode;
-use kernel::hil::ethernet::EthernetSpeed;
 use kernel::hil::ethernet::Configure;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::ethernet::EthernetAdapterClient;
+use kernel::hil::ethernet::EthernetSpeed;
+use kernel::hil::ethernet::MacAddress;
+use kernel::hil::ethernet::OperationMode;
+use kernel::platform::chip::ClockInterface;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::StaticRef;
+use kernel::ErrorCode;
 
 use crate::rcc;
 use crate::rcc::PeripheralClock;
@@ -581,7 +576,6 @@ DMACHRBAR [
 ]
 ];
 
-
 const ETHERNET_DMA_BASE: StaticRef<Ethernet_DmaRegisters> =
     unsafe { StaticRef::new(0x40029000 as *const Ethernet_DmaRegisters) };
 
@@ -703,7 +697,6 @@ MMCRGUFCR [
 const ETHERNET_MMC_BASE: StaticRef<Ethernet_MmcRegisters> =
     unsafe { StaticRef::new(0x40028100 as *const Ethernet_MmcRegisters) };
 
-
 #[derive(PartialEq, Debug)]
 enum MacTxReaderStatus {
     Idle = 0b00,
@@ -733,7 +726,7 @@ enum MacRxReaderStatus {
     Idle = 0b00,
     ReadingFrame = 0b01,
     ReadingFrameStatusOrTimeStamp = 0b10,
-    FlushingFrameDataAndStatus  = 0b11,
+    FlushingFrameDataAndStatus = 0b11,
 }
 
 #[derive(PartialEq, Debug)]
@@ -866,8 +859,12 @@ impl<'a> Ethernet<'a> {
         self.enable_transmit_store_and_forward()?;
         self.enable_receive_store_and_forward()?;
 
-        self.set_transmit_descriptor_list_address(&self.transmit_descriptor as *const TransmitDescriptor as u32)?;
-        self.set_receive_descriptor_list_address(&self.receive_descriptor as *const ReceiveDescriptor as u32)?;
+        self.set_transmit_descriptor_list_address(
+            &self.transmit_descriptor as *const TransmitDescriptor as u32,
+        )?;
+        self.set_receive_descriptor_list_address(
+            &self.receive_descriptor as *const ReceiveDescriptor as u32,
+        )?;
 
         self.enable_all_interrupts();
 
@@ -896,7 +893,9 @@ impl<'a> Ethernet<'a> {
     }
 
     fn set_ethernet_speed(&self, speed: EthernetSpeed) {
-        self.mac_registers.maccr.modify(MACCR::FES.val(speed as u32));
+        self.mac_registers
+            .maccr
+            .modify(MACCR::FES.val(speed as u32));
     }
 
     fn get_ethernet_speed(&self) -> EthernetSpeed {
@@ -919,7 +918,9 @@ impl<'a> Ethernet<'a> {
     }
 
     fn internal_set_operation_mode(&self, operation_mode: OperationMode) {
-        self.mac_registers.maccr.modify(MACCR::DM.val(operation_mode as u32));
+        self.mac_registers
+            .maccr
+            .modify(MACCR::DM.val(operation_mode as u32));
     }
 
     fn internal_get_operation_mode(&self) -> OperationMode {
@@ -1032,7 +1033,9 @@ impl<'a> Ethernet<'a> {
     }
 
     fn set_mac_address0_high_register(&self, value: u16) {
-        self.mac_registers.maca0hr.modify(MACA0HR::MACA0H.val(value as u32));
+        self.mac_registers
+            .maca0hr
+            .modify(MACA0HR::MACA0H.val(value as u32));
     }
 
     fn set_mac_address0_low_register(&self, value: u32) {
@@ -1150,7 +1153,7 @@ impl<'a> Ethernet<'a> {
 
     // TODO: Am I allowed to clear this bit?
     //fn clear_dma_normal_interrupt(&self) {
-        //self.dma_registers.dmasr.modify(DMASR::NIS::SET);
+    //self.dma_registers.dmasr.modify(DMASR::NIS::SET);
     //}
 
     fn did_abnormal_interrupt_occur(&self) -> bool {
@@ -1159,7 +1162,7 @@ impl<'a> Ethernet<'a> {
 
     // TODO: Am I allowed to clear this bit?
     //fn clear_dma_abnormal_interrupt(&self) {
-        //self.dma_registers.dmasr.modify(DMASR::AIS::SET);
+    //self.dma_registers.dmasr.modify(DMASR::AIS::SET);
     //}
 
     fn did_early_receive_interrupt_occur(&self) -> bool {
@@ -1209,7 +1212,7 @@ impl<'a> Ethernet<'a> {
     fn clear_receive_buffer_unavailable_interrupt(&self) {
         self.dma_registers.dmasr.modify(DMASR::RBUS::SET);
     }
-    
+
     fn did_receive_interrupt_occur(&self) -> bool {
         self.dma_registers.dmasr.is_set(DMASR::RS)
     }
@@ -1343,12 +1346,17 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    fn set_dma_transmission_threshold_control(&self, threshold: DmaTransmitThreshold) -> Result<(), ErrorCode> {
+    fn set_dma_transmission_threshold_control(
+        &self,
+        threshold: DmaTransmitThreshold,
+    ) -> Result<(), ErrorCode> {
         if self.is_dma_transmission_enabled() {
             return Err(ErrorCode::FAIL);
         }
 
-        self.dma_registers.dmaomr.modify(DMAOMR::TTC.val(threshold as u32));
+        self.dma_registers
+            .dmaomr
+            .modify(DMAOMR::TTC.val(threshold as u32));
 
         Ok(())
     }
@@ -1366,18 +1374,23 @@ impl<'a> Ethernet<'a> {
         }
     }
 
-    fn set_dma_receive_treshold_control(&self, threshold: DmaReceiveThreshold) -> Result<(), ErrorCode> {
+    fn set_dma_receive_treshold_control(
+        &self,
+        threshold: DmaReceiveThreshold,
+    ) -> Result<(), ErrorCode> {
         if self.is_dma_reception_enabled() {
             return Err(ErrorCode::FAIL);
         }
 
-        self.dma_registers.dmaomr.modify(DMAOMR::RTC.val(threshold as u32));
+        self.dma_registers
+            .dmaomr
+            .modify(DMAOMR::RTC.val(threshold as u32));
 
         Ok(())
     }
 
     fn get_dma_receive_threshold_control(&self) -> DmaReceiveThreshold {
-        match self.dma_registers.dmaomr.read(DMAOMR::RTC)  {
+        match self.dma_registers.dmaomr.read(DMAOMR::RTC) {
             0b00 => DmaReceiveThreshold::Threshold64,
             0b01 => DmaReceiveThreshold::Threshold32,
             0b10 => DmaReceiveThreshold::Threshold96,
@@ -1397,13 +1410,13 @@ impl<'a> Ethernet<'a> {
 
     // Uncomment this if needed
     //fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
-        //if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
-            //return Err(ErrorCode::FAIL);
-        //}
+    //if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
+    //return Err(ErrorCode::FAIL);
+    //}
 
-        //self.dma_registers.dmaomr.modify(DMAOMR::ST::CLEAR);
+    //self.dma_registers.dmaomr.modify(DMAOMR::ST::CLEAR);
 
-        //Ok(())
+    //Ok(())
     //}
 
     fn is_dma_transmission_enabled(&self) -> bool {
@@ -1425,17 +1438,17 @@ impl<'a> Ethernet<'a> {
 
     // Uncomment this if needed
     //fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
-        //if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
-            //return Err(ErrorCode::FAIL);
-        //}
+    //if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
+    //return Err(ErrorCode::FAIL);
+    //}
 
-        //self.dma_registers.dmaomr.modify(DMAOMR::SR::CLEAR);
+    //self.dma_registers.dmaomr.modify(DMAOMR::SR::CLEAR);
 
-        //Ok(())
+    //Ok(())
     //}
 
     fn is_dma_reception_enabled(&self) -> bool {
-        self.dma_registers.dmaomr.is_set(DMAOMR::ST) 
+        self.dma_registers.dmaomr.is_set(DMAOMR::ST)
     }
 
     fn enable_normal_interrupts(&self) {
@@ -1620,12 +1633,12 @@ impl<'a> Ethernet<'a> {
 
     // Uncomment this if needed
     //fn get_current_host_transmit_descriptor_address(&self) -> u32 {
-        //self.dma_registers.dmachtdr.get()
+    //self.dma_registers.dmachtdr.get()
     //}
 
     // Uncomment this if needed
     //fn get_current_host_transmit_buffer_address(&self) -> u32 {
-        //self.dma_registers.dmachtbar.get()
+    //self.dma_registers.dmachtbar.get()
     //}
 
     /* === High-level functions */
@@ -1649,10 +1662,10 @@ impl<'a> Ethernet<'a> {
 
     // Uncomment this if needed
     //fn disable_transmitter(&self) -> Result<(), ErrorCode> {
-        //self.disable_dma_transmission()?;
-        //self.disable_mac_transmitter();
+    //self.disable_dma_transmission()?;
+    //self.disable_mac_transmitter();
 
-        //Ok(())
+    //Ok(())
     //}
 
     fn is_transmission_enabled(&self) -> bool {
@@ -1674,10 +1687,10 @@ impl<'a> Ethernet<'a> {
 
     // Uncomment this if needed
     //fn disable_receiver(&self) -> Result<(), ErrorCode> {
-        //self.disable_dma_reception()?;
-        //self.disable_mac_receiver();
+    //self.disable_dma_reception()?;
+    //self.disable_mac_receiver();
 
-        //Ok(())
+    //Ok(())
     //}
 
     fn is_reception_enabled(&self) -> bool {
@@ -1714,15 +1727,15 @@ impl<'a> Ethernet<'a> {
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
             self.clear_transmit_interrupt();
-            self.client.map(|client|
+            self.client.map(|client| {
                 client.tx_done(
                     Ok(()),
                     self.transmit_packet.take().unwrap(),
                     self.transmit_packet_length.take().unwrap(),
                     self.packet_identifier.take().unwrap(),
-                    None
+                    None,
                 )
-            );
+            });
         }
         if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
@@ -1803,8 +1816,10 @@ impl<'a> Ethernet<'a> {
         }
 
         let received_packet = self.received_packet.take().unwrap();
-        self.receive_descriptor.set_buffer1_address(received_packet.as_ptr() as u32);
-        self.receive_descriptor.set_buffer1_size(received_packet.len())?;
+        self.receive_descriptor
+            .set_buffer1_address(received_packet.as_ptr() as u32);
+        self.receive_descriptor
+            .set_buffer1_size(received_packet.len())?;
         self.receive_descriptor.set_buffer2_size(0)?;
         self.received_packet.put(Some(received_packet));
 
@@ -1864,7 +1879,7 @@ impl Configure for Ethernet<'_> {
     fn set_loopback_mode(&self, enable: bool) -> Result<(), ErrorCode> {
         match enable {
             false => self.disable_loopback_mode(),
-            true => self.enable_loopback_mode()
+            true => self.enable_loopback_mode(),
         };
 
         Ok(())
@@ -1912,12 +1927,15 @@ impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
         }
 
         // Check if transmitter is busy
-        if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended || self.transmit_packet.is_some() {
+        if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended
+            || self.transmit_packet.is_some()
+        {
             return Err((ErrorCode::BUSY, packet));
         }
 
         // Prepare transmit descriptor
-        self.transmit_descriptor.set_buffer1_address(packet.as_ptr() as u32);
+        self.transmit_descriptor
+            .set_buffer1_address(packet.as_ptr() as u32);
         if let Err(ErrorCode::SIZE) = self.transmit_descriptor.set_buffer1_size(len as usize) {
             return Err((ErrorCode::SIZE, packet));
         }
@@ -2017,18 +2035,31 @@ pub mod tests {
     }
 
     fn test_dma_default_values(ethernet: &Ethernet) {
-        assert_eq!(&ethernet.transmit_descriptor as *const TransmitDescriptor as u32,
-            ethernet.get_transmit_descriptor_list_address());
-        assert_eq!(DmaTransmitProcessState::Stopped, ethernet.get_transmit_process_state());
+        assert_eq!(
+            &ethernet.transmit_descriptor as *const TransmitDescriptor as u32,
+            ethernet.get_transmit_descriptor_list_address()
+        );
+        assert_eq!(
+            DmaTransmitProcessState::Stopped,
+            ethernet.get_transmit_process_state()
+        );
         assert_eq!(true, ethernet.is_transmit_store_and_forward_enabled());
         assert_eq!(false, ethernet.is_dma_transmission_enabled());
-        assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmission_threshold_control());
+        assert_eq!(
+            DmaTransmitThreshold::Threshold64,
+            ethernet.get_dma_transmission_threshold_control()
+        );
 
-        assert_eq!(&ethernet.receive_descriptor as *const ReceiveDescriptor as u32,
-            ethernet.get_receive_descriptor_list_address());
+        assert_eq!(
+            &ethernet.receive_descriptor as *const ReceiveDescriptor as u32,
+            ethernet.get_receive_descriptor_list_address()
+        );
         assert_eq!(true, ethernet.is_receive_store_and_forward_enabled());
         assert_eq!(false, ethernet.is_dma_reception_enabled());
-        assert_eq!(DmaReceiveThreshold::Threshold64, ethernet.get_dma_receive_threshold_control());
+        assert_eq!(
+            DmaReceiveThreshold::Threshold64,
+            ethernet.get_dma_receive_threshold_control()
+        );
 
         assert_eq!(false, ethernet.did_normal_interrupt_occur());
         assert_eq!(false, ethernet.did_abnormal_interrupt_occur());
@@ -2054,7 +2085,10 @@ pub mod tests {
         ethernet.disable_mac_transmitter();
         assert_eq!(false, ethernet.is_mac_transmiter_enabled());
 
-        assert_eq!(Ok(()), ethernet.set_transmit_descriptor_list_address(0x12345));
+        assert_eq!(
+            Ok(()),
+            ethernet.set_transmit_descriptor_list_address(0x12345)
+        );
         // The last two bits are ignore since the bus width is 32 bits
         assert_eq!(0x12344, ethernet.get_transmit_descriptor_list_address());
 
@@ -2063,13 +2097,30 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.disable_transmit_store_and_forward());
         assert_eq!(false, ethernet.is_transmit_store_and_forward_enabled());
 
-        assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold192));
-        assert_eq!(DmaTransmitThreshold::Threshold192, ethernet.get_dma_transmission_threshold_control());
-        assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold32));
-        assert_eq!(DmaTransmitThreshold::Threshold32, ethernet.get_dma_transmission_threshold_control());
-        assert_eq!(Ok(()), ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold64));
-        assert_eq!(DmaTransmitThreshold::Threshold64, ethernet.get_dma_transmission_threshold_control());
-
+        assert_eq!(
+            Ok(()),
+            ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold192)
+        );
+        assert_eq!(
+            DmaTransmitThreshold::Threshold192,
+            ethernet.get_dma_transmission_threshold_control()
+        );
+        assert_eq!(
+            Ok(()),
+            ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold32)
+        );
+        assert_eq!(
+            DmaTransmitThreshold::Threshold32,
+            ethernet.get_dma_transmission_threshold_control()
+        );
+        assert_eq!(
+            Ok(()),
+            ethernet.set_dma_transmission_threshold_control(DmaTransmitThreshold::Threshold64)
+        );
+        assert_eq!(
+            DmaTransmitThreshold::Threshold64,
+            ethernet.get_dma_transmission_threshold_control()
+        );
 
         ethernet.enable_transmit_interrupt();
         assert_eq!(true, ethernet.is_transmit_interrupt_enabled());
@@ -2083,7 +2134,10 @@ pub mod tests {
         ethernet.disable_mac_receiver();
         assert_eq!(false, ethernet.is_mac_receiver_enabled());
 
-        assert_eq!(Ok(()), ethernet.set_receive_descriptor_list_address(0x12345));
+        assert_eq!(
+            Ok(()),
+            ethernet.set_receive_descriptor_list_address(0x12345)
+        );
         assert_eq!(0x12344, ethernet.get_receive_descriptor_list_address());
 
         assert_eq!(Ok(()), ethernet.enable_receive_store_and_forward());
@@ -2091,12 +2145,30 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.disable_receive_store_and_forward());
         assert_eq!(false, ethernet.is_receive_store_and_forward_enabled());
 
-        assert_eq!(Ok(()), ethernet.set_dma_receive_treshold_control(DmaReceiveThreshold::Threshold32));
-        assert_eq!(DmaReceiveThreshold::Threshold32, ethernet.get_dma_receive_threshold_control());
-        assert_eq!(Ok(()), ethernet.set_dma_receive_treshold_control(DmaReceiveThreshold::Threshold128));
-        assert_eq!(DmaReceiveThreshold::Threshold128, ethernet.get_dma_receive_threshold_control());
-        assert_eq!(Ok(()), ethernet.set_dma_receive_treshold_control(DmaReceiveThreshold::Threshold64));
-        assert_eq!(DmaReceiveThreshold::Threshold64, ethernet.get_dma_receive_threshold_control());
+        assert_eq!(
+            Ok(()),
+            ethernet.set_dma_receive_treshold_control(DmaReceiveThreshold::Threshold32)
+        );
+        assert_eq!(
+            DmaReceiveThreshold::Threshold32,
+            ethernet.get_dma_receive_threshold_control()
+        );
+        assert_eq!(
+            Ok(()),
+            ethernet.set_dma_receive_treshold_control(DmaReceiveThreshold::Threshold128)
+        );
+        assert_eq!(
+            DmaReceiveThreshold::Threshold128,
+            ethernet.get_dma_receive_threshold_control()
+        );
+        assert_eq!(
+            Ok(()),
+            ethernet.set_dma_receive_treshold_control(DmaReceiveThreshold::Threshold64)
+        );
+        assert_eq!(
+            DmaReceiveThreshold::Threshold64,
+            ethernet.get_dma_receive_threshold_control()
+        );
     }
 
     /// Test Ethernet basic configuration
@@ -2116,9 +2188,15 @@ pub mod tests {
         assert_eq!(Ok(()), ethernet.set_loopback_mode(false));
         assert_eq!(false, ethernet.is_loopback_mode_enabled());
 
-        assert_eq!(Ok(()), ethernet.set_operation_mode(OperationMode::FullDuplex));
+        assert_eq!(
+            Ok(()),
+            ethernet.set_operation_mode(OperationMode::FullDuplex)
+        );
         assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
-        assert_eq!(Ok(()), ethernet.set_operation_mode(OperationMode::HalfDuplex));
+        assert_eq!(
+            Ok(()),
+            ethernet.set_operation_mode(OperationMode::HalfDuplex)
+        );
         assert_eq!(OperationMode::HalfDuplex, ethernet.get_operation_mode());
 
         ethernet.enable_address_filter();
@@ -2133,7 +2211,10 @@ pub mod tests {
         assert_eq!(0xCBA98765, ethernet.mac_registers.maca0lr.get());
 
         ethernet.set_mac_address0(0x112233445566.into());
-        assert_eq!(MacAddress::from(0x112233445566), ethernet.get_mac_address0());
+        assert_eq!(
+            MacAddress::from(0x112233445566),
+            ethernet.get_mac_address0()
+        );
         ethernet.set_mac_address0(DEFAULT_MAC_ADDRESS);
         assert_eq!(DEFAULT_MAC_ADDRESS, ethernet.get_mac_address0());
 
@@ -2175,9 +2256,15 @@ pub mod tests {
         assert_eq!(false, ethernet.is_receive_interrupt_enabled());
 
         ethernet.enable_transmit_buffer_unavailable_interrupt();
-        assert_eq!(true, ethernet.is_transmit_buffer_unavailable_interrupt_enabled());
+        assert_eq!(
+            true,
+            ethernet.is_transmit_buffer_unavailable_interrupt_enabled()
+        );
         ethernet.disable_transmit_buffer_unavailable_interrupt();
-        assert_eq!(false, ethernet.is_transmit_buffer_unavailable_interrupt_enabled());
+        assert_eq!(
+            false,
+            ethernet.is_transmit_buffer_unavailable_interrupt_enabled()
+        );
 
         ethernet.enable_transmit_interrupt();
         assert_eq!(true, ethernet.is_transmit_interrupt_enabled());
@@ -2202,14 +2289,26 @@ pub mod tests {
         assert_eq!(false, ethernet.is_early_transmit_interrupt_enabled());
 
         ethernet.enable_receive_watchdog_timeout_interrupt();
-        assert_eq!(true, ethernet.is_receive_watchdog_timeout_interrupt_enabled());
+        assert_eq!(
+            true,
+            ethernet.is_receive_watchdog_timeout_interrupt_enabled()
+        );
         ethernet.disable_receive_watchdog_timeout_interrupt();
-        assert_eq!(false, ethernet.is_receive_watchdog_timeout_interrupt_enabled());
+        assert_eq!(
+            false,
+            ethernet.is_receive_watchdog_timeout_interrupt_enabled()
+        );
 
         ethernet.enable_receive_process_stopped_interrupt();
-        assert_eq!(true, ethernet.is_receive_process_stopped_interrupt_enabled());
+        assert_eq!(
+            true,
+            ethernet.is_receive_process_stopped_interrupt_enabled()
+        );
         ethernet.disable_receive_process_stopped_interrupt();
-        assert_eq!(false, ethernet.is_receive_process_stopped_interrupt_enabled());
+        assert_eq!(
+            false,
+            ethernet.is_receive_process_stopped_interrupt_enabled()
+        );
 
         ethernet.enable_receive_buffer_unavailable();
         assert_eq!(true, ethernet.is_receive_buffer_unavailable());

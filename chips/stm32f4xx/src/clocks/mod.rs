@@ -154,10 +154,10 @@ pub mod pll;
 use crate::flash::Flash;
 use crate::rcc::AHBPrescaler;
 use crate::rcc::APBPrescaler;
+use crate::rcc::MCO1Divider;
+use crate::rcc::MCO1Source;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
-use crate::rcc::MCO1Source;
-use crate::rcc::MCO1Divider;
 use hsi::Hsi;
 use hsi::HSI_FREQUENCY_MHZ;
 use pll::Pll;
@@ -176,18 +176,16 @@ pub struct Clocks<'a> {
     pub pll: Pll<'a>,
 }
 
-#[cfg(
-    all(
-        any(
-            feature = "stm32f410",
-            feature = "stm32f411",
-            feature = "stm32f412",
-            feature = "stm32f413",
-            feature = "stm32f423"
-        ),
-        not(feature = "cargo-clippy")
-    )
-)]
+#[cfg(all(
+    any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+    ),
+    not(any(feature = "cargo-clippy"))
+))]
 const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
 
 #[cfg(any(
@@ -201,18 +199,16 @@ const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
 ))]
 const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
 
-#[cfg(
-    all(
-        any(
-            feature = "stm32f401",
-            feature = "stm32f405",
-            feature = "stm32f407",
-            feature = "stm32f415",
-            feature = "stm32f417",
-        ),
-        not(feature = "cargo-clippy")
-    )
-)]
+#[cfg(all(
+    any(
+        feature = "stm32f401",
+        feature = "stm32f405",
+        feature = "stm32f407",
+        feature = "stm32f415",
+        feature = "stm32f417",
+    ),
+    not(feature = "cargo-clippy")
+))]
 const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
 
 // APB2 frequency limit is twice the APB1 frequency limit
@@ -254,7 +250,7 @@ const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
 
 impl<'a> Clocks<'a> {
     // The constructor must be called when the default peripherals are created
-    pub(in crate) fn new(rcc: &'a Rcc) -> Self {
+    pub(crate) fn new(rcc: &'a Rcc) -> Self {
         Self {
             rcc,
             flash: OptionalCell::empty(),
@@ -966,19 +962,28 @@ pub mod tests {
         assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::PLL));
 
         // Set MCO1 divider to 3
-        assert_eq!(Ok(()), clocks.set_mco1_clock_divider(MCO1Divider::DivideBy3));
+        assert_eq!(
+            Ok(()),
+            clocks.set_mco1_clock_divider(MCO1Divider::DivideBy3)
+        );
 
         // Enable PLL
         assert_eq!(Ok(()), clocks.pll.enable());
 
         // Attempting to change the divider while the PLL is running must fail
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_mco1_clock_divider(MCO1Divider::DivideBy2));
+        assert_eq!(
+            Err(ErrorCode::FAIL),
+            clocks.set_mco1_clock_divider(MCO1Divider::DivideBy2)
+        );
 
         // Switch back to HSI
         assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::HSI));
 
         // Attempting to change the source to PLL when it is already enabled must fail
-        assert_eq!(Err(ErrorCode::FAIL), clocks.set_mco1_clock_source(MCO1Source::PLL));
+        assert_eq!(
+            Err(ErrorCode::FAIL),
+            clocks.set_mco1_clock_source(MCO1Source::PLL)
+        );
 
         debug!("Finished testing MCOs. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");

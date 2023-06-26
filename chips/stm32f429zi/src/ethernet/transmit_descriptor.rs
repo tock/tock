@@ -1,20 +1,17 @@
-#![deny(missing_docs)]
-#![deny(dead_code)]
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright 2023 OxidOS Automotive SRL
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
 //
 // TODO: Add author
 // Author:  <>
 
+#![deny(missing_docs)]
+#![deny(dead_code)]
+
 //! Transmit descriptor for Ethernet DMA
 
-use kernel::utilities::registers::{register_bitfields, register_structs, InMemoryRegister};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, InMemoryRegister};
 use kernel::ErrorCode;
 
 register_bitfields![u32,
@@ -226,9 +223,15 @@ pub mod tests {
         assert_eq!(false, transmit_descriptor.is_acquired());
 
         transmit_descriptor.enable_interrupt_on_completion();
-        assert_eq!(true, transmit_descriptor.is_interrupt_on_completion_enabled());
+        assert_eq!(
+            true,
+            transmit_descriptor.is_interrupt_on_completion_enabled()
+        );
         transmit_descriptor.disable_interrupt_on_completion();
-        assert_eq!(false, transmit_descriptor.is_interrupt_on_completion_enabled());
+        assert_eq!(
+            false,
+            transmit_descriptor.is_interrupt_on_completion_enabled()
+        );
 
         transmit_descriptor.set_as_last_segment();
         assert_eq!(true, transmit_descriptor.is_last_segment());
@@ -247,24 +250,36 @@ pub mod tests {
 
         assert_eq!(Ok(()), transmit_descriptor.set_buffer1_size(1024));
         assert_eq!(1024, transmit_descriptor.get_buffer1_size());
-        assert_eq!(Err(ErrorCode::SIZE), transmit_descriptor.set_buffer1_size(1 << 14));
+        assert_eq!(
+            Err(ErrorCode::SIZE),
+            transmit_descriptor.set_buffer1_size(1 << 14)
+        );
         assert_eq!(1024, transmit_descriptor.get_buffer1_size());
 
         transmit_descriptor.set_buffer1_address(0x0040000);
         assert_eq!(0x0040000, transmit_descriptor.get_buffer1_address());
         let x: u32 = 2023;
         transmit_descriptor.set_buffer1_address(&x as *const u32 as u32);
-        assert_eq!(&x as *const u32 as u32, transmit_descriptor.get_buffer1_address());
+        assert_eq!(
+            &x as *const u32 as u32,
+            transmit_descriptor.get_buffer1_address()
+        );
 
         assert_eq!(Ok(()), transmit_descriptor.set_buffer2_size(1024));
         assert_eq!(1024, transmit_descriptor.get_buffer2_size());
-        assert_eq!(Err(ErrorCode::SIZE), transmit_descriptor.set_buffer2_size(1 << 14));
+        assert_eq!(
+            Err(ErrorCode::SIZE),
+            transmit_descriptor.set_buffer2_size(1 << 14)
+        );
         assert_eq!(1024, transmit_descriptor.get_buffer2_size());
 
         transmit_descriptor.set_buffer2_address(0x0040000);
         assert_eq!(0x0040000, transmit_descriptor.get_buffer2_address());
         transmit_descriptor.set_buffer2_address(&x as *const u32 as u32);
-        assert_eq!(&x as *const u32 as u32, transmit_descriptor.get_buffer2_address());
+        assert_eq!(
+            &x as *const u32 as u32,
+            transmit_descriptor.get_buffer2_address()
+        );
 
         transmit_descriptor.tdes0.modify(TDES0::ES::SET);
         assert_eq!(true, transmit_descriptor.get_error_summary());
