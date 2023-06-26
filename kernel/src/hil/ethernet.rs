@@ -22,8 +22,8 @@ impl MacAddress {
         self.0.copy_from_slice(bytes);
     }
 
-    pub const fn get_address(&self) -> [u8; 6] {
-        self.0
+    const fn get(&self) -> &[u8; 6] {
+        &self.0
     }
 
     pub const fn is_broadcast(&self) -> bool {
@@ -59,23 +59,13 @@ impl From<u64> for MacAddress {
     }
 }
 
-impl From<MacAddress> for u64 {
-    fn from(mac_address: MacAddress) -> Self {
-        // Can't panic
-        let high: u16 = u16::from_be_bytes(mac_address.get_address()[0..2].try_into().unwrap());
-        let low: u32 = u32::from_be_bytes(mac_address.get_address()[2..6].try_into().unwrap());
-
-        ((high as u64) << 32) + (low as u64)
-    }
-}
-
 impl fmt::Display for MacAddress {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
             "{:02x}-{:02x}-{:02x}-{:02x}-{:02x}-{:02x}",
-            self.get_address()[0], self.get_address()[1], self.get_address()[2],
-            self.get_address()[3], self.get_address()[4], self.get_address()[5]
+            self.get()[0], self.get()[1], self.get()[2],
+            self.get()[3], self.get()[4], self.get()[5]
         )
     }
 }
@@ -133,16 +123,14 @@ mod tests {
     #[test]
     fn test_mac_address() {
         let mut mac_address = MacAddress::default();
-        assert_eq!([0; 6], mac_address.get_address());
-        assert_eq!(0x0 as u64, mac_address.into());
+        assert_eq!(&[0; 6], mac_address.get());
+        assert_eq!(MacAddress::from(0x0 as u64), mac_address);
 
         mac_address = MacAddress::from(0x112233445566);
-        assert_eq!([0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get_address());
-        assert_eq!(0x112233445566 as u64, mac_address.into());
+        assert_eq!(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66], mac_address.get());
 
         mac_address.set(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB]);
-        assert_eq!([0x12, 0x34, 0x56, 0x78, 0x90, 0xAB], mac_address.get_address());
-        assert_eq!(0x1234567890AB as u64, mac_address.into());
+        assert_eq!(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB], mac_address.get());
 
         assert_eq!(false, mac_address.is_broadcast());
         assert_eq!(false, mac_address.is_multicast());
