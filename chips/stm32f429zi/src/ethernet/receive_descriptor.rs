@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+#![deny(dead_code)]
 // Copyright 2023 OxidOS Automotive SRL
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -169,10 +171,12 @@ impl ReceiveDescriptor {
 }
 
 #[cfg(test)]
+/// Tests for the receive descriptor
 pub mod tests {
     use super::*;
 
     #[test]
+    /// Test the receive descriptor
     pub fn test_receive_descriptor() {
         let receive_descriptor = ReceiveDescriptor::new();
 

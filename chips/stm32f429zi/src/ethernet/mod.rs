@@ -23,7 +23,7 @@
 //! Connect an external clock to PA1 pin. Then, inside the **main** function of the respective
 //! board, add the following lines before the kernel main loop:
 //!
-//! ```rust
+//! ```rust,ignore
 //! setup_ethernet(&peripherals);
 //! // Schedule the reception of an incoming packet
 //! assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
@@ -1941,13 +1941,13 @@ impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
 ///
 /// Add the following line before kernel's main loop:
 ///
-/// ```rust
+/// ```rust,ignore
 /// stm32f429zi::ethernet::tests::run_all_unit_tests(&peripherals.ethernet);
 /// ```
 ///
 /// If there are no errors, the following output should be printed on the console:
 ///
-/// ```text
+/// ```text,ignore
 /// ================================================
 /// Starting testing the Ethernet...
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2017,7 +2017,7 @@ pub mod tests {
         assert_eq!(false, ethernet.did_abnormal_interrupt_occur());
     }
 
-    /// Test ethernet initialization
+    /// Test Ethernet initialization
     pub fn test_ethernet_init(ethernet: &Ethernet) {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing Ethernet initialization...");

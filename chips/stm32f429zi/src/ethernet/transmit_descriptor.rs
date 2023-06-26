@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+#![deny(dead_code)]
 // Copyright 2023 OxidOS Automotive SRL
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -208,11 +210,13 @@ impl TransmitDescriptor {
     }
 }
 
+/// Tests for the receive descriptor
 #[cfg(test)]
 pub mod tests {
     use super::*;
 
     #[test]
+    /// Test the transmit descriptor
     pub fn test_transmit_descriptor() {
         let transmit_descriptor = TransmitDescriptor::new();
 
