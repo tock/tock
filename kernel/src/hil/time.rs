@@ -6,7 +6,7 @@
 //! kernel.
 //!
 //! These traits are designed to be able encompass the wide
-//! variety of hardare counters in a general yet efficient way. They
+//! variety of hardware counters in a general yet efficient way. They
 //! abstract the frequency of a counter through the `Frequency` trait
 //! and the width of a time value through the `Ticks`
 //! trait. Higher-level software abstractions should generally rely on
@@ -173,7 +173,7 @@ pub trait Counter<'a>: Time {
     ///   - `Err(ErrorCode::OFF)`: underlying clocks or other hardware resources
     ///   are not on, such that the counter cannot start.
     ///   - `Err(ErrorCode::FAIL)`: unidentified failure, counter is not running.
-    /// After a successful call to `start`, `is_running` MUST return true.    
+    /// After a successful call to `start`, `is_running` MUST return true.
     fn start(&self) -> Result<(), ErrorCode>;
 
     /// Stops the free-running hardware counter. Valid `Result<(), ErrorCode>` values are:
@@ -182,7 +182,7 @@ pub trait Counter<'a>: Time {
     ///   - `Err(ErrorCode::BUSY)`: the counter is in use in a way that means it
     ///   cannot be stopped and is busy.
     ///   - `Err(ErrorCode::FAIL)`: unidentified failure, counter is running.
-    /// After a successful call to `stop`, `is_running` MUST return false.        
+    /// After a successful call to `stop`, `is_running` MUST return false.
     fn stop(&self) -> Result<(), ErrorCode>;
 
     /// Resets the counter to 0. This may introduce jitter on the counter.
@@ -191,7 +191,7 @@ pub trait Counter<'a>: Time {
     /// call `stop` before `reset`.
     /// Valid `Result<(), ErrorCode>` values are:
     ///    - `Ok(())`: the counter was reset to 0.
-    ///    - `Err(ErrorCode::FAIL)`: the counter was not reset to 0.    
+    ///    - `Err(ErrorCode::FAIL)`: the counter was not reset to 0.
     fn reset(&self) -> Result<(), ErrorCode>;
 
     /// Returns whether the counter is currently running.
@@ -239,9 +239,9 @@ pub trait Alarm<'a>: Time {
     /// Disable the alarm and stop it from firing in the future.
     /// Valid `Result<(), ErrorCode>` codes are:
     ///   - `Ok(())` the alarm has been disarmed and will not invoke
-    ///   the callback in the future    
+    ///   the callback in the future
     ///   - `Err(ErrorCode::FAIL)` the alarm could not be disarmed and will invoke
-    ///   the callback in the future    
+    ///   the callback in the future
     fn disarm(&self) -> Result<(), ErrorCode>;
 
     /// Returns whether the alarm is currently armed. Note that this
@@ -270,7 +270,7 @@ pub trait TimerClient {
 /// precisely timed callbacks should use the `Alarm` trait instead.
 pub trait Timer<'a>: Time {
     /// Specify the callback to invoke when the timer interval expires.
-    /// If there was a previously installed callback this call replaces it.    
+    /// If there was a previously installed callback this call replaces it.
     fn set_timer_client(&self, client: &'a dyn TimerClient);
 
     /// Start a one-shot timer that will invoke the callback at least
@@ -300,7 +300,7 @@ pub trait Timer<'a>: Time {
 
     /// Return how many ticks are remaining until the next callback,
     /// or None if the timer is disabled.  This call is useful because
-    /// there may be non-neglible delays between when a timer was
+    /// there may be non-negligible delays between when a timer was
     /// requested and it was actually scheduled. Therefore, since a
     /// timer's start might be delayed slightly, the time remaining
     /// might be slightly higher than one would expect if one
