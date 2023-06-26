@@ -1,3 +1,16 @@
+// Copyright 2023 OxidOS Automotive SRL
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+//
+// TODO: Add author
+// Author:  <>
+
+//! Transmit descriptor for Ethernet DMA
+
 use kernel::utilities::registers::{register_bitfields, register_structs, InMemoryRegister};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::ErrorCode;
