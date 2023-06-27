@@ -331,7 +331,9 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
         self.initialize();
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn ClientData<32> + 'a)) {}
+    fn set_data_client(&'a self, _client: &'a (dyn ClientData<32> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
@@ -357,7 +359,9 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<32> + 'a)) {}
+    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<32> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
@@ -376,7 +380,9 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<32> + 'a)) {}
+    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<32> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a> Digest<'a, 32> for Sha256Software<'a> {
@@ -488,9 +494,13 @@ impl Sha256 for Sha256Software<'_> {
 }
 
 impl<'a> DigestDataHash<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataHash<32>) {}
+    fn set_client(&'a self, _client: &'a dyn ClientDataHash<32>) {
+        unimplemented!()
+    }
 }
 
 impl<'a> DigestDataVerify<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<32>) {}
+    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<32>) {
+        unimplemented!()
+    }
 }

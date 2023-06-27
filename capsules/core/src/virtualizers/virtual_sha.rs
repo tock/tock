@@ -118,7 +118,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestData<'a, L>
         }
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<L> + 'a)) {}
+    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<L> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
@@ -146,7 +148,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestHash<'a, L>
         }
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<L> + 'a)) {}
+    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<L> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
@@ -172,7 +176,9 @@ impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::DigestVerify<'a, L>
         }
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<L> + 'a)) {}
+    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<L> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a, A: digest::Digest<'a, L>, const L: usize> digest::Digest<'a, L>
