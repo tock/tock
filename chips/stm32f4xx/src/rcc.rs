@@ -927,12 +927,14 @@ impl Rcc {
             0b00 => MCO1Source::HSI,
             //0b01 => MCO1Source::LSE,
             //0b10 => MCO1Source::HSE,
-            _ => MCO1Source::PLL
+            _ => MCO1Source::PLL,
         }
     }
 
     pub(crate) fn set_mco1_clock_divider(&self, divider: MCO1Divider) {
-        self.registers.cfgr.modify(CFGR::MCO1PRE.val(divider as u32));
+        self.registers
+            .cfgr
+            .modify(CFGR::MCO1PRE.val(divider as u32));
     }
 
     pub(crate) fn get_mco1_clock_divider(&self) -> MCO1Divider {
