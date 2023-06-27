@@ -138,19 +138,18 @@
 //! Usage
 //! -----
 //!
-//! `slice()` is used to set the portion of the `LeasableBuffer` that is
-//! accessible. `reset()` makes the entire `LeasableBuffer` accessible again.
-//! Typically, `slice()` will be called prior to passing the buffer down to
-//! lower layers, and `reset()` will be called once the `LeasableBuffer` is
-//! returned via a callback.
+//! `slice()` is used to set the portion of the `SubSlice` that is accessible.
+//! `reset()` makes the entire `SubSlice` accessible again. Typically, `slice()`
+//! will be called prior to passing the buffer down to lower layers, and
+//! `reset()` will be called once the `SubSlice` is returned via a callback.
 //!
 //!  ```rust
-//! # use kernel::utilities::leasable_buffer::LeasableBuffer;
+//! # use kernel::utilities::leasable_buffer::SubSlice;
 //!
 //! let mut internal = ['a', 'b', 'c', 'd'];
 //! let original_base_addr = internal.as_ptr();
 //!
-//! let mut buffer = LeasableBuffer::new(&mut internal);
+//! let mut buffer = SubSlice::new(&mut internal);
 //!
 //! buffer.slice(1..3);
 //!
@@ -172,52 +171,62 @@ use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 
-/// Leasable buffer which can be used to pass a section of a larger mutable
-/// buffer but still get the entire buffer back in a callback
+/// A mutable leasable buffer implementation.
+///
+/// A leasable buffer can be used to pass a section of a larger mutable buffer
+/// but still get the entire buffer back in a callback.
 #[derive(Debug, PartialEq)]
-pub struct LeasableMutableBuffer<'a, T> {
+pub struct SubSliceMut<'a, T> {
     internal: &'a mut [T],
     active_range: Range<usize>,
 }
 
-/// Leasable Buffer which can be used to pass a section of a larger buffer but still
-/// get the entire buffer back in a callback
+/// An immutable leasable buffer implementation.
+///
+/// A leasable buffer can be used to pass a section of a larger mutable buffer
+/// but still get the entire buffer back in a callback.
 #[derive(Debug, PartialEq)]
-pub struct LeasableBuffer<'a, T> {
+pub struct SubSlice<'a, T> {
     internal: &'a [T],
     active_range: Range<usize>,
 }
 
-pub enum LeasableBufferDynamic<'a, T> {
-    Immutable(LeasableBuffer<'a, T>),
-    Mutable(LeasableMutableBuffer<'a, T>),
+/// Holder for either a mutable or immutable SubSlice.
+///
+/// In cases where code needs to support either a mutable or immutable SubSlice,
+/// `SubSliceMutImmut` allows the code to store a single type which can
+/// represent either option.
+pub enum SubSliceMutImmut<'a, T> {
+    Immutable(SubSlice<'a, T>),
+    Mutable(SubSliceMut<'a, T>),
 }
 
-impl<'a, T> LeasableBufferDynamic<'a, T> {
+impl<'a, T> SubSliceMutImmut<'a, T> {
     pub fn reset(&mut self) {
         match *self {
-            LeasableBufferDynamic::Immutable(ref mut buf) => buf.reset(),
-            LeasableBufferDynamic::Mutable(ref mut buf) => buf.reset(),
+            SubSliceMutImmut::Immutable(ref mut buf) => buf.reset(),
+            SubSliceMutImmut::Mutable(ref mut buf) => buf.reset(),
         }
     }
 
-    /// Returns the length of the currently accessible portion of the LeasableBuffer
+    /// Returns the length of the currently accessible portion of the
+    /// SubSlice.
     pub fn len(&self) -> usize {
         match *self {
-            LeasableBufferDynamic::Immutable(ref buf) => buf.len(),
-            LeasableBufferDynamic::Mutable(ref buf) => buf.len(),
+            SubSliceMutImmut::Immutable(ref buf) => buf.len(),
+            SubSliceMutImmut::Mutable(ref buf) => buf.len(),
         }
     }
 
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         match *self {
-            LeasableBufferDynamic::Immutable(ref mut buf) => buf.slice(range),
-            LeasableBufferDynamic::Mutable(ref mut buf) => buf.slice(range),
+            SubSliceMutImmut::Immutable(ref mut buf) => buf.slice(range),
+            SubSliceMutImmut::Mutable(ref mut buf) => buf.slice(range),
         }
     }
 }
 
-impl<'a, T, I> Index<I> for LeasableBufferDynamic<'a, T>
+impl<'a, T, I> Index<I> for SubSliceMutImmut<'a, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -225,45 +234,52 @@ where
 
     fn index(&self, idx: I) -> &Self::Output {
         match *self {
-            LeasableBufferDynamic::Immutable(ref buf) => &buf[idx],
-            LeasableBufferDynamic::Mutable(ref buf) => &buf[idx],
+            SubSliceMutImmut::Immutable(ref buf) => &buf[idx],
+            SubSliceMutImmut::Mutable(ref buf) => &buf[idx],
         }
     }
 }
 
-impl<'a, T> LeasableMutableBuffer<'a, T> {
-    /// Create a leasable buffer from a passed reference to a raw buffer
+impl<'a, T> SubSliceMut<'a, T> {
+    /// Create a SubSlice from a passed reference to a raw buffer.
     pub fn new(buffer: &'a mut [T]) -> Self {
         let len = buffer.len();
-        LeasableMutableBuffer {
+        SubSliceMut {
             internal: buffer,
             active_range: 0..len,
         }
-    }
-
-    /// Retrieve the raw buffer used to create the LeasableBuffer. Consumes
-    /// the LeasableBuffer.
-    pub fn take(self) -> &'a mut [T] {
-        self.internal
-    }
-
-    /// Resets the LeasableBuffer to its full size, making the entire buffer
-    /// accessible again. Typically this would be called once a sliced
-    /// LeasableBuffer is returned through a callback
-    pub fn reset(&mut self) {
-        self.active_range = 0..self.internal.len();
     }
 
     fn active_slice(&self) -> &[T] {
         &self.internal[self.active_range.clone()]
     }
 
-    /// Returns the length of the currently accessible portion of the LeasableBuffer
+    /// Retrieve the raw buffer used to create the SubSlice. Consumes the
+    /// SubSlice.
+    pub fn take(self) -> &'a mut [T] {
+        self.internal
+    }
+
+    /// Resets the SubSlice to its full size, making the entire buffer
+    /// accessible again.
+    ///
+    /// This should only be called by layer that created the SubSlice, and not
+    /// layers that were passed a SubSlice. Layers which are using a SubSlice
+    /// should treat the SubSlice as a traditional Rust slice and not consider
+    /// any additional size to the underlying buffer.
+    ///
+    /// Most commonly, this is called once a sliced leasable buffer is returned
+    /// through a callback.
+    pub fn reset(&mut self) {
+        self.active_range = 0..self.internal.len();
+    }
+
+    /// Returns the length of the currently accessible portion of the SubSlice.
     pub fn len(&self) -> usize {
         self.active_slice().len()
     }
 
-    /// Returns a pointer to the currently accessible portion of the LeasableBuffer
+    /// Returns a pointer to the currently accessible portion of the SubSlice.
     pub fn as_ptr(&self) -> *const T {
         self.active_slice().as_ptr()
     }
@@ -284,11 +300,21 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
         self.internal.len() != self.len()
     }
 
-    /// Reduces the range of the LeasableBuffer that is accessible. This should be called
-    /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
-    /// a lower layer. For example: if the application layer has a 1500 byte packet
-    /// buffer, but wishes to send a 250 byte packet, the upper layer should slice the
-    /// LeasableBuffer down to its first 250 bytes before passing it down.
+    /// Reduces the range of the SubSlice that is accessible.
+    ///
+    /// This should be called whenever a layer wishes to pass only a portion of
+    /// a larger buffer to another layer.
+    ///
+    /// For example, if the application layer has a 1500 byte packet buffer, but
+    /// wishes to send a 250 byte packet, the upper layer should slice the
+    /// SubSlice down to its first 250 bytes before passing it down:
+    ///
+    /// ```rust,ignore
+    /// let buffer = static_init!([u8; 1500], [0; 1500]);
+    /// let s = SubSliceMut::new(buffer);
+    /// s.slice(0..250);
+    /// network.send(s);
+    /// ```
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         let start = match range.start_bound() {
             Bound::Included(s) => *s,
@@ -312,7 +338,7 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
     }
 }
 
-impl<'a, T, I> Index<I> for LeasableMutableBuffer<'a, T>
+impl<'a, T, I> Index<I> for SubSliceMut<'a, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -323,7 +349,7 @@ where
     }
 }
 
-impl<'a, T, I> IndexMut<I> for LeasableMutableBuffer<'a, T>
+impl<'a, T, I> IndexMut<I> for SubSliceMut<'a, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -332,39 +358,46 @@ where
     }
 }
 
-impl<'a, T> LeasableBuffer<'a, T> {
-    /// Create a leasable buffer from a passed reference to a raw buffer
+impl<'a, T> SubSlice<'a, T> {
+    /// Create a SubSlice from a passed reference to a raw buffer.
     pub fn new(buffer: &'a [T]) -> Self {
         let len = buffer.len();
-        LeasableBuffer {
+        SubSlice {
             internal: buffer,
             active_range: 0..len,
         }
-    }
-
-    /// Retrieve the raw buffer used to create the LeasableBuffer. Consumes
-    /// the LeasableBuffer.
-    pub fn take(self) -> &'a [T] {
-        self.internal
-    }
-
-    /// Resets the LeasableBuffer to its full size, making the entire buffer
-    /// accessible again. Typically this would be called once a sliced
-    /// LeasableBuffer is returned through a callback
-    pub fn reset(&mut self) {
-        self.active_range = 0..self.internal.len();
     }
 
     fn active_slice(&self) -> &[T] {
         &self.internal[self.active_range.clone()]
     }
 
-    /// Returns the length of the currently accessible portion of the LeasableBuffer
+    /// Retrieve the raw buffer used to create the SubSlice. Consumes the
+    /// SubSlice.
+    pub fn take(self) -> &'a [T] {
+        self.internal
+    }
+
+    /// Resets the SubSlice to its full size, making the entire buffer
+    /// accessible again.
+    ///
+    /// This should only be called by layer that created the SubSlice, and not
+    /// layers that were passed a SubSlice. Layers which are using a SubSlice
+    /// should treat the SubSlice as a traditional Rust slice and not consider
+    /// any additional size to the underlying buffer.
+    ///
+    /// Most commonly, this is called once a sliced leasable buffer is returned
+    /// through a callback.
+    pub fn reset(&mut self) {
+        self.active_range = 0..self.internal.len();
+    }
+
+    /// Returns the length of the currently accessible portion of the SubSlice.
     pub fn len(&self) -> usize {
         self.active_slice().len()
     }
 
-    /// Returns a pointer to the currently accessible portion of the LeasableBuffer
+    /// Returns a pointer to the currently accessible portion of the SubSlice.
     pub fn as_ptr(&self) -> *const T {
         self.active_slice().as_ptr()
     }
@@ -385,11 +418,23 @@ impl<'a, T> LeasableBuffer<'a, T> {
         self.internal.len() != self.len()
     }
 
-    /// Reduces the range of the LeasableBuffer that is accessible. This should be called
-    /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
-    /// a lower layer. For example: if the application layer has a 1500 byte packet
-    /// buffer, but wishes to send a 250 byte packet, the upper layer should slice the
-    /// LeasableBuffer down to its first 250 bytes before passing it down.
+    /// Reduces the range of the SubSlice that is accessible.
+    ///
+    /// This should be called whenever a layer wishes to pass only a portion of
+    /// a larger buffer to another layer.
+    ///
+    /// For example, if the application layer has a 1500 byte packet buffer, but
+    /// wishes to send a 250 byte packet, the upper layer should slice the
+    /// SubSlice down to its first 250 bytes before passing it down:
+    ///
+    /// ```rust,ignore
+    /// let buffer = unsafe {
+    ///    core::slice::from_raw_parts(&_ptr_in_flash as *const u8, 1500)
+    /// };
+    /// let s = SubSlice::new(buffer);
+    /// s.slice(0..250);
+    /// network.send(s);
+    /// ```
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         let start = match range.start_bound() {
             Bound::Included(s) => *s,
@@ -413,7 +458,7 @@ impl<'a, T> LeasableBuffer<'a, T> {
     }
 }
 
-impl<'a, T, I> Index<I> for LeasableBuffer<'a, T>
+impl<'a, T, I> Index<I> for SubSlice<'a, T>
 where
     I: SliceIndex<[T]>,
 {
