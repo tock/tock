@@ -220,7 +220,11 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn start() -> (&'static kernel::Kernel, MicroBit) {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MicroBit,
+    &'static nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>,
+) {
     nrf52833::init();
 
     let nrf52833_peripherals = static_init!(
@@ -780,7 +784,7 @@ unsafe fn start() -> (&'static kernel::Kernel, MicroBit) {
         debug!("{:?}", err);
     });
 
-    (board_kernel, microbit)
+    (board_kernel, microbit, chip)
 }
 
 /// Main function called after RAM initialized.
@@ -788,11 +792,6 @@ unsafe fn start() -> (&'static kernel::Kernel, MicroBit) {
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    let (board_kernel, microbit) = start();
-    board_kernel.kernel_loop(
-        &microbit,
-        CHIP.unwrap(),
-        Some(&microbit.ipc),
-        &main_loop_capability,
-    );
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }
