@@ -14,8 +14,6 @@ enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
 
 [features]
-default = []
-
 stm32f401 = []
 stm32f412 = []
 stm32f429 = []
