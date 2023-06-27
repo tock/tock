@@ -176,6 +176,11 @@ impl fmt::Debug for ProcessLoadError {
 /// This function is made `pub` so that board files can use it, but loading
 /// processes from slices of flash an memory is fundamentally unsafe. Therefore,
 /// we require the `ProcessManagementCapability` to call this function.
+// Mark inline always to reduce code size. Since this is only called in one
+// place (a board's main.rs), by inlining the load_*processes() functions, the
+// compiler can elide many checks which reduces code size appreciably. Note,
+// however, these functions require a rather large stack frame, which may be an
+// issue for boards small kernel stacks.
 #[inline(always)]
 pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
@@ -214,6 +219,11 @@ where
 /// This function is made `pub` so that board files can use it, but loading
 /// processes from slices of flash an memory is fundamentally unsafe. Therefore,
 /// we require the `ProcessManagementCapability` to call this function.
+// Mark inline always to reduce code size. Since this is only called in one
+// place (a board's main.rs), by inlining the load_*processes() functions, the
+// compiler can elide many checks which reduces code size appreciably. Note,
+// however, these functions require a rather large stack frame, which may be an
+// issue for boards small kernel stacks.
 #[inline(always)]
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
