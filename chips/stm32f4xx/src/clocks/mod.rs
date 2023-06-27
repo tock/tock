@@ -198,16 +198,13 @@ const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
     feature = "stm32f479",
 )) {
     45
-} else if cfg!(any(
-    feature = "stm32f401",
-    feature = "stm32f405",
-    feature = "stm32f407",
-    feature = "stm32f415",
-    feature = "stm32f417"
-)) {
-    42
 } else {
-    panic!("Unrecognized chip")
+    //feature = "stm32f401",
+    //feature = "stm32f405",
+    //feature = "stm32f407",
+    //feature = "stm32f415",
+    //feature = "stm32f417"
+    42
 };
 
 // APB2 frequency limit is twice the APB1 frequency limit
@@ -237,10 +234,9 @@ const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
     // TODO: Some of these models support overdrive model. Change this constant when overdrive support
     // is added.
     168
-} else if cfg!(any(feature = "stm32f401")) {
-    84
 } else {
-    panic!("Unrecognized chip")
+    //feature = "stm32f401"
+    84
 };
 
 impl<'a> Clocks<'a> {
