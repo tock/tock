@@ -2,18 +2,147 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Defines a LeasableBuffer type which can be used to pass a section of a larger
-//! buffer but still get the entire buffer back in a callback
+//! Defines a SubSlice type to implement leasable buffers.
 //!
-//! Author: Amit Levy
+//! A leasable buffer decouples maintaining a reference to a buffer from the
+//! presentation of the accessible buffer. This allows layers to operate on
+//! "windows" of the buffer while enabling the original reference (and in effect
+//! the entire buffer) to be passed back in a callback.
+//!
+//! Challenge with Normal Rust Slices
+//! ---------------------------------
+//!
+//! Commonly in Tock we want to partially fill a static buffer with some data,
+//! call an asynchronous operation on that data, and then retrieve that buffer
+//! via a callback. In common Rust code, that might look something like this
+//! (for this example we are transmitting data using I2C).
+//!
+//! ```rust,ignore
+//! // Statically declare the buffer. Make sure it is long enough to handle all
+//! // I2C operations we need to perform.
+//! let buffer = static_init!([u8; 64], [0; 64]);
+//!
+//! // Populate the buffer with our current operation.
+//! buffer[0] = OPERATION_SET;
+//! buffer[1] = REGISTER;
+//! buffer[2] = 0x7; // Value to set the register to.
+//!
+//! // Call the I2C hardware to transmit the data, passing the slice we actually
+//! // want to transmit and not the full buffer.
+//! i2c.write(buffer[0..3]);
+//! ```
+//!
+//! The issue with this is that within the I2C driver, `buffer` is now only
+//! three bytes long. When the I2C driver issues the callback to return the
+//! buffer after the transmission completes, the returned buffer will have a
+//! length of three. Effectively, the full static buffer is lost.
+//!
+//! To avoid this, in Tock we always call operations with both the buffer and a
+//! separate length. We now have two lengths, the provided `length` parameter
+//! which is the size of the buffer actually in use, and `buffer.len()` which is
+//! the full size of the static memory.
+//!
+//! ```rust,ignore
+//! // Call the I2C hardware with a reference to the full buffer and the length
+//! // of that buffer it should actually consider.
+//! i2c.write(buffer, 3);
+//! ```
+//!
+//! Now the I2C driver has a reference to the full buffer, and so when it
+//! returns the buffer via callback the client will have access to the full
+//! static buffer.
+//!
+//! Challenge with Buffers + Length
+//! -------------------------------
+//!
+//! Using a reference to the buffer and a separate length parameter is
+//! sufficient to address the challenge of needing variable size buffers when
+//! using static buffers and complying with Rust's memory management. However,
+//! it still has two drawbacks.
+//!
+//! First, all code in Tock that operates on buffers must correctly handle the
+//! separate buffer and length values as though the `buffer` is a `*u8` pointer
+//! (as in more traditional C code). We lose many of the benefits of the higher
+//! level slice primitive in Rust. For example, calling `buffer.len()` when
+//! using data from the buffer is essentially meaningless, as the correct length
+//! is the `length` parameter. When copying data _to_ the buffer, however, not
+//! overflowing the buffer is critical, and using `buffer.len()` _is_ correct.
+//! With separate reference and length managing this is left to the programmer.
+//!
+//! Second, using only a reference and length assumes that the contents of the
+//! buffer will always start at the first entry in the buffer (i.e.,
+//! `buffer[0]`). To support more generic use of the buffer, we might want to
+//! pass a reference, length, _and offset_, so that we can use arbitrary regions
+//! of the buffer, while again retaining a reference to the original buffer to
+//! use in callbacks.
+//!
+//! For example, in networking code it is common to parse headers and then pass
+//! the payload to upper layers. With slices, that might look something like:
+//!
+//! ```rust,ignore
+//! // Check for a valid header of size 10.
+//! if (valid_header(buffer)) {
+//!     self.client.payload_callback(buffer[10..]);
+//! }
+//! ```
+//!
+//! The issue is that again the client loses access to the beginning of the
+//! buffer and that memory is lost.
+//!
+//! We might also want to do this when calling lower-layer operations to avoid
+//! moving and copying data around. Consider a networking layer that needs to
+//! add a header, we might want to do something like:
+//!
+//! ```rust,ignore
+//! buffer[11] = PAYLOAD;
+//! network_layer_send(buffer, 11, 1);
+//!
+//! fn network_layer_send(buffer: &'static [u8], offset: usize, length: usize) {
+//!     buffer[0..11] = header;
+//!     lower_layer_send(buffer);
+//! }
+//! ```
+//!
+//! Now we have to keep track of two parameters which are both redundant with
+//! the API provided by Rust slices.
+//!
+//! Leasable Buffers
+//! ----------------
+//!
+//! A leasable buffer is a data structure that addresses these challenges.
+//! Simply, it provides the Rust slice API while internally always retaining a
+//! reference to the full underlying buffer. To narrow a buffer, the leasable
+//! buffer can be "sliced". To retrieve the full original memory, a leasable
+//! buffer can be "reset".
+//!
+//! A leasable buffer can be sliced multiple times. For example, as a buffer is
+//! parsed in a networking stack, each layer can call slice on the leasable
+//! buffer to remove that layer's header before passing the buffer to the upper
+//! layer.
+//!
+//! Supporting Mutable and Immutable Buffers
+//! ----------------------------------------
+//!
+//! One challenge with implementing leasable buffers in rust is preserving the
+//! mutability of the underlying buffer. If a mutable buffer is passed as an
+//! immutable slice, the mutability of that buffer is "lost" (i.e., when passed
+//! back in a callback the buffer will be immutable). To address this, we must
+//! implement two versions of a leasable buffer: mutable and immutable. That way
+//! a mutable buffer remains mutable.
+//!
+//! Since in Tock most buffers are mutable, the mutable version is commonly
+//! used. However, in cases where size is a concern, immutable buffers from
+//! flash storage may be preferable. In those cases the immutable version may
+//! be used.
 //!
 //! Usage
 //! -----
 //!
-//! `slice()` is used to set the portion of the `LeasableBuffer` that is accessbile.
-//! `reset()` makes the entire `LeasableBuffer` accessible again.
-//!  Typically, `slice()` will be called prior to passing the buffer down to lower layers,
-//!  and `reset()` will be called once the `LeasableBuffer` is returned via a callback
+//! `slice()` is used to set the portion of the `LeasableBuffer` that is
+//! accessible. `reset()` makes the entire `LeasableBuffer` accessible again.
+//! Typically, `slice()` will be called prior to passing the buffer down to
+//! lower layers, and `reset()` will be called once the `LeasableBuffer` is
+//! returned via a callback.
 //!
 //!  ```rust
 //! # use kernel::utilities::leasable_buffer::LeasableBuffer;
@@ -36,6 +165,8 @@
 //! assert_eq!((buffer[0], buffer[1]), ('a', 'b'));
 //!
 //!  ```
+//!
+//! Author: Amit Levy
 
 use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
