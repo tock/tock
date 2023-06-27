@@ -23,10 +23,10 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
-use stm32f429zi::syscfg::EthernetInterface;
-use stm32f429zi::rcc::{APBPrescaler, SysClockSource, MCO1Source};
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
+use stm32f429zi::rcc::{APBPrescaler, MCO1Source, SysClockSource};
+use stm32f429zi::syscfg::EthernetInterface;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -83,7 +83,10 @@ struct NucleoF429ZI {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
-    tap_ethernet: &'static capsules_extra::ethernet_app_tap::TapDriver<'static, stm32f429zi::ethernet::Ethernet<'static>>,
+    tap_ethernet: &'static capsules_extra::ethernet_app_tap::TapDriver<
+        'static,
+        stm32f429zi::ethernet::Ethernet<'static>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -340,8 +343,8 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     // MCO1
     // Uncomment this if you need to generate 50MHz reference clock using PLL
     //gpio_ports.get_pin(PinId::PA08).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF0);
+    //pin.set_mode(Mode::AlternateFunctionMode);
+    //pin.set_alternate_function(AlternateFunction::AF0);
     //});
 }
 
@@ -382,15 +385,19 @@ unsafe fn create_peripherals() -> (
     let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
     let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
 
-    let receive_buffer = static_init!([u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-        [0; capsules_extra::ethernet_app_tap::MAX_MTU]);
+    let receive_buffer = static_init!(
+        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+    );
 
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
 
-    peripherals.ethernet.set_received_packet_buffer(receive_buffer);
+    peripherals
+        .ethernet
+        .set_received_packet_buffer(receive_buffer);
 
     (peripherals, syscfg, dma1)
 }
@@ -695,7 +702,7 @@ pub unsafe fn main() {
     let tap_ethernet = static_init!(
         capsules_extra::ethernet_app_tap::TapDriver<
             'static,
-            stm32f429zi::ethernet::Ethernet<'static>
+            stm32f429zi::ethernet::Ethernet<'static>,
         >,
         capsules_extra::ethernet_app_tap::TapDriver::new(
             &peripherals.ethernet,
@@ -745,7 +752,7 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         can: can,
-        tap_ethernet
+        tap_ethernet,
     };
 
     // // Optional kernel tests
