@@ -176,81 +176,70 @@ pub struct Clocks<'a> {
     pub pll: Pll<'a>,
 }
 
-#[cfg(
-    all(
-        any(
-            feature = "stm32f410",
-            feature = "stm32f411",
-            feature = "stm32f412",
-            feature = "stm32f413",
-            feature = "stm32f423"
-        ),
-        not(feature = "cargo-clippy")
-    )
-)]
-const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
-
-#[cfg(any(
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f446",
-    feature = "stm32f469",
-    feature = "stm32f479"
-))]
-const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-
-#[cfg(
-    all(
-        any(
-            feature = "stm32f401",
-            feature = "stm32f405",
-            feature = "stm32f407",
-            feature = "stm32f415",
-            feature = "stm32f417",
-        ),
-        not(feature = "cargo-clippy")
-    )
-)]
-const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
+const APB1_FREQUENCY_LIMIT_MHZ: usize =
+if cfg!(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+)) {
+    50
+} else if cfg!(any(
+        feature = "stm32f427",
+        feature = "stm32f429",
+        feature = "stm32f437",
+        feature = "stm32f439",
+        feature = "stm32f446",
+        feature = "stm32f469",
+        feature = "stm32f479",
+)) {
+    45
+} else if cfg!(any(
+        feature = "stm32f401",
+        feature = "stm32f405",
+        feature = "stm32f407",
+        feature = "stm32f415",
+        feature = "stm32f417"
+)) {
+    42
+} else {
+    panic!("Unrecognized chip")
+};
 
 // APB2 frequency limit is twice the APB1 frequency limit
 const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
 
-#[cfg(
-    all(
-        any(
-            feature = "stm32f410",
-            feature = "stm32f411",
-            feature = "stm32f412",
-            feature = "stm32f413",
-            feature = "stm32f423"
-        ),
-        not(feature = "cargo-clippy")
-    )
-)]
-const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
-
-// TODO: Some of these models support overdrive model. Change this constant when overdrive support
-// is added.
-#[cfg(any(
-    feature = "stm32f405",
-    feature = "stm32f407",
-    feature = "stm32f415",
-    feature = "stm32f417",
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f446",
-    feature = "stm32f469",
-    feature = "stm32f479"
-))]
-const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
-
-#[cfg(all(any(feature = "stm32f401"), not(feature = "cargo-clippy")))]
-const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
+const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize =
+if cfg!(any(
+        feature = "stm32f410",
+        feature = "stm32f411",
+        feature = "stm32f412",
+        feature = "stm32f413",
+        feature = "stm32f423"
+)) {
+    100
+} else if cfg!(any(
+        feature = "stm32f405",
+        feature = "stm32f407",
+        feature = "stm32f415",
+        feature = "stm32f417",
+        feature = "stm32f427",
+        feature = "stm32f429",
+        feature = "stm32f437",
+        feature = "stm32f439",
+        feature = "stm32f446",
+        feature = "stm32f469",
+        feature = "stm32f479"
+)) {
+    // TODO: Some of these models support overdrive model. Change this constant when overdrive support
+    // is added.
+    168
+} else if cfg!(any(feature = "stm32f401")) {
+    84
+} else {
+    panic!("Unrecognized chip")
+};
 
 impl<'a> Clocks<'a> {
     // The constructor must be called when the default peripherals are created
