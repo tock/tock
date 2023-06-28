@@ -627,6 +627,8 @@ pub mod tests {
         assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
     }
 
+    // This macro ensure that the system clock frequency goes back to the default value to prevent
+    // changing the UART's baud rate
     macro_rules! check_and_panic {
         ($left:expr, $right:expr, $clocks: ident) => {
             match (&$left, &$right) {
