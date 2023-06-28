@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright 2023 OxidOS Automotive SRL
 //
-// TODO: Add author
-// Author:  <>
+// Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 #![deny(missing_docs)]
 #![deny(dead_code)]
+#![deny(unused_imports)]
 //! Ethernet firmware for STM32F429ZI
 //!
 //! # Usage
@@ -23,8 +23,9 @@
 //! assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
 //! ```
 
+use core::cell::Cell;
+
 use cortexm4::support::nop;
-use kernel::debug;
 use kernel::hil::ethernet::Configure;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::ethernet::EthernetAdapterClient;
@@ -32,7 +33,7 @@ use kernel::hil::ethernet::EthernetSpeed;
 use kernel::hil::ethernet::MacAddress;
 use kernel::hil::ethernet::OperationMode;
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{OptionalCell, TakeCell, NumericCellExt};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -798,6 +799,7 @@ pub struct Ethernet<'a> {
     transmit_packet_length: OptionalCell<u16>,
     packet_identifier: OptionalCell<usize>,
     received_packet: TakeCell<'a, [u8]>,
+    number_packets_missed: Cell<usize>,
     client: OptionalCell<&'a dyn EthernetAdapterClient>,
     clocks: EthernetClocks<'a>,
     mac_address0: OptionalCell<MacAddress>,
@@ -821,6 +823,7 @@ impl<'a> Ethernet<'a> {
             transmit_packet_length: OptionalCell::empty(),
             packet_identifier: OptionalCell::empty(),
             received_packet: TakeCell::empty(),
+            number_packets_missed: Cell::new(0),
             client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
             mac_address0: OptionalCell::new(DEFAULT_MAC_ADDRESS),
@@ -1250,7 +1253,7 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmasr.is_set(DMASR::TPSS)
     }
 
-    fn clear_transmit_process_stopped_interrupt_occur(&self) {
+    fn clear_transmit_process_stopped_interrupt(&self) {
         self.dma_registers.dmasr.modify(DMASR::TPSS::SET);
     }
 
@@ -1729,11 +1732,9 @@ impl<'a> Ethernet<'a> {
                     None,
                 )
             });
-        }
-        if self.did_transmit_buffer_unavailable_interrupt_occur() {
+        } else if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
-        }
-        if self.did_receive_interrupt_occur() {
+        } else if self.did_receive_interrupt_occur() {
             self.clear_receive_interrupt();
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
@@ -1742,8 +1743,7 @@ impl<'a> Ethernet<'a> {
             });
             // Receive the following packet
             assert_eq!(Ok(()), self.receive_packet());
-        }
-        if self.did_early_receive_interrupt_occur() {
+        } else if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
         }
     }
@@ -1752,43 +1752,36 @@ impl<'a> Ethernet<'a> {
         if self.did_fatal_bus_error_interrupt_occur() {
             self.clear_fatal_bus_error_interrupt();
             panic!("Fatal bus error");
-        }
-        if self.did_early_transmit_interrupt_occur() {
+        } else if self.did_early_transmit_interrupt_occur() {
             self.clear_early_transmit_interrupt();
-        }
-        if self.did_receive_watchdog_timeout_interrupt_occur() {
-            debug!("Receive watchdog timeout interrupt");
+        } else if self.did_receive_watchdog_timeout_interrupt_occur() {
             self.clear_receive_watchdog_timeout_interrupt();
-        }
-        if self.did_receive_process_stopped_interrupt_occur() {
+            panic!("Receive watchdog timeout interrupt");
+        } else if self.did_receive_process_stopped_interrupt_occur() {
             self.clear_receive_process_stopped_interrupt();
-        }
-        if self.did_receive_buffer_unavailable_interrupt_occur() {
+            panic!("Receive process stopped");
+        } else if self.did_receive_buffer_unavailable_interrupt_occur() {
             self.clear_receive_buffer_unavailable_interrupt();
-        }
-        if self.did_transmit_buffer_underflow_interrupt_occur() {
-            debug!("Transmit buffer underflow interrupt");
+        } else if self.did_transmit_buffer_underflow_interrupt_occur() {
             self.clear_transmit_buffer_underflow_interrupt();
-        }
-        if self.did_receive_fifo_overflow_interrupt_occur() {
+            panic!("Transmit buffer underflow interrupt");
+        } else if self.did_receive_fifo_overflow_interrupt_occur() {
             self.clear_receive_fifo_overflow_interrupt();
+            self.number_packets_missed.add(1);
             assert_eq!(Ok(()), self.receive_packet());
-            debug!("Receive buffer overflow interrupt");
-        }
-        if self.did_transmit_jabber_timeout_interrupt_occur() {
-            debug!("Transmit buffer jabber timeout interrupt");
+        } else if self.did_transmit_jabber_timeout_interrupt_occur() {
             self.clear_transmit_jabber_timeout_interrupt();
-        }
-        if self.did_transmit_process_stopped_interrupt_occur() {
-            self.clear_transmit_process_stopped_interrupt_occur();
+            panic!("Transmit buffer jabber timeout interrupt");
+        } else if self.did_transmit_process_stopped_interrupt_occur() {
+            self.clear_transmit_process_stopped_interrupt();
+            panic!("Transmit process stopped");
         }
     }
 
     pub(crate) fn handle_interrupt(&self) {
         if self.did_normal_interrupt_occur() {
             self.handle_normal_interrupt();
-        }
-        if self.did_abnormal_interrupt_occur() {
+        } else if self.did_abnormal_interrupt_occur() {
             self.handle_abnormal_interrupt();
         }
     }

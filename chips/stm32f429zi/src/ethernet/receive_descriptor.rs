@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright 2023 OxidOS Automotive SRL
 //
-// TODO: Add author
-// Author:  <>
+// Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 #![deny(missing_docs)]
 #![deny(dead_code)]
 //! Receive descriptor for Ethernet DMA
