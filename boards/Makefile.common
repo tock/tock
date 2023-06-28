@@ -74,6 +74,9 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   # benefit is almost exclusively for RISC-V, we only apply it for those
   # targets.
   RUSTC_FLAGS += -C force-frame-pointers=no
+  # Ensure relocations generated is eligible for linker relaxtion.
+  # This provide huge space savings.
+  RUSTC_FLAGS += -C target-feature=+relax
 endif
 
 # RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options that are global
