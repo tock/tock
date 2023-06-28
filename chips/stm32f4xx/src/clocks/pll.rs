@@ -116,12 +116,14 @@ use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
+use core::cell::Cell;
+
 /// Main PLL clock structure.
 pub struct Pll<'a> {
     rcc: &'a Rcc,
     frequency: OptionalCell<usize>,
     pll48_frequency: OptionalCell<usize>,
-    pll48_calibrated: OptionalCell<bool>,
+    pll48_calibrated: Cell<bool>,
 }
 
 const HSI_FREQUENCY_MHZ: usize = 16;
@@ -161,7 +163,7 @@ impl<'a> Pll<'a> {
             pll48_frequency: OptionalCell::new(
                 HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLQ,
             ),
-            pll48_calibrated: OptionalCell::new(true),
+            pll48_calibrated: Cell::new(true),
         }
     }
 
@@ -373,7 +375,7 @@ impl<'a> Pll<'a> {
     /// + [false]: the PLL48 clock is not exactly 48MHz.
     pub fn is_pll48_calibrated(&self) -> bool {
         // Cannot panic, since pll48_calibrated is never assigned to None
-        self.pll48_calibrated.unwrap_or_panic()
+        self.pll48_calibrated.get()
     }
 }
 
