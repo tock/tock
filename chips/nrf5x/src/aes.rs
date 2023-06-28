@@ -250,6 +250,7 @@ impl<'a> AesECB<'a> {
                         || {
                             self.output.map(|output| {
                                 for i in 0..take {
+                                    // Copy into static mut DMA buffer
                                     unsafe {
                                         ECB_DATA[i + PLAINTEXT_START] = output[i + start];
                                     }
@@ -258,6 +259,7 @@ impl<'a> AesECB<'a> {
                         },
                         |input| {
                             for i in 0..take {
+                                // Copy into static mut DMA buffer
                                 unsafe {
                                     ECB_DATA[i + PLAINTEXT_START] = input[i + start];
                                 }
@@ -273,6 +275,7 @@ impl<'a> AesECB<'a> {
                                 for i in 0..take {
                                     let ecb_idx = i + PLAINTEXT_START;
 
+                                    // Copy into static mut DMA buffer
                                     unsafe {
                                         ECB_DATA[ecb_idx] = ECB_DATA[ecb_idx] ^ output[i + start];
                                     }
@@ -282,6 +285,7 @@ impl<'a> AesECB<'a> {
                         |input| {
                             for i in 0..take {
                                 let ecb_idx = i + PLAINTEXT_START;
+                                // Copy into static mut DMA buffer
                                 unsafe {
                                     ECB_DATA[ecb_idx] = ECB_DATA[ecb_idx] ^ input[i + start];
                                 }
@@ -370,6 +374,7 @@ impl<'a> AesECB<'a> {
                                 // originally provided start index, plus our
                                 // offset at current_idx.
                                 let dest_idx = start_idx + current_idx + i;
+                                // Copy out of static mut DMA buffer
                                 unsafe {
                                     output[dest_idx] = ECB_DATA[i + PLAINTEXT_END];
                                 }
@@ -387,6 +392,7 @@ impl<'a> AesECB<'a> {
                                 // originally provided start index, plus our
                                 // offset at current_idx.
                                 let dest_idx = start_idx + current_idx + i;
+                                // Copy out of static mut DMA buffer
                                 unsafe {
                                     output[dest_idx] = ECB_DATA[i + PLAINTEXT_END];
                                     ECB_DATA[i + PLAINTEXT_START] = ECB_DATA[i + PLAINTEXT_END];
