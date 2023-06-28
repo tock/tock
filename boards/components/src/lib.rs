@@ -68,6 +68,7 @@ pub mod segger_rtt;
 pub mod sha;
 pub mod sht3x;
 pub mod si7021;
+pub mod siphash;
 pub mod sound_pressure;
 pub mod spi;
 pub mod st77xx;
