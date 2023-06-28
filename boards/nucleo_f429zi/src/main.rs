@@ -339,13 +339,6 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
         pin.set_mode(Mode::AlternateFunctionMode);
         pin.set_alternate_function(AlternateFunction::AF11);
     });
-
-    // MCO1
-    // Uncomment this if you need to generate 50MHz reference clock using PLL
-    //gpio_ports.get_pin(PinId::PA08).map(|pin| {
-    //pin.set_mode(Mode::AlternateFunctionMode);
-    //pin.set_alternate_function(AlternateFunction::AF0);
-    //});
 }
 
 // Helper function to initialize and start the ethernet peripheral
@@ -762,14 +755,12 @@ pub unsafe fn main() {
 
     // Setup Ethernet
     let clocks = &peripherals.stm32f4.clocks;
-    assert_eq!(Ok(()), clocks.set_mco1_clock_source(MCO1Source::PLL));
     assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
     assert_eq!(Ok(()), clocks.pll.enable());
     assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
     assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
     setup_ethernet(&peripherals);
     assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
-    //stm32f429zi::ethernet::tests::run_all_unit_tests(&peripherals.ethernet);
 
     debug!("Initialization complete. Entering main loop");
 
