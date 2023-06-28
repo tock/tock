@@ -6,6 +6,7 @@
 
 pub mod adc;
 pub mod adc_microphone;
+pub mod aes;
 pub mod air_quality;
 pub mod alarm;
 pub mod analog_comparator;

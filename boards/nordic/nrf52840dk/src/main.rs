@@ -89,6 +89,9 @@ use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{self, UartChannel, UartPins};
 
+#[allow(dead_code)]
+mod test;
+
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
 const LED2_PIN: Pin = Pin::P0_14;
@@ -813,6 +816,11 @@ pub unsafe fn main() {
     };
 
     let _ = platform.pconsole.start();
+
+    // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
+    // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
+    // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);
+
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
 
