@@ -16,8 +16,8 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-// ETHERNET: Uncomment if needed
-//use kernel::hil::ethernet::Configure;
+#[allow(unused_imports)]
+use kernel::hil::ethernet::Configure;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -26,8 +26,8 @@ use kernel::{create_capability, debug, static_init};
 
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
-// ETHERNET: Uncomment if needed
-//use stm32f429zi::rcc::{APBPrescaler, MCO1Source, SysClockSource};
+#[allow(unused_imports)]
+use stm32f429zi::rcc::{APBPrescaler, MCO1Source, SysClockSource};
 use stm32f429zi::syscfg::EthernetInterface;
 
 /// Support routines for debugging I/O.
@@ -299,62 +299,62 @@ unsafe fn setup_peripherals(
     can1.enable_clock();
 }
 
-// ETHERNET: Uncomment if needed
 // Helper function to setup Ethernet pins
-//fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
-    //// RMII_REF_CLK
-    //gpio_ports.get_pin(PinId::PA01).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
+#[allow(dead_code)]
+fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
+    // RMII_REF_CLK
+    gpio_ports.get_pin(PinId::PA01).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
 
-    //// RMII_RX_DV
-    //gpio_ports.get_pin(PinId::PA07).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
+    // RMII_RX_DV
+    gpio_ports.get_pin(PinId::PA07).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
 
-    //// RMII_RX_D0
-    //gpio_ports.get_pin(PinId::PC04).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
+    // RMII_RX_D0
+    gpio_ports.get_pin(PinId::PC04).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
 
-    //// RMII_RX_D1
-    //gpio_ports.get_pin(PinId::PC05).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
+    // RMII_RX_D1
+    gpio_ports.get_pin(PinId::PC05).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
 
-    //// RMII_TX_EN
-    //gpio_ports.get_pin(PinId::PG11).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
+    // RMII_TX_EN
+    gpio_ports.get_pin(PinId::PG11).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
 
-    //// RMII_TX_D0
-    //gpio_ports.get_pin(PinId::PG13).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
+    // RMII_TX_D0
+    gpio_ports.get_pin(PinId::PG13).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
 
-    //// RMII_TX_D1
-    //gpio_ports.get_pin(PinId::PB13).map(|pin| {
-        //pin.set_mode(Mode::AlternateFunctionMode);
-        //pin.set_alternate_function(AlternateFunction::AF11);
-    //});
-//}
+    // RMII_TX_D1
+    gpio_ports.get_pin(PinId::PB13).map(|pin| {
+    pin.set_mode(Mode::AlternateFunctionMode);
+    pin.set_alternate_function(AlternateFunction::AF11);
+    });
+}
 
-// ETHERNET: Uncomment if needed
 // Helper function to initialize and start the ethernet peripheral
-//fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
-    //setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
-    //let ethernet = &peripherals.ethernet;
-    //assert_eq!(Ok(()), ethernet.init());
-    //// TODO: Remove these calls once Transmit and Receive HILs are implemented
-    //assert_eq!(Ok(()), ethernet.start_transmit());
-    //assert_eq!(Ok(()), ethernet.start_receive());
-//}
+#[allow(dead_code)]
+fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
+    setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
+    let ethernet = &peripherals.ethernet;
+    assert_eq!(Ok(()), ethernet.init());
+    // TODO: Remove these calls once Transmit and Receive HILs are implemented
+    assert_eq!(Ok(()), ethernet.start_transmit());
+    assert_eq!(Ok(()), ethernet.start_receive());
+}
 
 /// Statically initialize the core peripherals for the chip.
 ///
