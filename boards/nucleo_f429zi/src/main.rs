@@ -753,14 +753,15 @@ pub unsafe fn main() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
+    // Uncomment this if Ethernet is required
     // Setup Ethernet
-    let clocks = &peripherals.stm32f4.clocks;
-    assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
-    assert_eq!(Ok(()), clocks.pll.enable());
-    assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
-    assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
-    setup_ethernet(&peripherals);
-    assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
+    //let clocks = &peripherals.stm32f4.clocks;
+    //assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
+    //assert_eq!(Ok(()), clocks.pll.enable());
+    //assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
+    //assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
+    //setup_ethernet(&peripherals);
+    //assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
 
     debug!("Initialization complete. Entering main loop");
 
