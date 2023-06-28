@@ -620,8 +620,9 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
             self.timer_repeats.set(0);
             self.timer_counts.set(0);
 
-            let cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
+            // MUXNEG.val(0x7) -> ground pad
+            let cfg = SequencerConfig::MUXNEG.val(0x7)
+                + SequencerConfig::MUXPOS.val(channel.chan_num)
                 + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
                 + SequencerConfig::RES::Bits12
                 + SequencerConfig::TRGSEL::Software
@@ -670,8 +671,9 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
             self.continuous.set(true);
 
             // adc sequencer configuration
-            let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
+            // MUXNEG.val(0x7) -> ground pad
+            let mut cfg = SequencerConfig::MUXNEG.val(0x7)
+                + SequencerConfig::MUXPOS.val(channel.chan_num)
                 + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
                 + SequencerConfig::RES::Bits12
                 + SequencerConfig::GCOMP::Disable
@@ -864,8 +866,9 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
             self.next_dma_length.set(length2);
 
             // adc sequencer configuration
-            let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
+            // MUXNEG.val(0x7) -> ground pad
+            let mut cfg = SequencerConfig::MUXNEG.val(0x7)
+                + SequencerConfig::MUXPOS.val(channel.chan_num)
                 + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
                 + SequencerConfig::RES::Bits12
                 + SequencerConfig::GCOMP::Disable

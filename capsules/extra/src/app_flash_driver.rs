@@ -220,11 +220,10 @@ impl SyscallDriver for AppFlash<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 /* This driver exists. */ => {
-                CommandReturn::success()
-            }
+            0 => CommandReturn::success(),
 
-            1 /* Write to flash from the allowed buffer */ => {
+            1 => {
+                // Write to flash from the allowed buffer
                 let flash_address = arg1;
 
                 let res = self.enqueue_write(flash_address, processid);
@@ -235,7 +234,7 @@ impl SyscallDriver for AppFlash<'_> {
                 }
             }
 
-            _ /* Unknown command num */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

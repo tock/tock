@@ -174,9 +174,9 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
             csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::utvec::utvec::mode::CLEAR,
         ),
-        PermissionMode::Reserved => (
+        PermissionMode::Reserved => {
             // TODO some sort of error handling?
-            ),
+        }
     }
 }
 
