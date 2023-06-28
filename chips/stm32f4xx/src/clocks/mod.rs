@@ -302,12 +302,7 @@ impl<'a> Clocks<'a> {
     // called when the system clock source is changed. The sys_clk_frequency_mhz is the
     // hypothetical future frequency.
     fn check_apb1_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
-        match self.rcc.get_apb1_prescaler() {
-            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ,
-            APBPrescaler::DivideBy2 => sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ * 2,
-            // For all models 4 * APB1_MAX_FREQUENCY >= SYS_MAX_FREQUENCY
-            _ => true,
-        }
+        sys_clk_frequency_mhz <= APB1_FREQUENCY_LIMIT_MHZ * Into::<usize>::into(self.rcc.get_apb1_prescaler())
     }
 
     /// Set the APB1 prescaler.
@@ -351,11 +346,7 @@ impl<'a> Clocks<'a> {
 
     // Same as for APB1, APB2 has a frequency limit that must be enforced by software
     fn check_apb2_frequency_limit(&self, sys_clk_frequency_mhz: usize) -> bool {
-        match self.rcc.get_apb2_prescaler() {
-            APBPrescaler::DivideBy1 => sys_clk_frequency_mhz <= APB2_FREQUENCY_LIMIT_MHZ,
-            // For all models 2 * APB2_MAX_FREQUENCY >= SYS_MAX_FREQUENCY
-            _ => true,
-        }
+        sys_clk_frequency_mhz <= APB2_FREQUENCY_LIMIT_MHZ * Into::<usize>::into(self.rcc.get_apb2_prescaler())
     }
 
     /// Set the APB2 prescaler.
