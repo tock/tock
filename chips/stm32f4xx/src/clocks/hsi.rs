@@ -71,11 +71,10 @@ impl<'a> Hsi<'a> {
 
     /// Start the HSI clock.
     ///
-    /// # Returns
+    /// # Errors
     ///
     /// + [Err]\([ErrorCode::BUSY]\): if enabling the HSI clock took too long. Recall this method to
     /// ensure the HSI clock is running.
-    /// + [Ok]\(()\): HSI clock successfully enabled and running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         self.rcc.enable_hsi_clock();
 
@@ -90,12 +89,11 @@ impl<'a> Hsi<'a> {
 
     /// Stop the HSI clock.
     ///
-    /// # Returns
+    /// # Errors
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the HSI clock is configured as the system clock.
     /// + [Err]\([ErrorCode::BUSY]\): disabling the HSI clock took to long. Retry to ensure it is
     /// not running.
-    /// + [Ok]\(()\): HSI clock disabled and off.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         if self.rcc.is_hsi_clock_system_clock() {
             return Err(ErrorCode::FAIL);
