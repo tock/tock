@@ -253,7 +253,7 @@ pub trait Screen<'a> {
     /// - 1..MAX_BRIGHTNESS - on, set brightness to the given level
     ///
     /// The display should interpret the brightness value as *lightness*
-    /// (each increment should change preceived brightness the same).
+    /// (each increment should change perceived brightness the same).
     /// 1 shall be the minimum supported brightness,
     /// `MAX_BRIGHTNESS` and greater represent the maximum.
     /// Values in between should approximate the intermediate values;
@@ -282,7 +282,7 @@ pub trait Screen<'a> {
 
     /// Controls the color inversion mode.
     ///
-    /// Pixels already in the frame buffer, as well as newly submited,
+    /// Pixels already in the frame buffer, as well as newly submitted,
     /// will be inverted. What that means depends on the current pixel format.
     /// May get disabled when switching to another pixel format.
     /// Returns ENOSUPPORT if the device does not accelerate color inversion.

@@ -6,7 +6,7 @@
 //! kernel.
 //!
 //! These traits are designed to be able encompass the wide
-//! variety of hardare counters in a general yet efficient way. They
+//! variety of hardware counters in a general yet efficient way. They
 //! abstract the frequency of a counter through the `Frequency` trait
 //! and the width of a time value through the `Ticks`
 //! trait. Higher-level software abstractions should generally rely on
@@ -300,7 +300,7 @@ pub trait Timer<'a>: Time {
 
     /// Return how many ticks are remaining until the next callback,
     /// or None if the timer is disabled.  This call is useful because
-    /// there may be non-neglible delays between when a timer was
+    /// there may be non-negligible delays between when a timer was
     /// requested and it was actually scheduled. Therefore, since a
     /// timer's start might be delayed slightly, the time remaining
     /// might be slightly higher than one would expect if one

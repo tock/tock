@@ -186,7 +186,7 @@ pub struct BitTiming {
     pub propagation: u8,
 
     /// A value that represents the maximum time by which
-    /// the bit sampling period may lenghten or shorten
+    /// the bit sampling period may lengthen or shorten
     /// each cycle to perform the resynchronization. It is
     /// measured in time quanta.
     pub sync_jump_width: u32,
@@ -365,9 +365,9 @@ pub trait Configure {
     const SYNC_SEG: u8 = 1;
 
     /// Configures the CAN peripheral at the given bitrate. This function is
-    /// supposed to be caled before the `enable` function. This function is
+    /// supposed to be called before the `enable` function. This function is
     /// synchronous as the driver should only calculate the timing parameters
-    /// based on the bitrate and the frequenct of the board and store them.
+    /// based on the bitrate and the frequency of the board and store them.
     /// This function does not configure the hardware.
     ///
     /// # Arguments:
@@ -793,7 +793,7 @@ pub trait ReceiveClient<const PACKET_SIZE: usize> {
         status: Result<(), Error>,
     );
 
-    /// The driver calls this function when the reception of messages has been stopeed.
+    /// The driver calls this function when the reception of messages has been stopped.
     ///
     /// # Arguments:
     ///
