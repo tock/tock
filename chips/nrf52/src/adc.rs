@@ -348,11 +348,10 @@ pub struct Adc<'a> {
 }
 
 impl<'a> Adc<'a> {
-    pub fn new() -> Self {
+    pub fn new(voltage_reference_in_mv: usize) -> Self {
         Self {
             registers: SAADC_BASE,
-            // Default to 3.3 V VDD reference.
-            reference: Cell::new(3300),
+            reference: Cell::new(voltage_reference_in_mv),
             mode: Cell::new(AdcMode::Idle),
             client: OptionalCell::empty(),
             highspeed_client: OptionalCell::empty(),
