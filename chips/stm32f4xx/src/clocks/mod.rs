@@ -422,12 +422,6 @@ impl<'a> Clocks<'a> {
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         };
 
-        // HELP: Confusing point. The PLL clock can output a frequency up to 216MHz, but the doc
-        // warns that the output must not surpass system clock frequency limit. My assumption is
-        // that if the PLL clock is used as a system clock source, then its frequency has to be
-        // checked. Otherwise, if it is used as a microcontroller clock output (MCO), the entire
-        // frequency range is available.
-        //
         // Check the alternate frequency is not higher than the system clock limit
         if alternate_frequency > SYS_CLOCK_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::SIZE);
