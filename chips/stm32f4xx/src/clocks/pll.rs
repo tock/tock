@@ -372,7 +372,6 @@ impl<'a> Pll<'a> {
     /// + [true]: the PLL48 clock frequency is exactly 48MHz.
     /// + [false]: the PLL48 clock is not exactly 48MHz.
     pub fn is_pll48_calibrated(&self) -> bool {
-        // Cannot panic, since pll48_calibrated is never assigned to None
         self.pll48_calibrated.get()
     }
 }
