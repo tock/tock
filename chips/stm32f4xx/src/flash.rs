@@ -40,7 +40,6 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadWri
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-// TODO: Make sure it is possible to create one common superset flash structure
 register_structs! {
     /// FLASH
     FlashRegisters {
@@ -63,7 +62,6 @@ register_structs! {
     }
 }
 
-// TODO: Make sure it is possible to create one common superset flash bit fields
 register_bitfields![u32,
     ACR [
         /// Latency
