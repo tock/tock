@@ -12,7 +12,7 @@
 //!
 //! The Ethernet requires that AHB frequency must be at least 25MHz. Default boot configuration
 //! sets up a 16MHz clock frequency. Nucleo-F429ZI already contains code to setup the Ethernet.
-//! Check board main file for more details.
+//! Uncomment code sections marked with ETHERNET to use this peripheral.
 
 use core::cell::Cell;
 
@@ -24,7 +24,7 @@ use kernel::hil::ethernet::EthernetSpeed;
 use kernel::hil::ethernet::MacAddress;
 use kernel::hil::ethernet::OperationMode;
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::{OptionalCell, TakeCell, NumericCellExt};
+use kernel::utilities::cells::{NumericCellExt, OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
