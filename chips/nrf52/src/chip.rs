@@ -23,7 +23,8 @@ impl<'a, I: InterruptService + 'a> NRF52<'a, I> {
     }
 }
 
-/// This struct, when initialized, instantiates all peripheral drivers for the apollo3.
+/// This struct, when initialized, instantiates all peripheral drivers for the nrf52.
+///
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
