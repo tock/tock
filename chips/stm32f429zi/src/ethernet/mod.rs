@@ -1394,16 +1394,16 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    // Uncomment this if needed
-    //fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
-    //if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
-    //return Err(ErrorCode::FAIL);
-    //}
+    #[allow(dead_code)]
+    fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
+        if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
+        return Err(ErrorCode::FAIL);
+        }
 
-    //self.dma_registers.dmaomr.modify(DMAOMR::ST::CLEAR);
+        self.dma_registers.dmaomr.modify(DMAOMR::ST::CLEAR);
 
-    //Ok(())
-    //}
+        Ok(())
+    }
 
     fn is_dma_transmission_enabled(&self) -> bool {
         match self.dma_registers.dmaomr.read(DMAOMR::ST) {
@@ -1422,16 +1422,16 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    // Uncomment this if needed
-    //fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
-    //if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
-    //return Err(ErrorCode::FAIL);
-    //}
+    #[allow(dead_code)]
+    fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
+        if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
+            return Err(ErrorCode::FAIL);
+        }
 
-    //self.dma_registers.dmaomr.modify(DMAOMR::SR::CLEAR);
+        self.dma_registers.dmaomr.modify(DMAOMR::SR::CLEAR);
 
-    //Ok(())
-    //}
+        Ok(())
+    }
 
     fn is_dma_reception_enabled(&self) -> bool {
         self.dma_registers.dmaomr.is_set(DMAOMR::ST)
@@ -1617,15 +1617,15 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmaier.is_set(DMAIER::TBUIE)
     }
 
-    // Uncomment this if needed
-    //fn get_current_host_transmit_descriptor_address(&self) -> u32 {
-    //self.dma_registers.dmachtdr.get()
-    //}
+    #[allow(dead_code)]
+    fn get_current_host_transmit_descriptor_address(&self) -> u32 {
+        self.dma_registers.dmachtdr.get()
+    }
 
-    // Uncomment this if needed
-    //fn get_current_host_transmit_buffer_address(&self) -> u32 {
-    //self.dma_registers.dmachtbar.get()
-    //}
+    #[allow(dead_code)]
+    fn get_current_host_transmit_buffer_address(&self) -> u32 {
+        self.dma_registers.dmachtbar.get()
+    }
 
     /* === High-level functions */
 
@@ -1646,13 +1646,13 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    // Uncomment this if needed
-    //fn disable_transmitter(&self) -> Result<(), ErrorCode> {
-    //self.disable_dma_transmission()?;
-    //self.disable_mac_transmitter();
+    #[allow(dead_code)]
+    fn disable_transmitter(&self) -> Result<(), ErrorCode> {
+        self.disable_dma_transmission()?;
+        self.disable_mac_transmitter();
 
-    //Ok(())
-    //}
+        Ok(())
+    }
 
     fn is_transmission_enabled(&self) -> bool {
         self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
@@ -1671,13 +1671,13 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    // Uncomment this if needed
-    //fn disable_receiver(&self) -> Result<(), ErrorCode> {
-    //self.disable_dma_reception()?;
-    //self.disable_mac_receiver();
+    #[allow(dead_code)]
+    fn disable_receiver(&self) -> Result<(), ErrorCode> {
+        self.disable_dma_reception()?;
+        self.disable_mac_receiver();
 
-    //Ok(())
-    //}
+        Ok(())
+    }
 
     fn is_reception_enabled(&self) -> bool {
         self.is_mac_receiver_enabled() && self.is_dma_reception_enabled()
