@@ -431,12 +431,12 @@ impl<'a> Clocks<'a> {
         let ahb_frequency = alternate_frequency / ahb_divider;
 
         // APB1 frequency must not exceed APB1_FREQUENCY_LIMIT_MHZ
-        if let false = self.check_apb1_frequency_limit(ahb_frequency) {
+        if !self.check_apb1_frequency_limit(ahb_frequency) {
             return Err(ErrorCode::SIZE);
         }
 
         // APB2 frequency must not exceed APB2_FREQUENCY_LIMIT_MHZ
-        if let false = self.check_apb2_frequency_limit(ahb_frequency) {
+        if !self.check_apb2_frequency_limit(ahb_frequency) {
             return Err(ErrorCode::SIZE);
         }
 
