@@ -304,44 +304,44 @@ unsafe fn setup_peripherals(
 fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     // RMII_REF_CLK
     gpio_ports.get_pin(PinId::PA01).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 
     // RMII_RX_DV
     gpio_ports.get_pin(PinId::PA07).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 
     // RMII_RX_D0
     gpio_ports.get_pin(PinId::PC04).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 
     // RMII_RX_D1
     gpio_ports.get_pin(PinId::PC05).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 
     // RMII_TX_EN
     gpio_ports.get_pin(PinId::PG11).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 
     // RMII_TX_D0
     gpio_ports.get_pin(PinId::PG13).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 
     // RMII_TX_D1
     gpio_ports.get_pin(PinId::PB13).map(|pin| {
-    pin.set_mode(Mode::AlternateFunctionMode);
-    pin.set_alternate_function(AlternateFunction::AF11);
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
     });
 }
 
