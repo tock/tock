@@ -802,7 +802,6 @@ impl<'a> Ethernet<'a> {
     /// Ethernet constructor
     pub fn new(
         rcc: &'a rcc::Rcc,
-        //received_packet: &'static mut [u8],
     ) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
