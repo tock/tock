@@ -800,9 +800,7 @@ const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62,
 
 impl<'a> Ethernet<'a> {
     /// Ethernet constructor
-    pub fn new(
-        rcc: &'a rcc::Rcc,
-    ) -> Self {
+    pub fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
             _mmc_registers: ETHERNET_MMC_BASE,
@@ -1397,7 +1395,7 @@ impl<'a> Ethernet<'a> {
     #[allow(dead_code)]
     fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
-        return Err(ErrorCode::FAIL);
+            return Err(ErrorCode::FAIL);
         }
 
         self.dma_registers.dmaomr.modify(DMAOMR::ST::CLEAR);
