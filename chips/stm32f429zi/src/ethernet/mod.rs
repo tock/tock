@@ -1353,6 +1353,7 @@ impl<'a> Ethernet<'a> {
     }
 
     #[allow(dead_code)]
+    // When a standard HIL will be implemented, this method will be used
     fn disable_dma_transmission(&self) -> Result<(), ErrorCode> {
         if self.get_transmit_process_state() != DmaTransmitProcessState::Suspended {
             return Err(ErrorCode::FAIL);
@@ -1381,6 +1382,7 @@ impl<'a> Ethernet<'a> {
     }
 
     #[allow(dead_code)]
+    // When a standard HIL will be implemented, this method will be used
     fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
             return Err(ErrorCode::FAIL);
@@ -1605,6 +1607,7 @@ impl<'a> Ethernet<'a> {
     }
 
     #[allow(dead_code)]
+    // When a standard HIL will be implemented, this method will be used
     fn disable_transmitter(&self) -> Result<(), ErrorCode> {
         self.disable_dma_transmission()?;
         self.disable_mac_transmitter();
@@ -1630,6 +1633,7 @@ impl<'a> Ethernet<'a> {
     }
 
     #[allow(dead_code)]
+    // When a standard HIL will be implemented, this method will be used
     fn disable_receiver(&self) -> Result<(), ErrorCode> {
         self.disable_dma_reception()?;
         self.disable_mac_receiver();
