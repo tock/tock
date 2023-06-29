@@ -70,6 +70,9 @@ for f in $(find . | grep Cargo.toml); do
 		if grep -q '"'$dir'"' xx00; then
 			continue
 		fi
+		if [[ $dir == tools/qemu* ]]; then
+			continue
+		fi
 
 		printf "\rFormatting %-$((39))s" $dir
 	fi
