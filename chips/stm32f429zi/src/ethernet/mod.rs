@@ -41,297 +41,279 @@ mod receive_descriptor;
 use crate::ethernet::receive_descriptor::ReceiveDescriptor;
 
 register_structs! {
-    /// Ethernet: media access control
-/// (MAC)
+    /// Ethernet: media access control (MAC)
     Ethernet_MacRegisters {
-        /// Ethernet MAC configuration
-/// register
+        /// Ethernet MAC configuration register
         (0x000 => maccr: ReadWrite<u32, MACCR::Register>),
-        /// Ethernet MAC frame filter
-/// register
+        /// Ethernet MAC frame filter register
         (0x004 => macffr: ReadWrite<u32, MACFFR::Register>),
-        /// Ethernet MAC hash table high
-/// register
+        /// Ethernet MAC hash table high register
         (0x008 => machthr: ReadWrite<u32>),
-        /// Ethernet MAC hash table low
-/// register
+        /// Ethernet MAC hash table low register
         (0x00C => machtlr: ReadWrite<u32>),
-        /// Ethernet MAC MII address
-/// register
+        /// Ethernet MAC MII address register
         (0x010 => macmiiar: ReadWrite<u32, MACMIIAR::Register>),
         /// Ethernet MAC MII data register
         (0x014 => macmiidr: ReadWrite<u32>),
-        /// Ethernet MAC flow control
-/// register
+        /// Ethernet MAC flow control register
         (0x018 => macfcr: ReadWrite<u32, MACFCR::Register>),
         /// Ethernet MAC VLAN tag register
         (0x01C => macvlantr: ReadWrite<u32, MACVLANTR::Register>),
         (0x020 => _reserved0),
-        /// Ethernet MAC PMT control and status
-/// register
+        /// Ethernet MAC PMT control and status register
         (0x02C => macpmtcsr: ReadWrite<u32, MACPMTCSR::Register>),
         (0x030 => _reserved1),
         /// Ethernet MAC debug register
         (0x034 => macdbgr: ReadOnly<u32, MACDBGR::Register>),
-        /// Ethernet MAC interrupt status
-/// register
+        /// Ethernet MAC interrupt status register
         (0x038 => macsr: ReadWrite<u32, MACSR::Register>),
-        /// Ethernet MAC interrupt mask
-/// register
+        /// Ethernet MAC interrupt mask register
         (0x03C => macimr: ReadWrite<u32, MACIMR::Register>),
-        /// Ethernet MAC address 0 high
-/// register
+        /// Ethernet MAC address 0 high register
         (0x040 => maca0hr: ReadWrite<u32, MACA0HR::Register>),
-        /// Ethernet MAC address 0 low
-/// register
+        /// Ethernet MAC address 0 low register
         (0x044 => maca0lr: ReadWrite<u32>),
-        /// Ethernet MAC address 1 high
-/// register
+        /// Ethernet MAC address 1 high register
         (0x048 => maca1hr: ReadWrite<u32, MACA1HR::Register>),
-        /// Ethernet MAC address1 low
-/// register
+        /// Ethernet MAC address1 low register
         (0x04C => maca1lr: ReadWrite<u32>),
-        /// Ethernet MAC address 2 high
-/// register
+        /// Ethernet MAC address 2 high register
         (0x050 => maca2hr: ReadWrite<u32, MACA2HR::Register>),
-        /// Ethernet MAC address 2 low
-/// register
+        /// Ethernet MAC address 2 low register
         (0x054 => maca2lr: ReadWrite<u32>),
-        /// Ethernet MAC address 3 high
-/// register
+        /// Ethernet MAC address 3 high register
         (0x058 => maca3hr: ReadWrite<u32, MACA3HR::Register>),
-        /// Ethernet MAC address 3 low
-/// register
+        /// Ethernet MAC address 3 low register
         (0x05C => maca3lr: ReadWrite<u32>),
         (0x060 => @END),
     }
 }
 
 register_bitfields![u32,
-MACCR [
-    /// RE
-    RE OFFSET(2) NUMBITS(1) [],
-    /// TE
-    TE OFFSET(3) NUMBITS(1) [],
-    /// DC
-    DC OFFSET(4) NUMBITS(1) [],
-    /// BL
-    BL OFFSET(5) NUMBITS(2) [],
-    /// APCS
-    APCS OFFSET(7) NUMBITS(1) [],
-    /// RD
-    RD OFFSET(9) NUMBITS(1) [],
-    /// IPCO
-    IPCO OFFSET(10) NUMBITS(1) [],
-    /// DM
-    DM OFFSET(11) NUMBITS(1) [],
-    /// LM
-    LM OFFSET(12) NUMBITS(1) [],
-    /// ROD
-    ROD OFFSET(13) NUMBITS(1) [],
-    /// FES
-    FES OFFSET(14) NUMBITS(1) [],
-    /// CSD
-    CSD OFFSET(16) NUMBITS(1) [],
-    /// IFG
-    IFG OFFSET(17) NUMBITS(3) [],
-    /// JD
-    JD OFFSET(22) NUMBITS(1) [],
-    /// WD
-    WD OFFSET(23) NUMBITS(1) [],
-    /// CSTF
-    CSTF OFFSET(25) NUMBITS(1) []
-],
-MACFFR [
-    /// PM
-    PM OFFSET(0) NUMBITS(1) [],
-    /// HU
-    HU OFFSET(1) NUMBITS(1) [],
-    /// HM
-    HM OFFSET(2) NUMBITS(1) [],
-    /// DAIF
-    DAIF OFFSET(3) NUMBITS(1) [],
-    /// RAM
-    RAM OFFSET(4) NUMBITS(1) [],
-    /// BFD
-    BFD OFFSET(5) NUMBITS(1) [],
-    /// PCF
-    PCF OFFSET(6) NUMBITS(1) [],
-    /// SAIF
-    SAIF OFFSET(7) NUMBITS(1) [],
-    /// SAF
-    SAF OFFSET(8) NUMBITS(1) [],
-    /// HPF
-    HPF OFFSET(9) NUMBITS(1) [],
-    /// RA
-    RA OFFSET(31) NUMBITS(1) []
-],
-MACHTHR [
-    /// HTH
-    HTH OFFSET(0) NUMBITS(32) []
-],
-MACHTLR [
-    /// HTL
-    HTL OFFSET(0) NUMBITS(32) []
-],
-MACMIIAR [
-    /// MB
-    MB OFFSET(0) NUMBITS(1) [],
-    /// MW
-    MW OFFSET(1) NUMBITS(1) [],
-    /// CR
-    CR OFFSET(2) NUMBITS(3) [],
-    /// MR
-    MR OFFSET(6) NUMBITS(5) [],
-    /// PA
-    PA OFFSET(11) NUMBITS(5) []
-],
-MACMIIDR [
-    /// TD
-    TD OFFSET(0) NUMBITS(16) []
-],
-MACFCR [
-    /// FCB
-    FCB OFFSET(0) NUMBITS(1) [],
-    /// TFCE
-    TFCE OFFSET(1) NUMBITS(1) [],
-    /// RFCE
-    RFCE OFFSET(2) NUMBITS(1) [],
-    /// UPFD
-    UPFD OFFSET(3) NUMBITS(1) [],
-    /// PLT
-    PLT OFFSET(4) NUMBITS(2) [],
-    /// ZQPD
-    ZQPD OFFSET(7) NUMBITS(1) [],
-    /// PT
-    PT OFFSET(16) NUMBITS(16) []
-],
-MACVLANTR [
-    /// VLANTI
-    VLANTI OFFSET(0) NUMBITS(16) [],
-    /// VLANTC
-    VLANTC OFFSET(16) NUMBITS(1) []
-],
-MACPMTCSR [
-    /// PD
-    PD OFFSET(0) NUMBITS(1) [],
-    /// MPE
-    MPE OFFSET(1) NUMBITS(1) [],
-    /// WFE
-    WFE OFFSET(2) NUMBITS(1) [],
-    /// MPR
-    MPR OFFSET(5) NUMBITS(1) [],
-    /// WFR
-    WFR OFFSET(6) NUMBITS(1) [],
-    /// GU
-    GU OFFSET(9) NUMBITS(1) [],
-    /// WFFRPR
-    WFFRPR OFFSET(31) NUMBITS(1) []
-],
-MACDBGR [
-    MMRPEA OFFSET(0) NUMBITS(1) [],
-    MSFRWCS OFFSET(1) NUMBITS(2) [],
-    RFWRA OFFSET(4) NUMBITS(1) [],
-    RFRCS OFFSET(5) NUMBITS(2) [
-        Idle = 0,
-        ReadingFrameDate = 1,
-        ReadingFrameStatus = 2,
-        FlushingFrameDataAndStatus = 3,
+    MACCR [
+        /// RE
+        RE OFFSET(2) NUMBITS(1) [],
+        /// TE
+        TE OFFSET(3) NUMBITS(1) [],
+        /// DC
+        DC OFFSET(4) NUMBITS(1) [],
+        /// BL
+        BL OFFSET(5) NUMBITS(2) [],
+        /// APCS
+        APCS OFFSET(7) NUMBITS(1) [],
+        /// RD
+        RD OFFSET(9) NUMBITS(1) [],
+        /// IPCO
+        IPCO OFFSET(10) NUMBITS(1) [],
+        /// DM
+        DM OFFSET(11) NUMBITS(1) [],
+        /// LM
+        LM OFFSET(12) NUMBITS(1) [],
+        /// ROD
+        ROD OFFSET(13) NUMBITS(1) [],
+        /// FES
+        FES OFFSET(14) NUMBITS(1) [],
+        /// CSD
+        CSD OFFSET(16) NUMBITS(1) [],
+        /// IFG
+        IFG OFFSET(17) NUMBITS(3) [],
+        /// JD
+        JD OFFSET(22) NUMBITS(1) [],
+        /// WD
+        WD OFFSET(23) NUMBITS(1) [],
+        /// CSTF
+        CSTF OFFSET(25) NUMBITS(1) []
     ],
-    RFFL OFFSET(8) NUMBITS(2) [
-        Empty = 0,
-        BelowThreshold = 1,
-        AboveThreshold = 2,
-        Full = 3,
+    MACFFR [
+        /// PM
+        PM OFFSET(0) NUMBITS(1) [],
+        /// HU
+        HU OFFSET(1) NUMBITS(1) [],
+        /// HM
+        HM OFFSET(2) NUMBITS(1) [],
+        /// DAIF
+        DAIF OFFSET(3) NUMBITS(1) [],
+        /// RAM
+        RAM OFFSET(4) NUMBITS(1) [],
+        /// BFD
+        BFD OFFSET(5) NUMBITS(1) [],
+        /// PCF
+        PCF OFFSET(6) NUMBITS(1) [],
+        /// SAIF
+        SAIF OFFSET(7) NUMBITS(1) [],
+        /// SAF
+        SAF OFFSET(8) NUMBITS(1) [],
+        /// HPF
+        HPF OFFSET(9) NUMBITS(1) [],
+        /// RA
+        RA OFFSET(31) NUMBITS(1) []
     ],
-    MMTEA OFFSET(16) NUMBITS(1) [],
-    MTFCS OFFSET(17) NUMBITS(2) [
-        Idle = 0,
-        WaitingStatusOrBackoff = 1,
-        GeneratingAndTransmitingPauseFrame = 2,
-        TransferringInputFrame = 3,
+    MACHTHR [
+        /// HTH
+        HTH OFFSET(0) NUMBITS(32) []
     ],
-    MTP OFFSET(19) NUMBITS(1) [],
-    TFRS OFFSET(20) NUMBITS(2) [
-        Idle = 0,
-        Reading = 1,
-        WaitingForStatus = 2,
-        WritingStatusOrFlushing = 3,
+    MACHTLR [
+        /// HTL
+        HTL OFFSET(0) NUMBITS(32) []
     ],
-    TFWA OFFSET(22) NUMBITS(1) [],
-    TFNE OFFSET(24) NUMBITS(1) [],
-    TFF OFFSET(25) NUMBITS(1) [],
-],
-MACSR [
-    /// PMTS
-    PMTS OFFSET(3) NUMBITS(1) [],
-    /// MMCS
-    MMCS OFFSET(4) NUMBITS(1) [],
-    /// MMCRS
-    MMCRS OFFSET(5) NUMBITS(1) [],
-    /// MMCTS
-    MMCTS OFFSET(6) NUMBITS(1) [],
-    /// TSTS
-    TSTS OFFSET(9) NUMBITS(1) []
-],
-MACIMR [
-    /// PMTIM
-    PMTIM OFFSET(3) NUMBITS(1) [],
-    /// TSTIM
-    TSTIM OFFSET(9) NUMBITS(1) []
-],
-MACA0HR [
-    /// MAC address0 high
-    MACA0H OFFSET(0) NUMBITS(16) [],
-    /// Always 1
-    MO OFFSET(31) NUMBITS(1) []
-],
-MACA0LR [
-    /// 0
-    MACA0L OFFSET(0) NUMBITS(32) []
-],
-MACA1HR [
-    /// MACA1H
-    MACA1H OFFSET(0) NUMBITS(16) [],
-    /// MBC
-    MBC OFFSET(24) NUMBITS(6) [],
-    /// SA
-    SA OFFSET(30) NUMBITS(1) [],
-    /// AE
-    AE OFFSET(31) NUMBITS(1) []
-],
-MACA1LR [
-    /// MACA1LR
-    MACA1LR OFFSET(0) NUMBITS(32) []
-],
-MACA2HR [
-    /// MAC2AH
-    MAC2AH OFFSET(0) NUMBITS(16) [],
-    /// MBC
-    MBC OFFSET(24) NUMBITS(6) [],
-    /// SA
-    SA OFFSET(30) NUMBITS(1) [],
-    /// AE
-    AE OFFSET(31) NUMBITS(1) []
-],
-MACA2LR [
-    /// MACA2L
-    MACA2L OFFSET(0) NUMBITS(31) []
-],
-MACA3HR [
-    /// MACA3H
-    MACA3H OFFSET(0) NUMBITS(16) [],
-    /// MBC
-    MBC OFFSET(24) NUMBITS(6) [],
-    /// SA
-    SA OFFSET(30) NUMBITS(1) [],
-    /// AE
-    AE OFFSET(31) NUMBITS(1) []
-],
-MACA3LR [
-    /// MBCA3L
-    MBCA3L OFFSET(0) NUMBITS(32) []
-]
+    MACMIIAR [
+        /// MB
+        MB OFFSET(0) NUMBITS(1) [],
+        /// MW
+        MW OFFSET(1) NUMBITS(1) [],
+        /// CR
+        CR OFFSET(2) NUMBITS(3) [],
+        /// MR
+        MR OFFSET(6) NUMBITS(5) [],
+        /// PA
+        PA OFFSET(11) NUMBITS(5) []
+    ],
+    MACMIIDR [
+        /// TD
+        TD OFFSET(0) NUMBITS(16) []
+    ],
+    MACFCR [
+        /// FCB
+        FCB OFFSET(0) NUMBITS(1) [],
+        /// TFCE
+        TFCE OFFSET(1) NUMBITS(1) [],
+        /// RFCE
+        RFCE OFFSET(2) NUMBITS(1) [],
+        /// UPFD
+        UPFD OFFSET(3) NUMBITS(1) [],
+        /// PLT
+        PLT OFFSET(4) NUMBITS(2) [],
+        /// ZQPD
+        ZQPD OFFSET(7) NUMBITS(1) [],
+        /// PT
+        PT OFFSET(16) NUMBITS(16) []
+    ],
+    MACVLANTR [
+        /// VLANTI
+        VLANTI OFFSET(0) NUMBITS(16) [],
+        /// VLANTC
+        VLANTC OFFSET(16) NUMBITS(1) []
+    ],
+    MACPMTCSR [
+        /// PD
+        PD OFFSET(0) NUMBITS(1) [],
+        /// MPE
+        MPE OFFSET(1) NUMBITS(1) [],
+        /// WFE
+        WFE OFFSET(2) NUMBITS(1) [],
+        /// MPR
+        MPR OFFSET(5) NUMBITS(1) [],
+        /// WFR
+        WFR OFFSET(6) NUMBITS(1) [],
+        /// GU
+        GU OFFSET(9) NUMBITS(1) [],
+        /// WFFRPR
+        WFFRPR OFFSET(31) NUMBITS(1) []
+    ],
+    MACDBGR [
+        MMRPEA OFFSET(0) NUMBITS(1) [],
+        MSFRWCS OFFSET(1) NUMBITS(2) [],
+        RFWRA OFFSET(4) NUMBITS(1) [],
+        RFRCS OFFSET(5) NUMBITS(2) [
+            Idle = 0,
+            ReadingFrameDate = 1,
+            ReadingFrameStatus = 2,
+            FlushingFrameDataAndStatus = 3,
+        ],
+        RFFL OFFSET(8) NUMBITS(2) [
+            Empty = 0,
+            BelowThreshold = 1,
+            AboveThreshold = 2,
+            Full = 3,
+        ],
+        MMTEA OFFSET(16) NUMBITS(1) [],
+        MTFCS OFFSET(17) NUMBITS(2) [
+            Idle = 0,
+            WaitingStatusOrBackoff = 1,
+            GeneratingAndTransmitingPauseFrame = 2,
+            TransferringInputFrame = 3,
+        ],
+        MTP OFFSET(19) NUMBITS(1) [],
+        TFRS OFFSET(20) NUMBITS(2) [
+            Idle = 0,
+            Reading = 1,
+            WaitingForStatus = 2,
+            WritingStatusOrFlushing = 3,
+        ],
+        TFWA OFFSET(22) NUMBITS(1) [],
+        TFNE OFFSET(24) NUMBITS(1) [],
+        TFF OFFSET(25) NUMBITS(1) [],
+    ],
+    MACSR [
+        /// PMTS
+        PMTS OFFSET(3) NUMBITS(1) [],
+        /// MMCS
+        MMCS OFFSET(4) NUMBITS(1) [],
+        /// MMCRS
+        MMCRS OFFSET(5) NUMBITS(1) [],
+        /// MMCTS
+        MMCTS OFFSET(6) NUMBITS(1) [],
+        /// TSTS
+        TSTS OFFSET(9) NUMBITS(1) []
+    ],
+    MACIMR [
+        /// PMTIM
+        PMTIM OFFSET(3) NUMBITS(1) [],
+        /// TSTIM
+        TSTIM OFFSET(9) NUMBITS(1) []
+    ],
+    MACA0HR [
+        /// MAC address0 high
+        MACA0H OFFSET(0) NUMBITS(16) [],
+        /// Always 1
+        MO OFFSET(31) NUMBITS(1) []
+    ],
+    MACA0LR [
+        /// 0
+        MACA0L OFFSET(0) NUMBITS(32) []
+    ],
+    MACA1HR [
+        /// MACA1H
+        MACA1H OFFSET(0) NUMBITS(16) [],
+        /// MBC
+        MBC OFFSET(24) NUMBITS(6) [],
+        /// SA
+        SA OFFSET(30) NUMBITS(1) [],
+        /// AE
+        AE OFFSET(31) NUMBITS(1) []
+    ],
+    MACA1LR [
+        /// MACA1LR
+        MACA1LR OFFSET(0) NUMBITS(32) []
+    ],
+    MACA2HR [
+        /// MAC2AH
+        MAC2AH OFFSET(0) NUMBITS(16) [],
+        /// MBC
+        MBC OFFSET(24) NUMBITS(6) [],
+        /// SA
+        SA OFFSET(30) NUMBITS(1) [],
+        /// AE
+        AE OFFSET(31) NUMBITS(1) []
+    ],
+    MACA2LR [
+        /// MACA2L
+        MACA2L OFFSET(0) NUMBITS(31) []
+    ],
+    MACA3HR [
+        /// MACA3H
+        MACA3H OFFSET(0) NUMBITS(16) [],
+        /// MBC
+        MBC OFFSET(24) NUMBITS(6) [],
+        /// SA
+        SA OFFSET(30) NUMBITS(1) [],
+        /// AE
+        AE OFFSET(31) NUMBITS(1) []
+    ],
+    MACA3LR [
+        /// MBCA3L
+        MBCA3L OFFSET(0) NUMBITS(32) []
+    ]
 ];
 
 const ETHERNET_MAC_BASE: StaticRef<Ethernet_MacRegisters> =
@@ -342,223 +324,211 @@ register_structs! {
     Ethernet_DmaRegisters {
         /// Ethernet DMA bus mode register
         (0x000 => dmabmr: ReadWrite<u32, DMABMR::Register>),
-        /// Ethernet DMA transmit poll demand
-/// register
+        /// Ethernet DMA transmit poll demand register
         (0x004 => dmatpdr: ReadWrite<u32>),
-        /// EHERNET DMA receive poll demand
-/// register
+        /// EHERNET DMA receive poll demand register
         (0x008 => dmarpdr: ReadWrite<u32>),
-        /// Ethernet DMA receive descriptor list address
-/// register
+        /// Ethernet DMA receive descriptor list address register
         (0x00C => dmardlar: ReadWrite<u32>),
-        /// Ethernet DMA transmit descriptor list
-/// address register
+        /// Ethernet DMA transmit descriptor list address register
         (0x010 => dmatdlar: ReadWrite<u32>),
         /// Ethernet DMA status register
         (0x014 => dmasr: ReadWrite<u32, DMASR::Register>),
-        /// Ethernet DMA operation mode
-/// register
+        /// Ethernet DMA operation mode register
         (0x018 => dmaomr: ReadWrite<u32, DMAOMR::Register>),
-        /// Ethernet DMA interrupt enable
-/// register
+        /// Ethernet DMA interrupt enable register
         (0x01C => dmaier: ReadWrite<u32, DMAIER::Register>),
-        /// Ethernet DMA missed frame and buffer
-/// overflow counter register
+        /// Ethernet DMA missed frame and buffer overflow counter register
         (0x020 => dmamfbocr: ReadWrite<u32, DMAMFBOCR::Register>),
-        /// Ethernet DMA receive status watchdog timer
-/// register
+        /// Ethernet DMA receive status watchdog timer register
         (0x024 => dmarswtr: ReadWrite<u32>),
         (0x028 => _reserved0),
-        /// Ethernet DMA current host transmit
-/// descriptor register
+        /// Ethernet DMA current host transmit descriptor register
         (0x048 => dmachtdr: ReadOnly<u32>),
-        /// Ethernet DMA current host receive descriptor
-/// register
+        /// Ethernet DMA current host receive descriptor register
         (0x04C => dmachrdr: ReadOnly<u32>),
-        /// Ethernet DMA current host transmit buffer
-/// address register
+        /// Ethernet DMA current host transmit buffer address register
         (0x050 => dmachtbar: ReadOnly<u32>),
-        /// Ethernet DMA current host receive buffer
-/// address register
+        /// Ethernet DMA current host receive buffer address register
         (0x054 => dmachrbar: ReadOnly<u32>),
         (0x058 => @END),
     }
 }
 register_bitfields![u32,
-DMABMR [
-    /// SR
-    SR OFFSET(0) NUMBITS(1) [],
-    /// DA
-    DA OFFSET(1) NUMBITS(1) [],
-    /// DSL
-    DSL OFFSET(2) NUMBITS(5) [],
-    /// EDFE
-    EDFE OFFSET(7) NUMBITS(1) [],
-    /// PBL
-    PBL OFFSET(8) NUMBITS(6) [],
-    /// RTPR
-    RTPR OFFSET(14) NUMBITS(2) [],
-    /// FB
-    FB OFFSET(16) NUMBITS(1) [],
-    /// RDP
-    RDP OFFSET(17) NUMBITS(6) [],
-    /// USP
-    USP OFFSET(23) NUMBITS(1) [],
-    /// FPM
-    FPM OFFSET(24) NUMBITS(1) [],
-    /// AAB
-    AAB OFFSET(25) NUMBITS(1) [],
-    /// MB
-    MB OFFSET(26) NUMBITS(1) []
-],
-DMATPDR [
-    /// TPD
-    TPD OFFSET(0) NUMBITS(32) []
-],
-DMARPDR [
-    /// RPD
-    RPD OFFSET(0) NUMBITS(32) []
-],
-DMARDLAR [
-    /// SRL
-    SRL OFFSET(0) NUMBITS(32) []
-],
-DMATDLAR [
-    /// STL
-    STL OFFSET(0) NUMBITS(32) []
-],
-DMASR [
-    /// TS
-    TS OFFSET(0) NUMBITS(1) [],
-    /// TPSS
-    TPSS OFFSET(1) NUMBITS(1) [],
-    /// TBUS
-    TBUS OFFSET(2) NUMBITS(1) [],
-    /// TJTS
-    TJTS OFFSET(3) NUMBITS(1) [],
-    /// ROS
-    ROS OFFSET(4) NUMBITS(1) [],
-    /// TUS
-    TUS OFFSET(5) NUMBITS(1) [],
-    /// RS
-    RS OFFSET(6) NUMBITS(1) [],
-    /// RBUS
-    RBUS OFFSET(7) NUMBITS(1) [],
-    /// RPSS
-    RPSS OFFSET(8) NUMBITS(1) [],
-    /// RWTS
-    RWTS OFFSET(9) NUMBITS(1) [],
-    /// ETS
-    ETS OFFSET(10) NUMBITS(1) [],
-    /// FBES
-    FBES OFFSET(13) NUMBITS(1) [],
-    /// ERS
-    ERS OFFSET(14) NUMBITS(1) [],
-    /// AIS
-    AIS OFFSET(15) NUMBITS(1) [],
-    /// NIS
-    NIS OFFSET(16) NUMBITS(1) [],
-    /// RPS
-    RPS OFFSET(17) NUMBITS(3) [],
-    /// TPS
-    TPS OFFSET(20) NUMBITS(3) [],
-    /// EBS
-    EBS OFFSET(23) NUMBITS(3) [],
-    /// MMCS
-    MMCS OFFSET(27) NUMBITS(1) [],
-    /// PMTS
-    PMTS OFFSET(28) NUMBITS(1) [],
-    /// TSTS
-    TSTS OFFSET(29) NUMBITS(1) []
-],
-DMAOMR [
-    /// SR
-    SR OFFSET(1) NUMBITS(1) [],
-    /// OSF
-    OSF OFFSET(2) NUMBITS(1) [],
-    /// RTC
-    RTC OFFSET(3) NUMBITS(2) [],
-    /// FUGF
-    FUGF OFFSET(6) NUMBITS(1) [],
-    /// FEF
-    FEF OFFSET(7) NUMBITS(1) [],
-    /// ST
-    ST OFFSET(13) NUMBITS(1) [],
-    /// TTC
-    TTC OFFSET(14) NUMBITS(3) [],
-    /// FTF
-    FTF OFFSET(20) NUMBITS(1) [],
-    /// TSF
-    TSF OFFSET(21) NUMBITS(1) [],
-    /// DFRF
-    DFRF OFFSET(24) NUMBITS(1) [],
-    /// RSF
-    RSF OFFSET(25) NUMBITS(1) [],
-    /// DTCEFD
-    DTCEFD OFFSET(26) NUMBITS(1) []
-],
-DMAIER [
-    /// TIE
-    TIE OFFSET(0) NUMBITS(1) [],
-    /// TPSIE
-    TPSIE OFFSET(1) NUMBITS(1) [],
-    /// TBUIE
-    TBUIE OFFSET(2) NUMBITS(1) [],
-    /// TJTIE
-    TJTIE OFFSET(3) NUMBITS(1) [],
-    /// ROIE
-    ROIE OFFSET(4) NUMBITS(1) [],
-    /// TUIE
-    TUIE OFFSET(5) NUMBITS(1) [],
-    /// RIE
-    RIE OFFSET(6) NUMBITS(1) [],
-    /// RBUIE
-    RBUIE OFFSET(7) NUMBITS(1) [],
-    /// RPSIE
-    RPSIE OFFSET(8) NUMBITS(1) [],
-    /// RWTIE
-    RWTIE OFFSET(9) NUMBITS(1) [],
-    /// ETIE
-    ETIE OFFSET(10) NUMBITS(1) [],
-    /// FBEIE
-    FBEIE OFFSET(13) NUMBITS(1) [],
-    /// ERIE
-    ERIE OFFSET(14) NUMBITS(1) [],
-    /// AISE
-    AISE OFFSET(15) NUMBITS(1) [],
-    /// NISE
-    NISE OFFSET(16) NUMBITS(1) []
-],
-DMAMFBOCR [
-    /// MFC
-    MFC OFFSET(0) NUMBITS(16) [],
-    /// OMFC
-    OMFC OFFSET(16) NUMBITS(1) [],
-    /// MFA
-    MFA OFFSET(17) NUMBITS(11) [],
-    /// OFOC
-    OFOC OFFSET(28) NUMBITS(1) []
-],
-DMARSWTR [
-    /// RSWTC
-    RSWTC OFFSET(0) NUMBITS(8) []
-],
-DMACHTDR [
-    /// HTDAP
-    HTDAP OFFSET(0) NUMBITS(32) []
-],
-DMACHRDR [
-    /// HRDAP
-    HRDAP OFFSET(0) NUMBITS(32) []
-],
-DMACHTBAR [
-    /// HTBAP
-    HTBAP OFFSET(0) NUMBITS(32) []
-],
-DMACHRBAR [
-    /// HRBAP
-    HRBAP OFFSET(0) NUMBITS(32) []
-]
+    DMABMR [
+        /// SR
+        SR OFFSET(0) NUMBITS(1) [],
+        /// DA
+        DA OFFSET(1) NUMBITS(1) [],
+        /// DSL
+        DSL OFFSET(2) NUMBITS(5) [],
+        /// EDFE
+        EDFE OFFSET(7) NUMBITS(1) [],
+        /// PBL
+        PBL OFFSET(8) NUMBITS(6) [],
+        /// RTPR
+        RTPR OFFSET(14) NUMBITS(2) [],
+        /// FB
+        FB OFFSET(16) NUMBITS(1) [],
+        /// RDP
+        RDP OFFSET(17) NUMBITS(6) [],
+        /// USP
+        USP OFFSET(23) NUMBITS(1) [],
+        /// FPM
+        FPM OFFSET(24) NUMBITS(1) [],
+        /// AAB
+        AAB OFFSET(25) NUMBITS(1) [],
+        /// MB
+        MB OFFSET(26) NUMBITS(1) []
+    ],
+    DMATPDR [
+        /// TPD
+        TPD OFFSET(0) NUMBITS(32) []
+    ],
+    DMARPDR [
+        /// RPD
+        RPD OFFSET(0) NUMBITS(32) []
+    ],
+    DMARDLAR [
+        /// SRL
+        SRL OFFSET(0) NUMBITS(32) []
+    ],
+    DMATDLAR [
+        /// STL
+        STL OFFSET(0) NUMBITS(32) []
+    ],
+    DMASR [
+        /// TS
+        TS OFFSET(0) NUMBITS(1) [],
+        /// TPSS
+        TPSS OFFSET(1) NUMBITS(1) [],
+        /// TBUS
+        TBUS OFFSET(2) NUMBITS(1) [],
+        /// TJTS
+        TJTS OFFSET(3) NUMBITS(1) [],
+        /// ROS
+        ROS OFFSET(4) NUMBITS(1) [],
+        /// TUS
+        TUS OFFSET(5) NUMBITS(1) [],
+        /// RS
+        RS OFFSET(6) NUMBITS(1) [],
+        /// RBUS
+        RBUS OFFSET(7) NUMBITS(1) [],
+        /// RPSS
+        RPSS OFFSET(8) NUMBITS(1) [],
+        /// RWTS
+        RWTS OFFSET(9) NUMBITS(1) [],
+        /// ETS
+        ETS OFFSET(10) NUMBITS(1) [],
+        /// FBES
+        FBES OFFSET(13) NUMBITS(1) [],
+        /// ERS
+        ERS OFFSET(14) NUMBITS(1) [],
+        /// AIS
+        AIS OFFSET(15) NUMBITS(1) [],
+        /// NIS
+        NIS OFFSET(16) NUMBITS(1) [],
+        /// RPS
+        RPS OFFSET(17) NUMBITS(3) [],
+        /// TPS
+        TPS OFFSET(20) NUMBITS(3) [],
+        /// EBS
+        EBS OFFSET(23) NUMBITS(3) [],
+        /// MMCS
+        MMCS OFFSET(27) NUMBITS(1) [],
+        /// PMTS
+        PMTS OFFSET(28) NUMBITS(1) [],
+        /// TSTS
+        TSTS OFFSET(29) NUMBITS(1) []
+    ],
+    DMAOMR [
+        /// SR
+        SR OFFSET(1) NUMBITS(1) [],
+        /// OSF
+        OSF OFFSET(2) NUMBITS(1) [],
+        /// RTC
+        RTC OFFSET(3) NUMBITS(2) [],
+        /// FUGF
+        FUGF OFFSET(6) NUMBITS(1) [],
+        /// FEF
+        FEF OFFSET(7) NUMBITS(1) [],
+        /// ST
+        ST OFFSET(13) NUMBITS(1) [],
+        /// TTC
+        TTC OFFSET(14) NUMBITS(3) [],
+        /// FTF
+        FTF OFFSET(20) NUMBITS(1) [],
+        /// TSF
+        TSF OFFSET(21) NUMBITS(1) [],
+        /// DFRF
+        DFRF OFFSET(24) NUMBITS(1) [],
+        /// RSF
+        RSF OFFSET(25) NUMBITS(1) [],
+        /// DTCEFD
+        DTCEFD OFFSET(26) NUMBITS(1) []
+    ],
+    DMAIER [
+        /// TIE
+        TIE OFFSET(0) NUMBITS(1) [],
+        /// TPSIE
+        TPSIE OFFSET(1) NUMBITS(1) [],
+        /// TBUIE
+        TBUIE OFFSET(2) NUMBITS(1) [],
+        /// TJTIE
+        TJTIE OFFSET(3) NUMBITS(1) [],
+        /// ROIE
+        ROIE OFFSET(4) NUMBITS(1) [],
+        /// TUIE
+        TUIE OFFSET(5) NUMBITS(1) [],
+        /// RIE
+        RIE OFFSET(6) NUMBITS(1) [],
+        /// RBUIE
+        RBUIE OFFSET(7) NUMBITS(1) [],
+        /// RPSIE
+        RPSIE OFFSET(8) NUMBITS(1) [],
+        /// RWTIE
+        RWTIE OFFSET(9) NUMBITS(1) [],
+        /// ETIE
+        ETIE OFFSET(10) NUMBITS(1) [],
+        /// FBEIE
+        FBEIE OFFSET(13) NUMBITS(1) [],
+        /// ERIE
+        ERIE OFFSET(14) NUMBITS(1) [],
+        /// AISE
+        AISE OFFSET(15) NUMBITS(1) [],
+        /// NISE
+        NISE OFFSET(16) NUMBITS(1) []
+    ],
+    DMAMFBOCR [
+        /// MFC
+        MFC OFFSET(0) NUMBITS(16) [],
+        /// OMFC
+        OMFC OFFSET(16) NUMBITS(1) [],
+        /// MFA
+        MFA OFFSET(17) NUMBITS(11) [],
+        /// OFOC
+        OFOC OFFSET(28) NUMBITS(1) []
+    ],
+    DMARSWTR [
+        /// RSWTC
+        RSWTC OFFSET(0) NUMBITS(8) []
+    ],
+    DMACHTDR [
+        /// HTDAP
+        HTDAP OFFSET(0) NUMBITS(32) []
+    ],
+    DMACHRDR [
+        /// HRDAP
+        HRDAP OFFSET(0) NUMBITS(32) []
+    ],
+    DMACHTBAR [
+        /// HTBAP
+        HTBAP OFFSET(0) NUMBITS(32) []
+    ],
+    DMACHRBAR [
+        /// HRBAP
+        HRBAP OFFSET(0) NUMBITS(32) []
+    ]
 ];
 
 const ETHERNET_DMA_BASE: StaticRef<Ethernet_DmaRegisters> =
@@ -569,114 +539,104 @@ register_structs! {
     Ethernet_MmcRegisters {
         /// Ethernet MMC control register
         (0x000 => mmccr: ReadWrite<u32, MMCCR::Register>),
-        /// Ethernet MMC receive interrupt
-/// register
+        /// Ethernet MMC receive interrupt register
         (0x004 => mmcrir: ReadWrite<u32, MMCRIR::Register>),
-        /// Ethernet MMC transmit interrupt
-/// register
+        /// Ethernet MMC transmit interrupt register
         (0x008 => mmctir: ReadOnly<u32, MMCTIR::Register>),
-        /// Ethernet MMC receive interrupt mask
-/// register
+        /// Ethernet MMC receive interrupt mask register
         (0x00C => mmcrimr: ReadWrite<u32, MMCRIMR::Register>),
-        /// Ethernet MMC transmit interrupt mask
-/// register
+        /// Ethernet MMC transmit interrupt mask register
         (0x010 => mmctimr: ReadWrite<u32, MMCTIMR::Register>),
         (0x014 => _reserved0),
-        /// Ethernet MMC transmitted good frames after a
-/// single collision counter
+        /// Ethernet MMC transmitted good frames after a single collision counter
         (0x04C => mmctgfsccr: ReadOnly<u32>),
-        /// Ethernet MMC transmitted good frames after
-/// more than a single collision
+        /// Ethernet MMC transmitted good frames after more than a single collision
         (0x050 => mmctgfmsccr: ReadOnly<u32>),
         (0x054 => _reserved1),
-        /// Ethernet MMC transmitted good frames counter
-/// register
+        /// Ethernet MMC transmitted good frames counter register
         (0x068 => mmctgfcr: ReadOnly<u32>),
         (0x06C => _reserved2),
-        /// Ethernet MMC received frames with CRC error
-/// counter register
+        /// Ethernet MMC received frames with CRC error counter register
         (0x094 => mmcrfcecr: ReadOnly<u32>),
-        /// Ethernet MMC received frames with alignment
-/// error counter register
+        /// Ethernet MMC received frames with alignment error counter register
         (0x098 => mmcrfaecr: ReadOnly<u32>),
         (0x09C => _reserved3),
-        /// MMC received good unicast frames counter
-/// register
+        /// MMC received good unicast frames counter register
         (0x0C4 => mmcrgufcr: ReadOnly<u32>),
         (0x0C8 => @END),
     }
 }
 register_bitfields![u32,
-MMCCR [
-    /// CR
-    CR OFFSET(0) NUMBITS(1) [],
-    /// CSR
-    CSR OFFSET(1) NUMBITS(1) [],
-    /// ROR
-    ROR OFFSET(2) NUMBITS(1) [],
-    /// MCF
-    MCF OFFSET(3) NUMBITS(1) [],
-    /// MCP
-    MCP OFFSET(4) NUMBITS(1) [],
-    /// MCFHP
-    MCFHP OFFSET(5) NUMBITS(1) []
-],
-MMCRIR [
-    /// RFCES
-    RFCES OFFSET(5) NUMBITS(1) [],
-    /// RFAES
-    RFAES OFFSET(6) NUMBITS(1) [],
-    /// RGUFS
-    RGUFS OFFSET(17) NUMBITS(1) []
-],
-MMCTIR [
-    /// TGFSCS
-    TGFSCS OFFSET(14) NUMBITS(1) [],
-    /// TGFMSCS
-    TGFMSCS OFFSET(15) NUMBITS(1) [],
-    /// TGFS
-    TGFS OFFSET(21) NUMBITS(1) []
-],
-MMCRIMR [
-    /// RFCEM
-    RFCEM OFFSET(5) NUMBITS(1) [],
-    /// RFAEM
-    RFAEM OFFSET(6) NUMBITS(1) [],
-    /// RGUFM
-    RGUFM OFFSET(17) NUMBITS(1) []
-],
-MMCTIMR [
-    /// TGFSCM
-    TGFSCM OFFSET(14) NUMBITS(1) [],
-    /// TGFMSCM
-    TGFMSCM OFFSET(15) NUMBITS(1) [],
-    /// TGFM
-    TGFM OFFSET(16) NUMBITS(1) []
-],
-MMCTGFSCCR [
-    /// TGFSCC
-    TGFSCC OFFSET(0) NUMBITS(32) []
-],
-MMCTGFMSCCR [
-    /// TGFMSCC
-    TGFMSCC OFFSET(0) NUMBITS(32) []
-],
-MMCTGFCR [
-    /// HTL
-    TGFC OFFSET(0) NUMBITS(32) []
-],
-MMCRFCECR [
-    /// RFCFC
-    RFCFC OFFSET(0) NUMBITS(32) []
-],
-MMCRFAECR [
-    /// RFAEC
-    RFAEC OFFSET(0) NUMBITS(32) []
-],
-MMCRGUFCR [
-    /// RGUFC
-    RGUFC OFFSET(0) NUMBITS(32) []
-]
+    MMCCR [
+        /// CR
+        CR OFFSET(0) NUMBITS(1) [],
+        /// CSR
+        CSR OFFSET(1) NUMBITS(1) [],
+        /// ROR
+        ROR OFFSET(2) NUMBITS(1) [],
+        /// MCF
+        MCF OFFSET(3) NUMBITS(1) [],
+        /// MCP
+        MCP OFFSET(4) NUMBITS(1) [],
+        /// MCFHP
+        MCFHP OFFSET(5) NUMBITS(1) []
+    ],
+    MMCRIR [
+        /// RFCES
+        RFCES OFFSET(5) NUMBITS(1) [],
+        /// RFAES
+        RFAES OFFSET(6) NUMBITS(1) [],
+        /// RGUFS
+        RGUFS OFFSET(17) NUMBITS(1) []
+    ],
+    MMCTIR [
+        /// TGFSCS
+        TGFSCS OFFSET(14) NUMBITS(1) [],
+        /// TGFMSCS
+        TGFMSCS OFFSET(15) NUMBITS(1) [],
+        /// TGFS
+        TGFS OFFSET(21) NUMBITS(1) []
+    ],
+    MMCRIMR [
+        /// RFCEM
+        RFCEM OFFSET(5) NUMBITS(1) [],
+        /// RFAEM
+        RFAEM OFFSET(6) NUMBITS(1) [],
+        /// RGUFM
+        RGUFM OFFSET(17) NUMBITS(1) []
+    ],
+    MMCTIMR [
+        /// TGFSCM
+        TGFSCM OFFSET(14) NUMBITS(1) [],
+        /// TGFMSCM
+        TGFMSCM OFFSET(15) NUMBITS(1) [],
+        /// TGFM
+        TGFM OFFSET(16) NUMBITS(1) []
+    ],
+    MMCTGFSCCR [
+        /// TGFSCC
+        TGFSCC OFFSET(0) NUMBITS(32) []
+    ],
+    MMCTGFMSCCR [
+        /// TGFMSCC
+        TGFMSCC OFFSET(0) NUMBITS(32) []
+    ],
+    MMCTGFCR [
+        /// HTL
+        TGFC OFFSET(0) NUMBITS(32) []
+    ],
+    MMCRFCECR [
+        /// RFCFC
+        RFCFC OFFSET(0) NUMBITS(32) []
+    ],
+    MMCRFAECR [
+        /// RFAEC
+        RFAEC OFFSET(0) NUMBITS(32) []
+    ],
+    MMCRGUFCR [
+        /// RGUFC
+        RGUFC OFFSET(0) NUMBITS(32) []
+    ]
 ];
 
 const ETHERNET_MMC_BASE: StaticRef<Ethernet_MmcRegisters> =
