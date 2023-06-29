@@ -9,6 +9,7 @@
 #![crate_name = "stm32f4xx"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(core_panic)]
 
 pub mod chip;
 pub mod nvic;
@@ -19,6 +20,7 @@ pub mod can;
 pub mod dbg;
 pub mod dma;
 pub mod exti;
+pub mod flash;
 pub mod fsmc;
 pub mod gpio;
 pub mod i2c;
@@ -28,6 +30,9 @@ pub mod syscfg;
 pub mod tim2;
 pub mod trng;
 pub mod usart;
+
+// Clocks
+pub mod clocks;
 
 use cortexm4::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM4, CortexMVariant};
 
