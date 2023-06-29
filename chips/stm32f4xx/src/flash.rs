@@ -298,8 +298,8 @@ impl Flash {
         }
     }
 
-    /// Return the current flash latency
-    pub fn get_latency(&self) -> FlashLatency {
+    // Return the current flash latency
+    pub(crate) fn get_latency(&self) -> FlashLatency {
         #[cfg(not(any(
             feature = "stm32f405",
             feature = "stm32f415",
