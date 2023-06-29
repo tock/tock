@@ -347,9 +347,9 @@ impl Flash {
 
     // TODO: Take into the account the power supply
     //
-    // NOTE: This method is pub(crate) to prevent a capsule from modifying the flash latency. Flash
-    // latency is dependent on the system clock frequency. Other peripherals will modify this when
-    // appropriate.
+    // NOTE: This method is pub(crate) to prevent modifying the flash latency from board files.
+    // Flash latency is dependent on the system clock frequency. Other peripherals will modify this
+    // when appropriate.
     pub(crate) fn set_latency(&self, sys_clock_frequency: usize) -> Result<(), ErrorCode> {
         let flash_latency = self.get_number_wait_cycles_based_on_frequency(sys_clock_frequency);
         self.registers
