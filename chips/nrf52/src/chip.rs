@@ -23,7 +23,8 @@ impl<'a, I: InterruptService + 'a> NRF52<'a, I> {
     }
 }
 
-/// This struct, when initialized, instantiates all peripheral drivers for the apollo3.
+/// This struct, when initialized, instantiates all peripheral drivers for the nrf52.
+///
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
@@ -71,7 +72,8 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             spim1: crate::spi::SPIM::new(1),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
-            adc: crate::adc::Adc::new(),
+            // Default to 3.3 V VDD reference.
+            adc: crate::adc::Adc::new(3300),
             nvmc: crate::nvmc::Nvmc::new(),
             clock: crate::clock::Clock::new(),
             pwm0: crate::pwm::Pwm::new(),
