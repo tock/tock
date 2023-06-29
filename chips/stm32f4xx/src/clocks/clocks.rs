@@ -416,7 +416,7 @@ impl<'a> Clocks<'a> {
 
         // Get the frequency of the source to be configured
         let alternate_frequency = match source {
-            // The unwrap can't failed because the source clock status was checked before
+            // The unwrap can't fail because the source clock status was checked before
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         };
