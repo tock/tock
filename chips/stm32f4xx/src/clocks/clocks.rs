@@ -154,6 +154,9 @@
 //!
 //! [^usage_note]: For the purpose of brievity, any error checking has been removed.
 
+use crate::clocks::hsi::Hsi;
+use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
+use crate::clocks::pll::Pll;
 use crate::flash::Flash;
 use crate::rcc::AHBPrescaler;
 use crate::rcc::APBPrescaler;
@@ -161,9 +164,6 @@ use crate::rcc::MCO1Divider;
 use crate::rcc::MCO1Source;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
-use crate::clocks::hsi::Hsi;
-use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
-use crate::clocks::pll::Pll;
 
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
@@ -977,4 +977,3 @@ pub mod tests {
         debug!("");
     }
 }
-
