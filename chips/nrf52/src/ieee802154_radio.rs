@@ -662,11 +662,11 @@ register_bitfields! [u32,
     ]
 ];
 
-pub struct Radio<'p> {
+pub struct Radio<'a> {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
-    rx_client: OptionalCell<&'static dyn radio::RxClient>,
-    tx_client: OptionalCell<&'static dyn radio::TxClient>,
+    rx_client: OptionalCell<&'a dyn radio::RxClient>,
+    tx_client: OptionalCell<&'a dyn radio::TxClient>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     addr: Cell<u16>,
@@ -677,7 +677,7 @@ pub struct Radio<'p> {
     random_nonce: Cell<u32>,
     channel: Cell<RadioChannel>,
     transmitting: Cell<bool>,
-    timer0: OptionalCell<&'p crate::timer::TimerAlarm<'p>>,
+    timer0: OptionalCell<&'a crate::timer::TimerAlarm<'a>>,
 }
 
 impl<'a> AlarmClient for Radio<'a> {
@@ -686,7 +686,7 @@ impl<'a> AlarmClient for Radio<'a> {
     }
 }
 
-impl<'p> Radio<'p> {
+impl<'a> Radio<'a> {
     pub fn new() -> Self {
         Self {
             registers: RADIO_BASE,
@@ -707,7 +707,7 @@ impl<'p> Radio<'p> {
         }
     }
 
-    pub fn set_timer_ref(&self, timer: &'p crate::timer::TimerAlarm<'p>) {
+    pub fn set_timer_ref(&self, timer: &'a crate::timer::TimerAlarm<'a>) {
         self.timer0.set(timer);
     }
 
@@ -1010,7 +1010,7 @@ impl<'p> Radio<'p> {
     }
 }
 
-impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
+impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     fn initialize(
         &self,
         _spi_buf: &'static mut [u8],
@@ -1021,7 +1021,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         Ok(())
     }
 
-    fn set_power_client(&self, _client: &'static dyn PowerClient) {
+    fn set_power_client(&self, _client: &'a dyn PowerClient) {
         //
     }
 
@@ -1060,7 +1060,7 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
         self.radio_initialize();
     }
 
-    fn set_config_client(&self, _client: &'static dyn radio::ConfigClient) {}
+    fn set_config_client(&self, _client: &'a dyn radio::ConfigClient) {}
 
     //#################################################
     /// Accessors
@@ -1127,8 +1127,8 @@ impl<'p> kernel::hil::radio::RadioConfig for Radio<'p> {
     }
 }
 
-impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
-    fn set_receive_client(&self, client: &'static dyn radio::RxClient, buffer: &'static mut [u8]) {
+impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
+    fn set_receive_client(&self, client: &'a dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);
     }
@@ -1137,7 +1137,7 @@ impl<'p> kernel::hil::radio::RadioData for Radio<'p> {
         self.rx_buf.replace(buffer);
     }
 
-    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
+    fn set_transmit_client(&self, client: &'a dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 

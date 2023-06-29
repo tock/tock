@@ -83,7 +83,13 @@ pub struct Platform {
     >,
     gpio_async: &'static capsules_extra::gpio_async::GPIOAsync<
         'static,
-        capsules_extra::mcp230xx::MCP230xx<'static>,
+        capsules_extra::mcp230xx::MCP230xx<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52832::i2c::TWI<'static>,
+            >,
+        >,
     >,
     light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
     buzzer: &'static capsules_extra::buzzer_driver::Buzzer<
@@ -356,7 +362,7 @@ pub unsafe fn main() {
 
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52832::i2c::TWI<'static>>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(i2c_mux);
@@ -378,16 +384,26 @@ pub unsafe fn main() {
     )
     .finalize();
     let mcp23017_i2c = static_init!(
-        capsules_core::virtualizers::virtual_i2c::I2CDevice,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52832::i2c::TWI<'static>>,
         capsules_core::virtualizers::virtual_i2c::I2CDevice::new(i2c_mux, 0x40)
     );
+    let mcp230xx_buffer = static_init!(
+        [u8; capsules_extra::mcp230xx::BUFFER_LENGTH],
+        [0; capsules_extra::mcp230xx::BUFFER_LENGTH]
+    );
     let mcp23017 = static_init!(
-        capsules_extra::mcp230xx::MCP230xx<'static>,
+        capsules_extra::mcp230xx::MCP230xx<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52832::i2c::TWI<'static>,
+            >,
+        >,
         capsules_extra::mcp230xx::MCP230xx::new(
             mcp23017_i2c,
             Some(mcp_pin0),
             Some(mcp_pin1),
-            &mut capsules_extra::mcp230xx::BUFFER,
+            mcp230xx_buffer,
             8,
             2
         )
@@ -402,12 +418,28 @@ pub unsafe fn main() {
 
     // Create an array of the GPIO extenders so we can pass them to an
     // administrative layer that provides a single interface to them all.
-    let async_gpio_ports =
-        static_init!([&'static capsules_extra::mcp230xx::MCP230xx; 1], [mcp23017]);
+    let async_gpio_ports = static_init!(
+        [&'static capsules_extra::mcp230xx::MCP230xx<
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52832::i2c::TWI<'static>,
+            >,
+        >; 1],
+        [mcp23017]
+    );
 
     // `gpio_async` is the object that manages all of the extenders.
     let gpio_async = static_init!(
-        capsules_extra::gpio_async::GPIOAsync<'static, capsules_extra::mcp230xx::MCP230xx<'static>>,
+        capsules_extra::gpio_async::GPIOAsync<
+            'static,
+            capsules_extra::mcp230xx::MCP230xx<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                    'static,
+                    nrf52832::i2c::TWI<'static>,
+                >,
+            >,
+        >,
         capsules_extra::gpio_async::GPIOAsync::new(
             async_gpio_ports,
             board_kernel.create_grant(

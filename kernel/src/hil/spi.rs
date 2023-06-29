@@ -97,7 +97,7 @@ pub trait SpiMasterClient {
 ///   pin_b.clear(); // Select B
 ///   write_byte(0xaa); // Uses SampleTrailing
 ///
-pub trait SpiMaster {
+pub trait SpiMaster<'a> {
     /// Chip select is an associated type because different SPI
     /// buses may have different numbers of chip selects. This
     /// allows peripheral implementations to define their own type.
@@ -113,7 +113,7 @@ pub trait SpiMaster {
 
     /// Change the callback handler for `read_write_bytes`
     /// calls.
-    fn set_client(&self, client: &'static dyn SpiMasterClient);
+    fn set_client(&self, client: &'a dyn SpiMasterClient);
 
     /// Return whether the SPI peripheral is busy with `read_write_bytes`
     /// call.
@@ -235,9 +235,9 @@ pub trait SpiMaster {
 
 /// SPIMasterDevice provides a chip-select-specific interface to the SPI
 /// Master hardware, such that a client cannot changethe chip select line.
-pub trait SpiMasterDevice {
+pub trait SpiMasterDevice<'a> {
     /// Set the callback for read_write operations.
-    fn set_client(&self, client: &'static dyn SpiMasterClient);
+    fn set_client(&self, client: &'a dyn SpiMasterClient);
 
     /// Configure the bus for this chip select.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase, rate: u32) -> Result<(), ErrorCode>;
@@ -336,7 +336,7 @@ pub trait SpiSlaveClient {
 /// (master). This is a low-level trait typically implemented by hardware:
 /// higher level software typically uses the `SpiSlaveDevice` trait,
 /// which is provided by a virtualizing/multiplexing layer.
-pub trait SpiSlave {
+pub trait SpiSlave<'a> {
     /// Initialize the SPI device to be in peripheral mode.
     /// Return values:
     ///   - Ok(()): the device is in peripheral mode
@@ -352,7 +352,7 @@ pub trait SpiSlave {
 
     /// Set the callback for slave operations, passing `None` to
     /// disable peripheral mode.
-    fn set_client(&self, client: Option<&'static dyn SpiSlaveClient>);
+    fn set_client(&self, client: Option<&'a dyn SpiSlaveClient>);
 
     /// Set a single byte to write in response to a read/write
     /// operation from a controller. Useful for devices that always
@@ -413,9 +413,9 @@ pub trait SpiSlave {
 /// It is the standard trait used by services within the kernel:
 /// `SpiSlave` is for lower-level access responsible for initializing
 /// hardware.
-pub trait SpiSlaveDevice {
+pub trait SpiSlaveDevice<'a> {
     /// Specify the callback of `read_write_bytes` operations:
-    fn set_client(&self, client: &'static dyn SpiSlaveClient);
+    fn set_client(&self, client: &'a dyn SpiSlaveClient);
 
     /// Setup the SPI settings and speed of the bus.
     fn configure(&self, cpol: ClockPolarity, cpal: ClockPhase) -> Result<(), ErrorCode>;

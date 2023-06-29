@@ -57,17 +57,17 @@ macro_rules! adc_dedicated_component_static {
     };};
 }
 
-pub struct AdcMuxComponent<A: 'static + adc::Adc> {
+pub struct AdcMuxComponent<A: 'static + adc::Adc<'static>> {
     adc: &'static A,
 }
 
-impl<A: 'static + adc::Adc> AdcMuxComponent<A> {
+impl<A: 'static + adc::Adc<'static>> AdcMuxComponent<A> {
     pub fn new(adc: &'static A) -> Self {
         AdcMuxComponent { adc: adc }
     }
 }
 
-impl<A: 'static + adc::Adc> Component for AdcMuxComponent<A> {
+impl<A: 'static + adc::Adc<'static>> Component for AdcMuxComponent<A> {
     type StaticInput = &'static mut MaybeUninit<MuxAdc<'static, A>>;
     type Output = &'static MuxAdc<'static, A>;
 
@@ -80,12 +80,12 @@ impl<A: 'static + adc::Adc> Component for AdcMuxComponent<A> {
     }
 }
 
-pub struct AdcComponent<A: 'static + adc::Adc> {
+pub struct AdcComponent<A: 'static + adc::Adc<'static>> {
     adc_mux: &'static MuxAdc<'static, A>,
     channel: A::Channel,
 }
 
-impl<A: 'static + adc::Adc> AdcComponent<A> {
+impl<A: 'static + adc::Adc<'static>> AdcComponent<A> {
     pub fn new(mux: &'static MuxAdc<'static, A>, channel: A::Channel) -> Self {
         AdcComponent {
             adc_mux: mux,
@@ -94,7 +94,7 @@ impl<A: 'static + adc::Adc> AdcComponent<A> {
     }
 }
 
-impl<A: 'static + adc::Adc> Component for AdcComponent<A> {
+impl<A: 'static + adc::Adc<'static>> Component for AdcComponent<A> {
     type StaticInput = &'static mut MaybeUninit<AdcDevice<'static, A>>;
     type Output = &'static AdcDevice<'static, A>;
 
@@ -124,7 +124,7 @@ impl AdcVirtualComponent {
 impl Component for AdcVirtualComponent {
     type StaticInput = (
         &'static mut MaybeUninit<AdcVirtualized<'static>>,
-        &'static [&'static dyn kernel::hil::adc::AdcChannel],
+        &'static [&'static dyn kernel::hil::adc::AdcChannel<'static>],
     );
     type Output = &'static capsules_core::adc::AdcVirtualized<'static>;
 
@@ -148,7 +148,7 @@ impl Component for AdcVirtualComponent {
 }
 
 pub struct AdcDedicatedComponent<
-    A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static,
+    A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
 > {
     adc: &'static A,
     channels: &'static [A::Channel],
@@ -156,7 +156,9 @@ pub struct AdcDedicatedComponent<
     driver_num: usize,
 }
 
-impl<A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static> AdcDedicatedComponent<A> {
+impl<A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static>
+    AdcDedicatedComponent<A>
+{
     pub fn new(
         adc: &'static A,
         channels: &'static [A::Channel],
@@ -172,8 +174,8 @@ impl<A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static> AdcDed
     }
 }
 
-impl<A: kernel::hil::adc::Adc + kernel::hil::adc::AdcHighSpeed + 'static> Component
-    for AdcDedicatedComponent<A>
+impl<A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static>
+    Component for AdcDedicatedComponent<A>
 {
     type StaticInput = (
         &'static mut MaybeUninit<AdcDedicated<'static, A>>,

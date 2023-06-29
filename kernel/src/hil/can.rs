@@ -186,7 +186,7 @@ pub struct BitTiming {
     pub propagation: u8,
 
     /// A value that represents the maximum time by which
-    /// the bit sampling period may lenghten or shorten
+    /// the bit sampling period may lengthen or shorten
     /// each cycle to perform the resynchronization. It is
     /// measured in time quanta.
     pub sync_jump_width: u32,
@@ -365,9 +365,9 @@ pub trait Configure {
     const SYNC_SEG: u8 = 1;
 
     /// Configures the CAN peripheral at the given bitrate. This function is
-    /// supposed to be caled before the `enable` function. This function is
+    /// supposed to be called before the `enable` function. This function is
     /// synchronous as the driver should only calculate the timing parameters
-    /// based on the bitrate and the frequenct of the board and store them.
+    /// based on the bitrate and the frequency of the board and store them.
     /// This function does not configure the hardware.
     ///
     /// # Arguments:
@@ -387,7 +387,7 @@ pub trait Configure {
     /// configure the hardware.
     ///
     /// # Arguments:
-    ///  
+    ///
     /// * `bit_timing` - A BitTiming structure to define the bit timing
     ///                  settings for the peripheral
     ///
@@ -509,7 +509,7 @@ pub trait ConfigureFd: Configure {
     /// configure the hardware.
     ///
     /// # Arguments:
-    ///  
+    ///
     /// * `payload_bit_timing` - A BitTiming structure to define the bit timing
     ///                         settings for the frame payload
     ///
@@ -663,7 +663,7 @@ pub trait Transmit<const PACKET_SIZE: usize> {
     /// * `Err(ErrorCode, &'static mut [u8])` - a tuple with the error that occurred
     ///                                         during the transmission request and
     ///                                         the buffer that was provided as an
-    ///                                         argument to the function                     
+    ///                                         argument to the function
     fn send(
         &self,
         id: Id,
@@ -707,7 +707,7 @@ pub trait Receive<const PACKET_SIZE: usize> {
 
     /// Asks the driver to stop receiving messages. This function should
     /// be called only after a call to the `start_receive_process` function.
-    ///     
+    ///
     /// # Return values:
     ///
     /// * `Ok()` - The request was successful an the caller waits for the
@@ -793,12 +793,12 @@ pub trait ReceiveClient<const PACKET_SIZE: usize> {
         status: Result<(), Error>,
     );
 
-    /// The driver calls this function when the reception of messages has been stopeed.
+    /// The driver calls this function when the reception of messages has been stopped.
     ///
     /// # Arguments:
     ///
     /// * `buffer` - The buffer that was given as an argument to the
-    ///               `start_receive_process` function  
+    ///               `start_receive_process` function
     fn stopped(&self, buffer: &'static mut [u8; PACKET_SIZE]);
 }
 

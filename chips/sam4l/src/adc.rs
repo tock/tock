@@ -81,7 +81,7 @@ impl AdcChannel {
 }
 
 /// ADC driver code for the SAM4L.
-pub struct Adc {
+pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
 
     // state tracking for the ADC
@@ -105,8 +105,8 @@ pub struct Adc {
     stopped_buffer: TakeCell<'static, [u16]>,
 
     // ADC client to send sample complete notifications to
-    client: OptionalCell<&'static dyn hil::adc::Client>,
-    highspeed_client: OptionalCell<&'static dyn hil::adc::HighSpeedClient>,
+    client: OptionalCell<&'a dyn hil::adc::Client>,
+    highspeed_client: OptionalCell<&'a dyn hil::adc::HighSpeedClient>,
     pm: &'static pm::PowerManager,
 }
 
@@ -322,7 +322,7 @@ const BASE_ADDRESS: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x40038000 as *const AdcRegisters) };
 
 /// Functions for initializing the ADC.
-impl Adc {
+impl<'a> Adc<'a> {
     /// Create a new ADC driver.
     ///
     /// - `rx_dma_peripheral`: type used for DMA transactions
@@ -596,7 +596,7 @@ impl Adc {
 }
 
 /// Implements an ADC capable reading ADC samples on any channel.
-impl hil::adc::Adc for Adc {
+impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = AdcChannel;
 
     /// Capture a single analog sample, calling the client when complete.
@@ -620,8 +620,9 @@ impl hil::adc::Adc for Adc {
             self.timer_repeats.set(0);
             self.timer_counts.set(0);
 
-            let cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
+            // MUXNEG.val(0x7) -> ground pad
+            let cfg = SequencerConfig::MUXNEG.val(0x7)
+                + SequencerConfig::MUXPOS.val(channel.chan_num)
                 + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
                 + SequencerConfig::RES::Bits12
                 + SequencerConfig::TRGSEL::Software
@@ -670,8 +671,9 @@ impl hil::adc::Adc for Adc {
             self.continuous.set(true);
 
             // adc sequencer configuration
-            let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
+            // MUXNEG.val(0x7) -> ground pad
+            let mut cfg = SequencerConfig::MUXNEG.val(0x7)
+                + SequencerConfig::MUXPOS.val(channel.chan_num)
                 + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
                 + SequencerConfig::RES::Bits12
                 + SequencerConfig::GCOMP::Disable
@@ -809,13 +811,13 @@ impl hil::adc::Adc for Adc {
     /// Sets the client for this driver.
     ///
     /// - `client`: reference to capsule which handles responses
-    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+    fn set_client(&self, client: &'a dyn hil::adc::Client) {
         self.client.set(client);
     }
 }
 
 /// Implements an ADC capable of continuous sampling
-impl hil::adc::AdcHighSpeed for Adc {
+impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
     /// Capture buffered samples from the ADC continuously at a given
     /// frequency, calling the client whenever a buffer fills up. The client is
     /// then expected to either stop sampling or provide an additional buffer
@@ -864,8 +866,9 @@ impl hil::adc::AdcHighSpeed for Adc {
             self.next_dma_length.set(length2);
 
             // adc sequencer configuration
-            let mut cfg = SequencerConfig::MUXNEG.val(0x7) + // ground pad
-                SequencerConfig::MUXPOS.val(channel.chan_num)
+            // MUXNEG.val(0x7) -> ground pad
+            let mut cfg = SequencerConfig::MUXNEG.val(0x7)
+                + SequencerConfig::MUXPOS.val(channel.chan_num)
                 + SequencerConfig::INTERNAL.val(0x2 | channel.internal)
                 + SequencerConfig::RES::Bits12
                 + SequencerConfig::GCOMP::Disable
@@ -969,13 +972,13 @@ impl hil::adc::AdcHighSpeed for Adc {
         }
     }
 
-    fn set_highspeed_client(&self, client: &'static dyn hil::adc::HighSpeedClient) {
+    fn set_highspeed_client(&self, client: &'a dyn hil::adc::HighSpeedClient) {
         self.highspeed_client.set(client);
     }
 }
 
 /// Implements a client of a DMA.
-impl dma::DMAClient for Adc {
+impl<'a> dma::DMAClient for Adc<'a> {
     /// Handler for DMA transfer completion.
     ///
     /// - `pid`: the DMA peripheral that is complete

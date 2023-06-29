@@ -13,9 +13,11 @@ env:
 # Controls when the action will run. Triggers the workflow on push or pull
 # request events but only for the master branch
 on:
-  push:
-    branches-ignore: [ staging.tmp, trying.tmp ] # Run CI for all branches except bors tmp branches
+  push: # Run CI for all branches except GitHub merge queue tmp branches
+    branches-ignore:
+    - "gh-readonly-queue/**"
   pull_request: # Run CI for PRs on any branch
+  merge_group: # Run CI for the GitHub merge queue
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml

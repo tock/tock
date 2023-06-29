@@ -26,9 +26,7 @@ use kernel::{ErrorCode, ProcessId};
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 
-pub static mut BUFFER1: [u8; 256] = [0; 256];
-pub static mut BUFFER2: [u8; 256] = [0; 256];
-pub static mut BUFFER3: [u8; 256] = [0; 256];
+pub const BUFFER_LENGTH: usize = 256;
 
 /// Syscall driver number.
 use crate::driver;
@@ -60,8 +58,8 @@ enum MasterAction {
     WriteRead(u8),
 }
 
-pub struct I2CMasterSlaveDriver<'a> {
-    i2c: &'a dyn hil::i2c::I2CMasterSlave,
+pub struct I2CMasterSlaveDriver<'a, I: hil::i2c::I2CMasterSlave<'a>> {
+    i2c: &'a I,
     listening: Cell<bool>,
     master_action: Cell<MasterAction>, // Whether we issued a write or read as master
     master_buffer: TakeCell<'static, [u8]>,
@@ -76,9 +74,9 @@ pub struct I2CMasterSlaveDriver<'a> {
     >,
 }
 
-impl<'a> I2CMasterSlaveDriver<'a> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> I2CMasterSlaveDriver<'a, I> {
     pub fn new(
-        i2c: &'a dyn hil::i2c::I2CMasterSlave,
+        i2c: &'a I,
         master_buffer: &'static mut [u8],
         slave_buffer1: &'static mut [u8],
         slave_buffer2: &'static mut [u8],
@@ -88,7 +86,7 @@ impl<'a> I2CMasterSlaveDriver<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> I2CMasterSlaveDriver<'a> {
+    ) -> I2CMasterSlaveDriver<'a, I> {
         I2CMasterSlaveDriver {
             i2c,
             listening: Cell::new(false),
@@ -102,7 +100,9 @@ impl<'a> I2CMasterSlaveDriver<'a> {
     }
 }
 
-impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwMasterClient
+    for I2CMasterSlaveDriver<'a, I>
+{
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
         // Map I2C error to a number we can pass back to the application
         let status = kernel::errorcode::into_statuscode(match status {
@@ -189,7 +189,9 @@ impl hil::i2c::I2CHwMasterClient for I2CMasterSlaveDriver<'_> {
     }
 }
 
-impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwSlaveClient
+    for I2CMasterSlaveDriver<'a, I>
+{
     fn command_complete(
         &self,
         buffer: &'static mut [u8],
@@ -273,7 +275,7 @@ impl hil::i2c::I2CHwSlaveClient for I2CMasterSlaveDriver<'_> {
     }
 }
 
-impl SyscallDriver for I2CMasterSlaveDriver<'_> {
+impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver<'a, I> {
     fn command(
         &self,
         command_num: usize,

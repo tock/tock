@@ -118,9 +118,9 @@ impl<'a, I: InterruptService> Chip for Rp2040<'a, I> {
 }
 
 pub struct Rp2040DefaultPeripherals<'a> {
-    pub adc: adc::Adc,
+    pub adc: adc::Adc<'a>,
     pub clocks: Clocks,
-    pub i2c0: i2c::I2c<'a>,
+    pub i2c0: i2c::I2c<'a, 'a>,
     pub pins: RPPins<'a>,
     pub pwm: pwm::Pwm<'a>,
     pub resets: Resets,
