@@ -89,7 +89,7 @@ entire slice.
 
 ```rust
 pub trait DigestData<'a, const L: usize> {
-    fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>) {}
+    fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>);
     fn add_data(&self, data: LeasableBuffer<'static, u8>) 
        -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
     fn add_mut_data(&self, data: LeasableMutableBuffer<'static, u8>)
@@ -147,7 +147,7 @@ A SHA256 digest engine, for example, has an `L` of 32.
 
 ```rust
 pub trait DigestHash<'a, const L: usize> {
-    fn set_hash_client(&'a self, client: &'a dyn ClientHash<'a, L>) {}
+    fn set_hash_client(&'a self, client: &'a dyn ClientHash<'a, L>);
     fn run(&'a self, digest: &'static mut [u8; L])
         -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
@@ -157,7 +157,7 @@ pub trait ClientHash<'a, const L: usize> {
 }
 
 pub trait DigestVerify<'a, const L: usize> {
-    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<'a, L>) {}
+    fn set_verify_client(&'a self, client: &'a dyn ClientVerify<'a, L>);
     fn verify(&'a self, compare: &'static mut [u8; L])
 	    -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
@@ -212,19 +212,30 @@ The `DigestDataHash` trait is for a structure that implements both
 `DigestData` and `DataHash`. The `DigestDataVerify` trait is for a
 client that implements both `DigestData` and `DigestVerify`.  The
 `Digest` trait is for a client that implements `DigestData`,
-`DigestHash`, and `DigestVerify`. It also adds an additional method,
-`set_client`, which allows it to store a `Client` as a single
-reference and use it for all of the client callbacks (`add_data`,
-`add_mut_data`, `hash_done`, and `verification_done`). A digest
-implementation that implements `set_client` MAY choose to not
-implement the individual client set methods for the different traits
-(e.g., `DigestData::set_client`); if it does so, each of these client
-set methods MUST be marked `unimplemented!()`.
+`DigestHash`, and `DigestVerify`. These each add an additional
+method, `set_client`, which allows it to store the corresponding
+client as a single reference and use it for all of the relevant
+client callbacks (e.g., `add_data`, `add_mut_data`, `hash_done`, and
+`verification_done`). A digest implementation that implements
+`set_client` MAY choose to not implement the individual client set
+methods for the different traits (e.g., `DigestData::set_client`); if
+it does so, each of these client set methods MUST be marked
+`unimplemented!()`.
 
 
 ```rust
-pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {}
-pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {}
+pub trait DigestDataHash<'a, const L: usize>: DigestData<'a, L> + DigestHash<'a, L> {
+    /// Set the client instance which will receive `hash_done()` and
+    /// `add_data_done()` callbacks.
+    fn set_client(&'a self, client: &'a dyn ClientDataHash<L>);
+}
+
+pub trait DigestDataVerify<'a, const L: usize>: DigestData<'a, L> + DigestVerify<'a, L> {
+    /// Set the client instance which will receive `verify_done()` and
+    /// `add_data_done()` callbacks.
+    fn set_client(&'a self, client: &'a dyn ClientDataVerify<L>);
+}
+
 pub trait Digest<'a, const L: usize>:
     DigestData<'a, L> + DigestHash<'a, L> + DigestVerify<'a, L>
 {
