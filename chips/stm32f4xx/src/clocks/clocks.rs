@@ -4,7 +4,9 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
+#![deny(dead_code)]
 #![deny(missing_docs)]
+#![deny(unused_imports)]
 //! STM32F4xx clock driver
 //!
 //! This crate provides drivers for various clocks: HSI, PLL, system, AHB, APB1 and APB2.
