@@ -16,11 +16,12 @@
 //! - [x] Dynamic system source
 //! - [x] Hardware limits verification for AHB, APB1 and APB2.
 //! - [x] Prescaler configuration for AHB, APB1 and APB2.
+//! - [x] Support for MCO1
 //!
 //! # Limitations
 //!
 //! - [ ] Precision of 1MHz
-//! - [ ] No support for MCO
+//! - [ ] No support for MCO2
 //!
 //! # Usage [^usage_note]
 //!
