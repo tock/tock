@@ -193,7 +193,7 @@ impl Flash {
             .modify(ACR::LATENCY.val(flash_latency as u32));
 
         // Wait until the flash latency is set
-        // The value 16 was chosen randomily, but it behaves well in tests. It can be tuned in a
+        // The value 16 was chosen randomly, but it behaves well in tests. It can be tuned in a
         // future revision of the driver.
         for _ in 0..16 {
             if self.get_latency() == flash_latency {
