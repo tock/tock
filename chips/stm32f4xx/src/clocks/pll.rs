@@ -128,10 +128,7 @@ pub struct Pll<'a> {
 
 const HSI_FREQUENCY_MHZ: usize = 16;
 
-#[cfg(not(feature = "stm32f401"))]
-const PLL_MIN_FREQ_MHZ: usize = 13;
-#[cfg(feature = "stm32f401")]
-const PLL_MIN_FREQ_MHZ: usize = 24;
+use crate::chip_specific::pll_constants::PLL_MIN_FREQ_MHZ;
 
 const PLL_MAX_FREQ_MHZ: usize = 216;
 

@@ -11,6 +11,7 @@
 #![no_std]
 
 pub mod chip;
+pub mod chip_specific;
 pub mod nvic;
 
 // Peripherals
