@@ -107,6 +107,7 @@
 //!
 //! [^doc_ref]: See 6.2.3 in the documentation.
 
+use crate::chip_specific::clock_constants::pll_constants::PLL_MIN_FREQ_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 use crate::rcc::{DEFAULT_PLLM_VALUE, DEFAULT_PLLN_VALUE, DEFAULT_PLLP_VALUE, DEFAULT_PLLQ_VALUE};
@@ -127,9 +128,6 @@ pub struct Pll<'a> {
 }
 
 const HSI_FREQUENCY_MHZ: usize = 16;
-
-use crate::chip_specific::pll_constants::PLL_MIN_FREQ_MHZ;
-
 const PLL_MAX_FREQ_MHZ: usize = 216;
 
 impl<'a> Pll<'a> {

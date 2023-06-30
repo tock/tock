@@ -154,6 +154,9 @@
 //!
 //! [^usage_note]: For the purpose of brievity, any error checking has been removed.
 
+use crate::chip_specific::clock_constants::APB1_FREQUENCY_LIMIT_MHZ;
+use crate::chip_specific::clock_constants::APB2_FREQUENCY_LIMIT_MHZ;
+use crate::chip_specific::clock_constants::SYS_CLOCK_FREQUENCY_LIMIT_MHZ;
 use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::clocks::pll::Pll;
@@ -178,65 +181,6 @@ pub struct Clocks<'a> {
     /// Main phase loop-lock clock
     pub pll: Pll<'a>,
 }
-
-const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
-    feature = "stm32f410",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f423"
-)) {
-    50
-} else if cfg!(any(
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f446",
-    feature = "stm32f469",
-    feature = "stm32f479",
-)) {
-    45
-} else {
-    //feature = "stm32f401",
-    //feature = "stm32f405",
-    //feature = "stm32f407",
-    //feature = "stm32f415",
-    //feature = "stm32f417"
-    42
-};
-
-// APB2 frequency limit is twice the APB1 frequency limit
-const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
-
-const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
-    feature = "stm32f410",
-    feature = "stm32f411",
-    feature = "stm32f412",
-    feature = "stm32f413",
-    feature = "stm32f423"
-)) {
-    100
-} else if cfg!(any(
-    feature = "stm32f405",
-    feature = "stm32f407",
-    feature = "stm32f415",
-    feature = "stm32f417",
-    feature = "stm32f427",
-    feature = "stm32f429",
-    feature = "stm32f437",
-    feature = "stm32f439",
-    feature = "stm32f446",
-    feature = "stm32f469",
-    feature = "stm32f479"
-)) {
-    // TODO: Some of these models support overdrive model. Change this constant when overdrive support
-    // is added.
-    168
-} else {
-    //feature = "stm32f401"
-    84
-};
 
 impl<'a> Clocks<'a> {
     // The constructor must be called when the default peripherals are created
