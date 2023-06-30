@@ -171,11 +171,11 @@ pub mod flash_specific {
         // The number of wait states varies from chip to chip.
         fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
             #[cfg(not(any(
-                        feature = "stm32f410",
-                        feature = "stm32f411",
-                        feature = "stm32f412",
-                        feature = "stm32f413",
-                        feature = "stm32f423"
+                feature = "stm32f410",
+                feature = "stm32f411",
+                feature = "stm32f412",
+                feature = "stm32f413",
+                feature = "stm32f423"
             )))]
             {
                 if frequency_mhz <= 30 {
@@ -222,10 +222,10 @@ pub mod flash_specific {
 
         fn get_latency(&self) -> FlashLatency {
             #[cfg(not(any(
-                        feature = "stm32f405",
-                        feature = "stm32f415",
-                        feature = "stm32f407",
-                        feature = "stm32f417"
+                feature = "stm32f405",
+                feature = "stm32f415",
+                feature = "stm32f407",
+                feature = "stm32f417"
             )))]
             match self.read_latency_from_register() {
                 0 => FlashLatency::Latency0,
@@ -248,10 +248,10 @@ pub mod flash_specific {
             }
 
             #[cfg(any(
-                    feature = "stm32f405",
-                    feature = "stm32f415",
-                    feature = "stm32f407",
-                    feature = "stm32f417"
+                feature = "stm32f405",
+                feature = "stm32f415",
+                feature = "stm32f407",
+                feature = "stm32f417"
             ))]
             match self.read_latency_from_register() {
                 0 => FlashLatency::Latency0,
