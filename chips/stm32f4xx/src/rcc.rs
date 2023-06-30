@@ -795,7 +795,7 @@ impl Rcc {
     }
 
     /* HSI clock */
-    // The HSI clock must not be configured as the sistem clock, either directly or indirectly.
+    // The HSI clock must not be configured as the system clock, either directly or indirectly.
     pub(crate) fn disable_hsi_clock(&self) {
         self.registers.cr.modify(CR::HSION::CLEAR);
     }
@@ -815,7 +815,7 @@ impl Rcc {
 
     /* Main PLL clock*/
 
-    // The main PLL clock must not be configured as the sistem clock.
+    // The main PLL clock must not be configured as the system clock.
     pub(crate) fn disable_pll_clock(&self) {
         self.registers.cr.modify(CR::PLLON::CLEAR);
     }
