@@ -152,7 +152,7 @@
 //! clocks.set_sys_clock_source(SysClockSource::PLL);
 //! ```
 //!
-//! [^usage_note]: For the purpose of brievity, any error checking has been removed.
+//! [^usage_note]: For the purpose of brevity, any error checking has been removed.
 
 use crate::chip_specific::clock_constants::APB1_FREQUENCY_LIMIT_MHZ;
 use crate::chip_specific::clock_constants::APB2_FREQUENCY_LIMIT_MHZ;
@@ -342,7 +342,7 @@ impl<'a> Clocks<'a> {
     /// limit, or the APB1 and APB2 limits are not satisfied.
     /// + [Err]\([ErrorCode::BUSY]\) if the source switching took too long. Retry.
     pub fn set_sys_clock_source(&self, source: SysClockSource) -> Result<(), ErrorCode> {
-        // Immediatelly return if the required source is already configured as the system clock
+        // Immediately return if the required source is already configured as the system clock
         // source. Should this maybe be Err(ErrorCode::ALREADY)?
         if source == self.get_sys_clock_source() {
             return Ok(());
@@ -529,7 +529,7 @@ impl<'a> Clocks<'a> {
 /// ===============================================
 /// ```
 ///
-/// There is also the possibility to run a part of the test suite. CHeck the functions present in
+/// There is also the possibility to run a part of the test suite. Check the functions present in
 /// this module for more details.
 ///
 /// # Errors
@@ -571,7 +571,7 @@ pub mod tests {
     }
 
     // This macro ensure that the system clock frequency goes back to the default value to prevent
-    // changing the UART's baud rate
+    // changing the UART baud rate
     macro_rules! check_and_panic {
         ($left:expr, $right:expr, $clocks: ident) => {
             match (&$left, &$right) {
