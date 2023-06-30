@@ -133,6 +133,12 @@ pub struct Pll<'a> {
 /// PLL max frequency in MHz
 pub const PLL_MAX_FREQ_MHZ: usize = 216;
 
+/// PLL frequency limit values (minimum and maximum)
+pub mod limits {
+    pub use super::PLL_MAX_FREQ_MHZ;
+    pub use crate::chip_specific::clock_constants::pll_constants::PLL_MIN_FREQ_MHZ;
+}
+
 impl<'a> Pll<'a> {
     // Create a new instance of the PLL clock.
     //
