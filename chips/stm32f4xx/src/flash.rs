@@ -268,8 +268,8 @@ impl Flash {
 /// the output of the test execution.
 pub mod tests {
     use super::*;
+    use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 
-    const HSI_FREQUENCY_MHZ: usize = 16;
     const AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ: usize = 25;
     // Different chips have different maximum values for APB1
     const APB1_MAX_FREQUENCY_MHZ_1: usize = 42;
