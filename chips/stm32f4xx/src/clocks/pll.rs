@@ -180,7 +180,7 @@ impl<'a> Pll<'a> {
     // return value makes no sense.
     fn compute_plln(desired_frequency_mhz: usize, pllp: PLLP) -> usize {
         const VCO_INPUT_FREQUENCY: usize = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize;
-        desired_frequency_mhz * (pllp as usize + 1) * 2 / VCO_INPUT_FREQUENCY
+        desired_frequency_mhz * Into::<usize>::into(pllp) / VCO_INPUT_FREQUENCY
     }
 
     // The caller must ensure the VCO output frequency lies between 100 and 432MHz. Otherwise, the

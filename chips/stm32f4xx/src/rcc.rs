@@ -1341,6 +1341,13 @@ pub(crate) enum PLLP {
     DivideBy8 = 0b11,
 }
 
+impl From<PLLP> for usize {
+    // (variant_value + 1) * 2 = X for X in DivideByX
+    fn from(item: PLLP) -> Self {
+        (item as usize + 1) << 1
+    }
+}
+
 // Theoretically, the PLLM value can range from 2 to 63. However, the current implementation was
 // designed to support 1MHz frequency precision. In a future update, PLLM will become a usize.
 #[allow(dead_code)]
