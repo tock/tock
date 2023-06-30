@@ -84,7 +84,7 @@
 //! ```rust,ignore
 //! // The frequency of the PLL clock must be 1, 1.5, 2, 2.5, 3, 3.5 or 4 x 48MHz in order to get
 //! // 48MHz output. Otherwise, the driver will attempt to get the closest frequency lower than 48MHz
-//! pll.set_frequency(72); // 72MHz = 48Mhz * 1.5
+//! pll.set_frequency(72); // 72MHz = 48MHz * 1.5
 //! pll.enable();
 //! ```
 //!
@@ -271,7 +271,7 @@ impl<'a> Pll<'a> {
     /// (≤ 48MHz) and the SDIO (≤ 48MHz) clocks.
     ///
     /// When calling this method, the given frequency is set for the main output. The method will
-    /// attempt to configure the PLL48CLK output to 48MHz, or to the hightest value less than 48MHz
+    /// attempt to configure the PLL48CLK output to 48MHz, or to the highest value less than 48MHz
     /// if it is not possible to get a precise 48MHz. In order to obtain a precise 48MHz frequency
     /// (for the OTG USB FS peripheral), one should call this method with a frequency of 1, 1.5, 2,
     /// 2.5 ... 4 x 48MHz.
