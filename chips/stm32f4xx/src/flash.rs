@@ -34,6 +34,9 @@
 //! debug!("Current flash latency is {}", flash_latency);
 //! ```
 
+use crate::chip_specific::flash_specific::FlashLatency;
+use crate::chip_specific::flash_specific::SpecificFlashTrait;
+
 use kernel::debug;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite, WriteOnly};
@@ -164,76 +167,10 @@ pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
 
-// All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
-// values, while the other chips support 4 bit values
-#[cfg(not(any(
-    feature = "stm32f405",
-    feature = "stm32f415",
-    feature = "stm32f407",
-    feature = "stm32f417"
-)))]
-#[derive(Copy, Clone, PartialEq, Debug)]
-/// Enum representing all the possible values for the flash latency
-pub enum FlashLatency {
-    /// 0 wait cycles
-    Latency0,
-    /// 1 wait cycle
-    Latency1,
-    /// 2 wait cycles
-    Latency2,
-    /// 3 wait cycles
-    Latency3,
-    /// 4 wait cycles
-    Latency4,
-    /// 5 wait cycles
-    Latency5,
-    /// 6 wait cycles
-    Latency6,
-    /// 7 wait cycles
-    Latency7,
-    /// 8 wait cycles
-    Latency8,
-    /// 9 wait cycles
-    Latency9,
-    /// 10 wait cycles
-    Latency10,
-    /// 11 wait cycles
-    Latency11,
-    /// 12 wait cycles
-    Latency12,
-    /// 13 wait cycles
-    Latency13,
-    /// 14 wait cycles
-    Latency14,
-    /// 15 wait cycles
-    Latency15,
-}
-
-#[cfg(any(
-    feature = "stm32f405",
-    feature = "stm32f415",
-    feature = "stm32f407",
-    feature = "stm32f417"
-))]
-#[derive(Copy, Clone, PartialEq, Debug)]
-/// Enum representing all the possible values for the flash latency
-pub enum FlashLatency {
-    /// 0 wait cycles
-    Latency0,
-    /// 1 wait cycle
-    Latency1,
-    /// 2 wait cycles
-    Latency2,
-    /// 3 wait cycles
-    Latency3,
-    /// 4 wait cycles
-    Latency4,
-    /// 5 wait cycles
-    Latency5,
-    /// 6 wait cycles
-    Latency6,
-    /// 7 wait cycles
-    Latency7,
+impl SpecificFlashTrait for Flash {
+    fn read_latency_from_register(&self) -> u32 {
+        self.registers.acr.read(ACR::LATENCY)
+    }
 }
 
 impl Flash {
@@ -241,107 +178,6 @@ impl Flash {
     pub(crate) fn new() -> Self {
         Self {
             registers: FLASH_BASE,
-        }
-    }
-
-    // The number of wait cycles depends on two factors: system clock frequency and the supply
-    // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
-    // TODO: Take into the account the power supply
-    //
-    // The number of wait states varies from chip to chip.
-    #[cfg(not(any(
-        feature = "stm32f410",
-        feature = "stm32f411",
-        feature = "stm32f412",
-        feature = "stm32f413",
-        feature = "stm32f423"
-    )))]
-    fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-        if frequency_mhz <= 30 {
-            FlashLatency::Latency0
-        } else if frequency_mhz <= 60 {
-            FlashLatency::Latency1
-        } else if frequency_mhz <= 90 {
-            FlashLatency::Latency2
-        } else if frequency_mhz <= 120 {
-            FlashLatency::Latency3
-        } else if frequency_mhz <= 150 {
-            FlashLatency::Latency4
-        } else {
-            FlashLatency::Latency5
-        }
-    }
-
-    #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
-    fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-        if frequency_mhz <= 30 {
-            FlashLatency::Latency0
-        } else if frequency_mhz <= 64 {
-            FlashLatency::Latency1
-        } else if frequency_mhz <= 90 {
-            FlashLatency::Latency2
-        } else {
-            FlashLatency::Latency3
-        }
-    }
-
-    #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-    fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-        if frequency_mhz <= 25 {
-            FlashLatency::Latency0
-        } else if frequency_mhz <= 50 {
-            FlashLatency::Latency1
-        } else if frequency_mhz <= 75 {
-            FlashLatency::Latency2
-        } else {
-            FlashLatency::Latency3
-        }
-    }
-
-    // Return the current flash latency
-    pub(crate) fn get_latency(&self) -> FlashLatency {
-        #[cfg(not(any(
-            feature = "stm32f405",
-            feature = "stm32f415",
-            feature = "stm32f407",
-            feature = "stm32f417"
-        )))]
-        match self.registers.acr.read(ACR::LATENCY) {
-            0 => FlashLatency::Latency0,
-            1 => FlashLatency::Latency1,
-            2 => FlashLatency::Latency2,
-            3 => FlashLatency::Latency3,
-            4 => FlashLatency::Latency4,
-            5 => FlashLatency::Latency5,
-            6 => FlashLatency::Latency6,
-            7 => FlashLatency::Latency7,
-            8 => FlashLatency::Latency8,
-            9 => FlashLatency::Latency9,
-            10 => FlashLatency::Latency10,
-            11 => FlashLatency::Latency11,
-            12 => FlashLatency::Latency12,
-            13 => FlashLatency::Latency13,
-            14 => FlashLatency::Latency14,
-            // The hardware allows 4-bit latency values
-            _ => FlashLatency::Latency15,
-        }
-
-        #[cfg(any(
-            feature = "stm32f405",
-            feature = "stm32f415",
-            feature = "stm32f407",
-            feature = "stm32f417"
-        ))]
-        match self.registers.acr.read(ACR::LATENCY) {
-            0 => FlashLatency::Latency0,
-            1 => FlashLatency::Latency1,
-            2 => FlashLatency::Latency2,
-            3 => FlashLatency::Latency3,
-            4 => FlashLatency::Latency4,
-            5 => FlashLatency::Latency5,
-            6 => FlashLatency::Latency6,
-            // The hardware allows 3-bit latency values
-            _ => FlashLatency::Latency7,
         }
     }
 
