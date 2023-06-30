@@ -4,7 +4,9 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
+#![deny(dead_code)]
 #![deny(missing_docs)]
+#![deny(unused_imports)]
 //! Main phase-locked loop (PLL) clock driver for the STM32F4xx family. [^doc_ref]
 //!
 //! Many boards of the STM32F4xx family provide several PLL clocks. However, all of them have a

@@ -4,7 +4,9 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
-#![warn(missing_docs)]
+#![deny(dead_code)]
+#![deny(missing_docs)]
+#![deny(unused_imports)]
 //! HSI (high-speed internal) clock driver for the STM32F4xx family. [^doc_ref]
 //!
 //! # Usage
