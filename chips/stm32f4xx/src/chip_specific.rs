@@ -4,8 +4,20 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
+#![deny(missing_docs)]
+#![deny(dead_code)]
+
+//! This module contains all chip-specific code.
+//!
+//! Some models in the STM32F4 family may have additional features, while others not. Or they can
+//! operate internally in different ways for the same feature. This crate provides all the
+//! chip-specific crate to be used by others modules in this crate.
+
+/// Clock-related constants for specific chips
 pub mod clock_constants {
+    /// PLL-related constants for specific chips
     pub mod pll_constants {
+        /// Minimum PLL frequency in MHz
         pub const PLL_MIN_FREQ_MHZ: usize = if cfg!(not(feature = "stm32f401")) {
             13
         } else {
@@ -13,6 +25,7 @@ pub mod clock_constants {
         };
     }
 
+    /// Maximum allowed APB1 frequency in MHz
     pub const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
         feature = "stm32f410",
         feature = "stm32f411",
@@ -40,9 +53,11 @@ pub mod clock_constants {
         42
     };
 
+    /// Maximum allowed APB2 frequency in MHz
     // APB2 frequency limit is twice the APB1 frequency limit
     pub const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
 
+    /// Maximum allowed system clock frequency in MHz
     pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
         feature = "stm32f410",
         feature = "stm32f411",
@@ -73,6 +88,7 @@ pub mod clock_constants {
     };
 }
 
+/// Chip-specific flash code
 pub mod flash_specific {
     // All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
     // values, while the other chips support 4 bit values
@@ -146,64 +162,64 @@ pub mod flash_specific {
         Latency7,
     }
 
-    pub trait SpecificFlashTrait {
+    // Chip-specific trait that allows to read the current configured flash latency
+    pub(crate) trait SpecificFlashTrait {
         // The number of wait cycles depends on two factors: system clock frequency and the supply
         // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
         // TODO: Take into the account the power supply
         //
         // The number of wait states varies from chip to chip.
-        #[cfg(not(any(
-                    feature = "stm32f410",
-                    feature = "stm32f411",
-                    feature = "stm32f412",
-                    feature = "stm32f413",
-                    feature = "stm32f423"
-        )))]
         fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-            if frequency_mhz <= 30 {
-                FlashLatency::Latency0
-            } else if frequency_mhz <= 60 {
-                FlashLatency::Latency1
-            } else if frequency_mhz <= 90 {
-                FlashLatency::Latency2
-            } else if frequency_mhz <= 120 {
-                FlashLatency::Latency3
-            } else if frequency_mhz <= 150 {
-                FlashLatency::Latency4
-            } else {
-                FlashLatency::Latency5
+            #[cfg(not(any(
+                        feature = "stm32f410",
+                        feature = "stm32f411",
+                        feature = "stm32f412",
+                        feature = "stm32f413",
+                        feature = "stm32f423"
+            )))]
+            {
+                if frequency_mhz <= 30 {
+                    FlashLatency::Latency0
+                } else if frequency_mhz <= 60 {
+                    FlashLatency::Latency1
+                } else if frequency_mhz <= 90 {
+                    FlashLatency::Latency2
+                } else if frequency_mhz <= 120 {
+                    FlashLatency::Latency3
+                } else if frequency_mhz <= 150 {
+                    FlashLatency::Latency4
+                } else {
+                    FlashLatency::Latency5
+                }
             }
-        }
-
-        #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
-        fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-            if frequency_mhz <= 30 {
-                FlashLatency::Latency0
-            } else if frequency_mhz <= 64 {
-                FlashLatency::Latency1
-            } else if frequency_mhz <= 90 {
-                FlashLatency::Latency2
-            } else {
-                FlashLatency::Latency3
+            #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
+            {
+                if frequency_mhz <= 30 {
+                    FlashLatency::Latency0
+                } else if frequency_mhz <= 64 {
+                    FlashLatency::Latency1
+                } else if frequency_mhz <= 90 {
+                    FlashLatency::Latency2
+                } else {
+                    FlashLatency::Latency3
+                }
             }
-        }
-
-        #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-        fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-            if frequency_mhz <= 25 {
-                FlashLatency::Latency0
-            } else if frequency_mhz <= 50 {
-                FlashLatency::Latency1
-            } else if frequency_mhz <= 75 {
-                FlashLatency::Latency2
-            } else {
-                FlashLatency::Latency3
+            #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
+            {
+                if frequency_mhz <= 25 {
+                    FlashLatency::Latency0
+                } else if frequency_mhz <= 50 {
+                    FlashLatency::Latency1
+                } else if frequency_mhz <= 75 {
+                    FlashLatency::Latency2
+                } else {
+                    FlashLatency::Latency3
+                }
             }
         }
 
         fn read_latency_from_register(&self) -> u32;
 
-        // Return the current flash latency
         fn get_latency(&self) -> FlashLatency {
             #[cfg(not(any(
                         feature = "stm32f405",
