@@ -100,7 +100,7 @@ pub mod flash_specific {
     )))]
     #[derive(Copy, Clone, PartialEq, Debug)]
     /// Enum representing all the possible values for the flash latency
-    pub enum FlashLatency {
+    pub(crate) enum FlashLatency {
         /// 0 wait cycles
         Latency0,
         /// 1 wait cycle
@@ -143,7 +143,7 @@ pub mod flash_specific {
     ))]
     #[derive(Copy, Clone, PartialEq, Debug)]
     /// Enum representing all the possible values for the flash latency
-    pub enum FlashLatency {
+    pub(crate) enum FlashLatency {
         /// 0 wait cycles
         Latency0,
         /// 1 wait cycle
