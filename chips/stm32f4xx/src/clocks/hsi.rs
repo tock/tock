@@ -52,7 +52,8 @@ use crate::rcc::Rcc;
 use kernel::debug;
 use kernel::ErrorCode;
 
-pub(crate) const HSI_FREQUENCY_MHZ: usize = 16;
+/// HSI frequency in MHz
+pub const HSI_FREQUENCY_MHZ: usize = 16;
 
 /// Main HSI clock structure
 pub struct Hsi<'a> {
