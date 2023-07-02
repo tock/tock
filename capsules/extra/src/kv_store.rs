@@ -432,7 +432,12 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                     Operation::Delete => {
                         let mut access_allowed = false;
 
-                        if result.is_ok() {
+                        // Before we delete an object we retrieve the header to
+                        // ensure that we have permissions to access it. In that
+                        // case we don't need to supply a buffer long enough to
+                        // store the full value, so a `SIZE` error code is ok
+                        // and we can continue to remove the object.
+                        if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
                             let header = KeyHeader::new_from_buf(ret_buf);
 
                             if header.version == HEADER_VERSION {
@@ -476,7 +481,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
 
                         let mut read_allowed = false;
 
-                        if result.is_ok() {
+                        if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
                             let header = KeyHeader::new_from_buf(ret_buf);
 
                             if header.version == HEADER_VERSION {
