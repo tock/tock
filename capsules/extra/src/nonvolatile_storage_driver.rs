@@ -519,25 +519,6 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorage<'a> for NonvolatileStorage
 
 /// Provide an interface for userland.
 impl SyscallDriver for NonvolatileStorage<'_> {
-    /// Setup shared kernel-writable buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Setup a buffer to read from the nonvolatile storage into.
-
-    /// Setup shared kernel-readable buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Setup a buffer to write bytes to the nonvolatile storage.
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup a read done callback.
-    // - `1`: Setup a write done callback.
-
     /// Command interface.
     ///
     /// Commands are selected by the lowest 8 bits of the first argument.

@@ -235,25 +235,6 @@ impl<'a> Console<'a> {
 }
 
 impl SyscallDriver for Console<'_> {
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `1`: Writeable buffer for read buffer
-
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `1`: Readonly buffer for write buffer
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `1`: Write buffer completed callback
-    // - `2`: Read buffer completed callback
-
     /// Initiate serial transfers
     ///
     /// ### `command_num`

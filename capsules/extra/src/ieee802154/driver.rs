@@ -524,28 +524,6 @@ impl framer::KeyProcedure for RadioDriver<'_> {
 }
 
 impl SyscallDriver for RadioDriver<'_> {
-    /// Setup buffers to read/write from.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Read buffer. Will contain the received frame.
-    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
-    ///        some commands because the system call parameters / return codes are
-    ///        not enough to convey the desired information.
-
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Write buffer. Contains the frame payload to be transmitted.
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup callback for when frame is received.
-    // - `1`: Setup callback for when frame is transmitted.
-
     /// IEEE 802.15.4 MAC device control.
     ///
     /// For some of the below commands, one 32-bit argument is not enough to

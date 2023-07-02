@@ -70,13 +70,6 @@ impl<'a> AmbientLight<'a> {
 }
 
 impl SyscallDriver for AmbientLight<'_> {
-    // Subscribe to light intensity readings
-    //
-    // ### `subscribe`
-    //
-    // - `0`: Subscribe to light intensity readings. The callback signature is
-    // `fn(lux: usize)`, where `lux` is the light intensity in lux (lx).
-
     /// Initiate light intensity readings
     ///
     /// Sensor readings are coalesced if processes request them concurrently. If

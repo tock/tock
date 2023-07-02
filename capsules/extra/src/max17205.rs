@@ -510,12 +510,6 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
 }
 
 impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
-    // Setup callback.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup a callback for when all events complete or data is ready.
-
     /// Setup and read the MAX17205.
     ///
     /// ### `command_num`

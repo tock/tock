@@ -509,20 +509,6 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
 }
 
 impl<I: i2c::I2CDevice> SyscallDriver for LTC294XDriver<'_, I> {
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Set the callback that that is triggered when events finish and
-    //   when readings are ready. The first argument represents which callback
-    //   was triggered.
-    //   - `0`: Interrupt occurred from the LTC294X.
-    //   - `1`: Got the status.
-    //   - `2`: Read the charge used.
-    //   - `3`: `done()` was called.
-    //   - `4`: Read the voltage.
-    //   - `5`: Read the current.
-
     /// Request operations for the LTC294X chip.
     ///
     /// ### `command_num`

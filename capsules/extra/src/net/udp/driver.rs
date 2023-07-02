@@ -306,37 +306,6 @@ impl<'a> UDPDriver<'a> {
 }
 
 impl<'a> SyscallDriver for UDPDriver<'a> {
-    /// Setup buffers to read/write from.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Read buffer. Will contain the received payload.
-    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
-    ///        some commands, namely source/destination addresses and ports.
-    /// - `2`: Rx config buffer. Used to contain source/destination addresses
-    ///        and ports for receives (separate from `2` because receives may
-    ///        be waiting for an incoming packet asynchronously).
-
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Write buffer. Contains the UDP payload to be transmitted.
-    ///        Returns SIZE if the passed buffer is too long, and NOSUPPORT
-    ///        if an invalid `allow_num` is passed.
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup callback for when packet is received. If no port has
-    //        been bound, return RESERVE to indicate that port binding is
-    //        is a prerequisite to reception.
-    // - `1`: Setup callback for when packet is transmitted. Notably,
-    //        this callback receives the result of the send_done callback
-    //        from udp_send.rs, which does not currently pass information
-    //        regarding whether packets were acked at the link layer.
-
     /// UDP control
     ///
     /// ### `command_num`

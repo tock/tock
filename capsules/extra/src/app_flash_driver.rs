@@ -194,18 +194,6 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
 }
 
 impl SyscallDriver for AppFlash<'_> {
-    /// Setup buffer to write from.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Set write buffer. This entire buffer will be written to flash.
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Set a write_done callback.
-
     /// App flash control.
     ///
     /// ### `command_num`

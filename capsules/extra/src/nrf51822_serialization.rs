@@ -121,33 +121,6 @@ impl<'a> Nrf51822Serialization<'a> {
 }
 
 impl SyscallDriver for Nrf51822Serialization<'_> {
-    /// Pass application space memory to this driver.
-    ///
-    /// This also sets which app is currently using this driver. Only one app
-    /// can control the nRF51 serialization driver.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Provide a RX buffer.
-
-    /// Pass application space memory to this driver.
-    ///
-    /// This also sets which app is currently using this driver. Only one app
-    /// can control the nRF51 serialization driver.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Provide a TX buffer.
-
-    // Register a callback to the Nrf51822Serialization driver.
-    //
-    // The callback will be called when a TX finishes and when
-    // RX data is available.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Set callback.
-
     /// Issue a command to the Nrf51822Serialization driver.
     ///
     /// ### `command_type`

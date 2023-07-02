@@ -182,13 +182,6 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
 }
 
 impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
-    // Setup callback for event done.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Upcall is triggered when a channel is finished being selected
-    //   or when the current channel setup is returned.
-
     /// Control the I2C selector.
     ///
     /// ### `command_num`
