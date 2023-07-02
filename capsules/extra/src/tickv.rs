@@ -273,12 +273,26 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
 
                 match ret {
                     Ok(tickv::success_codes::SuccessCode::Complete)
-                    | Ok(tickv::success_codes::SuccessCode::Written)
-                    | Err(tickv::error_codes::ErrorCode::BufferTooSmall(_)) => {
+                    | Ok(tickv::success_codes::SuccessCode::Written) => {
                         self.operation.set(Operation::None);
                         self.client.map(|cb| {
                             cb.get_value_complete(
                                 Ok(()),
+                                self.key_buffer.take().unwrap(),
+                                self.ret_buffer.take().unwrap(),
+                            );
+                        });
+                    }
+                    Err(tickv::error_codes::ErrorCode::BufferTooSmall(_)) => {
+                        // Notify the upper layer using the `SIZE` error that
+                        // the entire value was not read into the buffer as
+                        // there was not enough room to store the entire value.
+                        // The buffer still contains the portion of the value
+                        // that would fit.
+                        self.operation.set(Operation::None);
+                        self.client.map(|cb| {
+                            cb.get_value_complete(
+                                Err(ErrorCode::SIZE),
                                 self.key_buffer.take().unwrap(),
                                 self.ret_buffer.take().unwrap(),
                             );
