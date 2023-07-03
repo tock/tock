@@ -154,7 +154,7 @@ pub struct TbfTlv {
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2Main {
     init_fn_offset: u32,
-    protected_size: u32,
+    protected_trailer_size: u32,
     minimum_ram_size: u32,
 }
 
@@ -170,7 +170,7 @@ pub struct TbfHeaderV2Main {
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2Program {
     init_fn_offset: u32,
-    protected_size: u32,
+    protected_trailer_size: u32,
     minimum_ram_size: u32,
     binary_end_offset: u32,
     version: u32,
@@ -358,7 +358,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
-            protected_size: u32::from_le_bytes(
+            protected_trailer_size: u32::from_le_bytes(
                 b.get(4..8)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
@@ -385,7 +385,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
-            protected_size: u32::from_le_bytes(
+            protected_trailer_size: u32::from_le_bytes(
                 b.get(4..8)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
@@ -734,11 +734,13 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    hd.program
-                        .map_or(0, |p| p.protected_size + (hd.base.header_size as u32))
+                    hd.program.map_or(0, |p| {
+                        (hd.base.header_size as u32) + p.protected_trailer_size
+                    })
                 } else if hd.main.is_some() {
-                    hd.main
-                        .map_or(0, |m| m.protected_size + (hd.base.header_size as u32))
+                    hd.main.map_or(0, |m| {
+                        (hd.base.header_size as u32) + m.protected_trailer_size
+                    })
                 } else {
                     0
                 }
