@@ -10,10 +10,10 @@ pub mod pll;
 
 /// Clock various limits
 pub mod limits {
-    pub use crate::clocks::pll::limits::*;
     pub use crate::chip_specific::clock_constants::APB1_FREQUENCY_LIMIT_MHZ;
     pub use crate::chip_specific::clock_constants::APB2_FREQUENCY_LIMIT_MHZ;
     pub use crate::chip_specific::clock_constants::SYS_CLOCK_FREQUENCY_LIMIT_MHZ;
+    pub use crate::clocks::pll::limits::*;
 }
 
 pub use crate::clocks::clocks::tests;
