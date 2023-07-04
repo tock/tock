@@ -119,24 +119,30 @@ struct Args {
 
 const ERROR_MESSAGE: &str = "error:";
 
+macro_rules! bright_red_and_bold_error_message {
+    () => {
+        ERROR_MESSAGE.bright_red().bold()
+    };
+}
+
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum LicenseError {
-    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "license header missing")]
+    #[error("{} {}", bright_red_and_bold_error_message!(), "license header missing")]
     Missing,
 
-    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "missing blank line after header")]
+    #[error("{} {}", bright_red_and_bold_error_message!(), "missing blank line after header")]
     MissingBlank,
 
-    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "missing copyright line")]
+    #[error("{} {}", bright_red_and_bold_error_message!(), "missing copyright line")]
     MissingCopyright,
 
-    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "missing SPDX line")]
+    #[error("{} {}", bright_red_and_bold_error_message!(), "missing SPDX line")]
     MissingSpdx,
 
-    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "incorrect first line")]
+    #[error("{} {}", bright_red_and_bold_error_message!(), "incorrect first line")]
     WrongFirst,
 
-    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "wrong SPDX line")]
+    #[error("{} {}", bright_red_and_bold_error_message!(), "wrong SPDX line")]
     WrongSpdx,
 }
 
