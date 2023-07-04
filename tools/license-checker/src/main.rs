@@ -21,6 +21,8 @@ use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
+use colored::Colorize;
+
 mod parser;
 use parser::{Cache, LineContents, ParseError, Parser};
 
@@ -44,24 +46,26 @@ struct Args {
     verbose: bool,
 }
 
+const ERROR_MESSAGE: &str = "error:";
+
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum LicenseError {
-    #[error("license header missing")]
+    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "license header missing")]
     Missing,
 
-    #[error("missing blank line after header")]
+    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "missing blank line after header")]
     MissingBlank,
 
-    #[error("missing copyright line")]
+    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "missing copyright line")]
     MissingCopyright,
 
-    #[error("missing SPDX line")]
+    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "missing SPDX line")]
     MissingSpdx,
 
-    #[error("incorrect first line")]
+    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "incorrect first line")]
     WrongFirst,
 
-    #[error("wrong SPDX line")]
+    #[error("{} {}", ERROR_MESSAGE.bright_red().bold(), "wrong SPDX line")]
     WrongSpdx,
 }
 
