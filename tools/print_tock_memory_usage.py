@@ -345,6 +345,13 @@ def group_symbols(groups, symbols, waste, section):
     waste_sum = 0
     prev_symbol = ""
     for (symbol, addr, size, real_size, _) in symbols:
+        if addr < expected_addr:
+            # We have some overlapping symbols. This can happen due to merging
+            # of functions and constants with non-significant address.
+            # Since we sort symbols with larger sizes to the front, the entire
+            # span of this symbol has been processed and thus we can ignore this.
+            continue
+
         # If we find a gap between symbol+size and the next symbol, we might
         # have waste. But this is only true if it's not the first symbol and
         # this is actually a variable and just just a symbol (e.g., _estart)
@@ -552,8 +559,12 @@ def print_grouped_symbol_information():
 
 
 def sort_value(symbol_entry):
-    """Helper function for sorting symbols by start address and size."""
-    value = (symbol_entry[1] << 16) + symbol_entry[2]
+    """Helper function for sorting symbols by start address and size.
+
+    We sort symbols with smaller start address to the front, and if their starting address is the same,
+    the larger symbols comes first then the smaller ones.
+    """
+    value = (symbol_entry[1] << 16) - symbol_entry[2]
     return value
 
 def get_addr(symbol_entry):
