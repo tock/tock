@@ -131,8 +131,10 @@ pub struct Platform {
     rng: &'static capsules_core::rng::RngDriver<'static>,
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    i2c_master_slave:
-        &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
+    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+        'static,
+        nrf52840::i2c::TWI<'static>,
+    >,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
@@ -550,7 +552,7 @@ pub unsafe fn main() {
     let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
 
     let i2c_master_slave = static_init!(
-        I2CMasterSlaveDriver,
+        I2CMasterSlaveDriver<nrf52840::i2c::TWI<'static>>,
         I2CMasterSlaveDriver::new(
             &base_peripherals.twi1,
             i2c_master_buffer,

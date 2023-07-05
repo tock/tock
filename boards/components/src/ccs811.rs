@@ -27,12 +27,14 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::ccs811::Ccs811;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! ccs811_component_static {
-    () => {{
-        let i2c_device = kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
+    ($I:ty $(,)?) => {{
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let buffer = kernel::static_buf!([u8; 6]);
         let ccs811 = kernel::static_buf!(capsules_extra::ccs811::Ccs811<'static>);
 
@@ -40,13 +42,13 @@ macro_rules! ccs811_component_static {
     };};
 }
 
-pub struct Ccs811Component {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Ccs811Component<I: 'static + i2c::I2CMaster<'static>> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
 }
 
-impl Ccs811Component {
-    pub fn new(i2c: &'static MuxI2C<'static>, i2c_address: u8) -> Self {
+impl<I: 'static + i2c::I2CMaster<'static>> Ccs811Component<I> {
+    pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Ccs811Component {
             i2c_mux: i2c,
             i2c_address,
@@ -54,9 +56,9 @@ impl Ccs811Component {
     }
 }
 
-impl Component for Ccs811Component {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Ccs811Component<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 6]>,
         &'static mut MaybeUninit<Ccs811<'static>>,
     );

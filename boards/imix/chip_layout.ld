@@ -1,3 +1,7 @@
+/* Licensed under the Apache License, Version 2.0 or the MIT License. */
+/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/* Copyright Tock Contributors 2023.                                  */
+
 /* Memory Spaces Definitions, 448K flash, 64K ram */
 /* Use bootloader starting at 0x0000 */
 MEMORY

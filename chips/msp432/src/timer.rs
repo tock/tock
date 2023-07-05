@@ -282,12 +282,17 @@ impl<'a> TimerA<'a> {
         // mode, divide the clock down to 2048Hz:
         // 16bit at 2048Hz: granulation about 0.5ms, maximum interval about 30s.
 
+        // Set ACLK as clock source
+        // Divide the clock source by 8 -> 4096Hz
+        // Setup for continuous mode
+        // Disable interrupts
+        // Clear any pending interrupts
         self.registers.ctl.modify(
-            TAxCTL::TASSEL::ACLK         // Set ACLK as clock source
-                + TAxCTL::ID::DividedBy8        // Divide the clock source by 8 -> 4096Hz
-                + TAxCTL::MC::ContinuousMode    // Setup for contiuous mode    
-                + TAxCTL::TAIE::CLEAR           // Disable interrupts
-                + TAxCTL::TAIFG::CLEAR, // Clear any pending interrupts
+            TAxCTL::TASSEL::ACLK
+                + TAxCTL::ID::DividedBy8
+                + TAxCTL::MC::ContinuousMode
+                + TAxCTL::TAIE::CLEAR
+                + TAxCTL::TAIFG::CLEAR,
         );
 
         // divide the 4096Hz by 2 to get 2048Hz
@@ -434,11 +439,12 @@ impl<'a> InternalTimer for TimerA<'a> {
             crate::cs::SMCLK_HZ / frequency_hz
         };
 
+        // Set SMCLK as clock source
+        // Setup for up-mode
+        // Disable interrupts
+        // Clear any pending interrupts
         self.registers.ctl.modify(
-            TAxCTL::TASSEL::SMCLK    // Set SMCLK as clock source
-            + TAxCTL::MC::UpMode            // Setup for up-mode    
-            + TAxCTL::TAIE::CLEAR           // Disable interrupts
-            + TAxCTL::TAIFG::CLEAR, // Clear any pending interrupts
+            TAxCTL::TASSEL::SMCLK + TAxCTL::MC::UpMode + TAxCTL::TAIE::CLEAR + TAxCTL::TAIFG::CLEAR,
         );
 
         // Set timer value

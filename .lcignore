@@ -31,9 +31,3 @@
 /tools/license-checker/testdata/many_errors.rs
 /tools/license-checker/testdata/no_copyright.rs
 /tools/license-checker/testdata/no_spdx.rs
-
-# File types that the license checker does not support but should support (see
-# issue #3417)
-*.ld
-*.jlink
-*.xml

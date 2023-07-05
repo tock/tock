@@ -1,0 +1,34 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
+# Netlify's own CI builds both deploy previews for PRs, as well as the
+# production deploy for the master branch. We use this workflow purely as we
+# can't have Netlify build the wildcard gh-readonly-queue/* branches. This
+# workflow thus ensures that docs build successfully (albeit not in the exact
+# same envrionment as Netlify's).
+#
+# See issue #3428 for more information.
+
+name: docs-ci
+env:
+  TERM: dumb # Identical to Netlify build environment
+
+on:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  ci-docs:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+      - # This also sets up the rustup environment
+        name: ci-netlify-build
+        run: tools/netlify-build.sh

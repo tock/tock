@@ -12,7 +12,7 @@ bold=$(tput bold)
 normal=$(tput sgr0)
 
 # Get a list of all stack frames and their sizes.
-frames=`$(find $(rustc --print sysroot) -name llvm-readobj) --elf-output-style GNU --stack-sizes $1`
+frames=`$(find $(rustc --print sysroot) -name llvm-readobj) --demangle --elf-output-style GNU --stack-sizes $1`
 
 # Print the stack frame size of `main`
 printf "   main stack frame: \n"

@@ -1,3 +1,7 @@
+/* Licensed under the Apache License, Version 2.0 or the MIT License. */
+/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/* Copyright Tock Contributors 2023.                                  */
+
 /* Memory layout for the STM32F401CCU6
  * rom = 256KB (LENGTH = 0x00040000)
  * kernel = 128KB

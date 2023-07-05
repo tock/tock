@@ -177,7 +177,7 @@ enum State {
 
 pub struct MX25R6435F<
     'a,
-    S: hil::spi::SpiMasterDevice + 'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
     P: hil::gpio::Pin + 'a,
     A: hil::time::Alarm<'a> + 'a,
 > {
@@ -194,7 +194,7 @@ pub struct MX25R6435F<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > MX25R6435F<'a, S, P, A>
@@ -364,7 +364,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
@@ -581,7 +581,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > hil::time::AlarmClient for MX25R6435F<'a, S, P, A>
@@ -602,7 +602,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
         C: hil::flash::Client<Self>,
@@ -615,7 +615,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > hil::flash::Flash for MX25R6435F<'a, S, P, A>

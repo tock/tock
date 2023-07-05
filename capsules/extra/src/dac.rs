@@ -43,10 +43,10 @@ impl SyscallDriver for Dac<'_> {
     /// - `2`: Set the output to `data1`, a scaled output value.
     fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
-            0 /* check if present */ => CommandReturn::success(),
+            0 => CommandReturn::success(),
 
-            // enable the dac
-            1 => CommandReturn::from(self.dac.initialize()),
+            // enable the dac. no-op as using the dac will enable it.
+            1 => CommandReturn::success(),
 
             // set the dac output
             2 => CommandReturn::from(self.dac.set_value(data)),

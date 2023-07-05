@@ -1,3 +1,7 @@
+/* Licensed under the Apache License, Version 2.0 or the MIT License. */
+/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/* Copyright Tock Contributors 2023.                                  */
+
 /**
  * QEMU emulated DRAM region. Tock is currently designed to be placed
  * at the start of DRAM, using the `-bios` option in qemu-system-riscv32.

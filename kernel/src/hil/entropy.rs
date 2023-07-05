@@ -105,7 +105,7 @@ pub enum Continue {
 /// Implementors should assume the client implements the
 /// [Client](trait.Client32.html) trait.
 pub trait Entropy32<'a> {
-    /// Initiate the aquisition of entropy.
+    /// Initiate the acquisition of entropy.
     ///
     /// There are three valid return values:
     ///   - Ok(()): a `entropy_available` callback will be called in

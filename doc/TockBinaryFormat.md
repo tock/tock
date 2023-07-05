@@ -41,7 +41,8 @@ Tock App Binary:
 Start of app -> +-------------------+---
               ^ | TBF Header        | ^
               | +-------------------+ | Protected region
-              | | Optional padding  | V
+              | | (Optional)        | |
+              | | protected trailer | V
  Covered by   | +-------------------+---
  integrity    | | Userspace Binary  |
               | |                   |
@@ -151,9 +152,9 @@ struct TbfHeaderTlv {
 // use Main Headers, while newer (>= 2.1) kernels use Program Headers.
 struct TbfHeaderMain {
     base: TbfHeaderTlv,
-    init_fn_offset: u32,     // The function to call to start the application
-    protected_size: u32,     // The number of bytes the application cannot write
-    minimum_ram_size: u32,   // How much RAM the application is requesting
+    init_fn_offset: u32,         // The function to call to start the application
+    protected_trailer_size: u32, // The number of app-immutable bytes after the header
+    minimum_ram_size: u32,       // How much RAM the application is requesting
 }
 
 // A Program Header specifies the end of the application binary within the 
@@ -162,7 +163,7 @@ struct TbfHeaderMain {
 // can be installed.
 pub struct TbfHeaderV2Program {
     init_fn_offset: u32,
-    protected_size: u32,
+    protected_trailer_size: u32,
     minimum_ram_size: u32,
     binary_end_offset: u32,
     version: u32,
@@ -320,16 +321,19 @@ The `Main` element has three 32-bit fields:
 +-------------+-------------+---------------------------+
 | Type (1)    | Length (12) | init_offset               |
 +-------------+-------------+---------------------------+
-| protected_size            | min_ram_size              |
+| protected_trailer_size    | min_ram_size              |
 +---------------------------+---------------------------+
 ```
 
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
     execute (typically the `_start` symbol).
-  * `protected_size` the size of the protected region in bytes. Processes do not
-    have write access to the protected region. TBF headers are contained in the
-    protected region.
+  * `protected_trailer_size` the size of the protected region _after_ the TBF
+    headers. Processes do not have write access to the protected region. TBF
+    headers are contained in the protected region, but are not counted towards
+    `protected_trailer_size`. The protected region thus starts at the first byte
+    of the TBF base header, and is `header_size + protected_trailer_size` bytes
+    in size.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
 
@@ -533,7 +537,7 @@ the end of the TBF object can contain footers.
 +-------------+-------------+---------------------------+
 | Type (9)    | Length (20) | init_offset               |
 +-------------+-------------+---------------------------+
-| protected_size            | min_ram_size              |
+| protected_trailer_size    | min_ram_size              |
 +---------------------------+---------------------------+
 | binary_end_offset         | version                   |
 +---------------------------+---------------------------+
@@ -541,17 +545,20 @@ the end of the TBF object can contain footers.
 
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
-   	execute (typically the `_start` symbol).
-  * `protected_size` the size of the protected region in bytes. Processes do not
-    have write access to the protected region. TBF headers are contained in the
-    protected region.
+    execute (typically the `_start` symbol).
+  * `protected_trailer_size` the size of the protected region _after_ the TBF
+    headers. Processes do not have write access to the protected region. TBF
+    headers are contained in the protected region, but are not counted towards
+    `protected_trailer_size`. The protected region thus starts at the first byte
+    of the TBF base header, and is `header_size + protected_trailer_size` bytes
+    in size.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
   * `binary_end_offset` specifies the offset from the beginning of the TBF
     Object at which the Userspace Binary ends and optional footers begin.
   * `version` specifies a version number for the application implemented by
     the Userspace Binary. This allows a kernel to distinguish different 
-	versions of a given application.
+    versions of a given application.
 
 If a Program header is not present, `binary_end_offset` can be
 considered to be `total_size` of the Base Header and `version` is 0.

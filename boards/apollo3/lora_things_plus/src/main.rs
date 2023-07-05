@@ -315,11 +315,15 @@ unsafe fn setup() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Init the I2C device attached via Qwiic
+    let i2c_master_buffer = static_init!(
+        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master::BUFFER_LENGTH]
+    );
     let i2c_master = static_init!(
         capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
         capsules_core::i2c_master::I2CMasterDriver::new(
             &peripherals.iom0,
-            &mut capsules_core::i2c_master::BUF,
+            i2c_master_buffer,
             board_kernel.create_grant(
                 capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_cap
@@ -330,11 +334,13 @@ unsafe fn setup() -> (
     let _ = &peripherals.iom0.set_master_client(i2c_master);
     let _ = &peripherals.iom0.enable();
 
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None)
-        .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None).finalize(
+        components::i2c_mux_component_static!(apollo3::iom::Iom<'static>),
+    );
 
-    let bme280 =
-        Bme280Component::new(mux_i2c, 0x77).finalize(components::bme280_component_static!());
+    let bme280 = Bme280Component::new(mux_i2c, 0x77).finalize(
+        components::bme280_component_static!(apollo3::iom::Iom<'static>),
+    );
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -349,8 +355,9 @@ unsafe fn setup() -> (
     .finalize(components::humidity_component_static!());
     BME280 = Some(bme280);
 
-    let ccs811 =
-        Ccs811Component::new(mux_i2c, 0x5B).finalize(components::ccs811_component_static!());
+    let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
+        components::ccs811_component_static!(apollo3::iom::Iom<'static>),
+    );
     let air_quality = components::air_quality::AirQualityComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,

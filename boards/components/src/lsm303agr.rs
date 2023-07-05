@@ -30,38 +30,44 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! lsm303agr_component_static {
-    () => {{
+    ($I:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; 8]);
         let accelerometer_i2c =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let magnetometer_i2c =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice);
-        let lsm303agr = kernel::static_buf!(capsules_extra::lsm303agr::Lsm303agrI2C<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
+        let lsm303agr = kernel::static_buf!(
+            capsules_extra::lsm303agr::Lsm303agrI2C<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
 
         (accelerometer_i2c, magnetometer_i2c, buffer, lsm303agr)
     };};
 }
 
-pub struct Lsm303agrI2CComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Lsm303agrI2CComponent<I: 'static + i2c::I2CMaster<'static>> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     accelerometer_i2c_address: u8,
     magnetometer_i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl Lsm303agrI2CComponent {
+impl<I: 'static + i2c::I2CMaster<'static>> Lsm303agrI2CComponent<I> {
     pub fn new(
-        i2c_mux: &'static MuxI2C<'static>,
+        i2c_mux: &'static MuxI2C<'static, I>,
         accelerometer_i2c_address: Option<u8>,
         magnetometer_i2c_address: Option<u8>,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> Lsm303agrI2CComponent {
+    ) -> Lsm303agrI2CComponent<I> {
         Lsm303agrI2CComponent {
             i2c_mux,
             accelerometer_i2c_address: accelerometer_i2c_address
@@ -74,14 +80,14 @@ impl Lsm303agrI2CComponent {
     }
 }
 
-impl Component for Lsm303agrI2CComponent {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Lsm303agrI2CComponent<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 8]>,
-        &'static mut MaybeUninit<Lsm303agrI2C<'static>>,
+        &'static mut MaybeUninit<Lsm303agrI2C<'static, I2CDevice<'static, I>>>,
     );
-    type Output = &'static Lsm303agrI2C<'static>;
+    type Output = &'static Lsm303agrI2C<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

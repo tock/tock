@@ -57,7 +57,7 @@ macro_rules! mx25r6435f_component_static {
 }
 
 pub struct Mx25r6435fComponent<
-    S: 'static + hil::spi::SpiMaster,
+    S: 'static + hil::spi::SpiMaster<'static>,
     P: 'static + hil::gpio::Pin,
     A: 'static + hil::time::Alarm<'static>,
 > {
@@ -69,7 +69,7 @@ pub struct Mx25r6435fComponent<
 }
 
 impl<
-        S: 'static + hil::spi::SpiMaster,
+        S: 'static + hil::spi::SpiMaster<'static>,
         P: 'static + hil::gpio::Pin,
         A: 'static + hil::time::Alarm<'static>,
     > Mx25r6435fComponent<S, P, A>
@@ -92,7 +92,7 @@ impl<
 }
 
 impl<
-        S: 'static + hil::spi::SpiMaster,
+        S: 'static + hil::spi::SpiMaster<'static>,
         P: 'static + hil::gpio::Pin,
         A: 'static + hil::time::Alarm<'static>,
     > Component for Mx25r6435fComponent<S, P, A>

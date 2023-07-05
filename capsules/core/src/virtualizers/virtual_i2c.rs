@@ -11,21 +11,21 @@ use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient};
+use kernel::hil::i2c::{self, Error, I2CClient, I2CHwMasterClient, NoSMBus};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-
-pub struct MuxI2C<'a> {
-    i2c: &'a dyn i2c::I2CMaster,
-    smbus: Option<&'a dyn i2c::SMBusMaster>,
-    i2c_devices: List<'a, I2CDevice<'a>>,
-    smbus_devices: List<'a, SMBusDevice<'a>>,
+// `NoSMBus` provides a placeholder for `SMBusMaster` in case the board doesn't have a SMBus
+pub struct MuxI2C<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> {
+    i2c: &'a I,
+    smbus: Option<&'a S>,
+    i2c_devices: List<'a, I2CDevice<'a, I, S>>,
+    smbus_devices: List<'a, SMBusDevice<'a, I, S>>,
     enabled: Cell<usize>,
-    i2c_inflight: OptionalCell<&'a I2CDevice<'a>>,
-    smbus_inflight: OptionalCell<&'a SMBusDevice<'a>>,
+    i2c_inflight: OptionalCell<&'a I2CDevice<'a, I, S>>,
+    smbus_inflight: OptionalCell<&'a SMBusDevice<'a, I, S>>,
     deferred_call: DeferredCall,
 }
 
-impl I2CHwMasterClient for MuxI2C<'_> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CHwMasterClient for MuxI2C<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         if self.i2c_inflight.is_some() {
             self.i2c_inflight.take().map(move |device| {
@@ -40,8 +40,8 @@ impl I2CHwMasterClient for MuxI2C<'_> {
     }
 }
 
-impl<'a> MuxI2C<'a> {
-    pub fn new(i2c: &'a dyn i2c::I2CMaster, smbus: Option<&'a dyn i2c::SMBusMaster>) -> Self {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
+    pub fn new(i2c: &'a I, smbus: Option<&'a S>) -> Self {
         Self {
             i2c,
             smbus,
@@ -185,7 +185,7 @@ impl<'a> MuxI2C<'a> {
     }
 }
 
-impl DeferredCallClient for MuxI2C<'_> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> DeferredCallClient for MuxI2C<'a, I, S> {
     fn handle_deferred_call(&self) {
         self.do_next_op();
     }
@@ -204,18 +204,18 @@ enum Op {
     CommandComplete(Result<(), Error>),
 }
 
-pub struct I2CDevice<'a> {
-    mux: &'a MuxI2C<'a>,
+pub struct I2CDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> {
+    mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, I2CDevice<'a>>,
+    next: ListLink<'a, I2CDevice<'a, I, S>>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl<'a> I2CDevice<'a> {
-    pub fn new(mux: &'a MuxI2C<'a>, addr: u8) -> I2CDevice<'a> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
+    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> I2CDevice<'a, I, S> {
         I2CDevice {
             mux: mux,
             addr: addr,
@@ -233,7 +233,7 @@ impl<'a> I2CDevice<'a> {
     }
 }
 
-impl I2CClient for I2CDevice<'_> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for I2CDevice<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         self.client.map(move |client| {
             client.command_complete(buffer, status);
@@ -241,13 +241,15 @@ impl I2CClient for I2CDevice<'_> {
     }
 }
 
-impl<'a> ListNode<'a, I2CDevice<'a>> for I2CDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a>> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, I2CDevice<'a, I, S>>
+    for I2CDevice<'a, I, S>
+{
+    fn next(&'a self) -> &'a ListLink<'a, I2CDevice<'a, I, S>> {
         &self.next
     }
 }
 
-impl i2c::I2CDevice for I2CDevice<'_> {
+impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -305,18 +307,18 @@ impl i2c::I2CDevice for I2CDevice<'_> {
     }
 }
 
-pub struct SMBusDevice<'a> {
-    mux: &'a MuxI2C<'a>,
+pub struct SMBusDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> {
+    mux: &'a MuxI2C<'a, I, S>,
     addr: u8,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
-    next: ListLink<'a, SMBusDevice<'a>>,
+    next: ListLink<'a, SMBusDevice<'a, I, S>>,
     client: OptionalCell<&'a dyn I2CClient>,
 }
 
-impl<'a> SMBusDevice<'a> {
-    pub fn new(mux: &'a MuxI2C<'a>, addr: u8) -> SMBusDevice<'a> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
+    pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> SMBusDevice<'a, I, S> {
         if mux.smbus.is_none() {
             panic!("There is no SMBus to attach to");
         }
@@ -338,7 +340,7 @@ impl<'a> SMBusDevice<'a> {
     }
 }
 
-impl<'a> I2CClient for SMBusDevice<'a> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CClient for SMBusDevice<'a, I, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         self.client.map(move |client| {
             client.command_complete(buffer, status);
@@ -346,13 +348,15 @@ impl<'a> I2CClient for SMBusDevice<'a> {
     }
 }
 
-impl<'a> ListNode<'a, SMBusDevice<'a>> for SMBusDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a>> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> ListNode<'a, SMBusDevice<'a, I, S>>
+    for SMBusDevice<'a, I, S>
+{
+    fn next(&'a self) -> &'a ListLink<'a, SMBusDevice<'a, I, S>> {
         &self.next
     }
 }
 
-impl<'a> i2c::I2CDevice for SMBusDevice<'a> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice for SMBusDevice<'a, I, S> {
     fn enable(&self) {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -410,7 +414,9 @@ impl<'a> i2c::I2CDevice for SMBusDevice<'a> {
     }
 }
 
-impl<'a> i2c::SMBusDevice for SMBusDevice<'a> {
+impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::SMBusDevice
+    for SMBusDevice<'a, I, S>
+{
     fn smbus_write_read(
         &self,
         data: &'static mut [u8],
