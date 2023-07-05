@@ -171,8 +171,12 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         let mut addr_match = false;
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {
             if let Some(dst_addr) = header.dst_addr {
+                debug!("received addr is: {:?}", dst_addr);
+
                 addr_match = match dst_addr {
-                    MacAddress::Short(addr) => addr == self.radio.get_address(),
+                    MacAddress::Short(addr) => {
+                        (addr == self.radio.get_address()) || (addr == 0xFFFF)
+                    }
                     MacAddress::Long(long_addr) => long_addr == self.radio.get_address_long(),
                 };
             }

@@ -591,16 +591,6 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
-    let thread_driver = components::thread_network::ThreadComponent::new(
-        board_kernel,
-        capsules_extra::net::thread::driver::DRIVER_NUM,
-        aes_mux,
-    )
-    .finalize(components::thread_network_component_static!(
-        nrf52840::ieee802154_radio::Radio,
-        nrf52840::aes::AesECB<'static>
-    ));
-
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
@@ -611,6 +601,20 @@ pub unsafe fn main() {
         local_ip_ifaces,
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+
+    let thread_driver = components::thread_network::UDPDriverComponent::new(
+        board_kernel,
+        capsules_extra::net::thread::driver::DRIVER_NUM,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+    )
+        aes_mux,
+    .finalize(components::thread_network_driver_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::aes::AesECB<'static>
+    ));
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
