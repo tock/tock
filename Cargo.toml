@@ -47,6 +47,7 @@ members = [
     "boards/qemu_rv32_virt",
     "boards/swervolf",
     "boards/weact_f401ccu6/",
+    "capsules/aes_gcm",
     "capsules/core",
     "capsules/extra",
     "chips/apollo3",

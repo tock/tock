@@ -435,8 +435,9 @@ pub unsafe fn main() {
         .set_speed(imxrt1050::lpi2c::Lpi2cSpeed::Speed100k, 8);
 
     use imxrt1050::gpio::PinId;
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None)
-        .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.lpi2c1, None).finalize(
+        components::i2c_mux_component_static!(imxrt1050::lpi2c::Lpi2c),
+    );
 
     // Fxos8700 sensor
     let fxos8700 = components::fxos8700::Fxos8700Component::new(
@@ -444,7 +445,9 @@ pub unsafe fn main() {
         0x1f,
         peripherals.ports.pin(PinId::AdB1_00),
     )
-    .finalize(components::fxos8700_component_static!());
+    .finalize(components::fxos8700_component_static!(
+        imxrt1050::lpi2c::Lpi2c
+    ));
 
     // Ninedof
     let ninedof = components::ninedof::NineDofComponent::new(

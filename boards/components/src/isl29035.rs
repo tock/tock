@@ -35,17 +35,18 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! isl29035_component_static {
-    ($A:ty $(,)?) => {{
+    ($A:ty, $I:ty $(,)?) => {{
         let alarm = kernel::static_buf!(
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
         let i2c_buffer = kernel::static_buf!([u8; capsules_extra::isl29035::BUF_LEN]);
         let isl29035 = kernel::static_buf!(
             capsules_extra::isl29035::Isl29035<
@@ -65,13 +66,18 @@ macro_rules! ambient_light_component_static {
     };};
 }
 
-pub struct Isl29035Component<A: 'static + time::Alarm<'static>> {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Isl29035Component<
+    A: 'static + time::Alarm<'static>,
+    I: 'static + i2c::I2CMaster<'static>,
+> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: 'static + time::Alarm<'static>> Isl29035Component<A> {
-    pub fn new(i2c: &'static MuxI2C<'static>, alarm: &'static MuxAlarm<'static, A>) -> Self {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
+    Isl29035Component<A, I>
+{
+    pub fn new(i2c: &'static MuxI2C<'static, I>, alarm: &'static MuxAlarm<'static, A>) -> Self {
         Isl29035Component {
             i2c_mux: i2c,
             alarm_mux: alarm,
@@ -79,10 +85,12 @@ impl<A: 'static + time::Alarm<'static>> Isl29035Component<A> {
     }
 }
 
-impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Component
+    for Isl29035Component<A, I>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; capsules_extra::isl29035::BUF_LEN]>,
         &'static mut MaybeUninit<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
     );

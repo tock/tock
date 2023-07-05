@@ -52,7 +52,7 @@ pub struct TouchComponent {
     driver_num: usize,
     touch: &'static dyn kernel::hil::touch::Touch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
-    screen: Option<&'static dyn kernel::hil::screen::Screen>,
+    screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
 }
 
 impl TouchComponent {
@@ -61,7 +61,7 @@ impl TouchComponent {
         driver_num: usize,
         touch: &'static dyn kernel::hil::touch::Touch<'static>,
         gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
-        screen: Option<&'static dyn kernel::hil::screen::Screen>,
+        screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
     ) -> TouchComponent {
         TouchComponent {
             board_kernel: board_kernel,
@@ -102,7 +102,7 @@ pub struct MultiTouchComponent {
     driver_num: usize,
     multi_touch: &'static dyn kernel::hil::touch::MultiTouch<'static>,
     gesture: Option<&'static dyn kernel::hil::touch::Gesture<'static>>,
-    screen: Option<&'static dyn kernel::hil::screen::Screen>,
+    screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
 }
 
 impl MultiTouchComponent {

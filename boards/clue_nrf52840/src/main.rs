@@ -589,7 +589,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(sensors_i2c_bus);
@@ -604,7 +604,7 @@ pub unsafe fn main() {
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!());
+    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -618,7 +618,8 @@ pub unsafe fn main() {
         mux_alarm,
     )
     .finalize(components::sht3x_component_static!(
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        nrf52840::i2c::TWI
     ));
 
     let temperature = components::temperature::TemperatureComponent::new(

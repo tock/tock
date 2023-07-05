@@ -27,13 +27,14 @@ use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::bme280::Bme280;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::hil::i2c;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! bme280_component_static {
-    () => {{
+    ($I:ty $(,)?) => {{
         let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
         let i2c_buffer = kernel::static_buf!([u8; 26]);
         let bme280 = kernel::static_buf!(capsules_extra::bme280::Bme280<'static>);
 
@@ -41,13 +42,13 @@ macro_rules! bme280_component_static {
     };};
 }
 
-pub struct Bme280Component {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Bme280Component<I: 'static + i2c::I2CMaster<'static>> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
 }
 
-impl Bme280Component {
-    pub fn new(i2c: &'static MuxI2C<'static>, i2c_address: u8) -> Self {
+impl<I: 'static + i2c::I2CMaster<'static>> Bme280Component<I> {
+    pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Bme280Component {
             i2c_mux: i2c,
             i2c_address: i2c_address,
@@ -55,9 +56,9 @@ impl Bme280Component {
     }
 }
 
-impl Component for Bme280Component {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Bme280Component<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 26]>,
         &'static mut MaybeUninit<Bme280<'static>>,
     );

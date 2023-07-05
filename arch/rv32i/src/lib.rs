@@ -41,6 +41,7 @@ extern "C" {
     static mut _erelocate: usize;
 
     // The global pointer, value set in the linker script
+    #[link_name = "__global_pointer$"]
     static __global_pointer: usize;
 }
 
@@ -72,8 +73,16 @@ pub extern "C" fn _start() {
             // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
             // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
             //
-            lui  gp, %hi({gp}$)     // Set the global pointer.
-            addi gp, gp, %lo({gp}$) // Value set in linker script.
+            // Disable linker relaxation for code that sets up GP so that this doesn't
+            // get turned into `mv gp, gp`.
+            .option push
+            .option norelax
+
+            lui  gp, %hi({gp})     // Set the global pointer.
+            addi gp, gp, %lo({gp}) // Value set in linker script.
+
+            // Re-enable linker relaxations.
+            .option pop
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.
@@ -165,9 +174,9 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
             csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::utvec::utvec::mode::CLEAR,
         ),
-        PermissionMode::Reserved => (
+        PermissionMode::Reserved => {
             // TODO some sort of error handling?
-            ),
+        }
     }
 }
 

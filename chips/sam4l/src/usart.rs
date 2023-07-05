@@ -1050,7 +1050,7 @@ impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
 }
 
 /// SPI
-impl spi::SpiMaster for USART<'_> {
+impl<'a> spi::SpiMaster<'a> for USART<'a> {
     type ChipSelect = Option<&'static dyn hil::gpio::Pin>;
 
     fn init(&self) -> Result<(), ErrorCode> {
@@ -1075,7 +1075,7 @@ impl spi::SpiMaster for USART<'_> {
         Ok(())
     }
 
-    fn set_client(&self, client: &'static dyn spi::SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn spi::SpiMasterClient) {
         let c = UsartClient::SpiMaster(client);
         self.client.set(c);
     }

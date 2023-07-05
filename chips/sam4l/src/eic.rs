@@ -68,7 +68,7 @@ pub struct EicRegisters {
     imr: ReadOnly<u32, Interrupt::Register>,
     /// A bit is set when an interrupt triggers
     isr: ReadOnly<u32, Interrupt::Register>,
-    /// Clears ISR  
+    /// Clears ISR
     icr: WriteOnly<u32, Interrupt::Register>,
     /// Sets interrupt mode
     mode: ReadWrite<u32, Interrupt::Register>,

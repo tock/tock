@@ -186,12 +186,7 @@ pub unsafe fn initialize_all(
     radio_mac.set_receive_client(sixlowpan);
 
     // Following code initializes an IP6Packet using the global UDP_DGRAM buffer as the payload
-    let mut udp_hdr: UDPHeader = UDPHeader {
-        src_port: 0,
-        dst_port: 0,
-        len: 0,
-        cksum: 0,
-    };
+    let mut udp_hdr: UDPHeader = UDPHeader::new();
     udp_hdr.set_src_port(12345);
     udp_hdr.set_dst_port(54321);
     udp_hdr.set_len(PAYLOAD_LEN as u16);

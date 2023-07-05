@@ -26,14 +26,17 @@
 //!
 //! ```rust
 //! # use kernel::{hil, static_init};
-//!
+
 //! sam4l::flashcalw::FLASH_CONTROLLER.configure();
-//! pub static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
+//! let page_buffer = static_init!(
+//!     sam4l::flashcalw::Sam4lPage,
+//!     sam4l::flashcalw::Sam4lPage::default()
+//! );
 //! let nv_to_page = static_init!(
 //!     capsules::nonvolatile_to_pages::NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
 //!     capsules::nonvolatile_to_pages::NonvolatileToPages::new(
 //!         &mut sam4l::flashcalw::FLASH_CONTROLLER,
-//!         &mut PAGEBUFFER));
+//!         page_buffer));
 //! hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
 //! ```
 
@@ -56,7 +59,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
     /// The module providing a `Flash` interface.
     driver: &'a F,
     /// Callback to the user of this capsule.
-    client: OptionalCell<&'static dyn hil::nonvolatile_storage::NonvolatileStorageClient<'static>>,
+    client: OptionalCell<&'a dyn hil::nonvolatile_storage::NonvolatileStorageClient>,
     /// Buffer correctly sized for the underlying flash page size.
     pagebuffer: TakeCell<'static, F::Page>,
     /// Current state of this capsule.
@@ -91,10 +94,10 @@ impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     }
 }
 
-impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'static>
+impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
     for NonvolatileToPages<'a, F>
 {
-    fn set_client(&self, client: &'static dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
+    fn set_client(&self, client: &'a dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.client.set(client);
     }
 

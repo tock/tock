@@ -1,0 +1,10 @@
+#!Shebang line here
+
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+# Copyright Google LLC 2023.
+
+syntect should not recognize this file type. Instead, the license checker
+// should use the fallback parser, which should identify that this file has a
+/* shebang line and uses number signs for its comments. */

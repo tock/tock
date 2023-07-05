@@ -19,17 +19,17 @@ use kernel::hil::radio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
-pub trait Mac {
+pub trait Mac<'a> {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be
     /// transmitted
     fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode>;
 
     /// Sets the notified client for configuration changes
-    fn set_config_client(&self, client: &'static dyn radio::ConfigClient);
+    fn set_config_client(&self, client: &'a dyn radio::ConfigClient);
     /// Sets the notified client for transmission completions
-    fn set_transmit_client(&self, client: &'static dyn radio::TxClient);
+    fn set_transmit_client(&self, client: &'a dyn radio::TxClient);
     /// Sets the notified client for frame receptions
-    fn set_receive_client(&self, client: &'static dyn radio::RxClient);
+    fn set_receive_client(&self, client: &'a dyn radio::RxClient);
     /// Sets the buffer for packet reception
     fn set_receive_buffer(&self, buffer: &'static mut [u8]);
 
@@ -71,14 +71,14 @@ pub trait Mac {
 /// implementation and the underlying radio::Radio device. Does not change the power
 /// state of the radio during operation.
 ///
-pub struct AwakeMac<'a, R: radio::Radio> {
+pub struct AwakeMac<'a, R: radio::Radio<'a>> {
     radio: &'a R,
 
-    tx_client: OptionalCell<&'static dyn radio::TxClient>,
-    rx_client: OptionalCell<&'static dyn radio::RxClient>,
+    tx_client: OptionalCell<&'a dyn radio::TxClient>,
+    rx_client: OptionalCell<&'a dyn radio::RxClient>,
 }
 
-impl<'a, R: radio::Radio> AwakeMac<'a, R> {
+impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
             radio: radio,
@@ -88,7 +88,7 @@ impl<'a, R: radio::Radio> AwakeMac<'a, R> {
     }
 }
 
-impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
+impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
     fn initialize(&self, _mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
         // do nothing, extra buffer unnecessary
         Ok(())
@@ -98,7 +98,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
         self.radio.is_on()
     }
 
-    fn set_config_client(&self, client: &'static dyn radio::ConfigClient) {
+    fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
         self.radio.set_config_client(client)
     }
 
@@ -130,11 +130,11 @@ impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
         self.radio.config_commit()
     }
 
-    fn set_transmit_client(&self, client: &'static dyn radio::TxClient) {
+    fn set_transmit_client(&self, client: &'a dyn radio::TxClient) {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'static dyn radio::RxClient) {
+    fn set_receive_client(&self, client: &'a dyn radio::RxClient) {
         self.rx_client.set(client);
     }
 
@@ -151,7 +151,7 @@ impl<R: radio::Radio> Mac for AwakeMac<'_, R> {
     }
 }
 
-impl<R: radio::Radio> radio::TxClient for AwakeMac<'_, R> {
+impl<'a, R: radio::Radio<'a>> radio::TxClient for AwakeMac<'a, R> {
     fn send_done(&self, buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.tx_client.map(move |c| {
             c.send_done(buf, acked, result);
@@ -159,7 +159,7 @@ impl<R: radio::Radio> radio::TxClient for AwakeMac<'_, R> {
     }
 }
 
-impl<R: radio::Radio> radio::RxClient for AwakeMac<'_, R> {
+impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
     fn receive(
         &self,
         buf: &'static mut [u8],

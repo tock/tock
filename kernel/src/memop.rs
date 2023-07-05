@@ -44,18 +44,16 @@ use crate::ErrorCode;
 pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> SyscallReturn {
     match op_type {
         // Op Type 0: BRK
-        0 /* BRK */ => {
-            process.brk(r1 as *const u8)
-                .map(|_| SyscallReturn::Success)
-                .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM))
-        },
+        0 => process
+            .brk(r1 as *const u8)
+            .map(|_| SyscallReturn::Success)
+            .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 1: SBRK
-        1 /* SBRK */ => {
-            process.sbrk(r1 as isize)
-                .map(|addr| SyscallReturn::SuccessU32(addr as u32))
-                .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM))
-        },
+        1 => process
+            .sbrk(r1 as isize)
+            .map(|addr| SyscallReturn::SuccessU32(addr as u32))
+            .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 2: Process memory start
         2 => SyscallReturn::SuccessU32(process.get_addresses().sram_start as u32),

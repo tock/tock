@@ -122,7 +122,7 @@ where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
     P: gpio::Pin,
-    S: 'static + SpiMaster,
+    S: 'static + SpiMaster<'static>,
 {
     spi: &'static MuxSpiMaster<'static, S>,
     chip_select: &'static P,
@@ -136,7 +136,7 @@ where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
     P: gpio::Pin,
-    S: 'static + SpiMaster,
+    S: 'static + SpiMaster<'static>,
 {
     pub fn new(
         spi: &'static MuxSpiMaster<'static, S>,
@@ -160,7 +160,7 @@ impl<A, P, S> Component for Lpm013m126Component<A, P, S>
 where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
-    S: 'static + SpiMaster<ChipSelect = &'static mut Inverted<'static, P>>,
+    S: 'static + SpiMaster<'static, ChipSelect = &'static mut Inverted<'static, P>>,
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

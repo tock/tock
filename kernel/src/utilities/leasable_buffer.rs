@@ -152,7 +152,7 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.internal.len(),
+            Bound::Unbounded => self.active_range.end,
         };
 
         let new_start = self.active_range.start + start;
@@ -237,7 +237,7 @@ impl<'a, T> LeasableBuffer<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.internal.len(),
+            Bound::Unbounded => self.active_range.end,
         };
 
         let new_start = self.active_range.start + start;

@@ -60,9 +60,9 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
         let mut first_head = None;
         let mut next = None;
 
-        // Find next ready process. Place any *empty* process slots, or not-ready
-        // processes, at the back of the queue.
-        for node in self.processes.iter() {
+        // Find the first ready process in the queue. Place any *empty* process slots,
+        // or not-ready processes, at the back of the queue.
+        while let Some(node) = self.processes.head() {
             // Ensure we do not loop forever if all processes are not not ready
             match first_head {
                 None => first_head = Some(node),

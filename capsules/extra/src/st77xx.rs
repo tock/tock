@@ -215,8 +215,8 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     width: Cell<usize>,
     height: Cell<usize>,
 
-    client: OptionalCell<&'static dyn screen::ScreenClient>,
-    setup_client: OptionalCell<&'static dyn screen::ScreenSetupClient>,
+    client: OptionalCell<&'a dyn screen::ScreenClient>,
+    setup_client: OptionalCell<&'a dyn screen::ScreenSetupClient>,
     setup_command: Cell<bool>,
 
     sequence_buffer: TakeCell<'static, [SendCommand]>,
@@ -681,8 +681,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A, B, P> {
-    fn set_client(&self, setup_client: Option<&'static dyn ScreenSetupClient>) {
+impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup<'a> for ST77XX<'a, A, B, P> {
+    fn set_client(&self, setup_client: Option<&'a dyn ScreenSetupClient>) {
         if let Some(setup_client) = setup_client {
             self.setup_client.set(setup_client);
         } else {
@@ -743,7 +743,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup for ST77XX<'a, A,
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, B, P> {
     fn get_resolution(&self) -> (usize, usize) {
         (self.width.get(), self.height.get())
     }
@@ -830,7 +830,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen for ST77XX<'a, A, B, P
         }
     }
 
-    fn set_client(&self, client: Option<&'static dyn ScreenClient>) {
+    fn set_client(&self, client: Option<&'a dyn ScreenClient>) {
         if let Some(client) = client {
             self.client.set(client);
         } else {

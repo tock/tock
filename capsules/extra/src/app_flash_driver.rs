@@ -19,11 +19,11 @@
 //! ```
 //! # use kernel::static_init;
 //!
-//! pub static mut APP_FLASH_BUFFER: [u8; 512] = [0; 512];
+//! let app_flash_buffer = static_init!([u8; 512], [0; 512]);
 //! let app_flash = static_init!(
 //!     capsules::app_flash_driver::AppFlash<'static>,
 //!     capsules::app_flash_driver::AppFlash::new(nv_to_page,
-//!         board_kernel.create_grant(&grant_cap), &mut APP_FLASH_BUFFER));
+//!         board_kernel.create_grant(&grant_cap), app_flash_buffer));
 //! ```
 
 use core::cmp;
@@ -53,7 +53,7 @@ pub struct App {
 }
 
 pub struct AppFlash<'a> {
-    driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
+    driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
@@ -61,7 +61,7 @@ pub struct AppFlash<'a> {
 
 impl<'a> AppFlash<'a> {
     pub fn new(
-        driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'static>,
+        driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
@@ -130,7 +130,7 @@ impl<'a> AppFlash<'a> {
     }
 }
 
-impl hil::nonvolatile_storage::NonvolatileStorageClient<'static> for AppFlash<'_> {
+impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {}
 
     fn write_done(&self, buffer: &'static mut [u8], _length: usize) {
@@ -220,11 +220,10 @@ impl SyscallDriver for AppFlash<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 /* This driver exists. */ => {
-                CommandReturn::success()
-            }
+            0 => CommandReturn::success(),
 
-            1 /* Write to flash from the allowed buffer */ => {
+            1 => {
+                // Write to flash from the allowed buffer
                 let flash_address = arg1;
 
                 let res = self.enqueue_write(flash_address, processid);
@@ -235,7 +234,7 @@ impl SyscallDriver for AppFlash<'_> {
                 }
             }
 
-            _ /* Unknown command num */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 

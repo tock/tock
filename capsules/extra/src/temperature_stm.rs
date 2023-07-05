@@ -20,7 +20,7 @@ pub enum Status {
 }
 
 pub struct TemperatureSTM<'a> {
-    adc: &'a dyn adc::AdcChannel,
+    adc: &'a dyn adc::AdcChannel<'a>,
     slope: f32,
     v_25: f32,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
@@ -30,7 +30,7 @@ pub struct TemperatureSTM<'a> {
 impl<'a> TemperatureSTM<'a> {
     /// slope - device specific slope found in datasheet
     /// v_25 - voltage at 25 degrees Celsius found in datasheet
-    pub fn new(adc: &'a dyn adc::AdcChannel, slope: f32, v_25: f32) -> TemperatureSTM<'a> {
+    pub fn new(adc: &'a dyn adc::AdcChannel<'a>, slope: f32, v_25: f32) -> TemperatureSTM<'a> {
         TemperatureSTM {
             adc: adc,
             slope: slope,

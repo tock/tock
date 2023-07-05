@@ -180,28 +180,34 @@ impl<'a> SyscallDriver for RngDriver<'a> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 /* Check if exists */ =>
-            {
-                CommandReturn::success()
+            // Check if exists
+            0 => CommandReturn::success(),
+
+            // Ask for a given number of random bytes
+            1 => {
+                let mut needs_get = false;
+                let result = self
+                    .apps
+                    .enter(processid, |app, _| {
+                        app.remaining = data;
+                        app.idx = 0;
+
+                        // Assume that the process has a callback & slice
+                        // set. It might die or revoke them before the
+                        // result arrives anyways
+                        if !self.getting_randomness.get() {
+                            self.getting_randomness.set(true);
+                            needs_get = true;
+                        }
+
+                        CommandReturn::success()
+                    })
+                    .unwrap_or_else(|err| CommandReturn::failure(err.into()));
+                if needs_get {
+                    let _ = self.rng.get();
+                }
+                result
             }
-
-            1 /* Ask for a given number of random bytes */ => self
-                .apps
-                .enter(processid, |app, _| {
-                    app.remaining = data;
-                    app.idx = 0;
-
-                    // Assume that the process has a callback & slice
-                    // set. It might die or revoke them before the
-                    // result arrives anyways
-                    if !self.getting_randomness.get() {
-                        self.getting_randomness.set(true);
-                        let _ = self.rng.get();
-                    }
-
-                    CommandReturn::success()
-                })
-                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

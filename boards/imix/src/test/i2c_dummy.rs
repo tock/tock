@@ -15,11 +15,11 @@ use kernel::hil::i2c::{Error, I2CMaster};
 
 struct ScanClient {
     dev_id: Cell<u8>,
-    i2c_master: &'static dyn I2CMaster,
+    i2c_master: &'static dyn I2CMaster<'static>,
 }
 
 impl ScanClient {
-    pub fn new(i2c_master: &'static dyn I2CMaster) -> Self {
+    pub fn new(i2c_master: &'static dyn I2CMaster<'static>) -> Self {
         Self {
             dev_id: Cell::new(1),
             i2c_master,
@@ -35,7 +35,7 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
             debug!("{:#x}", dev_id);
         }
 
-        let dev: &dyn I2CMaster = self.i2c_master;
+        let dev: &dyn I2CMaster<'static> = self.i2c_master;
         if dev_id < 0x7F {
             dev_id += 1;
             self.dev_id.set(dev_id);
@@ -50,7 +50,7 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
 }
 
 /// This test should be called with I2C2, specifically
-pub fn i2c_scan_slaves(i2c_master: &'static mut dyn I2CMaster) {
+pub fn i2c_scan_slaves(i2c_master: &'static mut dyn I2CMaster<'static>) {
     static mut DATA: [u8; 255] = [0; 255];
 
     let dev = i2c_master;
@@ -79,11 +79,11 @@ enum AccelClientState {
 
 struct AccelClient {
     state: Cell<AccelClientState>,
-    i2c_master: &'static dyn I2CMaster,
+    i2c_master: &'static dyn I2CMaster<'static>,
 }
 
 impl AccelClient {
-    pub fn new(i2c_master: &'static dyn I2CMaster) -> Self {
+    pub fn new(i2c_master: &'static dyn I2CMaster<'static>) -> Self {
         Self {
             state: Cell::new(AccelClientState::ReadingWhoami),
             i2c_master,
@@ -147,7 +147,7 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
 }
 
 /// This test should be called with I2C2, specifically
-pub fn i2c_accel_test(i2c_master: &'static dyn I2CMaster) {
+pub fn i2c_accel_test(i2c_master: &'static dyn I2CMaster<'static>) {
     static mut DATA: [u8; 255] = [0; 255];
 
     let dev = i2c_master;
@@ -175,11 +175,11 @@ enum LiClientState {
 
 struct LiClient {
     state: Cell<LiClientState>,
-    i2c_master: &'static dyn I2CMaster,
+    i2c_master: &'static dyn I2CMaster<'static>,
 }
 
 impl LiClient {
-    pub fn new(i2c_master: &'static dyn I2CMaster) -> Self {
+    pub fn new(i2c_master: &'static dyn I2CMaster<'static>) -> Self {
         Self {
             state: Cell::new(LiClientState::Enabling),
             i2c_master,
@@ -215,7 +215,7 @@ impl hil::i2c::I2CHwMasterClient for LiClient {
 }
 
 /// This test should be called with I2C2, specifically
-pub fn i2c_li_test(i2c_master: &'static dyn I2CMaster) {
+pub fn i2c_li_test(i2c_master: &'static dyn I2CMaster<'static>) {
     static mut DATA: [u8; 255] = [0; 255];
 
     let pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PA16);

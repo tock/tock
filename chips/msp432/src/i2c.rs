@@ -90,19 +90,18 @@ impl<'a> I2c<'a> {
 
     fn enable_interrupts(&self) {
         // Enable interrupts
+        //
+        // Enable NACK interrupt
+        // Enable RX interrupt
+        // Enable Stop condition interrupt
+        // Enable Start condition interrupt
+        // Enable 'arbitration lost' interrupt
         self.registers.ie.modify(
-            // Enable NACK interrupt
             usci::UCBxIE::UCNACKIE::SET
-            // Enable TX interrupt
-            // + usci::UCBxIE::UCTXIE0::SET
-            // Enable RX interrupt
-            + usci::UCBxIE::UCRXIE0::SET
-            // Enable Stop condition interrupt
-            + usci::UCBxIE::UCSTPIE::SET
-            // Enable Start condition interrupt
-            + usci::UCBxIE::UCSTTIE::SET
-            // Enable 'arbitration lost' interrupt
-            + usci::UCBxIE::UCALIE::SET,
+                + usci::UCBxIE::UCRXIE0::SET
+                + usci::UCBxIE::UCSTPIE::SET
+                + usci::UCBxIE::UCSTTIE::SET
+                + usci::UCBxIE::UCALIE::SET,
         );
     }
 
@@ -142,30 +141,30 @@ impl<'a> I2c<'a> {
     fn setup(&self) {
         self.set_module_to_reset();
 
+        // Use 7 bit addresses
+        // Setup to master mode
+        // Setup to single master environment
+        // Configure USCI module to I2C mode
+        // Enable Synchronous mode
+        // Set clock source to SMCLK (1.5MHz)
         self.registers.ctlw0.modify(
-            // Use 7 bit addresses
             usci::UCBxCTLW0::UCSLA10::AddressSlaveWith7BitAddress
-            // Setup to master mode
-            + usci::UCBxCTLW0::UCMST::MasterMode
-            // Setup to single master environment
-            + usci::UCBxCTLW0::UCMM::SingleMasterEnvironment
-            // Configure USCI module to I2C mode
-            + usci::UCBxCTLW0::UCMODE::I2CMode
-            // Enable Synchronous mode
-            + usci::UCBxCTLW0::UCSYNC::SynchronousMode
-            // Set clock source to SMCLK (1.5MHz)
-            + usci::UCBxCTLW0::UCSSEL::SMCLK,
+                + usci::UCBxCTLW0::UCMST::MasterMode
+                + usci::UCBxCTLW0::UCMM::SingleMasterEnvironment
+                + usci::UCBxCTLW0::UCMODE::I2CMode
+                + usci::UCBxCTLW0::UCSYNC::SynchronousMode
+                + usci::UCBxCTLW0::UCSSEL::SMCLK,
         );
 
+        // Disable clock low timeout
+        // Send a NACK before a stop condition
+        // Generate the ACK bit by hardware
+        // Set glitch filtering to 50ns (according to I2C standard)
         self.registers.ctlw1.modify(
-            // Disable clock low timeout
             usci::UCBxCTLW1::UCCLTO::CLEAR
-            // Send a NACK before a stop condition
-            + usci::UCBxCTLW1::UCSTPNACK::NackBeforeStop
-            // Generate the ACK bit by hardware
-            + usci::UCBxCTLW1::UCSWACK::HardwareTriggered
-            // Set glitch filtering to 50ns (according to I2C standard)
-            + usci::UCBxCTLW1::UCGLIT::_50ns,
+                + usci::UCBxCTLW1::UCSTPNACK::NackBeforeStop
+                + usci::UCBxCTLW1::UCSWACK::HardwareTriggered
+                + usci::UCBxCTLW1::UCGLIT::_50ns,
         );
 
         // Don't clear the module reset here since we set the state to Disabled
@@ -271,8 +270,8 @@ impl<'a> I2c<'a> {
     }
 }
 
-impl<'a> i2c::I2CMaster for I2c<'a> {
-    fn set_master_client(&self, master_client: &'static dyn i2c::I2CHwMasterClient) {
+impl<'a> i2c::I2CMaster<'a> for I2c<'a> {
+    fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }
 
