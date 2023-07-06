@@ -17,11 +17,11 @@
 //! 2. .ignore
 //! 3. .gitignore
 
+use colored::ColoredString;
+use colored::Colorize;
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::process::exit;
-
-use colored::Colorize;
 
 mod parser;
 use parser::{Cache, LineContents, ParseError, Parser};
@@ -46,32 +46,28 @@ struct Args {
     verbose: bool,
 }
 
-const ERROR_MESSAGE: &str = "error:";
-
-macro_rules! bright_red_and_bold_error_message {
-    () => {
-        ERROR_MESSAGE.bright_red().bold()
-    };
+fn error_prefix() -> ColoredString {
+    "error:".bright_red().bold()
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum LicenseError {
-    #[error("{} {}", bright_red_and_bold_error_message!(), "license header missing")]
+    #[error("{} {}", error_prefix(), "license header missing")]
     Missing,
 
-    #[error("{} {}", bright_red_and_bold_error_message!(), "missing blank line after header")]
+    #[error("{} {}", error_prefix(), "missing blank line after header")]
     MissingBlank,
 
-    #[error("{} {}", bright_red_and_bold_error_message!(), "missing copyright line")]
+    #[error("{} {}", error_prefix(), "missing copyright line")]
     MissingCopyright,
 
-    #[error("{} {}", bright_red_and_bold_error_message!(), "missing SPDX line")]
+    #[error("{} {}", error_prefix(), "missing SPDX line")]
     MissingSpdx,
 
-    #[error("{} {}", bright_red_and_bold_error_message!(), "incorrect first line")]
+    #[error("{} {}", error_prefix(), "incorrect first line")]
     WrongFirst,
 
-    #[error("{} {}", bright_red_and_bold_error_message!(), "wrong SPDX line")]
+    #[error("{} {}", error_prefix(), "wrong SPDX line")]
     WrongSpdx,
 }
 
