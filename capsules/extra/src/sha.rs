@@ -114,7 +114,7 @@ impl<
     fn run(&self) -> Result<(), ErrorCode> {
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(*processid, |app, kernel_data| {
+                .enter(processid, |app, kernel_data| {
                     let ret = if let Some(op) = &app.sha_operation {
                         match op {
                             ShaOperation::Sha256 => self.sha.set_mode_sha256(),
@@ -242,7 +242,7 @@ impl<
     ) {
         self.processid.map(move |id| {
             self.apps
-                .enter(*id, move |app, kernel_data| {
+                .enter(id, move |app, kernel_data| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
@@ -377,7 +377,7 @@ impl<
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.processid.map(|id| {
             self.apps
-                .enter(*id, |_, kernel_data| {
+                .enter(id, |_, kernel_data| {
                     self.sha.clear_data();
 
                     let pointer = digest.as_ref()[0] as *mut u8;
@@ -431,7 +431,7 @@ impl<
     fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         self.processid.map(|id| {
             self.apps
-                .enter(*id, |_app, kernel_data| {
+                .enter(id, |_app, kernel_data| {
                     self.sha.clear_data();
 
                     match result {
@@ -500,7 +500,7 @@ impl<
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &processid
+                owning_app == processid
             } else {
                 // Check the app still exists.
                 //
@@ -510,7 +510,7 @@ impl<
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &processid)
+                    .enter(owning_app, |_, _| owning_app == processid)
                     .unwrap_or(true)
             }
         });
@@ -524,7 +524,7 @@ impl<
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &processid
+                owning_app == processid
             } else {
                 // Check the app still exists.
                 //
@@ -534,7 +534,7 @@ impl<
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &processid)
+                    .enter(owning_app, |_, _| owning_app == processid)
                     .unwrap_or(true)
             }
         });

@@ -177,7 +177,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -272,7 +272,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiSlaveClient for SpiPeripheral<'a, S> {
         _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, kernel_data| {
+            let _ = self.grants.enter(process_id, move |app, kernel_data| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
                     let _ = kernel_data
@@ -325,7 +325,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiSlaveClient for SpiPeripheral<'a, S> {
     // Simple callback for when chip has been selected
     fn chip_selected(&self) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, kernel_data| {
+            let _ = self.grants.enter(process_id, move |app, kernel_data| {
                 let len = app.len;
                 kernel_data.schedule_upcall(1, (len, 0, 0)).ok();
             });

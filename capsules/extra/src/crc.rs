@@ -410,7 +410,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                     // Put the kernel buffer back
                     self.crc_buffer.replace(buffer.take());
                     self.current_process.map(|pid| {
-                        let _res = self.grant.enter(*pid, |grant, kernel_data| {
+                        let _res = self.grant.enter(pid, |grant, kernel_data| {
                             // This shouldn't happen unless there's a way to clear out a request
                             // through a system call: regardless, the request is gone, so cancel
                             // the CRC.
@@ -505,7 +505,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                         Err((e, returned_buffer)) => {
                             self.crc_buffer.replace(returned_buffer.take());
                             self.current_process.map(|pid| {
-                                let _res = self.grant.enter(*pid, |grant, kernel_data| {
+                                let _res = self.grant.enter(pid, |grant, kernel_data| {
                                     grant.request = None;
                                     kernel_data
                                         .schedule_upcall(
@@ -523,7 +523,7 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                 // The callback returned an error, pass it back to userspace
                 self.crc_buffer.replace(buffer.take());
                 self.current_process.map(|pid| {
-                    let _res = self.grant.enter(*pid, |grant, kernel_data| {
+                    let _res = self.grant.enter(pid, |grant, kernel_data| {
                         grant.request = None;
                         kernel_data
                             .schedule_upcall(0, (kernel::errorcode::into_statuscode(Err(e)), 0, 0))

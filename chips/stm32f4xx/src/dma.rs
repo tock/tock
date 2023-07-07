@@ -807,7 +807,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
 
         self.client.map(|client| {
             self.peripheral.map(|pid| {
-                client.transfer_done(*pid);
+                client.transfer_done(pid);
             });
         });
     }

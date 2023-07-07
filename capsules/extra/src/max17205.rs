@@ -419,7 +419,7 @@ impl<'a, I: i2c::I2CDevice> MAX17205Driver<'a, I> {
 impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -442,7 +442,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
         error: Result<(), ErrorCode>,
     ) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -459,7 +459,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
 
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -476,7 +476,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -493,7 +493,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -542,7 +542,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

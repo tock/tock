@@ -349,7 +349,7 @@ where
             self.write_complete_pending_call.map(|pend| {
                 self.buffer
                     .take()
-                    .map(|buffer| client.write_complete(buffer, *pend));
+                    .map(|buffer| client.write_complete(buffer, pend));
             });
             self.write_complete_pending_call.take();
         });

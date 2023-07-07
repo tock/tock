@@ -185,20 +185,18 @@ impl<T: Copy> OptionalCell<T> {
     /// Call a closure on the value if the value exists.
     pub fn map<F, R>(&self, closure: F) -> Option<R>
     where
-        F: FnOnce(&mut T) -> R,
+        F: FnOnce(T) -> R,
     {
-        self.value.get().map(|mut val| closure(&mut val))
+        self.value.get().map(|val| closure(val))
     }
 
     /// Call a closure on the value if the value exists, or return the
     /// default if the value is `None`.
     pub fn map_or<F, R>(&self, default: R, closure: F) -> R
     where
-        F: FnOnce(&mut T) -> R,
+        F: FnOnce(T) -> R,
     {
-        self.value
-            .get()
-            .map_or(default, |mut val| closure(&mut val))
+        self.value.get().map_or(default, |val| closure(val))
     }
 
     /// If the cell contains a value, call a closure supplied with the
@@ -207,11 +205,9 @@ impl<T: Copy> OptionalCell<T> {
     pub fn map_or_else<U, D, F>(&self, default: D, closure: F) -> U
     where
         D: FnOnce() -> U,
-        F: FnOnce(&mut T) -> U,
+        F: FnOnce(T) -> U,
     {
-        self.value
-            .get()
-            .map_or_else(default, |mut val| closure(&mut val))
+        self.value.get().map_or_else(default, |val| closure(val))
     }
 
     /// If the cell is empty, return `None`. Otherwise, call a closure

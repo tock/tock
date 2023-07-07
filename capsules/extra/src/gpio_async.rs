@@ -109,7 +109,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
     fn done(&self, value: usize) {
         // alert currently configuring app
         self.configuring_process.map(|pid| {
-            let _ = self.grants.enter(*pid, |_app, upcalls| {
+            let _ = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (0, value, 0)).ok();
             });
         });
