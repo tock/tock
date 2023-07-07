@@ -163,6 +163,7 @@ allstack stack stack-analysis:
 
 .PHONY: licensecheck
 licensecheck:
+	$(call banner,License checker)
 	@cargo run --manifest-path=tools/license-checker/Cargo.toml --release
 
 ## Commands
