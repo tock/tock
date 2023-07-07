@@ -558,7 +558,7 @@ impl<'a> Can<'a> {
             false => self.registers.can_mcr.modify(CAN_MCR::NART::SET),
         }
 
-        if let Some(operating_mode_settings) = self.operating_mode.extract() {
+        if let Some(operating_mode_settings) = self.operating_mode.get() {
             match operating_mode_settings {
                 can::OperationMode::Loopback => self.registers.can_btr.modify(CAN_BTR::LBKM::SET),
                 can::OperationMode::Monitoring => self.registers.can_btr.modify(CAN_BTR::SILM::SET),
@@ -568,7 +568,7 @@ impl<'a> Can<'a> {
         }
 
         // set bit timing mode
-        if let Some(bit_timing_settings) = self.bit_timing.extract() {
+        if let Some(bit_timing_settings) = self.bit_timing.get() {
             self.registers
                 .can_btr
                 .modify(CAN_BTR::TS1.val(bit_timing_settings.segment1 as u32));
@@ -1180,7 +1180,7 @@ impl<'a> can::Configure for Can<'_> {
     }
 
     fn get_bit_timing(&self) -> Result<can::BitTiming, kernel::ErrorCode> {
-        if let Some(bit_timing) = self.bit_timing.extract() {
+        if let Some(bit_timing) = self.bit_timing.get() {
             Ok(bit_timing)
         } else {
             Err(kernel::ErrorCode::INVAL)
@@ -1188,7 +1188,7 @@ impl<'a> can::Configure for Can<'_> {
     }
 
     fn get_operation_mode(&self) -> Result<can::OperationMode, kernel::ErrorCode> {
-        if let Some(operation_mode) = self.operating_mode.extract() {
+        if let Some(operation_mode) = self.operating_mode.get() {
             Ok(operation_mode)
         } else {
             Err(kernel::ErrorCode::INVAL)

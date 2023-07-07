@@ -437,7 +437,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
         &self,
         mut data: LeasableMutableBuffer<'static, u8>,
     ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
-        let algorithm = if let Some(algorithm) = self.algorithm.extract() {
+        let algorithm = if let Some(algorithm) = self.algorithm.get() {
             algorithm
         } else {
             return Err((ErrorCode::RESERVE, data));

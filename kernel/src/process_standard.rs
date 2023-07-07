@@ -1042,7 +1042,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn get_completion_code(&self) -> Option<Option<u32>> {
-        self.completion_code.extract()
+        self.completion_code.get()
     }
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
