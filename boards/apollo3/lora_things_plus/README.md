@@ -110,7 +110,7 @@ Then in the Tock repo you can flash the app with:
 
 ```shell
 $ make flash; APP=LoRaMac-node/build/src/apps/ping-pong/ping-pong.tbf make flash-app
-``
+```
 
 ### RadioLib
 
