@@ -4,7 +4,6 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
-use crate::process::ProcessId;
 use core::cmp;
 use core::fmt::{self, Display};
 
@@ -57,8 +56,7 @@ impl Region {
 /// Null type for the default type of the `MpuConfig` type in an implementation
 /// of the `MPU` trait. This custom type allows us to implement `Display` with
 /// an empty implementation to meet the constraint on `type MpuConfig`.
-#[derive(Default)]
-pub struct MpuConfigDefault {}
+pub struct MpuConfigDefault;
 
 impl Display for MpuConfigDefault {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -92,7 +90,7 @@ pub trait MPU {
     /// It is `Default` so we can create empty state when the process is
     /// created, and `Display` so that the `panic!()` output can display the
     /// current state to help with debugging.
-    type MpuConfig: Default + Display;
+    type MpuConfig: Display;
 
     /// Clears the MPU.
     ///
@@ -120,6 +118,23 @@ pub trait MPU {
 
     /// Returns the maximum number of regions supported by the MPU.
     fn number_total_regions(&self) -> usize;
+
+    /// Creates a new empty MPU configuration.
+    ///
+    /// The returned configuration must not have any userspace-accessible
+    /// regions pre-allocated.
+    ///
+    /// The underlying implementation may only be able to allocate a finite
+    /// number of MPU configurations. It may return `None` if this resource is
+    /// exhausted.
+    fn new_config(&self) -> Option<Self::MpuConfig>;
+
+    /// Resets an MPU configuration.
+    ///
+    /// This method resets an MPU configuration to its initial state, as
+    /// returned by [`MPU::new_config`]. After invoking this operation, it must
+    /// not have any userspace-acessible regions pre-allocated.
+    fn reset_config(&self, config: &mut Self::MpuConfig);
 
     /// Allocates a new MPU region.
     ///
@@ -251,8 +266,7 @@ pub trait MPU {
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
-    /// - `processid`: ProcessId of the process that the MPU is configured for
-    fn configure_mpu(&self, config: &Self::MpuConfig, processid: &ProcessId);
+    fn configure_mpu(&self, config: &Self::MpuConfig);
 }
 
 /// Implement default MPU trait for unit.
@@ -268,6 +282,12 @@ impl MPU for () {
     fn number_total_regions(&self) -> usize {
         0
     }
+
+    fn new_config(&self) -> Option<MpuConfigDefault> {
+        Some(MpuConfigDefault)
+    }
+
+    fn reset_config(&self, _config: &mut Self::MpuConfig) {}
 
     fn allocate_region(
         &self,
@@ -327,7 +347,7 @@ impl MPU for () {
         }
     }
 
-    fn configure_mpu(&self, _config: &Self::MpuConfig, _processid: &ProcessId) {}
+    fn configure_mpu(&self, _config: &Self::MpuConfig) {}
 }
 
 /// The generic trait that particular kernel level memory protection unit
@@ -347,7 +367,14 @@ pub trait KernelMPU {
     /// It is `Default` so we can create empty state when the kernel is
     /// created, and `Display` so that the `panic!()` output can display the
     /// current state to help with debugging.
-    type KernelMpuConfig: Default + Display;
+    type KernelMpuConfig: Display;
+
+    /// Creates a new kernel MPU configuration.
+    ///
+    /// The underlying implementation may only be able to allocate a finite
+    /// number of MPU configurations. It may return `None` if this resource is
+    /// exhausted.
+    fn new_kernel_config(&self) -> Option<Self::KernelMpuConfig>;
 
     /// Mark a region of memory that the Tock kernel owns.
     ///
