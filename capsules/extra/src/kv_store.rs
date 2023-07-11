@@ -302,7 +302,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
         self.inflight.take().map(|node| {
             node.operation.map(|op| {
                 if result.is_err() {
-                    // One error, we re-store our state, run the next pending
+                    // On error, we re-store our state, run the next pending
                     // operation, and notify the original user that their
                     // operation failed using a callback.
                     self.hashed_key.replace(hashed_key);
