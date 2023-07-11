@@ -89,7 +89,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVSystemDrive
     fn run(&self) -> Result<(), ErrorCode> {
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(*processid, |app, kernel_data| {
+                .enter(processid, |app, kernel_data| {
                     if let Some(operation) = app.op.get() {
                         match operation {
                             UserSpaceOp::Get => {
@@ -281,7 +281,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
         self.dest_buffer.replace(ret_buf);
 
         self.processid.map(move |id| {
-            self.apps.enter(*id, move |app, upcalls| {
+            self.apps.enter(id, move |app, upcalls| {
                 if app.op.get().map(|op| op == UserSpaceOp::Get).is_some() {
                     if let Err(e) = result {
                         upcalls
@@ -339,7 +339,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
         self.dest_buffer.replace(value);
 
         self.processid.map(move |id| {
-            self.apps.enter(*id, move |app, upcalls| {
+            self.apps.enter(id, move |app, upcalls| {
                 if app.op.get().map(|op| op == UserSpaceOp::Set).is_some() {
                     if let Err(e) = result {
                         upcalls
@@ -362,7 +362,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::St
         self.data_buffer.replace(key);
 
         self.processid.map(move |id| {
-            self.apps.enter(*id, move |app, upcalls| {
+            self.apps.enter(id, move |app, upcalls| {
                 if app.op.get().map(|op| op == UserSpaceOp::Delete).is_some() {
                     if let Err(e) = result {
                         upcalls
@@ -401,7 +401,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &processid
+                owning_app == processid
             } else {
                 // Check the app still exists.
                 //
@@ -411,7 +411,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &processid)
+                    .enter(owning_app, |_, _| owning_app == processid)
                     .unwrap_or(true)
             }
         });

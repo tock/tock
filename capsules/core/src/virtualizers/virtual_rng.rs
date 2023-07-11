@@ -142,7 +142,7 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
             },
             |current_node| {
                 // Find if current device is the one in flight or not
-                if *current_node == self {
+                if current_node == self {
                     self.mux.rng.cancel()
                 } else {
                     Ok(())

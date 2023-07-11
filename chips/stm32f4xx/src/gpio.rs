@@ -1250,6 +1250,6 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
 
     fn is_pending(&self) -> bool {
         self.exti_lineid
-            .map_or(false, |&mut lineid| self.exti.is_pending(lineid))
+            .map_or(false, |lineid| self.exti.is_pending(lineid))
     }
 }

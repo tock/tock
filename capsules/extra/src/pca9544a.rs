@@ -154,7 +154,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
                 };
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                    let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
                             .schedule_upcall(0, (field as usize + 1, ret as usize, 0))
                             .ok();
@@ -167,7 +167,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
             }
             State::Done => {
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                    let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                     });
                 });
@@ -214,7 +214,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

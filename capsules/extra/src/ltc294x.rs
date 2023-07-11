@@ -447,7 +447,7 @@ impl<'a, I: i2c::I2CDevice> LTC294XDriver<'a, I> {
 impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
     fn interrupt(&self) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |_app, upcalls| {
+            let _res = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (0, 0, 0)).ok();
             });
         });
@@ -467,7 +467,7 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
             | ((charge_alert_high as usize) << 3)
             | ((accumulated_charge_overflow as usize) << 4);
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |_app, upcalls| {
+            let _res = self.grants.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(0, (1, ret, self.ltc294x.model.get() as usize))
                     .ok();
@@ -477,7 +477,7 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
 
     fn charge(&self, charge: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |_app, upcalls| {
+            let _res = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (2, charge as usize, 0)).ok();
             });
         });
@@ -485,7 +485,7 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
 
     fn done(&self) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |_app, upcalls| {
+            let _res = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (3, 0, 0)).ok();
             });
         });
@@ -493,7 +493,7 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
 
     fn voltage(&self, voltage: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |_app, upcalls| {
+            let _res = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (4, voltage as usize, 0)).ok();
             });
         });
@@ -501,7 +501,7 @@ impl<I: i2c::I2CDevice> LTC294XClient for LTC294XDriver<'_, I> {
 
     fn current(&self, current: u16) {
         self.owning_process.map(|pid| {
-            let _res = self.grants.enter(*pid, |_app, upcalls| {
+            let _res = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (5, current as usize, 0)).ok();
             });
         });
@@ -555,7 +555,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for LTC294XDriver<'_, I> {
 
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
