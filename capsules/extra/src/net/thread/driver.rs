@@ -10,8 +10,12 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded).
 
+use crate::net::ieee802154::MacAddress;
 use crate::net::ieee802154::SecurityLevel;
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ip_utils::MacAddr;
+use crate::net::ipv6::ip_utils::DEFAULT_DST_MAC_ADDR;
+
 use crate::net::network_capabilities::NetworkCapability;
 use crate::net::stream::encode_bytes;
 use crate::net::stream::encode_u16;
@@ -19,6 +23,7 @@ use crate::net::stream::encode_u32;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
 use crate::net::udp::udp_port_table::UdpPortBindingRx;
+use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
 use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
@@ -155,7 +160,7 @@ impl<'a> ThreadNetworkDriver<'a> {
         driver_send_cap: &'static dyn UdpDriverCapability,
         net_cap: &'static NetworkCapability,
     ) -> ThreadNetworkDriver<'a> {
-        ThreadNetworkDriver {
+        let a = ThreadNetworkDriver {
             sender: sender,
             crypto: crypto,
             apps: grant,
@@ -166,32 +171,20 @@ impl<'a> ThreadNetworkDriver<'a> {
             kernel_buffer: MapCell::new(kernel_buffer),
             driver_send_cap: driver_send_cap,
             net_cap: net_cap,
-        }
+        };
+        a
     }
 
-    pub fn init_binding(&self) -> UdpPortBindingRx {
-        let key = [
-            0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
-        ];
-        let device_addr = [0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7];
-        let framer_counter = 0;
-        let level = SecurityLevel::EncMic32;
-
-        kernel::debug!("RES FROM KEY SET: {:?}", self.crypto.set_key(&key));
-        kernel::debug!(
-            "RES FROM NONCE SET: {:?}",
-            self.crypto
-                .set_nonce(&get_ccm_nonce(&device_addr, framer_counter, level))
-        );
-
+    pub fn init_binding(&self) -> (UdpPortBindingRx, UdpPortBindingTx) {
         match self.port_table.create_socket() {
             Ok(socket) => {
                 kernel::debug!("successfully created a socket");
                 // 16123
-                match self.port_table.bind(socket, 19788, self.net_cap) {
-                    Ok((_, udp_rx)) => {
+                match self.port_table.bind(socket, 5000, self.net_cap) {
+                    Ok((udp_tx, udp_rx)) => {
                         kernel::debug!("successfully bound to port");
-                        udp_rx
+                        kernel::debug!("UDP RX {:?} ;; UDP TX {:?}", udp_rx, udp_tx);
+                        (udp_rx, udp_tx)
                     }
                     Err(_) => panic!("failed bind to port"),
                 }
@@ -252,6 +245,7 @@ impl<'a> ThreadNetworkDriver<'a> {
             let dst_addr = addr_ports[1].addr;
             let dst_port = addr_ports[1].port;
             let src_port = addr_ports[0].port;
+            let dst_mac = MacAddress::Short(0xFFFF);
 
             // Send UDP payload. Copy payload into packet buffer held by this driver, then queue
             // it on the udp_mux.
@@ -270,6 +264,7 @@ impl<'a> ThreadNetworkDriver<'a> {
                                 kernel_buffer.slice(0..payload.len());
                                 match self.sender.driver_send_to(
                                     dst_addr,
+                                    DEFAULT_DST_MAC_ADDR,
                                     dst_port,
                                     src_port,
                                     kernel_buffer,
@@ -346,6 +341,52 @@ impl<'a> ThreadNetworkDriver<'a> {
             };
             Some(pair)
         }
+    }
+
+    pub fn send_mle(&self) {
+        kernel::debug!("sending MLE");
+
+        let mode_tlv: [u8; 3] = [0x01, 0x01, 0x0f];
+        let challenge_tlv: [u8; 10] = [0x03, 0x08, 0xe0, 0xda, 0xf4, 0xea, 0x58, 0x39, 0xe2, 0x66];
+        let scan_mask_tlv: [u8; 3] = [0x0e, 0x01, 0x80];
+        let version_tlv: [u8; 4] = [0x12, 0x02, 0x00, 0x04];
+        let command: [u8; 1] = [0x09];
+
+        let mle_msg: [u8; 21] = [
+            0x09, 0x01, 0x01, 0x0f, 0x03, 0x08, 0xe0, 0xda, 0xf4, 0xea, 0x58, 0x39, 0xe2, 0x66,
+            0x0e, 0x01, 0x80, 0x12, 0x02, 0x00, 0x04,
+        ];
+
+        let dest = IPAddr([
+            0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x02,
+        ]);
+        let dst_port: u16 = 10;
+        let src_port: u16 = 10;
+
+        self.kernel_buffer
+            .take()
+            .map_or(Err(ErrorCode::NOMEM), |mut kernel_buffer| {
+                // kernel::debug!("VALS TO SEND {:?}", kernel_buffer);
+                // kernel::debug!("dst_port {:?}", dst_port);
+                kernel_buffer[..mle_msg.len()].copy_from_slice(&mle_msg);
+
+                kernel_buffer.slice(0..mle_msg.len());
+
+                let res = self.sender.driver_send_to(
+                    dest,
+                    MacAddress::Short(0xFFFF),
+                    dst_port,
+                    src_port,
+                    kernel_buffer,
+                    self.driver_send_cap,
+                    self.net_cap,
+                );
+
+                kernel::debug!("Send to res {:?}", res);
+
+                Ok(())
+            });
     }
 }
 
@@ -458,6 +499,45 @@ impl<'a> SyscallDriver for ThreadNetworkDriver<'a> {
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
             1 => {
+                self.kernel_buffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), |mut kernel_buffer| {
+                        // payload.copy_to_slice(&mut kernel_buffer[0..payload.len()]);
+                        // let mle_msg: [u8; 27] = [
+                        //     0x0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0x01, 0x01, 0x0f, 0x03, 0x08,
+                        //     0xe0, 0xda, 0xf4, 0xea, 0x58, 0x39, 0xe2, 0x66, 0x0e, 0x01, 0x80, 0x12,
+                        //     0x02, 0x00, 0x04,
+                        // ];
+
+                        let mle_msg: [u8; 21] = [
+                            0x09, 0x01, 0x01, 0x0f, 0x03, 0x08, 0xfa, 0x67, 0x49, 0xbb, 0x48, 0x91,
+                            0x3f, 0xf6, 0x0e, 0x01, 0x80, 0x12, 0x02, 0x00, 0x04,
+                        ];
+
+                        kernel_buffer[..mle_msg.len()].copy_from_slice(&mle_msg);
+                        kernel_buffer.slice(0..(mle_msg.len()));
+
+                        // Hardcoded for now, this should probably be moved elsewhere (already stored in kernel)
+                        let device_addr: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x35];
+
+                        // let key = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+                        let key: [u8; 16] = [
+                            0x54, 0x45, 0xf4, 0x15, 0x8f, 0xd7, 0x59, 0x12, 0x17, 0x58, 0x09, 0xf8,
+                            0xb5, 0x7a, 0x66, 0xa4,
+                        ];
+
+                        let nonce = get_ccm_nonce(&device_addr, 12740, SecurityLevel::EncMic32);
+
+                        kernel::debug!("OUR NONCE VALUE IS {:?}", nonce);
+                        self.crypto.set_key(&key);
+                        self.crypto.set_nonce(&nonce);
+
+                        self.crypto
+                            .crypt(kernel_buffer.take(), 0, 0, mle_msg.len(), 4, true, true);
+
+                        Ok(())
+                    });
+                /*
                 kernel::debug!("SUCCESSFULLY ENTERED THREAD CAPSULE..");
                 self.apps
                     .enter(processid, |_, kernel_data| {
@@ -483,6 +563,8 @@ impl<'a> SyscallDriver for ThreadNetworkDriver<'a> {
                             .unwrap_or(CommandReturn::failure(ErrorCode::INVAL))
                     })
                     .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+                    */
+                CommandReturn::success_u32(self.max_tx_pyld_len as u32)
             }
 
             // Transmits UDP packet stored in tx_buf
@@ -659,43 +741,37 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
-        kernel::debug!("WE HAVE RECEIVED HERE!!!!");
-
-        //
-
-        //
-        // kernel::debug!("COPIED VALS {:?}", temp_buf);
-
+        // Obtain frame counter from the UDP packet
         let frame_counter = decode_u32(&payload[2..6]).done().unwrap().1.to_be();
 
+        // Obtain MLE payload from received UDP packet
         let payload = &payload[11..payload.len() - 4];
+
+        // relevant values for encryption
         let a_off = 0;
         let m_off = 0;
         let m_len = payload.len();
-        let mic_len = 0;
+        let mic_len = 4;
         let confidential = true;
         let encrypting = true;
+        let level = 5; // hardcoded for now
 
+        // Hardcoded for now, this should probably be moved elsewhere (already stored in kernel)
         let device_addr: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x35];
-
-        kernel::debug!("Current frame number {frame_counter}");
-        kernel::debug!("PAYLOAD:: {:?}", payload);
-
-        let level = 5;
 
         // let key = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
         let key = [
             0x54, 0x45, 0xf4, 0x15, 0x8f, 0xd7, 0x59, 0x12, 0x17, 0x58, 0x09, 0xf8, 0xb5, 0x7a,
             0x66, 0xa4,
         ];
+
+        // generate nonce
         let nonce = get_ccm_nonce(&device_addr, frame_counter, SecurityLevel::EncMic32);
 
+        // set nonce/key for encryption
         if self.crypto.set_key(&key) != Ok(()) || self.crypto.set_nonce(&nonce) != Ok(()) {
             kernel::debug!("FAIL KEY SET AND NONCE");
         }
-
-        kernel::debug!("NONCE VAL {:?}", nonce);
-        kernel::debug!("KEY VAL {:?}", key);
 
         let crypto_res =
             self.kernel_buffer
@@ -709,8 +785,6 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
 
                     kernel_buffer[..payload.len()].copy_from_slice(payload);
 
-                    // kernel::debug!("Val sent to crypt {:?}", kernel_buffer.take());
-                    kernel::debug!("attempting to crypt...");
                     let cryp_out = self.crypto.crypt(
                         kernel_buffer.take(),
                         a_off,
@@ -727,28 +801,6 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
 
                     Ok(())
                 });
-
-        kernel::debug!("CRYPTO RES {:?}", crypto_res);
-
-        // let a_off = 0;
-        // let m_off = 0;
-        // let m_len = 0;
-        // let mic_len = 2;
-        // let confidential = false;
-        // let encrypting = true;
-
-        // self.crypto.crypt(
-        //     temp_buf,
-        //     a_off,
-        //     m_off,
-        //     m_len,
-        //     mic_len,
-        //     confidential,
-        //     encrypting,
-        // );
-        //first need to copy payload into process's data, then can do crypto and what not
-
-        kernel::debug!("completed receive 123");
     }
 }
 
@@ -773,9 +825,44 @@ impl<'a> PortQuery for ThreadNetworkDriver<'a> {
 
 impl<'a> CCMClient for ThreadNetworkDriver<'a> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
-        kernel::debug!("crypt done called!");
-        kernel::debug!("crypto vals: {:?}", buf);
+        // if buf[0] == 9 {
+
+        // }
+        // For now place
+        kernel::debug!("CRYPT DOWN");
+        let aux_sec_header: &[u8; 11] = &[
+            0x00, 0x15, 0xc4, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        ];
+        buf.copy_within(0..21, aux_sec_header.len());
+        buf[0..aux_sec_header.len()].copy_from_slice(aux_sec_header);
+        buf[(aux_sec_header.len() + 21)..(aux_sec_header.len() + 25)]
+            .copy_from_slice(&[0xe3, 0x5d, 0xc4, 0x7f]);
+
         self.kernel_buffer.replace(LeasableMutableBuffer::new(buf));
-        kernel::debug!("replaced kernel buf");
+
+        self.kernel_buffer
+            .take()
+            .map_or(Err(ErrorCode::NOMEM), |mut kernel_buffer| {
+                kernel::debug!("ENTERED INNER");
+
+                kernel_buffer.slice(0..(aux_sec_header.len() + 25));
+
+                kernel::debug!("THIS IS OUR KERNEL BUF {:?}", kernel_buffer);
+
+                self.sender.driver_send_to(
+                    IPAddr([
+                        0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x02,
+                    ]),
+                    MacAddress::Short(0xFFFF),
+                    19788,
+                    19788,
+                    kernel_buffer,
+                    self.driver_send_cap,
+                    self.net_cap,
+                );
+
+                Ok(())
+            });
     }
 }

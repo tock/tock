@@ -214,7 +214,10 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
 
         let udp_driver_rcvr = s.5.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);
-        udp_driver_rcvr.set_binding(thread_network_driver.init_binding());
+        let (rx_bind, tx_bind) = thread_network_driver.init_binding();
+        udp_driver_rcvr.set_binding(rx_bind);
+        kernel::debug!("Initial set {:?}", udp_send.set_binding(tx_bind));
+        //kernel::debug!("CURR VAL {:?}", udp_send.get_binding());
 
         self.udp_recv_mux.add_client(udp_driver_rcvr);
         // self.udp_recv_mux.print_recv_list();
