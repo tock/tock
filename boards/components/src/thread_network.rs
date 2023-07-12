@@ -72,7 +72,8 @@ macro_rules! thread_network_driver_component_static {
             kernel::static_buf!(capsules_extra::net::network_capabilities::NetworkCapability);
         let udp_driver =
             kernel::static_buf!(capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>);
-        let buffer = kernel::static_buf!([u8; MAX_PAYLOAD_LEN]);
+        let send_buffer = kernel::static_buf!([u8; MAX_PAYLOAD_LEN]);
+        let recv_buffer = kernel::static_buf!([u8; MAX_PAYLOAD_LEN]);
         let udp_recv =
             kernel::static_buf!(capsules_extra::net::udp::udp_recv::UDPReceiver<'static>);
         let crypt_buf = kernel::static_buf!([u8; components::ieee802154::CRYPT_SIZE]);
@@ -85,7 +86,8 @@ macro_rules! thread_network_driver_component_static {
             udp_vis_cap,
             net_cap,
             udp_driver,
-            buffer,
+            send_buffer,
+            recv_buffer,
             udp_recv,
             crypt_buf,
             crypt,
@@ -152,6 +154,7 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         &'static mut MaybeUninit<capsules_extra::net::network_capabilities::NetworkCapability>,
         &'static mut MaybeUninit<capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>>,
         &'static mut MaybeUninit<[u8; MAX_PAYLOAD_LEN]>,
+        &'static mut MaybeUninit<[u8; MAX_PAYLOAD_LEN]>,
         &'static mut MaybeUninit<UDPReceiver<'static>>,
         &'static mut MaybeUninit<[u8; CRYPT_SIZE]>,
         &'static mut MaybeUninit<
@@ -164,8 +167,8 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         //crypt
-        let crypt_buf = s.6.write([0; CRYPT_SIZE]);
-        let aes_ccm = s.7.write(
+        let crypt_buf = s.7.write([0; CRYPT_SIZE]);
+        let aes_ccm = s.8.write(
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM::new(
                 self.aes_mux,
                 crypt_buf,
@@ -191,7 +194,8 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
             &create_cap,
         ));
 
-        let buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
+        let send_buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
+        let recv_buffer = s.5.write([0; MAX_PAYLOAD_LEN]);
 
         let thread_network_driver = s.3.write(
             capsules_extra::net::thread::driver::ThreadNetworkDriver::new(
@@ -201,7 +205,8 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
                 self.interface_list,
                 MAX_PAYLOAD_LEN,
                 self.port_table,
-                kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(buffer),
+                kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(send_buffer),
+                kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(recv_buffer),
                 &DRIVER_CAP,
                 net_cap,
             ),
@@ -212,15 +217,14 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         self.port_table
             .set_user_ports(thread_network_driver, &DRIVER_CAP);
 
-        let udp_driver_rcvr = s.5.write(UDPReceiver::new());
+        let udp_driver_rcvr = s.6.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);
-        let (rx_bind, tx_bind) = thread_network_driver.init_binding();
+        let (rx_bind, tx_bind) = thread_network_driver.init_thread_binding();
         udp_driver_rcvr.set_binding(rx_bind);
-        kernel::debug!("Initial set {:?}", udp_send.set_binding(tx_bind));
-        //kernel::debug!("CURR VAL {:?}", udp_send.get_binding());
+        udp_send.set_binding(tx_bind);
 
         self.udp_recv_mux.add_client(udp_driver_rcvr);
-        // self.udp_recv_mux.print_recv_list();
+
         thread_network_driver
     }
 }
