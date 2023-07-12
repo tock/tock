@@ -220,7 +220,7 @@ impl FrameInfo {
     }
 }
 
-fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
+pub fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
     let mut nonce = [0u8; 13];
     let encode_ccm_nonce = |buf: &mut [u8]| {
         let off = enc_consume!(buf; encode_bytes, device_addr.as_ref());

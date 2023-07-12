@@ -19,7 +19,8 @@
 //! the userspace driver must queue app packets on its own, as it can only pass a single
 //! packet to the MuxUdpSender queue at a time.
 
-use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ieee802154::MacAddress;
+use crate::net::ipv6::ip_utils::{IPAddr, MacAddr};
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};
@@ -207,6 +208,7 @@ pub trait UDPSender<'a> {
     fn driver_send_to(
         &'a self,
         dest: IPAddr,
+        dest_mac_addr: MacAddress,
         dst_port: u16,
         src_port: u16,
         buf: LeasableMutableBuffer<'static, u8>,
@@ -301,6 +303,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
     fn driver_send_to(
         &'a self,
         dest: IPAddr,
+        dst_mac_addr: MacAddress,
         dst_port: u16,
         src_port: u16,
         buf: LeasableMutableBuffer<'static, u8>,
@@ -308,6 +311,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         net_cap: &'static NetworkCapability,
     ) -> Result<(), LeasableMutableBuffer<'static, u8>> {
         let mut udp_header = UDPHeader::new();
+        self.udp_mux_sender.ip_sender.set_dst_mac_addr(dst_mac_addr);
         udp_header.set_dst_port(dst_port);
         udp_header.set_src_port(src_port);
         self.send(dest, udp_header, buf, net_cap)

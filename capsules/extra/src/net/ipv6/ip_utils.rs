@@ -11,6 +11,8 @@ use crate::net::ieee802154::MacAddress;
 use crate::net::ipv6::IP6Header;
 use crate::net::udp::UDPHeader;
 
+pub const DEFAULT_DST_MAC_ADDR: MacAddress = MacAddress::Short(49138);
+
 #[derive(Copy, Clone, PartialEq)]
 pub enum MacAddr {
     ShortAddr(u16),
