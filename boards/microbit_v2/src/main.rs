@@ -220,22 +220,17 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> {
-    // Initialize chip peripheral drivers
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MicroBit,
+    &'static nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>,
+) {
+    nrf52833::init();
+
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
         Nrf52833DefaultPeripherals::new()
     );
-
-    nrf52833_peripherals
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52833::init();
-
-    let nrf52833_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52833_peripherals.init();
@@ -252,7 +247,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
@@ -790,5 +784,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&microbit, chip, Some(&microbit.ipc), &main_loop_capability);
+    (board_kernel, microbit, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }
