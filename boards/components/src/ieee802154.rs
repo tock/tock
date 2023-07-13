@@ -128,6 +128,7 @@ pub struct Ieee802154Component<
     aes_mux: &'static MuxAES128CCM<'static, A>,
     pan_id: capsules_extra::net::ieee802154::PanID,
     short_addr: u16,
+    long_addr: [u8; 8],
 }
 
 impl<
@@ -142,6 +143,7 @@ impl<
         aes_mux: &'static MuxAES128CCM<'static, A>,
         pan_id: capsules_extra::net::ieee802154::PanID,
         short_addr: u16,
+        long_addr: [u8; 8],
     ) -> Self {
         Self {
             board_kernel,
@@ -150,6 +152,7 @@ impl<
             aes_mux,
             pan_id,
             short_addr,
+            long_addr,
         }
     }
 }
@@ -243,6 +246,7 @@ impl<
         userspace_mac.set_receive_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
+        userspace_mac.set_address_long(self.long_addr);
 
         (radio_driver, mux_mac)
     }

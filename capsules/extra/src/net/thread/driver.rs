@@ -24,6 +24,7 @@ use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u32;
 use crate::net::stream::encode_u8;
 use crate::net::stream::SResult;
+use crate::net::thread::tlv;
 use crate::net::udp::udp_port_table::UdpPortBindingRx;
 use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
@@ -148,6 +149,10 @@ pub struct ThreadNetworkDriver<'a> {
     driver_send_cap: &'static dyn UdpDriverCapability,
 
     net_cap: &'static NetworkCapability,
+
+    send: Cell<bool>,
+
+    second_send: Cell<bool>,
 }
 
 impl<'a> ThreadNetworkDriver<'a> {
@@ -182,9 +187,14 @@ impl<'a> ThreadNetworkDriver<'a> {
             state: ThreadState::new(),
             driver_send_cap: driver_send_cap,
             net_cap: net_cap,
+            send: Cell::new(true),
+            second_send: Cell::new(false),
         }
     }
 
+    fn set_send(&self) {
+        self.send.set(false);
+    }
     pub fn init_thread_binding(&self) -> (UdpPortBindingRx, UdpPortBindingTx) {
         match self.port_table.create_socket() {
             Ok(socket) => match self
@@ -211,7 +221,7 @@ impl<'a> ThreadNetworkDriver<'a> {
                 let mle_msg: [u8; 63] = [
                     0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91, 0xee,
                     0x42, 0x56, 0x36, 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x15, 0xc4, 0x31, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x15, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x01, 0x09, 0x01, 0x01, 0x0f, 0x03, 0x08, 0xfa, 0x67, 0x49, 0xbb,
                     0x48, 0x91, 0x3f, 0xf6, 0x0e, 0x01, 0x80, 0x12, 0x02, 0x00, 0x04,
                 ];
@@ -228,7 +238,7 @@ impl<'a> ThreadNetworkDriver<'a> {
                     0x7a, 0x66, 0xa4,
                 ];
 
-                let nonce = get_ccm_nonce(&device_addr, 12740, SecurityLevel::EncMic32);
+                let nonce = get_ccm_nonce(&device_addr, 5, SecurityLevel::EncMic32);
 
                 self.crypto.set_key(&key);
                 self.crypto.set_nonce(&nonce);
@@ -282,13 +292,6 @@ impl<'a> UDPSendClient for ThreadNetworkDriver<'a> {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.send_buffer.replace(dgram);
-        self.current_app.get().map(|processid| {
-            let _ = self.apps.enter(processid, |_app, upcalls| {
-                upcalls
-                    .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
-                    .ok();
-            });
-        });
     }
 }
 
@@ -301,23 +304,26 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
+        kernel::debug!("RECEIVE THREAD CALLED");
         // Obtain frame counter from the UDP packet
         let frame_counter = decode_u32(&payload[2..6]).done().unwrap().1.to_be();
 
         // Obtain MLE payload from received UDP packet
-        let payload = &payload[11..payload.len() - 4];
+        kernel::debug!("FULL PAYLOAD {:?}", payload);
+        let payload_slice = &payload[11..(payload.len() - 4)];
+        kernel::debug!("PAYLOAD SLICE {:?}", payload_slice);
 
         // relevant values for encryption
         let a_off = 0;
         let m_off = 0;
-        let m_len = payload.len();
-        let mic_len = 4;
-        let confidential = false;
+        let m_len = payload_slice.len();
+        let mic_len = 0;
+        let confidential = true;
         let encrypting = true;
         let level = 5; // hardcoded for now
 
         // Hardcoded for now, this should probably be moved elsewhere (already stored in kernel)
-        let device_addr: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x36];
+        let device_addr: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x35];
 
         // let key = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
         let key = [
@@ -343,7 +349,7 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
                         return Err(ErrorCode::SIZE);
                     }
 
-                    recv_buffer[..payload.len()].copy_from_slice(payload);
+                    recv_buffer[..payload_slice.len()].copy_from_slice(payload_slice);
 
                     let cryp_out = self.crypto.crypt(
                         recv_buffer.take(),
@@ -386,8 +392,39 @@ impl<'a> PortQuery for ThreadNetworkDriver<'a> {
 impl<'a> CCMClient for ThreadNetworkDriver<'a> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
         kernel::debug!("TAG IS VALID {:?}", tag_is_valid);
-        kernel::debug!("CUR BUF {:?}", buf);
-        if self.send_buffer.is_none() {
+        kernel::debug!("CRYPTO RES {:?}", res);
+        if self.second_send.get() {
+            kernel::debug!("ENTERING CHILD REQUEST");
+            buf.copy_within(32..91, 1);
+
+            let zero_slic: &[u8; 1] = &[0];
+            buf[0..1].copy_from_slice(zero_slic);
+
+            self.send_buffer.replace(LeasableMutableBuffer::new(buf));
+            self.send_buffer
+                .take()
+                .map_or(Err(ErrorCode::NOMEM), |mut send_buffer| {
+                    send_buffer.slice(0..60);
+
+                    kernel::debug!("SENDING CHILD REQUEST");
+
+                    self.sender.driver_send_to(
+                        IPAddr([
+                            0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91,
+                            0xee, 0x42, 0x56, 0x35,
+                        ]),
+                        MacAddress::Long([0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x35]),
+                        19788,
+                        19788,
+                        send_buffer,
+                        self.driver_send_cap,
+                        self.net_cap,
+                    );
+
+                    self.send.set(false);
+                    Ok(())
+                });
+        } else if self.send.get() {
             // let aux_sec_header: &[u8; 11] = &[
             //     0x00, 0x15, 0xc4, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
             // ];
@@ -395,6 +432,7 @@ impl<'a> CCMClient for ThreadNetworkDriver<'a> {
             // buf[0..aux_sec_header.len()].copy_from_slice(aux_sec_header);
             // buf[(32)..(36)].copy_from_slice(&[0xe3, 0x5d, 0xc4, 0x7f]);
 
+            kernel::debug!("Sending our parent req");
             buf.copy_within(32..67, 1);
 
             let zero_slic: &[u8; 1] = &[0];
@@ -410,7 +448,6 @@ impl<'a> CCMClient for ThreadNetworkDriver<'a> {
                     send_buffer.slice(0..36);
 
                     kernel::debug!("THIS IS OUR KERNEL BUF {:?}", send_buffer);
-
                     self.sender.driver_send_to(
                         IPAddr([
                             0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -424,6 +461,64 @@ impl<'a> CCMClient for ThreadNetworkDriver<'a> {
                         self.net_cap,
                     );
 
+                    self.send.set(false);
+                    Ok(())
+                });
+        } else {
+            kernel::debug!("THS IS THE RECV BUF {:?}", buf);
+            let link_layer_frame_ct: [u8; 6] = [5, 4, 0, 0, 0, 0];
+            let mle_frame_ct: [u8; 6] = [8, 4, 0, 0, 0, 0x09];
+            let mode: [u8; 3] = [1, 1, 0x0f];
+            let timeout: [u8; 6] = [2, 4, 0, 0, 0, 0xf0];
+            let version: [u8; 4] = [0x12, 2, 0, 4];
+            let a: [u8; 4] = [0x1b, 2, 0, 0x81];
+            let elev_slice: [u8; 3] = [11, 4, 8];
+            let tlv_request: [u8; 5] = [0x0d, 0x03, 0x0a, 0x0c, 0x09];
+            let start_auth: [u8; 32] = [
+                0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91, 0xee, 0x42,
+                0x56, 0x36, 0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91,
+                0xee, 0x42, 0x56, 0x35,
+            ];
+
+            let aux_sec_header: [u8; 11] = [
+                0x00, 0x15, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+            ];
+
+            self.send_buffer
+                .take()
+                .map_or(Err(ErrorCode::NOMEM), |mut send_buffer| {
+                    kernel::debug!("PREPARING TO SEND");
+                    send_buffer.reset();
+                    send_buffer[0..32].copy_from_slice(&start_auth);
+                    send_buffer[32..42].copy_from_slice(&aux_sec_header[1..11]);
+                    send_buffer[42..45].copy_from_slice(&elev_slice);
+                    send_buffer[45..53].copy_from_slice(&buf[39..47]);
+                    send_buffer[53..59].copy_from_slice(&link_layer_frame_ct);
+                    send_buffer[59..65].copy_from_slice(&mle_frame_ct);
+                    send_buffer[65..68].copy_from_slice(&mode);
+                    send_buffer[68..74].copy_from_slice(&timeout);
+                    send_buffer[74..78].copy_from_slice(&version);
+                    send_buffer[78..82].copy_from_slice(&a);
+                    send_buffer[82..87].copy_from_slice(&tlv_request);
+
+                    send_buffer.slice(0..91);
+
+                    // Hardcoded for now, this should probably be moved elsewhere (already stored in kernel)
+                    let device_addr: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x36];
+
+                    // let key = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+                    let key = [
+                        0x54, 0x45, 0xf4, 0x15, 0x8f, 0xd7, 0x59, 0x12, 0x17, 0x58, 0x09, 0xf8,
+                        0xb5, 0x7a, 0x66, 0xa4,
+                    ];
+
+                    let nonce = get_ccm_nonce(&device_addr, 9, SecurityLevel::EncMic32);
+
+                    self.crypto.set_nonce(&nonce);
+                    self.crypto.set_key(&key);
+                    self.crypto
+                        .crypt(send_buffer.take(), 0, 42, 45, 4, true, true);
+                    self.second_send.set(true);
                     Ok(())
                 });
         }
