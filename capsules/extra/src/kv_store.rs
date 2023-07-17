@@ -204,18 +204,17 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             return Err((unhashed_key, value, Err(ErrorCode::BUSY)));
         }
 
-        // Create the Tock header and ensure we have space to fit it
+        // The caller must ensure there is space for the header.
+        if value.len() < HEADER_LENGTH {
+            return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
+        }
+
+        // Create the Tock header.
         let header = KeyHeader {
             version: HEADER_VERSION,
-            length: value.len() as u32,
+            length: (value.len() - HEADER_LENGTH) as u32,
             write_id,
         };
-
-        // Make space for the header by expanding the buffer to the left.
-        match value.unslice_left(self.header_size()) {
-            Ok(()) => {}
-            Err(()) => return Err((unhashed_key, value, Err(ErrorCode::SIZE))),
-        }
 
         // Copy in the header to the buffer.
         header.copy_to_buf(value.as_slice());

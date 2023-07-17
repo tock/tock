@@ -190,9 +190,12 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
                                     let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
                                     unhashed_key.slice(..unhashed_key_len);
 
+                                    // Make sure we provide a value buffer with
+                                    // space for the tock kv header at the
+                                    // front.
                                     let header_size = self.kv.header_size();
                                     let mut value = LeasableMutableBuffer::new(dest_buffer);
-                                    value.slice(header_size..(value_len + header_size));
+                                    value.slice(..(value_len + header_size));
 
                                     if let Err((data, dest, e)) =
                                         self.kv.set(unhashed_key, value, perms)
