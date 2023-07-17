@@ -324,7 +324,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
                     .tickv
                     .append_key(self.key.get().unwrap(), &value[0..value_length]);
                 self.value.replace(Some(value));
-                (ret, 0)
+                (ret, value_length)
             }
             State::GetKey(_) => {
                 let buf = self.value.take().unwrap();
@@ -356,7 +356,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
                 }
                 _ => {
                     self.tickv.state.set(State::None);
-                    (ret, self.value.take(), 0)
+                    (ret, self.value.take(), length)
                 }
             },
         }
