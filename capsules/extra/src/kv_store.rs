@@ -220,6 +220,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         header.copy_to_buf(value.as_slice());
 
         self.operation.set(Operation::Set);
+        self.valid_ids.set(perms);
         self.unhashed_key.replace(unhashed_key);
         self.value.replace(value);
         self.mux_kv.do_next_op();
@@ -463,17 +464,54 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
             node.operation.map(|op| match op {
                 Operation::Get | Operation::Delete => {}
                 Operation::Set => {
-                    node.operation.clear();
-                    node.unhashed_key.take().map(|unhashed_key| {
-                        node.client.map(move |cb| {
-                            cb.set_complete(result, unhashed_key, value);
-                        });
-                    });
+                    match result {
+                        Err(ErrorCode::NOSUPPORT) => {
+                            // We could not append because of a collision. So
+                            // now we must figure out if we are allowed to
+                            // overwrite this key. That starts by reading the
+                            // key.
+                            self.hashed_key.take().map(|hashed_key| {
+                                self.header_value.take().map(|header_value| {
+                                    match self.kv.get_value(
+                                        hashed_key,
+                                        LeasableMutableBuffer::new(header_value),
+                                    ) {
+                                        Ok(()) => {
+                                            node.value.replace(value);
+                                            self.inflight.set(node);
+                                        }
+                                        Err((key, hvalue, e)) => {
+                                            self.hashed_key.replace(key);
+                                            self.header_value.replace(hvalue.take());
+                                            node.operation.clear();
+                                            node.unhashed_key.take().map(|unhashed_key| {
+                                                node.client.map(move |cb| {
+                                                    cb.set_complete(e, unhashed_key, value);
+                                                });
+                                            });
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                        _ => {
+                            // On success or any other error we just return the
+                            // result back to the caller via a callback.
+                            node.operation.clear();
+                            node.unhashed_key.take().map(|unhashed_key| {
+                                node.client.map(move |cb| {
+                                    cb.set_complete(result, unhashed_key, value);
+                                });
+                            });
+                        }
+                    }
                 }
             });
         });
 
-        self.do_next_op();
+        if self.inflight.is_none() {
+            self.do_next_op();
+        }
     }
 
     fn get_value_complete(
@@ -485,7 +523,53 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
         self.inflight.take().map(|node| {
             node.operation.map(|op| {
                 match op {
-                    Operation::Set => {}
+                    Operation::Set => {
+                        // If we get here, we must have been trying to append
+                        // the key but ran in to a collision. Now that we have
+                        // retrieved the existing key, we can check if we are
+                        // allowed to overwrite this key.
+                        let mut access_allowed = false;
+
+                        if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
+                            let header = KeyHeader::new_from_buf(ret_buf.as_slice());
+
+                            if header.version == HEADER_VERSION {
+                                node.valid_ids.map(|perms| {
+                                    access_allowed = perms.check_write_permission(header.write_id);
+                                });
+                            }
+                        }
+
+                        if access_allowed {
+                            match self.kv.invalidate_key(key) {
+                                Ok(()) => {
+                                    self.inflight.set(node);
+                                }
+
+                                Err((key, e)) => {
+                                    node.operation.clear();
+                                    self.hashed_key.replace(key);
+                                    node.unhashed_key.take().map(|unhashed_key| {
+                                        node.value.take().map(|value| {
+                                            node.client.map(move |cb| {
+                                                cb.set_complete(e, unhashed_key, value);
+                                            });
+                                        });
+                                    });
+                                }
+                            }
+                        } else {
+                            node.operation.clear();
+                            self.hashed_key.replace(key);
+                            node.unhashed_key.take().map(|unhashed_key| {
+                                node.value.take().map(|value| {
+                                    node.client.map(move |cb| {
+                                        cb.set_complete(Err(ErrorCode::FAIL), unhashed_key, value);
+                                    });
+                                });
+                            });
+                        }
+                    }
                     Operation::Delete => {
                         let mut access_allowed = false;
 
@@ -591,7 +675,48 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
 
         self.inflight.take().map(|node| {
             node.operation.map(|op| match op {
-                Operation::Set | Operation::Get => {}
+                Operation::Get => {}
+                Operation::Set => {
+                    // Now that we have deleted the existing key-value we can
+                    // store our new key and value.
+                    match result {
+                        Ok(()) => {
+                            self.hashed_key.take().map(|hashed_key| {
+                                node.value.take().map(|value| {
+                                    match self.kv.append_key(hashed_key, value) {
+                                        Ok(()) => {
+                                            self.inflight.set(node);
+                                        }
+                                        Err((key, value, e)) => {
+                                            self.hashed_key.replace(key);
+                                            node.operation.clear();
+                                            node.unhashed_key.take().map(|unhashed_key| {
+                                                node.client.map(move |cb| {
+                                                    cb.set_complete(e, unhashed_key, value);
+                                                });
+                                            });
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                        _ => {
+                            // Some error with delete, signal error.
+                            node.operation.clear();
+                            node.unhashed_key.take().map(|unhashed_key| {
+                                node.value.take().map(|value| {
+                                    node.client.map(move |cb| {
+                                        cb.set_complete(
+                                            Err(ErrorCode::NOSUPPORT),
+                                            unhashed_key,
+                                            value,
+                                        );
+                                    });
+                                });
+                            });
+                        }
+                    }
+                }
                 Operation::Delete => {
                     node.operation.clear();
                     node.unhashed_key.take().map(|unhashed_key| {
@@ -603,8 +728,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
             });
         });
 
-        self.cleanup.set(StateCleanup::CleanupRequested);
-        self.do_next_op();
+        if self.inflight.is_none() {
+            self.cleanup.set(StateCleanup::CleanupRequested);
+            self.do_next_op();
+        }
     }
 
     fn garbage_collect_complete(&self, _result: Result<(), ErrorCode>) {
