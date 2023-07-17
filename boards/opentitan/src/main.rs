@@ -19,13 +19,10 @@ use crate::otbn::OtbnComponent;
 use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
-use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
@@ -122,32 +119,7 @@ struct EarlGrey {
         'static,
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
     >,
-    hmac: &'static capsules_extra::hmac::HmacDriver<
-        'static,
-        VirtualMuxHmac<
-            'static,
-            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<
-                'static,
-                lowrisc::hmac::Hmac<'static>,
-                32,
-            >,
-            32,
-        >,
-        32,
-    >,
-    sha: &'static capsules_extra::sha::ShaDriver<
-        'static,
-        VirtualMuxSha<
-            'static,
-            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<
-                'static,
-                lowrisc::hmac::Hmac<'static>,
-                32,
-            >,
-            32,
-        >,
-        32,
-    >,
+    hmac: &'static capsules_extra::hmac::HmacDriver<'static, lowrisc::hmac::Hmac<'static>, 32>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
@@ -198,7 +170,6 @@ impl SyscallDriverLookup for EarlGrey {
         match driver_num {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
-            capsules_extra::sha::DRIVER_NUM => f(Some(self.sha)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -395,44 +366,12 @@ unsafe fn setup() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
-        components::digest_mux_component_static!(lowrisc::hmac::Hmac, 32),
-    );
-
-    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
-        components::digest_component_static!(lowrisc::hmac::Hmac, 32,),
-    );
-
-    peripherals.hmac.set_client(digest);
-
-    let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
-    );
-
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
-        &mux_hmac,
+        &peripherals.hmac,
     )
-    .finalize(components::hmac_component_static!(
-        capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
-        32,
-    ));
-
-    digest.set_hmac_client(hmac);
-
-    let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
-    );
-
-    let sha = components::sha::ShaComponent::new(
-        board_kernel,
-        capsules_extra::sha::DRIVER_NUM,
-        &mux_sha,
-    )
-    .finalize(components::sha_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
-
-    digest.set_sha_client(sha);
+    .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
 
     let i2c_master_buffer = static_init!(
         [u8; capsules_core::i2c_master::BUFFER_LENGTH],
@@ -743,7 +682,6 @@ unsafe fn setup() -> (
             console,
             alarm,
             hmac,
-            sha,
             rng,
             lldb: lldb,
             i2c_master,
