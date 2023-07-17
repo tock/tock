@@ -179,25 +179,6 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
             end: new_end,
         };
     }
-
-    /// Increase the range of the LeasableBuffer that is accessible to the left
-    /// of the starting point of the currently available range.
-    ///
-    /// This is particularly useful to insert a header before the current
-    /// contents of the buffer.
-    ///
-    /// This returns `Ok(())` if there is room to increase the range the
-    /// requested number of elements to the left. This returns `Err(())` if
-    /// there is not enough room, and the accessible range remains unchanged.
-    pub fn unslice_left(&mut self, left: usize) -> Result<(), ()> {
-        let new_start = self.active_range.start.checked_sub(left).ok_or(())?;
-
-        self.active_range = Range {
-            start: new_start,
-            end: self.active_range.end,
-        };
-        Ok(())
-    }
 }
 
 impl<'a, T, I> Index<I> for LeasableMutableBuffer<'a, T>
@@ -298,25 +279,6 @@ impl<'a, T> LeasableBuffer<'a, T> {
             start: new_start,
             end: new_end,
         };
-    }
-
-    /// Increase the range of the LeasableBuffer that is accessible to the left
-    /// of the starting point of the currently available range.
-    ///
-    /// This is particularly useful to insert a header before the current
-    /// contents of the buffer.
-    ///
-    /// This returns `Ok(())` if there is room to increase the range the
-    /// requested number of elements to the left. This returns `Err(())` if
-    /// there is not enough room, and the accessible range remains unchanged.
-    pub fn unslice_left(&mut self, left: usize) -> Result<(), ()> {
-        let new_start = self.active_range.start.checked_sub(left).ok_or(())?;
-
-        self.active_range = Range {
-            start: new_start,
-            end: self.active_range.end,
-        };
-        Ok(())
     }
 }
 
