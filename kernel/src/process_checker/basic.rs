@@ -14,7 +14,7 @@ use crate::process_checker::{AppCredentialsChecker, AppUniqueness};
 use crate::process_checker::{CheckResult, Client, Compress};
 use crate::utilities::cells::OptionalCell;
 use crate::utilities::cells::TakeCell;
-use crate::utilities::leasable_buffer::{LeasableBuffer, LeasableMutableBuffer};
+use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
@@ -147,7 +147,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
                     }
                 });
                 self.hasher.clear_data();
-                match self.hasher.add_data(LeasableBuffer::new(binary)) {
+                match self.hasher.add_data(SubSlice::new(binary)) {
                     Ok(()) => Ok(()),
                     Err((e, b)) => Err((e, credentials, b.take())),
                 }
@@ -185,14 +185,9 @@ impl AppUniqueness for AppCheckerSha256 {
 }
 
 impl ClientData<32_usize> for AppCheckerSha256 {
-    fn add_mut_data_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        _data: LeasableMutableBuffer<'static, u8>,
-    ) {
-    }
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
 
-    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
         match result {
             Err(e) => panic!("Internal error during application binary checking. SHA256 engine threw error in adding data: {:?}", e),
             Ok(()) => {

@@ -32,9 +32,9 @@ use core::{cmp, mem};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::hasher::{Client, Hasher, SipHash};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMutImmut;
 use kernel::ErrorCode;
 
 pub struct SipHasher24<'a> {
@@ -46,7 +46,7 @@ pub struct SipHasher24<'a> {
     complete_deferred_call: Cell<bool>,
     deferred_call: DeferredCall,
 
-    data_buffer: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
+    data_buffer: Cell<Option<SubSliceMutImmut<'static, u8>>>,
     out_buffer: TakeCell<'static, [u8; 8]>,
 }
 

@@ -55,8 +55,8 @@ use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
@@ -172,7 +172,7 @@ impl<
                                 });
 
                                 // Add the data from the static buffer to the HMAC
-                                let mut lease_buf = LeasableMutableBuffer::new(
+                                let mut lease_buf = SubSliceMut::new(
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
@@ -256,13 +256,9 @@ impl<
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
-    fn add_mut_data_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.processid.map(move |id| {
             self.apps
                 .enter(id, move |app, kernel_data| {
@@ -318,8 +314,7 @@ impl<
                             // Update the amount of data copied
                             self.data_copied.set(copied_data + static_buffer_len);
 
-                            let mut lease_buf =
-                                LeasableMutableBuffer::new(self.data_buffer.take().unwrap());
+                            let mut lease_buf = SubSliceMut::new(self.data_buffer.take().unwrap());
 
                             // Add the data from the static buffer to the HMAC
                             if data_len < (copied_data + static_buffer_len) {

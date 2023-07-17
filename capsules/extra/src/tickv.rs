@@ -41,8 +41,7 @@ use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 

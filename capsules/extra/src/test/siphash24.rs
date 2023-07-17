@@ -11,8 +11,7 @@ use crate::sip_hash::SipHasher24;
 use kernel::debug;
 use kernel::hil::hasher::{Client, Hasher};
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
 
 pub struct TestSipHash24 {
@@ -40,7 +39,7 @@ impl TestSipHash24 {
     pub fn run(&'static self) {
         self.hasher.set_client(self);
         let data = self.data.take().unwrap();
-        let buffer = LeasableMutableBuffer::new(data);
+        let buffer = SubSliceMut::new(data);
         let r = self.hasher.add_mut_data(buffer);
         if r.is_err() {
             panic!("SipHash24Test: failed to add data: {:?}", r);
