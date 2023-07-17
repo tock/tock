@@ -41,10 +41,9 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::{ErrorCode, hil};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-
+use kernel::{hil, ErrorCode};
 
 const PAGE_SIZE: usize = 32;
 
@@ -78,7 +77,6 @@ pub struct EEPROM<'a> {
     state: Cell<State>,
 }
 
-
 impl<'a> EEPROM<'a> {
     pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
         Self {
@@ -90,7 +88,11 @@ impl<'a> EEPROM<'a> {
         }
     }
 
-    fn read_sector(&self, page_number: usize, buf: &'static mut EEPROMPage) -> Result<(), (ErrorCode, &'static mut EEPROMPage)> {
+    fn read_sector(
+        &self,
+        page_number: usize,
+        buf: &'static mut EEPROMPage,
+    ) -> Result<(), (ErrorCode, &'static mut EEPROMPage)> {
         self.i2c.enable();
         let address = page_number * PAGE_SIZE;
         if let Some(rxbuffer) = self.buffer.take() {
@@ -111,7 +113,11 @@ impl<'a> EEPROM<'a> {
         }
     }
 
-    fn write_sector(&self, page_number: usize, buf: &'static mut EEPROMPage) -> Result<(), (ErrorCode, &'static mut EEPROMPage)> {
+    fn write_sector(
+        &self,
+        page_number: usize,
+        buf: &'static mut EEPROMPage,
+    ) -> Result<(), (ErrorCode, &'static mut EEPROMPage)> {
         let address = page_number * PAGE_SIZE;
         let length = buf.0.len();
         // Schedule page write and do first
@@ -222,15 +228,22 @@ impl I2CClient for EEPROM<'static> {
     }
 }
 
-
 impl<'a> hil::flash::Flash for EEPROM<'a> {
     type Page = EEPROMPage;
 
-    fn read_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
+    fn read_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.read_sector(page_number, buf)
     }
 
-    fn write_page(&self, page_number: usize, buf: &'static mut Self::Page) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
+    fn write_page(
+        &self,
+        page_number: usize,
+        buf: &'static mut Self::Page,
+    ) -> Result<(), (ErrorCode, &'static mut Self::Page)> {
         self.write_sector(page_number, buf)
     }
 
@@ -239,8 +252,7 @@ impl<'a> hil::flash::Flash for EEPROM<'a> {
     }
 }
 
-impl<'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C> for EEPROM<'a>
-{
+impl<'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C> for EEPROM<'a> {
     fn set_client(&'a self, client: &'a C) {
         self.flash_client.set(client);
     }
