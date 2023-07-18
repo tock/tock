@@ -35,7 +35,7 @@
 
 use core::mem;
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::kv_system::{self, KVSystem, KeyType};
+use kernel::hil::kv_system::{self, KVSystem};
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -79,7 +79,7 @@ impl KeyHeader {
 }
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
-pub trait StoreClient<K: KeyType> {
+pub trait StoreClient {
     /// This callback is called when the get operation completes.
     ///
     /// - `result`: Nothing on success, 'ErrorCode' on error
@@ -115,11 +115,51 @@ pub trait StoreClient<K: KeyType> {
     );
 }
 
+pub trait KV<'a> {
+    fn set_client(&self, client: &'a dyn StoreClient);
+
+    fn get(
+        &self,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
+        perms: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            LeasableMutableBuffer<'static, u8>,
+            LeasableMutableBuffer<'static, u8>,
+            Result<(), ErrorCode>,
+        ),
+    >;
+
+    fn set(
+        &self,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
+        perms: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            LeasableMutableBuffer<'static, u8>,
+            LeasableMutableBuffer<'static, u8>,
+            Result<(), ErrorCode>,
+        ),
+    >;
+
+    fn delete(
+        &self,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        perms: StoragePermissions,
+    ) -> Result<(), (LeasableMutableBuffer<'static, u8>, Result<(), ErrorCode>)>;
+
+    fn header_size(&self) -> usize;
+}
+
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
     mux_kv: &'a MuxKVStore<'a, K, T>,
     next: ListLink<'a, KVStore<'a, K, T>>,
 
-    client: OptionalCell<&'a dyn StoreClient<T>>,
+    client: OptionalCell<&'a dyn StoreClient>,
     operation: OptionalCell<Operation>,
 
     unhashed_key: MapCell<SubSliceMut<'static, u8>>,
@@ -151,12 +191,14 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     pub fn setup(&'a self) {
         self.mux_kv.users.push_head(self);
     }
+}
 
-    pub fn set_client(&self, client: &'a dyn StoreClient<T>) {
+impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K, T> {
+    fn set_client(&self, client: &'a dyn StoreClient) {
         self.client.set(client);
     }
 
-    pub fn get(
+    fn get(
         &self,
         unhashed_key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
@@ -182,7 +224,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         Ok(())
     }
 
-    pub fn set(
+    fn set(
         &self,
         unhashed_key: SubSliceMut<'static, u8>,
         mut value: SubSliceMut<'static, u8>,
@@ -227,7 +269,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         Ok(())
     }
 
-    pub fn delete(
+    fn delete(
         &self,
         unhashed_key: SubSliceMut<'static, u8>,
         perms: StoragePermissions,
@@ -243,7 +285,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         Ok(())
     }
 
-    pub fn header_size(&self) -> usize {
+    fn header_size(&self) -> usize {
         HEADER_LENGTH
     }
 }

@@ -13,12 +13,10 @@ use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
 
 use crate::kv_store;
-use crate::kv_store::KVStore;
 use core::cmp;
 use kernel::errorcode;
 use kernel::grant::Grant;
 use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
-use kernel::hil::kv_system;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -63,13 +61,10 @@ pub struct App {
 }
 
 /// Capsule that provides userspace access to a key-value store.
-pub struct KVStoreDriver<
-    'a,
-    K: kv_system::KVSystem<'a> + kv_system::KVSystem<'a, K = T>,
-    T: 'static + kv_system::KeyType,
-> {
+pub struct KVStoreDriver<'a, V: kv_store::KV<'a>> {
+    // pub struct KVStoreDriver<'a, V: kv_store::KV<'a>, T: 'static + kv_system::KeyType> {
     /// Underlying k-v store implementation.
-    kv: &'a KVStore<'a, K, T>,
+    kv: &'a V,
     /// Grant storage for each app.
     apps: Grant<
         App,
@@ -83,11 +78,12 @@ pub struct KVStoreDriver<
     data_buffer: TakeCell<'static, [u8]>,
     /// Value buffer.
     dest_buffer: TakeCell<'static, [u8]>,
+    // keytype: PhantomData<T>,
 }
 
-impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver<'a, K, T> {
+impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
     pub fn new(
-        kv: &'a KVStore<'a, K, T>,
+        kv: &'a V,
         data_buffer: &'static mut [u8],
         dest_buffer: &'static mut [u8],
         grant: Grant<
@@ -96,7 +92,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> KVStoreDriver<'a, K, T> {
+    ) -> KVStoreDriver<'a, V> {
         KVStoreDriver {
             kv,
             apps: grant,
@@ -265,9 +261,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
     }
 }
 
-impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::StoreClient<T>
-    for KVStoreDriver<'a, K, T>
-{
+impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for KVStoreDriver<'a, V> {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
@@ -374,9 +368,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::Sto
     }
 }
 
-impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> SyscallDriver
-    for KVStoreDriver<'a, K, T>
-{
+impl<'a, V: kv_store::KV<'a>> SyscallDriver for KVStoreDriver<'a, V> {
     fn command(
         &self,
         command_num: usize,
