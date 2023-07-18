@@ -60,6 +60,9 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 #   and the downside to `all` is that different functions in the code can end up
 #   with the same address in the binary. However, it can save a fair bit of code
 #   size.
+# - `-C symbol-manging-version=v0`: Opt-in to Rust v0 symbol mangling scheme.
+#   See https://github.com/rust-lang/rust/issues/60705 and
+#   https://github.com/tock/tock/issues/3529.
 RUSTC_FLAGS ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
@@ -67,6 +70,7 @@ RUSTC_FLAGS ?= \
   -C relocation-model=static \
   -C link-arg=-nmagic \
   -C link-arg=-icf=all \
+  -C symbol-mangling-version=v0 \
 
 # RISC-V-specific flags.
 ifneq ($(findstring riscv32i, $(TARGET)),)
@@ -391,7 +395,7 @@ cargobloatnoinline:
 stack-analysis:
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
-	$(Q)$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -C symbol-mangling-version=v0 -Z emit-stack-sizes" $(DEVNULL) 2>&1
+	$(Q)$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -Z emit-stack-sizes" $(DEVNULL) 2>&1
 	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
 
 # Run the `print_tock_memory_usage.py` script for this board.
