@@ -12,7 +12,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i;
 use rv32i::csr;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::PMP;
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 
 use crate::plic::PLIC;
 use kernel::hil::time::Freq32KHz;
@@ -23,7 +23,7 @@ pub type E310xClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
 pub struct E310x<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: PMP<4>,
+    pmp: PMPUserMPU<4, SimplePMP<8>>,
     plic: &'a Plic,
     timer: &'a E310xClint<'a>,
     plic_interrupt_service: &'a I,
@@ -73,7 +73,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
     pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a E310xClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: PMP::new(),
+            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
             plic: &PLIC,
             timer,
             plic_interrupt_service,
@@ -114,7 +114,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
-    type MPU = PMP<4>;
+    type MPU = PMPUserMPU<4, SimplePMP<8>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
     fn mpu(&self) -> &Self::MPU {

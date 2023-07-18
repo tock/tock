@@ -10,7 +10,7 @@ use kernel::debug;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use rv32i::csr::{mcause, mie::mie, CSR};
-use rv32i::pmp::PMP;
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 use rv32i::syscall::SysCall;
 
 use crate::interrupt_controller::VexRiscvInterruptController;
@@ -26,7 +26,7 @@ pub struct LiteXVexRiscv<I: 'static + InterruptService> {
     soc_identifier: &'static str,
     userspace_kernel_boundary: SysCall,
     interrupt_controller: &'static VexRiscvInterruptController,
-    pmp: PMP<8>,
+    pmp_mpu: PMPUserMPU<8, SimplePMP<16>>,
     interrupt_service: &'static I,
 }
 
@@ -36,7 +36,7 @@ impl<I: 'static + InterruptService> LiteXVexRiscv<I> {
             soc_identifier,
             userspace_kernel_boundary: SysCall::new(),
             interrupt_controller: &INTERRUPT_CONTROLLER,
-            pmp: PMP::new(),
+            pmp_mpu: PMPUserMPU::new(SimplePMP::new().unwrap()),
             interrupt_service,
         }
     }
@@ -56,11 +56,11 @@ impl<I: 'static + InterruptService> LiteXVexRiscv<I> {
 }
 
 impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRiscv<I> {
-    type MPU = PMP<8>;
+    type MPU = PMPUserMPU<8, SimplePMP<16>>;
     type UserspaceKernelBoundary = SysCall;
 
     fn mpu(&self) -> &Self::MPU {
-        &self.pmp
+        &self.pmp_mpu
     }
 
     fn userspace_kernel_boundary(&self) -> &SysCall {
@@ -103,6 +103,7 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
             self.soc_identifier,
         ));
         rv32i::print_riscv_state(writer);
+        let _ = writer.write_fmt(format_args!("{}", self.pmp_mpu.pmp));
     }
 }
 

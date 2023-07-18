@@ -8,7 +8,7 @@ use core::cmp;
 use core::fmt::{self, Display};
 
 /// User mode access permissions.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Permissions {
     ReadWriteExecute,
     ReadWriteOnly,
@@ -98,6 +98,9 @@ pub trait MPU {
     /// MPU where possible.
     /// On some hardware it is impossible to reset the MPU after it has
     /// been locked, in this case this function wont change those regions.
+    ///
+    /// TODO: adjust this comment
+    /// TODO: remove?
     fn clear_mpu(&self);
 
     /// Enables the MPU for userspace apps.

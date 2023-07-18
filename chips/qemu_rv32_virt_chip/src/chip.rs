@@ -15,7 +15,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::PMP;
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -24,7 +23,7 @@ use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-type QemuRv32VirtPMP = PMP<8>;
+type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<8, rv32i::pmp::simple::SimplePMP<16>>;
 
 pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
@@ -81,7 +80,7 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
     pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a QemuRv32VirtClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: PMP::new(),
+            pmp: rv32i::pmp::PMPUserMPU::new(rv32i::pmp::simple::SimplePMP::new().unwrap()),
             plic: &PLIC,
             timer,
             plic_interrupt_service,
