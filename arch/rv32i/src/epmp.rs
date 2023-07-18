@@ -787,7 +787,19 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
                             (cfg_val << 8) << region_shift | (csr::CSR.pmpconfig_get(x / 2)),
                         );
                     }
-                    None => {}
+                    None => {
+                        // Invalidate other regions not used in this PMPConfig.
+                        match x % 2 {
+                            0 => {
+                                csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::a1::OFF);
+                            }
+                            1 => {
+                                csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::a3::OFF);
+                            }
+                            // unreachable, but don't insert a panic
+                            _ => (),
+                        };
+                    }
                 };
             }
         } else {
@@ -802,7 +814,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
                             1 => {
                                 csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::a3::TOR);
                             }
-                            _ => break,
+                            // unreachable, but don't insert a panic
+                            _ => (),
                         };
                     }
                     None => {}
