@@ -128,7 +128,7 @@ impl<'a> EEPROM<'a> {
             let write_len = cmp::min(txbuffer.len() - 2, length);
 
             for i in 0..write_len {
-                txbuffer[(i + 2)] = buf.0[i];
+                txbuffer[i + 2] = buf.0[i];
             }
 
             self.state.set(State::Writing);
@@ -156,7 +156,7 @@ impl<'a> EEPROM<'a> {
             let write_len = cmp::min(txbuffer.len() - 2, PAGE_SIZE);
 
             for i in 0..write_len {
-                txbuffer[(i + 2)] = 0;
+                txbuffer[i + 2] = 0;
             }
 
             self.state.set(State::Erasing);
