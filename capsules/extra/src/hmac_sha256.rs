@@ -26,6 +26,12 @@ pub enum State {
     OuterHash,
 }
 
+#[derive(Copy, Clone)]
+pub enum RunMode {
+    Hash,
+    Verify,
+}
+
 /// Value to XOR the key with on the inner hash.
 const INNER_PAD_BYTE: u8 = 0x36;
 /// Value to XOR the key with on the outer hash.
@@ -39,6 +45,9 @@ pub struct HmacSha256Software<'a, S: hil::digest::Sha256 + hil::digest::DigestDa
     sha256: &'a S,
     /// The current operation for the internal state machine in this capsule.
     state: Cell<State>,
+    /// The current mode of operation as requested by a call to either
+    /// [`DigestHash::run`] or [`DigestVerify::verify`].
+    mode: Cell<RunMode>,
     /// Location to store incoming temporarily before we are able to pass it to
     /// the hasher.
     input_data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
@@ -50,20 +59,35 @@ pub struct HmacSha256Software<'a, S: hil::digest::Sha256 + hil::digest::DigestDa
     key_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     /// Holding cell for the output digest buffer while we calculate the HMAC.
     digest_buffer: MapCell<&'static mut [u8; 32]>,
-    /// Client for callbacks.
-    client: OptionalCell<&'a dyn hil::digest::ClientDataHash<SHA_256_OUTPUT_LEN_BYTES>>,
+    /// Buffer-slot used for a _verify_ operation. When not active, this
+    /// contains a buffer to place the current digest in. On a call to `verify`,
+    /// where the digest to compare to is provided in another buffer, this
+    /// buffer is swapped into this TakeCell. When the operation completes, we
+    /// swap them back and compare:
+    verify_buffer: MapCell<&'static mut [u8; 32]>,
+    /// Clients for callbacks.
+    // error[E0658]: cannot cast `dyn kernel::hil::digest::Client<32>` to `dyn ClientData<32>`, trait upcasting coercion is experimental
+    // data_client: OptionalCell<&'a dyn hil::digest::ClientData<SHA_256_OUTPUT_LEN_BYTES>>,
+    // hash_client: OptionalCell<&'a dyn hil::digest::ClientHash<SHA_256_OUTPUT_LEN_BYTES>>,
+    // verify_client: OptionalCell<&'a dyn hil::digest::ClientVerify<SHA_256_OUTPUT_LEN_BYTES>>,
+    client: OptionalCell<&'a dyn hil::digest::Client<SHA_256_OUTPUT_LEN_BYTES>>,
 }
 
 impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> HmacSha256Software<'a, S> {
-    pub fn new(sha256: &'a S, data_buffer: &'static mut [u8]) -> Self {
+    pub fn new(sha256: &'a S, data_buffer: &'static mut [u8], verify_buffer: &'static mut [u8; 32]) -> Self {
         Self {
             sha256,
             state: Cell::new(State::Idle),
+	    mode: Cell::new(RunMode::Hash),
             input_data: OptionalCell::empty(),
             data_buffer: TakeCell::new(data_buffer),
             key_buffer: MapCell::new([0; SHA_BLOCK_LEN_BYTES]),
             digest_buffer: MapCell::empty(),
-            client: OptionalCell::empty(),
+	    verify_buffer: MapCell::new(verify_buffer),
+            // data_client: OptionalCell::empty(),
+	    // hash_client: OptionalCell::empty(),
+	    // verify_client: OptionalCell::empty(),
+	    client: OptionalCell::empty(),
         }
     }
 }
@@ -193,7 +217,8 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
     }
 
     fn set_data_client(&'a self, _client: &'a dyn hil::digest::ClientData<32>) {
-        unimplemented!()
+	// self.data_client.set(client);
+	unimplemented!()
     }
 }
 
@@ -206,19 +231,58 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
     ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
         // User called run, we start with the inner hash.
         self.state.set(State::InnerHash);
+	self.mode.set(RunMode::Hash);
         self.sha256.run(digest)
     }
 
     fn set_hash_client(&'a self, _client: &'a dyn hil::digest::ClientHash<32>) {
-        unimplemented!()
+	// self.hash_client.set(client);
+	unimplemented!()
     }
 }
 
 impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
+    hil::digest::DigestVerify<'a, 32> for HmacSha256Software<'a, S>
+{
+    fn verify(
+        &'a self,
+        compare: &'static mut [u8; 32],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        // User called verify, we start with the inner hash.
+        self.state.set(State::InnerHash);
+	self.mode.set(RunMode::Verify);
+
+	// Swap the `compare` buffer into `self.verify_buffer`, and use that to
+	// perform the actual digest calculation:
+	let digest = self.verify_buffer.replace(compare).unwrap();
+        self.sha256.run(digest)
+    }
+
+    fn set_verify_client(&'a self, _client: &'a dyn hil::digest::ClientVerify<32>) {
+	// self.verify_client.set(client);
+	unimplemented!()
+    }
+}
+
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
     hil::digest::DigestDataHash<'a, 32> for HmacSha256Software<'a, S>
 {
-    fn set_client(&'a self, client: &'a dyn hil::digest::ClientDataHash<32>) {
-        self.client.set(client);
+    fn set_client(&'a self, _client: &'a dyn hil::digest::ClientDataHash<32>) {
+	// self.data_client.set(client);
+        // self.hash_client.set(client);
+	unimplemented!()
+    }
+}
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
+    hil::digest::Digest<'a, 32> for HmacSha256Software<'a, S>
+{
+    fn set_client(&'a self, client: &'a dyn hil::digest::Client<32>) {
+	// self.data_client.set(client);
+        // self.hash_client.set(client);
+	// self.verify_client.set(client);
+	self.client.set(client);
     }
 }
 
@@ -229,7 +293,8 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
         // This callback is only used for the user to pass in additional data
         // for the HMAC, we do not use `add_data()` internally in this capsule
         // so we can just directly issue the callback.
-        self.client.map(|client| {
+        // self.data_client.map(|client| {
+	self.client.map(|client| {
             client.add_data_done(result, data);
         });
     }
@@ -240,6 +305,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
         data: LeasableMutableBuffer<'static, u8>,
     ) {
         if result.is_err() {
+	    // self.data_client.map(|client| {
             self.client.map(|client| {
                 client.add_mut_data_done(result, data);
             });
@@ -257,7 +323,8 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                                 }
                                 Err((e, leased_data_buf)) => {
                                     self.clear_data();
-                                    self.client.map(|c| {
+                                    // self.data_client.map(|c| {
+				    self.client.map(|c| {
                                         c.add_mut_data_done(Err(e), leased_data_buf);
                                     });
                                 }
@@ -270,6 +337,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                                 }
                                 Err((e, leased_data_buf)) => {
                                     self.clear_data();
+				    // self.data_client.map(|c| {
                                     self.client.map(|c| {
                                         c.add_data_done(Err(e), leased_data_buf);
                                     });
@@ -302,6 +370,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                             Err((e, leased_data_buf)) => {
                                 self.data_buffer.replace(leased_data_buf.take());
                                 self.clear_data();
+				// self.data_client.map(|c| {
                                 self.client.map(|c| {
                                     c.hash_done(Err(e), digest_buf);
                                 });
@@ -320,6 +389,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                             }
                             Err((e, digest)) => {
                                 self.clear_data();
+				// self.data_client.map(|c| {
                                 self.client.map(|c| {
                                     c.hash_done(Err(e), digest);
                                 });
@@ -329,6 +399,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                 _ => {
                     // In other states, we can just issue the callback like
                     // normal.
+		    // self.data_client.map(|client| {
                     self.client.map(|client| {
                         client.add_mut_data_done(Ok(()), data);
                     });
@@ -342,13 +413,32 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
     for HmacSha256Software<'a, S>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; 32]) {
+	let hash_done_error = |error: Result<(), ErrorCode>, error_digest: &'static mut [u8; 32]| {
+	    match self.mode.get() {
+		RunMode::Hash => {
+		    // self.hash_client.map(|c| {
+		    self.client.map(|c| {
+			c.hash_done(error, error_digest);
+		    })
+		},
+		RunMode::Verify => {
+		    // Also swap back the verify_buffer, and return the original
+		    // buffer to the client:
+		    let compare = self.verify_buffer.replace(error_digest).unwrap();
+		    // self.verify_client.map(|c| {
+		    self.client.map(|c| {
+			// Convert to Result<bool, ErrorCode>
+			c.verification_done(error.map(|_| false), compare);
+		    })
+		}
+	    }
+	};
+
         if result.is_err() {
             // If hashing fails, we have to propagate that error up with a
             // callback.
             self.clear_data();
-            self.client.map(|c| {
-                c.hash_done(result, digest);
-            });
+	    hash_done_error(result, digest);
         } else {
             match self.state.get() {
                 State::InnerHash => {
@@ -376,22 +466,42 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                                 // buffer and issue a callback with an error.
                                 self.data_buffer.replace(leased_data_buf.take());
                                 self.clear_data();
-                                self.client.map(|c| {
-                                    c.hash_done(Err(e), digest);
-                                });
+                                hash_done_error(Err(e), digest);
                             }
                         }
                     });
                 }
 
                 State::OuterHash => {
-                    self.client.map(|c| {
-                        c.hash_done(Ok(()), digest);
-                    });
+		    match self.mode.get() {
+			RunMode::Hash => {
+			    // self.hash_client.map(|c| {
+			    self.client.map(|c| {
+				c.hash_done(Ok(()), digest);
+			    });
+			},
+
+			RunMode::Verify => {
+			    let compare = self.verify_buffer.take().unwrap();
+			    let res = compare == digest;
+			    self.verify_buffer.replace(digest);
+			    // self.verify_client.map(|c| {
+			    self.client.map(|c| {
+				c.verification_done(Ok(res), compare);
+			    });
+			},
+		    }
                 }
                 _ => {}
             }
         }
+    }
+}
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::ClientVerify<32>
+    for HmacSha256Software<'a, S>
+{
+    fn verification_done(&self, _result: Result<bool, ErrorCode>, _compare: &'static mut [u8; 32]) {
     }
 }
 
@@ -425,9 +535,18 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
     }
 }
 
-impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::ClientVerify<32>
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::HmacSha384
     for HmacSha256Software<'a, S>
 {
-    fn verification_done(&self, _result: Result<bool, ErrorCode>, _compare: &'static mut [u8; 32]) {
+    fn set_mode_hmacsha384(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+	Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::HmacSha512
+    for HmacSha256Software<'a, S>
+{
+    fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {
+	Err(ErrorCode::NOSUPPORT)
     }
 }
