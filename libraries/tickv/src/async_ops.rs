@@ -277,18 +277,6 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         self.tickv.read_buffer.replace(Some(buf));
     }
 
-    /// Get the `value` buffer that was passed in by previous
-    /// commands.
-    pub fn get_stored_value_buffer(&self) -> Option<&'static mut [u8]> {
-        self.value.take()
-    }
-
-    /// Get the `buf` buffer that was passed in by previous
-    /// commands.
-    pub fn get_stored_buffer(&self) -> Option<&'static mut [u8]> {
-        self.buf.take()
-    }
-
     /// Continue the last operation after the async operation has completed.
     /// This should be called from a read/erase complete callback.
     /// NOTE: If called from a read callback, `set_read_buffer` should be
