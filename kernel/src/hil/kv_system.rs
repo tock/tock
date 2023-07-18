@@ -220,6 +220,7 @@ pub trait KVSystem<'a> {
     ///    `INVAL`: An invalid parameter was passed
     ///    `NODEVICE`: No KV store was setup
     ///    `ENOSUPPORT`: The key could not be found.
+    ///    `SIZE`: The value is longer than the provided buffer.
     fn get_value(
         &self,
         key: &'static mut Self::K,
