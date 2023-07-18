@@ -37,9 +37,11 @@ unsafe fn static_init_test_hmacsha256() -> &'static TestHmacSha256 {
     let sha256 = static_init!(Sha256Software<'static>, Sha256Software::new());
     sha256.register();
 
+    let hmacsha256_verify_buf = static_init!([u8; 32], [0; 32]);
+
     let hmacsha256 = static_init!(
         HmacSha256Software<'static, Sha256Software<'static>>,
-        HmacSha256Software::new(sha256, sha256_hash_buf)
+        HmacSha256Software::new(sha256, sha256_hash_buf, hmacsha256_verify_buf)
     );
     sha256.set_client(hmacsha256);
 
