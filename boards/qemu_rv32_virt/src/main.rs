@@ -396,9 +396,9 @@ pub unsafe fn main() {
 
     // enable interrupts globally
     csr::CSR
-        .mie
+        .mie()
         .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+    csr::CSR.mstatus().modify(csr::mstatus::mstatus::mie::SET);
 
     // ---------- FINAL SYSTEM INITIALIZATION ----------
 

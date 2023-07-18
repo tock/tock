@@ -162,15 +162,15 @@ pub enum PermissionMode {
 /// The trap handler is called on exceptions and for interrupts.
 pub unsafe fn configure_trap_handler(mode: PermissionMode) {
     match mode {
-        PermissionMode::Machine => csr::CSR.mtvec.write(
+        PermissionMode::Machine => csr::CSR.mtvec().write(
             csr::mtvec::mtvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::mtvec::mtvec::mode::CLEAR,
         ),
-        PermissionMode::Supervisor => csr::CSR.stvec.write(
+        PermissionMode::Supervisor => csr::CSR.stvec().write(
             csr::stvec::stvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::stvec::stvec::mode::CLEAR,
         ),
-        PermissionMode::User => csr::CSR.utvec.write(
+        PermissionMode::User => csr::CSR.utvec().write(
             csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::utvec::utvec::mode::CLEAR,
         ),
@@ -568,12 +568,12 @@ pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
 /// Prints out RISCV machine state, including basic system registers
 /// (mcause, mstatus, mtvec, mepc, mtval, interrupt status).
 pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
-    let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
+    let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause().extract());
     let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
     let _ = writer.write_fmt(format_args!("Last cause (mcause): "));
     print_mcause(mcval, writer);
-    let interrupt = csr::CSR.mcause.read(csr::mcause::mcause::is_interrupt);
-    let code = csr::CSR.mcause.read(csr::mcause::mcause::reason);
+    let interrupt = csr::CSR.mcause().read(csr::mcause::mcause::is_interrupt);
+    let code = csr::CSR.mcause().read(csr::mcause::mcause::reason);
     let _ = writer.write_fmt(format_args!(
         " (interrupt={}, exception code={:#010X})",
         interrupt, code
@@ -585,14 +585,14 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
          \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
          \r\n mcycle:  {:#010X}    minstret:    {:#010X}\
          \r\n mtvec:   {:#010X}",
-        csr::CSR.mtval.get(),
-        csr::CSR.mepc.get(),
-        csr::CSR.mstatus.get(),
-        csr::CSR.mcycle.get(),
-        csr::CSR.minstret.get(),
-        csr::CSR.mtvec.get()
+        csr::CSR.mtval().get(),
+        csr::CSR.mepc().get(),
+        csr::CSR.mstatus().get(),
+        csr::CSR.mcycle().get(),
+        csr::CSR.minstret().get(),
+        csr::CSR.mtvec().get()
     ));
-    let mstatus = csr::CSR.mstatus.extract();
+    let mstatus = csr::CSR.mstatus().extract();
     let uie = mstatus.is_set(csr::mstatus::mstatus::uie);
     let sie = mstatus.is_set(csr::mstatus::mstatus::sie);
     let mie = mstatus.is_set(csr::mstatus::mstatus::mie);
@@ -615,25 +615,25 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
         mpie,
         spp
     ));
-    let e_usoft = csr::CSR.mie.is_set(csr::mie::mie::usoft);
-    let e_ssoft = csr::CSR.mie.is_set(csr::mie::mie::ssoft);
-    let e_msoft = csr::CSR.mie.is_set(csr::mie::mie::msoft);
-    let e_utimer = csr::CSR.mie.is_set(csr::mie::mie::utimer);
-    let e_stimer = csr::CSR.mie.is_set(csr::mie::mie::stimer);
-    let e_mtimer = csr::CSR.mie.is_set(csr::mie::mie::mtimer);
-    let e_uext = csr::CSR.mie.is_set(csr::mie::mie::uext);
-    let e_sext = csr::CSR.mie.is_set(csr::mie::mie::sext);
-    let e_mext = csr::CSR.mie.is_set(csr::mie::mie::mext);
+    let e_usoft = csr::CSR.mie().is_set(csr::mie::mie::usoft);
+    let e_ssoft = csr::CSR.mie().is_set(csr::mie::mie::ssoft);
+    let e_msoft = csr::CSR.mie().is_set(csr::mie::mie::msoft);
+    let e_utimer = csr::CSR.mie().is_set(csr::mie::mie::utimer);
+    let e_stimer = csr::CSR.mie().is_set(csr::mie::mie::stimer);
+    let e_mtimer = csr::CSR.mie().is_set(csr::mie::mie::mtimer);
+    let e_uext = csr::CSR.mie().is_set(csr::mie::mie::uext);
+    let e_sext = csr::CSR.mie().is_set(csr::mie::mie::sext);
+    let e_mext = csr::CSR.mie().is_set(csr::mie::mie::mext);
 
-    let p_usoft = csr::CSR.mip.is_set(csr::mip::mip::usoft);
-    let p_ssoft = csr::CSR.mip.is_set(csr::mip::mip::ssoft);
-    let p_msoft = csr::CSR.mip.is_set(csr::mip::mip::msoft);
-    let p_utimer = csr::CSR.mip.is_set(csr::mip::mip::utimer);
-    let p_stimer = csr::CSR.mip.is_set(csr::mip::mip::stimer);
-    let p_mtimer = csr::CSR.mip.is_set(csr::mip::mip::mtimer);
-    let p_uext = csr::CSR.mip.is_set(csr::mip::mip::uext);
-    let p_sext = csr::CSR.mip.is_set(csr::mip::mip::sext);
-    let p_mext = csr::CSR.mip.is_set(csr::mip::mip::mext);
+    let p_usoft = csr::CSR.mip().is_set(csr::mip::mip::usoft);
+    let p_ssoft = csr::CSR.mip().is_set(csr::mip::mip::ssoft);
+    let p_msoft = csr::CSR.mip().is_set(csr::mip::mip::msoft);
+    let p_utimer = csr::CSR.mip().is_set(csr::mip::mip::utimer);
+    let p_stimer = csr::CSR.mip().is_set(csr::mip::mip::stimer);
+    let p_mtimer = csr::CSR.mip().is_set(csr::mip::mip::mtimer);
+    let p_uext = csr::CSR.mip().is_set(csr::mip::mip::uext);
+    let p_sext = csr::CSR.mip().is_set(csr::mip::mip::sext);
+    let p_mext = csr::CSR.mip().is_set(csr::mip::mip::mext);
     let _ = writer.write_fmt(format_args!(
         "\r\n mie:   {:#010X}   mip:   {:#010X}\
          \r\n  usoft:  {:6}              {:6}\
@@ -645,8 +645,8 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
          \r\n  uext:   {:6}              {:6}\
          \r\n  sext:   {:6}              {:6}\
          \r\n  mext:   {:6}              {:6}\r\n",
-        csr::CSR.mie.get(),
-        csr::CSR.mip.get(),
+        csr::CSR.mie().get(),
+        csr::CSR.mip().get(),
         e_usoft,
         p_usoft,
         e_ssoft,

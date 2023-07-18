@@ -59,12 +59,12 @@ impl Timer<'_> {
         Timer {
             number,
             alarm_client: OptionalCell::empty(),
-            mitcnt0: ReadWriteRiscvCsr::new(),
-            mitcnt1: ReadWriteRiscvCsr::new(),
-            mitb0: ReadWriteRiscvCsr::new(),
-            mitb1: ReadWriteRiscvCsr::new(),
-            mitctl0: ReadWriteRiscvCsr::new(),
-            mitctl1: ReadWriteRiscvCsr::new(),
+            mitcnt0: unsafe { ReadWriteRiscvCsr::new() },
+            mitcnt1: unsafe { ReadWriteRiscvCsr::new() },
+            mitb0: unsafe { ReadWriteRiscvCsr::new() },
+            mitb1: unsafe { ReadWriteRiscvCsr::new() },
+            mitctl0: unsafe { ReadWriteRiscvCsr::new() },
+            mitctl1: unsafe { ReadWriteRiscvCsr::new() },
         }
     }
 

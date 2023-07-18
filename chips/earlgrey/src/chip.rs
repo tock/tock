@@ -252,7 +252,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for EarlGrey<'a,
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie.modify(mie::mext::SET + mie::mtimer::CLEAR);
+        unsafe { CSR.mie().modify(mie::mext::SET + mie::mtimer::CLEAR) };
         self.plic.enable_all();
     }
 
@@ -306,7 +306,9 @@ fn handle_exception(exception: mcause::Exception) {
         | mcause::Exception::LoadPageFault
         | mcause::Exception::StorePageFault
         | mcause::Exception::Unknown => {
-            panic!("fatal exception: {:?}: {:#x}", exception, CSR.mtval.get());
+            panic!("fatal exception: {:?}: {:#x}", exception, unsafe {
+                CSR.mtval().get()
+            });
         }
     }
 }
@@ -325,14 +327,14 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
-            CSR.mie.modify(mie::msoft::CLEAR);
+            CSR.mie().modify(mie::msoft::CLEAR);
         }
         mcause::Interrupt::MachineTimer => {
-            CSR.mie.modify(mie::mtimer::CLEAR);
+            CSR.mie().modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
             // We received an interrupt, disable interrupts while we handle them
-            CSR.mie.modify(mie::mext::CLEAR);
+            CSR.mie().modify(mie::mext::CLEAR);
 
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
@@ -347,7 +349,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                     }
                     None => {
                         // Enable generic interrupts
-                        CSR.mie.modify(mie::mext::SET);
+                        CSR.mie().modify(mie::mext::SET);
                         break;
                     }
                 }
@@ -366,7 +368,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
-    match mcause::Trap::from(CSR.mcause.extract()) {
+    match mcause::Trap::from(CSR.mcause().extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }
@@ -393,7 +395,7 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 
 pub unsafe fn configure_trap_handler() {
     // The Ibex CPU does not support non-vectored trap entries.
-    CSR.mtvec
+    CSR.mtvec()
         .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored)
 }
 

@@ -184,14 +184,14 @@ pub unsafe fn main() {
     chip.enable_pic_interrupts();
 
     // enable interrupts globally, including timer0 (bit 29) and timer1 (bit 28)
-    csr::CSR.mie.modify(
+    csr::CSR.mie().modify(
         csr::mie::mie::mext::SET
             + csr::mie::mie::msoft::SET
             + csr::mie::mie::mtimer::SET
             + csr::mie::mie::BIT28::SET
             + csr::mie::mie::BIT29::SET,
     );
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+    csr::CSR.mstatus().modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

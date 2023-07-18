@@ -77,7 +77,7 @@ impl<I: 'static + InterruptService> kernel::platform::chip::Chip for LiteXVexRis
         // Re-enable all MIE interrupts that we care about. Since we
         // looped until we handled them all, we can re-enable all of
         // them.
-        CSR.mie.modify(mie::mext::SET);
+        unsafe { CSR.mie().modify(mie::mext::SET) };
     }
 
     fn has_pending_interrupts(&self) -> bool {
@@ -142,14 +142,14 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
-            CSR.mie.modify(mie::msoft::CLEAR);
+            CSR.mie().modify(mie::msoft::CLEAR);
         }
         mcause::Interrupt::MachineTimer => {
-            CSR.mie.modify(mie::mtimer::CLEAR);
+            CSR.mie().modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
             // We received an interrupt, disable interrupts while we handle them
-            CSR.mie.modify(mie::mext::CLEAR);
+            CSR.mie().modify(mie::mext::CLEAR);
 
             // Save the interrupts and check whether at least one
             // interrupt is to be handled
@@ -157,7 +157,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // If no interrupt was saved, reenable interrupts
             // immediately
             if !INTERRUPT_CONTROLLER.save_pending() {
-                CSR.mie.modify(mie::mext::SET);
+                CSR.mie().modify(mie::mext::SET);
             }
         }
 
@@ -173,7 +173,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
-    match mcause::Trap::from(CSR.mcause.extract()) {
+    match mcause::Trap::from(CSR.mcause().extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }

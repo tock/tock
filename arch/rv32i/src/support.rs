@@ -35,7 +35,7 @@ where
     // The result will be the original value of [`mstatus::mie`],
     // shifted to the proper position in [`mstatus`].
     let original_mie: usize = CSR
-        .mstatus
+        .mstatus()
         .read_and_clear_bits(mstatus::mie.mask << mstatus::mie.shift)
         & mstatus::mie.mask << mstatus::mie.shift;
 
@@ -45,7 +45,7 @@ where
 
     // If [`mstatus::mie`] was set before, set it again. Otherwise,
     // this function will be a nop.
-    CSR.mstatus.read_and_set_bits(original_mie);
+    CSR.mstatus().read_and_set_bits(original_mie);
 
     res
 }

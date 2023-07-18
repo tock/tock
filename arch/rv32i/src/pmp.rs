@@ -304,22 +304,24 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         //
         // We want to keep the first region configured, so it is excluded from the loops and
         // set separately.
-        for x in 1..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
-            csr::CSR.pmpaddr_set(x, 0x0);
+        unsafe {
+            for x in 1..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2) {
+                csr::CSR.pmpaddr_set(x, 0x0);
+            }
+            for x in 1..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2 / 4) {
+                csr::CSR.pmpconfig_set(x, 0);
+            }
+            csr::CSR.pmpaddr_set(0, 0xFFFF_FFFF);
+            // enable R W X fields
+            csr::CSR.pmpconfig_set(
+                0,
+                (csr::pmpconfig::pmpcfg::r0::SET
+                    + csr::pmpconfig::pmpcfg::w0::SET
+                    + csr::pmpconfig::pmpcfg::x0::SET
+                    + csr::pmpconfig::pmpcfg::a0::TOR)
+                    .value,
+            );
         }
-        for x in 1..(MAX_AVAILABLE_REGIONS_OVER_TWO * 2 / 4) {
-            csr::CSR.pmpconfig_set(x, 0);
-        }
-        csr::CSR.pmpaddr_set(0, 0xFFFF_FFFF);
-        // enable R W X fields
-        csr::CSR.pmpconfig_set(
-            0,
-            (csr::pmpconfig::pmpcfg::r0::SET
-                + csr::pmpconfig::pmpcfg::w0::SET
-                + csr::pmpconfig::pmpcfg::x0::SET
-                + csr::pmpconfig::pmpcfg::a0::TOR)
-                .value,
-        );
         // PMP is not configured for any process now
         self.last_configured_for.take();
     }
@@ -537,13 +539,16 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
                         } else {
                             (16, 0x0000_FFFF)
                         };
-                        csr::CSR.pmpconfig_set(
-                            x / 2,
-                            (disable_val | cfg_val << 8) << region_shift
-                                | (csr::CSR.pmpconfig_get(x / 2) & other_region_mask),
-                        );
-                        csr::CSR.pmpaddr_set(x * 2, (start) >> 2);
-                        csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+
+                        unsafe {
+                            csr::CSR.pmpconfig_set(
+                                x / 2,
+                                (disable_val | cfg_val << 8) << region_shift
+                                    | (csr::CSR.pmpconfig_get(x / 2) & other_region_mask),
+                            );
+                            csr::CSR.pmpaddr_set(x * 2, (start) >> 2);
+                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                        }
                     }
                     None => {}
                 };
@@ -625,42 +630,46 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
 
                     match x % 2 {
                         0 => {
-                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
-                            // Disable access up to the start address
-                            csr::CSR.pmpconfig_modify(
-                                x / 2,
-                                csr::pmpconfig::pmpcfg::r0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::w0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::x0::CLEAR
-                                    + csr::pmpconfig::pmpcfg::a0::CLEAR,
-                            );
-                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
+                            unsafe {
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                                // Disable access up to the start address
+                                csr::CSR.pmpconfig_modify(
+                                    x / 2,
+                                    csr::pmpconfig::pmpcfg::r0::CLEAR
+                                        + csr::pmpconfig::pmpcfg::w0::CLEAR
+                                        + csr::pmpconfig::pmpcfg::x0::CLEAR
+                                        + csr::pmpconfig::pmpcfg::a0::CLEAR,
+                                );
+                                csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
-                            // Set access to end address
-                            let new_cfg =
-                                cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
-                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
-                            // Lock the CSR
-                            csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l1::SET);
+                                // Set access to end address
+                                let new_cfg =
+                                    cfg_val << 8 | (csr::CSR.pmpconfig_get(x / 2) & 0xFFFF_00FF);
+                                csr::CSR.pmpconfig_set(x / 2, new_cfg);
+                                // Lock the CSR
+                                csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l1::SET);
+                            }
                         }
                         1 => {
-                            csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
-                            // Disable access up to the start address
-                            csr::CSR.pmpconfig_modify(
-                                x / 2,
-                                csr::pmpconfig::pmpcfg::r2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::w2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::x2::CLEAR
-                                    + csr::pmpconfig::pmpcfg::a2::CLEAR,
-                            );
-                            csr::CSR.pmpaddr_set(x * 2, start >> 2);
+                            unsafe {
+                                csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
+                                // Disable access up to the start address
+                                csr::CSR.pmpconfig_modify(
+                                    x / 2,
+                                    csr::pmpconfig::pmpcfg::r2::CLEAR
+                                        + csr::pmpconfig::pmpcfg::w2::CLEAR
+                                        + csr::pmpconfig::pmpcfg::x2::CLEAR
+                                        + csr::pmpconfig::pmpcfg::a2::CLEAR,
+                                );
+                                csr::CSR.pmpaddr_set(x * 2, start >> 2);
 
-                            // Set access to end address
-                            let new_cfg =
-                                cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
-                            csr::CSR.pmpconfig_set(x / 2, new_cfg);
-                            // Lock the CSR
-                            csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
+                                // Set access to end address
+                                let new_cfg =
+                                    cfg_val << 24 | (csr::CSR.pmpconfig_get(x / 2) & 0x00FF_FFFF);
+                                csr::CSR.pmpconfig_set(x / 2, new_cfg);
+                                // Lock the CSR
+                                csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
+                            }
                         }
                         _ => break,
                     }

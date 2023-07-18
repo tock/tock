@@ -44,236 +44,235 @@ pub mod utvec;
 
 pub struct CSR {
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub minstreth: ReadWriteRiscvCsr<usize, minstret::minstreth::Register, MINSTRETH>,
-    pub minstret: ReadWriteRiscvCsr<usize, minstret::minstret::Register, MINSTRET>,
+    minstreth: ReadWriteRiscvCsr<usize, minstret::minstreth::Register, MINSTRETH>,
+    minstret: ReadWriteRiscvCsr<usize, minstret::minstret::Register, MINSTRET>,
 
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub mcycleh: ReadWriteRiscvCsr<usize, mcycle::mcycleh::Register, MCYCLEH>,
-    pub mcycle: ReadWriteRiscvCsr<usize, mcycle::mcycle::Register, MCYCLE>,
+    mcycleh: ReadWriteRiscvCsr<usize, mcycle::mcycleh::Register, MCYCLEH>,
+    mcycle: ReadWriteRiscvCsr<usize, mcycle::mcycle::Register, MCYCLE>,
 
+    pmpcfg0: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG0>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg0: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG0>,
+    pmpcfg1: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG1>,
+    pmpcfg2: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG2>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg1: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG1>,
-    pub pmpcfg2: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG2>,
+    pmpcfg3: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG3>,
+    pmpcfg4: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG4>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg3: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG3>,
-    pub pmpcfg4: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG4>,
+    pmpcfg5: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG5>,
+    pmpcfg6: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG6>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg5: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG5>,
-    pub pmpcfg6: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG6>,
+    pmpcfg7: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG7>,
+    pmpcfg8: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG8>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg7: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG7>,
-    pub pmpcfg8: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG8>,
+    pmpcfg9: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG9>,
+    pmpcfg10: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG10>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg9: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG9>,
-    pub pmpcfg10: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG10>,
+    pmpcfg11: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG11>,
+    pmpcfg12: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG12>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg11: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG11>,
-    pub pmpcfg12: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG12>,
+    pmpcfg13: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG13>,
+    pmpcfg14: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG14>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg13: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG13>,
-    pub pmpcfg14: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG14>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub pmpcfg15: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG15>,
+    pmpcfg15: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG15>,
 
-    pub pmpaddr0: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR0>,
-    pub pmpaddr1: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR1>,
-    pub pmpaddr2: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR2>,
-    pub pmpaddr3: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR3>,
-    pub pmpaddr4: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR4>,
-    pub pmpaddr5: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR5>,
-    pub pmpaddr6: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR6>,
-    pub pmpaddr7: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR7>,
-    pub pmpaddr8: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR8>,
-    pub pmpaddr9: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR9>,
-    pub pmpaddr10: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR10>,
-    pub pmpaddr11: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR11>,
-    pub pmpaddr12: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR12>,
-    pub pmpaddr13: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR13>,
-    pub pmpaddr14: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR14>,
-    pub pmpaddr15: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR15>,
-    pub pmpaddr16: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR16>,
-    pub pmpaddr17: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR17>,
-    pub pmpaddr18: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR18>,
-    pub pmpaddr19: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR19>,
-    pub pmpaddr20: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR20>,
-    pub pmpaddr21: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR21>,
-    pub pmpaddr22: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR22>,
-    pub pmpaddr23: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR23>,
-    pub pmpaddr24: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR24>,
-    pub pmpaddr25: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR25>,
-    pub pmpaddr26: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR26>,
-    pub pmpaddr27: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR27>,
-    pub pmpaddr28: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR28>,
-    pub pmpaddr29: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR29>,
-    pub pmpaddr30: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR30>,
-    pub pmpaddr31: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR31>,
-    pub pmpaddr32: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR32>,
-    pub pmpaddr33: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR33>,
-    pub pmpaddr34: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR34>,
-    pub pmpaddr35: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR35>,
-    pub pmpaddr36: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR36>,
-    pub pmpaddr37: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR37>,
-    pub pmpaddr38: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR38>,
-    pub pmpaddr39: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR39>,
-    pub pmpaddr40: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR40>,
-    pub pmpaddr41: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR41>,
-    pub pmpaddr42: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR42>,
-    pub pmpaddr43: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR43>,
-    pub pmpaddr44: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR44>,
-    pub pmpaddr45: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR45>,
-    pub pmpaddr46: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR46>,
-    pub pmpaddr47: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR47>,
-    pub pmpaddr48: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR48>,
-    pub pmpaddr49: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR49>,
-    pub pmpaddr50: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR50>,
-    pub pmpaddr51: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR51>,
-    pub pmpaddr52: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR52>,
-    pub pmpaddr53: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR53>,
-    pub pmpaddr54: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR54>,
-    pub pmpaddr55: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR55>,
-    pub pmpaddr56: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR56>,
-    pub pmpaddr57: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR57>,
-    pub pmpaddr58: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR58>,
-    pub pmpaddr59: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR59>,
-    pub pmpaddr60: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR60>,
-    pub pmpaddr61: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR61>,
-    pub pmpaddr62: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR62>,
-    pub pmpaddr63: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR63>,
+    pmpaddr0: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR0>,
+    pmpaddr1: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR1>,
+    pmpaddr2: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR2>,
+    pmpaddr3: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR3>,
+    pmpaddr4: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR4>,
+    pmpaddr5: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR5>,
+    pmpaddr6: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR6>,
+    pmpaddr7: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR7>,
+    pmpaddr8: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR8>,
+    pmpaddr9: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR9>,
+    pmpaddr10: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR10>,
+    pmpaddr11: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR11>,
+    pmpaddr12: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR12>,
+    pmpaddr13: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR13>,
+    pmpaddr14: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR14>,
+    pmpaddr15: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR15>,
+    pmpaddr16: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR16>,
+    pmpaddr17: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR17>,
+    pmpaddr18: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR18>,
+    pmpaddr19: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR19>,
+    pmpaddr20: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR20>,
+    pmpaddr21: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR21>,
+    pmpaddr22: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR22>,
+    pmpaddr23: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR23>,
+    pmpaddr24: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR24>,
+    pmpaddr25: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR25>,
+    pmpaddr26: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR26>,
+    pmpaddr27: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR27>,
+    pmpaddr28: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR28>,
+    pmpaddr29: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR29>,
+    pmpaddr30: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR30>,
+    pmpaddr31: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR31>,
+    pmpaddr32: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR32>,
+    pmpaddr33: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR33>,
+    pmpaddr34: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR34>,
+    pmpaddr35: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR35>,
+    pmpaddr36: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR36>,
+    pmpaddr37: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR37>,
+    pmpaddr38: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR38>,
+    pmpaddr39: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR39>,
+    pmpaddr40: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR40>,
+    pmpaddr41: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR41>,
+    pmpaddr42: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR42>,
+    pmpaddr43: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR43>,
+    pmpaddr44: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR44>,
+    pmpaddr45: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR45>,
+    pmpaddr46: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR46>,
+    pmpaddr47: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR47>,
+    pmpaddr48: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR48>,
+    pmpaddr49: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR49>,
+    pmpaddr50: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR50>,
+    pmpaddr51: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR51>,
+    pmpaddr52: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR52>,
+    pmpaddr53: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR53>,
+    pmpaddr54: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR54>,
+    pmpaddr55: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR55>,
+    pmpaddr56: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR56>,
+    pmpaddr57: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR57>,
+    pmpaddr58: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR58>,
+    pmpaddr59: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR59>,
+    pmpaddr60: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR60>,
+    pmpaddr61: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR61>,
+    pmpaddr62: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR62>,
+    pmpaddr63: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR63>,
 
-    pub mie: ReadWriteRiscvCsr<usize, mie::mie::Register, MIE>,
-    pub mscratch: ReadWriteRiscvCsr<usize, mscratch::mscratch::Register, MSCRATCH>,
-    pub mepc: ReadWriteRiscvCsr<usize, mepc::mepc::Register, MEPC>,
-    pub mcause: ReadWriteRiscvCsr<usize, mcause::mcause::Register, MCAUSE>,
-    pub mtval: ReadWriteRiscvCsr<usize, mtval::mtval::Register, MTVAL>,
-    pub mip: ReadWriteRiscvCsr<usize, mip::mip::Register, MIP>,
-    pub mtvec: ReadWriteRiscvCsr<usize, mtvec::mtvec::Register, MTVEC>,
-    pub mstatus: ReadWriteRiscvCsr<usize, mstatus::mstatus::Register, MSTATUS>,
+    mie: ReadWriteRiscvCsr<usize, mie::mie::Register, MIE>,
+    mscratch: ReadWriteRiscvCsr<usize, mscratch::mscratch::Register, MSCRATCH>,
+    mepc: ReadWriteRiscvCsr<usize, mepc::mepc::Register, MEPC>,
+    mcause: ReadWriteRiscvCsr<usize, mcause::mcause::Register, MCAUSE>,
+    mtval: ReadWriteRiscvCsr<usize, mtval::mtval::Register, MTVAL>,
+    mip: ReadWriteRiscvCsr<usize, mip::mip::Register, MIP>,
+    mtvec: ReadWriteRiscvCsr<usize, mtvec::mtvec::Register, MTVEC>,
+    mstatus: ReadWriteRiscvCsr<usize, mstatus::mstatus::Register, MSTATUS>,
 
-    pub mseccfg: ReadWriteRiscvCsr<usize, mseccfg::mseccfg::Register, MSECCFG>,
+    mseccfg: ReadWriteRiscvCsr<usize, mseccfg::mseccfg::Register, MSECCFG>,
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pub mseccfgh: ReadWriteRiscvCsr<usize, mseccfg::mseccfgh::Register, MSECCFGH>,
+    mseccfgh: ReadWriteRiscvCsr<usize, mseccfg::mseccfgh::Register, MSECCFGH>,
 
-    pub utvec: ReadWriteRiscvCsr<usize, utvec::utvec::Register, UTVEC>,
-    pub stvec: ReadWriteRiscvCsr<usize, stvec::stvec::Register, STVEC>,
+    utvec: ReadWriteRiscvCsr<usize, utvec::utvec::Register, UTVEC>,
+    stvec: ReadWriteRiscvCsr<usize, stvec::stvec::Register, STVEC>,
 }
 
 // Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    minstreth: ReadWriteRiscvCsr::new(),
-    minstret: ReadWriteRiscvCsr::new(),
+    minstreth: unsafe { ReadWriteRiscvCsr::new() },
+    minstret: unsafe { ReadWriteRiscvCsr::new() },
 
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    mcycleh: ReadWriteRiscvCsr::new(),
-    mcycle: ReadWriteRiscvCsr::new(),
+    mcycleh: unsafe { ReadWriteRiscvCsr::new() },
+    mcycle: unsafe { ReadWriteRiscvCsr::new() },
 
-    pmpcfg0: ReadWriteRiscvCsr::new(),
+    pmpcfg0: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg1: ReadWriteRiscvCsr::new(),
-    pmpcfg2: ReadWriteRiscvCsr::new(),
+    pmpcfg1: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg2: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg3: ReadWriteRiscvCsr::new(),
-    pmpcfg4: ReadWriteRiscvCsr::new(),
+    pmpcfg3: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg4: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg5: ReadWriteRiscvCsr::new(),
-    pmpcfg6: ReadWriteRiscvCsr::new(),
+    pmpcfg5: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg6: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg7: ReadWriteRiscvCsr::new(),
-    pmpcfg8: ReadWriteRiscvCsr::new(),
+    pmpcfg7: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg8: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg9: ReadWriteRiscvCsr::new(),
-    pmpcfg10: ReadWriteRiscvCsr::new(),
+    pmpcfg9: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg10: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg11: ReadWriteRiscvCsr::new(),
-    pmpcfg12: ReadWriteRiscvCsr::new(),
+    pmpcfg11: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg12: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg13: ReadWriteRiscvCsr::new(),
-    pmpcfg14: ReadWriteRiscvCsr::new(),
+    pmpcfg13: unsafe { ReadWriteRiscvCsr::new() },
+    pmpcfg14: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    pmpcfg15: ReadWriteRiscvCsr::new(),
+    pmpcfg15: unsafe { ReadWriteRiscvCsr::new() },
 
-    pmpaddr0: ReadWriteRiscvCsr::new(),
-    pmpaddr1: ReadWriteRiscvCsr::new(),
-    pmpaddr2: ReadWriteRiscvCsr::new(),
-    pmpaddr3: ReadWriteRiscvCsr::new(),
-    pmpaddr4: ReadWriteRiscvCsr::new(),
-    pmpaddr5: ReadWriteRiscvCsr::new(),
-    pmpaddr6: ReadWriteRiscvCsr::new(),
-    pmpaddr7: ReadWriteRiscvCsr::new(),
-    pmpaddr8: ReadWriteRiscvCsr::new(),
-    pmpaddr9: ReadWriteRiscvCsr::new(),
-    pmpaddr10: ReadWriteRiscvCsr::new(),
-    pmpaddr11: ReadWriteRiscvCsr::new(),
-    pmpaddr12: ReadWriteRiscvCsr::new(),
-    pmpaddr13: ReadWriteRiscvCsr::new(),
-    pmpaddr14: ReadWriteRiscvCsr::new(),
-    pmpaddr15: ReadWriteRiscvCsr::new(),
-    pmpaddr16: ReadWriteRiscvCsr::new(),
-    pmpaddr17: ReadWriteRiscvCsr::new(),
-    pmpaddr18: ReadWriteRiscvCsr::new(),
-    pmpaddr19: ReadWriteRiscvCsr::new(),
-    pmpaddr20: ReadWriteRiscvCsr::new(),
-    pmpaddr21: ReadWriteRiscvCsr::new(),
-    pmpaddr22: ReadWriteRiscvCsr::new(),
-    pmpaddr23: ReadWriteRiscvCsr::new(),
-    pmpaddr24: ReadWriteRiscvCsr::new(),
-    pmpaddr25: ReadWriteRiscvCsr::new(),
-    pmpaddr26: ReadWriteRiscvCsr::new(),
-    pmpaddr27: ReadWriteRiscvCsr::new(),
-    pmpaddr28: ReadWriteRiscvCsr::new(),
-    pmpaddr29: ReadWriteRiscvCsr::new(),
-    pmpaddr30: ReadWriteRiscvCsr::new(),
-    pmpaddr31: ReadWriteRiscvCsr::new(),
-    pmpaddr32: ReadWriteRiscvCsr::new(),
-    pmpaddr33: ReadWriteRiscvCsr::new(),
-    pmpaddr34: ReadWriteRiscvCsr::new(),
-    pmpaddr35: ReadWriteRiscvCsr::new(),
-    pmpaddr36: ReadWriteRiscvCsr::new(),
-    pmpaddr37: ReadWriteRiscvCsr::new(),
-    pmpaddr38: ReadWriteRiscvCsr::new(),
-    pmpaddr39: ReadWriteRiscvCsr::new(),
-    pmpaddr40: ReadWriteRiscvCsr::new(),
-    pmpaddr41: ReadWriteRiscvCsr::new(),
-    pmpaddr42: ReadWriteRiscvCsr::new(),
-    pmpaddr43: ReadWriteRiscvCsr::new(),
-    pmpaddr44: ReadWriteRiscvCsr::new(),
-    pmpaddr45: ReadWriteRiscvCsr::new(),
-    pmpaddr46: ReadWriteRiscvCsr::new(),
-    pmpaddr47: ReadWriteRiscvCsr::new(),
-    pmpaddr48: ReadWriteRiscvCsr::new(),
-    pmpaddr49: ReadWriteRiscvCsr::new(),
-    pmpaddr50: ReadWriteRiscvCsr::new(),
-    pmpaddr51: ReadWriteRiscvCsr::new(),
-    pmpaddr52: ReadWriteRiscvCsr::new(),
-    pmpaddr53: ReadWriteRiscvCsr::new(),
-    pmpaddr54: ReadWriteRiscvCsr::new(),
-    pmpaddr55: ReadWriteRiscvCsr::new(),
-    pmpaddr56: ReadWriteRiscvCsr::new(),
-    pmpaddr57: ReadWriteRiscvCsr::new(),
-    pmpaddr58: ReadWriteRiscvCsr::new(),
-    pmpaddr59: ReadWriteRiscvCsr::new(),
-    pmpaddr60: ReadWriteRiscvCsr::new(),
-    pmpaddr61: ReadWriteRiscvCsr::new(),
-    pmpaddr62: ReadWriteRiscvCsr::new(),
-    pmpaddr63: ReadWriteRiscvCsr::new(),
+    pmpaddr0: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr1: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr2: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr3: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr4: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr5: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr6: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr7: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr8: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr9: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr10: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr11: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr12: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr13: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr14: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr15: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr16: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr17: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr18: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr19: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr20: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr21: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr22: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr23: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr24: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr25: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr26: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr27: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr28: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr29: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr30: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr31: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr32: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr33: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr34: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr35: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr36: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr37: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr38: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr39: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr40: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr41: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr42: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr43: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr44: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr45: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr46: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr47: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr48: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr49: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr50: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr51: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr52: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr53: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr54: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr55: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr56: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr57: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr58: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr59: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr60: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr61: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr62: unsafe { ReadWriteRiscvCsr::new() },
+    pmpaddr63: unsafe { ReadWriteRiscvCsr::new() },
 
-    mie: ReadWriteRiscvCsr::new(),
-    mscratch: ReadWriteRiscvCsr::new(),
-    mepc: ReadWriteRiscvCsr::new(),
-    mcause: ReadWriteRiscvCsr::new(),
-    mtval: ReadWriteRiscvCsr::new(),
-    mip: ReadWriteRiscvCsr::new(),
-    mtvec: ReadWriteRiscvCsr::new(),
-    mstatus: ReadWriteRiscvCsr::new(),
+    mie: unsafe { ReadWriteRiscvCsr::new() },
+    mscratch: unsafe { ReadWriteRiscvCsr::new() },
+    mepc: unsafe { ReadWriteRiscvCsr::new() },
+    mcause: unsafe { ReadWriteRiscvCsr::new() },
+    mtval: unsafe { ReadWriteRiscvCsr::new() },
+    mip: unsafe { ReadWriteRiscvCsr::new() },
+    mtvec: unsafe { ReadWriteRiscvCsr::new() },
+    mstatus: unsafe { ReadWriteRiscvCsr::new() },
 
-    mseccfg: ReadWriteRiscvCsr::new(),
+    mseccfg: unsafe { ReadWriteRiscvCsr::new() },
     #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
-    mseccfgh: ReadWriteRiscvCsr::new(),
+    mseccfgh: unsafe { ReadWriteRiscvCsr::new() },
 
-    utvec: ReadWriteRiscvCsr::new(),
-    stvec: ReadWriteRiscvCsr::new(),
+    utvec: unsafe { ReadWriteRiscvCsr::new() },
+    stvec: unsafe { ReadWriteRiscvCsr::new() },
 };
 
 impl CSR {
@@ -316,7 +315,8 @@ impl CSR {
         CSR.mcycle.read(mcycle::mcycle::mcycle)
     }
 
-    pub fn pmpconfig_get(&self, index: usize) -> usize {
+    // unsafe as access to non-existant pmpcfgX register can cause a trap
+    pub unsafe fn pmpconfig_get(&self, index: usize) -> usize {
         match index {
             0 => self.pmpcfg0.get(),
             #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
@@ -346,7 +346,7 @@ impl CSR {
         }
     }
 
-    pub fn pmpconfig_set(&self, index: usize, value: usize) {
+    pub unsafe fn pmpconfig_set(&self, index: usize, value: usize) {
         match index {
             0 => self.pmpcfg0.set(value),
             #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
@@ -376,7 +376,7 @@ impl CSR {
         }
     }
 
-    pub fn pmpconfig_modify(
+    pub unsafe fn pmpconfig_modify(
         &self,
         index: usize,
         field: FieldValue<usize, pmpconfig::pmpcfg::Register>,
@@ -410,7 +410,7 @@ impl CSR {
         }
     }
 
-    pub fn pmpaddr_set(&self, index: usize, value: usize) {
+    pub unsafe fn pmpaddr_set(&self, index: usize, value: usize) {
         match index {
             0 => self.pmpaddr0.set(value),
             1 => self.pmpaddr1.set(value),
@@ -480,7 +480,8 @@ impl CSR {
         }
     }
 
-    pub fn pmpaddr_get(&self, index: usize) -> usize {
+    // unsafe as access to non-existant pmpaddrX register can cause a trap
+    pub unsafe fn pmpaddr_get(&self, index: usize) -> usize {
         match index {
             0 => self.pmpaddr0.get(),
             1 => self.pmpaddr1.get(),
@@ -548,5 +549,570 @@ impl CSR {
             63 => self.pmpaddr63.get(),
             _ => unreachable!(),
         }
+    }
+
+    // CSR accessor methods
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn minstreth(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, minstret::minstreth::Register, MINSTRETH> {
+        &self.minstreth
+    }
+
+    pub unsafe fn minstret(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, minstret::minstret::Register, MINSTRET> {
+        &self.minstret
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn mcycleh(&self) -> &ReadWriteRiscvCsr<usize, mcycle::mcycleh::Register, MCYCLEH> {
+        &self.mcycleh
+    }
+
+    pub unsafe fn mcycle(&self) -> &ReadWriteRiscvCsr<usize, mcycle::mcycle::Register, MCYCLE> {
+        &self.mcycle
+    }
+
+    pub unsafe fn pmpcfg0(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG0> {
+        &self.pmpcfg0
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg1(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG1> {
+        &self.pmpcfg1
+    }
+
+    pub unsafe fn pmpcfg2(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG2> {
+        &self.pmpcfg2
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg3(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG3> {
+        &self.pmpcfg3
+    }
+
+    pub unsafe fn pmpcfg4(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG4> {
+        &self.pmpcfg4
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg5(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG5> {
+        &self.pmpcfg5
+    }
+
+    pub unsafe fn pmpcfg6(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG6> {
+        &self.pmpcfg6
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg7(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG7> {
+        &self.pmpcfg7
+    }
+
+    pub unsafe fn pmpcfg8(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG8> {
+        &self.pmpcfg8
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg9(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG9> {
+        &self.pmpcfg9
+    }
+
+    pub unsafe fn pmpcfg10(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG10> {
+        &self.pmpcfg10
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg11(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG11> {
+        &self.pmpcfg11
+    }
+
+    pub unsafe fn pmpcfg12(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG12> {
+        &self.pmpcfg12
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg13(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG13> {
+        &self.pmpcfg13
+    }
+
+    pub unsafe fn pmpcfg14(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG14> {
+        &self.pmpcfg14
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn pmpcfg15(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG15> {
+        &self.pmpcfg15
+    }
+
+    pub unsafe fn pmpaddr0(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR0> {
+        &self.pmpaddr0
+    }
+
+    pub unsafe fn pmpaddr1(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR1> {
+        &self.pmpaddr1
+    }
+
+    pub unsafe fn pmpaddr2(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR2> {
+        &self.pmpaddr2
+    }
+
+    pub unsafe fn pmpaddr3(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR3> {
+        &self.pmpaddr3
+    }
+
+    pub unsafe fn pmpaddr4(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR4> {
+        &self.pmpaddr4
+    }
+
+    pub unsafe fn pmpaddr5(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR5> {
+        &self.pmpaddr5
+    }
+
+    pub unsafe fn pmpaddr6(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR6> {
+        &self.pmpaddr6
+    }
+
+    pub unsafe fn pmpaddr7(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR7> {
+        &self.pmpaddr7
+    }
+
+    pub unsafe fn pmpaddr8(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR8> {
+        &self.pmpaddr8
+    }
+
+    pub unsafe fn pmpaddr9(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR9> {
+        &self.pmpaddr9
+    }
+
+    pub unsafe fn pmpaddr10(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR10> {
+        &self.pmpaddr10
+    }
+
+    pub unsafe fn pmpaddr11(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR11> {
+        &self.pmpaddr11
+    }
+
+    pub unsafe fn pmpaddr12(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR12> {
+        &self.pmpaddr12
+    }
+
+    pub unsafe fn pmpaddr13(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR13> {
+        &self.pmpaddr13
+    }
+
+    pub unsafe fn pmpaddr14(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR14> {
+        &self.pmpaddr14
+    }
+
+    pub unsafe fn pmpaddr15(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR15> {
+        &self.pmpaddr15
+    }
+
+    pub unsafe fn pmpaddr16(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR16> {
+        &self.pmpaddr16
+    }
+
+    pub unsafe fn pmpaddr17(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR17> {
+        &self.pmpaddr17
+    }
+
+    pub unsafe fn pmpaddr18(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR18> {
+        &self.pmpaddr18
+    }
+
+    pub unsafe fn pmpaddr19(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR19> {
+        &self.pmpaddr19
+    }
+
+    pub unsafe fn pmpaddr20(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR20> {
+        &self.pmpaddr20
+    }
+
+    pub unsafe fn pmpaddr21(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR21> {
+        &self.pmpaddr21
+    }
+
+    pub unsafe fn pmpaddr22(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR22> {
+        &self.pmpaddr22
+    }
+
+    pub unsafe fn pmpaddr23(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR23> {
+        &self.pmpaddr23
+    }
+
+    pub unsafe fn pmpaddr24(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR24> {
+        &self.pmpaddr24
+    }
+
+    pub unsafe fn pmpaddr25(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR25> {
+        &self.pmpaddr25
+    }
+
+    pub unsafe fn pmpaddr26(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR26> {
+        &self.pmpaddr26
+    }
+
+    pub unsafe fn pmpaddr27(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR27> {
+        &self.pmpaddr27
+    }
+
+    pub unsafe fn pmpaddr28(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR28> {
+        &self.pmpaddr28
+    }
+
+    pub unsafe fn pmpaddr29(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR29> {
+        &self.pmpaddr29
+    }
+
+    pub unsafe fn pmpaddr30(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR30> {
+        &self.pmpaddr30
+    }
+
+    pub unsafe fn pmpaddr31(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR31> {
+        &self.pmpaddr31
+    }
+
+    pub unsafe fn pmpaddr32(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR32> {
+        &self.pmpaddr32
+    }
+
+    pub unsafe fn pmpaddr33(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR33> {
+        &self.pmpaddr33
+    }
+
+    pub unsafe fn pmpaddr34(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR34> {
+        &self.pmpaddr34
+    }
+
+    pub unsafe fn pmpaddr35(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR35> {
+        &self.pmpaddr35
+    }
+
+    pub unsafe fn pmpaddr36(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR36> {
+        &self.pmpaddr36
+    }
+
+    pub unsafe fn pmpaddr37(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR37> {
+        &self.pmpaddr37
+    }
+
+    pub unsafe fn pmpaddr38(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR38> {
+        &self.pmpaddr38
+    }
+
+    pub unsafe fn pmpaddr39(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR39> {
+        &self.pmpaddr39
+    }
+
+    pub unsafe fn pmpaddr40(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR40> {
+        &self.pmpaddr40
+    }
+
+    pub unsafe fn pmpaddr41(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR41> {
+        &self.pmpaddr41
+    }
+
+    pub unsafe fn pmpaddr42(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR42> {
+        &self.pmpaddr42
+    }
+
+    pub unsafe fn pmpaddr43(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR43> {
+        &self.pmpaddr43
+    }
+
+    pub unsafe fn pmpaddr44(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR44> {
+        &self.pmpaddr44
+    }
+
+    pub unsafe fn pmpaddr45(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR45> {
+        &self.pmpaddr45
+    }
+
+    pub unsafe fn pmpaddr46(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR46> {
+        &self.pmpaddr46
+    }
+
+    pub unsafe fn pmpaddr47(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR47> {
+        &self.pmpaddr47
+    }
+
+    pub unsafe fn pmpaddr48(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR48> {
+        &self.pmpaddr48
+    }
+
+    pub unsafe fn pmpaddr49(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR49> {
+        &self.pmpaddr49
+    }
+
+    pub unsafe fn pmpaddr50(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR50> {
+        &self.pmpaddr50
+    }
+
+    pub unsafe fn pmpaddr51(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR51> {
+        &self.pmpaddr51
+    }
+
+    pub unsafe fn pmpaddr52(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR52> {
+        &self.pmpaddr52
+    }
+
+    pub unsafe fn pmpaddr53(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR53> {
+        &self.pmpaddr53
+    }
+
+    pub unsafe fn pmpaddr54(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR54> {
+        &self.pmpaddr54
+    }
+
+    pub unsafe fn pmpaddr55(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR55> {
+        &self.pmpaddr55
+    }
+
+    pub unsafe fn pmpaddr56(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR56> {
+        &self.pmpaddr56
+    }
+
+    pub unsafe fn pmpaddr57(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR57> {
+        &self.pmpaddr57
+    }
+
+    pub unsafe fn pmpaddr58(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR58> {
+        &self.pmpaddr58
+    }
+
+    pub unsafe fn pmpaddr59(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR59> {
+        &self.pmpaddr59
+    }
+
+    pub unsafe fn pmpaddr60(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR60> {
+        &self.pmpaddr60
+    }
+
+    pub unsafe fn pmpaddr61(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR61> {
+        &self.pmpaddr61
+    }
+
+    pub unsafe fn pmpaddr62(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR62> {
+        &self.pmpaddr62
+    }
+
+    pub unsafe fn pmpaddr63(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR63> {
+        &self.pmpaddr63
+    }
+
+    pub unsafe fn mie(&self) -> &ReadWriteRiscvCsr<usize, mie::mie::Register, MIE> {
+        &self.mie
+    }
+
+    pub unsafe fn mscratch(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, mscratch::mscratch::Register, MSCRATCH> {
+        &self.mscratch
+    }
+
+    pub unsafe fn mepc(&self) -> &ReadWriteRiscvCsr<usize, mepc::mepc::Register, MEPC> {
+        &self.mepc
+    }
+
+    pub unsafe fn mcause(&self) -> &ReadWriteRiscvCsr<usize, mcause::mcause::Register, MCAUSE> {
+        &self.mcause
+    }
+
+    pub unsafe fn mtval(&self) -> &ReadWriteRiscvCsr<usize, mtval::mtval::Register, MTVAL> {
+        &self.mtval
+    }
+
+    pub unsafe fn mip(&self) -> &ReadWriteRiscvCsr<usize, mip::mip::Register, MIP> {
+        &self.mip
+    }
+
+    pub unsafe fn mtvec(&self) -> &ReadWriteRiscvCsr<usize, mtvec::mtvec::Register, MTVEC> {
+        &self.mtvec
+    }
+
+    pub unsafe fn mstatus(&self) -> &ReadWriteRiscvCsr<usize, mstatus::mstatus::Register, MSTATUS> {
+        &self.mstatus
+    }
+
+    pub unsafe fn mseccfg(&self) -> &ReadWriteRiscvCsr<usize, mseccfg::mseccfg::Register, MSECCFG> {
+        &self.mseccfg
+    }
+
+    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    pub unsafe fn mseccfgh(
+        &self,
+    ) -> &ReadWriteRiscvCsr<usize, mseccfg::mseccfgh::Register, MSECCFGH> {
+        &self.mseccfgh
+    }
+
+    pub unsafe fn utvec(&self) -> &ReadWriteRiscvCsr<usize, utvec::utvec::Register, UTVEC> {
+        &self.utvec
+    }
+
+    pub unsafe fn stvec(&self) -> &ReadWriteRiscvCsr<usize, stvec::stvec::Register, STVEC> {
+        &self.stvec
     }
 }

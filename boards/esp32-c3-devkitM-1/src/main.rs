@@ -231,7 +231,7 @@ unsafe fn setup() -> (
     chip.enable_pic_interrupts();
 
     // enable interrupts globally
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+    csr::CSR.mstatus().modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

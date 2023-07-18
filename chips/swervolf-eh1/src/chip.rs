@@ -115,7 +115,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a,
 
     fn service_pending_interrupts(&self) {
         loop {
-            let mip = CSR.mip.extract();
+            let mip = unsafe { CSR.mip().extract() };
 
             // Check if the timer interrupt is pending
             if mip.is_set(mip::mtimer) {
@@ -156,12 +156,14 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a,
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie
-            .modify(mie::mext::SET + mie::mtimer::SET + mie::BIT28::SET + mie::BIT29::SET);
+        unsafe {
+            CSR.mie()
+                .modify(mie::mext::SET + mie::mtimer::SET + mie::BIT28::SET + mie::BIT29::SET);
+        }
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        let mip = CSR.mip.extract();
+        let mip = unsafe { CSR.mip().extract() };
         self.pic.get_saved_interrupts().is_some()
             || mip.any_matching_bits_set(mip::mtimer::SET)
             || unsafe { TIMER0_IRQ.get() }
@@ -203,7 +205,9 @@ fn handle_exception(exception: mcause::Exception) {
         | mcause::Exception::LoadPageFault
         | mcause::Exception::StorePageFault
         | mcause::Exception::Unknown => {
-            panic!("fatal exception: {:?}: {:#x}", exception, CSR.mtval.get());
+            panic!("fatal exception: {:?}: {:#x}", exception, unsafe {
+                CSR.mtval().get()
+            });
         }
     }
 }
@@ -222,14 +226,14 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
-            CSR.mie.modify(mie::msoft::CLEAR);
+            CSR.mie().modify(mie::msoft::CLEAR);
         }
         mcause::Interrupt::MachineTimer => {
-            CSR.mie.modify(mie::mtimer::CLEAR);
+            CSR.mie().modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
             // We received an interrupt, disable interrupts while we handle them
-            CSR.mie.modify(mie::mext::CLEAR);
+            CSR.mie().modify(mie::mext::CLEAR);
 
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
@@ -244,7 +248,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                     }
                     None => {
                         // Enable generic interrupts
-                        CSR.mie.modify(mie::mext::SET);
+                        CSR.mie().modify(mie::mext::SET);
                         break;
                     }
                 }
@@ -252,14 +256,14 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::Unknown => {
-            if CSR.mcause.get() == 0x8000_001D {
+            if CSR.mcause().get() == 0x8000_001D {
                 // Timer0
-                CSR.mie.modify(mie::BIT29::CLEAR);
+                CSR.mie().modify(mie::BIT29::CLEAR);
                 TIMER0_IRQ.set(true);
                 return;
-            } else if CSR.mcause.get() == 0x8000_001C {
+            } else if CSR.mcause().get() == 0x8000_001C {
                 // Timer1
-                CSR.mie.modify(mie::BIT28::CLEAR);
+                CSR.mie().modify(mie::BIT28::CLEAR);
                 TIMER1_IRQ.set(true);
                 return;
             }
@@ -274,7 +278,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
-    match mcause::Trap::from(CSR.mcause.extract()) {
+    match mcause::Trap::from(CSR.mcause().extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }

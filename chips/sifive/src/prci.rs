@@ -149,8 +149,10 @@ impl Prci {
                 // We need to wait for PLL to settle before checking if it's stable, which takes
                 // about 100 microseconds. Assuming internal clock is worst case of 22MHz (14.7 MHz
                 // +- 50%), that's about 2200 cycles.
-                let start = csr::CSR.mcycle.get();
-                while csr::CSR.mcycle.get() - start < 2200 {}
+                unsafe {
+                    let start = csr::CSR.mcycle().get();
+                    while csr::CSR.mcycle().get() - start < 2200 {}
+                }
                 // ... and now wait for the PLL lock
                 while regs.pllcfg.read(pllcfg::lock) == 0 {}
                 // ... and finally switch to the PLL output

@@ -203,7 +203,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, 
 /// disable it.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub extern "C" fn start_trap_rust() {
-    let mcause = rv32i::csr::CSR.mcause.extract();
+    let mcause = unsafe { rv32i::csr::CSR.mcause().extract() };
 
     match rv32i::csr::mcause::Trap::from(mcause) {
         rv32i::csr::mcause::Trap::Interrupt(_interrupt) => {

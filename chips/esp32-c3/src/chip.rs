@@ -152,12 +152,12 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
-        let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
+        let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause().extract());
         let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
         let _ = writer.write_fmt(format_args!("Last cause (mcause): "));
         rv32i::print_mcause(mcval, writer);
-        let interrupt = csr::CSR.mcause.read(csr::mcause::mcause::is_interrupt);
-        let code = csr::CSR.mcause.read(csr::mcause::mcause::reason);
+        let interrupt = csr::CSR.mcause().read(csr::mcause::mcause::is_interrupt);
+        let code = csr::CSR.mcause().read(csr::mcause::mcause::reason);
         let _ = writer.write_fmt(format_args!(
             " (interrupt={}, exception code={:#010X})",
             interrupt, code
@@ -168,12 +168,12 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
          \r\nSystem register dump:\
          \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
          \r\n mtvec:   {:#010X}",
-            csr::CSR.mtval.get(),
-            csr::CSR.mepc.get(),
-            csr::CSR.mstatus.get(),
-            csr::CSR.mtvec.get()
+            csr::CSR.mtval().get(),
+            csr::CSR.mepc().get(),
+            csr::CSR.mstatus().get(),
+            csr::CSR.mtvec().get()
         ));
-        let mstatus = csr::CSR.mstatus.extract();
+        let mstatus = csr::CSR.mstatus().extract();
         let uie = mstatus.is_set(csr::mstatus::mstatus::uie);
         let sie = mstatus.is_set(csr::mstatus::mstatus::sie);
         let mie = mstatus.is_set(csr::mstatus::mstatus::mie);
@@ -216,13 +216,15 @@ fn handle_exception(exception: mcause::Exception) {
         | mcause::Exception::LoadPageFault
         | mcause::Exception::StorePageFault
         | mcause::Exception::Unknown => {
-            panic!("fatal exception: {:?}: {:#x}", exception, CSR.mtval.get());
+            panic!("fatal exception: {:?}: {:#x}", exception, unsafe {
+                CSR.mtval().get()
+            });
         }
     }
 }
 
 unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
-    CSR.mstatus.modify(csr::mstatus::mstatus::mie::CLEAR);
+    CSR.mstatus().modify(csr::mstatus::mstatus::mie::CLEAR);
 
     // Claim the interrupt, unwrap() as we know an interrupt exists
     // Once claimed this interrupt won't fire until it's completed
@@ -238,7 +240,7 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
             }
             None => {
                 // Enable generic interrupts
-                CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+                CSR.mstatus().modify(csr::mstatus::mstatus::mie::SET);
                 break;
             }
         }
@@ -251,7 +253,7 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
 /// in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
-    match mcause::Trap::from(CSR.mcause.extract()) {
+    match mcause::Trap::from(CSR.mcause().extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }
@@ -279,7 +281,7 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 /// The ESP32C3 should support non-vectored and vectored interrupts, but
 /// vectored interrupts seem more reliable so let's use that.
 pub unsafe fn configure_trap_handler() {
-    CSR.mtvec
+    CSR.mtvec()
         .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored)
 }
 

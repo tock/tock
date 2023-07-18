@@ -120,7 +120,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
     fn service_pending_interrupts(&self) {
         loop {
-            let mip = CSR.mip.extract();
+            let mip = unsafe { CSR.mip().extract() };
 
             if mip.is_set(mip::mtimer) {
                 self.timer.handle_interrupt();
@@ -140,14 +140,14 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
+        unsafe { CSR.mie().modify(mie::mext::SET + mie::mtimer::SET) };
     }
 
     fn has_pending_interrupts(&self) -> bool {
         // First check if the global machine timer interrupt is set.
         // We would also need to check for additional global interrupt bits
         // if there were to be used for anything in the future.
-        if CSR.mip.is_set(mip::mtimer) {
+        if unsafe { CSR.mip().is_set(mip::mtimer) } {
             return true;
         }
 
@@ -209,14 +209,14 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
-            CSR.mie.modify(mie::msoft::CLEAR);
+            CSR.mie().modify(mie::msoft::CLEAR);
         }
         mcause::Interrupt::MachineTimer => {
-            CSR.mie.modify(mie::mtimer::CLEAR);
+            CSR.mie().modify(mie::mtimer::CLEAR);
         }
         mcause::Interrupt::MachineExternal => {
             // We received an interrupt, disable interrupts while we handle them
-            CSR.mie.modify(mie::mext::CLEAR);
+            CSR.mie().modify(mie::mext::CLEAR);
 
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
@@ -231,7 +231,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                     }
                     None => {
                         // Enable generic interrupts
-                        CSR.mie.modify(mie::mext::SET);
+                        CSR.mie().modify(mie::mext::SET);
 
                         break;
                     }
@@ -251,7 +251,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 /// interrupt occurs while the chip is in kernel mode.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
-    match mcause::Trap::from(CSR.mcause.extract()) {
+    match mcause::Trap::from(CSR.mcause().extract()) {
         mcause::Trap::Interrupt(interrupt) => {
             handle_interrupt(interrupt);
         }

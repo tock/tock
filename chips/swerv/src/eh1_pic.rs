@@ -110,12 +110,12 @@ impl Pic {
                 VolatileCell::new(LocalRegisterCopy::new(0)),
                 VolatileCell::new(LocalRegisterCopy::new(0)),
             ],
-            meivt: ReadWriteRiscvCsr::new(),
-            meipt: ReadWriteRiscvCsr::new(),
-            meicpct: ReadWriteRiscvCsr::new(),
-            meicidpl: ReadWriteRiscvCsr::new(),
-            meicurpl: ReadWriteRiscvCsr::new(),
-            meihap: ReadWriteRiscvCsr::new(),
+            meivt: unsafe { ReadWriteRiscvCsr::new() },
+            meipt: unsafe { ReadWriteRiscvCsr::new() },
+            meicpct: unsafe { ReadWriteRiscvCsr::new() },
+            meicidpl: unsafe { ReadWriteRiscvCsr::new() },
+            meicurpl: unsafe { ReadWriteRiscvCsr::new() },
+            meihap: unsafe { ReadWriteRiscvCsr::new() },
         }
     }
 

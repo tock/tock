@@ -343,10 +343,10 @@ unsafe fn setup() -> (
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
     // enable interrupts globally
-    csr::CSR.mie.modify(
+    csr::CSR.mie().modify(
         csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::CLEAR + csr::mie::mie::mext::SET,
     );
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+    csr::CSR.mstatus().modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

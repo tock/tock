@@ -565,9 +565,9 @@ pub unsafe fn main() {
 
     // Enable RISC-V interrupts globally
     csr::CSR
-        .mie
+        .mie()
         .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET);
-    csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+    csr::CSR.mstatus().modify(csr::mstatus::mstatus::mie::SET);
 
     // Unmask all interrupt sources in the interrupt controller
     chip.unmask_interrupts();
