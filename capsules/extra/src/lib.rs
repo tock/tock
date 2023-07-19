@@ -28,7 +28,7 @@ pub mod ccs811;
 pub mod crc;
 pub mod dac;
 pub mod debug_process_restart;
-pub mod eeprom;
+pub mod at24c_eeprom;
 pub mod fm25cl;
 pub mod ft6x06;
 pub mod fxos8700cq;

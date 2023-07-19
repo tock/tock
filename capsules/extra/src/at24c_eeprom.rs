@@ -22,24 +22,24 @@
 //! ```rust
 //! let i2cmux = I2CMuxComponent::new(i2c0, None).finalize(components::i2c_mux_component_static!());
 //!
-//! let eeprom_buffer = static_init!([u8; 34], [0; 34]);
+//! let at24c_buffer = static_init!([u8; 34], [0; 34]);
 //!
-//! let eeprom_i2c_device = static_init!(I2CDevice, I2CDevice::new(i2cmux, 0x50));
-//! let eeprom_capsule = static_init!(capsules_extra::eeprom::EEPROM,capsules_extra::eeprom::EEPROM::new(
-//!             eeprom_i2c_device,
-//!             eeprom_buffer,
+//! let at24c_i2c_device = static_init!(I2CDevice, I2CDevice::new(i2cmux, 0x50));
+//! let at24c_capsule = static_init!(capsules_extra::at24c_eeprom::AT24C,capsules_extra::at24c_eeprom::AT24C::new(
+//!             at24c_i2c_device,
+//!             at24c_buffer,
 //!         ) );
-//! eeprom_i2c_device.set_client(eeprom_capsule);
+//! at24c_i2c_device.set_client(at24c_capsule);
 //!
 //! let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
 //!         board_kernel,
 //!         capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
-//!         eeprom_capsule,
+//!         at24c_capsule,
 //!         0x0,
 //!         0x10000,
 //!         0x0,
 //!         0x0,
-//!     ).finalize(components::nonvolatile_storage_component_static!(capsules_extra::eeprom::EEPROM));
+//!     ).finalize(components::nonvolatile_storage_component_static!(capsules_extra::at24c_eeprom::AT24C));
 //! ```
 
 use core::cell::Cell;
@@ -77,11 +77,11 @@ pub struct AT24C<'a> {
     i2c: &'a dyn I2CDevice,
     buffer: TakeCell<'static, [u8]>,
     client_page: TakeCell<'a, EEPROMPage>,
-    flash_client: OptionalCell<&'a dyn hil::flash::Client<at24cEEPROM<'a>>>,
+    flash_client: OptionalCell<&'a dyn hil::flash::Client<AT24C<'a>>>,
     state: Cell<State>,
 }
 
-impl<'a> at24cEEPROM<'a> {
+impl<'a> AT24C<'a> {
     pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
         Self {
             i2c,
@@ -177,7 +177,7 @@ impl<'a> at24cEEPROM<'a> {
     }
 }
 
-impl I2CClient for at24cEEPROM<'static> {
+impl I2CClient for AT24C<'static> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         match self.state.get() {
             State::Reading => {
@@ -228,7 +228,7 @@ impl I2CClient for at24cEEPROM<'static> {
     }
 }
 
-impl<'a> hil::flash::Flash for at24cEEPROM<'a> {
+impl<'a> hil::flash::Flash for AT24C<'a> {
     type Page = EEPROMPage;
 
     fn read_page(
@@ -252,7 +252,7 @@ impl<'a> hil::flash::Flash for at24cEEPROM<'a> {
     }
 }
 
-impl<'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C> for at24cEEPROM<'a> {
+impl<'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C> for AT24C<'a> {
     fn set_client(&'a self, client: &'a C) {
         self.flash_client.set(client);
     }
