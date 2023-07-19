@@ -697,14 +697,32 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                             let pname = process.get_process_name();
                             let process_id = process.processid();
+                            let short_id = process.short_app_id();
+
                             let (grants_used, grants_total) =
                                 info.number_app_grant_uses(process_id, &self.capability);
                             let mut console_writer = ConsoleWriter::new();
+
+                            // Display process id.
+                            let _ = write(&mut console_writer, format_args!(" {:<7?}", process_id));
+                            // Display short id.
+                            match short_id {
+                                kernel::process::ShortID::LocallyUnique => {
+                                    let _ = write(
+                                        &mut console_writer,
+                                        format_args!("{}", "Unique     ",),
+                                    );
+                                }
+                                kernel::process::ShortID::Fixed(id) => {
+                                    let _ =
+                                        write(&mut console_writer, format_args!("0x{:<8x} ", id));
+                                }
+                            }
+                            // Display everything else.
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    " {:<7?}{:<20}{:6}{:10}{:10}  {:2}/{:2}   {:?}\r\n",
-                                    process_id,
+                                    "{:<20}{:6}{:10}{:10}  {:2}/{:2}   {:?}\r\n",
                                     pname,
                                     process.debug_timeslice_expiration_count(),
                                     process.debug_syscall_count(),
@@ -859,7 +877,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     });
                             });
                         } else if clean_str.starts_with("list") {
-                            let _ = self.write_bytes(b" PID    Name                Quanta  ");
+                            let _ = self
+                                .write_bytes(b" PID    ShortID    Name                Quanta  ");
                             let _ = self.write_bytes(b"Syscalls  Restarts  Grants  State\r\n");
 
                             // Count the number of current processes.
