@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2023.
+
 //! Driver for the AT24C32/64 EEPROM memory. Built on top of the I2C interface.
 //! Provides interface for the NonvolatileToPages driver.
 //!
@@ -69,15 +73,15 @@ enum State {
     Erasing,
 }
 
-pub struct EEPROM<'a> {
+pub struct AT24C<'a> {
     i2c: &'a dyn I2CDevice,
     buffer: TakeCell<'static, [u8]>,
     client_page: TakeCell<'a, EEPROMPage>,
-    flash_client: OptionalCell<&'a dyn hil::flash::Client<EEPROM<'a>>>,
+    flash_client: OptionalCell<&'a dyn hil::flash::Client<at24cEEPROM<'a>>>,
     state: Cell<State>,
 }
 
-impl<'a> EEPROM<'a> {
+impl<'a> at24cEEPROM<'a> {
     pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
         Self {
             i2c,
@@ -93,12 +97,12 @@ impl<'a> EEPROM<'a> {
         page_number: usize,
         buf: &'static mut EEPROMPage,
     ) -> Result<(), (ErrorCode, &'static mut EEPROMPage)> {
-        self.i2c.enable();
         let address = page_number * PAGE_SIZE;
         if let Some(rxbuffer) = self.buffer.take() {
             rxbuffer[0] = ((address >> 8) & 0x00ff) as u8;
             rxbuffer[1] = (address & 0x00ff) as u8;
 
+            self.i2c.enable();
             self.state.set(State::Reading);
             if let Err((error, local_buffer)) = self.i2c.write_read(rxbuffer, 2, PAGE_SIZE) {
                 self.buffer.replace(local_buffer);
@@ -119,18 +123,18 @@ impl<'a> EEPROM<'a> {
         buf: &'static mut EEPROMPage,
     ) -> Result<(), (ErrorCode, &'static mut EEPROMPage)> {
         let address = page_number * PAGE_SIZE;
-        let length = buf.0.len();
         // Schedule page write and do first
         if let Some(txbuffer) = self.buffer.take() {
             txbuffer[0] = ((address >> 8) & 0x00ff) as u8;
             txbuffer[1] = (address & 0x00ff) as u8;
 
-            let write_len = cmp::min(txbuffer.len() - 2, length);
+            let write_len = cmp::min(txbuffer.len() - 2, buf.0.len());
 
             for i in 0..write_len {
                 txbuffer[i + 2] = buf.0[i];
             }
 
+            self.i2c.enable();
             self.state.set(State::Writing);
             if let Err((error, txbuffer)) = self.i2c.write(txbuffer, write_len + 2) {
                 self.buffer.replace(txbuffer);
@@ -146,7 +150,6 @@ impl<'a> EEPROM<'a> {
     }
 
     fn erase_sector(&self, page_number: usize) -> Result<(), ErrorCode> {
-        self.i2c.enable();
         let address = page_number * PAGE_SIZE;
         // Schedule page write and do first
         if let Some(txbuffer) = self.buffer.take() {
@@ -159,6 +162,7 @@ impl<'a> EEPROM<'a> {
                 txbuffer[i + 2] = 0;
             }
 
+            self.i2c.enable();
             self.state.set(State::Erasing);
             if let Err((error, txbuffer)) = self.i2c.write(txbuffer, write_len + 2) {
                 self.buffer.replace(txbuffer);
@@ -173,7 +177,7 @@ impl<'a> EEPROM<'a> {
     }
 }
 
-impl I2CClient for EEPROM<'static> {
+impl I2CClient for at24cEEPROM<'static> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         match self.state.get() {
             State::Reading => {
@@ -191,8 +195,6 @@ impl I2CClient for EEPROM<'static> {
                             client.read_complete(client_page, hil::flash::Error::CommandComplete);
                         }
                     });
-                } else {
-                    self.buffer.replace(buffer);
                 }
             }
             State::Writing => {
@@ -206,8 +208,6 @@ impl I2CClient for EEPROM<'static> {
                         } else {
                             client.write_complete(client_page, hil::flash::Error::CommandComplete);
                         }
-                    } else {
-                        panic!("EEPROM Writing op completed without client_page");
                     }
                 });
             }
@@ -228,7 +228,7 @@ impl I2CClient for EEPROM<'static> {
     }
 }
 
-impl<'a> hil::flash::Flash for EEPROM<'a> {
+impl<'a> hil::flash::Flash for at24cEEPROM<'a> {
     type Page = EEPROMPage;
 
     fn read_page(
@@ -252,7 +252,7 @@ impl<'a> hil::flash::Flash for EEPROM<'a> {
     }
 }
 
-impl<'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C> for EEPROM<'a> {
+impl<'a, C: hil::flash::Client<Self>> hil::flash::HasClient<'a, C> for at24cEEPROM<'a> {
     fn set_client(&'a self, client: &'a C) {
         self.flash_client.set(client);
     }
