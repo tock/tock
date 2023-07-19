@@ -172,6 +172,15 @@ impl fmt::Debug for ProcessLoadError {
 /// footers in the TBF for cryptographic credentials for binary
 /// integrity, passing them to the checker to decide whether the
 /// process has sufficient credentials to run.
+///
+/// This function is made `pub` so that board files can use it, but loading
+/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
+/// we require the `ProcessManagementCapability` to call this function.
+// Mark inline always to reduce code size. Since this is only called in one
+// place (a board's main.rs), by inlining the load_*processes() functions, the
+// compiler can elide many checks which reduces code size appreciably. Note,
+// however, these functions require a rather large stack frame, which may be an
+// issue for boards small kernel stacks.
 #[inline(always)]
 pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
@@ -181,7 +190,7 @@ pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability_management: &dyn ProcessManagementCapability,
+    _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError>
 where
     <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static,
@@ -193,7 +202,6 @@ where
         app_memory,
         &mut procs,
         fault_policy,
-        capability_management,
     )?;
     let _res = check_processes(kernel_resources, kernel.get_checker());
     Ok(())
@@ -207,6 +215,15 @@ where
 /// credentials can call this method instead of `load_and_check_processes`
 /// because it results in a smaller kernel, as it does not invoke
 /// the credential checking state machine.
+///
+/// This function is made `pub` so that board files can use it, but loading
+/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
+/// we require the `ProcessManagementCapability` to call this function.
+// Mark inline always to reduce code size. Since this is only called in one
+// place (a board's main.rs), by inlining the load_*processes() functions, the
+// compiler can elide many checks which reduces code size appreciably. Note,
+// however, these functions require a rather large stack frame, which may be an
+// issue for boards small kernel stacks.
 #[inline(always)]
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
@@ -215,7 +232,7 @@ pub fn load_processes<C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability_management: &dyn ProcessManagementCapability,
+    _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     load_processes_from_flash(
         kernel,
@@ -224,7 +241,6 @@ pub fn load_processes<C: Chip>(
         app_memory,
         &mut procs,
         fault_policy,
-        capability_management,
     )?;
 
     if config::CONFIG.debug_process_credentials {
@@ -262,10 +278,6 @@ pub fn load_processes<C: Chip>(
 /// How process faults are handled by the
 /// kernel must be provided and is assigned to every created process.
 ///
-/// This function is made `pub` so that board files can use it, but loading
-/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
-/// we require the `ProcessManagementCapability` to call this function.
-///
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
@@ -277,7 +289,6 @@ fn load_processes_from_flash<C: Chip>(
     app_memory: &'static mut [u8],
     procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
@@ -302,7 +313,6 @@ fn load_processes_from_flash<C: Chip>(
             remaining_memory,
             index,
             fault_policy,
-            capability,
         );
         match load_result {
             Ok((new_flash, new_mem, proc)) => {
@@ -364,7 +374,6 @@ fn load_process<C: Chip>(
     app_memory: &'static mut [u8],
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
-    _capability: &dyn ProcessManagementCapability,
 ) -> Result<
     (
         &'static [u8],

@@ -45,7 +45,7 @@ use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Operation {
     None,
     Init,
@@ -258,10 +258,6 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
             .replace(pagebuffer);
         let (ret, buf_buffer) = self.tickv.continue_operation();
 
-        buf_buffer.map(|buf| {
-            self.ret_buffer.replace(buf);
-        });
-
         match self.operation.get() {
             Operation::Init => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
@@ -270,37 +266,85 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                 }
                 _ => {}
             },
-            Operation::GetKey => match ret {
-                Ok(tickv::success_codes::SuccessCode::Complete)
-                | Ok(tickv::success_codes::SuccessCode::Written) => {
-                    self.operation.set(Operation::None);
-                    self.client.map(|cb| {
-                        cb.get_value_complete(
-                            Ok(()),
-                            self.key_buffer.take().unwrap(),
-                            self.ret_buffer.take().unwrap(),
-                        );
-                    });
+            Operation::GetKey => {
+                buf_buffer.map(|buf| {
+                    self.ret_buffer.replace(buf);
+                });
+
+                match ret {
+                    Ok(tickv::success_codes::SuccessCode::Complete)
+                    | Ok(tickv::success_codes::SuccessCode::Written) => {
+                        self.operation.set(Operation::None);
+                        self.client.map(|cb| {
+                            cb.get_value_complete(
+                                Ok(()),
+                                self.key_buffer.take().unwrap(),
+                                self.ret_buffer.take().unwrap(),
+                            );
+                        });
+                    }
+                    Err(tickv::error_codes::ErrorCode::BufferTooSmall(_)) => {
+                        // Notify the upper layer using the `SIZE` error that
+                        // the entire value was not read into the buffer as
+                        // there was not enough room to store the entire value.
+                        // The buffer still contains the portion of the value
+                        // that would fit.
+                        self.operation.set(Operation::None);
+                        self.client.map(|cb| {
+                            cb.get_value_complete(
+                                Err(ErrorCode::SIZE),
+                                self.key_buffer.take().unwrap(),
+                                self.ret_buffer.take().unwrap(),
+                            );
+                        });
+                    }
+                    Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) | Ok(_) => {}
+                    Err(e) => {
+                        let get_tock_err = match e {
+                            tickv::error_codes::ErrorCode::KeyNotFound => ErrorCode::NOSUPPORT,
+                            _ => ErrorCode::FAIL,
+                        };
+                        self.operation.set(Operation::None);
+                        self.client.map(|cb| {
+                            cb.get_value_complete(
+                                Err(get_tock_err),
+                                self.key_buffer.take().unwrap(),
+                                self.ret_buffer.take().unwrap(),
+                            );
+                        });
+                    }
                 }
-                Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) | Ok(_) => {}
-                _ => {
-                    self.operation.set(Operation::None);
-                    self.client.map(|cb| {
-                        cb.get_value_complete(
-                            Err(ErrorCode::FAIL),
-                            self.key_buffer.take().unwrap(),
-                            self.ret_buffer.take().unwrap(),
-                        );
-                    });
+            }
+            Operation::AppendKey => {
+                buf_buffer.map(|buf| {
+                    self.value_buffer.replace(Some(buf));
+                });
+
+                match ret {
+                    Ok(tickv::success_codes::SuccessCode::Complete)
+                    | Ok(tickv::success_codes::SuccessCode::Written) => {
+                        self.operation.set(Operation::None);
+                    }
+                    Ok(tickv::success_codes::SuccessCode::Queued) => {}
+                    Err(e) => {
+                        self.operation.set(Operation::None);
+
+                        let tock_hil_error = match e {
+                            tickv::error_codes::ErrorCode::KeyAlreadyExists => ErrorCode::NOSUPPORT,
+                            tickv::error_codes::ErrorCode::RegionFull => ErrorCode::NOMEM,
+                            tickv::error_codes::ErrorCode::FlashFull => ErrorCode::NOMEM,
+                            _ => ErrorCode::FAIL,
+                        };
+                        self.client.map(|cb| {
+                            cb.append_key_complete(
+                                Err(tock_hil_error),
+                                self.key_buffer.take().unwrap(),
+                                self.value_buffer.take().unwrap(),
+                            );
+                        });
+                    }
                 }
-            },
-            Operation::AppendKey => match ret {
-                Ok(tickv::success_codes::SuccessCode::Complete)
-                | Ok(tickv::success_codes::SuccessCode::Written) => {
-                    self.operation.set(Operation::None);
-                }
-                _ => {}
-            },
+            }
             Operation::InvalidateKey => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
                 | Ok(tickv::success_codes::SuccessCode::Written) => {
@@ -339,7 +383,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     cb.append_key_complete(
                         Ok(()),
                         self.key_buffer.take().unwrap(),
-                        self.tickv.get_stored_value_buffer().unwrap(),
+                        self.value_buffer.take().unwrap(),
                     );
                 });
             }

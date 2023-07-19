@@ -521,22 +521,24 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         // configuration of this app has not changed.
         if !last_configured_for_this_app || config.is_dirty.get() {
             for (x, region) in config.regions.iter().enumerate() {
+                let disable_val = (csr::pmpconfig::pmpcfg::r0::CLEAR
+                    + csr::pmpconfig::pmpcfg::w0::CLEAR
+                    + csr::pmpconfig::pmpcfg::x0::CLEAR
+                    + csr::pmpconfig::pmpcfg::a0::OFF)
+                    .value;
+
+                let (region_shift, other_region_mask) = if x % 2 == 0 {
+                    (0, 0xFFFF_0000)
+                } else {
+                    (16, 0x0000_FFFF)
+                };
+
                 match region {
                     Some(r) => {
                         let cfg_val = r.cfg.value as usize;
                         let start = r.location.0 as usize;
                         let size = r.location.1;
 
-                        let disable_val = (csr::pmpconfig::pmpcfg::r0::CLEAR
-                            + csr::pmpconfig::pmpcfg::w0::CLEAR
-                            + csr::pmpconfig::pmpcfg::x0::CLEAR
-                            + csr::pmpconfig::pmpcfg::a0::OFF)
-                            .value;
-                        let (region_shift, other_region_mask) = if x % 2 == 0 {
-                            (0, 0xFFFF_0000)
-                        } else {
-                            (16, 0x0000_FFFF)
-                        };
                         csr::CSR.pmpconfig_set(
                             x / 2,
                             (disable_val | cfg_val << 8) << region_shift
@@ -545,7 +547,14 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
                         csr::CSR.pmpaddr_set(x * 2, (start) >> 2);
                         csr::CSR.pmpaddr_set((x * 2) + 1, (start + size) >> 2);
                     }
-                    None => {}
+                    None => {
+                        // Invalidate other regions not used in this PMPConfig.
+                        csr::CSR.pmpconfig_set(
+                            x / 2,
+                            (disable_val | (disable_val << 8)) << region_shift
+                                | (csr::CSR.pmpconfig_get(x / 2) & other_region_mask),
+                        );
+                    }
                 };
             }
             config.is_dirty.set(false);
@@ -662,7 +671,8 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
                             // Lock the CSR
                             csr::CSR.pmpconfig_modify(x / 2, csr::pmpconfig::pmpcfg::l3::SET);
                         }
-                        _ => break,
+                        // unreachable, but don't insert a panic
+                        _ => (),
                     }
                 }
                 None => {}

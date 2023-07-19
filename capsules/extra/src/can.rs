@@ -151,7 +151,7 @@ impl<'a, Can: can::Can> CanCapsule<'a, Can> {
 
     fn schedule_callback(&self, callback_number: usize, data: (usize, usize, usize)) {
         self.processid.map(|processid| {
-            let _ = self.processes.enter(*processid, |_app, kernel_data| {
+            let _ = self.processes.enter(processid, |_app, kernel_data| {
                 kernel_data
                     .schedule_upcall(callback_number, (data.0, data.1, data.2))
                     .ok();
@@ -163,12 +163,12 @@ impl<'a, Can: can::Can> CanCapsule<'a, Can> {
     /// to the low-level hardware, in order for it to be sent on the bus.
     pub fn process_send_command(
         &self,
-        processid: &mut ProcessId,
+        processid: ProcessId,
         id: can::Id,
         length: usize,
     ) -> Result<(), ErrorCode> {
         self.processes
-            .enter(*processid, |_, kernel_data| {
+            .enter(processid, |_, kernel_data| {
                 kernel_data
                     .get_readonly_processbuffer(ro_allow::RO_ALLOW_BUFFER)
                     .map_or_else(
@@ -202,7 +202,7 @@ impl<'a, Can: can::Can> CanCapsule<'a, Can> {
     pub fn is_valid_process(&self, processid: ProcessId) -> bool {
         self.processid.map_or(true, |owning_process| {
             self.processes
-                .enter(*owning_process, |_, _| owning_process == &processid)
+                .enter(owning_process, |_, _| owning_process == processid)
                 .unwrap_or(true)
         })
     }
@@ -461,7 +461,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
             Ok(_) => {
                 match self.processid.map_or(Err(ErrorCode::NOMEM), |processid| {
                     self.processes
-                        .enter(*processid, |app_data, kernel_data| {
+                        .enter(processid, |app_data, kernel_data| {
                             kernel_data
                                 .get_readwrite_processbuffer(rw_allow::RW_ALLOW_BUFFER)
                                 .map_or_else(

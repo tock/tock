@@ -326,7 +326,7 @@ impl SyscallDriver for L3gd20Spi<'_> {
 
         let match_or_empty_or_nonexistent = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
 
@@ -423,7 +423,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
         _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|proc_id| {
-            let _result = self.grants.enter(*proc_id, |_app, upcalls| {
+            let _result = self.grants.enter(proc_id, |_app, upcalls| {
                 self.status.set(match self.status.get() {
                     L3gd20Status::IsPresent => {
                         let present = if let Some(ref buf) = read_buffer {

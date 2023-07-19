@@ -34,6 +34,7 @@ pub mod fxos8700cq;
 pub mod gpio_async;
 pub mod hd44780;
 pub mod hmac;
+pub mod hmac_sha256;
 pub mod hts221;
 pub mod humidity;
 pub mod ieee802154;
