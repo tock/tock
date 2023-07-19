@@ -13,6 +13,7 @@ edition.workspace = true
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
 kernel = { path = "../../../kernel" }
+nrf52 = { path = "../../../chips/nrf52" }
 nrf52840 = { path = "../../../chips/nrf52840" }
 nrf52_components = { path = "../nrf52_components" }
 

@@ -175,12 +175,12 @@ pub struct Platform {
     >,
     ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
+    /*pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
         components::process_console::Capability,
-    >,
+    >,*/
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -225,6 +225,7 @@ pub struct Platform {
         'static,
         capsules_extra::hmac_sha256::HmacSha256Software<'static, capsules_extra::sha256::Sha256Software<'static>>, 32,
 	>,
+    app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -256,6 +257,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
 	    capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             KEYBOARD_HID => f(Some(self.keyboard_hid_driver)),
             _ => f(None),
         }
@@ -506,7 +508,7 @@ pub unsafe fn main() {
 
     // Create the process console, an interactive terminal for managing
     // processes.
-    let pconsole = components::process_console::ProcessConsoleComponent::new(
+    /*let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
         mux_alarm,
@@ -515,7 +517,7 @@ pub unsafe fn main() {
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc<'static>
-    ));
+    ));*/
 
     // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(
@@ -784,6 +786,29 @@ pub unsafe fn main() {
 
     let hmac = components::hmac::HmacComponent::new(board_kernel, capsules_extra::hmac::DRIVER_NUM, hmac_sha256_sw).finalize(components::hmac_component_static!(
 	capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>, 32));
+
+    // App Flash
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
+        components::flash_mux_component_static!(nrf52::nvmc::Nvmc),
+    );
+
+
+    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_static!(nrf52::nvmc::Nvmc),
+    );
+
+    let app_flash = components::app_flash_driver::AppFlashComponent::new(
+        board_kernel,
+        capsules_extra::app_flash_driver::DRIVER_NUM,
+        virtual_app_flash,
+    )
+    .finalize(components::app_flash_component_static!(
+        capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52::nvmc::Nvmc>,
+        512
+    ));
+
+
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
@@ -857,7 +882,7 @@ pub unsafe fn main() {
         button,
         ble_radio,
         ieee802154_radio,
-        pconsole,
+        //pconsole,
         console,
         led,
         gpio,
@@ -875,13 +900,14 @@ pub unsafe fn main() {
         ),
         i2c_master_slave,
         spi_controller,
-	hmac,
+        hmac,
+        app_flash,
         keyboard_hid_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    let _ = platform.pconsole.start();
+    //let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
