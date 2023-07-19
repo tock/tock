@@ -381,6 +381,8 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                 State::OuterHashAddHash => {
                     // We've now added both the key and the result of the first
                     // hash, so we can run the second hash to get our HMAC.
+                    self.data_buffer.replace(data.take());
+
                     self.digest_buffer
                         .take()
                         .map(|digest_buf| match self.sha256.run(digest_buf) {
