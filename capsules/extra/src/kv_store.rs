@@ -115,14 +115,35 @@ pub trait StoreClient {
     );
 }
 
+/// High-level Key-Value interface with permissions.
+///
+/// This interface provides access to key-value storage where access control.
+/// Each object is marked with a `write_id` (based on the `StoragePermissions`
+/// used to create it), and all further accesses and modifications to that
+/// object require suitable permissions.
 pub trait KV<'a> {
+    /// Configure the client for operation callbacks.
     fn set_client(&self, client: &'a dyn StoreClient);
 
+    /// Retrieve a value based on the given key.
+    ///
+    /// ### Arguments
+    ///
+    /// - `key`: The key to identify the k-v pair. Unhashed.
+    /// - `value`: Where the returned value buffer will be stored.
+    /// - `permissions`: The read/write/modify permissions for this access.
+    ///
+    /// ### Return
+    /// - On success returns `Ok(())`.
+    /// - On error, returns the buffers and:
+    ///   - `ENOSUPPORT`: The key could not be found.
+    ///   - `SIZE`: The value is longer than the provided buffer. The amount of
+    ///     the value that fits in the buffer will be provided.
     fn get(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        key: LeasableMutableBuffer<'static, u8>,
         value: LeasableMutableBuffer<'static, u8>,
-        perms: StoragePermissions,
+        permissions: StoragePermissions,
     ) -> Result<
         (),
         (
@@ -132,11 +153,22 @@ pub trait KV<'a> {
         ),
     >;
 
+    /// Store a value based on the given key.
+    ///
+    /// The `value` buffer must have room for a header.
+    ///
+    /// ### Arguments
+    ///
+    /// - `key`: The key to identify the k-v pair. Unhashed.
+    /// - `value`: The value to store. The provided buffer MUST start
+    ///   `KV.header_size()` bytes after the beginning of the buffer to enable
+    ///   the implementation to insert a header.
+    /// - `permissions`: The read/write/modify permissions for this access.
     fn set(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        key: LeasableMutableBuffer<'static, u8>,
         value: LeasableMutableBuffer<'static, u8>,
-        perms: StoragePermissions,
+        permissions: StoragePermissions,
     ) -> Result<
         (),
         (
@@ -146,12 +178,21 @@ pub trait KV<'a> {
         ),
     >;
 
+    /// Delete a key-value object based on the given key.
+    ///
+    /// ### Arguments
+    ///
+    /// - `key`: The key to identify the k-v pair. Unhashed.
+    /// - `permissions`: The read/write/modify permissions for this access.
     fn delete(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        perms: StoragePermissions,
+        key: LeasableMutableBuffer<'static, u8>,
+        permissions: StoragePermissions,
     ) -> Result<(), (LeasableMutableBuffer<'static, u8>, Result<(), ErrorCode>)>;
 
+    /// Returns the length of the key-value store's header in bytes.
+    ///
+    /// Room for this header must be accommodated in a `set` operation.
     fn header_size(&self) -> usize;
 }
 
@@ -200,9 +241,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
     fn get(
         &self,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
-        perms: StoragePermissions,
+        permissions: StoragePermissions,
     ) -> Result<
         (),
         (
@@ -212,12 +253,12 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
         ),
     > {
         if self.operation.is_some() {
-            return Err((unhashed_key, value, Err(ErrorCode::BUSY)));
+            return Err((key, value, Err(ErrorCode::BUSY)));
         }
 
         self.operation.set(Operation::Get);
-        self.valid_ids.set(perms);
-        self.unhashed_key.replace(unhashed_key);
+        self.valid_ids.set(permissions);
+        self.unhashed_key.replace(key);
 
         self.value.replace(value);
         self.mux_kv.do_next_op();
@@ -226,9 +267,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
     fn set(
         &self,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         mut value: SubSliceMut<'static, u8>,
-        perms: StoragePermissions,
+        permissions: StoragePermissions,
     ) -> Result<
         (),
         (
@@ -237,18 +278,18 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
             Result<(), ErrorCode>,
         ),
     > {
-        let write_id = match perms.get_write_id() {
+        let write_id = match permissions.get_write_id() {
             Some(write_id) => write_id,
-            None => return Err((unhashed_key, value, Err(ErrorCode::INVAL))),
+            None => return Err((key, value, Err(ErrorCode::INVAL))),
         };
 
         if self.operation.is_some() {
-            return Err((unhashed_key, value, Err(ErrorCode::BUSY)));
+            return Err((key, value, Err(ErrorCode::BUSY)));
         }
 
         // The caller must ensure there is space for the header.
         if value.len() < HEADER_LENGTH {
-            return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
+            return Err((key, value, Err(ErrorCode::SIZE)));
         }
 
         // Create the Tock header.
@@ -262,8 +303,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
         header.copy_to_buf(value.as_slice());
 
         self.operation.set(Operation::Set);
-        self.valid_ids.set(perms);
-        self.unhashed_key.replace(unhashed_key);
+        self.valid_ids.set(permissions);
+        self.unhashed_key.replace(key);
         self.value.replace(value);
         self.mux_kv.do_next_op();
         Ok(())
@@ -271,16 +312,16 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
     fn delete(
         &self,
-        unhashed_key: SubSliceMut<'static, u8>,
-        perms: StoragePermissions,
+        key: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
     ) -> Result<(), (SubSliceMut<'static, u8>, Result<(), ErrorCode>)> {
         if self.operation.is_some() {
-            return Err((unhashed_key, Err(ErrorCode::BUSY)));
+            return Err((key, Err(ErrorCode::BUSY)));
         }
 
         self.operation.set(Operation::Delete);
-        self.valid_ids.set(perms);
-        self.unhashed_key.replace(unhashed_key);
+        self.valid_ids.set(permissions);
+        self.unhashed_key.replace(key);
         self.mux_kv.do_next_op();
         Ok(())
     }
