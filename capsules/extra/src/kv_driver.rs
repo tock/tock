@@ -133,7 +133,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
                         0
                     };
 
-                    match app.op.extract() {
+                    match app.op.get() {
                         Some(UserSpaceOp::Get) => {
                             if let Some(Some(Err(e))) = self.data_buffer.take().map(|data_buffer| {
                                 self.dest_buffer.take().map(|dest_buffer| {
