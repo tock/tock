@@ -140,7 +140,7 @@ struct EarlGrey {
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
     >,
-    kv_driver: &'static capsules_extra::kv_driver::KVSystemDriver<
+    kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
         capsules_extra::tickv::TicKVStore<
             'static,

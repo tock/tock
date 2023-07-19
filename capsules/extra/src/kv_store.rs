@@ -18,7 +18,7 @@
 //!
 //! +-----------------------+
 //! |                       |
-//! | K-V store (this file)|
+//! | K-V store (this file) |
 //! |                       |
 //! +-----------------------+
 //!
@@ -33,10 +33,12 @@
 //!    hil::flash
 //! ```
 
+use core::mem;
 use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::kv_system::{self, KVSystem};
+use kernel::hil::kv_system::{self, KVSystem, KeyType};
 use kernel::storage_permissions::StoragePermissions;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -46,10 +48,12 @@ enum Operation {
     Delete,
 }
 
+/// Current version of the Tock K-V header.
 const HEADER_VERSION: u8 = 0;
-const HEADER_LENGTH: usize = 9;
+pub const HEADER_LENGTH: usize = mem::size_of::<KeyHeader>();
 
-/// This is the header used for KV stores
+/// This is the header used for KV stores.
+#[repr(packed)]
 struct KeyHeader {
     version: u8,
     length: u32,
@@ -66,11 +70,6 @@ impl KeyHeader {
         }
     }
 
-    /// Get the length of `KeyHeader`
-    fn len(&self) -> usize {
-        HEADER_LENGTH
-    }
-
     /// Copy the header to `buf`
     fn copy_to_buf(&self, buf: &mut [u8]) {
         buf[0] = self.version;
@@ -79,15 +78,52 @@ impl KeyHeader {
     }
 }
 
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+pub trait StoreClient<K: KeyType> {
+    /// This callback is called when the get operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    /// - `ret_buf`: The ret_buf buffer
+    fn get_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
+    );
+
+    /// This callback is called when the set operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    /// - `value`: The value buffer
+    fn set_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
+    );
+
+    /// This callback is called when the delete operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    fn delete_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+    );
+}
+
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
     mux_kv: &'a MuxKVStore<'a, K, T>,
     next: ListLink<'a, KVStore<'a, K, T>>,
 
-    client: OptionalCell<&'a dyn kv_system::StoreClient<T>>,
+    client: OptionalCell<&'a dyn StoreClient<T>>,
     operation: OptionalCell<Operation>,
 
-    unhashed_key: TakeCell<'static, [u8]>,
-    value: TakeCell<'static, [u8]>,
+    unhashed_key: MapCell<LeasableMutableBuffer<'static, u8>>,
+    value: MapCell<LeasableMutableBuffer<'static, u8>>,
     valid_ids: OptionalCell<StoragePermissions>,
 }
 
@@ -106,8 +142,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             next: ListLink::empty(),
             client: OptionalCell::empty(),
             operation: OptionalCell::empty(),
-            unhashed_key: TakeCell::empty(),
-            value: TakeCell::empty(),
+            unhashed_key: MapCell::empty(),
+            value: MapCell::empty(),
             valid_ids: OptionalCell::empty(),
         }
     }
@@ -116,16 +152,23 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         self.mux_kv.users.push_head(self);
     }
 
-    pub fn set_client(&self, client: &'a dyn kv_system::StoreClient<T>) {
+    pub fn set_client(&self, client: &'a dyn StoreClient<T>) {
         self.client.set(client);
     }
 
     pub fn get(
         &self,
-        unhashed_key: &'static mut [u8],
-        value: &'static mut [u8],
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        value: LeasableMutableBuffer<'static, u8>,
         perms: StoragePermissions,
-    ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
+    ) -> Result<
+        (),
+        (
+            LeasableMutableBuffer<'static, u8>,
+            LeasableMutableBuffer<'static, u8>,
+            Result<(), ErrorCode>,
+        ),
+    > {
         if self.operation.is_some() {
             return Err((unhashed_key, value, Err(ErrorCode::BUSY)));
         }
@@ -141,11 +184,17 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
 
     pub fn set(
         &self,
-        unhashed_key: &'static mut [u8],
-        value: &'static mut [u8],
-        length: usize,
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        mut value: LeasableMutableBuffer<'static, u8>,
         perms: StoragePermissions,
-    ) -> Result<(), (&'static mut [u8], &'static mut [u8], Result<(), ErrorCode>)> {
+    ) -> Result<
+        (),
+        (
+            LeasableMutableBuffer<'static, u8>,
+            LeasableMutableBuffer<'static, u8>,
+            Result<(), ErrorCode>,
+        ),
+    > {
         let write_id = match perms.get_write_id() {
             Some(write_id) => write_id,
             None => return Err((unhashed_key, value, Err(ErrorCode::INVAL))),
@@ -155,19 +204,20 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             return Err((unhashed_key, value, Err(ErrorCode::BUSY)));
         }
 
-        // Create the Tock header and ensure we have space to fit it
-        let header = KeyHeader {
-            version: HEADER_VERSION,
-            length: length as u32,
-            write_id,
-        };
-        if length + header.len() > value.len() {
+        // The caller must ensure there is space for the header.
+        if value.len() < HEADER_LENGTH {
             return Err((unhashed_key, value, Err(ErrorCode::SIZE)));
         }
 
-        // Move the value to make space for the header
-        value.copy_within(0..length, header.len());
-        header.copy_to_buf(value);
+        // Create the Tock header.
+        let header = KeyHeader {
+            version: HEADER_VERSION,
+            length: (value.len() - HEADER_LENGTH) as u32,
+            write_id,
+        };
+
+        // Copy in the header to the buffer.
+        header.copy_to_buf(value.as_slice());
 
         self.operation.set(Operation::Set);
         self.unhashed_key.replace(unhashed_key);
@@ -178,9 +228,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
 
     pub fn delete(
         &self,
-        unhashed_key: &'static mut [u8],
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
         perms: StoragePermissions,
-    ) -> Result<(), (&'static mut [u8], Result<(), ErrorCode>)> {
+    ) -> Result<(), (LeasableMutableBuffer<'static, u8>, Result<(), ErrorCode>)> {
         if self.operation.is_some() {
             return Err((unhashed_key, Err(ErrorCode::BUSY)));
         }
@@ -190,6 +240,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
         self.unhashed_key.replace(unhashed_key);
         self.mux_kv.do_next_op();
         Ok(())
+    }
+
+    pub fn header_size(&self) -> usize {
+        HEADER_LENGTH
     }
 }
 
@@ -296,7 +350,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: &'static mut [u8],
+        unhashed_key: LeasableMutableBuffer<'static, u8>,
         hashed_key: &'static mut T,
     ) {
         self.inflight.take().map(|node| {
@@ -368,14 +422,17 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                         }
                         Operation::Delete => {
                             self.header_value.take().map(|value| {
-                                match self.kv.get_value(hashed_key, value) {
+                                match self
+                                    .kv
+                                    .get_value(hashed_key, LeasableMutableBuffer::new(value))
+                                {
                                     Ok(()) => {
                                         node.unhashed_key.replace(unhashed_key);
                                         self.inflight.set(node);
                                     }
                                     Err((key, value, e)) => {
                                         self.hashed_key.replace(key);
-                                        self.header_value.replace(value);
+                                        self.header_value.replace(value.take());
                                         node.operation.clear();
                                         node.client.map(move |cb| {
                                             cb.delete_complete(e, unhashed_key);
@@ -398,7 +455,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        value: &'static mut [u8],
+        value: LeasableMutableBuffer<'static, u8>,
     ) {
         self.hashed_key.replace(key);
 
@@ -423,7 +480,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        ret_buf: &'static mut [u8],
+        mut ret_buf: LeasableMutableBuffer<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.map(|op| {
@@ -438,7 +495,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                         // store the full value, so a `SIZE` error code is ok
                         // and we can continue to remove the object.
                         if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
-                            let header = KeyHeader::new_from_buf(ret_buf);
+                            let header = KeyHeader::new_from_buf(ret_buf.as_slice());
 
                             if header.version == HEADER_VERSION {
                                 node.valid_ids.map(|perms| {
@@ -447,7 +504,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                             }
                         }
 
-                        self.header_value.replace(ret_buf);
+                        self.header_value.replace(ret_buf.take());
 
                         if access_allowed {
                             match self.kv.invalidate_key(key) {
@@ -482,7 +539,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                         let mut read_allowed = false;
 
                         if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
-                            let header = KeyHeader::new_from_buf(ret_buf);
+                            let header = KeyHeader::new_from_buf(ret_buf.as_slice());
 
                             if header.version == HEADER_VERSION {
                                 node.valid_ids.map(|perms| {
@@ -490,17 +547,16 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                                 });
 
                                 if read_allowed {
-                                    ret_buf.copy_within(
-                                        HEADER_LENGTH..(HEADER_LENGTH + header.length as usize),
-                                        0,
-                                    );
+                                    // Remove the header from the accessible
+                                    // portion of the buffer.
+                                    ret_buf.slice(HEADER_LENGTH..);
                                 }
                             }
                         }
 
                         if !read_allowed {
                             // Access denied or the header is invalid, zero the buffer.
-                            ret_buf.iter_mut().for_each(|m| *m = 0)
+                            ret_buf.as_slice().iter_mut().for_each(|m| *m = 0)
                         }
 
                         node.unhashed_key.take().map(|unhashed_key| {
