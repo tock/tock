@@ -252,55 +252,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     // pub fn setup(&'a self) {
     //     self.mux_kv.users.push_head(self);
     // }
-
-    fn start_operation(&self) {
-        // if self.inflight.is_some() || self.cleanup.contains(&StateCleanup::CleanupInProgress) {
-        //     return;
-        // }
-
-        self.operation.map(|op| {
-            self.unhashed_key.take().map(|unhashed_key| {
-                self.hashed_key.take().map(|hashed_key| {
-                    match op {
-                        Operation::Get | Operation::Set => {
-                            match self.kv.generate_key(unhashed_key, hashed_key) {
-                                Ok(()) => {}
-                                Err((unhashed_key, hashed_key, e)) => {
-                                    // Issue callback with error.
-                                    self.hashed_key.replace(hashed_key);
-                                    self.operation.clear();
-                                    self.value.take().map(|value| {
-                                        self.client.map(move |cb| {
-                                            cb.get_complete(e, unhashed_key, value);
-                                        });
-                                    });
-                                }
-                            }
-                        }
-                        Operation::Delete => match self.kv.generate_key(unhashed_key, hashed_key) {
-                            Ok(()) => {}
-                            Err((unhashed_key, hashed_key, e)) => {
-                                self.hashed_key.replace(hashed_key);
-                                self.operation.clear();
-                                self.client.map(move |cb| {
-                                    cb.delete_complete(e, unhashed_key);
-                                });
-                            }
-                        },
-                    };
-                });
-            });
-        });
-
-        // // If we have nothing scheduled, and we have recently done a delete, run
-        // // a garbage collect.
-        // if self.operation.is_none() && self.cleanup.contains(&StateCleanup::CleanupRequested) {
-        //     self.cleanup.set(StateCleanup::CleanupInProgress);
-        //     // We have no way to report this error, and even if we could, what
-        //     // would a user do?
-        //     let _ = self.kv.garbage_collect();
-        // }
-    }
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K, T> {
@@ -327,11 +278,28 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
         self.operation.set(Operation::Get);
         self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
-
         self.value.replace(value);
-        self.start_operation();
-        Ok(())
+
+        self.hashed_key
+            .take()
+            .map_or(Err(ErrorCode::FAIL), |hashed_key| {
+                match self.kv.generate_key(key, hashed_key) {
+                    Ok(()) => Ok(()),
+                    Err((unhashed_key, hashed_key, e)) => {
+                        self.operation.clear();
+                        self.hashed_key.replace(hashed_key);
+                        self.unhashed_key.replace(unhashed_key);
+                        e
+                    }
+                }
+            })
+            .map_err(|e| {
+                (
+                    self.unhashed_key.take().unwrap(),
+                    self.value.take().unwrap(),
+                    Err(e),
+                )
+            })
     }
 
     fn set(
@@ -373,10 +341,39 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
         self.operation.set(Operation::Set);
         self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
+        // self.unhashed_key.replace(key);
         self.value.replace(value);
-        self.start_operation();
-        Ok(())
+        // self.start_operation();
+        // Ok(())
+
+        // self.start_operation(false).map_err(|e| {
+        //     (
+        //         self.unhashed_key.take().unwrap(),
+        //         self.value.take().unwrap(),
+        //         e,
+        //     )
+        // })
+
+        self.hashed_key
+            .take()
+            .map_or(Err(ErrorCode::FAIL), |hashed_key| {
+                match self.kv.generate_key(key, hashed_key) {
+                    Ok(()) => Ok(()),
+                    Err((unhashed_key, hashed_key, e)) => {
+                        self.operation.clear();
+                        self.hashed_key.replace(hashed_key);
+                        self.unhashed_key.replace(unhashed_key);
+                        e
+                    }
+                }
+            })
+            .map_err(|e| {
+                (
+                    self.unhashed_key.take().unwrap(),
+                    self.value.take().unwrap(),
+                    Err(e),
+                )
+            })
     }
 
     fn delete(
@@ -390,9 +387,27 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
         self.operation.set(Operation::Delete);
         self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
-        self.start_operation();
-        Ok(())
+        // self.unhashed_key.replace(key);
+        // self.start_operation();
+        // Ok(())
+
+        // self.start_operation(false)
+        //     .map_err(|e| (self.unhashed_key.take().unwrap(), e))
+
+        self.hashed_key
+            .take()
+            .map_or(Err(ErrorCode::FAIL), |hashed_key| {
+                match self.kv.generate_key(key, hashed_key) {
+                    Ok(()) => Ok(()),
+                    Err((unhashed_key, hashed_key, e)) => {
+                        self.hashed_key.replace(hashed_key);
+                        self.operation.clear();
+                        self.unhashed_key.replace(unhashed_key);
+                        e
+                    }
+                }
+            })
+            .map_err(|e| (self.unhashed_key.take().unwrap(), Err(e)))
     }
 
     fn header_size(&self) -> usize {
