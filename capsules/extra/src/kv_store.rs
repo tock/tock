@@ -4,7 +4,7 @@
 
 //! Tock Key-Value store capsule.
 //!
-//! This capsule provides a virtualized Key-Value store interface based on an
+//! This capsule provides a higher level Key-Value store interface based on an
 //! underlying `hil::kv_system` storage layer.
 //!
 //! ```
@@ -34,7 +34,6 @@
 //! ```
 
 use core::mem;
-// use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -197,8 +196,6 @@ pub trait KV<'a> {
 }
 
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
-    // mux_kv: &'a MuxKVStore<'a, K, T>,
-    // next: ListLink<'a, KVStore<'a, K, T>>,
     kv: &'a K,
     hashed_key: TakeCell<'static, T>,
     header_value: TakeCell<'static, [u8]>,
@@ -211,27 +208,7 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_sy
     valid_ids: OptionalCell<StoragePermissions>,
 }
 
-// impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> ListNode<'a, KVStore<'a, K, T>>
-//     for KVStore<'a, K, T>
-// {
-//     fn next(&self) -> &'a ListLink<KVStore<'a, K, T>> {
-//         &self.next
-//     }
-// }
-
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
-    // pub fn new(mux_kv: &'a MuxKVStore<'a, K, T>) -> KVStore<'a, K, T> {
-    //     Self {
-    //         mux_kv,
-    //         next: ListLink::empty(),
-    //         client: OptionalCell::empty(),
-    //         operation: OptionalCell::empty(),
-    //         unhashed_key: MapCell::empty(),
-    //         value: MapCell::empty(),
-    //         valid_ids: OptionalCell::empty(),
-    //     }
-    // }
-
     pub fn new(
         kv: &'a K,
         key: &'static mut T,
@@ -248,10 +225,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
             valid_ids: OptionalCell::empty(),
         }
     }
-
-    // pub fn setup(&'a self) {
-    //     self.mux_kv.users.push_head(self);
-    // }
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K, T> {
@@ -341,18 +314,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
         self.operation.set(Operation::Set);
         self.valid_ids.set(permissions);
-        // self.unhashed_key.replace(key);
         self.value.replace(value);
-        // self.start_operation();
-        // Ok(())
-
-        // self.start_operation(false).map_err(|e| {
-        //     (
-        //         self.unhashed_key.take().unwrap(),
-        //         self.value.take().unwrap(),
-        //         e,
-        //     )
-        // })
 
         self.hashed_key
             .take()
@@ -387,12 +349,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
 
         self.operation.set(Operation::Delete);
         self.valid_ids.set(permissions);
-        // self.unhashed_key.replace(key);
-        // self.start_operation();
-        // Ok(())
-
-        // self.start_operation(false)
-        //     .map_err(|e| (self.unhashed_key.take().unwrap(), e))
 
         self.hashed_key
             .take()
@@ -415,40 +371,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K
     }
 }
 
-// /// Keep track of whether the kv is busy with doing a cleanup.
-// #[derive(PartialEq)]
-// enum StateCleanup {
-//     CleanupRequested,
-//     CleanupInProgress,
-// }
-
-// pub struct MuxKVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
-
-//     cleanup: OptionalCell<StateCleanup>,
-//     users: List<'a, KVStore<'a, K, T>>,
-//     inflight: OptionalCell<&'a KVStore<'a, K, T>>,
-// }
-
-// impl<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType>
-//     MuxKVStore<'a, K, T>
-// {
-//     pub fn new(
-//         kv: &'a K,
-//         key: &'static mut T,
-//         header_value: &'static mut [u8; HEADER_LENGTH],
-//     ) -> MuxKVStore<'a, K, T> {
-//         Self {
-//             kv,
-//             hashed_key: TakeCell::new(key),
-//             header_value: TakeCell::new(header_value),
-//             inflight: OptionalCell::empty(),
-//             cleanup: OptionalCell::empty(),
-//             users: List::new(),
-//         }
-//     }
-
-// }
-
 impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for KVStore<'a, K, T> {
     fn generate_key_complete(
         &self,
@@ -459,8 +381,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
         self.operation.map(|op| {
             if result.is_err() {
                 // On error, we re-store our state, run the next pending
-                // operation, and notify the original user that their
-                // operation failed using a callback.
+                // operation, and notify the original user that their operation
+                // failed using a callback.
                 self.hashed_key.replace(hashed_key);
                 self.operation.clear();
 
@@ -558,10 +480,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
             Operation::Set => {
                 match result {
                     Err(ErrorCode::NOSUPPORT) => {
-                        // We could not append because of a collision. So
-                        // now we must figure out if we are allowed to
-                        // overwrite this key. That starts by reading the
-                        // key.
+                        // We could not append because of a collision. So now we
+                        // must figure out if we are allowed to overwrite this
+                        // key. That starts by reading the key.
                         self.hashed_key.take().map(|hashed_key| {
                             self.header_value.take().map(|header_value| {
                                 match self
@@ -609,10 +530,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
         self.operation.map(|op| {
             match op {
                 Operation::Set => {
-                    // If we get here, we must have been trying to append
-                    // the key but ran in to a collision. Now that we have
-                    // retrieved the existing key, we can check if we are
-                    // allowed to overwrite this key.
+                    // If we get here, we must have been trying to append the
+                    // key but ran in to a collision. Now that we have retrieved
+                    // the existing key, we can check if we are allowed to
+                    // overwrite this key.
                     let mut access_allowed = false;
 
                     if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
@@ -661,8 +582,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
                     // Before we delete an object we retrieve the header to
                     // ensure that we have permissions to access it. In that
                     // case we don't need to supply a buffer long enough to
-                    // store the full value, so a `SIZE` error code is ok
-                    // and we can continue to remove the object.
+                    // store the full value, so a `SIZE` error code is ok and we
+                    // can continue to remove the object.
                     if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
                         let header = KeyHeader::new_from_buf(ret_buf.as_slice());
 
@@ -714,8 +635,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
                             });
 
                             if read_allowed {
-                                // Remove the header from the accessible
-                                // portion of the buffer.
+                                // Remove the header from the accessible portion
+                                // of the buffer.
                                 ret_buf.slice(HEADER_LENGTH..);
                             }
                         }
@@ -731,10 +652,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
                             if read_allowed {
                                 cb.get_complete(result, unhashed_key, ret_buf);
                             } else {
-                                // The operation failed or the caller
-                                // doesn't have permission, just return the
-                                // error for key not found (and an empty
-                                // buffer).
+                                // The operation failed or the caller doesn't
+                                // have permission, just return the error for
+                                // key not found (and an empty buffer).
                                 cb.get_complete(Err(ErrorCode::NOSUPPORT), unhashed_key, ret_buf);
                             }
                         });
@@ -750,8 +670,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
         self.operation.map(|op| match op {
             Operation::Get => {}
             Operation::Set => {
-                // Now that we have deleted the existing key-value we can
-                // store our new key and value.
+                // Now that we have deleted the existing key-value we can store
+                // our new key and value.
                 match result {
                     Ok(()) => {
                         self.hashed_key.take().map(|hashed_key| {
@@ -793,12 +713,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
                 });
             }
         });
-
-        // self.cleanup.set(StateCleanup::CleanupRequested);
-        // self.start_operation();
     }
 
-    fn garbage_collect_complete(&self, _result: Result<(), ErrorCode>) {
-        // self.cleanup.clear();
-    }
+    fn garbage_collect_complete(&self, _result: Result<(), ErrorCode>) {}
 }
