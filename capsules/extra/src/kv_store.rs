@@ -81,37 +81,43 @@ impl KeyHeader {
 pub trait StoreClient {
     /// This callback is called when the get operation completes.
     ///
-    /// - `result`: Nothing on success, 'ErrorCode' on error
-    /// - `key`: The key buffer
-    /// - `ret_buf`: The ret_buf buffer
+    /// If there wasn't enough room to store the entire buffer `SIZE` will be
+    /// returned in `result` and the bytes that did fit will be copied into the
+    /// buffer.
+    ///
+    /// ### Return Values
+    ///
+    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `key`: The key buffer.
+    /// - `value`: The value buffer.
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     );
 
     /// This callback is called when the set operation completes.
     ///
-    /// - `result`: Nothing on success, 'ErrorCode' on error
-    /// - `key`: The key buffer
-    /// - `value`: The value buffer
+    /// ### Return Values
+    ///
+    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `key`: The key buffer.
+    /// - `value`: The value buffer.
     fn set_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     );
 
     /// This callback is called when the delete operation completes.
     ///
-    /// - `result`: Nothing on success, 'ErrorCode' on error
-    /// - `key`: The key buffer
-    fn delete_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
-    );
+    /// ### Return Values
+    ///
+    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `key`: The key buffer.
+    fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>);
 }
 
 /// High-level Key-Value interface with permissions.
@@ -133,7 +139,8 @@ pub trait KV<'a> {
     /// - `permissions`: The read/write/modify permissions for this access.
     ///
     /// ### Return
-    /// - On success returns `Ok(())`.
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
     /// - On error, returns the buffers and:
     ///   - `ENOSUPPORT`: The key could not be found.
     ///   - `SIZE`: The value is longer than the provided buffer. The amount of
@@ -195,6 +202,8 @@ pub trait KV<'a> {
     fn header_size(&self) -> usize;
 }
 
+/// KVStore implements the Tock-specific extension to KVSystem that includes
+/// permissions and access control.
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
     kv: &'a K,
     hashed_key: TakeCell<'static, T>,
