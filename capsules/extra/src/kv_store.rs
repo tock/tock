@@ -537,6 +537,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                             }
                         }
 
+                        self.header_value.replace(ret_buf.take());
+
                         if access_allowed {
                             match self.kv.invalidate_key(key) {
                                 Ok(()) => {
