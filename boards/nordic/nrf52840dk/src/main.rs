@@ -219,7 +219,7 @@ pub struct Platform {
                 VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
             >,
             capsules_extra::sip_hash::SipHasher24<'static>,
-            4096,
+            { capsules_extra::mx25r6435f::SECTOR_SIZE as usize },
         >,
         [u8; 8],
     >,
@@ -735,8 +735,8 @@ pub unsafe fn main() {
     let tickv = components::tickv::TicKVDedicatedFlashComponent::new(
         sip_hash,
         mx25r6435f,
-        0,         // start at the beginning of the flash chip
-        4096 * 32, // arbitrary size of 32 pages
+        0, // start at the beginning of the flash chip
+        (capsules_extra::mx25r6435f::SECTOR_SIZE as usize) * 32, // arbitrary size of 32 pages
         page_buffer,
     )
     .finalize(components::tickv_dedicated_flash_component_static!(
