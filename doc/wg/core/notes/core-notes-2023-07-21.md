@@ -1,0 +1,96 @@
+# Tock Core Notes 2023-07-21
+
+## Attendees
+ - Amit Levy
+ - Leon Schuermann
+ - Tyler Potyondy
+ - Branden Ghena
+ - Philip Levis
+ - Vish
+ - Hudson Ayers
+ - Brad Campbell
+ - Alyssa Haroldson
+ - Pat Pannuto
+ - Alexandru Radovici
+
+## Updates
+ - [n/a, see first agenda item...]
+
+## TockWorld Planning
+ - Agenda
+    - Draft here: https://tockworld-2023--tockosorg.netlify.app/tockworld6/agenda
+    - Branden: First, any unconfirmed things we need to confirm?
+    - Pat: Mostly set, only non-core open question is Alistair, who Amit is talking to
+    - Hudson: Add stable rust check-in; I'll present
+    - Alyssa: Is there anything on testing?
+    - Pat: Yes, it's part of the Focus Areas from TockWorld5, which has a "check-in" talk scheduled
+    - Leon: Do we need to check-in on connectivity given the networking session?
+    - Pat: It can be a short, one-slide thing at that point
+    - Alexandru: What are you looking for from the OxidOS talk
+    - Branden: Floor is totally yours; assume some of us don't know what you're doing
+    - Hudson: In the past, corporate talks have covered, "here's what we're using Tock for; what we're using it on; why we chose Tock; what we need from Tock; here's what we think might be different from other users' priorities" — just a template / ideas, please use the time how you would like
+ - Tutorials
+    - Branden: Earlier this week, TW6-WG met and Leon/Amit showed off HOTP example. Demoed on nrf52840dk, though should be board-independent
+    - Branden: I've broken that app into four milestones of 'how you would build this as an app'. Talking with Amit, it's not about how to build HOTP from scratch, but how to add things to make more featureful, e.g. multiple keys, save keys to flash, etc.
+    - Branden: Pillar two is a capsule with an encryption oracle holding secret
+    - Branden: Pillar three is from Brad, looking at adding app-signing s.t. syscall filtering allows selective permissions to apps for these secret manipulation APIs
+    - Alexandru: What ergonomics w.r.t. app ids and matching signing etc are we planning?
+    - Brad: Using default checker Phil wrote, which by default uses short IDs
+    - Brad: Though the API exposed winnows to an Option of Some/None whether app has credentials
+    - Alexandru: So boils down to if app has credentials, can do; if not, can't?
+    - Brad: Correct
+    - Alexandru: That seems simple enough
+    - Branden: Leon/Amit, what's the status of the middle bit?
+    - Leon: Going to get that sorted this weekend. Keeping it small/simple, emphasis on how to deal with async APIs in Tock, how HILs work, how user/kernel boundary works; probably a simple fixed encryption task
+    - Leon: Undecided whether should be template to fill in like userspace or start from scratch?
+    - Branden: Kinda depends how much stuff there is; either way, having milestones that folks can jump to is valuable
+    - Leon: Yeah, I plan to have different states of the capsule ready and available to download
+    - Leon: I don't foresee any issues; should be a simple component given what we have
+    - Leon: I do think writing a capsule from scratch, especially allow buffers and command handling, is valuable to understanding how Tock works
+    - Alexandru: Depending on background, coming in blank is really hard. Would encourage some kind of template
+    - Leon: Yeah, wouldn't give them an empty downstream tock or something. Probably a rough template with skeleton for AppState, etc
+    - Branden: All of these questions are unfortunately a bit hard to answer without seeing the final goal
+    - Leon: Not sure how much progress Amit has made. Even if it's currently nil, I think it should only take half a day to get this written
+    - Alexandru: I'm happy to take a pass adding comments and breaking it into milestones / instructions
+    - Branden: And that includes writing tutorial instructions / steps
+    - Alexandru: As long as a native English speaker promises to proofread :)
+    - Branden: I'm sort of treating this tutorial session on Wednesday as a trial run, and it may be a bit rough, but most if not all of the audience are our students and amenable folks
+    - Brad: Yeah, that sounds right
+    - Branden: Yeah, so this can be the foundation for more complete tutorial sessions in the future
+    - Alyssa: Can I request that the website be not-a-branch? The optics of a blank agenda on the public-facing page at this phase are not great
+    - Pat: Will merge after call
+    - Hudson: Are you comfortable sprinkling in stuff you brought up into your talks or need dedicated time?
+    - Alyssa: I think I can work things in; working list of thoughts: ufmt in the kernel, Adding blocking command syscall, Implementing zerocopy APIs, Results of a small async runtime experiment, Improving MMIO soundness
+    - Branden: Yeah, overall I think this should work great, and we can be flexible in timing as well in person
+    - Alyssa: One preview, insight for making ufmt smaller is to make it more like printf (i.e. template with parameters vs directives)
+    - Hudson: Which would make it more different from what it is now
+    - Alyssa: Very different implementation under the hood, but ideally the same interface
+    - Alyssa: Much more efficient to one work on string with placeholders than series of fragments
+    - Phil: Re blocking commands—keeping discussion focused on blocking command is good vs blocked syscalls etc; but make sure that the solution space is covered; e.g. when you perform a blocking command, can callbacks be issued? i.e. callbacks only in response to a yield
+    - Alyssa: Yeah blocking commands and lumped syscalls seem orthogonal to me
+    - Hudson: Agree, keep these separate to avoid the more contention grouped syscall
+    - Alyssa: Exactly, don't block blocked commands on group syscalls
+    - Alexandru: Having some challenges with schedulers, in particular, interrupt awareness, e.g. for differences in timing sensitivity between UART and Ethernet has been an issue
+    - Alyssa: Clarify this?
+    - Alexandru: Scheduler should understand which interrupts will be handled by the kernel and which will take longer
+    - Alexandru: Also need to talk about dedicated or slotted Upcalls
+    - Pat: I will parse these notes and update the agenda
+    - Pat: Also, clicked merge, the draft agenda is now live
+    - Brad: Would like to do an elf2tab release today-ish
+    - Leon: I've been using tip, and have no issues
+    - Branden: Definitely required to be live by tutorial time
+    - Leon: Does this also require a newer release of tockloader?
+    - Brad: Yeah, it does
+    - Branden: And we needed and update to tockloader for the tutorial as well anyway
+    - Brad: Ultimately, this is a good thing. This is a key step towards support for credentials, which we should be using more often anyways
+
+## Other / Misc?
+  - Alyssa: StaticRef is soon to be NonNull
+  - Alyssa: Trying to do more upstream-first, but some things blocked on StaticRef, would be nice to get that in
+  - Alyssa: Anything blocking the new MapCell?
+  - Leon: Just letting the last-call linger for a moment
+  - Alyssa: Would help to have more clarity on whether I'm blocked on something / needed or just letting time go before merging
+  - Brad: That's really what the last-call tag is; we think this is good to go but want to give folks a window for any final comment
+  - Alyssa: Any guidance on when last-call is added
+  - Leon/Brad: Nothing formal; usually only used/needed on low-level/risky PRs or those with lots of discussion; usually applied after a small-N reviews
+  - Branden: Reminder, meeting next week is cancelled in favor of seeing y'all in person!
