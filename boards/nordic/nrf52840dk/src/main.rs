@@ -71,8 +71,6 @@
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
-#![deny(missing_docs)]
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
@@ -133,6 +131,8 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Comp
 /// Debug Writer
 pub mod io;
 
+pub mod oracle;
+pub mod oracle_component;
 // Whether to use UART debugging or Segger RTT (USB) debugging.
 // - Set to false to use UART.
 // - Set to true to use Segger RTT over USB.
@@ -225,6 +225,7 @@ pub struct Platform {
         'static,
         capsules_extra::hmac_sha256::HmacSha256Software<'static, capsules_extra::sha256::Sha256Software<'static>>, 32,
 	>,
+    oracle: &'static oracle::OracleDriver<'static, nrf52840::aes::AesECB<'static>>,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -257,6 +258,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
 	    capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            oracle::DRIVER_NUM => f(Some(self.oracle)),
             capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             KEYBOARD_HID => f(Some(self.keyboard_hid_driver)),
             _ => f(None),
@@ -872,6 +874,16 @@ pub unsafe fn main() {
     keyboard_hid.attach();
 
     //--------------------------------------------------------------------------
+    // Encryption Oracle
+    //--------------------------------------------------------------------------
+    let oracle = oracle_component::OracleDriverComponent::new(
+        board_kernel,
+        oracle::DRIVER_NUM,
+        &base_peripherals.ecb,
+    )
+    .finalize(oracle_driver_component_static!(nrf52840::aes::AesECB<'static>));
+
+    //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
@@ -901,6 +913,7 @@ pub unsafe fn main() {
         i2c_master_slave,
         spi_controller,
         hmac,
+        oracle,
         app_flash,
         keyboard_hid_driver,
         scheduler,
