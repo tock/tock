@@ -29,9 +29,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
-use kernel::hil::symmetric_encryption::{
-    AES128Ctr, AES128
-};
+use kernel::hil::symmetric_encryption::{AES128Ctr, AES128};
 
 const CRYPT_SIZE: usize = 7 * hil::symmetric_encryption::AES128_BLOCK_SIZE;
 
@@ -41,8 +39,7 @@ macro_rules! oracle_driver_component_static {
         const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
         let aes_src_buffer = kernel::static_buf!([u8; 16]);
         let aes_dst_buffer = kernel::static_buf!([u8; CRYPT_SIZE]);
-        let aes_driver =
-            kernel::static_buf!(self::oracle::OracleDriver<'static, $A>);
+        let aes_driver = kernel::static_buf!(self::oracle::OracleDriver<'static, $A>);
 
         (aes_driver, aes_src_buffer, aes_dst_buffer)
     }};
@@ -54,9 +51,7 @@ pub struct OracleDriverComponent<A: AES128<'static> + 'static> {
     aes: &'static A,
 }
 
-impl<A: AES128<'static> + AES128Ctr>
-    OracleDriverComponent<A>
-{
+impl<A: AES128<'static> + AES128Ctr> OracleDriverComponent<A> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -70,11 +65,7 @@ impl<A: AES128<'static> + AES128Ctr>
     }
 }
 
-impl<
-        A: AES128<'static>
-            + AES128Ctr
-    > Component for OracleDriverComponent<A>
-{
+impl<A: AES128<'static> + AES128Ctr> Component for OracleDriverComponent<A> {
     type StaticInput = (
         &'static mut MaybeUninit<super::oracle::OracleDriver<'static, A>>,
         &'static mut MaybeUninit<[u8; 16]>,
@@ -87,15 +78,12 @@ impl<
         let aes_src_buf = static_buffer.1.write([0; 16]);
         let aes_dst_buf = static_buffer.2.write([0; CRYPT_SIZE]);
 
-        let aes_driver =
-            static_buffer
-                .0
-                .write(super::oracle::OracleDriver::new(
-                    self.aes,
-                    aes_src_buf,
-                    aes_dst_buf,
-                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
-                ));
+        let aes_driver = static_buffer.0.write(super::oracle::OracleDriver::new(
+            self.aes,
+            aes_src_buf,
+            aes_dst_buf,
+            self.board_kernel.create_grant(self.driver_num, &grant_cap),
+        ));
 
         hil::symmetric_encryption::AES128::set_client(self.aes, aes_driver);
 

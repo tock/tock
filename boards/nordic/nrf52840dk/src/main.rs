@@ -220,11 +220,15 @@ pub struct Platform {
     keyboard_hid_driver: &'static capsules_extra::usb_hid_driver::UsbHidDriver<
         'static,
         capsules_extra::usb::keyboard_hid::KeyboardHid<'static, nrf52840::usbd::Usbd<'static>>,
-	>,
+    >,
     hmac: &'static capsules_extra::hmac::HmacDriver<
         'static,
-        capsules_extra::hmac_sha256::HmacSha256Software<'static, capsules_extra::sha256::Sha256Software<'static>>, 32,
-	>,
+        capsules_extra::hmac_sha256::HmacSha256Software<
+            'static,
+            capsules_extra::sha256::Sha256Software<'static>,
+        >,
+        32,
+    >,
     oracle: &'static oracle::OracleDriver<'static, nrf52840::aes::AesECB<'static>>,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     scheduler: &'static RoundRobinSched<'static>,
@@ -257,7 +261,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-	    capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             oracle::DRIVER_NUM => f(Some(self.oracle)),
             capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             KEYBOARD_HID => f(Some(self.keyboard_hid_driver)),
@@ -765,40 +769,42 @@ pub unsafe fn main() {
     ));
 
     let sha256_sw = static_init!(
-	capsules_extra::sha256::Sha256Software,
-	capsules_extra::sha256::Sha256Software::new()
+        capsules_extra::sha256::Sha256Software,
+        capsules_extra::sha256::Sha256Software::new()
     );
     kernel::deferred_call::DeferredCallClient::register(sha256_sw);
 
-    let hmac_sha256_data_buf = static_init!(
-	[u8; 64], [0; 64]
-    );
+    let hmac_sha256_data_buf = static_init!([u8; 64], [0; 64]);
 
-    let hmac_sha256_verify_buf = static_init!(
-	[u8; 32], [0; 32]
-    );
+    let hmac_sha256_verify_buf = static_init!([u8; 32], [0; 32]);
 
     let hmac_sha256_sw = static_init!(
-	capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>,
-	capsules_extra::hmac_sha256::HmacSha256Software::new(
-	    sha256_sw, hmac_sha256_data_buf, hmac_sha256_verify_buf,
-	)
+        capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>,
+        capsules_extra::hmac_sha256::HmacSha256Software::new(
+            sha256_sw,
+            hmac_sha256_data_buf,
+            hmac_sha256_verify_buf,
+        )
     );
     kernel::hil::digest::Digest::set_client(sha256_sw, hmac_sha256_sw);
 
-    let hmac = components::hmac::HmacComponent::new(board_kernel, capsules_extra::hmac::DRIVER_NUM, hmac_sha256_sw).finalize(components::hmac_component_static!(
-	capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>, 32));
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        capsules_extra::hmac::DRIVER_NUM,
+        hmac_sha256_sw,
+    )
+    .finalize(components::hmac_component_static!(
+        capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>,
+        32
+    ));
 
     // App Flash
 
-    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
-        components::flash_mux_component_static!(nrf52::nvmc::Nvmc),
-    );
+    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc)
+        .finalize(components::flash_mux_component_static!(nrf52::nvmc::Nvmc));
 
-
-    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
-        components::flash_user_component_static!(nrf52::nvmc::Nvmc),
-    );
+    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash)
+        .finalize(components::flash_user_component_static!(nrf52::nvmc::Nvmc));
 
     let app_flash = components::app_flash_driver::AppFlashComponent::new(
         board_kernel,
@@ -809,7 +815,6 @@ pub unsafe fn main() {
         capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52::nvmc::Nvmc>,
         512
     ));
-
 
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
@@ -881,7 +886,9 @@ pub unsafe fn main() {
         oracle::DRIVER_NUM,
         &base_peripherals.ecb,
     )
-    .finalize(oracle_driver_component_static!(nrf52840::aes::AesECB<'static>));
+    .finalize(oracle_driver_component_static!(
+        nrf52840::aes::AesECB<'static>
+    ));
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
