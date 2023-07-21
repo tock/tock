@@ -50,16 +50,6 @@ mod flash_bootloader;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 
-// Function for the process console to reboot the Raspberry Pi Pico.
-fn reset_function() -> ! {
-    unsafe {
-        cortexm0p::scb::reset();
-    }
-    loop {
-        cortexm0p::support::nop();
-    }
-}
-
 // Manually setting the boot header section that contains the FCB header
 #[used]
 #[link_section = ".flash_bootloader"]
@@ -547,7 +537,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset_function),
+        Some(cortexm0p::support::reset),
     )
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();
