@@ -22,6 +22,8 @@ Process Console
   * [`reset`](#reset)
   * [`kernel`](#kernel)
   * [`process`](#process)
+  * [`console-start`](#console-start)
+  * [`console-stop`](#console-stop)
   * [`commands history`](#commands-history)
   * [`command navigation`](#command-navigation)
 
@@ -641,6 +643,23 @@ Completion Code: None
             │ Protected        52                        S
   0x00040800 ┴─────────────────────────────────────────── H
 ```
+
+### `console-start`
+
+This command activates the process console so that it responds to commands and
+shows the prompt. This reverses `console-stop`.
+
+### `console-stop`
+
+This command puts the process console in a hibernation state. The console is
+still running in the sense that it is receiving UART data, but it will not
+respond to any commands other than `console-start`. It will also not show the
+prompt.
+
+The purpose of this mode is to "free up" the general UART console for apps that
+use the console extensively or interactively.
+
+The console can be re-activated with `console-start`.
 
 ### `commands history`
 
