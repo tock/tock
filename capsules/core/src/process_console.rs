@@ -232,7 +232,6 @@ pub struct ProcessConsole<
     queue_buffer: TakeCell<'static, [u8]>,
     queue_size: Cell<usize>,
     writer_state: Cell<WriterState>,
-    rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
@@ -475,7 +474,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             queue_buffer: TakeCell::new(queue_buffer),
             queue_size: Cell::new(0),
             writer_state: Cell::new(WriterState::Empty),
-            rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
@@ -521,7 +519,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         // Start if not already started.
         if self.mode.get() == ProcessConsoleState::Off {
             self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(true);
                 let _ = self.uart.receive_buffer(buffer, 1);
                 self.mode.set(ProcessConsoleState::Active);
             });
@@ -1153,7 +1150,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     fn alarm(&self) {
         self.prompt();
         self.rx_buffer.take().map(|buffer| {
-            self.rx_in_progress.set(true);
             let _ = self.uart.receive_buffer(buffer, 1);
         });
     }
@@ -1411,7 +1407,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 ),
             };
         }
-        self.rx_in_progress.set(true);
         let _ = self.uart.receive_buffer(read_buf, 1);
     }
 }
