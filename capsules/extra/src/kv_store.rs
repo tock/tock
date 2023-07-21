@@ -416,7 +416,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T> for
                         });
                     }
                 }
-                // });
             } else {
                 match op {
                     Operation::Get => {

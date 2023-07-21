@@ -147,22 +147,10 @@ impl<'a, V: kv_store::KV<'a>> kv_store::KV<'a> for VirtualKV<'a, V> {
             return Err((key, value, Err(ErrorCode::SIZE)));
         }
 
-        // // Create the Tock header.
-        // let header = KeyHeader {
-        //     version: HEADER_VERSION,
-        //     length: (value.len() - HEADER_LENGTH) as u32,
-        //     write_id,
-        // };
-
-        // // Copy in the header to the buffer.
-        // header.copy_to_buf(value.as_slice());
-
         self.operation.set(Operation::Set);
         self.valid_ids.set(permissions);
         self.unhashed_key.replace(key);
         self.value.replace(value);
-        // self.mux_kv.do_next_op();
-        // Ok(())
 
         self.mux_kv.do_next_op(false).map_err(|e| {
             (
@@ -185,8 +173,6 @@ impl<'a, V: kv_store::KV<'a>> kv_store::KV<'a> for VirtualKV<'a, V> {
         self.operation.set(Operation::Delete);
         self.valid_ids.set(permissions);
         self.unhashed_key.replace(key);
-        // self.mux_kv.do_next_op();
-        // Ok(())
 
         self.mux_kv
             .do_next_op(false)
@@ -219,35 +205,32 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
 
         mnode.map_or(Ok(()), |node| {
             node.operation.map_or(Ok(()), |op| {
-                node.unhashed_key.take().map_or(Ok(()), |unhashed_key| {
-                    match op {
-                        Operation::Get => {
-                            node.value.take().map_or(Ok(()), |value| {
-                                node.valid_ids.map_or(Ok(()), |perms| {
-                                    match self.kv.get(unhashed_key, value, perms) {
-                                        Ok(()) => {
-                                            self.inflight.set(node);
+                node.unhashed_key
+                    .take()
+                    .map_or(Ok(()), |unhashed_key| match op {
+                        Operation::Get => node.value.take().map_or(Ok(()), |value| {
+                            node.valid_ids.map_or(Ok(()), |perms| {
+                                match self.kv.get(unhashed_key, value, perms) {
+                                    Ok(()) => {
+                                        self.inflight.set(node);
+                                        Ok(())
+                                    }
+                                    Err((unhashed_key, value, e)) => {
+                                        node.operation.clear();
+                                        if async_op {
+                                            node.client.map(move |cb| {
+                                                cb.get_complete(e, unhashed_key, value);
+                                            });
                                             Ok(())
-                                        }
-                                        Err((unhashed_key, value, e)) => {
-                                            // Issue callback with error.
-                                            node.operation.clear();
-
-                                            if async_op {
-                                                node.client.map(move |cb| {
-                                                    cb.get_complete(e, unhashed_key, value);
-                                                });
-                                                Ok(())
-                                            } else {
-                                                node.unhashed_key.replace(unhashed_key);
-                                                node.value.replace(value);
-                                                Err(e)
-                                            }
+                                        } else {
+                                            node.unhashed_key.replace(unhashed_key);
+                                            node.value.replace(value);
+                                            Err(e)
                                         }
                                     }
-                                })
+                                }
                             })
-                        }
+                        }),
 
                         Operation::Set => node.value.take().map_or(Ok(()), |value| {
                             node.valid_ids.map_or(Ok(()), |perms| {
@@ -292,8 +275,7 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
                                 }
                             }
                         }),
-                    }
-                })
+                    })
             })
         })
     }
