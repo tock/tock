@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for DebugWriter, the implementation for `debug!()`.
 //!
 //! This provides components for attaching the kernel debug output (for panic!,
@@ -18,7 +22,7 @@
 // Author: Brad Campbell <bradjc@virginia.edu>
 // Last modified: 11/07/2019
 
-use capsules::virtual_uart::{MuxUart, UartDevice};
+use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::collections::ring_buffer::RingBuffer;
@@ -43,7 +47,7 @@ const DEBUG_BUFFER_SPLIT: usize = 64;
 #[macro_export]
 macro_rules! debug_writer_component_static {
     ($BUF_SIZE_KB:expr) => {{
-        let uart = kernel::static_buf!(capsules::virtual_uart::UartDevice);
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
         let debug = kernel::static_buf!(kernel::debug::DebugWriter);

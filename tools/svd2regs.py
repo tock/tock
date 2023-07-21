@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
 #
 # usage: svd2regs.py [-h] [--group] (--mcu VENDOR MCU | --svd [SVD])
 #                    [--save FILE] [--fmt ['ARG ..']] [--path PATH]
@@ -90,8 +94,8 @@ class CodeBlock(str):
 
 class Includes(CodeBlock):
     TEMPLATE = """
-use kernel::common::StaticRef;
-use kernel::common::registers::{{self, register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly}};
+use kernel::utilities::StaticRef;
+use kernel::utilities::registers::{{self, register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly}};
     """
 
 

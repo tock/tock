@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for any App Flash Driver.
 //!
 //! Usage
@@ -11,8 +15,8 @@
 //!     ));
 //! ```
 
-use capsules::app_flash_driver::AppFlash;
-use capsules::nonvolatile_to_pages::NonvolatileToPages;
+use capsules_extra::app_flash_driver::AppFlash;
+use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -25,9 +29,10 @@ macro_rules! app_flash_component_static {
     ($F:ty, $buffer_size: literal) => {{
         let buffer = kernel::static_buf!([u8; $buffer_size]);
         let page_buffer = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
-        let nv_to_page =
-            kernel::static_buf!(capsules::nonvolatile_to_pages::NonvolatileToPages<'static, $F>);
-        let app_flash = kernel::static_buf!(capsules::app_flash_driver::AppFlash<'static>);
+        let nv_to_page = kernel::static_buf!(
+            capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
+        );
+        let app_flash = kernel::static_buf!(capsules_extra::app_flash_driver::AppFlash<'static>);
         (buffer, page_buffer, nv_to_page, app_flash)
     };};
 }
@@ -92,7 +97,7 @@ impl<
 
         let app_flash = static_buffer
             .3
-            .write(capsules::app_flash_driver::AppFlash::new(
+            .write(capsules_extra::app_flash_driver::AppFlash::new(
                 nv_to_page,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 buffer,

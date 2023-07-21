@@ -23,6 +23,7 @@ Process Console
   * [`kernel`](#kernel)
   * [`process`](#process)
   * [`commands history`](#commands-history)
+  * [`command navigation`](#command-navigation)
 
 <!-- tocstop -->
 
@@ -660,4 +661,23 @@ tock$
 
   /// ...
  ```
-> Note: In order to disable any functionality for the command history set the `COMMAND_HISTORY_LEN` to `0` or `1` (the history will be disabled for a size of `1`, because the first position from the command history is reserved for accidents by pressing `up` or `down` arrow key.
+> Note: In order to disable any functionality for the command history set the `COMMAND_HISTORY_LEN` to `0` or `1` (the history will be disabled for a size of `1`, because the first position from the command history is reserved for accidents by pressing `up` or `down` arrow key).
+
+### `command navigation`
+ - Using `Left` and `Right` arrow keys you can navigate in a command, in order to move the cursor to your desired position in a command.
+ - By pressing `Home` key the cursor will be moved to the beginning of the command and by pressing `End` key the cursor will be moved to the end of the command that is currently displayed.
+ - When typing a character, it will be displayed under the cursor (basically it will be inserted in the command at the cursor position). After that the cursor will advance to next position (to the right).
+ - If you press `backspace` the character before the cursor will be removed (the opposite action of inserting a character) and the cursor will advance to left by one position.
+ - Using `Delete` key, you can remove the cursor under the cursor. In this case the cursor will not advance to any new position.
+ - Pressing `Enter` in the middle of a command, is the same as perssing `Enter` at the end of the command (basically you do not need to press `End` and then `Enter` in order to send the command in order to be processed).
+
+> Note: These functions try to achieve the same experience as working in the bash terminal, moving freely in a command and modyfing the command without rewriting it from the beginning.
+
+ Inserting multiple whitespaces between commands or at the beginning of a command does not affect the resulting command, for example
+ ```bash
+  # The command:
+  tock$        stop      blink
+
+  # Will be interpreted as:
+  tock$ stop blink
+ ```

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tools for displaying process state.
 
 use core::fmt::Write;
@@ -145,6 +149,13 @@ impl ProcessPrinter for ProcessPrinterText {
                 None => bww.write_str(" Completion Code: Faulted\r\n"),
             },
             None => bww.write_str(" Completion Code: None\r\n"),
+        };
+
+        let _ = match process.get_credentials() {
+            Some(credential) => {
+                bww.write_fmt(format_args!(" Credential: {:?}\r\n", credential.format()))
+            }
+            None => bww.write_str(" Credential: None\r\n"),
         };
 
         let _ = bww.write_fmt(format_args!(

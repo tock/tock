@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Reference Module (REF)
 
 use core::cell::Cell;
@@ -147,12 +151,11 @@ impl Ref {
     /// The default-setting is enabled.
     pub fn enable_temp_sensor(&self, enable: bool) {
         while self.registers.ctl0.is_set(CTL0::REFGENBUSY) {}
-        self.registers.ctl0.modify(
-            // Enable the temperature sensor
-            CTL0::REFTCOFF.val((!enable) as u16)
-            // Enable the reference module, otherwise the temperature sensor doesn't work
-            + CTL0::REFON::SET,
-        );
+        // Enable the temperature sensor
+        // Enable the reference module, otherwise the temperature sensor doesn't work
+        self.registers
+            .ctl0
+            .modify(CTL0::REFTCOFF.val((!enable) as u16) + CTL0::REFON::SET);
     }
 }
 

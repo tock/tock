@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 # For more information on Tock's make system and the CI setup, see the docs at
 # https://github.com/tock/tock/tree/master/doc/CodeReview.md#3-continuous-integration
 
@@ -159,6 +163,7 @@ allstack stack stack-analysis:
 
 .PHONY: licensecheck
 licensecheck:
+	$(call banner,License checker)
 	@cargo run --manifest-path=tools/license-checker/Cargo.toml --release
 
 ## Commands
@@ -512,7 +517,7 @@ ci-job-cargo-test-build:
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=dbc4f48b5ab3e6d85f78aa4df6bd6ad561c3d152
+QEMU_COMMIT_HASH=cab35c73be9d579db105ef73fa8a60728a890098
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support

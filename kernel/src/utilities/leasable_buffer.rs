@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Defines a LeasableBuffer type which can be used to pass a section of a larger
 //! buffer but still get the entire buffer back in a callback
 //!
@@ -133,6 +137,22 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
         self.active_slice().as_ptr()
     }
 
+    /// Returns a slice of the currently accessible portion of the
+    /// LeasableBuffer.
+    pub fn as_slice(&mut self) -> &mut [T] {
+        &mut self.internal[self.active_range.clone()]
+    }
+
+    /// Returns `true` if the LeasableBuffer is sliced internally.
+    ///
+    /// This is a useful check when switching between code that uses
+    /// LeasableBuffers and code that uses traditional slice-and-length. Since
+    /// slice-and-length _only_ supports using the entire buffer it is not valid
+    /// to try to use a sliced LeasableBuffer.
+    pub fn is_sliced(&self) -> bool {
+        self.internal.len() != self.len()
+    }
+
     /// Reduces the range of the LeasableBuffer that is accessible. This should be called
     /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
     /// a lower layer. For example: if the application layer has a 1500 byte packet
@@ -148,7 +168,7 @@ impl<'a, T> LeasableMutableBuffer<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.internal.len(),
+            Bound::Unbounded => self.active_range.end,
         };
 
         let new_start = self.active_range.start + start;
@@ -218,6 +238,22 @@ impl<'a, T> LeasableBuffer<'a, T> {
         self.active_slice().as_ptr()
     }
 
+    /// Returns a slice of the currently accessible portion of the
+    /// LeasableBuffer.
+    pub fn as_slice(&self) -> &[T] {
+        &self.internal[self.active_range.clone()]
+    }
+
+    /// Returns `true` if the LeasableBuffer is sliced internally.
+    ///
+    /// This is a useful check when switching between code that uses
+    /// LeasableBuffers and code that uses traditional slice-and-length. Since
+    /// slice-and-length _only_ supports using the entire buffer it is not valid
+    /// to try to use a sliced LeasableBuffer.
+    pub fn is_sliced(&self) -> bool {
+        self.internal.len() != self.len()
+    }
+
     /// Reduces the range of the LeasableBuffer that is accessible. This should be called
     /// whenever an upper layer wishes to pass only a portion of a larger buffer down to
     /// a lower layer. For example: if the application layer has a 1500 byte packet
@@ -233,7 +269,7 @@ impl<'a, T> LeasableBuffer<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.internal.len(),
+            Bound::Unbounded => self.active_range.end,
         };
 
         let new_start = self.active_range.start + start;

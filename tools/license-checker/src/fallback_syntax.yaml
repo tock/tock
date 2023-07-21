@@ -1,0 +1,72 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+# Copyright Google LLC 2023.
+
+# This syntax definition is used by the license checker to parse files that
+# syntect does not recognize. It contains generic support for a handful of
+# common comment types.
+
+scope: source.fallback
+
+contexts:
+  # The main context looks for the first not-entirely-whitespace line, and uses
+  # it to detect what type of comment the header uses. Once detected, it
+  # switches to one of the has_*_comments contexts, and that context will remain
+  # for the remainder of the file.
+  main:
+    # When checking for number sign comments, allow either the first line of a
+    # comment or a shebang line.
+    - match: ^#(!| )
+      scope: punctuation.definition.comment.fallback
+      push: [has_number_comments, number_comment]
+
+    - match: "^// "
+      scope: punctuation.definition.comment.fallback
+      push: [has_slashes_comments, slashes_comment]
+
+    - match: "^/\\*"
+      scope: punctuation.definition.comment.fallback
+      push: [has_slashstar_comments, slashstar_comment]
+
+    # If none of the above matchers match, and this line is not entirely
+    # whitespace, then assume the filetype does not support comments.
+    - match: "\\S"
+      push: has_no_comments
+
+  has_number_comments:
+    - match: "^#"
+      scope: punctuation.definition.comment.fallback
+      push: number_comment
+
+  number_comment:
+    - meta_scope: comment.line.number-sign.fallback
+    - match: $\n?
+      pop: true
+
+  has_slashes_comments:
+    - match: "^// "
+      scope: punctuation.definition.comment.fallback
+      push: slashes_comment
+
+  slashes_comment:
+    - meta_scope: comment.line.double-slash.fallback
+    - match: $\n?
+      pop: true
+
+  # /* */ -style comments. This does not allow for nested comments.
+  has_slashstar_comments:
+    - match: "^/\\*"
+      scope: punctuation.definition.comment.fallback
+      push: slashstar_comment
+
+  slashstar_comment:
+    - meta_scope: comment.block.fallback
+    - match: "\\*/"
+      scope: punctuation.definition.comment.fallback
+      pop: true
+
+  # Context used for files that do not have comments, e.g. plain text files. For
+  # these, we consider every line to be a comment.
+  has_no_comments:
+    - meta_scope: comment.block.fallback

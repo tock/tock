@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 //!
 //! It is based on nRF52840 SoC (Cortex M4 core with a BLE transceiver) with
@@ -69,16 +73,11 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::i2c_master_slave_driver::I2CMasterSlaveDriver;
-use capsules::net::ieee802154::MacAddress;
-use capsules::net::ipv6::ip_utils::IPAddr;
-use capsules::virtual_aes_ccm::MuxAES128CCM;
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_extra::net::ieee802154::MacAddress;
+use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
-use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
-use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
@@ -89,6 +88,9 @@ use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, 
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{self, UartChannel, UartPins};
+
+#[allow(dead_code)]
+mod test;
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -123,8 +125,8 @@ const I2C_SCL_PIN: Pin = Pin::P0_27;
 
 // Constants related to the configuration of the 15.4 network stack
 const PAN_ID: u16 = 0xABCD;
-const DST_MAC_ADDR: capsules::net::ieee802154::MacAddress =
-    capsules::net::ieee802154::MacAddress::Short(49138);
+const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
+    capsules_extra::net::ieee802154::MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
@@ -156,43 +158,54 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Supported drivers by the platform
 pub struct Platform {
-    ble_radio: &'static capsules::ble_advertising_driver::BLE<
+    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules::ieee802154::RadioDriver<'static>,
-    button: &'static capsules::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules::process_console::ProcessConsole<
+    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
-        { capsules::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
         components::process_console::Capability,
     >,
-    console: &'static capsules::console::Console<'static>,
-    gpio: &'static capsules::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
-    led: &'static capsules::led::LedDriver<
+    console: &'static capsules_core::console::Console<'static>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
+    led: &'static capsules_core::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules::rng::RngDriver<'static>,
-    temp: &'static capsules::temperature::TemperatureSensor<'static>,
+    rng: &'static capsules_core::rng::RngDriver<'static>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules::analog_comparator::AnalogComparator<
+    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
         nrf52840::acomp::Comparator<'static>,
     >,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            nrf52840::rtc::Rtc<'static>,
+        >,
     >,
-    nonvolatile_storage: &'static capsules::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    udp_driver: &'static capsules::net::udp::UDPDriver<'static>,
-    i2c_master_slave: &'static capsules::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
-    spi_controller: &'static capsules::spi_controller::Spi<
+    nonvolatile_storage:
+        &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
-        capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+        nrf52840::i2c::TWI<'static>,
+    >,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            nrf52840::spi::SPIM<'static>,
+        >,
     >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -204,21 +217,24 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::rng::DRIVER_NUM => f(Some(self.rng)),
-            capsules::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temp)),
-            capsules::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
-            capsules::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
+            capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
+                f(Some(self.nonvolatile_storage))
+            }
+            capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
-            capsules::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
+            capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             _ => f(None),
         }
     }
@@ -279,22 +295,41 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 /// Main function called after RAM initialized.
 #[no_mangle]
 pub unsafe fn main() {
+    //--------------------------------------------------------------------------
+    // INITIAL SETUP
+    //--------------------------------------------------------------------------
+
+    // Apply errata fixes and enable interrupts.
     nrf52840::init();
 
+    // Set up peripheral drivers. Called in separate function to reduce stack
+    // usage.
     let nrf52840_peripherals = create_peripherals();
 
-    // set up circular peripheral dependencies
+    // Set up circular peripheral dependencies.
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
+    // Configure kernel debug GPIOs as early as possible.
+    kernel::debug::assign_gpios(
+        Some(&nrf52840_peripherals.gpio_port[LED1_PIN]),
+        Some(&nrf52840_peripherals.gpio_port[LED2_PIN]),
+        Some(&nrf52840_peripherals.gpio_port[LED3_PIN]),
+    );
+
+    // Choose the channel for serial output. This board can be configured to use
+    // either the Segger RTT channel or via UART with traditional TX/RX GPIO
+    // pins.
     let uart_channel = if USB_DEBUGGING {
-        // Initialize early so any panic beyond this point can use the RTT memory object.
+        // Initialize early so any panic beyond this point can use the RTT
+        // memory object.
         let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
             .finalize(components::segger_rtt_memory_component_static!());
 
-        // XXX: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
-        // aliases reference is only used inside a panic handler, which should be OK, but maybe we
-        // should use a const reference to rtt_memory and leverage interior mutability instead.
+        // XXX: This is inherently unsafe as it aliases the mutable reference to
+        // rtt_memory. This aliases reference is only used inside a panic
+        // handler, which should be OK, but maybe we should use a const
+        // reference to rtt_memory and leverage interior mutability instead.
         self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
 
         UartChannel::Rtt(rtt_memory_refs)
@@ -302,11 +337,47 @@ pub unsafe fn main() {
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
 
+    // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    // Create (and save for panic debugging) a chip object to setup low-level
+    // resources (e.g. MPU, systick).
+    let chip = static_init!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        nrf52840::chip::NRF52::new(nrf52840_peripherals)
+    );
+    CHIP = Some(chip);
+
+    // Do nRF configuration and setup. This is shared code with other nRF-based
+    // platforms.
+    nrf52_components::startup::NrfStartupComponent::new(
+        false,
+        BUTTON_RST_PIN,
+        nrf52840::uicr::Regulator0Output::DEFAULT,
+        &base_peripherals.nvmc,
+    )
+    .finalize(());
+
+    //--------------------------------------------------------------------------
+    // CAPABILITIES
+    //--------------------------------------------------------------------------
+
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let process_management_capability =
+        create_capability!(capabilities::ProcessManagementCapability);
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
+    let gpio_port = &nrf52840_peripherals.gpio_port;
+
+    //--------------------------------------------------------------------------
+    // GPIO
+    //--------------------------------------------------------------------------
+
+    // Expose the D0-D13 Arduino GPIO pins to userspace.
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
             0 => &nrf52840_peripherals.gpio_port[Pin::P1_01],
@@ -327,36 +398,44 @@ pub unsafe fn main() {
     )
     .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
 
+    //--------------------------------------------------------------------------
+    // BUTTONS
+    //--------------------------------------------------------------------------
+
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             nrf52840::gpio::GPIOPin,
             (
                 &nrf52840_peripherals.gpio_port[BUTTON1_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
-            ), //13
+            ),
             (
                 &nrf52840_peripherals.gpio_port[BUTTON2_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
-            ), //14
+            ),
             (
                 &nrf52840_peripherals.gpio_port[BUTTON3_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
-            ), //15
+            ),
             (
                 &nrf52840_peripherals.gpio_port[BUTTON4_PIN],
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
-            ) //16
+            )
         ),
     )
     .finalize(components::button_component_static!(
         nrf52840::gpio::GPIOPin
     ));
+
+    //--------------------------------------------------------------------------
+    // LEDs
+    //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
         LedLow<'static, nrf52840::gpio::GPIOPin>,
@@ -366,33 +445,9 @@ pub unsafe fn main() {
         LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
     ));
 
-    let chip = static_init!(
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
-    );
-    CHIP = Some(chip);
-
-    nrf52_components::startup::NrfStartupComponent::new(
-        false,
-        BUTTON_RST_PIN,
-        nrf52840::uicr::Regulator0Output::DEFAULT,
-        &base_peripherals.nvmc,
-    )
-    .finalize(());
-
-    // Create capabilities that the board needs to call certain protected kernel
-    // functions.
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-    let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let gpio_port = &nrf52840_peripherals.gpio_port;
-    // Configure kernel debug gpios as early as possible
-    kernel::debug::assign_gpios(
-        Some(&gpio_port[LED1_PIN]),
-        Some(&gpio_port[LED2_PIN]),
-        Some(&gpio_port[LED3_PIN]),
-    );
+    //--------------------------------------------------------------------------
+    // TIMER
+    //--------------------------------------------------------------------------
 
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
@@ -400,12 +455,16 @@ pub unsafe fn main() {
         .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
 
-    let channel = nrf52_components::UartChannelComponent::new(
+    //--------------------------------------------------------------------------
+    // UART & CONSOLE & DEBUG
+    //--------------------------------------------------------------------------
+
+    let uart_channel = nrf52_components::UartChannelComponent::new(
         uart_channel,
         mux_alarm,
         &base_peripherals.uarte0,
@@ -414,23 +473,17 @@ pub unsafe fn main() {
         nrf52840::rtc::Rtc
     ));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 4], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
+    // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
-    // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux =
-        components::console::UartMuxComponent::new(channel, 115200, dynamic_deferred_caller)
-            .finalize(components::uart_mux_component_static!());
+    // Virtualize the UART channel for the console and for kernel debug.
+    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+        .finalize(components::uart_mux_component_static!());
 
+    // Create the process console, an interactive terminal for managing
+    // processes.
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
         uart_mux,
@@ -442,20 +495,34 @@ pub unsafe fn main() {
         nrf52840::rtc::Rtc<'static>
     ));
 
-    // Setup the console.
+    // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
+
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
+    //--------------------------------------------------------------------------
+    // AES
+    //--------------------------------------------------------------------------
+
+    let aes_mux = components::ieee802154::MuxAes128ccmComponent::new(&base_peripherals.ecb)
+        .finalize(components::mux_aes128ccm_component_static!(
+            nrf52840::aes::AesECB
+        ));
+
+    //--------------------------------------------------------------------------
+    // BLE
+    //--------------------------------------------------------------------------
+
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
-        capsules::ble_advertising_driver::DRIVER_NUM,
+        capsules_extra::ble_advertising_driver::DRIVER_NUM,
         &base_peripherals.ble_radio,
         mux_alarm,
     )
@@ -464,26 +531,20 @@ pub unsafe fn main() {
         nrf52840::ble_radio::Radio
     ));
 
-    let aes_mux = static_init!(
-        MuxAES128CCM<'static, nrf52840::aes::AesECB>,
-        MuxAES128CCM::new(&base_peripherals.ecb, dynamic_deferred_caller)
-    );
-    base_peripherals.ecb.set_client(aes_mux);
-    aes_mux.initialize_callback_handle(
-        dynamic_deferred_caller.register(aes_mux).unwrap(), // Unwrap fail = no deferred call slot available for ccm mux
-    );
+    //--------------------------------------------------------------------------
+    // IEEE 802.15.4 and UDP
+    //--------------------------------------------------------------------------
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = serial_num[0] as u16 + ((serial_num[1] as u16) << 8);
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
-        capsules::ieee802154::DRIVER_NUM,
+        capsules_extra::ieee802154::DRIVER_NUM,
         &base_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
-        dynamic_deferred_caller,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -501,7 +562,7 @@ pub unsafe fn main() {
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
                 0x1e, 0x1f,
             ]),
-            IPAddr::generate_from_mac(capsules::net::ieee802154::MacAddress::Short(
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
                 serial_num_bottom_16
             )),
         ]
@@ -521,7 +582,7 @@ pub unsafe fn main() {
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
         board_kernel,
-        capsules::net::udp::driver::DRIVER_NUM,
+        capsules_extra::net::udp::driver::DRIVER_NUM,
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
@@ -529,30 +590,66 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
+    //--------------------------------------------------------------------------
+    // TEMPERATURE (internal)
+    //--------------------------------------------------------------------------
+
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
-        capsules::temperature::DRIVER_NUM,
+        capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
     .finalize(components::temperature_component_static!());
 
+    //--------------------------------------------------------------------------
+    // RANDOM NUMBER GENERATOR
+    //--------------------------------------------------------------------------
+
     let rng = components::rng::RngComponent::new(
         board_kernel,
-        capsules::rng::DRIVER_NUM,
+        capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
     .finalize(components::rng_component_static!());
 
+    //--------------------------------------------------------------------------
+    // ADC
+    //--------------------------------------------------------------------------
+
+    let adc_channels = static_init!(
+        [nrf52840::adc::AdcChannelSetup; 6],
+        [
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7),
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &base_peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(
+        nrf52840::adc::Adc
+    ));
+
+    //--------------------------------------------------------------------------
     // SPI
-    let mux_spi =
-        components::spi::SpiMuxComponent::new(&base_peripherals.spim0, dynamic_deferred_caller)
-            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+    //--------------------------------------------------------------------------
+
+    let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+
     // Create the SPI system call capsule.
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
         &gpio_port[SPI_CS],
-        capsules::spi_controller::DRIVER_NUM,
+        capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
         nrf52840::spi::SPIM
@@ -563,6 +660,10 @@ pub unsafe fn main() {
         nrf52840::pinmux::Pinmux::new(SPI_MISO as u32),
         nrf52840::pinmux::Pinmux::new(SPI_CLK as u32),
     );
+
+    //--------------------------------------------------------------------------
+    // ONBOARD EXTERNAL FLASH
+    //--------------------------------------------------------------------------
 
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
@@ -577,9 +678,10 @@ pub unsafe fn main() {
         nrf52840::rtc::Rtc
     ));
 
+    // API for accessing nonvolatile storage for both the kernel and userspace.
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
-        capsules::nonvolatile_storage_driver::DRIVER_NUM,
+        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
         mx25r6435f,
         0x60000,   // Start address for userspace accessible region
         0x3FA0000, // Length of userspace accessible region
@@ -587,38 +689,39 @@ pub unsafe fn main() {
         0x60000,   // Length of kernel region
     )
     .finalize(components::nonvolatile_storage_component_static!(
-        capsules::mx25r6435f::MX25R6435F<
+        capsules_extra::mx25r6435f::MX25R6435F<
             'static,
-            capsules::virtual_spi::VirtualSpiMasterDevice<'static, nrf52840::spi::SPIM>,
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                'static,
+                nrf52840::spi::SPIM,
+            >,
             nrf52840::gpio::GPIOPin,
             VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
         >
     ));
 
-    let i2c_master_buffer = static_init!([u8; 32], [0; 32]);
-    let i2c_slave_buffer1 = static_init!([u8; 32], [0; 32]);
-    let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
+    //--------------------------------------------------------------------------
+    // I2C CONTROLLER/TARGET
+    //--------------------------------------------------------------------------
 
-    let i2c_master_slave = static_init!(
-        I2CMasterSlaveDriver,
-        I2CMasterSlaveDriver::new(
-            &base_peripherals.twi1,
-            i2c_master_buffer,
-            i2c_slave_buffer1,
-            i2c_slave_buffer2,
-            board_kernel.create_grant(
-                capsules::i2c_master_slave_driver::DRIVER_NUM,
-                &memory_allocation_capability
-            ),
-        )
-    );
+    let i2c_master_slave = components::i2c::I2CMasterSlaveDriverComponent::new(
+        board_kernel,
+        capsules_core::i2c_master_slave_driver::DRIVER_NUM,
+        &base_peripherals.twi1,
+    )
+    .finalize(components::i2c_master_slave_component_static!(
+        nrf52840::i2c::TWI
+    ));
+
     base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
-    base_peripherals.twi1.set_master_client(i2c_master_slave);
-    base_peripherals.twi1.set_slave_client(i2c_master_slave);
     base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
+
+    //--------------------------------------------------------------------------
+    // ANALOG COMPARATOR
+    //--------------------------------------------------------------------------
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
@@ -629,13 +732,21 @@ pub unsafe fn main() {
             &nrf52840::acomp::CHANNEL_AC0
         ),
         board_kernel,
-        capsules::analog_comparator::DRIVER_NUM,
+        capsules_extra::analog_comparator::DRIVER_NUM,
     )
     .finalize(components::analog_comparator_component_static!(
         nrf52840::acomp::Comparator
     ));
 
+    //--------------------------------------------------------------------------
+    // NRF CLOCK SETUP
+    //--------------------------------------------------------------------------
+
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
+
+    //--------------------------------------------------------------------------
+    // TESTS
+    //--------------------------------------------------------------------------
 
     // let alarm_test_component =
     //     components::test::multi_alarm_test::MultiAlarmTestComponent::new(&mux_alarm).finalize(
@@ -643,7 +754,7 @@ pub unsafe fn main() {
     //     );
 
     //--------------------------------------------------------------------------
-    // USB CTAP EXAMPLE
+    // USB EXAMPLES
     //--------------------------------------------------------------------------
     // Uncomment to experiment with this.
 
@@ -657,22 +768,41 @@ pub unsafe fn main() {
     //     ]
     // );
 
-    // let ctap_send_buffer = static_init!([u8; 64], [0; 64]);
-    // let ctap_recv_buffer = static_init!([u8; 64], [0; 64]);
-
+    // CTAP Example
+    //
     // let (ctap, _ctap_driver) = components::ctap::CtapComponent::new(
-    //     &peripherals.usbd,
+    //     board_kernel,
+    //     capsules_extra::ctap::DRIVER_NUM,
+    //     &nrf52840_peripherals.usbd,
     //     0x1915, // Nordic Semiconductor
     //     0x503a, // lowRISC generic FS USB
     //     strings,
-    //     board_kernel,
-    //     ctap_send_buffer,
-    //     ctap_recv_buffer,
     // )
-    // .finalize(components::usb_ctap_component_helper!(nrf52840::usbd::Usbd));
+    // .finalize(components::ctap_component_static!(nrf52840::usbd::Usbd));
 
     // ctap.enable();
     // ctap.attach();
+
+    // Keyboard HID Example
+    //
+    // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
+    //     board_kernel,
+    //     capsules_core::driver::KeyboardHid,
+    //     &nrf52840_peripherals.usbd,
+    //     0x1915, // Nordic Semiconductor
+    //     0x503a,
+    //     strings,
+    // )
+    // .finalize(components::keyboard_hid_component_static!(
+    //     nrf52840::usbd::Usbd
+    // ));
+
+    // keyboard_hid.enable();
+    // keyboard_hid.attach();
+
+    //--------------------------------------------------------------------------
+    // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
+    //--------------------------------------------------------------------------
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
@@ -686,6 +816,7 @@ pub unsafe fn main() {
         led,
         gpio,
         rng,
+        adc,
         temp,
         alarm,
         analog_comparator,
@@ -703,6 +834,12 @@ pub unsafe fn main() {
     };
 
     let _ = platform.pconsole.start();
+    base_peripherals.adc.calibrate();
+
+    // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
+    // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
+    // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);
+
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
 

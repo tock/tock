@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! I2C Master Driver
 
 use core::cell::Cell;
@@ -358,7 +362,7 @@ impl<'a> I2c<'_> {
     }
 }
 
-impl<'a> hil::i2c::I2CMaster for I2c<'a> {
+impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
     fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.master_client.set(master_client);
     }

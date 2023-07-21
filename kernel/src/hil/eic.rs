@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interface for external interrupt controller.
 //!
 //! The External Interrupt Controller (EIC) allows pins to be configured as
@@ -25,7 +29,7 @@ pub trait ExternalInterruptController {
     type Line;
 
     /// Enables external interrupt on the given 'line'
-    /// In asychronous mode, all edge interrupts will be
+    /// In asynchronous mode, all edge interrupts will be
     /// interpreted as level interrupts and the filter is disabled.
     fn line_enable(&self, line: &Self::Line, interrupt_mode: InterruptMode);
 

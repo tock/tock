@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 [package]
 name = "redboard_redv"
 version.workspace = true
@@ -8,7 +12,9 @@ edition = "2018"
 [dependencies]
 components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 e310_g002 = { path = "../../chips/e310_g002" }
 sifive = { path = "../../chips/sifive" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

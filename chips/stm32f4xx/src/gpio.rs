@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use cortexm4;
 use cortexm4::support::atomic;
 use enum_primitive::cast::FromPrimitive;
@@ -1246,6 +1250,6 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
 
     fn is_pending(&self) -> bool {
         self.exti_lineid
-            .map_or(false, |&mut lineid| self.exti.is_pending(lineid))
+            .map_or(false, |lineid| self.exti.is_pending(lineid))
     }
 }

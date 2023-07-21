@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implementation of the PDCA DMA peripheral.
 
 use crate::pm;
@@ -170,8 +174,11 @@ pub enum DMAPeripheral {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(u8)]
 pub enum DMAWidth {
+    ///  DMA is acting on bytes
     Width8Bit = 0,
+    /// DMA is acting on halfwords
     Width16Bit = 1,
+    /// DMA is acting on words
     Width32Bit = 2,
 }
 
@@ -263,9 +270,9 @@ impl DMAChannel {
 
         let maxlen = buf.len()
             / match self.width.get() {
-                DMAWidth::Width8Bit /*  DMA is acting on bytes     */ => 1,
-                DMAWidth::Width16Bit /* DMA is acting on halfwords */ => 2,
-                DMAWidth::Width32Bit /* DMA is acting on words     */ => 4,
+                DMAWidth::Width8Bit => 1,
+                DMAWidth::Width16Bit => 2,
+                DMAWidth::Width32Bit => 4,
             };
         len = cmp::min(len, maxlen);
         self.registers

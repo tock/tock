@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tests the log storage interface in linear mode. For testing in circular mode, see
 //! log_test.rs.
 //!
@@ -8,16 +12,15 @@
 //!
 //! To run the test, add the following line to the imix boot sequence:
 //! ```
-//!     test::linear_log_test::run(mux_alarm, dynamic_deferred_caller);
+//!     test::linear_log_test::run(mux_alarm);
 //! ```
 //! and use the `USER` and `RESET` buttons to manually erase the log and reboot the imix,
 //! respectively.
 
-use capsules::log;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::log;
 use core::cell::Cell;
 use kernel::debug;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -33,7 +36,6 @@ storage_volume!(LINEAR_TEST_LOG, 1);
 
 pub unsafe fn run(
     mux_alarm: &'static MuxAlarm<'static, Ast>,
-    deferred_caller: &'static DynamicDeferredCall,
     flash_controller: &'static sam4l::flashcalw::FLASHCALW,
 ) {
     // Set up flash controller.
@@ -43,20 +45,10 @@ pub unsafe fn run(
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
         Log,
-        log::Log::new(
-            &LINEAR_TEST_LOG,
-            &flash_controller,
-            pagebuffer,
-            deferred_caller,
-            false
-        )
+        log::Log::new(&LINEAR_TEST_LOG, &flash_controller, pagebuffer, false)
     );
+    kernel::deferred_call::DeferredCallClient::register(log);
     flash::HasClient::set_client(flash_controller, log);
-    log.initialize_callback_handle(
-        deferred_caller
-            .register(log)
-            .expect("no deferred call slot available for log storage"),
-    );
 
     let alarm = static_init!(
         VirtualMuxAlarm<'static, Ast>,

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Chip trait setup.
 
 use core::fmt::Write;
@@ -5,13 +9,13 @@ use cortexm4::{self, CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
-pub struct Apollo3<I: InterruptService<()> + 'static> {
+pub struct Apollo3<I: InterruptService + 'static> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
     interrupt_service: &'static I,
 }
 
-impl<I: InterruptService<()> + 'static> Apollo3<I> {
+impl<I: InterruptService + 'static> Apollo3<I> {
     pub unsafe fn new(interrupt_service: &'static I) -> Self {
         Self {
             mpu: cortexm4::mpu::MPU::new(),
@@ -57,7 +61,7 @@ impl Apollo3DefaultPeripherals {
     }
 }
 
-impl kernel::platform::chip::InterruptService<()> for Apollo3DefaultPeripherals {
+impl kernel::platform::chip::InterruptService for Apollo3DefaultPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         use crate::nvic;
         match interrupt {
@@ -76,12 +80,9 @@ impl kernel::platform::chip::InterruptService<()> for Apollo3DefaultPeripherals 
         }
         true
     }
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
-    }
 }
 
-impl<I: InterruptService<()> + 'static> Chip for Apollo3<I> {
+impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
 

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
@@ -23,7 +27,7 @@ pub const IRQ_UART: u32 = 1;
 /// This is a fake value used to indicate a timer1 interrupt
 pub const IRQ_TIMER1: u32 = 0xFFFF_FFFF;
 
-pub struct SweRVolf<'a, I: InterruptService<()> + 'a> {
+pub struct SweRVolf<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
     pic: &'a Pic,
     scheduler_timer: swerv::eh1_timer::Timer<'static>,
@@ -45,7 +49,7 @@ impl<'a> SweRVolfDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService<()> for SweRVolfDefaultPeripherals<'a> {
+impl<'a> InterruptService for SweRVolfDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             IRQ_UART => {
@@ -60,13 +64,9 @@ impl<'a> InterruptService<()> for SweRVolfDefaultPeripherals<'a> {
         }
         true
     }
-
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
-    }
 }
 
-impl<'a, I: InterruptService<()> + 'a> SweRVolf<'a, I> {
+impl<'a, I: InterruptService + 'a> SweRVolf<'a, I> {
     pub unsafe fn new(
         pic_interrupt_service: &'a I,
         mtimer: &'static crate::syscon::SysCon,
@@ -101,7 +101,7 @@ impl<'a, I: InterruptService<()> + 'a> SweRVolf<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for SweRVolf<'a, I> {
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a, I> {
     type MPU = ();
     type UserspaceKernelBoundary = SysCall;
 
@@ -145,7 +145,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for SweRVolf
                 }
             }
 
-            if !mip.matches_any(mip::mtimer::SET)
+            if !mip.any_matching_bits_set(mip::mtimer::SET)
                 && !unsafe { TIMER0_IRQ.get() }
                 && !unsafe { TIMER1_IRQ.get() }
                 && self.pic.get_saved_interrupts().is_none()
@@ -163,7 +163,7 @@ impl<'a, I: InterruptService<()> + 'a> kernel::platform::chip::Chip for SweRVolf
     fn has_pending_interrupts(&self) -> bool {
         let mip = CSR.mip.extract();
         self.pic.get_saved_interrupts().is_some()
-            || mip.matches_any(mip::mtimer::SET)
+            || mip.any_matching_bits_set(mip::mtimer::SET)
             || unsafe { TIMER0_IRQ.get() }
             || unsafe { TIMER1_IRQ.get() }
     }

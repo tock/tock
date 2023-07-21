@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Board file for WeAct STM32F401CCU6 Core Board
 //!
 //! - <https://github.com/WeActTC/MiniF4-STM32F4x1>
@@ -8,11 +12,10 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -45,20 +48,20 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct WeactF401CC {
-    console: &'static capsules::console::Console<'static>,
+    console: &'static capsules_core::console::Console<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    led: &'static capsules::led::LedDriver<
+    led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, stm32f401cc::gpio::Pin<'static>>,
         1,
     >,
-    button: &'static capsules::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    button: &'static capsules_core::button::Button<'static, stm32f401cc::gpio::Pin<'static>>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f401cc::tim2::Tim2<'static>>,
     >,
-    gpio: &'static capsules::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, stm32f401cc::gpio::Pin<'static>>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -70,13 +73,13 @@ impl SyscallDriverLookup for WeactF401CC {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
-            capsules::button::DRIVER_NUM => f(Some(self.button)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             _ => f(None),
         }
     }
@@ -262,14 +265,6 @@ pub unsafe fn main() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 2], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let chip = static_init!(
         stm32f401cc::chip::Stm32f4xx<Stm32f401ccDefaultPeripherals>,
         stm32f401cc::chip::Stm32f4xx::new(peripherals)
@@ -280,12 +275,8 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart2.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(
-        &base_peripherals.usart2,
-        115200,
-        dynamic_deferred_caller,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     io::WRITER.set_initialized();
 
@@ -299,7 +290,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -319,7 +310,7 @@ pub unsafe fn main() {
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules::button::DRIVER_NUM,
+        capsules_core::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f401cc::gpio::Pin,
             (
@@ -340,7 +331,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(stm32f401cc::tim2::Tim2));
@@ -348,7 +339,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f401cc::gpio::Pin,
             // 2 => gpio_ports.pins[2][13].as_ref().unwrap(), // C13 (reserved for led)
@@ -418,7 +409,7 @@ pub unsafe fn main() {
             .finalize(components::adc_component_static!(stm32f401cc::adc::Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,

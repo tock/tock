@@ -1,14 +1,19 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test TicKV
 
 use crate::tests::run_kernel_op;
 use crate::{SIPHASH, TICKV};
-use capsules::test::kv_system::KVSystemTest;
-use capsules::tickv::{TicKVKeyType, TicKVStore};
-use capsules::virtual_flash::FlashUser;
+use capsules_core::virtualizers::virtual_flash::FlashUser;
+use capsules_extra::test::kv_system::KVSystemTest;
+use capsules_extra::tickv::{TicKVKeyType, TicKVStore};
 use kernel::debug;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::kv_system::KVSystem;
 use kernel::static_init;
+use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
 
 #[test_case]
 fn tickv_append_key() {
@@ -35,18 +40,21 @@ fn tickv_append_key() {
                 TicKVStore<
                     'static,
                     FlashUser<'static, lowrisc::flash_ctrl::FlashCtrl<'static>>,
-                    capsules::sip_hash::SipHasher24,
+                    capsules_extra::sip_hash::SipHasher24,
+                    2048,
                 >,
                 TicKVKeyType,
             >,
-            KVSystemTest::new(tickv, value, ret)
+            KVSystemTest::new(tickv, LeasableMutableBuffer::new(value), ret)
         );
 
         sip_hasher.set_client(tickv);
         tickv.set_client(test);
 
         // Kick start the tests by generating a key
-        tickv.generate_key(key_input, key).unwrap();
+        tickv
+            .generate_key(LeasableMutableBuffer::new(key_input), key)
+            .unwrap();
     }
     run_kernel_op(100000);
 

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for Crc syscall interface.
 //!
 //! This provides one Component, `CrcComponent`, which implements a
@@ -14,7 +18,7 @@
 // Author: Leon Schuermann  <leon@is.currently.online>
 // Last modified: 6/2/2021
 
-use capsules::crc::CrcDriver;
+use capsules_extra::crc::CrcDriver;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -25,8 +29,8 @@ use kernel::hil::crc::Crc;
 #[macro_export]
 macro_rules! crc_component_static {
     ($C:ty $(,)?) => {{
-        let buffer = kernel::static_buf!([u8; capsules::crc::DEFAULT_CRC_BUF_LENGTH]);
-        let crc = kernel::static_buf!(capsules::crc::CrcDriver<'static, $C>);
+        let buffer = kernel::static_buf!([u8; capsules_extra::crc::DEFAULT_CRC_BUF_LENGTH]);
+        let crc = kernel::static_buf!(capsules_extra::crc::CrcDriver<'static, $C>);
 
         (crc, buffer)
     };};
@@ -55,7 +59,7 @@ impl<C: 'static + Crc<'static>> CrcComponent<C> {
 impl<C: 'static + Crc<'static>> Component for CrcComponent<C> {
     type StaticInput = (
         &'static mut MaybeUninit<CrcDriver<'static, C>>,
-        &'static mut MaybeUninit<[u8; capsules::crc::DEFAULT_CRC_BUF_LENGTH]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::crc::DEFAULT_CRC_BUF_LENGTH]>,
     );
     type Output = &'static CrcDriver<'static, C>;
 
@@ -63,7 +67,7 @@ impl<C: 'static + Crc<'static>> Component for CrcComponent<C> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let crc_buf = static_buffer
             .1
-            .write([0; capsules::crc::DEFAULT_CRC_BUF_LENGTH]);
+            .write([0; capsules_extra::crc::DEFAULT_CRC_BUF_LENGTH]);
 
         let crc = static_buffer.0.write(CrcDriver::new(
             self.crc,

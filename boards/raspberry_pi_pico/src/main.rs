@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock kernel for the Raspberry Pi Pico.
 //!
 //! It is based on RP2040SoC SoC (Cortex M0+).
@@ -11,14 +15,13 @@
 
 use core::arch::asm;
 
-use capsules::i2c_master::I2CMasterDriver;
-use capsules::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::i2c_master::I2CMasterDriver;
+use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
-use kernel::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
@@ -72,16 +75,16 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 /// Supported drivers by the platform
 pub struct RaspberryPiPico {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    console: &'static capsules::console::Console<'static>,
-    alarm: &'static capsules::alarm::AlarmDriver<
+    console: &'static capsules_core::console::Console<'static>,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, rp2040::timer::RPTimer<'static>>,
     >,
-    gpio: &'static capsules::gpio::GPIO<'static, RPGpioPin<'static>>,
-    led: &'static capsules::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
-    adc: &'static capsules::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules::temperature::TemperatureSensor<'static>,
-    i2c: &'static capsules::i2c_master::I2CMasterDriver<'static, I2c<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<'static, RPGpioPin<'static>>,
+    led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
+    adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static, 'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -93,14 +96,14 @@ impl SyscallDriverLookup for RaspberryPiPico {
         F: FnOnce(Option<&dyn SyscallDriver>) -> R,
     {
         match driver_num {
-            capsules::console::DRIVER_NUM => f(Some(self.console)),
-            capsules::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules::gpio::DRIVER_NUM => f(Some(self.gpio)),
-            capsules::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
+            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            capsules::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
             _ => f(None),
         }
     }
@@ -313,20 +316,12 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let dynamic_deferred_call_clients =
-        static_init!([DynamicDeferredCallClientState; 3], Default::default());
-    let dynamic_deferred_caller = static_init!(
-        DynamicDeferredCall,
-        DynamicDeferredCall::new(dynamic_deferred_call_clients)
-    );
-    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
-
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
         .finalize(components::alarm_mux_component_static!(RPTimer));
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules::alarm::DRIVER_NUM,
+        capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(RPTimer));
@@ -343,13 +338,12 @@ pub unsafe fn main() {
 
     let cdc = components::cdc::CdcAcmComponent::new(
         &peripherals.usb,
-        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        //capsules_extra::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
         64,
         peripherals.sysinfo.get_manufacturer_rp2040() as u16,
         peripherals.sysinfo.get_part() as u16,
         strings,
         mux_alarm,
-        dynamic_deferred_caller,
         None,
     )
     .finalize(components::cdc_acm_component_static!(
@@ -359,21 +353,20 @@ pub unsafe fn main() {
 
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200, dynamic_deferred_caller)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
     // let uart_mux2 = components::console::UartMuxComponent::new(
     //     &peripherals.uart0,
     //     115200,
-    //     dynamic_deferred_caller,
     // )
     // .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules::console::DRIVER_NUM,
+        capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -386,7 +379,7 @@ pub unsafe fn main() {
 
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules::gpio::DRIVER_NUM,
+        capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             RPGpioPin,
             // Used for serial communication. Comment them in if you don't use serial.
@@ -450,11 +443,11 @@ pub unsafe fn main() {
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
-        board_kernel.create_grant(capsules::temperature::DRIVER_NUM, &grant_cap);
+        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
     let temp = static_init!(
-        capsules::temperature::TemperatureSensor<'static>,
-        capsules::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
+        capsules_extra::temperature::TemperatureSensor<'static>,
+        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
     );
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
@@ -471,7 +464,7 @@ pub unsafe fn main() {
         .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
-        components::adc::AdcVirtualComponent::new(board_kernel, capsules::adc::DRIVER_NUM)
+        components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
                 adc_channel_1,
@@ -502,14 +495,18 @@ pub unsafe fn main() {
     sda_pin.set_floating_state(FloatingState::PullUp);
     scl_pin.set_floating_state(FloatingState::PullUp);
 
+    let i2c_master_buffer = static_init!(
+        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master::BUFFER_LENGTH]
+    );
     let i2c0 = &peripherals.i2c0;
     let i2c = static_init!(
-        I2CMasterDriver<I2c>,
+        I2CMasterDriver<I2c<'static, 'static>>,
         I2CMasterDriver::new(
             i2c0,
-            &mut capsules::i2c_master::BUF,
+            i2c_master_buffer,
             board_kernel.create_grant(
-                capsules::i2c_master::DRIVER_NUM,
+                capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_capability
             ),
         )

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interface for sending and receiving IEEE 802.15.4 packets.
 //!
 //! Hardware independent interface for an 802.15.4 radio. Note that
@@ -62,12 +66,12 @@ pub const PSDU_OFFSET: usize = 2;
 pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU;
 pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
 
-pub trait Radio: RadioConfig + RadioData {}
+pub trait Radio<'a>: RadioConfig<'a> + RadioData<'a> {}
 // Provide blanket implementations for trait group
-impl<T: RadioConfig + RadioData> Radio for T {}
+impl<'a, T: RadioConfig<'a> + RadioData<'a>> Radio<'a> for T {}
 
 /// Configure the 802.15.4 radio.
-pub trait RadioConfig {
+pub trait RadioConfig<'a> {
     /// buf must be at least MAX_BUF_SIZE in length, and
     /// reg_read and reg_write must be 2 bytes.
     fn initialize(
@@ -82,13 +86,13 @@ pub trait RadioConfig {
     fn is_on(&self) -> bool;
     fn busy(&self) -> bool;
 
-    fn set_power_client(&self, client: &'static dyn PowerClient);
+    fn set_power_client(&self, client: &'a dyn PowerClient);
 
     /// Commit the config calls to hardware, changing the address,
     /// PAN ID, TX power, and channel to the specified values, issues
     /// a callback to the config client when done.
     fn config_commit(&self);
-    fn set_config_client(&self, client: &'static dyn ConfigClient);
+    fn set_config_client(&self, client: &'a dyn ConfigClient);
 
     fn get_address(&self) -> u16; //....... The local 16-bit address
     fn get_address_long(&self) -> [u8; 8]; // 64-bit address
@@ -103,9 +107,9 @@ pub trait RadioConfig {
     fn set_channel(&self, chan: u8) -> Result<(), ErrorCode>;
 }
 
-pub trait RadioData {
-    fn set_transmit_client(&self, client: &'static dyn TxClient);
-    fn set_receive_client(&self, client: &'static dyn RxClient, receive_buffer: &'static mut [u8]);
+pub trait RadioData<'a> {
+    fn set_transmit_client(&self, client: &'a dyn TxClient);
+    fn set_receive_client(&self, client: &'a dyn RxClient, receive_buffer: &'static mut [u8]);
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     fn transmit(

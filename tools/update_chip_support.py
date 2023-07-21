@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 '''
 Script to generate a table of which HILs each Tock chip supports. Adds it
 to the `chips/README.md` file.

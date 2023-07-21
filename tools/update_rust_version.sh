@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
 
 # Ask rustup to pick the latest version that will work.
 # This requires rustup >= 1.20.0.
 echo "Updating rustc to latest compatible version..."
-rustup toolchain install nightly --allow-downgrade --component cargo --component clippy --component llvm-tools-preview --component miri --component rust-analysis --component rust-docs --component rust-src --component rust-std --component rustc --component rustfmt
+rustup toolchain install nightly --allow-downgrade --component cargo --component clippy --component llvm-tools --component miri --component rust-analysis --component rust-docs --component rust-src --component rust-std --component rustc --component rustfmt
 
 # # Rerun the command so that it prints out the version it installed. We then have
 # # to extract that from the output. If there is a better way to do this then we

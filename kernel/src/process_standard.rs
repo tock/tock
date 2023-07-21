@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Tock default Process implementation.
 //!
 //! `ProcessStandard` is an implementation for a userspace process running on
@@ -1038,7 +1042,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn get_completion_code(&self) -> Option<Option<u32>> {
-        self.completion_code.extract()
+        self.completion_code.get()
     }
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {

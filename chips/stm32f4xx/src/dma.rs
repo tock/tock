@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Debug;
 
 use kernel::platform::chip::ClockInterface;
@@ -803,7 +807,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
 
         self.client.map(|client| {
             self.peripheral.map(|pid| {
-                client.transfer_done(*pid);
+                client.transfer_done(pid);
             });
         });
     }

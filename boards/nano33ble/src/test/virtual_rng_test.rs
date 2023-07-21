@@ -1,11 +1,15 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Test file for the virtual_rng
 //! To run this test, include the code
 //! ```
 //!    test::virtual_rng_test::run(&base_peripherals.trng);
 //! ```
 
-use capsules::rng;
-use capsules::test::virtual_rng::TestRng;
+use capsules_core::rng;
+use capsules_core::test::virtual_rng::TestRng;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::rng::Rng;
 use kernel::{debug, static_init};
@@ -19,22 +23,22 @@ pub unsafe fn run(trng: &'static dyn Entropy32<'static>) {
 
     // Create virtual rng mux device
     let mux = static_init!(
-        capsules::virtual_rng::MuxRngMaster<'static>,
-        capsules::virtual_rng::MuxRngMaster::new(rng_obj)
+        capsules_core::virtualizers::virtual_rng::MuxRngMaster<'static>,
+        capsules_core::virtualizers::virtual_rng::MuxRngMaster::new(rng_obj)
     );
 
     // Create all devices for the virtual rng
     let device1 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
-        capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
+        capsules_core::virtualizers::virtual_rng::VirtualRngMasterDevice<'static>,
+        capsules_core::virtualizers::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
     let device2 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
-        capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
+        capsules_core::virtualizers::virtual_rng::VirtualRngMasterDevice<'static>,
+        capsules_core::virtualizers::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
     let device3 = static_init!(
-        capsules::virtual_rng::VirtualRngMasterDevice<'static>,
-        capsules::virtual_rng::VirtualRngMasterDevice::new(mux)
+        capsules_core::virtualizers::virtual_rng::VirtualRngMasterDevice<'static>,
+        capsules_core::virtualizers::virtual_rng::VirtualRngMasterDevice::new(mux)
     );
 
     // Create independent tests for each device

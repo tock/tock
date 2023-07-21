@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for Buttons.
 //!
 //! Usage
@@ -28,7 +32,7 @@
 //! with `FloatingState::PullDown`. `FloatingState::None` will be used when the
 //! board provides external pull-up/pull-down resistors.
 
-use capsules::button::Button;
+use capsules_core::button::Button;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -76,7 +80,7 @@ macro_rules! button_component_helper {
 #[macro_export]
 macro_rules! button_component_static {
     ($Pin:ty $(,)?) => {{
-        kernel::static_buf!(capsules::button::Button<'static, $Pin>)
+        kernel::static_buf!(capsules_core::button::Button<'static, $Pin>)
     };};
 }
 
@@ -114,7 +118,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> Component for ButtonComponent<IP
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let button = static_buffer.write(capsules::button::Button::new(
+        let button = static_buffer.write(capsules_core::button::Button::new(
             self.button_pins,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
         ));

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Special restricted capabilities.
 //!
 //! Rust provides a mechanism for restricting certain operations to only be used
@@ -79,6 +83,10 @@ pub unsafe trait MemoryAllocationCapability {}
 /// objects can be used outside of the core kernel, but the constructors must be
 /// restricted.
 pub unsafe trait ExternalProcessCapability {}
+
+/// The KernelruserStorageCapability` capability allows the holder to create
+/// permissions to access kernel-only stored values on the system.
+pub unsafe trait KerneluserStorageCapability {}
 
 /// The `UdpDriverCapability` capability allows the holder to use two functions
 /// only allowed by the UDP driver. The first is the `driver_send_to()` function

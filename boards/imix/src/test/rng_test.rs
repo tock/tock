@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! This tests an underlying 32-bit entropy generator and the library
 //! transformations between 8-bit and 32-bit entropy. To run this test,
 //! add this line to the imix boot sequence:
@@ -14,8 +18,8 @@
 //! different on each invocation. Rigorous entropy tests are outside
 //! the scope of this test.
 
-use capsules::rng;
-use capsules::test::rng::TestRng;
+use capsules_core::rng;
+use capsules_core::test::rng::TestRng;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng::Rng;
 use kernel::static_init;

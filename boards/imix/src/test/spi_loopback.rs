@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! A SPI test which read/writes and expects MOSI to
 //! be loopbacked to MISO. It checks that what it writes
 //! is what it reads. The values put in the buffer are
@@ -10,7 +14,7 @@
 //! with different bit rates should see different clock
 //! frequencies.
 
-use capsules::virtual_spi::MuxSpiMaster;
+use capsules_core::virtualizers::virtual_spi::MuxSpiMaster;
 use components::spi::SpiComponent;
 use core::cell::Cell;
 use kernel::component::Component;
@@ -22,11 +26,11 @@ use kernel::ErrorCode;
 pub struct SpiLoopback {
     cs: Cell<u8>,
     val: Cell<u8>,
-    spi: &'static dyn SpiMasterDevice,
+    spi: &'static dyn SpiMasterDevice<'static>,
 }
 
 impl SpiLoopback {
-    pub fn new(spi: &'static dyn SpiMasterDevice, cs: u8, counter: u8) -> Self {
+    pub fn new(spi: &'static dyn SpiMasterDevice<'static>, cs: u8, counter: u8) -> Self {
         Self {
             val: Cell::new(counter),
             cs: Cell::new(cs),
@@ -81,7 +85,11 @@ impl spi::SpiMasterClient for SpiLoopback {
 
 #[inline(never)]
 #[allow(unused_variables, dead_code)]
-pub unsafe fn spi_loopback_test(spi: &'static dyn SpiMasterDevice, counter: u8, speed: u32) {
+pub unsafe fn spi_loopback_test(
+    spi: &'static dyn SpiMasterDevice<'static>,
+    counter: u8,
+    speed: u32,
+) {
     let spicb = kernel::static_init!(SpiLoopback, SpiLoopback::new(spi, 0, counter));
     spi.set_client(spicb);
     spi.set_rate(speed)

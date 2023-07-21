@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the MLX90614 IR Temperature Sensor.
 //!
 //! Usage
@@ -8,41 +12,47 @@
 //!    .finalize(components::mlx90614_component_static!());
 //!
 //! let temp = static_init!(
-//!        capsules::temperature::TemperatureSensor<'static>,
-//!        capsules::temperature::TemperatureSensor::new(mlx90614,
+//!        capsules_extra::temperature::TemperatureSensor<'static>,
+//!        capsules_extra::temperature::TemperatureSensor::new(mlx90614,
 //!                                                 grant_temperature));
 //! kernel::hil::sensors::TemperatureDriver::set_client(mlx90614, temp);
 //! ```
 
-use capsules::mlx90614::Mlx90614SMBus;
-use capsules::virtual_i2c::{MuxI2C, SMBusDevice};
+use capsules_core::virtualizers::virtual_i2c::{MuxI2C, SMBusDevice};
+use capsules_extra::mlx90614::Mlx90614SMBus;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::i2c::{self, NoSMBus};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! mlx90614_component_static {
     () => {{
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::SMBusDevice);
+        let i2c_device = kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::SMBusDevice);
         let buffer = kernel::static_buf!([u8; 14]);
-        let mlx90614 = kernel::static_buf!(capsules::mlx90614::Mlx90614SMBus<'static>);
+        let mlx90614 = kernel::static_buf!(capsules_extra::mlx90614::Mlx90614SMBus<'static>);
 
         (i2c_device, buffer, mlx90614)
     };};
 }
 
-pub struct Mlx90614SMBusComponent {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Mlx90614SMBusComponent<
+    I: 'static + i2c::I2CMaster<'static>,
+    S: 'static + i2c::SMBusMaster<'static> = NoSMBus,
+> {
+    i2c_mux: &'static MuxI2C<'static, I, S>,
     i2c_address: u8,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl Mlx90614SMBusComponent {
+impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>>
+    Mlx90614SMBusComponent<I, S>
+{
     pub fn new(
-        i2c: &'static MuxI2C<'static>,
+        i2c: &'static MuxI2C<'static, I, S>,
         i2c_address: u8,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -56,9 +66,11 @@ impl Mlx90614SMBusComponent {
     }
 }
 
-impl Component for Mlx90614SMBusComponent {
+impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static>> Component
+    for Mlx90614SMBusComponent<I, S>
+{
     type StaticInput = (
-        &'static mut MaybeUninit<SMBusDevice<'static>>,
+        &'static mut MaybeUninit<SMBusDevice<'static, I, S>>,
         &'static mut MaybeUninit<[u8; 14]>,
         &'static mut MaybeUninit<Mlx90614SMBus<'static>>,
     );

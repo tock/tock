@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Register bitfield types and macros
 //!
 //! To conveniently access and manipulate fields of a register, this
@@ -256,10 +260,12 @@ impl<T: UIntLike, R: RegisterLongName> FieldValue<T, R> {
         (val & !self.mask) | self.value
     }
 
-    /// Check if any specified parts of a field match
+    /// Check if any of the bits covered by the mask for this
+    /// `FieldValue` and set in the `FieldValue` are also set
+    /// in the passed value
     #[inline]
-    pub fn matches_any(&self, val: T) -> bool {
-        val & self.mask != T::zero()
+    pub fn any_matching_bits_set(&self, val: T) -> bool {
+        val & self.mask & self.value != T::zero()
     }
 
     /// Check if all specified parts of a field match
@@ -504,7 +510,6 @@ macro_rules! register_bitfields {
     }
 }
 
-#[cfg(feature = "std_unit_tests")]
 #[cfg(test)]
 mod tests {
     #[derive(Debug, PartialEq, Eq)]
@@ -679,22 +684,20 @@ mod tests {
         }
 
         #[test]
-        fn test_matches_any() {
+        fn test_any_matching_bits_set() {
             let field = Field::<u32, ()>::new(0xFF, 4);
-            assert_eq!(field.val(0x23).matches_any(0x1234), true);
-            assert_eq!(field.val(0x23).matches_any(0x5678), true);
-            assert_eq!(field.val(0x23).matches_any(0x5008), false);
+            assert_eq!(field.val(0x23).any_matching_bits_set(0x1234), true);
+            assert_eq!(field.val(0x23).any_matching_bits_set(0x5678), true);
+            assert_eq!(field.val(0x23).any_matching_bits_set(0x5008), false);
 
             for shift in 0..24 {
                 let field = Field::<u32, ()>::new(0xFF, shift);
-                for x in 0..=0xFF {
-                    let field_value = field.val(x);
-                    for y in 1..=0xFF {
-                        assert_eq!(field_value.matches_any(y << shift), true);
-                    }
-                    assert_eq!(field_value.matches_any(0), false);
-                    assert_eq!(field_value.matches_any(!(0xFF << shift)), false);
+                let field_value = field.val(0xff);
+                for y in 1..=0xff {
+                    assert_eq!(field_value.any_matching_bits_set(y << shift), true,);
                 }
+                assert_eq!(field_value.any_matching_bits_set(0), false);
+                assert_eq!(field_value.any_matching_bits_set(!(0xFF << shift)), false);
             }
         }
 
@@ -711,6 +714,35 @@ mod tests {
                     assert_eq!(field.val(x + 1).matches_all(x << shift), false);
                 }
             }
+        }
+
+        #[test]
+        fn test_matches_any() {
+            register_bitfields! {
+                u32,
+
+                TEST [
+                    FLAG OFFSET(18) NUMBITS(1) [],
+                    SIZE OFFSET(0) NUMBITS(2) [
+                        Byte = 0,
+                        Halfword = 1,
+                        Word = 2
+                    ],
+                ]
+            }
+
+            let value: crate::LocalRegisterCopy<u32, TEST::Register> =
+                crate::LocalRegisterCopy::new(2);
+            assert!(value.matches_any(&[TEST::SIZE::Word]));
+            assert!(!value.matches_any(&[TEST::SIZE::Halfword]));
+            assert!(!value.matches_any(&[TEST::SIZE::Byte]));
+            assert!(value.matches_any(&[TEST::SIZE::Word, TEST::FLAG::SET]));
+            assert!(value.matches_any(&[TEST::SIZE::Halfword, TEST::FLAG::CLEAR]));
+            assert!(!value.matches_any(&[TEST::SIZE::Halfword, TEST::FLAG::SET]));
+            let value: crate::LocalRegisterCopy<u32, TEST::Register> =
+                crate::LocalRegisterCopy::new(266241);
+            assert!(value.matches_any(&[TEST::FLAG::SET]));
+            assert!(!value.matches_any(&[TEST::FLAG::CLEAR]));
         }
 
         #[test]

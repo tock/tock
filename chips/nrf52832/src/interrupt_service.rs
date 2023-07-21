@@ -1,4 +1,7 @@
-use crate::deferred_call_tasks::DeferredCallTask;
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use nrf52::chip::Nrf52DefaultPeripherals;
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
@@ -17,21 +20,16 @@ impl<'a> Nrf52832DefaultPeripherals<'a> {
         }
     }
     // Necessary for setting up circular dependencies
-    pub fn init(&'a self) {
+    pub fn init(&'static self) {
         self.nrf52.init();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService<DeferredCallTask>
-    for Nrf52832DefaultPeripherals<'a>
-{
+impl<'a> kernel::platform::chip::InterruptService for Nrf52832DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),
             _ => return self.nrf52.service_interrupt(interrupt),
         }
         true
-    }
-    unsafe fn service_deferred_call(&self, task: DeferredCallTask) -> bool {
-        self.nrf52.service_deferred_call(task)
     }
 }

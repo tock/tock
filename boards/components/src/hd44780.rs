@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the HD447880 LCD controller.
 //!
 //! Usage
@@ -29,8 +33,8 @@
 //! );
 //! ```
 
-use capsules::hd44780::HD44780;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_extra::hd44780::HD44780;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::time;
@@ -40,14 +44,16 @@ use kernel::hil::time::Alarm;
 #[macro_export]
 macro_rules! hd44780_component_static {
     ($A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
         let hd44780 = kernel::static_buf!(
-            capsules::hd44780::HD44780<
+            capsules_extra::hd44780::HD44780<
                 'static,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
-        let buffer = kernel::static_buf!([u8; capsules::hd44780::BUF_LEN]);
+        let buffer = kernel::static_buf!([u8; capsules_extra::hd44780::BUF_LEN]);
 
         (alarm, hd44780, buffer)
     };};
@@ -95,7 +101,7 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<HD44780<'static, VirtualMuxAlarm<'static, A>>>,
-        &'static mut MaybeUninit<[u8; capsules::hd44780::BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::hd44780::BUF_LEN]>,
     );
     type Output = &'static HD44780<'static, VirtualMuxAlarm<'static, A>>;
 
@@ -103,9 +109,9 @@ impl<A: 'static + time::Alarm<'static>> Component for HD44780Component<A> {
         let lcd_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         lcd_alarm.setup();
 
-        let buffer = static_buffer.2.write([0; capsules::hd44780::BUF_LEN]);
+        let buffer = static_buffer.2.write([0; capsules_extra::hd44780::BUF_LEN]);
 
-        let hd44780 = static_buffer.1.write(capsules::hd44780::HD44780::new(
+        let hd44780 = static_buffer.1.write(capsules_extra::hd44780::HD44780::new(
             self.rs,
             self.en,
             self.data_4_pin,

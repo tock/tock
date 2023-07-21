@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for the ISL29035 sensor.
 //!
 //! This provides two Components, Isl29035Component, which provides
@@ -15,35 +19,39 @@
 //! let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm)
 //!     .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
 //! let ambient_light =
-//!     AmbientLightComponent::new(board_kernel, capsules::ambient_light::DRIVER_NUM, isl29035)
+//!     AmbientLightComponent::new(board_kernel, capsules_extra::ambient_light::DRIVER_NUM, isl29035)
 //!         .finalize(components::ambient_light_component_static!());
 //! ```
 
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
-use capsules::ambient_light::AmbientLight;
-use capsules::isl29035::Isl29035;
-use capsules::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_extra::ambient_light::AmbientLight;
+use capsules_extra::isl29035::Isl29035;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::i2c;
 use kernel::hil::time::{self, Alarm};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! isl29035_component_static {
-    ($A:ty $(,)?) => {{
-        let alarm = kernel::static_buf!(capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let i2c_device = kernel::static_buf!(capsules::virtual_i2c::I2CDevice<'static>);
-        let i2c_buffer = kernel::static_buf!([u8; capsules::isl29035::BUF_LEN]);
+    ($A:ty, $I:ty $(,)?) => {{
+        let alarm = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+        );
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
+        let i2c_buffer = kernel::static_buf!([u8; capsules_extra::isl29035::BUF_LEN]);
         let isl29035 = kernel::static_buf!(
-            capsules::isl29035::Isl29035<
+            capsules_extra::isl29035::Isl29035<
                 'static,
-                capsules::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
         );
 
@@ -54,17 +62,22 @@ macro_rules! isl29035_component_static {
 #[macro_export]
 macro_rules! ambient_light_component_static {
     () => {{
-        kernel::static_buf!(capsules::ambient_light::AmbientLight<'static>)
+        kernel::static_buf!(capsules_extra::ambient_light::AmbientLight<'static>)
     };};
 }
 
-pub struct Isl29035Component<A: 'static + time::Alarm<'static>> {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Isl29035Component<
+    A: 'static + time::Alarm<'static>,
+    I: 'static + i2c::I2CMaster<'static>,
+> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: 'static + time::Alarm<'static>> Isl29035Component<A> {
-    pub fn new(i2c: &'static MuxI2C<'static>, alarm: &'static MuxAlarm<'static, A>) -> Self {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
+    Isl29035Component<A, I>
+{
+    pub fn new(i2c: &'static MuxI2C<'static, I>, alarm: &'static MuxAlarm<'static, A>) -> Self {
         Isl29035Component {
             i2c_mux: i2c,
             alarm_mux: alarm,
@@ -72,18 +85,22 @@ impl<A: 'static + time::Alarm<'static>> Isl29035Component<A> {
     }
 }
 
-impl<A: 'static + time::Alarm<'static>> Component for Isl29035Component<A> {
+impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Component
+    for Isl29035Component<A, I>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<I2CDevice<'static>>,
-        &'static mut MaybeUninit<[u8; capsules::isl29035::BUF_LEN]>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
+        &'static mut MaybeUninit<[u8; capsules_extra::isl29035::BUF_LEN]>,
         &'static mut MaybeUninit<Isl29035<'static, VirtualMuxAlarm<'static, A>>>,
     );
     type Output = &'static Isl29035<'static, VirtualMuxAlarm<'static, A>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let isl29035_i2c = static_buffer.1.write(I2CDevice::new(self.i2c_mux, 0x44));
-        let isl29035_i2c_buffer = static_buffer.2.write([0; capsules::isl29035::BUF_LEN]);
+        let isl29035_i2c_buffer = static_buffer
+            .2
+            .write([0; capsules_extra::isl29035::BUF_LEN]);
         let isl29035_virtual_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
         isl29035_virtual_alarm.setup();
 

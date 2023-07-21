@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Component for ADC Microphone
 //!
 //! Usage
@@ -26,8 +30,8 @@
 //! ));
 //! ```
 
-use capsules::adc_microphone::AdcMicrophone;
-use capsules::virtual_adc::AdcDevice;
+use capsules_core::virtualizers::virtual_adc::AdcDevice;
+use capsules_extra::adc_microphone::AdcMicrophone;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::adc::{self, AdcChannel};
@@ -39,27 +43,27 @@ macro_rules! adc_microphone_component_static {
         let adc_device = components::adc_component_static!($A);
         let buffer = kernel::static_buf!([u16; $LEN]);
         let adc_microphone =
-            kernel::static_buf!(capsules::adc_microphone::AdcMicrophone<'static, $P>);
+            kernel::static_buf!(capsules_extra::adc_microphone::AdcMicrophone<'static, $P>);
 
         (adc_device, buffer, adc_microphone)
     };};
 }
 
 pub struct AdcMicrophoneComponent<
-    A: 'static + adc::Adc,
+    A: 'static + adc::Adc<'static>,
     P: 'static + gpio::Pin,
     const BUF_LEN: usize,
 > {
-    adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+    adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,
     pin: Option<&'static P>,
 }
 
-impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize>
+impl<A: 'static + adc::Adc<'static>, P: 'static + gpio::Pin, const BUF_LEN: usize>
     AdcMicrophoneComponent<A, P, BUF_LEN>
 {
     pub fn new(
-        adc_mux: &'static capsules::virtual_adc::MuxAdc<'static, A>,
+        adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
         adc_channel: A::Channel,
         pin: Option<&'static P>,
     ) -> AdcMicrophoneComponent<A, P, BUF_LEN> {
@@ -71,7 +75,7 @@ impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize>
     }
 }
 
-impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize> Component
+impl<A: 'static + adc::Adc<'static>, P: 'static + gpio::Pin, const BUF_LEN: usize> Component
     for AdcMicrophoneComponent<A, P, BUF_LEN>
 {
     type StaticInput = (

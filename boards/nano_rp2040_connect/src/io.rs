@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
@@ -43,7 +47,7 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         self.uart.map_or_else(
             || {
                 // If no UART is configured for panic print, use UART0
@@ -72,6 +76,7 @@ impl IoWrite for Writer {
                 self.write_to_uart(uart, buf);
             },
         );
+        buf.len()
     }
 }
 

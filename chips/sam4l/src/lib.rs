@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Peripheral implementations for the SAM4L MCU.
 //!
 //! <http://www.atmel.com/microsite/sam4l/default.aspx>
@@ -5,8 +9,6 @@
 #![crate_name = "sam4l"]
 #![crate_type = "rlib"]
 #![no_std]
-
-pub mod deferred_call_tasks;
 
 pub mod acifc;
 pub mod adc;

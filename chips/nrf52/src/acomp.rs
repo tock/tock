@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Analog Comparator Peripheral Driver, for nrf52
 //!
 //! Partially based on sam4l implementation of an analog comparator.
@@ -231,7 +235,11 @@ impl<'a> Comparator<'a> {
     fn enable(&self) {
         // Checks if it's already enabled
         // Assumes no one else is writing to comp registers directly
-        if self.registers.enable.matches_any(Enable::ENABLE::Enabled) {
+        if self
+            .registers
+            .enable
+            .any_matching_bits_set(Enable::ENABLE::Enabled)
+        {
             return;
         }
 

@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
 [package]
 name = "hail"
 version.workspace = true
@@ -8,6 +12,8 @@ edition.workspace = true
 [dependencies]
 components = { path = "../components" }
 cortexm4 = { path = "../../arch/cortex-m4" }
-capsules = { path = "../../capsules" }
 kernel = { path = "../../kernel" }
 sam4l = { path = "../../chips/sam4l" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }

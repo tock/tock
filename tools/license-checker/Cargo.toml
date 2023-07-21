@@ -11,10 +11,11 @@ edition.workspace = true
 
 [dependencies]
 clap = { features = ["derive"], version = "4.0.29" }
+colored = "2.0.1"
 ignore = "0.4"
 thiserror = "1.0.37"
 
 [dependencies.syntect]
 default-features = false
-features = ["default-syntaxes", "regex-onig"]
+features = ["default-syntaxes", "regex-onig", "yaml-load"]
 version = "5.0.0"

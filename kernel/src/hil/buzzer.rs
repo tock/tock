@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Interface for buzzer use.
 
 use crate::ErrorCode;
@@ -15,7 +19,7 @@ pub trait Buzzer<'a> {
     /// Once the buzzer finishes buzzing, the `buzzer_done()` callback
     /// is called.
     /// If it is called while the buzzer is playing, the buzzer command will be
-    /// overriden with the new frequency and duration values.
+    /// overridden with the new frequency and duration values.
     ///
     /// Return values:
     ///
@@ -23,7 +27,7 @@ pub trait Buzzer<'a> {
     /// - `FAIL`: Cannot start the buzzer.
     fn buzz(&self, frequency_hz: usize, duration_ms: usize) -> Result<(), ErrorCode>;
 
-    /// Stop the sound currenty playing.
+    /// Stop the sound currently playing.
     /// After the buzzer is successfully stopped, the `buzzer_done()`
     /// callback is called.
     ///

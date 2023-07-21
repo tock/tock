@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
@@ -21,7 +25,7 @@ pub const INTC_BASE: StaticRef<IntcRegisters> =
 
 pub static mut INTC: Intc = Intc::new(INTC_BASE);
 
-pub struct Esp32C3<'a, I: InterruptService<()> + 'a> {
+pub struct Esp32C3<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMP<8>,
     intc: &'a Intc,
@@ -50,7 +54,7 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService<()> for Esp32C3DefaultPeripherals<'a> {
+impl<'a> InterruptService for Esp32C3DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::IRQ_UART0 => {
@@ -69,13 +73,9 @@ impl<'a> InterruptService<()> for Esp32C3DefaultPeripherals<'a> {
         }
         true
     }
-
-    unsafe fn service_deferred_call(&self, _: ()) -> bool {
-        false
-    }
 }
 
-impl<'a, I: InterruptService<()> + 'a> Esp32C3<'a, I> {
+impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
     pub unsafe fn new(pic_interrupt_service: &'a I) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
@@ -106,7 +106,7 @@ impl<'a, I: InterruptService<()> + 'a> Esp32C3<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService<()> + 'a> Chip for Esp32C3<'a, I> {
+impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
 

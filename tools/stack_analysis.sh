@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
 # This script requires that the .elf under analysis includes stack
 # size information, and is thus most easily called using the `make stack-analysis`
 # rule.
@@ -8,7 +12,7 @@ bold=$(tput bold)
 normal=$(tput sgr0)
 
 # Get a list of all stack frames and their sizes.
-frames=`$(find $(rustc --print sysroot) -name llvm-readobj) --elf-output-style GNU --stack-sizes $1`
+frames=`$(find $(rustc --print sysroot) -name llvm-readobj) --demangle --elf-output-style GNU --stack-sizes $1`
 
 # Print the stack frame size of `main`
 printf "   main stack frame: \n"

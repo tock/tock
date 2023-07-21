@@ -13,7 +13,7 @@ Tock Design
 - [In-Kernel Design Principles](#in-kernel-design-principles)
   * [Role of HILs](#role-of-hils)
   * [Split-phase Operation](#split-phase-operation)
-  * [No External Dependencies](#no-external-dependencies)
+  * [External Dependencies](#external-dependencies)
   * [Using `unsafe` and Capabilities](#using-unsafe-and-capabilities)
   * [Ease of Use and Understanding](#ease-of-use-and-understanding)
   * [Demonstrated Features](#demonstrated-features)
@@ -289,27 +289,17 @@ that the operation is synchronous. These cases are rare, though: the operation
 has to be so fast that it's not worth allowing other code to run during the
 delay.
 
-### No External Dependencies
+### External Dependencies
 
-Tock chooses to not use any external libraries for any of the crates in the
-kernel. This is done to promote safety, as auditing the Tock code only requires
-inspecting the code in the Tock repository. Tock tries to be very specific with
-its use of `unsafe`, and tries to ensure that when it is used it is clear as to
-why. With external dependencies it would be significantly more challenging to
-ensure that uses of `unsafe` are valid, particularly as external libraries
-evolve.
+Tock generally prohibits any external crates within the Tock kernel to avoid
+including external unsafe code. However, in certain situations Tock does allow
+external dependencies. This is decided on a case by case basis. For more details
+on this see [External Dependencies](ExternalDependencies.md).
 
-We also realize, however, that external libraries can be very useful. Tock's
-compromise has been to pull in specific portions of libraries into the
-`libraries` folder. This puts the library's source in the same repository, while
-keeping the library as a clearly separate crate. We do try to limit how often
-this happens.
-
-In the future, we hope that `cargo` and other Rust tools make it significantly
-easier to audit and manage dependencies. For example, cargo currently has no
-mechanism to emit an error if a dependency uses `unsafe`. If new tools emerge
-that help ensure that dependent code is safe, Tock would likely be able to
-leverage external dependencies.
+Tock uses some external libraries by vendoring them within the `libraries`
+folder. This puts the library's source in the same repository, while keeping the
+library as a clearly separate crate. This adds a maintenance requirement and
+complicates updates, so this is also used on a limited basis.
 
 ### Using `unsafe` and Capabilities
 

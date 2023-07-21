@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Implementation of the SAM4L External Interrupt Controller (EIC).
 //!
 //! Datasheet section "21. External Interrupt Controller (EIC)".
@@ -64,7 +68,7 @@ pub struct EicRegisters {
     imr: ReadOnly<u32, Interrupt::Register>,
     /// A bit is set when an interrupt triggers
     isr: ReadOnly<u32, Interrupt::Register>,
-    /// Clears ISR  
+    /// Clears ISR
     icr: WriteOnly<u32, Interrupt::Register>,
     /// Sets interrupt mode
     mode: ReadWrite<u32, Interrupt::Register>,

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Watchdog Timer (WDT)
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -115,12 +119,16 @@ impl kernel::platform::watchdog::WatchDog for Wdt {
         // write cycle where the config is applied in order to avoid unexpected interrupts and
         // resets.
         self.disable();
+        // Set SMCLK as source -> 750kHz
+        // Enable Watchdog mode
+        // According to datasheet necessary
+        // Prescaler of 2^15
         self.registers.ctl.modify(
             WDTCTL::WDTPW.val(PASSWORD)
-                + WDTCTL::WDTSSEL::SMCLK // Set SMCLK as source -> 750kHz
-                + WDTCTL::WDTTMSEL::WatchdogMode // Enable Watchdog mode
-                + WDTCTL::WDTCNTCL::SET // According to datasheet necessary
-                + WDTCTL::WDTIS::WatchdogClockSource2151SAt32768KHz, // Prescaler of 2^15
+                + WDTCTL::WDTSSEL::SMCLK
+                + WDTCTL::WDTTMSEL::WatchdogMode
+                + WDTCTL::WDTCNTCL::SET
+                + WDTCTL::WDTIS::WatchdogClockSource2151SAt32768KHz,
         );
 
         self.start();

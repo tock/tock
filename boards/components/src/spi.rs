@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 //! Components for SPI.
 //!
 //! This provides four components.
@@ -26,14 +30,13 @@
 
 use core::mem::MaybeUninit;
 
-use capsules::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
-use capsules::spi_peripheral::SpiPeripheral;
-use capsules::virtual_spi;
-use capsules::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+use capsules_core::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
+use capsules_core::spi_peripheral::SpiPeripheral;
+use capsules_core::virtualizers::virtual_spi;
+use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
@@ -41,26 +44,27 @@ use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 #[macro_export]
 macro_rules! spi_mux_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_spi::MuxSpiMaster<'static, $S>)
+        kernel::static_buf!(capsules_core::virtualizers::virtual_spi::MuxSpiMaster<'static, $S>)
     };};
 }
 
 #[macro_export]
 macro_rules! spi_syscall_component_static {
     ($S:ty $(,)?) => {{
-        let virtual_spi =
-            kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>);
+        let virtual_spi = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
+        );
         let spi = kernel::static_buf!(
-            capsules::spi_controller::Spi<
+            capsules_core::spi_controller::Spi<
                 'static,
-                capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         );
 
         let spi_read_buf =
-            kernel::static_buf!([u8; capsules::spi_controller::DEFAULT_READ_BUF_LENGTH]);
+            kernel::static_buf!([u8; capsules_core::spi_controller::DEFAULT_READ_BUF_LENGTH]);
         let spi_write_buf =
-            kernel::static_buf!([u8; capsules::spi_controller::DEFAULT_WRITE_BUF_LENGTH]);
+            kernel::static_buf!([u8; capsules_core::spi_controller::DEFAULT_WRITE_BUF_LENGTH]);
 
         (virtual_spi, spi, spi_read_buf, spi_write_buf)
     };};
@@ -69,18 +73,20 @@ macro_rules! spi_syscall_component_static {
 #[macro_export]
 macro_rules! spi_syscallp_component_static {
     ($S:ty $(,)?) => {{
-        let spi_slave = kernel::static_buf!(capsules::virtual_spi::SpiSlaveDevice<'static, $S>);
+        let spi_slave = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::SpiSlaveDevice<'static, $S>
+        );
         let spi_peripheral = kernel::static_buf!(
-            capsules::spi_peripheral::SpiPeripheral<
+            capsules_core::spi_peripheral::SpiPeripheral<
                 'static,
-                capsules::virtual_spi::SpiSlaveDevice<'static, $S>,
+                capsules_core::virtualizers::virtual_spi::SpiSlaveDevice<'static, $S>,
             >
         );
 
         let spi_read_buf =
-            kernel::static_buf!([u8; capsules::spi_controller::DEFAULT_READ_BUF_LENGTH]);
+            kernel::static_buf!([u8; capsules_core::spi_controller::DEFAULT_READ_BUF_LENGTH]);
         let spi_write_buf =
-            kernel::static_buf!([u8; capsules::spi_controller::DEFAULT_WRITE_BUF_LENGTH]);
+            kernel::static_buf!([u8; capsules_core::spi_controller::DEFAULT_WRITE_BUF_LENGTH]);
 
         (spi_slave, spi_peripheral, spi_read_buf, spi_write_buf)
     };};
@@ -89,59 +95,54 @@ macro_rules! spi_syscallp_component_static {
 #[macro_export]
 macro_rules! spi_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules::virtual_spi::VirtualSpiMasterDevice<'static, $S>)
+        kernel::static_buf!(
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
+        )
     };};
 }
 
 #[macro_export]
 macro_rules! spi_peripheral_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules::spi_peripheral::SpiPeripheral<'static, $S>)
+        kernel::static_buf!(capsules_core::spi_peripheral::SpiPeripheral<'static, $S>)
     };};
 }
 
-pub struct SpiMuxComponent<S: 'static + spi::SpiMaster> {
+pub struct SpiMuxComponent<S: 'static + spi::SpiMaster<'static>> {
     spi: &'static S,
-    deferred_caller: &'static DynamicDeferredCall,
 }
 
-pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster> {
+pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster<'static>> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
     driver_num: usize,
 }
 
-pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave> {
+pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
     board_kernel: &'static kernel::Kernel,
     spi_slave: &'static S,
     driver_num: usize,
 }
 
-pub struct SpiComponent<S: 'static + spi::SpiMaster> {
+pub struct SpiComponent<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
 }
 
-impl<S: 'static + spi::SpiMaster> SpiMuxComponent<S> {
-    pub fn new(spi: &'static S, deferred_caller: &'static DynamicDeferredCall) -> Self {
-        SpiMuxComponent {
-            spi: spi,
-            deferred_caller: deferred_caller,
-        }
+impl<S: 'static + spi::SpiMaster<'static>> SpiMuxComponent<S> {
+    pub fn new(spi: &'static S) -> Self {
+        Self { spi }
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Component for SpiMuxComponent<S> {
     type StaticInput = &'static mut MaybeUninit<MuxSpiMaster<'static, S>>;
     type Output = &'static MuxSpiMaster<'static, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mux_spi = static_buffer.write(MuxSpiMaster::new(self.spi, self.deferred_caller));
-
-        mux_spi.initialize_callback_handle(
-            self.deferred_caller.register(mux_spi).unwrap(), // Unwrap fail = no deferred call slot available for SPI mux
-        );
+        let mux_spi = static_buffer.write(MuxSpiMaster::new(self.spi));
+        kernel::deferred_call::DeferredCallClient::register(mux_spi);
 
         self.spi.set_client(mux_spi);
 
@@ -153,7 +154,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiMuxComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> SpiSyscallComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         mux: &'static MuxSpiMaster<'static, S>,
@@ -169,7 +170,7 @@ impl<S: 'static + spi::SpiMaster> SpiSyscallComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Component for SpiSyscallComponent<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
@@ -200,7 +201,7 @@ impl<S: 'static + spi::SpiMaster> Component for SpiSyscallComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiSlave> SpiSyscallPComponent<S> {
+impl<S: 'static + spi::SpiSlave<'static>> SpiSyscallPComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         slave: &'static S,
@@ -214,7 +215,7 @@ impl<S: 'static + spi::SpiSlave> SpiSyscallPComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiSlave> Component for SpiSyscallPComponent<S> {
+impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> {
     type StaticInput = (
         &'static mut MaybeUninit<virtual_spi::SpiSlaveDevice<'static, S>>,
         &'static mut MaybeUninit<SpiPeripheral<'static, virtual_spi::SpiSlaveDevice<'static, S>>>,
@@ -245,7 +246,7 @@ impl<S: 'static + spi::SpiSlave> Component for SpiSyscallPComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> SpiComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> SpiComponent<S> {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: S::ChipSelect) -> Self {
         SpiComponent {
             spi_mux: mux,
@@ -254,7 +255,7 @@ impl<S: 'static + spi::SpiMaster> SpiComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Component for SpiComponent<S> {
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;
 
@@ -266,13 +267,13 @@ impl<S: 'static + spi::SpiMaster> Component for SpiComponent<S> {
     }
 }
 
-pub struct SpiPeripheralComponent<S: 'static + spi::SpiSlave> {
+pub struct SpiPeripheralComponent<S: 'static + spi::SpiSlave<'static>> {
     board_kernel: &'static kernel::Kernel,
     device: &'static S,
     driver_num: usize,
 }
 
-impl<S: 'static + spi::SpiSlave> SpiPeripheralComponent<S> {
+impl<S: 'static + spi::SpiSlave<'static>> SpiPeripheralComponent<S> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         device: &'static S,
@@ -286,7 +287,7 @@ impl<S: 'static + spi::SpiSlave> SpiPeripheralComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiSlave + kernel::hil::spi::SpiSlaveDevice> Component
+impl<S: 'static + spi::SpiSlave<'static> + kernel::hil::spi::SpiSlaveDevice<'static>> Component
     for SpiPeripheralComponent<S>
 {
     type StaticInput = &'static mut MaybeUninit<SpiPeripheral<'static, S>>;

@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
@@ -23,9 +27,10 @@ impl Write for Writer {
 }
 
 impl IoWrite for Writer {
-    fn write(&mut self, buf: &[u8]) {
+    fn write(&mut self, buf: &[u8]) -> usize {
         let uart = apollo3::uart::Uart::new_uart_0(); // Aliases memory for uart0. Okay bc we are panicking.
         uart.transmit_sync(buf);
+        buf.len()
     }
 }
 
