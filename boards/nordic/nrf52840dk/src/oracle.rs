@@ -47,7 +47,7 @@ pub struct OracleDriver<'a, A: AES128<'a>> {
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
-    processid: OptionalCell<ProcessId>,
+    current_process: OptionalCell<ProcessId>,
 
     source_buffer: TakeCell<'static, [u8]>,
     dest_buffer: TakeCell<'static, [u8]>,
@@ -68,7 +68,7 @@ impl<'a, A: AES128<'static> + AES128Ctr> OracleDriver<'static, A> {
         OracleDriver {
             aes,
             apps: grant,
-            processid: OptionalCell::empty(),
+            current_process: OptionalCell::empty(),
             source_buffer: TakeCell::new(source_buffer),
             dest_buffer: TakeCell::new(dest_buffer),
         }
@@ -129,7 +129,7 @@ impl<'a, A: AES128<'static> + AES128Ctr> OracleDriver<'static, A> {
                             })
                             .map_err(Into::into)
                     })??;
-                self.processid.set(processid);
+                self.current_process.set(processid);
                 self.initiate_next_segment()
             })
             .unwrap_or(Err(ErrorCode::RESERVE))
@@ -151,7 +151,7 @@ impl<'a, A: AES128<'static> + AES128Ctr> OracleDriver<'static, A> {
         ) {
             // Error, clear the processid and data
             self.aes.disable();
-            self.processid.clear();
+            self.current_process.clear();
             if let Some(source_buf) = source {
                 self.source_buffer.replace(source_buf);
             }
@@ -164,7 +164,7 @@ impl<'a, A: AES128<'static> + AES128Ctr> OracleDriver<'static, A> {
 
     fn check_queue(&self) {
         // If an app is already running let it complete
-        if self.processid.is_some() {
+        if self.current_process.is_some() {
             return;
         }
 
@@ -183,9 +183,9 @@ impl<'a, A: AES128<'static> + AES128Ctr> Client<'static> for OracleDriver<'stati
     fn crypt_done(&'a self, mut source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
         // One segment of encryption/decryption complete, move to next one or
         // callback to user if done
-        let source = source.take().unwrap_or(&mut []);
+        let source = source.take().expect("source should never be None");
 
-        self.processid.map(|processid| {
+        self.current_process.map(|processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
                     let _ = kernel_data
@@ -215,7 +215,7 @@ impl<'a, A: AES128<'static> + AES128Ctr> Client<'static> for OracleDriver<'stati
                                 } else {
                                     // If we get here we have finished all the crypto operations
                                     app.pending_run_app = false;
-                                    self.processid.clear();
+                                    self.current_process.clear();
                                     kernel_data
                                         .schedule_upcall(0, (0, app_source.len(), 0))
                                         .ok();
@@ -224,7 +224,7 @@ impl<'a, A: AES128<'static> + AES128Ctr> Client<'static> for OracleDriver<'stati
                         });
                 })
                 .map_err(|_| {
-                    self.processid.clear();
+                    self.current_process.clear();
                 })
         });
         self.source_buffer.replace(source);
