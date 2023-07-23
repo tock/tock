@@ -52,7 +52,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
             // `request_pending` flag set:
             for process_grant in self.process_grants.iter() {
                 let processid = process_grant.processid();
-                if process_grant.enter(|app, _| app.request_pending) {
+                if process_grant.enter(|grant, _| grant.request_pending) {
                     // The process to which `process_grant` belongs
                     // has a request pending, set it to be the current
                     // process and return its id:
@@ -82,8 +82,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> SyscallDriver for EncryptionOracleDriver<'a,
             // Request the decryption operation:
             1 => self
                 .process_grants
-                .enter(processid, |app, _kernel_data| {
-                    app.request_pending = true;
+                .enter(processid, |grant, _kernel_data| {
+                    grant.request_pending = true;
                     CommandReturn::success()
                 })
                 .unwrap_or_else(|err| err.into()),

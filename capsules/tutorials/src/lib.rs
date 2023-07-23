@@ -12,3 +12,5 @@ pub mod encryption_oracle_chkpt1;
 pub mod encryption_oracle_chkpt2;
 #[allow(dead_code)]
 pub mod encryption_oracle_chkpt3;
+#[allow(dead_code)]
+pub mod encryption_oracle_chkpt4;

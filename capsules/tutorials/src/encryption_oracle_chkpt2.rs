@@ -51,8 +51,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> SyscallDriver for EncryptionOracleDriver<'a,
             // Request the decryption operation:
             1 => self
                 .process_grants
-                .enter(processid, |app, _kernel_data| {
-                    app.request_pending = true;
+                .enter(processid, |grant, _kernel_data| {
+                    grant.request_pending = true;
                     CommandReturn::success()
                 })
                 .unwrap_or_else(|err| err.into()),
