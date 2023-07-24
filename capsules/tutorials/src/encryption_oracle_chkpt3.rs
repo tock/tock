@@ -38,32 +38,19 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
         }
     }
 
-    /// Return either the current process (in case of an ongoing operation), or
-    /// a process which has a request pending (if there is some).
-    ///
-    /// When returning a process which has a request pending, this method
-    /// further marks this as the new current process.
-    fn next_process(&self) -> Option<ProcessId> {
-        if let Some(current_process) = self.current_process.extract() {
-            // We already have an active current process, return its id:
-            Some(current_process)
-        } else {
-            // We don't have an active process, search for one which has the
-            // `request_pending` flag set:
-            for process_grant in self.process_grants.iter() {
-                let processid = process_grant.processid();
-                if process_grant.enter(|grant, _| grant.request_pending) {
-                    // The process to which `process_grant` belongs
-                    // has a request pending, set it to be the current
-                    // process and return its id:
-                    self.current_process.set(processid);
-                    return Some(processid);
-                }
+    /// Return a `ProcessId` which has `request_pending` set, if there is some:
+    fn next_pending(&self) -> Option<ProcessId> {
+        for process_grant in self.process_grants.iter() {
+            let processid = process_grant.processid();
+            if process_grant.enter(|grant, _| grant.request_pending) {
+                // The process to which `process_grant` belongs
+                // has a request pending, return its id:
+                return Some(processid);
             }
-
-            // We could not find a process with a pending request:
-            None
         }
+
+        // No process with `request_pending` found:
+        None
     }
 }
 

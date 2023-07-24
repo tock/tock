@@ -6,7 +6,7 @@ use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::symmetric_encryption::{AES128Ctr, Client, AES128, AES128_BLOCK_SIZE};
-use kernel::processbuffer::ReadableProcessBuffer;
+use kernel::processbuffer::{WriteableProcessBuffer, ReadableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -292,6 +292,60 @@ impl<'a, A: AES128<'a> + AES128Ctr> SyscallDriver for EncryptionOracleDriver<'a,
 
 impl<'a, A: AES128<'a> + AES128Ctr> Client<'a> for EncryptionOracleDriver<'a, A> {
     fn crypt_done(&'a self, mut source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
-        unimplemented!()
+        // One segment of encryption/decryption complete, move to next one or
+        // callback to user if done.
+        //
+        // In either case, place our kernel-internal source buffer back:
+        self.source_buffer
+            .replace(source.take().expect("source should never be None"));
+
+        // Attempt to get a reference to the current process. This should never
+        // be none, given that we've just completed an operation:
+        let processid = self.current_process.unwrap_or_panic();
+
+        // Enter the process' grant, to copy the decrypted data back into the
+        // output processbuffer:
+        self.process_grants.enter(processid, |grant, kernel_data| {
+            if let Ok(dest_processbuffer) = kernel_data.get_readwrite_processbuffer(rw_allow::DEST)
+            {
+                // We have decrypted `self.crypt_len` bytes, starting
+                // `grant.offset` in the source processbuffer. If the
+                // destination processbuffer does not have enough space,
+                // truncate the data. If the buffer is smaller than the current
+                // offset, don't copy anything.
+                if grant.offset < dest_processbuffer.len() {
+                    let copy_len = core::cmp::min(
+                        self.crypt_len.get(),
+                        dest_processbuffer.len() - grant.offset,
+                    );
+                    dest_processbuffer.mut_enter(|dest_buffer| {
+                        dest_buffer[grant.offset..(grant.offset + copy_len)]
+                            .copy_from_slice(&destination[..copy_len])
+                    });
+                    grant.offset += copy_len;
+                }
+            }
+        });
+
+        // Place back the kernel-internal dest buffer:
+        self.dest_buffer.replace(destination);
+
+        // Try to continue the decryption operation. This will return an error
+        // of `ErrorCode::NOMEM` if there is no more data to decrypt for the
+        // current process.
+        if let Err(ErrorCode::NOMEM) = self.run(processid) {
+            // We've completed the client's decryption request. Remove its
+            // `request_pending` flag, the `currrent_process` indication,
+            // and schedule an upcall accordingly:
+            self.current_process.clear();
+
+            self.process_grants.enter(processid, |grant, kernel_data| {
+                grant.request_pending = false;
+                kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
+            });
+
+            // Attempt to schedule another operation for a new process:
+            self.run_next_pending();
+        }
     }
 }
