@@ -515,23 +515,18 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
-        let (read_count, read_storage_ids) = self
-            .header
-            .get_persistent_acl_read_ids()
-            .unwrap_or((0, [0; 8]));
+        let (read_count, read_ids) = self.header.get_storage_read_ids().unwrap_or((0, [0; 8]));
 
-        let (access_count, access_storage_ids) = self
-            .header
-            .get_persistent_acl_access_ids()
-            .unwrap_or((0, [0; 8]));
+        let (modify_count, modify_ids) =
+            self.header.get_storage_modify_ids().unwrap_or((0, [0; 8]));
 
-        let write_id = self.header.get_persistent_acl_write_id();
+        let write_id = self.header.get_storage_write_id();
 
         Some(storage_permissions::StoragePermissions::new(
             read_count,
-            read_storage_ids,
-            access_count,
-            access_storage_ids,
+            read_ids,
+            modify_count,
+            modify_ids,
             write_id,
         ))
     }

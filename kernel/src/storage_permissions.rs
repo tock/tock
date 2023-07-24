@@ -29,12 +29,12 @@ pub struct StoragePermissions {
     /// Up to eight 32 bit identifiers of storage items the process has read
     /// access to.
     read_permissions: [u32; 8],
-    /// How many entries in the `write_permissions` slice are valid, starting at
-    /// index 0.
-    write_count: usize,
-    /// Up to eight 32 bit identifiers of storage items the process has write
+    /// How many entries in the `modify_permissions` slice are valid, starting
+    /// at index 0.
+    modify_count: usize,
+    /// Up to eight 32 bit identifiers of storage items the process has modify
     /// (update) access to.
-    write_permissions: [u32; 8],
+    modify_permissions: [u32; 8],
     /// The identifier for this storage user when creating new objects. If
     /// `None` there is no `write_id` for these permissions.
     write_id: Option<NonZeroU32>,
@@ -49,17 +49,17 @@ impl StoragePermissions {
     pub(crate) fn new(
         read_count: usize,
         read_permissions: [u32; 8],
-        write_count: usize,
-        write_permissions: [u32; 8],
+        modify_count: usize,
+        modify_permissions: [u32; 8],
         write_id: Option<NonZeroU32>,
     ) -> Self {
         let read_count_capped = cmp::min(read_count, 8);
-        let write_count_capped = cmp::min(write_count, 8);
+        let modify_count_capped = cmp::min(modify_count, 8);
         StoragePermissions {
             read_count: read_count_capped,
             read_permissions,
-            write_count: write_count_capped,
-            write_permissions,
+            modify_count: modify_count_capped,
+            modify_permissions,
             write_id,
             kerneluser: false,
         }
@@ -71,12 +71,12 @@ impl StoragePermissions {
     /// permissions.
     pub fn new_kernel_permissions(_cap: &dyn capabilities::KerneluserStorageCapability) -> Self {
         let read_permissions: [u32; 8] = [0; 8];
-        let write_permissions: [u32; 8] = [0; 8];
+        let modify_permissions: [u32; 8] = [0; 8];
         StoragePermissions {
             read_count: 0,
             read_permissions,
-            write_count: 0,
-            write_permissions,
+            modify_count: 0,
+            modify_permissions,
             write_id: None,
             kerneluser: true,
         }
@@ -98,7 +98,7 @@ impl StoragePermissions {
         }
     }
 
-    /// Check if this permission object grants write access to the specified
+    /// Check if this permission object grants modify access to the specified
     /// `storage_id`. Returns `true` if access is permitted, `false` otherwise.
     pub fn check_write_permission(&self, storage_id: u32) -> bool {
         if storage_id == 0 {
@@ -107,8 +107,8 @@ impl StoragePermissions {
         } else {
             // Otherwise check if given storage_id is in read permissions
             // array.
-            self.write_permissions
-                .get(0..self.write_count)
+            self.modify_permissions
+                .get(0..self.modify_count)
                 .unwrap_or(&[])
                 .contains(&storage_id)
         }
