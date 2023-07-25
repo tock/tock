@@ -28,6 +28,7 @@ members = [
     "boards/msp_exp432p401r",
     "boards/microbit_v2",
     "boards/nordic/nrf52840dk",
+    "boards/nordic/nrf52840dk_demo",
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",
     "boards/sma_q3",
