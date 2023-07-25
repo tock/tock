@@ -67,7 +67,7 @@ enum ShaOperation {
 
 // Temporary buffer to copy the keys from userspace into
 //
-// Needs to be able to accomodate the largest key sizes, e.g. 512
+// Needs to be able to accommodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
