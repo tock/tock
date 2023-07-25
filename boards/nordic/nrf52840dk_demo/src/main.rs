@@ -229,6 +229,7 @@ pub struct Platform {
         'static,
         capsules_extra::usb::keyboard_hid::KeyboardHid<'static, nrf52840::usbd::Usbd<'static>>,
     >,
+    app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -259,6 +260,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             KEYBOARD_HID_DRIVER_NUM => f(Some(self.keyboard_hid_driver)),
+            capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             _ => f(None),
         }
     }
@@ -795,6 +797,28 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // APP FLASH
+    //--------------------------------------------------------------------------
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&base_peripherals.nvmc).finalize(
+        components::flash_mux_component_static!(nrf52840::nvmc::Nvmc),
+    );
+
+    let virtual_app_flash = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_static!(nrf52840::nvmc::Nvmc),
+    );
+
+    let app_flash = components::app_flash_driver::AppFlashComponent::new(
+        board_kernel,
+        capsules_extra::app_flash_driver::DRIVER_NUM,
+        virtual_app_flash,
+    )
+    .finalize(components::app_flash_component_static!(
+        capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
+        512
+    ));
+
+    //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
 
@@ -887,6 +911,7 @@ pub unsafe fn main() {
         spi_controller,
         hmac,
         keyboard_hid_driver,
+        app_flash,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
