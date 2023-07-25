@@ -214,6 +214,14 @@ pub struct Platform {
             nrf52840::spi::SPIM<'static>,
         >,
     >,
+    hmac: &'static capsules_extra::hmac::HmacDriver<
+        'static,
+        capsules_extra::hmac_sha256::HmacSha256Software<
+            'static,
+            capsules_extra::sha256::Sha256Software<'static>,
+        >,
+        32,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -242,6 +250,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             _ => f(None),
         }
     }
@@ -522,6 +531,38 @@ pub unsafe fn main() {
         .finalize(components::mux_aes128ccm_component_static!(
             nrf52840::aes::AesECB
         ));
+
+    //--------------------------------------------------------------------------
+    // HMAC-SHA256
+    //--------------------------------------------------------------------------
+
+    let sha256_sw = static_init!(
+        capsules_extra::sha256::Sha256Software,
+        capsules_extra::sha256::Sha256Software::new()
+    );
+    kernel::deferred_call::DeferredCallClient::register(sha256_sw);
+
+    let hmac_sha256_data_buf = static_init!([u8; 64], [0; 64]);
+    let hmac_sha256_verify_buf = static_init!([u8; 32], [0; 32]);
+    let hmac_sha256_sw = static_init!(
+        capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>,
+        capsules_extra::hmac_sha256::HmacSha256Software::new(
+            sha256_sw,
+            hmac_sha256_data_buf,
+            hmac_sha256_verify_buf,
+        )
+    );
+    kernel::hil::digest::Digest::set_client(sha256_sw, hmac_sha256_sw);
+
+    let hmac = components::hmac::HmacComponent::new(
+        board_kernel,
+        capsules_extra::hmac::DRIVER_NUM,
+        hmac_sha256_sw,
+    )
+    .finalize(components::hmac_component_static!(
+        capsules_extra::hmac_sha256::HmacSha256Software<capsules_extra::sha256::Sha256Software>,
+        32
+    ));
 
     //--------------------------------------------------------------------------
     // BLE
@@ -836,6 +877,7 @@ pub unsafe fn main() {
         ),
         i2c_master_slave,
         spi_controller,
+        hmac,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
