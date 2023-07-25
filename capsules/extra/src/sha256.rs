@@ -17,9 +17,9 @@ use kernel::hil::digest::{Client, ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMutImmut;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -52,7 +52,7 @@ pub struct Sha256Software<'a> {
     state: Cell<State>,
 
     client: OptionalCell<&'a dyn Client<SHA_256_OUTPUT_LEN_BYTES>>,
-    input_data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
+    input_data: OptionalCell<SubSliceMutImmut<'static, u8>>,
     data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     buffered_length: Cell<usize>,
     total_length: Cell<usize>,
@@ -299,14 +299,14 @@ impl<'a> Sha256Software<'a> {
 impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
+        data: SubSlice<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSlice<'static, u8>)> {
         if self.busy() {
             Err((ErrorCode::BUSY, data))
         } else {
             self.state.set(State::Data);
             self.deferred_call.set();
-            self.input_data.set(LeasableBufferDynamic::Immutable(data));
+            self.input_data.set(SubSliceMutImmut::Immutable(data));
             self.compute_sha256();
             Ok(())
         }
@@ -314,14 +314,14 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
 
     fn add_mut_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
+        data: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         if self.busy() {
             Err((ErrorCode::BUSY, data))
         } else {
             self.state.set(State::Data);
             self.deferred_call.set();
-            self.input_data.set(LeasableBufferDynamic::Mutable(data));
+            self.input_data.set(SubSliceMutImmut::Mutable(data));
             self.compute_sha256();
             Ok(())
         }
@@ -424,12 +424,12 @@ impl<'a> DeferredCallClient for Sha256Software<'a> {
                 let data = self.input_data.take().unwrap();
                 self.state.set(State::Idle);
                 match data {
-                    LeasableBufferDynamic::Mutable(buffer) => {
+                    SubSliceMutImmut::Mutable(buffer) => {
                         self.client.map(|client| {
                             client.add_mut_data_done(Ok(()), buffer);
                         });
                     }
-                    LeasableBufferDynamic::Immutable(buffer) => {
+                    SubSliceMutImmut::Immutable(buffer) => {
                         self.client.map(|client| {
                             client.add_data_done(Ok(()), buffer);
                         });
@@ -450,12 +450,12 @@ impl<'a> DeferredCallClient for Sha256Software<'a> {
                 self.clear_data();
                 let data = self.input_data.take().unwrap();
                 match data {
-                    LeasableBufferDynamic::Mutable(buffer) => {
+                    SubSliceMutImmut::Mutable(buffer) => {
                         self.client.map(|client| {
                             client.add_mut_data_done(Err(ErrorCode::CANCEL), buffer);
                         });
                     }
-                    LeasableBufferDynamic::Immutable(buffer) => {
+                    SubSliceMutImmut::Immutable(buffer) => {
                         self.client.map(|client| {
                             client.add_data_done(Err(ErrorCode::CANCEL), buffer);
                         });

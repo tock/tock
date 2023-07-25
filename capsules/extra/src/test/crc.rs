@@ -7,7 +7,7 @@
 use kernel::debug;
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub struct TestCrc<'a, C: 'a> {
@@ -29,8 +29,7 @@ impl<'a, C: Crc<'a>> TestCrc<'a, C> {
             debug!("CrcTest ERROR: failed to set algorithm to Crc32: {:?}", res);
             return;
         }
-        let leasable: LeasableMutableBuffer<'static, u8> =
-            LeasableMutableBuffer::new(self.data.take().unwrap());
+        let leasable: SubSliceMut<'static, u8> = SubSliceMut::new(self.data.take().unwrap());
 
         let res = self.crc.input(leasable);
         if let Err((error, _buffer)) = res {
@@ -47,11 +46,7 @@ impl<'a, C: Crc<'a>> TestCrc<'a, C> {
 }
 
 impl<'a, C: Crc<'a>> Client for TestCrc<'a, C> {
-    fn input_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        buffer: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn input_done(&self, result: Result<(), ErrorCode>, buffer: SubSliceMut<'static, u8>) {
         if result.is_err() {
             debug!("CrcTest ERROR: failed to process input: {:?}", result);
             return;

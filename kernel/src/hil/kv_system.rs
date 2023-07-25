@@ -58,7 +58,7 @@
 //!    hil::flash
 //! ```
 
-use crate::utilities::leasable_buffer::LeasableMutableBuffer;
+use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
 /// The type of keys, this should define the output size of the digest
@@ -77,7 +77,7 @@ pub trait Client<K: KeyType> {
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
         key_buf: &'static mut K,
     );
 
@@ -90,7 +90,7 @@ pub trait Client<K: KeyType> {
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut K,
-        value: LeasableMutableBuffer<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     );
 
     /// This callback is called when the get_value operation completes.
@@ -102,7 +102,7 @@ pub trait Client<K: KeyType> {
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut K,
-        ret_buf: LeasableMutableBuffer<'static, u8>,
+        ret_buf: SubSliceMut<'static, u8>,
     );
 
     /// This callback is called when the invalidate_key operation completes.
@@ -133,12 +133,12 @@ pub trait KVSystem<'a> {
     /// On error the unhashed_key, key_buf and `Result<(), ErrorCode>` will be returned.
     fn generate_key(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
         key_buf: &'static mut Self::K,
     ) -> Result<
         (),
         (
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
             &'static mut Self::K,
             Result<(), ErrorCode>,
         ),
@@ -166,12 +166,12 @@ pub trait KVSystem<'a> {
     fn append_key(
         &self,
         key: &'static mut Self::K,
-        value: LeasableMutableBuffer<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut Self::K,
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
             Result<(), ErrorCode>,
         ),
     >;
@@ -193,12 +193,12 @@ pub trait KVSystem<'a> {
     fn get_value(
         &self,
         key: &'static mut Self::K,
-        ret_buf: LeasableMutableBuffer<'static, u8>,
+        ret_buf: SubSliceMut<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut Self::K,
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
             Result<(), ErrorCode>,
         ),
     >;

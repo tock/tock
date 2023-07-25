@@ -15,8 +15,8 @@ use kernel::debug;
 use kernel::hil::digest;
 use kernel::hil::digest::{Digest, DigestData, DigestVerify};
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub struct TestSha256 {
@@ -53,7 +53,7 @@ impl TestSha256 {
         let data = self.data.take().unwrap();
         let chunk_size = cmp::min(CHUNK_SIZE, data.len());
         self.position.set(chunk_size);
-        let mut buffer = LeasableMutableBuffer::new(data);
+        let mut buffer = SubSliceMut::new(data);
         buffer.slice(0..chunk_size);
         let r = self.sha.add_mut_data(buffer);
         if r.is_err() {
@@ -63,15 +63,11 @@ impl TestSha256 {
 }
 
 impl digest::ClientData<32> for TestSha256 {
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
 
-    fn add_mut_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        mut data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, mut data: SubSliceMut<'static, u8>) {
         if data.len() != 0 {
             let r = self.sha.add_mut_data(data);
             if r.is_err() {

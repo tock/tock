@@ -9,9 +9,9 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::digest::DigestData;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMutImmut;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -50,7 +50,7 @@ pub struct HmacSha256Software<'a, S: hil::digest::Sha256 + hil::digest::DigestDa
     mode: Cell<RunMode>,
     /// Location to store incoming temporarily before we are able to pass it to
     /// the hasher.
-    input_data: OptionalCell<LeasableBufferDynamic<'static, u8>>,
+    input_data: OptionalCell<SubSliceMutImmut<'static, u8>>,
     /// Static buffer to store the key and to pass to the hasher. This must be
     /// at least `SHA_BLOCK_LEN_BYTES` bytes.
     data_buffer: TakeCell<'static, [u8]>,
@@ -101,8 +101,8 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
 {
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
+        data: SubSlice<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSlice<'static, u8>)> {
         match self.state.get() {
             State::InnerHashAddKeyPending => {
                 // We need to write the key before we write the data.
@@ -114,7 +114,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
                         }
                     });
 
-                    let mut lease_buf = LeasableMutableBuffer::new(data_buf);
+                    let mut lease_buf = SubSliceMut::new(data_buf);
                     lease_buf.slice(0..64);
 
                     match self.sha256.add_mut_data(lease_buf) {
@@ -122,7 +122,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
                             self.state.set(State::InnerHashAddKey);
                             // Save the incoming data to add to the hasher
                             // on the next iteration.
-                            self.input_data.set(LeasableBufferDynamic::Immutable(data));
+                            self.input_data.set(SubSliceMutImmut::Immutable(data));
                             Ok(())
                         }
                         Err((e, leased_data_buf)) => {
@@ -158,8 +158,8 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
 
     fn add_mut_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
+        data: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         match self.state.get() {
             State::InnerHashAddKeyPending => {
                 // We need to write the key before we write the data.
@@ -173,7 +173,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
                         }
                     });
 
-                    let mut lease_buf = LeasableMutableBuffer::new(data_buf);
+                    let mut lease_buf = SubSliceMut::new(data_buf);
                     lease_buf.slice(0..64);
 
                     match self.sha256.add_mut_data(lease_buf) {
@@ -181,7 +181,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>>
                             self.state.set(State::InnerHashAddKey);
                             // Save the incoming data to add to the hasher
                             // on the next iteration.
-                            self.input_data.set(LeasableBufferDynamic::Mutable(data));
+                            self.input_data.set(SubSliceMutImmut::Mutable(data));
                             Ok(())
                         }
                         Err((e, leased_data_buf)) => {
@@ -292,7 +292,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
 impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::digest::ClientData<32>
     for HmacSha256Software<'a, S>
 {
-    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
         // This callback is only used for the user to pass in additional data
         // for the HMAC, we do not use `add_data()` internally in this capsule
         // so we can just directly issue the callback.
@@ -302,11 +302,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
         });
     }
 
-    fn add_mut_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         if result.is_err() {
             // self.data_client.map(|client| {
             self.client.map(|client| {
@@ -319,7 +315,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
 
                     // We just added the key, so we can now add the stored data.
                     self.input_data.take().map(|in_data| match in_data {
-                        LeasableBufferDynamic::Mutable(buffer) => {
+                        SubSliceMutImmut::Mutable(buffer) => {
                             match self.sha256.add_mut_data(buffer) {
                                 Ok(()) => {
                                     self.state.set(State::InnerHashAddData);
@@ -333,20 +329,17 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                                 }
                             }
                         }
-                        LeasableBufferDynamic::Immutable(buffer) => {
-                            match self.sha256.add_data(buffer) {
-                                Ok(()) => {
-                                    self.state.set(State::InnerHashAddData);
-                                }
-                                Err((e, leased_data_buf)) => {
-                                    self.clear_data();
-                                    // self.data_client.map(|c| {
-                                    self.client.map(|c| {
-                                        c.add_data_done(Err(e), leased_data_buf);
-                                    });
-                                }
+                        SubSliceMutImmut::Immutable(buffer) => match self.sha256.add_data(buffer) {
+                            Ok(()) => {
+                                self.state.set(State::InnerHashAddData);
                             }
-                        }
+                            Err((e, leased_data_buf)) => {
+                                self.clear_data();
+                                self.client.map(|c| {
+                                    c.add_data_done(Err(e), leased_data_buf);
+                                });
+                            }
+                        },
                     });
                 }
                 State::OuterHashAddKey => {
@@ -357,12 +350,12 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
 
                         // Copy the digest result into our data buffer. We must
                         // use our data buffer because it does not have a fixed
-                        // size and we can use it with `LeasableMutableBuffer`.
+                        // size and we can use it with `SubSliceMut`.
                         for i in 0..32 {
                             data_buf[i] = digest_buf[i];
                         }
 
-                        let mut lease_buf = LeasableMutableBuffer::new(data_buf);
+                        let mut lease_buf = SubSliceMut::new(data_buf);
                         lease_buf.slice(0..32);
 
                         match self.sha256.add_mut_data(lease_buf) {
@@ -459,7 +452,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                             }
                         });
 
-                        let mut lease_buf = LeasableMutableBuffer::new(data_buf);
+                        let mut lease_buf = SubSliceMut::new(data_buf);
                         lease_buf.slice(0..64);
 
                         match self.sha256.add_mut_data(lease_buf) {

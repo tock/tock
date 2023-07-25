@@ -152,7 +152,7 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
             self.interface_list,
             MAX_PAYLOAD_LEN,
             self.port_table,
-            kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(buffer),
+            kernel::utilities::leasable_buffer::SubSliceMut::new(buffer),
             &DRIVER_CAP,
             net_cap,
         ));
