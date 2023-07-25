@@ -26,8 +26,12 @@ struct NvmcRegisters {
     /// Ready flag
     /// Address 0x400 - 0x404
     pub ready: ReadOnly<u32, Ready::Register>,
+    _reserved0: [u32; 4],
+    /// Ready flag
+    /// Address 0x408 - 0x40C
+    pub ready_next: ReadOnly<u32, Ready::Register>,
     /// Reserved
-    _reserved1: [u32; 64],
+    _reserved1: [u32; 59],
     /// Configuration register
     /// Address: 0x504 - 0x508
     pub config: ReadWrite<u32, Configuration::Register>,
@@ -328,6 +332,7 @@ impl Nvmc {
             let address = ((page_number * PAGE_SIZE) + i) as u32;
             let location = unsafe { &*(address as *const VolatileCell<u32>) };
             location.set(word);
+            while !self.registers.ready.is_set(Ready::READY) {}
         }
 
         // Make sure that the NVMC is done. The CPU should be blocked while the
