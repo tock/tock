@@ -136,12 +136,12 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE:
     next_operation: Cell<Operation>,
     /// Holder for the key string passed from the caller until the operation
     /// completes.
-    unhashed_key_buffer: MapCell<LeasableMutableBuffer<'static, u8>>,
+    unhashed_key_buffer: MapCell<SubSliceMut<'static, u8>>,
     /// Holder for the hashed key used in the given operation.
     key_buffer: TakeCell<'static, [u8; 8]>,
     /// Holder for a buffer containing a value being read from or written to the
     /// key-value store.
-    value_buffer: MapCell<LeasableMutableBuffer<'static, u8>>,
+    value_buffer: MapCell<SubSliceMut<'static, u8>>,
     /// Callback client when the `KVSystem` operation completes.
     client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
 }
@@ -234,16 +234,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
     for TicKVStore<'a, F, H, PAGE_SIZE>
 {
-    fn add_mut_data_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.unhashed_key_buffer.replace(data);
         self.hasher.run(self.key_buffer.take().unwrap()).unwrap();
     }
 
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
     fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
@@ -268,7 +264,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
 
         // If we got the buffer back from TicKV then store it.
         tickv_buf.map(|buf| {
-            let mut val_buf = LeasableMutableBuffer::new(buf);
+            let mut val_buf = SubSliceMut::new(buf);
             if tickv_buf_len > 0 {
                 // Length of zero means nothing was inserted into the buffer so
                 // no need to slice it.
@@ -418,7 +414,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
 
         // If we got the buffer back from TicKV then store it.
         tickv_buf.map(|buf| {
-            let mut val_buf = LeasableMutableBuffer::new(buf);
+            let mut val_buf = SubSliceMut::new(buf);
             if tickv_buf_len > 0 {
                 // Length of zero means nothing was inserted into the buffer so
                 // no need to slice it.
@@ -461,12 +457,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
 
     fn generate_key(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
         key: &'static mut Self::K,
     ) -> Result<
         (),
         (
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
             &'static mut Self::K,
             Result<(), ErrorCode>,
         ),
@@ -483,12 +479,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
     fn append_key(
         &self,
         key: &'static mut Self::K,
-        value: LeasableMutableBuffer<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut [u8; 8],
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
             Result<(), kernel::ErrorCode>,
         ),
     > {
@@ -505,9 +501,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => {
-                        Err((key, LeasableMutableBuffer::new(buf), Err(ErrorCode::FAIL)))
-                    }
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
                 }
             }
             Operation::Init => {
@@ -528,12 +522,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
     fn get_value(
         &self,
         key: &'static mut Self::K,
-        value: LeasableMutableBuffer<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut [u8; 8],
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
             Result<(), kernel::ErrorCode>,
         ),
     > {
@@ -549,9 +543,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => {
-                        Err((key, LeasableMutableBuffer::new(buf), Err(ErrorCode::FAIL)))
-                    }
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
                 }
             }
             Operation::Init => {

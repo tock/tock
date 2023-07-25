@@ -22,7 +22,7 @@ use kernel::hil::kv_system;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 /// Ids for read-only allow buffers
@@ -141,10 +141,10 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
 
-                                    let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
+                                    let mut unhashed_key = SubSliceMut::new(data_buffer);
                                     unhashed_key.slice(..unhashed_key_len);
 
-                                    let value = LeasableMutableBuffer::new(dest_buffer);
+                                    let value = SubSliceMut::new(dest_buffer);
 
                                     if let Err((data, dest, e)) =
                                         self.kv.get(unhashed_key, value, perms)
@@ -187,14 +187,14 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
 
-                                    let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
+                                    let mut unhashed_key = SubSliceMut::new(data_buffer);
                                     unhashed_key.slice(..unhashed_key_len);
 
                                     // Make sure we provide a value buffer with
                                     // space for the tock kv header at the
                                     // front.
                                     let header_size = self.kv.header_size();
-                                    let mut value = LeasableMutableBuffer::new(dest_buffer);
+                                    let mut value = SubSliceMut::new(dest_buffer);
                                     value.slice(..(value_len + header_size));
 
                                     if let Err((data, dest, e)) =
@@ -216,7 +216,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> KVStoreDriver
                                     .get_storage_permissions()
                                     .ok_or(ErrorCode::INVAL)?;
 
-                                let mut unhashed_key = LeasableMutableBuffer::new(data_buffer);
+                                let mut unhashed_key = SubSliceMut::new(data_buffer);
                                 unhashed_key.slice(..unhashed_key_len);
 
                                 if let Err((data, e)) = self.kv.delete(unhashed_key, perms) {
@@ -271,8 +271,8 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::Sto
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
-        key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) {
         self.data_buffer.replace(key.take());
 
@@ -328,8 +328,8 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::Sto
     fn set_complete(
         &self,
         result: Result<(), ErrorCode>,
-        key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) {
         self.data_buffer.replace(key.take());
         self.dest_buffer.replace(value.take());
@@ -353,11 +353,7 @@ impl<'a, K: kv_system::KVSystem<'a, K = T>, T: kv_system::KeyType> kv_store::Sto
         self.check_queue();
     }
 
-    fn delete_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        key: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>) {
         self.data_buffer.replace(key.take());
 
         self.processid.map(move |id| {

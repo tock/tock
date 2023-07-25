@@ -48,16 +48,12 @@ impl TestSipHash24 {
 }
 
 impl Client<8> for TestSipHash24 {
-    fn add_mut_data_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.data.replace(data.take());
         self.hasher.run(self.hash.take().unwrap()).unwrap();
     }
 
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
     fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         debug!("hashed result:   {:?}", digest);

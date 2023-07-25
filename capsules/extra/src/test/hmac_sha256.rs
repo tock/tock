@@ -11,8 +11,8 @@ use kernel::hil::digest;
 use kernel::hil::digest::HmacSha256;
 use kernel::hil::digest::{DigestData, DigestDataHash, DigestHash};
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub struct TestHmacSha256 {
@@ -48,7 +48,7 @@ impl TestHmacSha256 {
             panic!("HmacSha256Test: failed to set key: {:?}", r);
         }
         let data = self.data.take().unwrap();
-        let buffer = LeasableMutableBuffer::new(data);
+        let buffer = SubSliceMut::new(data);
         let r = self.hmac.add_mut_data(buffer);
         if r.is_err() {
             panic!("HmacSha256Test: failed to add data: {:?}", r);
@@ -57,15 +57,11 @@ impl TestHmacSha256 {
 }
 
 impl digest::ClientData<32> for TestHmacSha256 {
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
 
-    fn add_mut_data_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.data.replace(data.take());
 
         let r = self.hmac.run(self.digest.take().unwrap());

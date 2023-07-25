@@ -18,7 +18,7 @@ pub trait Client<const L: usize> {
     /// data supplied to `add_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_data_done(&self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>);
 
     /// This callback is called when the data has been added to the hash
     /// engine.
@@ -26,11 +26,7 @@ pub trait Client<const L: usize> {
     /// data supplied to `add_mut_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_mut_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    );
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>);
 
     /// This callback is called when a hash is computed.
     /// On error or success `hash` will contain a reference to the original

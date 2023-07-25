@@ -38,7 +38,7 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::kv_system::{self, KVSystem, KeyType};
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -88,8 +88,8 @@ pub trait StoreClient<K: KeyType> {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     );
 
     /// This callback is called when the set operation completes.
@@ -100,8 +100,8 @@ pub trait StoreClient<K: KeyType> {
     fn set_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     );
 
     /// This callback is called when the delete operation completes.
@@ -111,7 +111,7 @@ pub trait StoreClient<K: KeyType> {
     fn delete_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
     );
 }
 
@@ -122,8 +122,8 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_sy
     client: OptionalCell<&'a dyn StoreClient<T>>,
     operation: OptionalCell<Operation>,
 
-    unhashed_key: MapCell<LeasableMutableBuffer<'static, u8>>,
-    value: MapCell<LeasableMutableBuffer<'static, u8>>,
+    unhashed_key: MapCell<SubSliceMut<'static, u8>>,
+    value: MapCell<SubSliceMut<'static, u8>>,
     valid_ids: OptionalCell<StoragePermissions>,
 }
 
@@ -158,14 +158,14 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
 
     pub fn get(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
         perms: StoragePermissions,
     ) -> Result<
         (),
         (
-            LeasableMutableBuffer<'static, u8>,
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
             Result<(), ErrorCode>,
         ),
     > {
@@ -184,14 +184,14 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
 
     pub fn set(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        mut value: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        mut value: SubSliceMut<'static, u8>,
         perms: StoragePermissions,
     ) -> Result<
         (),
         (
-            LeasableMutableBuffer<'static, u8>,
-            LeasableMutableBuffer<'static, u8>,
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
             Result<(), ErrorCode>,
         ),
     > {
@@ -228,9 +228,9 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
 
     pub fn delete(
         &self,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
         perms: StoragePermissions,
-    ) -> Result<(), (LeasableMutableBuffer<'static, u8>, Result<(), ErrorCode>)> {
+    ) -> Result<(), (SubSliceMut<'static, u8>, Result<(), ErrorCode>)> {
         if self.operation.is_some() {
             return Err((unhashed_key, Err(ErrorCode::BUSY)));
         }
@@ -350,7 +350,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
         hashed_key: &'static mut T,
     ) {
         self.inflight.take().map(|node| {
@@ -422,10 +422,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
                         }
                         Operation::Delete => {
                             self.header_value.take().map(|value| {
-                                match self
-                                    .kv
-                                    .get_value(hashed_key, LeasableMutableBuffer::new(value))
-                                {
+                                match self.kv.get_value(hashed_key, SubSliceMut::new(value)) {
                                     Ok(()) => {
                                         node.unhashed_key.replace(unhashed_key);
                                         self.inflight.set(node);
@@ -455,7 +452,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        value: LeasableMutableBuffer<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) {
         self.hashed_key.replace(key);
 
@@ -480,7 +477,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv_system::Client<T>
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        mut ret_buf: LeasableMutableBuffer<'static, u8>,
+        mut ret_buf: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.map(|op| {
