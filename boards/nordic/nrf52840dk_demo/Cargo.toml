@@ -18,4 +18,3 @@ nrf52_components = { path = "../nrf52_components" }
 
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
-capsules-tutorials = { path = "../../../capsules/tutorials" }

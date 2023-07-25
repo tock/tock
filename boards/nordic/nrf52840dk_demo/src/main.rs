@@ -230,7 +230,7 @@ pub struct Platform {
         capsules_extra::usb::keyboard_hid::KeyboardHid<'static, nrf52840::usbd::Usbd<'static>>,
     >,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
-    oracle: &'static capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
+    oracle: &'static capsules_extra::tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
         'static,
         nrf52840::aes::AesECB<'static>,
     >,
@@ -890,12 +890,12 @@ pub unsafe fn main() {
     let aes_dst_buffer = kernel::static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
 
     let oracle = static_init!(
-        capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
+        capsules_extra::tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
             'static,
             nrf52840::aes::AesECB<'static>,
         >,
         // Call our constructor:
-        capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver::new(
+        capsules_extra::tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver::new(
             &base_peripherals.ecb,
             aes_src_buffer,
             aes_dst_buffer,
