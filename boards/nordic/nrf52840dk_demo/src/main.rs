@@ -127,6 +127,9 @@ const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
 
+// Keyboard HID Driver Num:
+const KEYBOARD_HID_DRIVER_NUM: usize = capsules_core::driver::NUM::KeyboardHid as usize;
+
 /// Debug Writer
 pub mod io;
 
@@ -222,6 +225,10 @@ pub struct Platform {
         >,
         32,
     >,
+    keyboard_hid_driver: &'static capsules_extra::usb_hid_driver::UsbHidDriver<
+        'static,
+        capsules_extra::usb::keyboard_hid::KeyboardHid<'static, nrf52840::usbd::Usbd<'static>>,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -251,6 +258,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
+            KEYBOARD_HID_DRIVER_NUM => f(Some(self.keyboard_hid_driver)),
             _ => f(None),
         }
     }
@@ -807,14 +815,14 @@ pub unsafe fn main() {
     // Uncomment to experiment with this.
 
     // // Create the strings we include in the USB descriptor.
-    // let strings = static_init!(
-    //     [&str; 3],
-    //     [
-    //         "Nordic Semiconductor", // Manufacturer
-    //         "nRF52840dk - TockOS",  // Product
-    //         "serial0001",           // Serial number
-    //     ]
-    // );
+    let strings = static_init!(
+        [&str; 3],
+        [
+            "Nordic Semiconductor", // Manufacturer
+            "nRF52840dk - TockOS",  // Product
+            "serial0001",           // Serial number
+        ]
+    );
 
     // CTAP Example
     //
@@ -833,20 +841,20 @@ pub unsafe fn main() {
 
     // Keyboard HID Example
     //
-    // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
-    //     board_kernel,
-    //     capsules_core::driver::KeyboardHid,
-    //     &nrf52840_peripherals.usbd,
-    //     0x1915, // Nordic Semiconductor
-    //     0x503a,
-    //     strings,
-    // )
-    // .finalize(components::keyboard_hid_component_static!(
-    //     nrf52840::usbd::Usbd
-    // ));
+    let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
+        board_kernel,
+        capsules_core::driver::NUM::KeyboardHid as usize,
+        &nrf52840_peripherals.usbd,
+        0x1915, // Nordic Semiconductor
+        0x503a,
+        strings,
+    )
+    .finalize(components::keyboard_hid_component_static!(
+        nrf52840::usbd::Usbd
+    ));
 
-    // keyboard_hid.enable();
-    // keyboard_hid.attach();
+    keyboard_hid.enable();
+    keyboard_hid.attach();
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
@@ -878,6 +886,7 @@ pub unsafe fn main() {
         i2c_master_slave,
         spi_controller,
         hmac,
+        keyboard_hid_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
