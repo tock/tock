@@ -231,9 +231,9 @@ pub struct Platform {
     >,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     oracle: &'static capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
-         'static,
-         nrf52840::aes::AesECB<'static>,
-     >,
+        'static,
+        nrf52840::aes::AesECB<'static>,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -265,7 +265,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             KEYBOARD_HID_DRIVER_NUM => f(Some(self.keyboard_hid_driver)),
             capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
-	    0x99999 => f(Some(self.oracle)),
+            0x99999 => f(Some(self.oracle)),
             _ => f(None),
         }
     }
@@ -890,21 +890,21 @@ pub unsafe fn main() {
     let aes_dst_buffer = kernel::static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
 
     let oracle = static_init!(
-	capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
+        capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
             'static,
-        nrf52840::aes::AesECB<'static>,
-	>,
-	// Call our constructor:
-	capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver::new(
+            nrf52840::aes::AesECB<'static>,
+        >,
+        // Call our constructor:
+        capsules_tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver::new(
             &base_peripherals.ecb,
             aes_src_buffer,
             aes_dst_buffer,
-	    // Magic incantation to create our `Grant` struct:
+            // Magic incantation to create our `Grant` struct:
             board_kernel.create_grant(
-		0x99999, // our driver number
-		&create_capability!(capabilities::MemoryAllocationCapability)
+                0x99999, // our driver number
+                &create_capability!(capabilities::MemoryAllocationCapability)
             ),
-	),
+        ),
     );
 
     // Leave commented out for now:
@@ -942,12 +942,12 @@ pub unsafe fn main() {
         hmac,
         keyboard_hid_driver,
         app_flash,
-	oracle: oracle,
+        oracle: oracle,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    // let _ = platform.pconsole.start();
+    let _ = platform.pconsole.start_hibernated();
     base_peripherals.adc.calibrate();
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
