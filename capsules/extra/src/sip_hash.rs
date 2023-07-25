@@ -6,7 +6,7 @@
 //!
 //! This is a async implementation of the SipHash.
 //!
-//! This capsule was originally written to be used as part of Tocks
+//! This capsule was originally written to be used as part of Tock's
 //! key/value store. SipHash was used as it is generally fast, while also
 //! being resilient against DOS attacks from userspace
 //! (unlike <https://github.com/servo/rust-fnv>).
@@ -15,7 +15,7 @@
 //! details on SipHash.
 //!
 //! The implementation is based on the Rust implementation from
-//! rust-core, avaliable here: <https://github.com/jedisct1/rust-siphash>
+//! rust-core, available here: <https://github.com/jedisct1/rust-siphash>
 //!
 //! Copyright 2012-2016 The Rust Project Developers.
 //! Copyright 2016-2021 Frank Denis.
