@@ -891,7 +891,7 @@ pub unsafe fn main() {
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    let _ = platform.pconsole.start();
+    // let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
