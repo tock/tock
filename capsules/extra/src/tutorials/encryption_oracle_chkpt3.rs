@@ -9,6 +9,8 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 use kernel::ProcessId;
 
+pub const DRIVER_NUM: usize = 0x99999;
+
 pub static KEY: &'static [u8; kernel::hil::symmetric_encryption::AES128_KEY_SIZE] =
     b"InsecureAESKey12";
 
