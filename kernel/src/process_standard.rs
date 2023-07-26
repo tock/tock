@@ -684,7 +684,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             //
             // ### Safety
             //
-            // We specific a zero-length buffer, so the implementation of
+            // We specify a zero-length buffer, so the implementation of
             // `ReadWriteProcessBuffer` will handle any safety issues.
             // Therefore, we can encapsulate the unsafe.
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
@@ -692,7 +692,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // TODO: Check for buffer aliasing here
 
             // Valid buffer, we need to adjust the app's watermark
-            // note: in_app_owned_memory ensures this offset does not wrap
+            // note: `in_app_owned_memory` ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
             let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
@@ -709,7 +709,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // sure that we're pointing towards userspace memory (verified using
             // `in_app_owned_memory`) and respect alignment and other
             // constraints of the Rust references created by
-            // ReadWriteProcessBuffer.
+            // `ReadWriteProcessBuffer`.
             //
             // ### Safety
             //
@@ -750,7 +750,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             //
             // ### Safety
             //
-            // We specific a zero-length buffer, so the implementation of
+            // We specify a zero-length buffer, so the implementation of
             // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
             // we can encapsulate the unsafe.
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
@@ -780,7 +780,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // sure that we're pointing towards userspace memory (verified using
             // `in_app_owned_memory` or `in_app_flash_memory`) and respect
             // alignment and other constraints of the Rust references created by
-            // ReadWriteProcessBuffer.
+            // `ReadWriteProcessBuffer`.
             //
             // ### Safety
             //
@@ -847,7 +847,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
 
         // Verify that there is not already a grant allocated with the same
-        // driver_num.
+        // `driver_num`.
         let exists = self.grant_pointers.map_or(false, |grant_pointers| {
             // Check our list of grant pointers if the driver number is used.
             grant_pointers.iter().any(|grant_entry| {
@@ -856,8 +856,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 (!grant_entry.grant_ptr.is_null()) && grant_entry.driver_num == driver_num
             })
         });
-        // If we find a match, then the driver_num must already be used and the
-        // grant allocation fails.
+        // If we find a match, then the `driver_num` must already be used and
+        // the grant allocation fails.
         if exists {
             return false;
         }
@@ -911,7 +911,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn enter_grant(&self, grant_num: usize) -> Result<NonNull<u8>, Error> {
-        // Do not try to access the grant region of inactive process.
+        // Do not try to access the grant region of an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
         }
@@ -954,7 +954,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         identifier: ProcessCustomGrantIdentifier,
     ) -> Result<*mut u8, Error> {
-        // Do not try to access the grant region of inactive process.
+        // Do not try to access the grant region of an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
         }
@@ -998,9 +998,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
 
         self.grant_pointers.map(|grant_pointers| {
-            // Filter our list of grant pointers into just the non null ones,
-            // and count those. A grant is allocated if its grant pointer is non
-            // null.
+            // Filter our list of grant pointers into just the non-null ones,
+            // and count those. A grant is allocated if its grant pointer is
+            // non-null.
             grant_pointers
                 .iter()
                 .filter(|grant_entry| !grant_entry.grant_ptr.is_null())
@@ -1013,7 +1013,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             .map_or(Err(Error::KernelError), |grant_pointers| {
                 // Filter our list of grant pointers into just the non null
                 // ones, and count those. A grant is allocated if its grant
-                // pointer is non null.
+                // pointer is non-null.
                 match grant_pointers.iter().position(|grant_entry| {
                     // Only consider allocated grants.
                     (!grant_entry.grant_ptr.is_null()) && grant_entry.driver_num == driver_num
@@ -1028,7 +1028,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let ptr = upcall_fn.as_ptr() as *const u8;
         let size = mem::size_of::<*const u8>();
 
-        // It is ok if this function is in memory or flash.
+        // It is okay if this function is in memory or flash.
         self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
     }
 
@@ -1803,7 +1803,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     }
 
     /// Reset the process, resetting all of its state and
-    /// re-initializing it so it can start runnning.  Assumes the
+    /// re-initializing it so it can start running.  Assumes the
     /// process is not running but is still in flash and still has its
     /// memory region allocated to it. This does not start the
     /// process, as that requires the kernel to check that its
@@ -2053,8 +2053,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         }
     }
 
-    /// Use a ProcessCustomGrantIdentifier to find the address of the custom
-    /// grant.
+    /// Use a `ProcessCustomGrantIdentifier` to find the address of the
+    /// custom grant.
     ///
     /// This reverses `create_custom_grant_identifier()`.
     fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifier) -> usize {
