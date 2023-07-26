@@ -51,11 +51,7 @@ impl<'a> hasher::Client<8> for SipHashTestCallback {
         unimplemented!()
     }
 
-    fn add_mut_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        mut data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, mut data: SubSliceMut<'static, u8>) {
         assert_eq!(result, Ok(()));
         self.data_add_done.set(true);
 

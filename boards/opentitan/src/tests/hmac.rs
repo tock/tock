@@ -10,7 +10,7 @@ use kernel::hil::digest::DigestData;
 use kernel::hil::digest::{self, Digest, DigestVerify, HmacSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{debug, ErrorCode};
 
@@ -51,7 +51,7 @@ impl<'a> digest::ClientData<32> for HmacTestCallback {
         assert_eq!(result, Ok(()));
     }
 
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
 }
