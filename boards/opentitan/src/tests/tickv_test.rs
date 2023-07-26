@@ -13,7 +13,7 @@ use kernel::debug;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::kv_system::KVSystem;
 use kernel::static_init;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 
 #[test_case]
 fn tickv_append_key() {
@@ -45,7 +45,7 @@ fn tickv_append_key() {
                 >,
                 TicKVKeyType,
             >,
-            KVSystemTest::new(tickv, LeasableMutableBuffer::new(value), ret)
+            KVSystemTest::new(tickv, SubSliceMut::new(value), ret)
         );
 
         sip_hasher.set_client(tickv);
@@ -53,7 +53,7 @@ fn tickv_append_key() {
 
         // Kick start the tests by generating a key
         tickv
-            .generate_key(LeasableMutableBuffer::new(key_input), key)
+            .generate_key(SubSliceMut::new(key_input), key)
             .unwrap();
     }
     run_kernel_op(100000);
