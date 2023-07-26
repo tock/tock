@@ -1666,7 +1666,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // change, it should be more proactively enforced.
         //
         // TODO: https://github.com/tock/tock/issues/1739
-        #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
         let grant_pointers = slice::from_raw_parts_mut(
             kernel_memory_break as *mut GrantPointerEntry,
@@ -1689,7 +1688,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // change, it should be more proactively enforced.
         //
         // TODO: https://github.com/tock/tock/issues/1739
-        #[allow(clippy::cast_ptr_alignment)]
         // Set up ring buffer for upcalls to the process.
         let upcall_buf =
             slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
