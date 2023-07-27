@@ -9,28 +9,34 @@ use capsules_extra::apds9960::APDS9960;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::gpio;
+use kernel::hil::i2c;
 
 #[macro_export]
 macro_rules! apds9960_component_static {
-    () => {{
+    ($I:ty $(,)?) => {{
         let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
-        let apds9960 = kernel::static_buf!(capsules_extra::apds9960::APDS9960<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
+        let apds9960 = kernel::static_buf!(
+            capsules_extra::apds9960::APDS9960<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
         let buffer = kernel::static_buf!([u8; capsules_extra::apds9960::BUF_LEN]);
 
         (i2c_device, apds9960, buffer)
     };};
 }
 
-pub struct Apds9960Component {
-    i2c_mux: &'static MuxI2C<'static>,
+pub struct Apds9960Component<I: 'static + i2c::I2CMaster<'static>> {
+    i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
     interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
 }
 
-impl Apds9960Component {
+impl<I: 'static + i2c::I2CMaster<'static>> Apds9960Component<I> {
     pub fn new(
-        i2c_mux: &'static MuxI2C<'static>,
+        i2c_mux: &'static MuxI2C<'static, I>,
         i2c_address: u8,
         interrupt_pin: &'static dyn gpio::InterruptPin<'static>,
     ) -> Self {
@@ -42,13 +48,13 @@ impl Apds9960Component {
     }
 }
 
-impl Component for Apds9960Component {
+impl<I: 'static + i2c::I2CMaster<'static>> Component for Apds9960Component<I> {
     type StaticInput = (
-        &'static mut MaybeUninit<I2CDevice<'static>>,
-        &'static mut MaybeUninit<APDS9960<'static>>,
+        &'static mut MaybeUninit<I2CDevice<'static, I>>,
+        &'static mut MaybeUninit<APDS9960<'static, I2CDevice<'static, I>>>,
         &'static mut MaybeUninit<[u8; capsules_extra::apds9960::BUF_LEN]>,
     );
-    type Output = &'static APDS9960<'static>;
+    type Output = &'static APDS9960<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let apds9960_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));

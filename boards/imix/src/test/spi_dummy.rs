@@ -11,11 +11,11 @@ use kernel::ErrorCode;
 #[allow(unused_variables, dead_code)]
 pub struct DummyCB {
     val: u8,
-    spi: &'static sam4l::spi::SpiHw,
+    spi: &'static sam4l::spi::SpiHw<'static>,
 }
 
 impl DummyCB {
-    pub fn new(spi: &'static sam4l::spi::SpiHw) -> Self {
+    pub fn new(spi: &'static sam4l::spi::SpiHw<'static>) -> Self {
         Self {
             val: 0x55 as u8,
             spi,
@@ -68,7 +68,7 @@ impl spi::SpiMasterClient for DummyCB {
 // the board.
 #[inline(never)]
 #[allow(unused_variables, dead_code)]
-pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw) {
+pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
     // set the LED to mark that we've programmed.
     let pin = sam4l::gpio::GPIOPin::new(sam4l::gpio::Pin::PC10);
     pin.make_output();

@@ -54,16 +54,6 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1700] = [0; 0x1700];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F3Discovery {
@@ -78,7 +68,13 @@ struct STM32F3Discovery {
     button: &'static capsules_core::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     l3gd20: &'static capsules_extra::l3gd20::L3gd20Spi<'static>,
-    lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<'static>,
+    lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<
+            'static,
+            stm32f303xc::i2c::I2C<'static>,
+        >,
+    >,
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -672,7 +668,7 @@ pub unsafe fn main() {
     // LSM303DLHC
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(stm32f303xc::i2c::I2C));
 
     let lsm303dlhc = components::lsm303dlhc::Lsm303dlhcI2CComponent::new(
         mux_i2c,
@@ -681,7 +677,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm303dlhc::DRIVER_NUM,
     )
-    .finalize(components::lsm303dlhc_component_static!());
+    .finalize(components::lsm303dlhc_component_static!(
+        stm32f303xc::i2c::I2C
+    ));
 
     if let Err(error) = lsm303dlhc.configure(
         lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
@@ -784,7 +782,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         stm32f303xc::tim2::Tim2

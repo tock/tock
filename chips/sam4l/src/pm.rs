@@ -1072,25 +1072,33 @@ macro_rules! get_clock {
 /// through the INTERRUPT_COUNT variable.
 pub fn deep_sleep_ready() -> bool {
     // HSB clocks that can be enabled and the core is permitted to enter deep sleep.
-    let deep_sleep_hsbmask: FieldValue<u32, ClockMaskHsb::Register> =
-        /* added by us */ ClockMaskHsb::PDCA::SET +
-        /*     default */ ClockMaskHsb::FLASHCALW::SET +
-        /* added by us */ ClockMaskHsb::FLASHCALW_PICOCACHE::SET +
-        /*     default */ ClockMaskHsb::APBA_BRIDGE::SET +
-        /*     default */ ClockMaskHsb::APBB_BRIDGE::SET +
-        /*     default */ ClockMaskHsb::APBC_BRIDGE::SET +
-        /*     default */ ClockMaskHsb::APBD_BRIDGE::SET;
+    // added by us: ClockMaskHsb::PDCA::SET
+    //     default: ClockMaskHsb::FLASHCALW::SET
+    // added by us: ClockMaskHsb::FLASHCALW_PICOCACHE::SET
+    //     default: ClockMaskHsb::APBA_BRIDGE::SET
+    //     default: ClockMaskHsb::APBB_BRIDGE::SET
+    //     default: ClockMaskHsb::APBC_BRIDGE::SET
+    //     default: ClockMaskHsb::APBD_BRIDGE::SET
+    let deep_sleep_hsbmask: FieldValue<u32, ClockMaskHsb::Register> = ClockMaskHsb::PDCA::SET
+        + ClockMaskHsb::FLASHCALW::SET
+        + ClockMaskHsb::FLASHCALW_PICOCACHE::SET
+        + ClockMaskHsb::APBA_BRIDGE::SET
+        + ClockMaskHsb::APBB_BRIDGE::SET
+        + ClockMaskHsb::APBC_BRIDGE::SET
+        + ClockMaskHsb::APBD_BRIDGE::SET;
 
     // PBA clocks that can be enabled and the core is permitted to enter deep sleep.
+    // added by us: ClockMaskPba::TWIS0::SET
+    // added by us: ClockMaskPba::TWIS1::SET
     let deep_sleep_pbamask: FieldValue<u32, ClockMaskPba::Register> =
-        /* added by us */ ClockMaskPba::TWIS0::SET +
-        /* added by us */ ClockMaskPba::TWIS1::SET;
+        ClockMaskPba::TWIS0::SET + ClockMaskPba::TWIS1::SET;
 
     // PBB clocks that can be enabled and the core is permitted to enter deep sleep.
+    //     default: ClockMaskPbb::FLASHCALW::SET
+    // added by us: ClockMaskPbb::HRAMC1::SET
+    // added by us: ClockMaskPbb::PDCA::SET
     let deep_sleep_pbbmask: FieldValue<u32, ClockMaskPbb::Register> =
-        /*     default */ ClockMaskPbb::FLASHCALW::SET +
-        /* added by us */ ClockMaskPbb::HRAMC1::SET +
-        /* added by us */ ClockMaskPbb::PDCA::SET;
+        ClockMaskPbb::FLASHCALW::SET + ClockMaskPbb::HRAMC1::SET + ClockMaskPbb::PDCA::SET;
 
     let hsb = PM_REGS.hsbmask.get() & !deep_sleep_hsbmask.mask() == 0;
     let pba = PM_REGS.pbamask.get() & !deep_sleep_pbamask.mask() == 0;

@@ -8,7 +8,9 @@ use core::convert::TryInto;
 use core::fmt;
 use core::mem::size_of;
 
-const NUM_PERSISTENT_ACLS: usize = 8;
+/// We only support up to a fixed number of storage permissions for each of read
+/// and modify. This simplification enables us to use fixed sized buffers.
+const NUM_STORAGE_PERMISSIONS: usize = 8;
 
 /// Error when parsing just the beginning of the TBF header. This is only used
 /// when establishing the linked list structure of apps installed in flash.
@@ -126,7 +128,7 @@ pub enum TbfHeaderTypes {
     TbfHeaderPackageName = 3,
     TbfHeaderFixedAddresses = 5,
     TbfHeaderPermissions = 6,
-    TbfHeaderPersistentAcl = 7,
+    TbfHeaderStoragePermissions = 7,
     TbfHeaderKernelVersion = 8,
     TbfHeaderProgram = 9,
     TbfFooterCredentials = 128,
@@ -154,7 +156,7 @@ pub struct TbfTlv {
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2Main {
     init_fn_offset: u32,
-    protected_size: u32,
+    protected_trailer_size: u32,
     minimum_ram_size: u32,
 }
 
@@ -170,7 +172,7 @@ pub struct TbfHeaderV2Main {
 #[derive(Clone, Copy, Debug)]
 pub struct TbfHeaderV2Program {
     init_fn_offset: u32,
-    protected_size: u32,
+    protected_trailer_size: u32,
     minimum_ram_size: u32,
     binary_end_offset: u32,
     version: u32,
@@ -224,14 +226,14 @@ pub struct TbfHeaderV2Permissions<const L: usize> {
     perms: [TbfHeaderDriverPermission; L],
 }
 
-/// A list of persistent access permissions
+/// A list of storage (read/write/modify) permissions for this app.
 #[derive(Clone, Copy, Debug)]
-pub struct TbfHeaderV2PersistentAcl<const L: usize> {
-    write_id: u32,
+pub struct TbfHeaderV2StoragePermissions<const L: usize> {
+    write_id: Option<core::num::NonZeroU32>,
     read_length: u16,
     read_ids: [u32; L],
-    access_length: u16,
-    access_ids: [u32; L],
+    modify_length: u16,
+    modify_ids: [u32; L],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -315,7 +317,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             3 => Ok(TbfHeaderTypes::TbfHeaderPackageName),
             5 => Ok(TbfHeaderTypes::TbfHeaderFixedAddresses),
             6 => Ok(TbfHeaderTypes::TbfHeaderPermissions),
-            7 => Ok(TbfHeaderTypes::TbfHeaderPersistentAcl),
+            7 => Ok(TbfHeaderTypes::TbfHeaderStoragePermissions),
             8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
             9 => Ok(TbfHeaderTypes::TbfHeaderProgram),
             128 => Ok(TbfHeaderTypes::TbfFooterCredentials),
@@ -358,7 +360,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Main {
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
-            protected_size: u32::from_le_bytes(
+            protected_trailer_size: u32::from_le_bytes(
                 b.get(4..8)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
@@ -385,7 +387,7 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
-            protected_size: u32::from_le_bytes(
+            protected_trailer_size: u32::from_le_bytes(
                 b.get(4..8)
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
@@ -512,17 +514,17 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
     }
 }
 
-impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<L> {
+impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermissions<L> {
     type Error = TbfParseError;
 
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2PersistentAcl<L>, Self::Error> {
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2StoragePermissions<L>, Self::Error> {
         let mut read_end = 6;
 
-        let write_id = u32::from_le_bytes(
+        let write_id = core::num::NonZeroU32::new(u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
-        );
+        ));
 
         let read_length = u16::from_le_bytes(
             b.get(4..6)
@@ -542,40 +544,40 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PersistentAcl<
                 );
             } else {
                 return Err(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                    TbfHeaderTypes::TbfHeaderStoragePermissions as usize,
                 ));
             }
         }
 
-        let access_length = u16::from_le_bytes(
+        let modify_length = u16::from_le_bytes(
             b.get(read_end..(read_end + 2))
                 .ok_or(TbfParseError::NotEnoughFlash)?
                 .try_into()?,
         );
 
-        let mut access_ids: [u32; L] = [0; L];
-        for i in 0..access_length as usize {
+        let mut modify_ids: [u32; L] = [0; L];
+        for i in 0..modify_length as usize {
             let start = read_end + 2 + (i * size_of::<u32>());
-            let access_end = start + size_of::<u32>();
-            if let Some(access_id) = access_ids.get_mut(i) {
-                *access_id = u32::from_le_bytes(
-                    b.get(start..access_end as usize)
+            let modify_end = start + size_of::<u32>();
+            if let Some(modify_id) = modify_ids.get_mut(i) {
+                *modify_id = u32::from_le_bytes(
+                    b.get(start..modify_end as usize)
                         .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
             } else {
                 return Err(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPersistentAcl as usize,
+                    TbfHeaderTypes::TbfHeaderStoragePermissions as usize,
                 ));
             }
         }
 
-        Ok(TbfHeaderV2PersistentAcl {
+        Ok(TbfHeaderV2StoragePermissions {
             write_id,
             read_length,
             read_ids,
-            access_length,
-            access_ids,
+            modify_length,
+            modify_ids,
         })
     }
 }
@@ -665,7 +667,7 @@ pub struct TbfHeaderV2 {
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
-    pub(crate) persistent_acls: Option<TbfHeaderV2PersistentAcl<NUM_PERSISTENT_ACLS>>,
+    pub(crate) storage_permissions: Option<TbfHeaderV2StoragePermissions<NUM_STORAGE_PERMISSIONS>>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
@@ -734,11 +736,13 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 if hd.program.is_some() {
-                    hd.program
-                        .map_or(0, |p| p.protected_size + (hd.base.header_size as u32))
+                    hd.program.map_or(0, |p| {
+                        (hd.base.header_size as u32) + p.protected_trailer_size
+                    })
                 } else if hd.main.is_some() {
-                    hd.main
-                        .map_or(0, |m| m.protected_size + (hd.base.header_size as u32))
+                    hd.main.map_or(0, |m| {
+                        (hd.base.header_size as u32) + m.protected_trailer_size
+                    })
                 } else {
                     0
                 }
@@ -876,11 +880,13 @@ impl TbfHeader {
     }
 
     /// Get the process `write_id`.
-    /// Returns `None` if a `write_id` is not included.
-    pub fn get_persistent_acl_write_id(&self) -> Option<u32> {
+    ///
+    /// Returns `None` if a `write_id` is not included. This indicates the TBF
+    /// does not have the ability to store new items.
+    pub fn get_storage_write_id(&self) -> Option<core::num::NonZeroU32> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some(persistent_acls.write_id),
+            TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
+                Some(permissions) => permissions.write_id,
                 _ => None,
             },
             _ => None,
@@ -889,12 +895,10 @@ impl TbfHeader {
 
     /// Get the number of valid `read_ids` and the `read_ids`.
     /// Returns `None` if a `read_ids` is not included.
-    pub fn get_persistent_acl_read_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
+    pub fn get_storage_read_ids(&self) -> Option<(usize, [u32; NUM_STORAGE_PERMISSIONS])> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => {
-                    Some((persistent_acls.read_length.into(), persistent_acls.read_ids))
-                }
+            TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
+                Some(permissions) => Some((permissions.read_length.into(), permissions.read_ids)),
                 _ => None,
             },
             _ => None,
@@ -903,13 +907,12 @@ impl TbfHeader {
 
     /// Get the number of valid `access_ids` and the `access_ids`.
     /// Returns `None` if a `access_ids` is not included.
-    pub fn get_persistent_acl_access_ids(&self) -> Option<(usize, [u32; NUM_PERSISTENT_ACLS])> {
+    pub fn get_storage_modify_ids(&self) -> Option<(usize, [u32; NUM_STORAGE_PERMISSIONS])> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.persistent_acls {
-                Some(persistent_acls) => Some((
-                    persistent_acls.access_length.into(),
-                    persistent_acls.access_ids,
-                )),
+            TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
+                Some(permissions) => {
+                    Some((permissions.modify_length.into(), permissions.modify_ids))
+                }
                 _ => None,
             },
             _ => None,

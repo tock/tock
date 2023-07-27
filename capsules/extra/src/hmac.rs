@@ -55,8 +55,8 @@ use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 enum ShaOperation {
@@ -67,7 +67,7 @@ enum ShaOperation {
 
 // Temporary buffer to copy the keys from userspace into
 //
-// Needs to be able to accomodate the largest key sizes, e.g. 512
+// Needs to be able to accommodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
 pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
@@ -119,7 +119,7 @@ impl<
     fn run(&self) -> Result<(), ErrorCode> {
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(*processid, |app, kernel_data| {
+                .enter(processid, |app, kernel_data| {
                     let ret = kernel_data
                         .get_readonly_processbuffer(ro_allow::KEY)
                         .and_then(|key| {
@@ -172,7 +172,7 @@ impl<
                                 });
 
                                 // Add the data from the static buffer to the HMAC
-                                let mut lease_buf = LeasableMutableBuffer::new(
+                                let mut lease_buf = SubSliceMut::new(
                                     self.data_buffer.take().ok_or(ErrorCode::RESERVE)?,
                                 );
                                 lease_buf.slice(0..static_buffer_len);
@@ -256,16 +256,12 @@ impl<
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
-    fn add_mut_data_done(
-        &self,
-        _result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.processid.map(move |id| {
             self.apps
-                .enter(*id, move |app, kernel_data| {
+                .enter(id, move |app, kernel_data| {
                     let mut data_len = 0;
                     let mut exit = false;
                     let mut static_buffer_len = 0;
@@ -318,8 +314,7 @@ impl<
                             // Update the amount of data copied
                             self.data_copied.set(copied_data + static_buffer_len);
 
-                            let mut lease_buf =
-                                LeasableMutableBuffer::new(self.data_buffer.take().unwrap());
+                            let mut lease_buf = SubSliceMut::new(self.data_buffer.take().unwrap());
 
                             // Add the data from the static buffer to the HMAC
                             if data_len < (copied_data + static_buffer_len) {
@@ -399,7 +394,7 @@ impl<
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
         self.processid.map(|id| {
             self.apps
-                .enter(*id, |_, kernel_data| {
+                .enter(id, |_, kernel_data| {
                     self.hmac.clear_data();
 
                     let pointer = digest[0] as *mut u8;
@@ -451,7 +446,7 @@ impl<
     fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
         self.processid.map(|id| {
             self.apps
-                .enter(*id, |_app, kernel_data| {
+                .enter(id, |_app, kernel_data| {
                     self.hmac.clear_data();
 
                     match result {
@@ -542,7 +537,7 @@ impl<
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &processid
+                owning_app == processid
             } else {
                 // Check the app still exists.
                 //
@@ -552,7 +547,7 @@ impl<
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &processid)
+                    .enter(owning_app, |_, _| owning_app == processid)
                     .unwrap_or(true)
             }
         });
@@ -566,7 +561,7 @@ impl<
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &processid
+                owning_app == processid
             } else {
                 // Check the app still exists.
                 //
@@ -576,7 +571,7 @@ impl<
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &processid)
+                    .enter(owning_app, |_, _| owning_app == processid)
                     .unwrap_or(true)
             }
         });

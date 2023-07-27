@@ -9,9 +9,9 @@ use core::ops::Index;
 use kernel::hil;
 use kernel::hil::digest::{self, DigestData, DigestHash};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableBufferDynamic;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
+use kernel::utilities::leasable_buffer::SubSliceMutImmut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -78,7 +78,7 @@ register_bitfields![u32,
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
     client: OptionalCell<&'a dyn hil::digest::Client<32>>,
-    data: Cell<Option<LeasableBufferDynamic<'static, u8>>>,
+    data: Cell<Option<SubSliceMutImmut<'static, u8>>>,
     verify: Cell<bool>,
     digest: Cell<Option<&'static mut [u8; 32]>>,
     cancelled: Cell<bool>,
@@ -128,25 +128,25 @@ impl Hmac<'_> {
     // is completely processed.
     fn data_progress(&self) -> bool {
         self.data.take().map_or(false, |buf| match buf {
-            LeasableBufferDynamic::Immutable(mut b) => {
+            SubSliceMutImmut::Immutable(mut b) => {
                 if b.len() == 0 {
-                    self.data.set(Some(LeasableBufferDynamic::Immutable(b)));
+                    self.data.set(Some(SubSliceMutImmut::Immutable(b)));
                     false
                 } else {
                     let count = self.process(&b, b.len());
                     b.slice(count..);
-                    self.data.set(Some(LeasableBufferDynamic::Immutable(b)));
+                    self.data.set(Some(SubSliceMutImmut::Immutable(b)));
                     true
                 }
             }
-            LeasableBufferDynamic::Mutable(mut b) => {
+            SubSliceMutImmut::Mutable(mut b) => {
                 if b.len() == 0 {
-                    self.data.set(Some(LeasableBufferDynamic::Mutable(b)));
+                    self.data.set(Some(SubSliceMutImmut::Mutable(b)));
                     false
                 } else {
                     let count = self.process(&b, b.len());
                     b.slice(count..);
-                    self.data.set(Some(LeasableBufferDynamic::Mutable(b)));
+                    self.data.set(Some(SubSliceMutImmut::Mutable(b)));
                     true
                 }
             }
@@ -229,8 +229,8 @@ impl Hmac<'_> {
                 // False means we are done
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
-                        LeasableBufferDynamic::Mutable(b) => client.add_mut_data_done(rval, b),
-                        LeasableBufferDynamic::Immutable(b) => client.add_data_done(rval, b),
+                        SubSliceMutImmut::Mutable(b) => client.add_mut_data_done(rval, b),
+                        SubSliceMutImmut::Immutable(b) => client.add_data_done(rval, b),
                     })
                 });
                 // Make sure we don't get any more FIFO empty interrupts
@@ -263,13 +263,13 @@ impl Hmac<'_> {
 impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)> {
+        data: SubSlice<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSlice<'static, u8>)> {
         if self.busy.get() {
             Err((ErrorCode::BUSY, data))
         } else {
             self.busy.set(true);
-            self.data.set(Some(LeasableBufferDynamic::Immutable(data)));
+            self.data.set(Some(SubSliceMutImmut::Immutable(data)));
 
             let regs = self.registers;
             regs.cmd.modify(CMD::START::SET);
@@ -289,13 +289,13 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
 
     fn add_mut_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
+        data: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
         if self.busy.get() {
             Err((ErrorCode::BUSY, data))
         } else {
             self.busy.set(true);
-            self.data.set(Some(LeasableBufferDynamic::Mutable(data)));
+            self.data.set(Some(SubSliceMutImmut::Mutable(data)));
 
             let regs = self.registers;
             regs.cmd.modify(CMD::START::SET);
@@ -319,6 +319,10 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
         regs.wipe_secret.set(1 as u32);
         self.cancelled.set(true);
     }
+
+    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<32> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
@@ -341,6 +345,10 @@ impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
 
         Ok(())
     }
+
+    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<32> + 'a)) {
+        unimplemented!()
+    }
 }
 
 impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
@@ -351,6 +359,10 @@ impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
         self.verify.set(true);
 
         self.run(compare)
+    }
+
+    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<32> + 'a)) {
+        unimplemented!()
     }
 }
 

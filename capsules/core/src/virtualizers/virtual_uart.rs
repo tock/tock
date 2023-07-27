@@ -219,17 +219,18 @@ impl<'a> MuxUart<'a> {
                 node.tx_buffer.take().map(|buf| {
                     node.operation.map(move |op| match op {
                         Operation::Transmit { len } => {
-                            let _ = self.uart.transmit_buffer(buf, *len).map_err(
-                                move |(ecode, buf)| {
-                                    node.tx_client.map(move |client| {
-                                        node.transmitting.set(false);
-                                        client.transmitted_buffer(buf, 0, Err(ecode));
+                            let _ =
+                                self.uart
+                                    .transmit_buffer(buf, len)
+                                    .map_err(move |(ecode, buf)| {
+                                        node.tx_client.map(move |client| {
+                                            node.transmitting.set(false);
+                                            client.transmitted_buffer(buf, 0, Err(ecode));
+                                        });
                                     });
-                                },
-                            );
                         }
                         Operation::TransmitWord { word } => {
-                            let rcode = self.uart.transmit_word(*word);
+                            let rcode = self.uart.transmit_word(word);
                             if rcode != Ok(()) {
                                 node.tx_client.map(|client| {
                                     node.transmitting.set(false);

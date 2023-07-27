@@ -792,13 +792,13 @@ impl<'a> DmaChannel<'a> {
             0
         };
 
+        // Set the DMA mode since the DMA module sets it back to stop after every cycle
+        // Set the DMA cycles to the amount of remaining words
+        // Set the number of DMA-transfers after the DMA has to rearbitrate the bus
         DMA_CONFIG.0[chan_nr].ctrl.modify(
-            // Set the DMA mode since the DMA module sets it back to stop after every cycle
             DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32)
-            // Set the DMA cycles to the amount of remaining words
-            + DMA_CTRL::N_MINUS_1.val(((rem_words - 1) % MAX_TRANSFERS_LEN) as u32)
-            // Set the number of DMA-transfers after the DMA has to rearbitrate the bus
-            + DMA_CTRL::R_POWER.val(r_power),
+                + DMA_CTRL::N_MINUS_1.val(((rem_words - 1) % MAX_TRANSFERS_LEN) as u32)
+                + DMA_CTRL::R_POWER.val(r_power),
         );
     }
 
@@ -816,13 +816,13 @@ impl<'a> DmaChannel<'a> {
     fn configure_channel(&self, bytes_to_transmit: usize, chan_nr: usize) {
         let conf = self.config.get();
         let transfers = bytes_to_transmit >> (conf.width as usize);
+        // The DMA can only transmit 1024 words with 1 transfer
+        // Reset the bits in case they were set before to a different value
+        // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
         DMA_CONFIG.0[chan_nr].ctrl.modify(
-            // The DMA can only transmit 1024 words with 1 transfer
             DMA_CTRL::N_MINUS_1.val(((transfers - 1) % MAX_TRANSFERS_LEN) as u32)
-            // Reset the bits in case they were set before to a different value
-            + DMA_CTRL::R_POWER.val(0)
-            // Set the DMA mode since it the DMA module sets it back to to stop after every cycle
-            + DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32),
+                + DMA_CTRL::R_POWER.val(0)
+                + DMA_CTRL::CYCLE_CTRL.val(conf.mode as u32),
         );
     }
 

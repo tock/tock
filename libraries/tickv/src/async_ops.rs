@@ -105,7 +105,7 @@
 //!
 //! // Add a key
 //! static mut VALUE: [u8; 32] = [0x23; 32];
-//! let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+//! let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
 //!
 //! match ret {
 //!     Err((_buf, ErrorCode::ReadNotReady(reg))) => {
@@ -139,6 +139,8 @@ type ContinueReturn = (
     Result<SuccessCode, ErrorCode>,
     // Buf Buffer
     Option<&'static mut [u8]>,
+    // Length of valid data inside of the buffer.
+    usize,
 );
 
 /// The struct storing all of the TicKV information for the async implementation.
@@ -147,7 +149,7 @@ pub struct AsyncTicKV<'a, C: FlashController<S>, const S: usize> {
     pub tickv: TicKV<'a, C, S>,
     key: Cell<Option<u64>>,
     value: Cell<Option<&'static mut [u8]>>,
-    buf: Cell<Option<&'static mut [u8]>>,
+    value_length: Cell<usize>,
 }
 
 impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
@@ -162,7 +164,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
             tickv: TicKV::<C, S>::new(controller, read_buffer, flash_size),
             key: Cell::new(None),
             value: Cell::new(None),
-            buf: Cell::new(None),
+            value_length: Cell::new(0),
         }
     }
 
@@ -193,18 +195,30 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         &self,
         hash: u64,
         value: &'static mut [u8],
-    ) -> Result<SuccessCode, (Option<&'static mut [u8]>, ErrorCode)> {
-        match self.tickv.append_key(hash, value) {
-            Ok(code) => Ok(code),
+        length: usize,
+    ) -> Result<SuccessCode, (&'static mut [u8], ErrorCode)> {
+        match self.tickv.append_key(hash, &value[0..length]) {
+            Ok(_code) => {
+                // Ok is a problem, since that means no asynchronous operations
+                // were called, which means our client will never get a
+                // callback. We need to error.
+                Err((value, ErrorCode::WriteFail))
+            }
             Err(e) => match e {
                 ErrorCode::ReadNotReady(_)
                 | ErrorCode::EraseNotReady(_)
                 | ErrorCode::WriteNotReady(_) => {
+                    // This is what we expect, since it means we are going
+                    // an asynchronous operation which this interface expects.
                     self.key.replace(Some(hash));
                     self.value.replace(Some(value));
-                    Err((None, e))
+                    self.value_length.set(length);
+                    Ok(SuccessCode::Queued)
                 }
-                _ => Err((Some(value), e)),
+                _ => {
+                    // On any other error we report the error.
+                    Err((value, e))
+                }
             },
         }
     }
@@ -223,18 +237,23 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         &self,
         hash: u64,
         buf: &'static mut [u8],
-    ) -> Result<SuccessCode, (Option<&'static mut [u8]>, ErrorCode)> {
+    ) -> Result<SuccessCode, (&'static mut [u8], ErrorCode)> {
         match self.tickv.get_key(hash, buf) {
-            Ok(code) => Ok(code),
+            Ok(_code) => {
+                // Ok is a problem, since that means no asynchronous operations
+                // were called, which means our client will never get a
+                // callback. We need to error.
+                Err((buf, ErrorCode::ReadFail))
+            }
             Err(e) => match e {
                 ErrorCode::ReadNotReady(_)
                 | ErrorCode::EraseNotReady(_)
                 | ErrorCode::WriteNotReady(_) => {
                     self.key.replace(Some(hash));
-                    self.buf.replace(Some(buf));
-                    Err((None, e))
+                    self.value.replace(Some(buf));
+                    Ok(SuccessCode::Queued)
                 }
-                _ => Err((Some(buf), e)),
+                _ => Err((buf, e)),
             },
         }
     }
@@ -251,20 +270,23 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     /// assumed to be lost.
     pub fn invalidate_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
         match self.tickv.invalidate_key(hash) {
-            Ok(code) => Ok(code),
-            Err(e) => {
+            Ok(_code) => Err(ErrorCode::WriteFail),
+            Err(_e) => {
                 self.key.replace(Some(hash));
-                Err(e)
+                Ok(SuccessCode::Queued)
             }
         }
     }
 
     /// Perform a garbage collection on TicKV
     ///
-    /// On success the number of bytes freed will be returned.
+    /// On success nothing is returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn garbage_collect(&self) -> Result<usize, ErrorCode> {
-        self.tickv.garbage_collect()
+    pub fn garbage_collect(&self) -> Result<(), ErrorCode> {
+        match self.tickv.garbage_collect() {
+            Ok(_code) => Err(ErrorCode::EraseFail),
+            Err(_e) => Ok(()),
+        }
     }
 
     /// Copy data from `read_buffer` argument to the internal read_buffer.
@@ -275,18 +297,6 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         let buf = self.tickv.read_buffer.take().unwrap();
         buf.copy_from_slice(read_buffer);
         self.tickv.read_buffer.replace(Some(buf));
-    }
-
-    /// Get the `value` buffer that was passed in by previous
-    /// commands.
-    pub fn get_stored_value_buffer(&self) -> Option<&'static mut [u8]> {
-        self.value.take()
-    }
-
-    /// Get the `buf` buffer that was passed in by previous
-    /// commands.
-    pub fn get_stored_buffer(&self) -> Option<&'static mut [u8]> {
-        self.buf.take()
     }
 
     /// Continue the last operation after the async operation has completed.
@@ -305,24 +315,30 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     ///        An option of the buf buffer used
     /// The buffers will only be returned on a non async error or on success.
     pub fn continue_operation(&self) -> ContinueReturn {
-        let ret = match self.tickv.state.get() {
-            State::Init(_) => self.tickv.initialise(self.key.get().unwrap()),
+        let (ret, length) = match self.tickv.state.get() {
+            State::Init(_) => (self.tickv.initialise(self.key.get().unwrap()), 0),
             State::AppendKey(_) => {
                 let value = self.value.take().unwrap();
-                let ret = self.tickv.append_key(self.key.get().unwrap(), value);
+                let value_length = self.value_length.get();
+                let ret = self
+                    .tickv
+                    .append_key(self.key.get().unwrap(), &value[0..value_length]);
                 self.value.replace(Some(value));
-                ret
+                (ret, 0)
             }
             State::GetKey(_) => {
-                let buf = self.buf.take().unwrap();
+                let buf = self.value.take().unwrap();
                 let ret = self.tickv.get_key(self.key.get().unwrap(), buf);
-                self.buf.replace(Some(buf));
-                ret
+                self.value.replace(Some(buf));
+                match ret {
+                    Ok((s, len)) => (Ok(s), len),
+                    Err(e) => (Err(e), 0),
+                }
             }
-            State::InvalidateKey(_) => self.tickv.invalidate_key(self.key.get().unwrap()),
+            State::InvalidateKey(_) => (self.tickv.invalidate_key(self.key.get().unwrap()), 0),
             State::GarbageCollect(_) => match self.tickv.garbage_collect() {
-                Ok(_) => Ok(SuccessCode::Complete),
-                Err(e) => Err(e),
+                Ok(_) => (Ok(SuccessCode::Complete), 0),
+                Err(e) => (Err(e), 0),
             },
             _ => unreachable!(),
         };
@@ -330,17 +346,17 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         match ret {
             Ok(_) => {
                 self.tickv.state.set(State::None);
-                (ret, self.buf.take())
+                (ret, self.value.take(), length)
             }
             Err(e) => match e {
-                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => (ret, None),
+                ErrorCode::ReadNotReady(_) | ErrorCode::EraseNotReady(_) => (ret, None, 0),
                 ErrorCode::WriteNotReady(_) => {
                     self.tickv.state.set(State::None);
-                    (ret, None)
+                    (ret, None, 0)
                 }
                 _ => {
                     self.tickv.state.set(State::None);
-                    (ret, self.buf.take())
+                    (ret, self.value.take(), 0)
                 }
             },
         }
@@ -557,13 +573,13 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
             static mut VALUE: [u8; 32] = [0x23; 32];
 
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -574,7 +590,7 @@ mod tests {
                 _ => unreachable!(),
             }
 
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -598,7 +614,7 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
@@ -606,7 +622,7 @@ mod tests {
             static mut BUF: [u8; 32] = [0; 32];
 
             println!("Add key ONE");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -635,7 +651,7 @@ mod tests {
             }
 
             println!("Add key ONE again");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -650,7 +666,7 @@ mod tests {
             }
 
             println!("Add key TWO");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -718,7 +734,7 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
@@ -726,7 +742,7 @@ mod tests {
             static mut BUF: [u8; 32] = [0; 32];
 
             println!("Add key ONE");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -774,7 +790,7 @@ mod tests {
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
                 // There is no actual delay in the test, just continue now
-                let (r, _buf) = tickv.continue_operation();
+                let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
             }
 
@@ -792,7 +808,7 @@ mod tests {
             }
 
             println!("Add key ONE");
-            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE) };
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
                 Err((_buf, ErrorCode::ReadNotReady(reg))) => {
                     // There is no actual delay in the test, just continue now
@@ -875,7 +891,7 @@ mod tests {
             println!("Add Key ONE");
             unsafe {
                 tickv
-                    .append_key(get_hashed_key(b"ONE"), &mut VALUE)
+                    .append_key(get_hashed_key(b"ONE"), &mut VALUE, 32)
                     .unwrap();
             }
         }

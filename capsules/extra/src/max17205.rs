@@ -28,10 +28,12 @@
 //! let max17205_i2c_upper = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x0B));
+//! let max17205_buffer = static_init!([u8; capsules::max17205::BUFFER_LENGTH],
+//!                                    [0; capsules::max17205::BUFFER_LENGTH]);
 //! let max17205 = static_init!(
 //!     capsules::max17205::MAX17205<'static>,
 //!     capsules::max17205::MAX17205::new(max17205_i2c_lower, max17205_i2c_upper,
-//!                                       &mut capsules::max17205::BUFFER));
+//!                                       max17205_buffer));
 //! max17205_i2c.set_client(max17205);
 //!
 //! // For userspace.
@@ -53,7 +55,7 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Max17205 as usize;
 
-pub static mut BUFFER: [u8; 8] = [0; 8];
+pub const BUFFER_LENGTH: usize = 8;
 
 // Addresses 0x000 - 0x0FF, 0x180 - 0x1FF can be written as blocks
 // Addresses 0x100 - 0x17F must be written by word
@@ -108,9 +110,9 @@ pub trait MAX17205Client {
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>);
 }
 
-pub struct MAX17205<'a> {
-    i2c_lower: &'a dyn i2c::I2CDevice,
-    i2c_upper: &'a dyn i2c::I2CDevice,
+pub struct MAX17205<'a, I: i2c::I2CDevice> {
+    i2c_lower: &'a I,
+    i2c_upper: &'a I,
     state: Cell<State>,
     soc: Cell<u16>,
     soc_mah: Cell<u16>,
@@ -119,12 +121,8 @@ pub struct MAX17205<'a> {
     client: OptionalCell<&'static dyn MAX17205Client>,
 }
 
-impl<'a> MAX17205<'a> {
-    pub fn new(
-        i2c_lower: &'a dyn i2c::I2CDevice,
-        i2c_upper: &'a dyn i2c::I2CDevice,
-        buffer: &'static mut [u8],
-    ) -> MAX17205<'a> {
+impl<'a, I: i2c::I2CDevice> MAX17205<'a, I> {
+    pub fn new(i2c_lower: &'a I, i2c_upper: &'a I, buffer: &'static mut [u8]) -> MAX17205<'a, I> {
         MAX17205 {
             i2c_lower: i2c_lower,
             i2c_upper: i2c_upper,
@@ -216,7 +214,7 @@ impl<'a> MAX17205<'a> {
     }
 }
 
-impl i2c::I2CClient for MAX17205<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], error: Result<(), i2c::Error>) {
         match self.state.get() {
             State::SetupReadStatus => {
@@ -399,15 +397,15 @@ impl i2c::I2CClient for MAX17205<'_> {
 #[derive(Default)]
 pub struct App {}
 
-pub struct MAX17205Driver<'a> {
-    max17205: &'a MAX17205<'a>,
+pub struct MAX17205Driver<'a, I: i2c::I2CDevice> {
+    max17205: &'a MAX17205<'a, I>,
     owning_process: OptionalCell<ProcessId>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
-impl<'a> MAX17205Driver<'a> {
+impl<'a, I: i2c::I2CDevice> MAX17205Driver<'a, I> {
     pub fn new(
-        max: &'a MAX17205,
+        max: &'a MAX17205<I>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         Self {
@@ -418,10 +416,10 @@ impl<'a> MAX17205Driver<'a> {
     }
 }
 
-impl MAX17205Client for MAX17205Driver<'_> {
+impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
     fn status(&self, status: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -444,7 +442,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
         error: Result<(), ErrorCode>,
     ) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -461,7 +459,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn voltage_current(&self, voltage: u16, current: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -478,7 +476,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn coulomb(&self, coulomb: u16, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -495,7 +493,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
 
     fn romid(&self, rid: u64, error: Result<(), ErrorCode>) {
         self.owning_process.map(|pid| {
-            let _ = self.apps.enter(*pid, |_app, upcalls| {
+            let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
                         0,
@@ -511,7 +509,7 @@ impl MAX17205Client for MAX17205Driver<'_> {
     }
 }
 
-impl SyscallDriver for MAX17205Driver<'_> {
+impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
     // Setup callback.
     //
     // ### `subscribe_num`
@@ -544,7 +542,7 @@ impl SyscallDriver for MAX17205Driver<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

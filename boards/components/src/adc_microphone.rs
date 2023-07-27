@@ -50,7 +50,7 @@ macro_rules! adc_microphone_component_static {
 }
 
 pub struct AdcMicrophoneComponent<
-    A: 'static + adc::Adc,
+    A: 'static + adc::Adc<'static>,
     P: 'static + gpio::Pin,
     const BUF_LEN: usize,
 > {
@@ -59,7 +59,7 @@ pub struct AdcMicrophoneComponent<
     pin: Option<&'static P>,
 }
 
-impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize>
+impl<A: 'static + adc::Adc<'static>, P: 'static + gpio::Pin, const BUF_LEN: usize>
     AdcMicrophoneComponent<A, P, BUF_LEN>
 {
     pub fn new(
@@ -75,7 +75,7 @@ impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize>
     }
 }
 
-impl<A: 'static + adc::Adc, P: 'static + gpio::Pin, const BUF_LEN: usize> Component
+impl<A: 'static + adc::Adc<'static>, P: 'static + gpio::Pin, const BUF_LEN: usize> Component
     for AdcMicrophoneComponent<A, P, BUF_LEN>
 {
     type StaticInput = (

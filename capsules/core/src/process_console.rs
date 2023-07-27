@@ -13,7 +13,7 @@ use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::ProcessId;
 
@@ -43,13 +43,31 @@ pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 /// List of valid commands for printing help. Consolidated as these are
 /// displayed in a few different cases.
 const VALID_COMMANDS_STR: &[u8] =
-    b"help status list stop start fault boot terminate process kernel reset panic\r\n";
+    b"help status list stop start fault boot terminate process kernel reset panic console-start console-stop\r\n";
 
 /// Escape character for ANSI escape sequences.
 const ESC: u8 = '\x1B' as u8;
 
 /// End of line character.
-const EOL: u8 = '\0' as u8;
+const EOL: u8 = '\x00' as u8;
+
+/// Backspace ANSI character
+const BS: u8 = '\x08' as u8;
+
+/// Delete ANSI character
+const DEL: u8 = '\x7F' as u8;
+
+/// Space ANSI character
+const SPACE: u8 = '\x20' as u8;
+
+/// Carriage return ANSI character
+const CR: u8 = '\x0D' as u8;
+
+/// Newline ANSI character
+const NLINE: u8 = '\x0A' as u8;
+
+/// Upper limit for ASCII characters
+const ASCII_LIMIT: u8 = 128;
 
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
@@ -79,6 +97,96 @@ impl Default for WriterState {
     }
 }
 
+/// Key that can be part from an escape sequence.
+#[derive(Copy, Clone)]
+enum EscKey {
+    Up,
+    Down,
+    Left,
+    Right,
+    Home,
+    End,
+    Delete,
+}
+
+/// Escape state machine to check if
+/// an escape sequence has occured
+#[derive(Copy, Clone)]
+enum EscState {
+    /// This state is reached when the character is a normal
+    /// ANSI character, and the escape sequence is bypassed.
+    Bypass,
+
+    /// This state is reached when an escape sequence
+    /// is completed, and the corresponding EscKey is processed.
+    Complete(EscKey),
+
+    /// This state is reached when an escape sequence has
+    /// just started and is waiting for the next
+    /// character to complete the sequence.
+    Started,
+
+    /// This state is reached when the escape sequence
+    /// starts with a bracket character '[' and is waiting
+    /// for the next character to determine the corresponding EscKey.
+    Bracket,
+    Bracket3,
+
+    /// This state is reached when the current character does not match
+    /// any of the expected characters in the escape sequence.
+    /// Once entered in this state, the escape sequence cannot be processed
+    /// and is waiting for an ascii alphabetic character to complete
+    /// the unrecognized sequence.
+    Unrecognized,
+
+    /// This state is reached when the escape sequence has ended with
+    /// an unrecognized character. This state waits for an ascii
+    /// alphabetic character to terminate the unrecognized sequence.
+    UnrecognizedDone,
+}
+
+impl EscState {
+    fn next_state(self, data: u8) -> Self {
+        use self::{EscKey::*, EscState::*};
+        match (self, data) {
+            (Bypass, ESC) | (UnrecognizedDone, ESC) | (Complete(_), ESC) => Started,
+            (Bypass, _) | (UnrecognizedDone, _) | (Complete(_), _) => Bypass,
+            (Started, b'[') => Bracket,
+            (Bracket, b'A') => Complete(Up),
+            (Bracket, b'B') => Complete(Down),
+            (Bracket, b'D') => Complete(Left),
+            (Bracket, b'C') => Complete(Right),
+            (Bracket, b'H') => Complete(Home),
+            (Bracket, b'F') => Complete(End),
+            (Bracket, b'3') => Bracket3,
+            (Bracket3, b'~') => Complete(Delete),
+            _ => {
+                if EscState::terminator_esc_char(data) {
+                    UnrecognizedDone
+                } else {
+                    Unrecognized
+                }
+            }
+        }
+    }
+
+    /// Checks if the escape state machine is in the middle
+    /// of an escape sequence
+    fn in_progress(&self) -> bool {
+        matches!(self, EscState::Bracket) || matches!(self, EscState::Bracket3)
+    }
+
+    /// Checks if the escape state machine is at the start
+    /// of processing an escape sequence
+    fn has_started(&self) -> bool {
+        matches!(self, EscState::Started)
+    }
+
+    fn terminator_esc_char(data: u8) -> bool {
+        data.is_ascii_alphabetic() || data == b'~'
+    }
+}
+
 /// Data structure to hold addresses about how the kernel is stored in memory on
 /// the chip.
 ///
@@ -96,6 +204,20 @@ pub struct KernelAddresses {
     pub bss_end: *const u8,
 }
 
+/// Track the operational state of the process console.
+#[derive(Clone, Copy, PartialEq)]
+enum ProcessConsoleState {
+    /// The console has not been started and is not listening for UART commands.
+    Off,
+    /// The console has been started and is running normally.
+    Active,
+    /// The console has been started (i.e. it has called receive), but it is not
+    /// actively listening to commands or showing the prompt. This mode enables
+    /// the console to be installed on a board but to not interfere with a
+    /// console-based app.
+    Hibernating,
+}
+
 pub struct ProcessConsole<
     'a,
     const COMMAND_HISTORY_LEN: usize,
@@ -110,28 +232,26 @@ pub struct ProcessConsole<
     queue_buffer: TakeCell<'static, [u8]>,
     queue_size: Cell<usize>,
     writer_state: Cell<WriterState>,
-    rx_in_progress: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     command_buffer: TakeCell<'static, [u8]>,
     command_index: Cell<usize>,
 
+    /// Operational mode the console is in. This includes if it is actively
+    /// responding to commands.
+    mode: Cell<ProcessConsoleState>,
+
+    /// Escape state machine in order to process an escape sequence
+    esc_state: Cell<EscState>,
+
     /// Keep a history of inserted commands
-    command_history: TakeCell<'static, [Command; COMMAND_HISTORY_LEN]>,
+    command_history: MapCell<CommandHistory<'static, COMMAND_HISTORY_LEN>>,
 
-    control_seq_in_progress: Cell<bool>,
-    modified_in_history: Cell<bool>,
-    modified_byte: Cell<u8>,
-
-    /// Index of the last copied command in the history
-    command_history_index: OptionalCell<usize>,
+    /// Cursor index in the current typing command
+    cursor: Cell<usize>,
 
     /// Keep the previously read byte to consider \r\n sequences
     /// as a single \n.
     previous_byte: Cell<u8>,
-
-    /// Flag to mark that the process console is active and has called receive
-    /// from the underlying UART.
-    running: Cell<bool>,
 
     /// Internal flag that the process console should parse the command it just
     /// received after finishing echoing the last newline character.
@@ -170,14 +290,22 @@ impl Command {
         (&mut self.buf).copy_from_slice(buf);
     }
 
-    fn insert_byte(&mut self, byte: u8) {
-        if let Some(buf_byte) = self.buf.get_mut(self.len) {
+    fn insert_byte(&mut self, byte: u8, pos: usize) {
+        for i in (pos..self.len).rev() {
+            self.buf[i + 1] = self.buf[i];
+        }
+
+        if let Some(buf_byte) = self.buf.get_mut(pos) {
             *buf_byte = byte;
             self.len = self.len + 1;
         }
     }
 
-    fn delete_last_byte(&mut self) {
+    fn delete_byte(&mut self, pos: usize) {
+        for i in pos..self.len {
+            self.buf[i] = self.buf[i + 1];
+        }
+
         if let Some(buf_byte) = self.buf.get_mut(self.len - 1) {
             *buf_byte = EOL;
             self.len = self.len - 1;
@@ -209,6 +337,82 @@ impl PartialEq<[u8; COMMAND_BUF_LEN]> for Command {
     }
 }
 
+struct CommandHistory<'a, const COMMAND_HISTORY_LEN: usize> {
+    cmds: &'a mut [Command; COMMAND_HISTORY_LEN],
+    cmd_idx: usize,
+    cmd_is_modified: bool,
+    modified_byte: u8,
+}
+
+impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LEN> {
+    fn new(cmds_buffer: &'a mut [Command; COMMAND_HISTORY_LEN]) -> Self {
+        Self {
+            cmds: cmds_buffer,
+            cmd_idx: 0,
+            cmd_is_modified: false,
+            modified_byte: EOL,
+        }
+    }
+
+    /// Creates an empty space in the history for the next command
+    fn make_space(&mut self, cmd: &[u8]) {
+        let mut cmd_arr = [0; COMMAND_BUF_LEN];
+        cmd_arr.copy_from_slice(cmd);
+
+        if self.cmds[1] != cmd_arr {
+            self.cmds.rotate_right(1);
+            self.cmds[0].clear();
+            self.cmds[1].write(&cmd_arr);
+        }
+    }
+
+    /// Checks if the command line was modified
+    /// before pressing Up or Down keys
+    /// and saves the current modified command
+    /// into the history
+    fn change_cmd_from(&mut self, cmd: &[u8]) {
+        match self.modified_byte {
+            BS | DEL => {
+                self.cmds[0].clear();
+                self.write_to_first(cmd);
+            }
+            _ => {
+                self.modified_byte = EOL;
+            }
+        }
+    }
+
+    fn write_to_first(&mut self, cmd: &[u8]) {
+        let mut cmd_arr = [0; COMMAND_BUF_LEN];
+        cmd_arr.copy_from_slice(cmd);
+        self.cmds[0].write(&cmd_arr);
+    }
+
+    // Set the next index in the command history
+    fn next_cmd_idx(&mut self) -> Option<usize> {
+        if self.cmd_idx + 1 >= COMMAND_HISTORY_LEN {
+            None
+        } else if self.cmds[self.cmd_idx + 1].len == 0 {
+            None
+        } else {
+            self.cmd_idx += 1;
+
+            Some(self.cmd_idx)
+        }
+    }
+
+    // Set the previous index in the command history
+    fn prev_cmd_idx(&mut self) -> Option<usize> {
+        if self.cmd_idx > 0 {
+            self.cmd_idx -= 1;
+
+            Some(self.cmd_idx)
+        } else {
+            None
+        }
+    }
+}
+
 pub struct ConsoleWriter {
     buf: [u8; 500],
     size: usize,
@@ -216,7 +420,7 @@ pub struct ConsoleWriter {
 impl ConsoleWriter {
     pub fn new() -> ConsoleWriter {
         ConsoleWriter {
-            buf: [0; 500],
+            buf: [EOL; 500],
             size: 0,
         }
     }
@@ -270,20 +474,14 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             queue_buffer: TakeCell::new(queue_buffer),
             queue_size: Cell::new(0),
             writer_state: Cell::new(WriterState::Empty),
-            rx_in_progress: Cell::new(false),
             rx_buffer: TakeCell::new(rx_buffer),
             command_buffer: TakeCell::new(cmd_buffer),
             command_index: Cell::new(0),
-
-            control_seq_in_progress: Cell::new(false),
-            modified_byte: Cell::new(EOL),
-            modified_in_history: Cell::new(false),
-            command_history: TakeCell::new(cmd_history_buffer),
-            command_history_index: OptionalCell::empty(),
-
-            previous_byte: Cell::new(0),
-
-            running: Cell::new(false),
+            mode: Cell::new(ProcessConsoleState::Off),
+            esc_state: Cell::new(EscState::Bypass),
+            command_history: MapCell::new(CommandHistory::new(cmd_history_buffer)),
+            cursor: Cell::new(0),
+            previous_byte: Cell::new(EOL),
             execute: Cell::new(false),
             kernel: kernel,
             kernel_addresses: kernel_addresses,
@@ -294,10 +492,23 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
     /// Start the process console listening for user commands.
     pub fn start(&self) -> Result<(), ErrorCode> {
-        if self.running.get() == false {
+        if self.mode.get() == ProcessConsoleState::Off {
             self.alarm
                 .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
-            self.running.set(true);
+            self.mode.set(ProcessConsoleState::Active);
+        }
+        Ok(())
+    }
+
+    /// Start the process console listening but in a hibernated state.
+    ///
+    /// The process console will not respond to commands, but can be activated
+    /// with the `console-start` command.
+    pub fn start_hibernated(&self) -> Result<(), ErrorCode> {
+        if self.mode.get() == ProcessConsoleState::Off {
+            self.alarm
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(100));
+            self.mode.set(ProcessConsoleState::Hibernating)
         }
         Ok(())
     }
@@ -306,11 +517,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     /// message.
     pub fn display_welcome(&self) {
         // Start if not already started.
-        if self.running.get() == false {
+        if self.mode.get() == ProcessConsoleState::Off {
             self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(true);
                 let _ = self.uart.receive_buffer(buffer, 1);
-                self.running.set(true);
+                self.mode.set(ProcessConsoleState::Active);
             });
         }
 
@@ -506,14 +716,32 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                             let pname = process.get_process_name();
                             let process_id = process.processid();
+                            let short_id = process.short_app_id();
+
                             let (grants_used, grants_total) =
                                 info.number_app_grant_uses(process_id, &self.capability);
                             let mut console_writer = ConsoleWriter::new();
+
+                            // Display process id.
+                            let _ = write(&mut console_writer, format_args!(" {:<7?}", process_id));
+                            // Display short id.
+                            match short_id {
+                                kernel::process::ShortID::LocallyUnique => {
+                                    let _ = write(
+                                        &mut console_writer,
+                                        format_args!("{}", "Unique     ",),
+                                    );
+                                }
+                                kernel::process::ShortID::Fixed(id) => {
+                                    let _ =
+                                        write(&mut console_writer, format_args!("0x{:<8x} ", id));
+                                }
+                            }
+                            // Display everything else.
                             let _ = write(
                                 &mut console_writer,
                                 format_args!(
-                                    " {:<7?}{:<20}{:6}{:10}{:10}  {:2}/{:2}   {:?}\r\n",
-                                    process_id,
+                                    "{:<20}{:6}{:10}{:10}  {:2}/{:2}   {:?}\r\n",
                                     pname,
                                     process.debug_timeslice_expiration_count(),
                                     process.debug_syscall_count(),
@@ -561,22 +789,26 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         // and check if the command is not full of whitespaces
                         if COMMAND_HISTORY_LEN > 1 {
                             if clean_str.len() > 0 {
-                                self.command_history.map(|cmd_arr| {
-                                    let mut command_array = [0; COMMAND_BUF_LEN];
-                                    command_array.copy_from_slice(command);
-
-                                    if cmd_arr[1] != command_array {
-                                        cmd_arr.rotate_right(1);
-                                        cmd_arr[1].write(&command_array);
-                                    }
+                                self.command_history.map(|ht| {
+                                    ht.make_space(&command);
                                 });
                             }
                         }
 
-                        if clean_str.starts_with("help") {
+                        if clean_str.starts_with("console-start") {
+                            self.mode.set(ProcessConsoleState::Active);
+                        } else if self.mode.get() == ProcessConsoleState::Hibernating {
+                            // Ignore all commands in hibernating mode. We put
+                            // this case early so we ensure we get stuck here
+                            // even if the user typed a valid command.
+                        } else if clean_str.starts_with("help") {
                             let _ = self.write_bytes(b"Welcome to the process console.\r\n");
                             let _ = self.write_bytes(b"Valid commands are: ");
                             let _ = self.write_bytes(VALID_COMMANDS_STR);
+                        } else if clean_str.starts_with("console-stop") {
+                            let _ = self.write_bytes(b"Disabling the process console.\r\n");
+                            let _ = self.write_bytes(b"Run console-start to reactivate.\r\n");
+                            self.mode.set(ProcessConsoleState::Hibernating);
                         } else if clean_str.starts_with("start") {
                             let argument = clean_str.split_whitespace().nth(1);
                             argument.map(|name| {
@@ -674,7 +906,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     });
                             });
                         } else if clean_str.starts_with("list") {
-                            let _ = self.write_bytes(b" PID    Name                Quanta  ");
+                            let _ = self
+                                .write_bytes(b" PID    ShortID    Name                Quanta  ");
                             let _ = self.write_bytes(b"Syscalls  Restarts  Grants  State\r\n");
 
                             // Count the number of current processes.
@@ -811,7 +1044,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 
     fn prompt(&self) {
-        let _ = self.write_bytes(b"tock$ ");
+        // Only display the prompt in active mode.
+        match self.mode.get() {
+            ProcessConsoleState::Active => {
+                let _ = self.write_bytes(b"tock$ ");
+            }
+            _ => {}
+        }
     }
 
     /// Start or iterate the state machine for an asynchronous write operation
@@ -911,7 +1150,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     fn alarm(&self) {
         self.prompt();
         self.rx_buffer.take().map(|buffer| {
-            self.rx_in_progress.set(true);
             let _ = self.uart.receive_buffer(buffer, 1);
         });
     }
@@ -968,190 +1206,195 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
+                        let esc_state = self.esc_state.get().next_state(read_buf[0]);
+                        self.esc_state.set(esc_state);
+
                         let previous_byte = self.previous_byte.get();
                         self.previous_byte.set(read_buf[0]);
                         let index = self.command_index.get() as usize;
-                        if read_buf[0] == ('\n' as u8) || read_buf[0] == ('\r' as u8) {
-                            if (previous_byte == ('\n' as u8) || previous_byte == ('\r' as u8))
+
+                        let cursor = self.cursor.get() as usize;
+
+                        if let EscState::Complete(key) = esc_state {
+                            match key {
+                                EscKey::Up | EscKey::Down if COMMAND_HISTORY_LEN >= 1 => {
+                                    self.command_history.map(|ht| {
+                                        if let Some(next_index) = if matches!(key, EscKey::Up) {
+                                            ht.next_cmd_idx()
+                                        } else {
+                                            ht.prev_cmd_idx()
+                                        } {
+                                            ht.change_cmd_from(&command);
+
+                                            let next_command_len = ht.cmds[next_index].len;
+
+                                            for _ in cursor..index {
+                                                let _ = self.write_byte(SPACE);
+                                            }
+
+                                            // Clear the displayed command
+                                            for _ in 0..index {
+                                                let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                            }
+
+                                            // Display the new command
+                                            for i in 0..next_command_len {
+                                                let byte = ht.cmds[next_index].buf[i];
+                                                let _ = self.write_byte(byte);
+                                                command[i] = byte;
+                                            }
+
+                                            ht.cmd_is_modified = true;
+                                            self.command_index.set(next_command_len);
+                                            self.cursor.set(next_command_len);
+                                            command[next_command_len] = EOL;
+                                        };
+                                    });
+                                }
+                                EscKey::Left if cursor > 0 => {
+                                    let _ = self.write_byte(BS);
+                                    self.cursor.set(cursor - 1);
+                                }
+                                EscKey::Right if cursor < index => {
+                                    let _ = self.write_byte(command[cursor]);
+                                    self.cursor.set(cursor + 1);
+                                }
+                                EscKey::Home if cursor > 0 => {
+                                    for _ in 0..cursor {
+                                        let _ = self.write_byte(BS);
+                                    }
+
+                                    self.cursor.set(0);
+                                }
+                                EscKey::End if cursor < index => {
+                                    for i in cursor..index {
+                                        let _ = self.write_byte(command[i]);
+                                    }
+
+                                    self.cursor.set(index);
+                                }
+                                EscKey::Delete if cursor < index => {
+                                    // Move the bytes one position to left
+                                    for i in cursor..index {
+                                        command[i] = command[i + 1];
+                                        let _ = self.write_byte(command[i]);
+                                    }
+
+                                    // Remove the EOL character at the end of the command
+                                    let _ = self.write_bytes(&[BS, SPACE, BS]);
+
+                                    // Move the cursor to last position
+                                    for _ in cursor..(index - 1) {
+                                        let _ = self.write_byte(BS);
+                                    }
+
+                                    self.command_index.set(index - 1);
+
+                                    // Remove the byte from the command in order
+                                    // not to permit accumulation of the text
+                                    if COMMAND_HISTORY_LEN > 1 {
+                                        self.command_history.map(|ht| {
+                                            ht.cmds[0].delete_byte(cursor - 1);
+                                        });
+                                    }
+                                }
+                                _ => {}
+                            };
+                        } else if read_buf[0] == NLINE || read_buf[0] == CR {
+                            if (previous_byte == NLINE || previous_byte == CR)
                                 && previous_byte != read_buf[0]
                             {
                                 // Reset the sequence, when \r\n is received
-                                self.previous_byte.set(0);
+                                self.previous_byte.set(EOL);
+                            } else {
+                                self.cursor.set(0);
+                                self.execute.set(true);
+
+                                let _ = self.write_bytes(&[CR, NLINE]);
 
                                 if COMMAND_HISTORY_LEN > 1 {
-                                    self.command_history_index.insert(None);
-                                    self.modified_in_history.set(false);
-
-                                    // Clear the unfinished command if the \r\n is received
-                                    self.command_history.map(|cmd_arr| {
-                                        cmd_arr[0].clear();
+                                    // Clear the unfinished command
+                                    self.command_history.map(|ht| {
+                                        ht.cmd_idx = 0;
+                                        ht.cmd_is_modified = false;
+                                        ht.cmds[0].clear();
                                     });
                                 }
-                            } else {
-                                self.execute.set(true);
-                                let _ = self.write_bytes(&['\r' as u8, '\n' as u8]);
                             }
-                        } else if read_buf[0] == ('\x08' as u8) || read_buf[0] == ('\x7F' as u8) {
-                            if index > 0 {
-                                // Backspace, echo and remove last byte
+                        } else if read_buf[0] == BS || read_buf[0] == DEL {
+                            if cursor > 0 {
+                                // Backspace, echo and remove the byte
+                                // preceding the cursor
                                 // Note echo is '\b \b' to erase
-                                let _ = self.write_bytes(&['\x08' as u8, ' ' as u8, '\x08' as u8]);
-                                command[index - 1] = EOL;
-                                self.command_index.set(index - 1);
+                                let _ = self.write_bytes(&[BS, SPACE, BS]);
 
-                                // Remove last byte from the command in order
+                                // Move the bytes one position to left
+                                for i in (cursor - 1)..index {
+                                    command[i] = command[i + 1];
+                                    let _ = self.write_byte(command[i]);
+                                }
+
+                                // Remove the EOL character at the end of the command
+                                let _ = self.write_bytes(&[BS, SPACE, BS]);
+
+                                // Move the cursor to last position
+                                for _ in cursor..index {
+                                    let _ = self.write_byte(BS);
+                                }
+
+                                self.command_index.set(index - 1);
+                                self.cursor.set(cursor - 1);
+
+                                // Remove the byte from the command in order
                                 // not to permit accumulation of the text
                                 if COMMAND_HISTORY_LEN > 1 {
-                                    self.command_history.map(|cmd_arr| {
-                                        (&mut cmd_arr[0]).delete_last_byte();
+                                    self.command_history.map(|ht| {
+                                        ht.cmds[0].delete_byte(cursor - 1);
                                     });
                                 }
                             }
-                        } else if (COMMAND_HISTORY_LEN > 1)
-                            && (read_buf[0] == ESC || self.control_seq_in_progress.get())
+                        } else if (COMMAND_HISTORY_LEN > 1) && (esc_state.has_started()) {
+                            self.command_history
+                                .map(|ht| ht.modified_byte = previous_byte);
+                        } else if index < (command.len() - 1)
+                            && read_buf[0] < ASCII_LIMIT
+                            && !esc_state.in_progress()
                         {
-                            // Catch the Up and Down arrow keys
-                            if read_buf[0] == ESC {
-                                // Signal that a control sequence has started and capture it
-                                self.control_seq_in_progress.set(true);
-                                self.modified_byte.set(previous_byte);
-                            } else if read_buf[0] != ('[' as u8) {
-                                // Fetch the index of the last command added to the history
-                                if let Some(index) = match read_buf[0] {
-                                    // Up arrow case
-                                    b'A' => {
-                                        let i = match self.command_history_index.extract() {
-                                            Some(i) => i + 1,
-                                            None => 1,
-                                        };
-                                        if i >= COMMAND_HISTORY_LEN {
-                                            None
-                                        } else {
-                                            // Check if any command can be displayed
-                                            self.command_history
-                                                .map(|cmd_arr| match cmd_arr[i].len == 0 {
-                                                    true => None,
-                                                    false => {
-                                                        // Remove last whitespace byte from the command
-                                                        // or register a new unfinshed command
-                                                        // upon pressing backspace
-                                                        match self.modified_byte.get() {
-                                                            b' ' => {
-                                                                (&mut cmd_arr[0])
-                                                                    .delete_last_byte();
-                                                            }
-                                                            b'\x08' | b'\x7F' => {
-                                                                cmd_arr[0].clear();
-
-                                                                let mut command_array =
-                                                                    [0; COMMAND_BUF_LEN];
-                                                                command_array
-                                                                    .copy_from_slice(command);
-                                                                cmd_arr[0].write(&command_array);
-                                                            }
-                                                            _ => {
-                                                                self.modified_byte.set(EOL);
-                                                            }
-                                                        };
-                                                        Some(i)
-                                                    }
-                                                })
-                                                .unwrap()
-                                        }
-                                    }
-                                    // Down arrow case
-                                    b'B' => match self.command_history_index.extract() {
-                                        Some(i) => match i > 0 {
-                                            true => {
-                                                // Remove last whitespace byte from the command
-                                                // or register a new unfinshed command
-                                                // upon pressing backspace
-                                                self.command_history.map(|cmd_arr| {
-                                                    match self.modified_byte.get() {
-                                                        b' ' => {
-                                                            (&mut cmd_arr[0]).delete_last_byte();
-                                                        }
-                                                        b'\x08' | b'\x7F' => {
-                                                            cmd_arr[0].clear();
-
-                                                            let mut command_array =
-                                                                [0; COMMAND_BUF_LEN];
-                                                            command_array.copy_from_slice(command);
-                                                            cmd_arr[0].write(&command_array);
-                                                        }
-                                                        _ => {
-                                                            self.modified_byte.set(EOL);
-                                                        }
-                                                    };
-                                                });
-
-                                                Some(i - 1)
-                                            }
-                                            false => None,
-                                        },
-                                        None => None,
-                                    },
-                                    _ => None,
-                                } {
-                                    self.command_history_index.set(index);
-                                    self.command_history.map(|cmd_arr| {
-                                        let next_command = cmd_arr[index];
-                                        let prev_command_len = self.command_index.get();
-                                        let next_command_len = next_command.len;
-
-                                        // Clear the displayed command
-                                        for _ in 0..prev_command_len {
-                                            let _ = self.write_bytes(&[
-                                                '\x08' as u8,
-                                                ' ' as u8,
-                                                '\x08' as u8,
-                                            ]);
-                                        }
-
-                                        // Display the new command
-                                        for i in 0..next_command_len {
-                                            let byte = next_command.buf[i];
-                                            let _ = self.write_byte(byte);
-                                            command[i] = byte;
-                                        }
-
-                                        self.modified_in_history.set(true);
-                                        self.command_index.set(next_command_len);
-                                        command[next_command_len] = EOL;
-                                    });
-                                };
-                                self.control_seq_in_progress.set(false);
-                            }
-                        } else if index < (command.len() - 1) && read_buf[0] < 128 {
                             // For some reason, sometimes reads return > 127 but no error,
                             // which causes utf-8 decoding failure, so check byte is < 128. -pal
 
-                            // Echo the byte and store it
+                            // Echo the typed byte
                             let _ = self.write_byte(read_buf[0]);
-                            command[index] = read_buf[0];
+
+                            // Echo the rest of the bytes from the command
+                            for i in cursor..index {
+                                let _ = self.write_byte(command[i]);
+                            }
+
+                            // Make space for the newest byte
+                            for i in (cursor..(index + 1)).rev() {
+                                command[i + 1] = command[i];
+                            }
+
+                            // Move the cursor to the last position
+                            for _ in cursor..index {
+                                let _ = self.write_byte(BS);
+                            }
+
+                            command[cursor] = read_buf[0];
+                            self.cursor.set(cursor + 1);
                             self.command_index.set(index + 1);
-                            command[index + 1] = 0;
 
                             if COMMAND_HISTORY_LEN > 1 {
-                                self.command_history.map(|cmd_arr| {
-                                    if self.modified_in_history.get() {
+                                self.command_history.map(|ht| {
+                                    if ht.cmd_is_modified {
                                         // Copy the last command into the unfinished command
 
-                                        cmd_arr[0].clear();
-
-                                        let mut command_array = [0; COMMAND_BUF_LEN];
-                                        command_array.copy_from_slice(command);
-                                        cmd_arr[0].write(&command_array);
-
-                                        self.modified_in_history.set(false);
+                                        ht.cmds[0].clear();
+                                        ht.write_to_first(&command);
+                                        ht.cmd_is_modified = false;
                                     } else {
-                                        // Do not save unnecessary white spaces
-                                        // between commands
-                                        if read_buf[0] != (' ' as u8)
-                                            || previous_byte != (' ' as u8)
-                                        {
-                                            (&mut cmd_arr[0]).insert_byte(read_buf[0]);
-                                        }
+                                        ht.cmds[0].insert_byte(read_buf[0], cursor);
                                     }
                                 });
                             }
@@ -1164,7 +1407,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 ),
             };
         }
-        self.rx_in_progress.set(true);
         let _ = self.uart.receive_buffer(read_buf, 1);
     }
 }

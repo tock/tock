@@ -18,7 +18,7 @@ enum State {
 }
 
 pub struct AdcMicrophone<'a, P: gpio::Pin> {
-    adc: &'a dyn adc::AdcChannel,
+    adc: &'a dyn adc::AdcChannel<'a>,
     enable_pin: Option<&'a P>,
     spl_client: OptionalCell<&'a dyn SoundPressureClient>,
     spl_buffer: TakeCell<'a, [u16]>,
@@ -28,7 +28,7 @@ pub struct AdcMicrophone<'a, P: gpio::Pin> {
 
 impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
     pub fn new(
-        adc: &'a dyn adc::AdcChannel,
+        adc: &'a dyn adc::AdcChannel<'a>,
         enable_pin: Option<&'a P>,
         spl_buffer: &'a mut [u16],
     ) -> AdcMicrophone<'a, P> {

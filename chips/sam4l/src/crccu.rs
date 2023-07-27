@@ -57,7 +57,7 @@ use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::crc::{Client, Crc, CrcAlgorithm, CrcOutput};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, FieldValue, InMemoryRegister, ReadOnly, ReadWrite, WriteOnly,
@@ -334,7 +334,7 @@ impl Crccu<'_> {
                 // Disable the unit
                 self.registers.mr.write(Mode::ENABLE::Disabled);
 
-                // Recover the window into the LeasableMutableBuffer
+                // Recover the window into the SubSliceMut
                 let window_addr = self.descriptor.addr.get();
                 let window_len = TCR(self.descriptor.ctrl.get()).get_btsize() as usize;
 
@@ -352,7 +352,7 @@ impl Crccu<'_> {
                 // Reconstruct the leasable buffer from stored
                 // information and slice into the proper window
                 let (full_buffer_addr, full_buffer_len) = self.current_full_buffer.get();
-                let mut data = LeasableMutableBuffer::<'static, u8>::new(unsafe {
+                let mut data = SubSliceMut::<'static, u8>::new(unsafe {
                     core::slice::from_raw_parts_mut(full_buffer_addr, full_buffer_len)
                 });
 
@@ -435,9 +435,9 @@ impl<'a> Crc<'a> for Crccu<'a> {
 
     fn input(
         &self,
-        mut data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)> {
-        let algorithm = if let Some(algorithm) = self.algorithm.extract() {
+        mut data: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
+        let algorithm = if let Some(algorithm) = self.algorithm.get() {
             algorithm
         } else {
             return Err((ErrorCode::RESERVE, data));
@@ -484,13 +484,13 @@ impl<'a> Crc<'a> for Crccu<'a> {
         // Configure the data transfer descriptor
         //
         // The data length is guaranteed to be <= u16::MAX by the
-        // above LeasableMutableBuffer resizing mechanism
+        // above SubSliceMut resizing mechanism
         self.descriptor.addr.set(data.as_ptr() as u32);
         self.descriptor.ctrl.set(ctrl.0);
         self.descriptor.crc.set(0); // this is the CRC compare field, not used
 
         // Prior to starting the DMA operation, drop the
-        // LeasableBuffer slice. Otherwise we violate Rust's mutable
+        // SubSlice slice. Otherwise we violate Rust's mutable
         // aliasing rules.
         let full_slice = data.take();
         let full_slice_ptr_len = (full_slice.as_mut_ptr(), full_slice.len());

@@ -109,16 +109,6 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 struct Imix {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -138,7 +128,7 @@ struct Imix {
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
@@ -152,7 +142,7 @@ struct Imix {
     >,
     spi: &'static capsules_core::spi_controller::Spi<
         'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
@@ -416,7 +406,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast
@@ -447,12 +437,16 @@ pub unsafe fn main() {
     .finalize(components::nrf51822_component_static!());
 
     // # I2C and I2C Sensors
-    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&peripherals.i2c2, None));
+    let mux_i2c = static_init!(
+        MuxI2C<'static, sam4l::i2c::I2CHw<'static>>,
+        MuxI2C::new(&peripherals.i2c2, None)
+    );
     kernel::deferred_call::DeferredCallClient::register(mux_i2c);
     peripherals.i2c2.set_master_client(mux_i2c);
 
-    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm)
-        .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
+    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm).finalize(
+        components::isl29035_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw<'static>),
+    );
     let ambient_light = AmbientLightComponent::new(
         board_kernel,
         capsules_extra::ambient_light::DRIVER_NUM,
@@ -460,8 +454,9 @@ pub unsafe fn main() {
     )
     .finalize(components::ambient_light_component_static!());
 
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
-        .finalize(components::si7021_component_static!(sam4l::ast::Ast));
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40).finalize(
+        components::si7021_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw<'static>),
+    );
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -476,7 +471,9 @@ pub unsafe fn main() {
     .finalize(components::humidity_component_static!());
 
     let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
-        .finalize(components::fxos8700_component_static!());
+        .finalize(components::fxos8700_component_static!(
+            sam4l::i2c::I2CHw<'static>
+        ));
 
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
@@ -485,8 +482,9 @@ pub unsafe fn main() {
     .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
-        .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi).finalize(
+        components::spi_mux_component_static!(sam4l::spi::SpiHw<'static>),
+    );
 
     let spi_syscalls = SpiSyscallComponent::new(
         board_kernel,
@@ -494,9 +492,12 @@ pub unsafe fn main() {
         2,
         capsules_core::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
-    let rf233_spi = SpiComponent::new(mux_spi, 3)
-        .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
+    .finalize(components::spi_syscall_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
+    let rf233_spi = SpiComponent::new(mux_spi, 3).finalize(components::spi_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
     let rf233 = components::rf233::RF233Component::new(
         rf233_spi,
         &peripherals.pa[09], // reset
@@ -505,7 +506,9 @@ pub unsafe fn main() {
         &peripherals.pa[08],
         RADIO_CHANNEL,
     )
-    .finalize(components::rf233_component_static!(sam4l::spi::SpiHw));
+    .finalize(components::rf233_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -634,7 +637,10 @@ pub unsafe fn main() {
         serial_num_bottom_16,
     )
     .finalize(components::ieee802154_component_static!(
-        capsules_extra::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+        capsules_extra::rf233::RF233<
+            'static,
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
+        >,
         sam4l::aes::Aes<'static>
     ));
 

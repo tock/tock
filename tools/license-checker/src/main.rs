@@ -8,7 +8,8 @@
 //! # Description
 //! This tool recursively traverses through the current working directory,
 //! verifying that every source code file inside has a Tock project license
-//! header.
+//! header. See `/doc/reference/trd-legal.md` for a description of the Tock
+//! license header format.
 //!
 //! # Ignore files
 //! This tool respects gitignore files with the following names (ordered from
@@ -16,7 +17,78 @@
 //! 1. .lcignore
 //! 2. .ignore
 //! 3. .gitignore
+//!
+//! This ignore file handling is modelled after the `ripgrep` tool. Unlike
+//! `ripgrep`, however, the license checker looks at hidden files by default.
+//!
+//! # Comment styles supported
+//! This tool supports various types of line comments:
+//! ```text
+//! # Hash-style comments
+//! // C++-style line comments
+//! /* Block comments. */
+//! ```
+//! Plain-text files can have license headers without comment punctuation:
+//! ```text
+//! Licensed under the Apache License, Version 2.0 or the MIT License.
+//! SPDX-License-Identifier: Apache-2.0 OR MIT
+//! Copyright Tock Contributors 2023.
+//!
+//! This is an example plain-text file.
+//! ```
+//! Note however that the license checker does not support the following comment
+//! styles:
+//! ```
+//! /// Doc comments
+//! /** of any type **/
+//! /* Block comments with leading asterisks on each line. This style is
+//!  * difficult to support in a filetype-agnostic way.
+//!  */
+//! ```
+//! A license header can be followed by an empty comment line, but not preceded
+//! by one. In other words, the following is acceptable:
+//! ```
+//! // Licensed under the Apache License, Version 2.0 or the MIT License.
+//! // SPDX-License-Identifier: Apache-2.0 OR MIT
+//! // Copyright Tock Contributors 2023.
+//! //
+//! // The foobar crate does ...
+//! ```
+//! and the following is not accepted:
+//! ```
+//! // The foobar crate does ...
+//! //
+//! // Licensed under the Apache License, Version 2.0 or the MIT License.
+//! // SPDX-License-Identifier: Apache-2.0 OR MIT
+//! // Copyright Tock Contributors 2023.
+//! ```
+//! This does prevent the following comment style from working:
+//! ```
+//! /*
+//! Licensed under the Apache License, Version 2.0 or the MIT License.
+//! SPDX-License-Identifier: Apache-2.0 OR MIT
+//! Copyright Tock Contributors 2023.
+//! */
+//! ```
+//! because it is preceded by an empty comment, not a blank line. Instead, in
+//! languages that lack a line comment syntax, use the following style:
+//! ```
+//! /* Licensed under the Apache License, Version 2.0 or the MIT License. */
+//! /* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+//! /* Copyright Tock Contributors 2023.                                  */
+//! ```
+//!
+//! # Design philosophy
+//! This license checker is designed to catch easy-to-make and hard-to-catch
+//! mistakes, such as forgetting to add a license header, or putting the header
+//! lines in an incorrect order. It does not attempt to enforce every detail of
+//! the Tock license header format. It makes a compromise between catching most
+//! common errors and simplicity of implementation.
 
+#![allow(rustdoc::invalid_rust_codeblocks)]
+
+use colored::ColoredString;
+use colored::Colorize;
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -38,30 +110,35 @@ fn is_copyright(comment: &str) -> bool {
 }
 
 #[derive(clap::Parser)]
+/// See the comment at the top of src/main.rs for documentation.
 struct Args {
     /// Enable verbose debugging output
     #[arg(long, short)]
     verbose: bool,
 }
 
+fn error_prefix() -> ColoredString {
+    "error:".bright_red().bold()
+}
+
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum LicenseError {
-    #[error("license header missing")]
+    #[error("{} {}", error_prefix(), "license header missing")]
     Missing,
 
-    #[error("missing blank line after header")]
+    #[error("{} {}", error_prefix(), "missing blank line after header")]
     MissingBlank,
 
-    #[error("missing copyright line")]
+    #[error("{} {}", error_prefix(), "missing copyright line")]
     MissingCopyright,
 
-    #[error("missing SPDX line")]
+    #[error("{} {}", error_prefix(), "missing SPDX line")]
     MissingSpdx,
 
-    #[error("incorrect first line")]
+    #[error("{} {}", error_prefix(), "incorrect first line")]
     WrongFirst,
 
-    #[error("wrong SPDX line")]
+    #[error("{} {}", error_prefix(), "wrong SPDX line")]
     WrongSpdx,
 }
 

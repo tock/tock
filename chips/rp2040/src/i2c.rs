@@ -241,13 +241,13 @@ enum State {
     WaitingForStop,
 }
 
-pub struct I2c<'a> {
+pub struct I2c<'a, 'c> {
     instance_num: u8,
     registers: StaticRef<I2cRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
     resets: OptionalCell<&'a resets::Resets>,
 
-    client: OptionalCell<&'static dyn hil::i2c::I2CHwMasterClient>,
+    client: OptionalCell<&'c dyn hil::i2c::I2CHwMasterClient>,
     buf: TakeCell<'static, [u8]>,
 
     state: Cell<State>,
@@ -259,7 +259,7 @@ pub struct I2c<'a> {
     abort_reason: OptionalCell<LocalRegisterCopy<u32, IC_TX_ABRT_SOURCE::Register>>,
 }
 
-impl<'a> I2c<'a> {
+impl<'a, 'c> I2c<'a, 'c> {
     fn new(instance_num: u8) -> Self {
         Self {
             instance_num,
@@ -689,8 +689,8 @@ impl<'a> I2c<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CMaster for I2c<'a> {
-    fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
+impl<'a, 'c> hil::i2c::I2CMaster<'c> for I2c<'a, 'c> {
+    fn set_master_client(&self, client: &'c dyn hil::i2c::I2CHwMasterClient) {
         self.client.set(client);
     }
 

@@ -115,16 +115,6 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
-// Function for the process console to use to reboot the board.
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -386,7 +376,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>
@@ -480,7 +470,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     base_peripherals.twi0.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
@@ -494,7 +484,7 @@ pub unsafe fn main() {
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!());
+    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -503,7 +493,7 @@ pub unsafe fn main() {
     .finalize(components::proximity_component_static!());
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
-        .finalize(components::hts221_component_static!());
+        .finalize(components::hts221_component_static!(nrf52840::i2c::TWI));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,

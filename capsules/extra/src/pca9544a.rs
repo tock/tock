@@ -26,9 +26,11 @@
 //! let pca9544a_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x70));
+//! let pca9544a_buffer = static_init!([u8; capsules::pca9544a::BUFFER_LENGTH],
+//!                                    [0; capsules::pca9544a::BUFFER_LENGTH]);
 //! let pca9544a = static_init!(
 //!     capsules::pca9544a::PCA9544A<'static>,
-//!     capsules::pca9544a::PCA9544A::new(pca9544a_i2c, &mut capsules::pca9544a::BUFFER));
+//!     capsules::pca9544a::PCA9544A::new(pca9544a_i2c, pca9544a_buffer));
 //! pca9544a_i2c.set_client(pca9544a);
 //! ```
 
@@ -44,7 +46,7 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Pca9544a as usize;
 
-pub static mut BUFFER: [u8; 5] = [0; 5];
+pub const BUFFER_LENGTH: usize = 5;
 
 #[derive(Clone, Copy, PartialEq)]
 enum State {
@@ -65,17 +67,17 @@ enum ControlField {
 #[derive(Default)]
 pub struct App {}
 
-pub struct PCA9544A<'a> {
-    i2c: &'a dyn i2c::I2CDevice,
+pub struct PCA9544A<'a, I: i2c::I2CDevice> {
+    i2c: &'a I,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a> PCA9544A<'a> {
+impl<'a, I: i2c::I2CDevice> PCA9544A<'a, I> {
     pub fn new(
-        i2c: &'a dyn i2c::I2CDevice,
+        i2c: &'a I,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
@@ -142,7 +144,7 @@ impl<'a> PCA9544A<'a> {
     }
 }
 
-impl i2c::I2CClient for PCA9544A<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadControl(field) => {
@@ -152,7 +154,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
                 };
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                    let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
                             .schedule_upcall(0, (field as usize + 1, ret as usize, 0))
                             .ok();
@@ -165,7 +167,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
             }
             State::Done => {
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                    let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                     });
                 });
@@ -179,7 +181,7 @@ impl i2c::I2CClient for PCA9544A<'_> {
     }
 }
 
-impl SyscallDriver for PCA9544A<'_> {
+impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
     // Setup callback for event done.
     //
     // ### `subscribe_num`
@@ -212,7 +214,7 @@ impl SyscallDriver for PCA9544A<'_> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

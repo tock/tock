@@ -485,10 +485,10 @@ impl<'a> Spi<'a> {
     }
 }
 
-impl<'a> SpiMaster for Spi<'a> {
+impl<'a> SpiMaster<'a> for Spi<'a> {
     type ChipSelect = &'a crate::gpio::RPGpioPin<'a>;
 
-    fn set_client(&self, client: &'static dyn SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);
     }
 

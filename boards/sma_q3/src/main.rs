@@ -72,16 +72,6 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// Supported drivers by the platform
 pub struct Platform {
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
@@ -309,7 +299,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc<'static>
@@ -367,7 +357,7 @@ pub unsafe fn main() {
     .finalize(components::temperature_component_static!());
 
     let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     sensors_i2c_bus.register();
@@ -384,7 +374,8 @@ pub unsafe fn main() {
         mux_alarm,
     )
     .finalize(components::bmp280_component_static!(
-        nrf52840::rtc::Rtc<'static>
+        nrf52840::rtc::Rtc<'static>,
+        nrf52840::i2c::TWI
     ));
 
     let temperature = components::temperature::TemperatureComponent::new(

@@ -166,7 +166,7 @@ pub enum InitError {
     BufferTooSmall,
 }
 
-pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
     spi: &'a S,
     extcomin: &'a P,
     disp: &'a P,
@@ -189,7 +189,7 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
     /// so edges need to be cached.
     frame_buffer: OptionalCell<FrameBuffer<'static>>,
 
-    client: OptionalCell<&'static dyn ScreenClient>,
+    client: OptionalCell<&'a dyn ScreenClient>,
     /// Buffer for incoming pixel data, coming from the client.
     /// It's not submitted directly anywhere.
     buffer: TakeCell<'static, [u8]>,
@@ -198,7 +198,7 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
     alarm: &'a A,
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> Lpm013m126<'a, A, P, S>
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> Lpm013m126<'a, A, P, S>
 where
     Self: 'static,
 {
@@ -349,7 +349,7 @@ where
             self.write_complete_pending_call.map(|pend| {
                 self.buffer
                     .take()
-                    .map(|buffer| client.write_complete(buffer, *pend));
+                    .map(|buffer| client.write_complete(buffer, pend));
             });
             self.write_complete_pending_call.take();
         });
@@ -363,7 +363,7 @@ where
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> Screen for Lpm013m126<'a, A, P, S>
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> Screen<'a> for Lpm013m126<'a, A, P, S>
 where
     Self: 'static,
 {
@@ -473,7 +473,7 @@ where
         Ok(())
     }
 
-    fn set_client(&self, client: Option<&'static dyn ScreenClient>) {
+    fn set_client(&self, client: Option<&'a dyn ScreenClient>) {
         if let Some(client) = client {
             self.client.set(client);
         } else {
@@ -508,7 +508,7 @@ where
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> AlarmClient for Lpm013m126<'a, A, P, S>
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> AlarmClient for Lpm013m126<'a, A, P, S>
 where
     Self: 'static,
 {
@@ -563,7 +563,7 @@ where
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> SpiMasterClient for Lpm013m126<'a, A, P, S> {
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm013m126<'a, A, P, S> {
     fn read_write_done(
         &self,
         write_buffer: SubmitBuffer<'static>,
@@ -606,11 +606,11 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> SpiMasterClient for Lpm013m12
 
 // DeferredCall requires a unique client for each DeferredCall so that different callbacks
 // can be distinguished.
-struct ReadyCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+struct ReadyCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
     lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> ReadyCallbackHandler<'a, A, P, S> {
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ReadyCallbackHandler<'a, A, P, S> {
     fn new() -> Self {
         Self {
             lpm: OptionalCell::empty(),
@@ -618,7 +618,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> ReadyCallbackHandler<'a, A, P
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DeferredCallClient
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> DeferredCallClient
     for ReadyCallbackHandler<'a, A, P, S>
 where
     Self: 'static,
@@ -632,11 +632,11 @@ where
     }
 }
 
-struct CommandCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+struct CommandCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
     lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> CommandCompleteCallbackHandler<'a, A, P, S> {
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> CommandCompleteCallbackHandler<'a, A, P, S> {
     fn new() -> Self {
         Self {
             lpm: OptionalCell::empty(),
@@ -644,7 +644,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> CommandCompleteCallbackHandle
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DeferredCallClient
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> DeferredCallClient
     for CommandCompleteCallbackHandler<'a, A, P, S>
 where
     Self: 'static,
@@ -658,11 +658,11 @@ where
     }
 }
 
-struct WriteCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> {
+struct WriteCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
     lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> WriteCompleteCallbackHandler<'a, A, P, S> {
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> WriteCompleteCallbackHandler<'a, A, P, S> {
     fn new() -> Self {
         Self {
             lpm: OptionalCell::empty(),
@@ -670,7 +670,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> WriteCompleteCallbackHandler<
     }
 }
 
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice> DeferredCallClient
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> DeferredCallClient
     for WriteCompleteCallbackHandler<'a, A, P, S>
 where
     Self: 'static,

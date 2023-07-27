@@ -34,6 +34,11 @@
 //!      capsules::virtual_alarm::VirtualMuxAlarm::new(mux_alarm));
 //! sdcard_virtual_alarm.setup();
 //!
+//! let sdcard_tx_buffer = static_init!([u8; capsules::sdcard::TXRX_BUFFER_LENGTH],
+//!                                     [0; capsules::sdcard::TXRX_BUFFER_LENGTH]);
+//! let sdcard_rx_buffer = static_init!([u8; capsules::sdcard::TXRX_BUFFER_LENGTH],
+//!                                     [0; capsules::sdcard::TXRX_BUFFER_LENGTH]);
+//!
 //! let sdcard = static_init!(
 //!     capsules::sdcard::SDCard<
 //!         'static,
@@ -41,11 +46,14 @@
 //!     capsules::sdcard::SDCard::new(sdcard_spi,
 //!                                   sdcard_virtual_alarm,
 //!                                   Some(&SD_DETECT_PIN),
-//!                                   &mut capsules::sdcard::TXBUFFER,
-//!                                   &mut capsules::sdcard::RXBUFFER));
+//!                                   sdcard_tx_buffer,
+//!                                   sdcard_rx_buffer));
 //! sdcard_spi.set_client(sdcard);
 //! sdcard_virtual_alarm.set_alarm_client(sdcard);
 //! SD_DETECT_PIN.set_client(sdcard);
+//!
+//! let sdcard_kernel_buffer = static_init!([u8; capsules::sdcard::KERNEL_BUFFER_LENGTH],
+//!                                         [0; capsules::sdcard::KERNEL_BUFFER_LENGTH]);
 //!
 //! let sdcard_driver = static_init!(
 //!     capsules::sdcard::SDCardDriver<
@@ -53,7 +61,7 @@
 //!         capsules::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>>,
 //!     capsules::sdcard::SDCardDriver::new(
 //!         sdcard,
-//!         &mut capsules::sdcard::KERNEL_BUFFER,
+//!         sdcard_kernel_buffer,
 //!         board_kernel.create_grant(
 //!             capsules::sdcard::DRIVER_NUM,
 //!             &memory_allocation_capability)));
@@ -100,12 +108,11 @@ mod rw_allow {
 ///
 ///  * RXBUFFER must be greater than or equal to TXBUFFER in length
 ///  * Both RXBUFFER and TXBUFFER must be longer  than the SD card's block size
-pub static mut TXBUFFER: [u8; 515] = [0; 515];
-pub static mut RXBUFFER: [u8; 515] = [0; 515];
+pub const TXRX_BUFFER_LENGTH: usize = 515;
 
 /// SD Card capsule, capable of being built on top of by other kernel capsules
 pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
-    spi: &'a dyn hil::spi::SpiMasterDevice,
+    spi: &'a dyn hil::spi::SpiMasterDevice<'a>,
     state: Cell<SpiState>,
     after_state: Cell<SpiState>,
 
@@ -121,7 +128,7 @@ pub struct SDCard<'a, A: hil::time::Alarm<'a>> {
     txbuffer: TakeCell<'static, [u8]>,
     rxbuffer: TakeCell<'static, [u8]>,
 
-    client: OptionalCell<&'static dyn SDCardClient>,
+    client: OptionalCell<&'a dyn SDCardClient>,
     client_buffer: TakeCell<'static, [u8]>,
     client_offset: Cell<usize>,
 }
@@ -1467,7 +1474,7 @@ pub struct SDCardDriver<'a, A: hil::time::Alarm<'a>> {
 pub struct App;
 
 /// Buffer for SD card driver, assigned in board `main.rs` files
-pub static mut KERNEL_BUFFER: [u8; 512] = [0; 512];
+pub const KERNEL_BUFFER_LENGTH: usize = 512;
 
 /// Functions for SDCardDriver
 impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
@@ -1500,7 +1507,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 kernel_data
                     .schedule_upcall(0, (0, installed as usize, 0))
                     .ok();
@@ -1510,7 +1517,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
                 kernel_data
                     .schedule_upcall(0, (1, block_size as usize, size_in_kb))
@@ -1523,7 +1530,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(data);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_, kernel_data| {
+            let _ = self.grants.enter(process_id, |_, kernel_data| {
                 let mut read_len = 0;
                 self.kernel_buf.map(|data| {
                     kernel_data
@@ -1558,7 +1565,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 kernel_data.schedule_upcall(0, (3, 0, 0)).ok();
             });
         });
@@ -1566,7 +1573,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn error(&self, error: u32) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 kernel_data.schedule_upcall(0, (4, error as usize, 0)).ok();
             });
         });
@@ -1590,7 +1597,7 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

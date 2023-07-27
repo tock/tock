@@ -95,16 +95,6 @@ static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -131,8 +121,10 @@ pub struct Platform {
     rng: &'static capsules_core::rng::RngDriver<'static>,
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    i2c_master_slave:
-        &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<'static>,
+    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+        'static,
+        nrf52840::i2c::TWI<'static>,
+    >,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
@@ -417,7 +409,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>
@@ -550,7 +542,7 @@ pub unsafe fn main() {
     let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
 
     let i2c_master_slave = static_init!(
-        I2CMasterSlaveDriver,
+        I2CMasterSlaveDriver<nrf52840::i2c::TWI<'static>>,
         I2CMasterSlaveDriver::new(
             &base_peripherals.twi1,
             i2c_master_buffer,

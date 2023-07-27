@@ -54,7 +54,7 @@ pub struct App {
     index: usize,
 }
 
-pub struct Spi<'a, S: SpiMasterDevice> {
+pub struct Spi<'a, S: SpiMasterDevice<'a>> {
     spi_master: &'a S,
     busy: Cell<bool>,
     kernel_read: TakeCell<'static, [u8]>,
@@ -69,7 +69,7 @@ pub struct Spi<'a, S: SpiMasterDevice> {
     current_process: OptionalCell<ProcessId>,
 }
 
-impl<'a, S: SpiMasterDevice> Spi<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
     pub fn new(
         spi_master: &'a S,
         grants: Grant<
@@ -120,16 +120,26 @@ impl<'a, S: SpiMasterDevice> Spi<'a, S> {
             app.index = start + tmp_len;
             tmp_len
         });
+
+        let rlen = kernel_data
+            .get_readwrite_processbuffer(rw_allow::READ)
+            .map_or(0, |read| read.len());
+
         // TODO verify SPI return value
-        let _ = self.spi_master.read_write_bytes(
-            self.kernel_write.take().unwrap(),
-            self.kernel_read.take(),
-            write_len,
-        );
+        let _ = if rlen == 0 {
+            self.spi_master
+                .read_write_bytes(self.kernel_write.take().unwrap(), None, write_len)
+        } else {
+            self.spi_master.read_write_bytes(
+                self.kernel_write.take().unwrap(),
+                self.kernel_read.take(),
+                write_len,
+            )
+        };
     }
 }
 
-impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
     // 2: read/write buffers
     //   - requires write buffer registered with allow
     //   - read buffer optional
@@ -181,7 +191,7 @@ impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {
@@ -192,84 +202,97 @@ impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
 
         match command_num {
             // No longer supported, wrap inside a read_write_bytes
-            1 /* read_write_byte */ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-            2 /* read_write_bytes */ => {
+            1 => {
+                // read_write_byte
+                CommandReturn::failure(ErrorCode::NOSUPPORT)
+            }
+            2 => {
+                // read_write_bytes
                 if self.busy.get() {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
-                self.grants.enter(process_id, |app, kernel_data| {
-                    // When we do a read/write, the read part is optional.
-                    // So there are three cases:
-                    // 1) Write and read buffers present: len is min of lengths
-                    // 2) Only write buffer present: len is len of write
-                    // 3) No write buffer present: no operation
-                    let wlen = kernel_data
-                        .get_readonly_processbuffer(ro_allow::WRITE)
-                        .map_or(0, |write| write.len());
-                    let rlen = kernel_data
-                        .get_readwrite_processbuffer(rw_allow::READ)
-                        .map_or(0, |read| read.len());
-                    // Note that non-shared and 0-sized read buffers both report 0 as size
-                    let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
+                self.grants
+                    .enter(process_id, |app, kernel_data| {
+                        // When we do a read/write, the read part is optional.
+                        // So there are three cases:
+                        // 1) Write and read buffers present: len is min of lengths
+                        // 2) Only write buffer present: len is len of write
+                        // 3) No write buffer present: no operation
+                        let wlen = kernel_data
+                            .get_readonly_processbuffer(ro_allow::WRITE)
+                            .map_or(0, |write| write.len());
+                        let rlen = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::READ)
+                            .map_or(0, |read| read.len());
+                        // Note that non-shared and 0-sized read buffers both report 0 as size
+                        let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
 
-                    if len >= arg1 && arg1 > 0 {
-                        app.len = arg1;
-                        app.index = 0;
-                        self.busy.set(true);
-                        self.do_next_read_write(app, kernel_data);
-                        CommandReturn::success()
-                    } else {
-                        /* write buffer too small, or zero length write */
-                        CommandReturn::failure(ErrorCode::INVAL)
-                    }
-                }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
+                        if len >= arg1 && arg1 > 0 {
+                            app.len = arg1;
+                            app.index = 0;
+                            self.busy.set(true);
+                            self.do_next_read_write(app, kernel_data);
+                            CommandReturn::success()
+                        } else {
+                            /* write buffer too small, or zero length write */
+                            CommandReturn::failure(ErrorCode::INVAL)
+                        }
+                    })
+                    .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
-            3 /* set chip select */ => {
+            3 => {
+                // set chip select
                 // XXX: TODO: do nothing, for now, until we fix interface
                 // so virtual instances can use multiple chip selects
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
-            4 /* get chip select */ => {
+            4 => {
+                // get chip select *
                 // XXX: We don't really know what chip select is being used
                 // since we can't set it. Return error until set chip select
                 // works.
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
-            5 /* set baud rate */ => {
+            5 => {
+                // set baud rate
                 match self.spi_master.set_rate(arg1 as u32) {
                     Ok(()) => CommandReturn::success(),
-                    Err (error) => CommandReturn::failure(error.into())
+                    Err(error) => CommandReturn::failure(error.into()),
                 }
             }
-            6 /* get baud rate */ => {
+            6 => {
+                // get baud rate
                 CommandReturn::success_u32(self.spi_master.get_rate() as u32)
             }
-            7 /* set phase */ => {
+            7 => {
+                // set phase
                 match match arg1 {
                     0 => self.spi_master.set_phase(ClockPhase::SampleLeading),
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into())
+                    Err(error) => CommandReturn::failure(error.into()),
                 }
             }
-            8 /* get phase */ => {
+            8 => {
+                // get phase
                 CommandReturn::success_u32(self.spi_master.get_phase() as u32)
             }
-            9 /* set polarity */ => {
+            9 => {
+                // set polarity
                 match match arg1 {
                     0 => self.spi_master.set_polarity(ClockPolarity::IdleLow),
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
-                }
-                {
+                } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into())
+                    Err(error) => CommandReturn::failure(error.into()),
                 }
             }
-            10 /* get polarity */ => {
+            10 => {
+                // get polarity
                 CommandReturn::success_u32(self.spi_master.get_polarity() as u32)
             }
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT)
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
 
@@ -278,7 +301,7 @@ impl<'a, S: SpiMasterDevice> SyscallDriver for Spi<'a, S> {
     }
 }
 
-impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
+impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(
         &self,
         writebuf: &'static mut [u8],
@@ -287,7 +310,7 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
         _status: Result<(), ErrorCode>,
     ) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, move |app, kernel_data| {
+            let _ = self.grants.enter(process_id, move |app, kernel_data| {
                 let rbuf = readbuf.map(|src| {
                     let index = app.index;
                     let _ = kernel_data
@@ -322,7 +345,9 @@ impl<S: SpiMasterDevice> SpiMasterClient for Spi<'_, S> {
                     src
                 });
 
-                self.kernel_read.put(rbuf);
+                if rbuf.is_some() {
+                    self.kernel_read.put(rbuf);
+                }
                 self.kernel_write.replace(writebuf);
 
                 if app.index == app.len {

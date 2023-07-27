@@ -169,8 +169,8 @@ enum State {
 #[derive(Default)]
 pub struct App {}
 
-pub struct Lsm6dsoxtrI2C<'a> {
-    i2c: &'a dyn i2c::I2CDevice,
+pub struct Lsm6dsoxtrI2C<'a, I: i2c::I2CDevice> {
+    i2c: &'a I,
     state: Cell<State>,
     config_in_progress: Cell<bool>,
     gyro_data_rate: Cell<LSM6DSOXGyroDataRate>,
@@ -187,12 +187,12 @@ pub struct Lsm6dsoxtrI2C<'a> {
     syscall_process: OptionalCell<ProcessId>,
 }
 
-impl<'a> Lsm6dsoxtrI2C<'a> {
+impl<'a, I: i2c::I2CDevice> Lsm6dsoxtrI2C<'a, I> {
     pub fn new(
-        i2c: &'a dyn i2c::I2CDevice,
+        i2c: &'a I,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Lsm6dsoxtrI2C<'a> {
+    ) -> Lsm6dsoxtrI2C<'a, I> {
         Lsm6dsoxtrI2C {
             i2c: i2c,
             state: Cell::new(State::Idle),
@@ -380,7 +380,7 @@ impl<'a> Lsm6dsoxtrI2C<'a> {
     }
 }
 
-impl i2c::I2CClient for Lsm6dsoxtrI2C<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
@@ -553,7 +553,7 @@ impl i2c::I2CClient for Lsm6dsoxtrI2C<'_> {
     }
 }
 
-impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
+impl<I: i2c::I2CDevice> SyscallDriver for Lsm6dsoxtrI2C<'_, I> {
     fn command(
         &self,
         command_num: usize,
@@ -633,7 +633,7 @@ impl SyscallDriver for Lsm6dsoxtrI2C<'_> {
     }
 }
 
-impl<'a> NineDof<'a> for Lsm6dsoxtrI2C<'a> {
+impl<'a, I: i2c::I2CDevice> NineDof<'a> for Lsm6dsoxtrI2C<'a, I> {
     fn set_client(&self, nine_dof_client: &'a dyn NineDofClient) {
         self.nine_dof_client.replace(nine_dof_client);
     }
@@ -647,7 +647,7 @@ impl<'a> NineDof<'a> for Lsm6dsoxtrI2C<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver<'a> for Lsm6dsoxtrI2C<'a> {
+impl<'a, I: i2c::I2CDevice> sensors::TemperatureDriver<'a> for Lsm6dsoxtrI2C<'a, I> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

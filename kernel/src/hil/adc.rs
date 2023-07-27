@@ -9,7 +9,7 @@ use crate::ErrorCode;
 // *** Interfaces for low-speed, single-sample ADCs ***
 
 /// Simple interface for reading an ADC sample on any channel.
-pub trait Adc {
+pub trait Adc<'a> {
     /// The chip-dependent type of an ADC channel.
     type Channel: PartialEq;
 
@@ -42,7 +42,7 @@ pub trait Adc {
     /// The returned reference voltage is in millivolts, or `None` if unknown.
     fn get_voltage_reference_mv(&self) -> Option<usize>;
 
-    fn set_client(&self, client: &'static dyn Client);
+    fn set_client(&self, client: &'a dyn Client);
 }
 
 /// Trait for handling callbacks from simple ADC calls.
@@ -55,7 +55,7 @@ pub trait Client {
 
 /// Interface for continuously sampling at a given frequency on a channel.
 /// Requires the AdcSimple interface to have been implemented as well.
-pub trait AdcHighSpeed: Adc {
+pub trait AdcHighSpeed<'a>: Adc<'a> {
     /// Start sampling continuously into buffers.
     /// Samples are double-buffered, going first into `buffer1` and then into
     /// `buffer2`. A callback is performed to the client whenever either buffer
@@ -102,7 +102,7 @@ pub trait AdcHighSpeed: Adc {
         &self,
     ) -> Result<(Option<&'static mut [u16]>, Option<&'static mut [u16]>), ErrorCode>;
 
-    fn set_highspeed_client(&self, client: &'static dyn HighSpeedClient);
+    fn set_highspeed_client(&self, client: &'a dyn HighSpeedClient);
 }
 
 /// Trait for handling callbacks from high-speed ADC calls.
@@ -114,7 +114,7 @@ pub trait HighSpeedClient {
     fn samples_ready(&self, buf: &'static mut [u16], length: usize);
 }
 
-pub trait AdcChannel {
+pub trait AdcChannel<'a> {
     /// Request a single ADC sample on a particular channel.
     /// Used for individual samples that have no timing requirements.
     /// All ADC samples will be the raw ADC value left-justified in the u16.
@@ -144,5 +144,5 @@ pub trait AdcChannel {
     /// The returned reference voltage is in millivolts, or `None` if unknown.
     fn get_voltage_reference_mv(&self) -> Option<usize>;
 
-    fn set_client(&self, client: &'static dyn Client);
+    fn set_client(&self, client: &'a dyn Client);
 }

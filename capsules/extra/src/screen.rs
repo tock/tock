@@ -111,8 +111,8 @@ impl Default for App {
 }
 
 pub struct Screen<'a> {
-    screen: &'a dyn hil::screen::Screen,
-    screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
+    screen: &'a dyn hil::screen::Screen<'a>,
+    screen_setup: Option<&'a dyn hil::screen::ScreenSetup<'a>>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
     pixel_format: Cell<ScreenPixelFormat>,
@@ -121,8 +121,8 @@ pub struct Screen<'a> {
 
 impl<'a> Screen<'a> {
     pub fn new(
-        screen: &'a dyn hil::screen::Screen,
-        screen_setup: Option<&'a dyn hil::screen::ScreenSetup>,
+        screen: &'a dyn hil::screen::Screen<'a>,
+        screen_setup: Option<&'a dyn hil::screen::ScreenSetup<'a>>,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> Screen<'a> {
@@ -333,7 +333,7 @@ impl<'a> Screen<'a> {
             || 0,
             |process_id| {
                 self.apps
-                    .enter(*process_id, |app, kernel_data| {
+                    .enter(process_id, |app, kernel_data| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         if position < len {

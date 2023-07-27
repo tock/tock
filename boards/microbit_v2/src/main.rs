@@ -77,19 +77,9 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1100] = [0; 0x1100];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 // debug mode requires more stack space
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
-
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -118,7 +108,10 @@ pub struct MicroBit {
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     rng: &'static capsules_core::rng::RngDriver<'static>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<'static>,
+    lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI<'static>>,
+    >,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
@@ -217,22 +210,17 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52833DefaultPeripherals<'static> {
-    // Initialize chip peripheral drivers
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MicroBit,
+    &'static nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'static>>,
+) {
+    nrf52833::init();
+
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
         Nrf52833DefaultPeripherals::new()
     );
-
-    nrf52833_peripherals
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52833::init();
-
-    let nrf52833_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52833_peripherals.init();
@@ -249,7 +237,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
@@ -341,14 +328,13 @@ pub unsafe fn main() {
     let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.pwm0)
         .finalize(components::pwm_mux_component_static!(nrf52833::pwm::Pwm));
 
-    let virtual_pwm_buzzer = static_init!(
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, nrf52833::pwm::Pwm>,
-        capsules_core::virtualizers::virtual_pwm::PwmPinUser::new(
-            mux_pwm,
-            nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32)
-        )
-    );
-    virtual_pwm_buzzer.add_to_mux();
+    let virtual_pwm_buzzer = components::pwm::PwmPinUserComponent::new(
+        &mux_pwm,
+        nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32),
+    )
+    .finalize(components::pwm_pin_user_component_static!(
+        nrf52833::pwm::Pwm
+    ));
 
     let virtual_alarm_buzzer = static_init!(
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
@@ -398,17 +384,17 @@ pub unsafe fn main() {
 
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
+    let virtual_pwm_driver = components::pwm::PwmPinUserComponent::new(
+        &mux_pwm,
+        nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32),
+    )
+    .finalize(components::pwm_pin_user_component_static!(
+        nrf52833::pwm::Pwm
+    ));
+
     let pwm =
-        components::pwm::PwmVirtualComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
-            .finalize(components::pwm_syscall_component_helper!(
-                components::pwm::PwmPinComponent::new(
-                    &mux_pwm,
-                    nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32)
-                )
-                .finalize(components::pwm_pin_user_component_static!(
-                    nrf52833::pwm::Pwm
-                ))
-            ));
+        components::pwm::PwmDriverComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
+            .finalize(components::pwm_driver_component_helper!(virtual_pwm_driver));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -457,7 +443,9 @@ pub unsafe fn main() {
     );
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(
+            nrf52833::i2c::TWI<'static>
+        ));
 
     // LSM303AGR
 
@@ -468,7 +456,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm303agr::DRIVER_NUM,
     )
-    .finalize(components::lsm303agr_component_static!());
+    .finalize(components::lsm303agr_component_static!(
+        nrf52833::i2c::TWI<'static>
+    ));
 
     if let Err(error) = lsm303agr.configure(
         capsules_extra::lsm303xx::Lsm303AccelDataRate::DataRate25Hz,
@@ -692,7 +682,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52833::rtc::Rtc
@@ -784,5 +774,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&microbit, chip, Some(&microbit.ipc), &main_loop_capability);
+    (board_kernel, microbit, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

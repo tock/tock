@@ -310,7 +310,7 @@ pub struct Adc<'a> {
     common_registers: StaticRef<AdcCommonRegisters>,
     clock: AdcClock<'a>,
     status: Cell<ADCStatus>,
-    client: OptionalCell<&'static dyn hil::adc::Client>,
+    client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
 impl<'a> Adc<'a> {
@@ -385,7 +385,7 @@ impl ClockInterface for AdcClock<'_> {
     }
 }
 
-impl hil::adc::Adc for Adc<'_> {
+impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
@@ -427,13 +427,13 @@ impl hil::adc::Adc for Adc<'_> {
         Some(3300)
     }
 
-    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+    fn set_client(&self, client: &'a dyn hil::adc::Client) {
         self.client.set(client);
     }
 }
 
 /// Not yet supported
-impl hil::adc::AdcHighSpeed for Adc<'_> {
+impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
     /// Capture buffered samples from the ADC continuously at a given
     /// frequency, calling the client whenever a buffer fills up. The client is
     /// then expected to either stop sampling or provide an additional buffer
@@ -480,5 +480,5 @@ impl hil::adc::AdcHighSpeed for Adc<'_> {
         Err(ErrorCode::NOSUPPORT)
     }
 
-    fn set_highspeed_client(&self, _client: &'static dyn hil::adc::HighSpeedClient) {}
+    fn set_highspeed_client(&self, _client: &'a dyn hil::adc::HighSpeedClient) {}
 }

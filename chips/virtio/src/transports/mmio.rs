@@ -402,7 +402,7 @@ impl VirtIOTransport for VirtIOMMIODevice {
             queue_id
                 < self
                     .queues
-                    .extract()
+                    .get()
                     .expect("VirtIO transport not initialized")
                     .len() as u32
         );

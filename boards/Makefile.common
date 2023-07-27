@@ -23,12 +23,12 @@ RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
 
 # Common defaults that specific boards can override, but likely do not need to.
 #
-# The TOOLCHAIN parameter is set to the magic value "llvm-tools-preview", which
-# will cause the Makefile to resolve the llvm toolchain installed as part of the
-# rustup component "llvm-tools-preview". In case a system toolchain shall be
-# used, this can be overridden to specify the toolchain prefix, e.g. "llvm" for
+# The TOOLCHAIN parameter is set to the magic value "llvm-tools", which will
+# cause the Makefile to resolve the llvm toolchain installed as part of the
+# rustup component "llvm-tools". In case a system toolchain shall be used, this
+# can be overridden to specify the toolchain prefix, e.g. "llvm" for
 # llvm-{objdump,objcopy,...} or "arm-none-eabi".
-TOOLCHAIN ?= llvm-tools-preview
+TOOLCHAIN ?= llvm-tools
 CARGO     ?= cargo
 
 # Not all platforms support the rustup tool. Those that do not can pass
@@ -60,6 +60,9 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 #   and the downside to `all` is that different functions in the code can end up
 #   with the same address in the binary. However, it can save a fair bit of code
 #   size.
+# - `-C symbol-manging-version=v0`: Opt-in to Rust v0 symbol mangling scheme.
+#   See https://github.com/rust-lang/rust/issues/60705 and
+#   https://github.com/tock/tock/issues/3529.
 RUSTC_FLAGS ?= \
   -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
@@ -67,6 +70,7 @@ RUSTC_FLAGS ?= \
   -C relocation-model=static \
   -C link-arg=-nmagic \
   -C link-arg=-icf=all \
+  -C symbol-mangling-version=v0 \
 
 # RISC-V-specific flags.
 ifneq ($(findstring riscv32i, $(TARGET)),)
@@ -74,6 +78,9 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   # benefit is almost exclusively for RISC-V, we only apply it for those
   # targets.
   RUSTC_FLAGS += -C force-frame-pointers=no
+  # Ensure relocations generated is eligible for linker relaxtion.
+  # This provide huge space savings.
+  RUSTC_FLAGS += -C target-feature=+relax
 endif
 
 # RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options that are global
@@ -180,9 +187,9 @@ endif
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
-LLVM_TOOLS_INSTALLED := $(shell $(RUSTUP) component list | grep 'llvm-tools-preview.*(installed)' > /dev/null; echo $$?)
+LLVM_TOOLS_INSTALLED := $(shell $(RUSTUP) component list | grep 'llvm-tools.*(installed)' > /dev/null; echo $$?)
 ifeq ($(LLVM_TOOLS_INSTALLED),1)
-  $(shell $(RUSTUP) component add llvm-tools-preview)
+  $(shell $(RUSTUP) component add llvm-tools)
 endif
 ifneq ($(shell $(RUSTUP) component list | grep rust-src),rust-src (installed))
   $(shell $(RUSTUP) component add rust-src)
@@ -192,11 +199,11 @@ ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (
 endif
 endif # $(NO_RUSTUP)
 
-# If the user is using the standard toolchain provided as part of the
-# llvm-tools-preview rustup component we need to get the full path. rustup
-# should take care of this for us by putting in a proxy in .cargo/bin, but until
-# that is setup we workaround it.
-ifeq ($(TOOLCHAIN),llvm-tools-preview)
+# If the user is using the standard toolchain provided as part of the llvm-tools
+# rustup component we need to get the full path. rustup should take care of this
+# for us by putting in a proxy in .cargo/bin, but until that is setup we
+# workaround it.
+ifeq ($(TOOLCHAIN),llvm-tools)
   TOOLCHAIN = "$(shell dirname $(shell find $(RUSTC_SYSROOT) -name llvm-size))/llvm"
 endif
 
@@ -209,11 +216,13 @@ OBJDUMP ?= $(TOOLCHAIN)-objdump
 # Set additional flags to produce binary from .elf.
 #
 # - `--strip-sections`: Prevents enormous binaries when SRAM is below flash.
+# - `--strip-all`: Remove non-allocated sections outside segments.
+#   `.gnu.warning*` and `.ARM.attribute` sections are not removed.
 # - `--remove-section .apps`: Prevents the .apps section from being included in
 #   the kernel binary file. This section is a placeholder for optionally
 #   including application binaries, and only needs to exist in the .elf. By
 #   removing it, we prevent the kernel binary from overwriting applications.
-OBJCOPY_FLAGS ?= --strip-sections -S --remove-section .apps
+OBJCOPY_FLAGS ?= --strip-sections --strip-all --remove-section .apps
 
 # This make variable allows board-specific Makefiles to pass down options to
 # the Cargo build command. For example, in boards/<custom_board>/Makefile:
