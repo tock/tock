@@ -12,6 +12,7 @@ pub mod round_robin;
 use crate::deferred_call::DeferredCall;
 use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
+use crate::platform::chip::Interrupts;
 use crate::process::ProcessId;
 
 /// Trait which any scheduler must implement.
@@ -49,9 +50,9 @@ pub trait Scheduler<C: Chip> {
     /// Custom implementations of this function must be very careful, however,
     /// as this function is called in the core kernel loop.
     unsafe fn execute_kernel_work(&self, chip: &C) {
-        chip.service_pending_interrupts();
-        while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
-            DeferredCall::service_next_pending();
+        chip.service_pending_interrupts(<C as Chip>::Interrupts::full());
+        while DeferredCall::has_tasks().is_some() && !chip.has_pending_interrupts().is_empty() {
+            DeferredCall::service_next_pending(0xFFFF_FFFF);
         }
     }
 
@@ -60,7 +61,7 @@ pub trait Scheduler<C: Chip> {
     /// implementation, which always prioritizes kernel work, but schedulers
     /// that wish to defer interrupt handling may reimplement it.
     unsafe fn do_kernel_work_now(&self, chip: &C) -> bool {
-        chip.has_pending_interrupts() || DeferredCall::has_tasks()
+        !chip.has_pending_interrupts().is_empty() || DeferredCall::has_tasks().is_some()
     }
 
     /// Ask the scheduler whether to continue trying to execute a process.
@@ -80,7 +81,7 @@ pub trait Scheduler<C: Chip> {
     ///
     /// `id` is the identifier of the currently active process.
     unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
-        !(chip.has_pending_interrupts() || DeferredCall::has_tasks())
+        chip.has_pending_interrupts().is_empty() && !DeferredCall::has_tasks().is_some()
     }
 }
 

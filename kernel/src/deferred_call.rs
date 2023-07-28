@@ -191,12 +191,12 @@ impl DeferredCall {
 
     /// Services and clears the next pending `DeferredCall`, returns which index
     /// was serviced
-    pub fn service_next_pending() -> Option<usize> {
+    pub fn service_next_pending(tasks: u32) -> Option<usize> {
         // SAFETY: No accesses to BITMASK/DEFCALLS are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
         let bitmask = unsafe { &BITMASK };
         let defcalls = unsafe { &DEFCALLS };
-        let val = bitmask.get();
+        let val = bitmask.get() & tasks;
         if val == 0 {
             None
         } else {
@@ -212,11 +212,15 @@ impl DeferredCall {
 
     /// Returns true if any deferred calls are waiting to be serviced,
     /// false otherwise.
-    pub fn has_tasks() -> bool {
+    pub fn has_tasks() -> Option<u32> {
         // SAFETY: No accesses to BITMASK are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
         let bitmask = unsafe { &BITMASK };
-        bitmask.get() != 0
+        if bitmask.get() != 0 {
+            None
+        } else {
+            Some(bitmask.get())
+        }
     }
 
     /// This function should be called at the beginning of the kernel loop

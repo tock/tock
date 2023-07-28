@@ -8,6 +8,17 @@ use crate::platform::mpu;
 use crate::syscall;
 use core::fmt::Write;
 
+pub trait Interrupts: Copy {
+    fn full() -> Self;
+    fn empty() -> Self;
+
+    fn is_set(&self, interrupt_number: u8) -> bool;
+    fn is_empty(&self) -> bool;
+
+    fn set(&mut self, interrupt_number: u8);
+    fn clear(&mut self, interrupt_number: u8);
+}
+
 /// Interface for individual MCUs.
 ///
 /// The trait defines chip-specific properties of Tock's operation. These
@@ -19,6 +30,7 @@ use core::fmt::Write;
 pub trait Chip {
     /// The particular Memory Protection Unit (MPU) for this chip.
     type MPU: mpu::MPU;
+    type Interrupts: Interrupts;
 
     /// The implementation of the interface between userspace and the kernel for
     /// this specific chip. Likely this is architecture specific, but individual
@@ -32,10 +44,10 @@ pub trait Chip {
     /// This function should loop internally until all interrupts have been
     /// handled. It is ok, however, if an interrupt occurs after the last check
     /// but before this function returns. The kernel will handle this edge case.
-    fn service_pending_interrupts(&self);
+    fn service_pending_interrupts(&self, interrupts: Self::Interrupts);
 
     /// Ask the chip to check if there are any pending interrupts.
-    fn has_pending_interrupts(&self) -> bool;
+    fn has_pending_interrupts(&self) -> Self::Interrupts;
 
     /// Returns a reference to the implementation for the MPU on this chip.
     fn mpu(&self) -> &Self::MPU;

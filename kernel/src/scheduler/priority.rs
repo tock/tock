@@ -16,7 +16,7 @@
 
 use crate::deferred_call::DeferredCall;
 use crate::kernel::{Kernel, StoppedExecutingReason};
-use crate::platform::chip::Chip;
+use crate::platform::chip::{Chip, Interrupts};
 use crate::process::ProcessId;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::utilities::cells::OptionalCell;
@@ -58,8 +58,8 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
         // priority processes have become ready. This check is necessary because
         // a system call by this process could make another process ready, if
         // this app is communicating via IPC with a higher priority app.
-        !(chip.has_pending_interrupts()
-            || DeferredCall::has_tasks()
+        !(!chip.has_pending_interrupts().is_empty()
+            || DeferredCall::has_tasks().is_some()
             || self
                 .kernel
                 .get_process_iter()

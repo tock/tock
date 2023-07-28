@@ -22,6 +22,7 @@ use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
+use crate::platform::chip::Interrupts;
 use crate::platform::mpu::MPU;
 use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
@@ -451,7 +452,8 @@ impl Kernel {
                                     // starts, the interrupt will not be
                                     // serviced and the chip will never wake
                                     // from sleep.
-                                    if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
+                                    if chip.has_pending_interrupts().is_empty()
+                                        && DeferredCall::has_tasks().is_none()
                                     {
                                         resources.watchdog().suspend();
                                         chip.sleep();

@@ -14,20 +14,21 @@
 //! without a home, so we include it in the NVIC files as it's conceptually here.
 //! <https://developer.arm.com/docs/ddi0337/latest/nested-vectored-interrupt-controller/nvic-programmers-model/interrupt-controller-type-register-ictr>
 
+use kernel::platform::chip::Interrupts;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-/// Generates the (u128, u128) tuple used for the NVIC's mask functions
-/// `next_pending_with_mask` and `next_pending_with_mask`.
+/// Generates the CortexMInterrupts used for the NVIC's mask functions
+/// `next_pending_from_set` and `next_pending_from_set`.
 ///
 /// if let Some(interrupt) =
-///     cortexm0p::nvic::next_pending_with_mask(interrupt_mask!(interrupts::SIO_IRQ_PROC1))
+///     cortexm0p::nvic::next_pending_from_set(interrupts!(interrupts::SIO_IRQ_PROC1))
 /// {
 ///     // ...
 /// }
 #[macro_export]
-macro_rules! interrupt_mask {
+macro_rules! interrupts {
     ($($interrupt: expr),+) => {{
         let mut high_interrupt: u128 = 0;
         let mut low_interrupt: u128 = 0;
@@ -40,7 +41,7 @@ macro_rules! interrupt_mask {
                 high_interrupt = high_interrupt | (1 << ($interrupt-128)) as u128
             }
         );+
-        (high_interrupt, low_interrupt)
+        CortexMInterrupts(high_interrupt, low_interrupt)
     }};
 }
 
@@ -167,19 +168,15 @@ pub unsafe fn next_pending() -> Option<u32> {
 /// Get the index (0-240) the lowest number pending interrupt while ignoring the interrupts
 /// that correspond to the bits set in mask, or `None` if none
 /// are pending.
-///
-/// Mask is defined as two u128 fields,
-///   mask.0 has the bits corresponding to interrupts from 128 to 240
-///   mask.1 has the bits corresponding to interrupts from 0 to 127
-pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
+pub unsafe fn next_pending_from_set(set: CortexMInterrupts) -> Option<u32> {
     for (block, ispr) in NVIC
         .ispr
         .iter()
         .take(number_of_nvic_registers())
         .enumerate()
     {
-        let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
-        let ispr_masked = ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32);
+        let interrupt_set = if block < 4 { set.1 } else { set.0 };
+        let ispr_masked = ispr.get() & !((interrupt_set >> (32 * block % 4)) as u32);
 
         // If there are any high bits there is a pending interrupt
         if ispr_masked != 0 {
@@ -191,30 +188,34 @@ pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
     None
 }
 
-pub unsafe fn has_pending() -> bool {
-    NVIC.ispr
-        .iter()
-        .take(number_of_nvic_registers())
-        .fold(0, |i, ispr| ispr.get() | i)
-        != 0
-}
-
-/// Returns whether there are any pending interrupt bits set while ignoring
-/// the indices that correspond to the bits set in mask
-///
-/// Mask is defined as two u128 fields,
-///   mask.0 has the bits corresponding to interrupts from 128 to 240
-///   mask.1 has the bits corresponding to interrupts from 0 to 127
-pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
+pub unsafe fn has_pending() -> CortexMInterrupts {
     NVIC.ispr
         .iter()
         .take(number_of_nvic_registers())
         .enumerate()
-        .fold(0, |i, (block, ispr)| {
-            let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
-            (ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32)) | i
-        })
-        != 0
+        .fold(
+            CortexMInterrupts::empty(),
+            |mut interrupts, (position, ispr)| {
+                interrupts.set_from_register(position, ispr.get());
+                interrupts
+            },
+        )
+}
+
+/// Returns whether there are any pending interrupt bits set while ignoring
+/// the indices that correspond to the bits set in mask
+pub unsafe fn has_pending_from_set(set: CortexMInterrupts) -> CortexMInterrupts {
+    NVIC.ispr
+        .iter()
+        .take(number_of_nvic_registers())
+        .enumerate()
+        .fold(
+            CortexMInterrupts::empty(),
+            |mut interrupts, (position, ispr)| {
+                interrupts.set_from_register(position, ispr.get() & set.get_register(position));
+                interrupts
+            },
+        )
 }
 
 /// An opaque wrapper for a single NVIC interrupt.
@@ -251,5 +252,67 @@ impl Nvic {
         let idx = self.0 as usize;
 
         NVIC.icpr[idx / 32].set(1 << (self.0 & 31));
+    }
+}
+
+/// The interrupts set is defined as two u128 fields,
+///   mask.0 has the bits corresponding to interrupts from 128 to 240
+///   mask.1 has the bits corresponding to interrupts from 0 to 127
+#[derive(Copy, Clone)]
+pub struct CortexMInterrupts(u128, u128);
+
+impl CortexMInterrupts {
+    fn set_from_register(&mut self, position: usize, register: u32) {
+        if position < 4 {
+            self.0 = self.0 | ((register as u128) << (32 * position))
+        } else {
+            self.1 = self.1 | ((register as u128) << (32 * (position - 4)))
+        }
+    }
+
+    fn get_register(&self, position: usize) -> u32 {
+        if position < 4 {
+            ((self.0 >> (32 * position)) as u32) & 0xFFFF_FFFF
+        } else {
+            ((self.1 >> (32 * position - 4)) as u32) & 0xFFFF_FFFF
+        }
+    }
+}
+
+impl Interrupts for CortexMInterrupts {
+    fn full() -> Self {
+        CortexMInterrupts(!0x0, !0x0)
+    }
+
+    fn empty() -> Self {
+        CortexMInterrupts(0, 0)
+    }
+
+    fn is_set(&self, interrupt_number: u8) -> bool {
+        if interrupt_number < 128 {
+            self.1 & (1 << interrupt_number) != 0
+        } else {
+            self.0 & (1 << interrupt_number - 128) != 0
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0 == 0 && self.1 == 0
+    }
+
+    fn set(&mut self, interrupt_number: u8) {
+        if interrupt_number < 128 {
+            self.1 = self.1 | (1 << interrupt_number)
+        } else {
+            self.0 = self.0 | (1 << interrupt_number - 128)
+        }
+    }
+
+    fn clear(&mut self, interrupt_number: u8) {
+        if interrupt_number < 128 {
+            self.1 = self.1 ^ (1 << interrupt_number)
+        } else {
+            self.0 = self.0 ^ (1 << interrupt_number - 128)
+        }
     }
 }

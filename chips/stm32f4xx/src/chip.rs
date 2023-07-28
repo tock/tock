@@ -154,11 +154,12 @@ impl<'a, I: InterruptService + 'a> Stm32f4xx<'a, I> {
 impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type Interrupts = cortexm4::nvic::CortexMInterrupts;
 
-    fn service_pending_interrupts(&self) {
+    fn service_pending_interrupts(&self, interrupts: Self::Interrupts) {
         unsafe {
             loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4::nvic::next_pending_from_set(interrupts) {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
@@ -173,7 +174,7 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
         }
     }
 
-    fn has_pending_interrupts(&self) -> bool {
+    fn has_pending_interrupts(&self) -> Self::Interrupts {
         unsafe { cortexm4::nvic::has_pending() }
     }
 
