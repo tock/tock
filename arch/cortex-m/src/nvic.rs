@@ -1,5 +1,5 @@
-// Licensed under the Apache License, Version 2.0 or the MIT License.
-// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Licensed under the Apache License, Version 2.0[0] or the MIT License.
+// SPDX-License-Identifier: Apache-2.0[0] OR MIT
 // Copyright Tock Contributors 2022.
 
 //! Cortex-M NVIC
@@ -175,7 +175,7 @@ pub unsafe fn next_pending_from_set(set: CortexMInterrupts) -> Option<u32> {
         .take(number_of_nvic_registers())
         .enumerate()
     {
-        let interrupt_set = if block < 4 { set.1 } else { set.0 };
+        let interrupt_set = if block < 4 { set.0[1] } else { set.0[0] };
         let ispr_masked = ispr.get() & !((interrupt_set >> (32 * block % 4)) as u32);
 
         // If there are any high bits there is a pending interrupt
@@ -256,63 +256,64 @@ impl Nvic {
 }
 
 /// The interrupts set is defined as two u128 fields,
-///   mask.0 has the bits corresponding to interrupts from 128 to 240
-///   mask.1 has the bits corresponding to interrupts from 0 to 127
+///   mask.0[0] has the bits corresponding to interrupts from 128 to 240
+///   mask.0[1] has the bits corresponding to interrupts from 0 to 127
 #[derive(Copy, Clone)]
-pub struct CortexMInterrupts(u128, u128);
+#[repr(transparent)]
+pub struct CortexMInterrupts([u128; 2]);
 
 impl CortexMInterrupts {
     fn set_from_register(&mut self, position: usize, register: u32) {
         if position < 4 {
-            self.0 = self.0 | ((register as u128) << (32 * position))
+            self.0[0] = self.0[0] | ((register as u128) << (32 * position))
         } else {
-            self.1 = self.1 | ((register as u128) << (32 * (position - 4)))
+            self.0[1] = self.0[1] | ((register as u128) << (32 * (position - 4)))
         }
     }
 
     fn get_register(&self, position: usize) -> u32 {
         if position < 4 {
-            ((self.0 >> (32 * position)) as u32) & 0xFFFF_FFFF
+            ((self.0[0] >> (32 * position)) as u32) & 0xFFFF_FFFF
         } else {
-            ((self.1 >> (32 * position - 4)) as u32) & 0xFFFF_FFFF
+            ((self.0[1] >> (32 * position - 4)) as u32) & 0xFFFF_FFFF
         }
     }
 }
 
 impl Interrupts for CortexMInterrupts {
     fn full() -> Self {
-        CortexMInterrupts(!0x0, !0x0)
+        CortexMInterrupts([!0x0, !0x0])
     }
 
     fn empty() -> Self {
-        CortexMInterrupts(0, 0)
+        CortexMInterrupts([0, 0])
     }
 
     fn is_set(&self, interrupt_number: u8) -> bool {
         if interrupt_number < 128 {
-            self.1 & (1 << interrupt_number) != 0
+            self.0[1] & (1 << interrupt_number) != 0
         } else {
-            self.0 & (1 << interrupt_number - 128) != 0
+            self.0[0] & (1 << interrupt_number - 128) != 0
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.0 == 0 && self.1 == 0
+        self.0[0] == 0 && self.0[1] == 0
     }
 
     fn set(&mut self, interrupt_number: u8) {
         if interrupt_number < 128 {
-            self.1 = self.1 | (1 << interrupt_number)
+            self.0[1] = self.0[1] | (1 << interrupt_number)
         } else {
-            self.0 = self.0 | (1 << interrupt_number - 128)
+            self.0[0] = self.0[0] | (1 << interrupt_number - 128)
         }
     }
 
     fn clear(&mut self, interrupt_number: u8) {
         if interrupt_number < 128 {
-            self.1 = self.1 ^ (1 << interrupt_number)
+            self.0[1] = self.0[1] ^ (1 << interrupt_number)
         } else {
-            self.0 = self.0 ^ (1 << interrupt_number - 128)
+            self.0[0] = self.0[0] ^ (1 << interrupt_number - 128)
         }
     }
 }
