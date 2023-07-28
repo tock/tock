@@ -335,6 +335,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
+    fn set_yielded_for_state(&self, upcall_id: UpcallId) {
+        if self.state.get() == State::Running {
+            self.state.set(State::YieldedFor(upcall_id));
+        }
+    }
+
     fn stop(&self) {
         match self.state.get() {
             State::Running => self.state.set(State::StoppedRunning),
@@ -447,6 +453,22 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| tasks.dequeue())
+    }
+
+    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<FunctionCall> {
+        let task = self.tasks.map_or(None, |tasks| {
+            tasks.dequeue_specific(|task| match task {
+                Task::FunctionCall(fc) => match fc.source {
+                    FunctionCallSource::Driver(upid) => upid == upcall_id,
+                    _ => false,
+                },
+                _ => false,
+            })
+        });
+        match task {
+            Some(Task::FunctionCall(fc)) => Some(fc),
+            _ => None,
+        }
     }
 
     fn pending_tasks(&self) -> usize {

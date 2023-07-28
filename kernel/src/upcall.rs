@@ -16,7 +16,7 @@ use crate::ErrorCode;
 /// Type to uniquely identify an upcall subscription across all drivers.
 ///
 /// This contains the driver number and the subscribe number within the driver.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct UpcallId {
     /// The [`SyscallDriver`](crate::syscall_driver::SyscallDriver)
     /// implementation this upcall corresponds to.

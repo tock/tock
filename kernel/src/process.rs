@@ -347,6 +347,13 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
+    /// Remove the scheduled operation from the front of the queue and return it
+    /// to be handled by the scheduler.
+    ///
+    /// If there are no `Task`s in the queue for this process this will return
+    /// `None`.
+    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<FunctionCall>;
+
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
@@ -366,6 +373,12 @@ pub trait Process {
     /// This will fail (i.e. not do anything) if the process was not previously
     /// running.
     fn set_yielded_state(&self);
+
+    /// Move this process from the running state to the yielded-for state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
+    fn set_yielded_for_state(&self, upcall_id: UpcallId);
 
     /// Move this process from running or yielded state into the stopped state.
     ///
@@ -859,6 +872,12 @@ pub enum State {
     /// occur, but it could also mean it has finished and doesn't need to be
     /// scheduled again.
     Yielded,
+
+    /// Process stopped executing and returned to the kernel because it called
+    /// the `WaitFor` variant of the `yield` syscall. The process should not be
+    /// scheduled until the specified driver attempts to execute the specified
+    /// subscribe.
+    YieldedFor(UpcallId),
 
     /// The process is stopped, and its previous state was Running. This is used
     /// if the kernel forcibly stops a process when it is in the `Running`
