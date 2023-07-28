@@ -293,8 +293,8 @@ result with an error of `NOSUPPORT`.
 The Yield system call class is how a userspace process handles
 upcalls, relinquishes the processor to other processes, or waits for
 one of its long-running calls to complete.  The Yield system call
-class implements the only blocking system call in Tock that returns,
-`yield-wait`.
+class implements the only blocking system calls in Tock that return,
+`yield-wait` and `yield-wait-for`.
 
 When a process calls a Yield system call, the kernel schedules one
 pending upcall (if any) to execute on the userspace stack.  If there
@@ -303,20 +303,10 @@ call to invoke. The kernel invokes upcalls only in response to Yield
 system calls.  This form of very limited preemption allows userspace
 to manage concurrent access to its variables.
 
-There are two Yield system calls:
-  - `yield-wait`
-  - `yield-no-wait`
-
-The first call, `yield-wait`, blocks until an upcall executes. It is
-commonly used to provide a blocking I/O interface to userspace or to
-indicate to the kernel that the process has no work to do so the system
-can be put into a sleep state. A userspace library starts a long-running
-operation that has an upcall, then calls `yield-wait` to wait for an upcall.
-When the `yield-wait` returns, the process checks if the resuming upcall was
-the one it was expecting, and if not calls `yield-wait` again.
-
-The second call, `yield-no-wait`, executes a single upcall if any is pending.
-If no upcalls are pending it returns immediately.
+There are three Yield system calls:
+  - Yield-Wait
+  - Yield-NoWait
+  - Yield-WaitFor
 
 The register arguments for Yield system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
@@ -324,40 +314,81 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument               | Register |
 |------------------------|----------|
 | Yield number           | r0       |
-| No wait field          | r1       |
-| unused                 | r2       |
-| unused                 | r3       |
+| yield-param-1          | r1       |
+| yield-param-2          | r2       |
+| yield-param-3          | r3       |
 
+The Yield system call class has no return value. This is because
+invoking an upcall pushes that function call onto the stack, such
+that the return value of a call to yield system call may be the
+return value of the upcall.
 
-The yield number specifies which call is invoked.
+Yield variants which return a result to the caller will use one or more
+of the `yield-param-N` arguments to do so.  Allowing the kernel to pass
+a return value in a register back to userspace would require either
+re-entering the kernel or expensive execution architectures (e.g.,
+additional stacks or additional stack frames) for upcalls.
+
+The Yield number (in r0) specifies which call is invoked:
 
 | System call     | Yield number value |
 |-----------------|--------------------|
 | yield-no-wait   |                  0 |
 | yield-wait      |                  1 |
-
+| yield-wait-for  |                  2 |
 
 All other yield number values are reserved. If an invalid
 yield number is passed the kernel MUST return immediately.
 
-The no wait field is only used by `yield-no-wait`. It contains the
-memory address of an 8-bit byte that `yield-no-wait` writes to
-indicate whether an upcall was invoked. If invoking `yield-no-wait`
-resulted in an upcall executing, `yield-no-wait` writes 1 to the
-field address. If invoking `yield-no-wait` resulted in no upcall
-executing, `yield-no-wait` writes 0 to the field address. This field
-allows userspace loops that want to flush the upcall queue to
-execute `yield-no-wait` until the queue is empty.
+The meaning of `yield-param-N` (r1-r3) is specific to the yield type.
 
-The Yield system call class has no return value. This is because
-invoking an upcall pushes that function call onto the stack, such
-that the return value of a call to yield system call may be the
-return value of the upcall. This is why the no wait field exists,
-so that `yield-no-wait` can return a result to the caller. Allowing
-the kernel to pass a return value in register back to userspace
-would require either re-entering the kernel or expensive
-execution architectures (e.g., additional stacks or additional
-stack frames) for upcalls.
+
+### 4.1.1 Yield-NoWait
+
+Yield number 0, Yield-NoWait, executes a single upcall if any is
+pending.  If no upcalls are pending it returns immediately.
+
+`yield-param-1` contains the memory address of an 8-bit byte that
+Yield-NoWait writes to indicate whether an upcall was invoked. If
+invoking Yield-NoWait resulted in an upcall executing, Yield-NoWait
+writes 1 to the field address. If invoking Yield-NoWait resulted in no
+upcall executing, Yield-NoWait writes 0 to the field address. This field
+allows userspace loops that want to flush the upcall queue to execute
+Yield-NoWait until the queue is empty.
+
+`yield-param-2` and `yield-param-3` are unused and reserved.
+
+
+### 4.1.2 Yield-Wait
+
+Yield number 1, Yield-Wait, blocks until an upcall executes. It is
+commonly used to provide a blocking I/O interface to userspace or to
+indicate to the kernel that the process has no work to do so the system
+can be put into a sleep state. A userspace library starts a long-running
+operation that has an upcall, then calls Yield-Wait to wait for an
+upcall.  When the Yield-Wait returns, the process checks if the resuming
+upcall was the one it was expecting, and if not calls Yield-Wait again.
+
+`yield-param-1`, `yield-param-2`, and `yield-param-3` are unused and reserved.
+
+
+### 4.1.3 Yield-WaitFor
+
+The third call, Yield-WaitFor, blocks until a specific upcall executes.
+In contrast to the Yield-Wait call, only the specified upcall is
+eligible to execute. Any other upcall that arrives will be queued.
+
+`yield-param-1` is the Driver number and `yield-param-2` is the
+Subscribe number to wait for.
+
+`yield-param-3` is unused and reserved.
+
+_Note:_ In the case that the specified upcall is set to the Null Upcall,
+no upcall will execute, but Yield-WaitFor will still return. In this
+case, the contents of r0-r3 upon return are UNDEFINED and should not be
+relied on in any way.
+
+
 
 4.2 Subscribe (Class ID: 1)
 --------------------------------
