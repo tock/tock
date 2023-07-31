@@ -42,3 +42,7 @@ opportunity to correct any errors or better explain points that came up.
 They are intended to be a communication mechanism of the group, its
 discussions, the technical issues, and decisions, not a literal
 transcription of what is said.
+
+## Code Purview
+
+At this time, the network working group does not have responsibility for code in any particular directories of Tock. That may change as work progresses, with the possibility of a subdirectory within `capsules/` being created under the purview of this working group.
