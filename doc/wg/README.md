@@ -9,3 +9,9 @@ Existing Working Groups
 
 - [Core](core/README.md)
 - [OpenTitan](opentitan/README.md)
+
+
+Retired Working Groups
+----------------------
+
+- [Legacy](legacy/README.md)

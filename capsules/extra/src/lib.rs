@@ -6,6 +6,7 @@
 #![no_std]
 
 pub mod test;
+pub mod tutorials;
 
 #[macro_use]
 pub mod net;

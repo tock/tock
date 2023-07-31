@@ -212,7 +212,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                             .and_then(|send| {
                                 send.enter(|data| {
                                     self.send_buffer.take().map_or(
-                                        CommandReturn::failure(ErrorCode::RESERVE),
+                                        CommandReturn::failure(ErrorCode::BUSY),
                                         |buf| {
                                             // Copy the data into the static buffer
                                             data.copy_to_slice(buf);
@@ -336,7 +336,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                                     .and_then(|send| {
                                         send.enter(|data| {
                                             self.send_buffer.take().map_or(
-                                                CommandReturn::failure(ErrorCode::RESERVE),
+                                                CommandReturn::failure(ErrorCode::BUSY),
                                                 |buf| {
                                                     // Copy the data into the static buffer
                                                     data.copy_to_slice(buf);

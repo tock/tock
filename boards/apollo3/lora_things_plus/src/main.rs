@@ -203,14 +203,15 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRa
     }
 }
 
+// Ensure that `setup()` is never inlined
+// This helps reduce the stack frame, see https://github.com/tock/tock/issues/3518
+#[inline(never)]
 unsafe fn setup() -> (
     &'static kernel::Kernel,
     &'static LoRaThingsPlus,
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
     &'static Apollo3DefaultPeripherals,
 ) {
-    apollo3::init();
-
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
 
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
@@ -510,6 +511,8 @@ unsafe fn setup() -> (
 /// setup and RAM initialization.
 #[no_mangle]
 pub unsafe fn main() {
+    apollo3::init();
+
     #[cfg(test)]
     test_main();
 

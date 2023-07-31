@@ -253,10 +253,6 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for KeyboardHid<'a
 
     /// Handle the completion of a Control transfer
     fn ctrl_status_complete(&'a self, endpoint: usize) {
-        if self.send_buffer.is_some() {
-            self.controller().endpoint_resume_in(ENDPOINT_NUM);
-        }
-
         self.client_ctrl.ctrl_status_complete(endpoint)
     }
 

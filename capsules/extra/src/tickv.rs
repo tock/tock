@@ -40,8 +40,8 @@ use core::cell::Cell;
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
 use kernel::hil::kv_system::{self, KVSystem};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
 
@@ -126,17 +126,23 @@ impl<'a, F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashControl
 pub type TicKVKeyType = [u8; 8];
 
 pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE: usize> {
+    /// Underlying asynchronous TicKV implementation.
     tickv: AsyncTicKV<'a, TickFSFlashCtrl<'a, F>, PAGE_SIZE>,
+    /// Hash engine that converts key strings to 8 byte keys.
     hasher: &'a H,
+    /// Track our internal asynchronous state machine.
     operation: Cell<Operation>,
+    /// The operation to run _after_ initialization has completed.
     next_operation: Cell<Operation>,
-
-    value_buffer: Cell<Option<&'static mut [u8]>>,
+    /// Holder for the key string passed from the caller until the operation
+    /// completes.
+    unhashed_key_buffer: MapCell<SubSliceMut<'static, u8>>,
+    /// Holder for the hashed key used in the given operation.
     key_buffer: TakeCell<'static, [u8; 8]>,
-    ret_buffer: TakeCell<'static, [u8]>,
-    unhashed_key_buf: TakeCell<'static, [u8]>,
-    key_buf: TakeCell<'static, [u8; 8]>,
-
+    /// Holder for a buffer containing a value being read from or written to the
+    /// key-value store.
+    value_buffer: MapCell<SubSliceMut<'static, u8>>,
+    /// Callback client when the `KVSystem` operation completes.
     client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
 }
 
@@ -160,11 +166,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
             hasher,
             operation: Cell::new(Operation::None),
             next_operation: Cell::new(Operation::None),
-            value_buffer: Cell::new(None),
+            unhashed_key_buffer: MapCell::empty(),
             key_buffer: TakeCell::empty(),
-            ret_buffer: TakeCell::empty(),
-            unhashed_key_buf: TakeCell::empty(),
-            key_buf: TakeCell::empty(),
+            value_buffer: MapCell::empty(),
             client: OptionalCell::empty(),
         }
     }
@@ -178,6 +182,19 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
         self.operation.set(Operation::None);
         match self.next_operation.get() {
             Operation::None | Operation::Init => {}
+            Operation::GetKey => {
+                match self.get_value(
+                    self.key_buffer.take().unwrap(),
+                    self.value_buffer.take().unwrap(),
+                ) {
+                    Err((key, value, error)) => {
+                        self.client.map(move |cb| {
+                            cb.get_value_complete(error, key, value);
+                        });
+                    }
+                    _ => {}
+                }
+            }
             Operation::AppendKey => {
                 match self.append_key(
                     self.key_buffer.take().unwrap(),
@@ -186,19 +203,6 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
                             cb.append_key_complete(error, key, value);
-                        });
-                    }
-                    _ => {}
-                }
-            }
-            Operation::GetKey => {
-                match self.get_value(
-                    self.key_buffer.take().unwrap(),
-                    self.ret_buffer.take().unwrap(),
-                ) {
-                    Err((key, ret_buf, error)) => {
-                        self.client.map(move |cb| {
-                            cb.get_value_complete(error, key, ret_buf);
                         });
                     }
                     _ => {}
@@ -217,7 +221,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
             Operation::GarbageCollect => match self.garbage_collect() {
                 Err(error) => {
                     self.client.map(move |cb| {
-                        cb.garbage_collect_complete(error);
+                        cb.garbage_collect_complete(Err(error));
                     });
                 }
                 _ => {}
@@ -230,16 +234,16 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
     for TicKVStore<'a, F, H, PAGE_SIZE>
 {
-    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: &'static mut [u8]) {
-        self.unhashed_key_buf.replace(data);
-        self.hasher.run(self.key_buf.take().unwrap()).unwrap();
+    fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
+        self.unhashed_key_buffer.replace(data);
+        self.hasher.run(self.key_buffer.take().unwrap()).unwrap();
     }
 
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {}
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
     fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         self.client.map(move |cb| {
-            cb.generate_key_complete(Ok(()), self.unhashed_key_buf.take().unwrap(), digest);
+            cb.generate_key_complete(Ok(()), self.unhashed_key_buffer.take().unwrap(), digest);
         });
 
         self.hasher.clear_data();
@@ -256,7 +260,18 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
             .controller
             .flash_read_buffer
             .replace(pagebuffer);
-        let (ret, buf_buffer) = self.tickv.continue_operation();
+        let (ret, tickv_buf, tickv_buf_len) = self.tickv.continue_operation();
+
+        // If we got the buffer back from TicKV then store it.
+        tickv_buf.map(|buf| {
+            let mut val_buf = SubSliceMut::new(buf);
+            if tickv_buf_len > 0 {
+                // Length of zero means nothing was inserted into the buffer so
+                // no need to slice it.
+                val_buf.slice(0..tickv_buf_len);
+            }
+            self.value_buffer.replace(val_buf);
+        });
 
         match self.operation.get() {
             Operation::Init => match ret {
@@ -267,19 +282,17 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                 _ => {}
             },
             Operation::GetKey => {
-                buf_buffer.map(|buf| {
-                    self.ret_buffer.replace(buf);
-                });
-
                 match ret {
                     Ok(tickv::success_codes::SuccessCode::Complete)
                     | Ok(tickv::success_codes::SuccessCode::Written) => {
+                        // We successfully got the key-value object and we can
+                        // call the callback with the retrieved value.
                         self.operation.set(Operation::None);
                         self.client.map(|cb| {
                             cb.get_value_complete(
                                 Ok(()),
                                 self.key_buffer.take().unwrap(),
-                                self.ret_buffer.take().unwrap(),
+                                self.value_buffer.take().unwrap(),
                             );
                         });
                     }
@@ -294,7 +307,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                             cb.get_value_complete(
                                 Err(ErrorCode::SIZE),
                                 self.key_buffer.take().unwrap(),
-                                self.ret_buffer.take().unwrap(),
+                                self.value_buffer.take().unwrap(),
                             );
                         });
                     }
@@ -309,20 +322,18 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                             cb.get_value_complete(
                                 Err(get_tock_err),
                                 self.key_buffer.take().unwrap(),
-                                self.ret_buffer.take().unwrap(),
+                                self.value_buffer.take().unwrap(),
                             );
                         });
                     }
                 }
             }
             Operation::AppendKey => {
-                buf_buffer.map(|buf| {
-                    self.value_buffer.replace(Some(buf));
-                });
-
                 match ret {
                     Ok(tickv::success_codes::SuccessCode::Complete)
                     | Ok(tickv::success_codes::SuccessCode::Written) => {
+                        // Nothing to do at this point as we need to wait
+                        // for the flash write to complete.
                         self.operation.set(Operation::None);
                     }
                     Ok(tickv::success_codes::SuccessCode::Queued) => {}
@@ -348,6 +359,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
             Operation::InvalidateKey => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
                 | Ok(tickv::success_codes::SuccessCode::Written) => {
+                    // Need to wait for flash write to complete.
                     self.operation.set(Operation::None);
                 }
                 _ => {}
@@ -398,10 +410,17 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
     }
 
     fn erase_complete(&self, _error: flash::Error) {
-        let (ret, buf_buffer) = self.tickv.continue_operation();
+        let (ret, tickv_buf, tickv_buf_len) = self.tickv.continue_operation();
 
-        buf_buffer.map(|buf| {
-            self.ret_buffer.replace(buf);
+        // If we got the buffer back from TicKV then store it.
+        tickv_buf.map(|buf| {
+            let mut val_buf = SubSliceMut::new(buf);
+            if tickv_buf_len > 0 {
+                // Length of zero means nothing was inserted into the buffer so
+                // no need to slice it.
+                val_buf.slice(0..tickv_buf_len);
+            }
+            self.value_buffer.replace(val_buf);
         });
 
         match self.operation.get() {
@@ -438,37 +457,34 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
 
     fn generate_key(
         &self,
-        unhashed_key: &'static mut [u8],
-        key_buf: &'static mut Self::K,
+        unhashed_key: SubSliceMut<'static, u8>,
+        key: &'static mut Self::K,
     ) -> Result<
         (),
         (
-            &'static mut [u8],
+            SubSliceMut<'static, u8>,
             &'static mut Self::K,
             Result<(), ErrorCode>,
         ),
     > {
-        if let Err((e, buf)) = self
-            .hasher
-            .add_mut_data(LeasableMutableBuffer::new(unhashed_key))
-        {
-            return Err((buf, key_buf, Err(e)));
+        match self.hasher.add_mut_data(unhashed_key) {
+            Ok(_) => {
+                self.key_buffer.replace(key);
+                Ok(())
+            }
+            Err((e, buf)) => Err((buf, key, Err(e))),
         }
-
-        self.key_buf.replace(key_buf);
-
-        Ok(())
     }
 
     fn append_key(
         &self,
         key: &'static mut Self::K,
-        value: &'static mut [u8],
+        value: SubSliceMut<'static, u8>,
     ) -> Result<
         (),
         (
             &'static mut [u8; 8],
-            &'static mut [u8],
+            SubSliceMut<'static, u8>,
             Result<(), kernel::ErrorCode>,
         ),
     > {
@@ -476,19 +492,16 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
 
-                match self.tickv.append_key(u64::from_be_bytes(*key), value) {
+                let length = value.len();
+                match self
+                    .tickv
+                    .append_key(u64::from_be_bytes(*key), value.take(), length)
+                {
                     Ok(_ret) => {
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, e)) => match e {
-                        tickv::error_codes::ErrorCode::ReadNotReady(_)
-                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
-                            self.key_buffer.replace(key);
-                            Ok(())
-                        }
-                        _ => Err((key, buf.unwrap(), Err(ErrorCode::FAIL))),
-                    },
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
                 }
             }
             Operation::Init => {
@@ -496,7 +509,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::AppendKey);
                 self.key_buffer.replace(key);
-                self.value_buffer.replace(Some(value));
+                self.value_buffer.replace(value);
                 Ok(())
             }
             _ => {
@@ -509,32 +522,28 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
     fn get_value(
         &self,
         key: &'static mut Self::K,
-        ret_buf: &'static mut [u8],
+        value: SubSliceMut<'static, u8>,
     ) -> Result<
         (),
         (
-            &'static mut Self::K,
-            &'static mut [u8],
-            Result<(), ErrorCode>,
+            &'static mut [u8; 8],
+            SubSliceMut<'static, u8>,
+            Result<(), kernel::ErrorCode>,
         ),
     > {
+        if value.is_sliced() {
+            return Err((key, value, Err(ErrorCode::SIZE)));
+        }
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GetKey);
 
-                match self.tickv.get_key(u64::from_be_bytes(*key), ret_buf) {
+                match self.tickv.get_key(u64::from_be_bytes(*key), value.take()) {
                     Ok(_ret) => {
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, e)) => match e {
-                        tickv::error_codes::ErrorCode::ReadNotReady(_)
-                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
-                            self.key_buffer.replace(key);
-                            Ok(())
-                        }
-                        _ => Err((key, buf.unwrap(), Err(ErrorCode::FAIL))),
-                    },
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
                 }
             }
             Operation::Init => {
@@ -542,12 +551,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                 // We can save this request and start it after init
                 self.next_operation.set(Operation::GetKey);
                 self.key_buffer.replace(key);
-                self.ret_buffer.replace(ret_buf);
+                self.value_buffer.replace(value);
                 Ok(())
             }
             _ => {
                 // An operation is already in process.
-                Err((key, ret_buf, Err(ErrorCode::BUSY)))
+                Err((key, value, Err(ErrorCode::BUSY)))
             }
         }
     }
@@ -565,19 +574,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err(e) => match e {
-                        tickv::error_codes::ErrorCode::ReadNotReady(_)
-                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => {
-                            self.key_buffer.replace(key);
-                            Ok(())
-                        }
-                        _ => Err((key, Err(ErrorCode::FAIL))),
-                    },
+                    Err(_e) => Err((key, Err(ErrorCode::FAIL))),
                 }
             }
             Operation::Init => {
                 // The init process is still occurring.
-                // We can save this request and start it after init
+                // We can save this request and start it after init.
                 self.next_operation.set(Operation::InvalidateKey);
                 self.key_buffer.replace(key);
                 Ok(())
@@ -589,29 +591,21 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         }
     }
 
-    fn garbage_collect(&self) -> Result<usize, Result<(), ErrorCode>> {
+    fn garbage_collect(&self) -> Result<(), ErrorCode> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GarbageCollect);
-
-                match self.tickv.garbage_collect() {
-                    Ok(freed) => Ok(freed),
-                    Err(e) => match e {
-                        tickv::error_codes::ErrorCode::ReadNotReady(_)
-                        | tickv::error_codes::ErrorCode::WriteNotReady(_) => Ok(0),
-                        _ => Err(Err(ErrorCode::FAIL)),
-                    },
-                }
+                self.tickv.garbage_collect().or(Err(ErrorCode::FAIL))
             }
             Operation::Init => {
                 // The init process is still occurring.
-                // We can save this request and start it after init
+                // We can save this request and start it after init.
                 self.next_operation.set(Operation::GarbageCollect);
-                Ok(0)
+                Ok(())
             }
             _ => {
                 // An operation is already in process.
-                Err(Err(ErrorCode::BUSY))
+                Err(ErrorCode::BUSY)
             }
         }
     }

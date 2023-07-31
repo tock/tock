@@ -79,8 +79,8 @@ to compute a digest is a large overhead. Furthermore, the data input can
 be large (tens or hundreds of kilobytes). Therefore `DigestData` and 
 `ClientData` support both mutable and immutable inputs.
 
-Clients provide input to `DigestData` through the `LeasableBuffer`
-and `LeasableMutableBuffer` types. These allow a client to ask a
+Clients provide input to `DigestData` through the `SubSlice`
+and `SubSliceMut` types. These allow a client to ask a
 digest engine to compute a digest over a subset of their data, e.g. to
 exclude the area where the digest that will be compared against is stored. 
 These types have a source slice and maintain an active range over that slice.
@@ -90,10 +90,10 @@ entire slice.
 ```rust
 pub trait DigestData<'a, const L: usize> {
     fn set_data_client(&'a self, client: &'a dyn ClientData<'a, L>);
-    fn add_data(&self, data: LeasableBuffer<'static, u8>) 
-       -> Result<(), (ErrorCode, LeasableBuffer<'static, u8>)>;
-    fn add_mut_data(&self, data: LeasableMutableBuffer<'static, u8>)
-       -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)>;
+    fn add_data(&self, data: SubSlice<'static, u8>) 
+       -> Result<(), (ErrorCode, SubSlice<'static, u8>)>;
+    fn add_mut_data(&self, data: SubSliceMut<'static, u8>)
+       -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)>;
     fn clear_data(&self);
 }
 ```
@@ -112,11 +112,11 @@ until a completion callback delivered through `ClientData`.
 
 ```rust
 pub trait ClientData<'a, const L: usize> {
-    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: LeasableBuffer<'static, u8>);
+    fn add_data_done(&'a self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>);
     fn add_mut_data_done(
         &'a self,
         result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
+        data: SubSliceMut<'static, u8>,
     );
 }
 ```
