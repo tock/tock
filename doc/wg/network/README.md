@@ -15,7 +15,7 @@ The goals of the Network Tock Working Group (NWG) are to:
 ## Members
 
 - Alexandru Radovici, OxidOS Automotive
-- Brandon Ghena, Northwestern University
+- Branden Ghena, Northwestern University
 - Leon Schuermann, Princeton University
 - Tyler Potyondy, UCSD
 - Ioan-Cristian Cirstea, OxidOS Automotive
