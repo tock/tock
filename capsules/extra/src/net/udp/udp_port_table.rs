@@ -200,7 +200,7 @@ impl UdpPortManager {
     /// The slot in the table is only freed if the socket that is dropped is
     /// unbound. If the slot is bound, the socket is being dropped after a call to
     /// bind(), and the slot in the table should remain reserved.
-    fn destroy_socket(&self, socket: &mut UdpSocket) {
+    fn destroy_socket(&self, socket: &UdpSocket) {
         self.port_array.map(|table| match table[socket.idx] {
             Some(entry) => {
                 if entry == SocketBindingEntry::Unbound {

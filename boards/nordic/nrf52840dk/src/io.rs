@@ -31,7 +31,7 @@ fn wait() {
 
 /// Set the RTT memory buffer used to output panic messages.
 pub unsafe fn set_rtt_memory(
-    rtt_memory: &'static mut capsules_extra::segger_rtt::SeggerRttMemory<'static>,
+    rtt_memory: &'static capsules_extra::segger_rtt::SeggerRttMemory<'static>,
 ) {
     WRITER = Writer::WriterRtt(rtt_memory);
 }

@@ -164,11 +164,7 @@ impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
 // Relevant Rust issue: https://github.com/rust-lang/rust/issues/26925
 impl<T: UIntLike, R: RegisterLongName> Clone for Field<T, R> {
     fn clone(&self) -> Self {
-        Field {
-            mask: self.mask,
-            shift: self.shift,
-            associated_register: self.associated_register,
-        }
+        *self
     }
 }
 impl<T: UIntLike, R: RegisterLongName> Copy for Field<T, R> {}

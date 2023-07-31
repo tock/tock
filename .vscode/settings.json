@@ -1,4 +1,4 @@
 {
     "editor.formatOnSave": true,
-    "rust-client.channel": "nightly-2023-04-13",
+    "rust-client.channel": "nightly-2023-07-30",
 }

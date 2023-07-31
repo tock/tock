@@ -292,7 +292,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             7 => {
                 self.can_rx
                     .take()
-                    .map(|dest_buffer| {
+                    .map_or(CommandReturn::failure(ErrorCode::NOMEM), |dest_buffer| {
                         self.processes
                             .enter(processid, |_, kernel| {
                                 match kernel.get_readwrite_processbuffer(0).map_or_else(
@@ -323,7 +323,6 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                             })
                             .unwrap_or_else(|err| err.into())
                     })
-                    .unwrap_or(CommandReturn::failure(ErrorCode::NOMEM))
             }
 
             // Stop receiving messages

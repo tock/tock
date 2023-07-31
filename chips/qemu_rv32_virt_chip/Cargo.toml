@@ -6,7 +6,7 @@
 name = "qemu_rv32_virt_chip"
 version.workspace = true
 authors.workspace = true
-edition = "2018"
+edition.workspace = true
 
 [dependencies]
 sifive = { path = "../sifive" }

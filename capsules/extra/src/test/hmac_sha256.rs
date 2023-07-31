@@ -29,7 +29,7 @@ impl TestHmacSha256 {
         key: &'static mut [u8],
         data: &'static mut [u8],
         digest: &'static mut [u8; 32],
-        correct: &'static mut [u8; 32],
+        correct: &'static [u8; 32],
     ) -> Self {
         TestHmacSha256 {
             hmac,

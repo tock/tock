@@ -14,6 +14,7 @@ members = [
     "usb/bulk-test",
     "usb/control-test",
 ]
+resolver = "2"
 
 [workspace.package]
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
