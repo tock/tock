@@ -142,20 +142,23 @@ struct EarlGrey {
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
-        capsules_extra::virtual_kv::VirtualKV<
+        capsules_extra::virtual_kv::VirtualKVPermissions<
             'static,
-            capsules_extra::kv_store::KVStore<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
-                capsules_extra::tickv::TicKVStore<
+                capsules_extra::kv_store::KVStore<
                     'static,
-                    capsules_core::virtualizers::virtual_flash::FlashUser<
+                    capsules_extra::tickv::TicKVStore<
                         'static,
-                        lowrisc::flash_ctrl::FlashCtrl<'static>,
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            'static,
+                            lowrisc::flash_ctrl::FlashCtrl<'static>,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
                     >,
-                    capsules_extra::sip_hash::SipHasher24<'static>,
-                    2048,
+                    [u8; 8],
                 >,
-                [u8; 8],
             >,
         >,
     >,
@@ -512,8 +515,8 @@ unsafe fn setup() -> (
         ),
     );
 
-    let mux_kv = components::kv_system::KVMuxComponent::new(kv_store).finalize(
-        components::kv_mux_component_static!(
+    let kv_store_permissions = components::kv_system::KVStorePermissionsComponent::new(kv_store)
+        .finalize(components::kv_store_permissions_component_static!(
             capsules_extra::kv_store::KVStore<
                 capsules_extra::tickv::TicKVStore<
                     capsules_core::virtualizers::virtual_flash::FlashUser<
@@ -524,23 +527,39 @@ unsafe fn setup() -> (
                 >,
                 capsules_extra::tickv::TicKVKeyType,
             >
-        ),
-    );
+        ));
 
-    let virtual_kv_driver = components::kv_system::VirtualKVComponent::new(mux_kv).finalize(
-        components::virtual_kv_component_static!(
-            capsules_extra::kv_store::KVStore<
-                capsules_extra::tickv::TicKVStore<
-                    capsules_core::virtualizers::virtual_flash::FlashUser<
-                        lowrisc::flash_ctrl::FlashCtrl,
+    let mux_kv = components::kv_system::KVPermissionsMuxComponent::new(kv_store_permissions)
+        .finalize(components::kv_permissions_mux_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::kv_store::KVStore<
+                    capsules_extra::tickv::TicKVStore<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
                     >,
-                    capsules_extra::sip_hash::SipHasher24<'static>,
-                    2048,
+                    capsules_extra::tickv::TicKVKeyType,
                 >,
-                capsules_extra::tickv::TicKVKeyType,
             >
-        ),
-    );
+        ));
+
+    let virtual_kv_driver = components::kv_system::VirtualKVPermissionsComponent::new(mux_kv)
+        .finalize(components::virtual_kv_permissions_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::kv_store::KVStore<
+                    capsules_extra::tickv::TicKVStore<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ));
 
     let kv_driver = components::kv_system::KVDriverComponent::new(
         virtual_kv_driver,
@@ -548,16 +567,18 @@ unsafe fn setup() -> (
         capsules_extra::kv_driver::DRIVER_NUM,
     )
     .finalize(components::kv_driver_component_static!(
-        capsules_extra::virtual_kv::VirtualKV<
-            capsules_extra::kv_store::KVStore<
-                capsules_extra::tickv::TicKVStore<
-                    capsules_core::virtualizers::virtual_flash::FlashUser<
-                        lowrisc::flash_ctrl::FlashCtrl,
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::kv_store::KVStore<
+                    capsules_extra::tickv::TicKVStore<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
                     >,
-                    capsules_extra::sip_hash::SipHasher24<'static>,
-                    2048,
+                    capsules_extra::tickv::TicKVKeyType,
                 >,
-                capsules_extra::tickv::TicKVKeyType,
             >,
         >
     ));
