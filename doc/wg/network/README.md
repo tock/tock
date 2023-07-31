@@ -29,7 +29,7 @@ and issues, rather than a complete group. Group membership is decided by
 the group: the exact process is not yet determined and may organically
 evolve as the group gains momentum.
 
-The group has a weekly teleconference call. All working group members
+The group has a teleconference call once every two weeks. All working group members
 participate in the call. Other people may be invited to participate to
 help contribute to particular topics or on-going discussions. The
 working group chair decides who beyond the working group members may
