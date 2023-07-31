@@ -34,6 +34,7 @@
 //! ```
 
 use core::mem;
+use kernel::hil::kv;
 use kernel::hil::kv_system::{self, KVSystem};
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -77,131 +78,6 @@ impl KeyHeader {
     }
 }
 
-/// Implement this trait and use `set_client()` in order to receive callbacks.
-pub trait StoreClient {
-    /// This callback is called when the get operation completes.
-    ///
-    /// If there wasn't enough room to store the entire buffer `SIZE` will be
-    /// returned in `result` and the bytes that did fit will be copied into the
-    /// buffer.
-    ///
-    /// ### Return Values
-    ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
-    /// - `key`: The key buffer.
-    /// - `value`: The value buffer.
-    fn get_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        key: SubSliceMut<'static, u8>,
-        value: SubSliceMut<'static, u8>,
-    );
-
-    /// This callback is called when the set operation completes.
-    ///
-    /// ### Return Values
-    ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
-    /// - `key`: The key buffer.
-    /// - `value`: The value buffer.
-    fn set_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        key: SubSliceMut<'static, u8>,
-        value: SubSliceMut<'static, u8>,
-    );
-
-    /// This callback is called when the delete operation completes.
-    ///
-    /// ### Return Values
-    ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
-    /// - `key`: The key buffer.
-    fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>);
-}
-
-/// High-level Key-Value interface with permissions.
-///
-/// This interface provides access to key-value storage where access control.
-/// Each object is marked with a `write_id` (based on the `StoragePermissions`
-/// used to create it), and all further accesses and modifications to that
-/// object require suitable permissions.
-pub trait KV<'a> {
-    /// Configure the client for operation callbacks.
-    fn set_client(&self, client: &'a dyn StoreClient);
-
-    /// Retrieve a value based on the given key.
-    ///
-    /// ### Arguments
-    ///
-    /// - `key`: The key to identify the k-v pair. Unhashed.
-    /// - `value`: Where the returned value buffer will be stored.
-    /// - `permissions`: The read/write/modify permissions for this access.
-    ///
-    /// ### Return
-    ///
-    /// - On success returns `Ok(())`. A callback will be issued.
-    /// - On error, returns the buffers and:
-    ///   - `ENOSUPPORT`: The key could not be found.
-    ///   - `SIZE`: The value is longer than the provided buffer. The amount of
-    ///     the value that fits in the buffer will be provided.
-    fn get(
-        &self,
-        key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
-        permissions: StoragePermissions,
-    ) -> Result<
-        (),
-        (
-            LeasableMutableBuffer<'static, u8>,
-            LeasableMutableBuffer<'static, u8>,
-            Result<(), ErrorCode>,
-        ),
-    >;
-
-    /// Store a value based on the given key.
-    ///
-    /// The `value` buffer must have room for a header.
-    ///
-    /// ### Arguments
-    ///
-    /// - `key`: The key to identify the k-v pair. Unhashed.
-    /// - `value`: The value to store. The provided buffer MUST start
-    ///   `KV.header_size()` bytes after the beginning of the buffer to enable
-    ///   the implementation to insert a header.
-    /// - `permissions`: The read/write/modify permissions for this access.
-    fn set(
-        &self,
-        key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
-        permissions: StoragePermissions,
-    ) -> Result<
-        (),
-        (
-            LeasableMutableBuffer<'static, u8>,
-            LeasableMutableBuffer<'static, u8>,
-            Result<(), ErrorCode>,
-        ),
-    >;
-
-    /// Delete a key-value object based on the given key.
-    ///
-    /// ### Arguments
-    ///
-    /// - `key`: The key to identify the k-v pair. Unhashed.
-    /// - `permissions`: The read/write/modify permissions for this access.
-    fn delete(
-        &self,
-        key: LeasableMutableBuffer<'static, u8>,
-        permissions: StoragePermissions,
-    ) -> Result<(), (LeasableMutableBuffer<'static, u8>, Result<(), ErrorCode>)>;
-
-    /// Returns the length of the key-value store's header in bytes.
-    ///
-    /// Room for this header must be accommodated in a `set` operation.
-    fn header_size(&self) -> usize;
-}
-
 /// KVStore implements the Tock-specific extension to KVSystem that includes
 /// permissions and access control.
 pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_system::KeyType> {
@@ -209,7 +85,7 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + kv_sy
     hashed_key: TakeCell<'static, T>,
     header_value: TakeCell<'static, [u8]>,
 
-    client: OptionalCell<&'a dyn StoreClient>,
+    client: OptionalCell<&'a dyn kv::KVClient>,
     operation: OptionalCell<Operation>,
 
     unhashed_key: MapCell<SubSliceMut<'static, u8>>,
@@ -236,8 +112,10 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KVStore<'a, K, T> {
     }
 }
 
-impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> KV<'a> for KVStore<'a, K, T> {
-    fn set_client(&self, client: &'a dyn StoreClient) {
+impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv::KVPermissions<'a>
+    for KVStore<'a, K, T>
+{
+    fn set_client(&self, client: &'a dyn kv::KVClient) {
         self.client.set(client);
     }
 
