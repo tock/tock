@@ -112,14 +112,7 @@ pub trait KVSystem<'a> {
         &self,
         unhashed_key: SubSliceMut<'static, u8>,
         key_buf: &'static mut Self::K,
-    ) -> Result<
-        (),
-        (
-            SubSliceMut<'static, u8>,
-            &'static mut Self::K,
-            Result<(), ErrorCode>,
-        ),
-    >;
+    ) -> Result<(), (SubSliceMut<'static, u8>, &'static mut Self::K, ErrorCode)>;
 
     /// Appends the key/value pair.
     ///
@@ -144,14 +137,7 @@ pub trait KVSystem<'a> {
         &self,
         key: &'static mut Self::K,
         value: SubSliceMut<'static, u8>,
-    ) -> Result<
-        (),
-        (
-            &'static mut Self::K,
-            SubSliceMut<'static, u8>,
-            Result<(), ErrorCode>,
-        ),
-    >;
+    ) -> Result<(), (&'static mut Self::K, SubSliceMut<'static, u8>, ErrorCode)>;
 
     /// Retrieves the value from a specified key.
     ///
@@ -171,14 +157,7 @@ pub trait KVSystem<'a> {
         &self,
         key: &'static mut Self::K,
         ret_buf: SubSliceMut<'static, u8>,
-    ) -> Result<
-        (),
-        (
-            &'static mut Self::K,
-            SubSliceMut<'static, u8>,
-            Result<(), ErrorCode>,
-        ),
-    >;
+    ) -> Result<(), (&'static mut Self::K, SubSliceMut<'static, u8>, ErrorCode)>;
 
     /// Invalidates the key in flash storage.
     ///
@@ -195,7 +174,7 @@ pub trait KVSystem<'a> {
     fn invalidate_key(
         &self,
         key: &'static mut Self::K,
-    ) -> Result<(), (&'static mut Self::K, Result<(), ErrorCode>)>;
+    ) -> Result<(), (&'static mut Self::K, ErrorCode)>;
 
     /// Perform a garbage collection on the KV Store.
     ///
@@ -357,7 +336,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                 ) {
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
-                            cb.get_value_complete(error, key, value);
+                            cb.get_value_complete(Err(error), key, value);
                         });
                     }
                     _ => {}
@@ -370,7 +349,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                 ) {
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
-                            cb.append_key_complete(error, key, value);
+                            cb.append_key_complete(Err(error), key, value);
                         });
                     }
                     _ => {}
@@ -380,7 +359,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                 match self.invalidate_key(self.key_buffer.take().unwrap()) {
                     Err((key, error)) => {
                         self.client.map(move |cb| {
-                            cb.invalidate_key_complete(error, key);
+                            cb.invalidate_key_complete(Err(error), key);
                         });
                     }
                     _ => {}
@@ -627,20 +606,13 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         &self,
         unhashed_key: SubSliceMut<'static, u8>,
         key: &'static mut Self::K,
-    ) -> Result<
-        (),
-        (
-            SubSliceMut<'static, u8>,
-            &'static mut Self::K,
-            Result<(), ErrorCode>,
-        ),
-    > {
+    ) -> Result<(), (SubSliceMut<'static, u8>, &'static mut Self::K, ErrorCode)> {
         match self.hasher.add_mut_data(unhashed_key) {
             Ok(_) => {
                 self.key_buffer.replace(key);
                 Ok(())
             }
-            Err((e, buf)) => Err((buf, key, Err(e))),
+            Err((e, buf)) => Err((buf, key, e)),
         }
     }
 
@@ -648,14 +620,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         &self,
         key: &'static mut Self::K,
         value: SubSliceMut<'static, u8>,
-    ) -> Result<
-        (),
-        (
-            &'static mut [u8; 8],
-            SubSliceMut<'static, u8>,
-            Result<(), kernel::ErrorCode>,
-        ),
-    > {
+    ) -> Result<(), (&'static mut [u8; 8], SubSliceMut<'static, u8>, ErrorCode)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
@@ -669,7 +634,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), ErrorCode::FAIL)),
                 }
             }
             Operation::Init => {
@@ -682,7 +647,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             }
             _ => {
                 // An operation is already in process.
-                Err((key, value, Err(ErrorCode::BUSY)))
+                Err((key, value, ErrorCode::BUSY))
             }
         }
     }
@@ -691,16 +656,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         &self,
         key: &'static mut Self::K,
         value: SubSliceMut<'static, u8>,
-    ) -> Result<
-        (),
-        (
-            &'static mut [u8; 8],
-            SubSliceMut<'static, u8>,
-            Result<(), kernel::ErrorCode>,
-        ),
-    > {
+    ) -> Result<(), (&'static mut [u8; 8], SubSliceMut<'static, u8>, ErrorCode)> {
         if value.is_sliced() {
-            return Err((key, value, Err(ErrorCode::SIZE)));
+            return Err((key, value, ErrorCode::SIZE));
         }
         match self.operation.get() {
             Operation::None => {
@@ -711,7 +669,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), ErrorCode::FAIL)),
                 }
             }
             Operation::Init => {
@@ -724,7 +682,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             }
             _ => {
                 // An operation is already in process.
-                Err((key, value, Err(ErrorCode::BUSY)))
+                Err((key, value, ErrorCode::BUSY))
             }
         }
     }
@@ -732,7 +690,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
     fn invalidate_key(
         &self,
         key: &'static mut Self::K,
-    ) -> Result<(), (&'static mut Self::K, Result<(), ErrorCode>)> {
+    ) -> Result<(), (&'static mut Self::K, ErrorCode)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::InvalidateKey);
@@ -742,7 +700,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err(_e) => Err((key, Err(ErrorCode::FAIL))),
+                    Err(_e) => Err((key, ErrorCode::FAIL)),
                 }
             }
             Operation::Init => {
@@ -754,7 +712,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             }
             _ => {
                 // An operation is already in process.
-                Err((key, Err(ErrorCode::BUSY)))
+                Err((key, ErrorCode::BUSY))
             }
         }
     }
