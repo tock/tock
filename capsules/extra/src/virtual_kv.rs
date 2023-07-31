@@ -11,20 +11,19 @@
 //! |  Capsule using K-V      |
 //! +-------------------------+
 //!
-//!    capsules::
-//!    ::KV
+//!    hil::kv::KVPermissions
 //!
 //! +-------------------------+
 //! | Virtualizer (this file) |
 //! +-------------------------+
 //!
-//!    capsules::kv_store::KV
+//!    hil::kv::KVPermissions
 //!
 //! +-------------------------+
-//! |  K-V store              |
+//! |  K-V store Permissions  |
 //! +-------------------------+
 //!
-//!    hil::kv_system
+//!    hil::kv::KV
 //!
 //! +-------------------------+
 //! |  K-V library            |

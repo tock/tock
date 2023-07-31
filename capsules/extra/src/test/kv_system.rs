@@ -7,28 +7,6 @@
 //! This capsule implements the tests for KV system libraries in Tock.
 //! This is originally written to test TicKV.
 //!
-//! +-----------------------+
-//! |                       |
-//! |  Capsule using K-V    |
-//! |                       |
-//! +-----------------------+
-//!
-//!    hil::kv_store
-//!
-//! +-----------------------+
-//! |                       |
-//! |  K-V in Tock          |
-//! |                       |
-//! +-----------------------+
-//!
-//!    hil::kv_system
-//!
-//! +-----------------------+
-//! |                       |
-//! |  TicKV (this file)    |
-//! |                       |
-//! +-----------------------+
-//!
 //!    hil::flash
 //!
 //! The tests can be enabled by adding this line to the `main()`

@@ -7,6 +7,38 @@
 //! Provides userspace access to key-value store. Access is restricted based on
 //! `StoragePermissions` so processes must have the required permissions in
 //! their TBF headers to use this interface.
+//!
+//! ```
+//! +===============+
+//! ||  Userspace  ||
+//! +===============+
+//!
+//! -----Syscall Interface-----
+//!
+//! +-------------------------+
+//! |  KV Driver (this file)  |
+//! +-------------------------+
+//!
+//!    hil::kv::KVPermissions
+//!
+//! +-------------------------+
+//! | Virtualizer             |
+//! +-------------------------+
+//!
+//!    hil::kv::KVPermissions
+//!
+//! +-------------------------+
+//! |  K-V store Permissions  |
+//! +-------------------------+
+//!
+//!    hil::kv::KV
+//!
+//! +-------------------------+
+//! |  K-V library            |
+//! +-------------------------+
+//!
+//!    hil::flash
+//! ```
 
 use capsules_core::driver;
 /// Syscall driver number.
