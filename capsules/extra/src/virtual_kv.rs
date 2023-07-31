@@ -11,7 +11,8 @@
 //! |  Capsule using K-V      |
 //! +-------------------------+
 //!
-//!    capsules::kv_store::KV
+//!    capsules::
+//!    ::KV
 //!
 //! +-------------------------+
 //! | Virtualizer (this file) |
@@ -34,40 +35,44 @@
 
 use kernel::collections::list::{List, ListLink, ListNode};
 
+use kernel::hil::kv;
+use kernel::hil::kv::KVPermissions;
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell};
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
-
-use crate::kv_store;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Operation {
     Get,
     Set,
     Delete,
+    Add,
+    Update,
 }
 
-pub struct VirtualKV<'a, V: kv_store::KV<'a>> {
-    mux_kv: &'a MuxKV<'a, V>,
-    next: ListLink<'a, VirtualKV<'a, V>>,
+pub struct VirtualKVPermissions<'a, V: kv::KVPermissions<'a>> {
+    mux_kv: &'a MuxKVPermissions<'a, V>,
+    next: ListLink<'a, VirtualKVPermissions<'a, V>>,
 
-    client: OptionalCell<&'a dyn kv_store::StoreClient>,
+    client: OptionalCell<&'a dyn kv::KVClient>,
     operation: OptionalCell<Operation>,
 
-    unhashed_key: MapCell<LeasableMutableBuffer<'static, u8>>,
-    value: MapCell<LeasableMutableBuffer<'static, u8>>,
+    unhashed_key: MapCell<SubSliceMut<'static, u8>>,
+    value: MapCell<SubSliceMut<'static, u8>>,
     valid_ids: OptionalCell<StoragePermissions>,
 }
 
-impl<'a, V: kv_store::KV<'a>> ListNode<'a, VirtualKV<'a, V>> for VirtualKV<'a, V> {
-    fn next(&self) -> &'a ListLink<VirtualKV<'a, V>> {
+impl<'a, V: kv::KVPermissions<'a>> ListNode<'a, VirtualKVPermissions<'a, V>>
+    for VirtualKVPermissions<'a, V>
+{
+    fn next(&self) -> &'a ListLink<VirtualKVPermissions<'a, V>> {
         &self.next
     }
 }
 
-impl<'a, V: kv_store::KV<'a>> VirtualKV<'a, V> {
-    pub fn new(mux_kv: &'a MuxKV<'a, V>) -> VirtualKV<'a, V> {
+impl<'a, V: kv::KVPermissions<'a>> VirtualKVPermissions<'a, V> {
+    pub fn new(mux_kv: &'a MuxKVPermissions<'a, V>) -> VirtualKVPermissions<'a, V> {
         Self {
             mux_kv,
             next: ListLink::empty(),
@@ -82,28 +87,70 @@ impl<'a, V: kv_store::KV<'a>> VirtualKV<'a, V> {
     pub fn setup(&'a self) {
         self.mux_kv.users.push_head(self);
     }
+
+    fn insert(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+        operation: Operation,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        match permissions.get_write_id() {
+            Some(_write_id) => {}
+            None => return Err((key, value, ErrorCode::INVAL)),
+        }
+
+        if self.operation.is_some() {
+            return Err((key, value, ErrorCode::BUSY));
+        }
+
+        // The caller must ensure there is space for the header.
+        if value.len() < self.header_size() {
+            return Err((key, value, ErrorCode::SIZE));
+        }
+
+        self.operation.set(operation);
+        self.valid_ids.set(permissions);
+        self.unhashed_key.replace(key);
+        self.value.replace(value);
+
+        self.mux_kv.do_next_op(false).map_err(|e| {
+            (
+                self.unhashed_key.take().unwrap(),
+                self.value.take().unwrap(),
+                e,
+            )
+        })
+    }
 }
 
-impl<'a, V: kv_store::KV<'a>> kv_store::KV<'a> for VirtualKV<'a, V> {
-    fn set_client(&self, client: &'a dyn kv_store::StoreClient) {
+impl<'a, V: kv::KVPermissions<'a>> kv::KVPermissions<'a> for VirtualKVPermissions<'a, V> {
+    fn set_client(&self, client: &'a dyn kv::KVClient) {
         self.client.set(client);
     }
 
     fn get(
         &self,
-        key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
         permissions: StoragePermissions,
     ) -> Result<
         (),
         (
-            LeasableMutableBuffer<'static, u8>,
-            LeasableMutableBuffer<'static, u8>,
-            Result<(), ErrorCode>,
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
         ),
     > {
         if self.operation.is_some() {
-            return Err((key, value, Err(ErrorCode::BUSY)));
+            return Err((key, value, ErrorCode::BUSY));
         }
 
         self.operation.set(Operation::Get);
@@ -122,52 +169,59 @@ impl<'a, V: kv_store::KV<'a>> kv_store::KV<'a> for VirtualKV<'a, V> {
 
     fn set(
         &self,
-        key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
         permissions: StoragePermissions,
     ) -> Result<
         (),
         (
-            LeasableMutableBuffer<'static, u8>,
-            LeasableMutableBuffer<'static, u8>,
-            Result<(), ErrorCode>,
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
         ),
     > {
-        match permissions.get_write_id() {
-            Some(_write_id) => {}
-            None => return Err((key, value, Err(ErrorCode::INVAL))),
-        }
+        self.insert(key, value, permissions, Operation::Set)
+    }
 
-        if self.operation.is_some() {
-            return Err((key, value, Err(ErrorCode::BUSY)));
-        }
+    fn add(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        self.insert(key, value, permissions, Operation::Add)
+    }
 
-        // The caller must ensure there is space for the header.
-        if value.len() < self.header_size() {
-            return Err((key, value, Err(ErrorCode::SIZE)));
-        }
-
-        self.operation.set(Operation::Set);
-        self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
-        self.value.replace(value);
-
-        self.mux_kv.do_next_op(false).map_err(|e| {
-            (
-                self.unhashed_key.take().unwrap(),
-                self.value.take().unwrap(),
-                e,
-            )
-        })
+    fn update(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        self.insert(key, value, permissions, Operation::Update)
     }
 
     fn delete(
         &self,
-        key: LeasableMutableBuffer<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         permissions: StoragePermissions,
-    ) -> Result<(), (LeasableMutableBuffer<'static, u8>, Result<(), ErrorCode>)> {
+    ) -> Result<(), (SubSliceMut<'static, u8>, ErrorCode)> {
         if self.operation.is_some() {
-            return Err((key, Err(ErrorCode::BUSY)));
+            return Err((key, ErrorCode::BUSY));
         }
 
         self.operation.set(Operation::Delete);
@@ -184,14 +238,14 @@ impl<'a, V: kv_store::KV<'a>> kv_store::KV<'a> for VirtualKV<'a, V> {
     }
 }
 
-pub struct MuxKV<'a, V: kv_store::KV<'a>> {
+pub struct MuxKVPermissions<'a, V: kv::KVPermissions<'a>> {
     kv: &'a V,
-    users: List<'a, VirtualKV<'a, V>>,
-    inflight: OptionalCell<&'a VirtualKV<'a, V>>,
+    users: List<'a, VirtualKVPermissions<'a, V>>,
+    inflight: OptionalCell<&'a VirtualKVPermissions<'a, V>>,
 }
 
-impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
-    pub fn new(kv: &'a V) -> MuxKV<'a, V> {
+impl<'a, V: kv::KVPermissions<'a>> MuxKVPermissions<'a, V> {
+    pub fn new(kv: &'a V) -> MuxKVPermissions<'a, V> {
         Self {
             kv,
             inflight: OptionalCell::empty(),
@@ -199,7 +253,7 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
         }
     }
 
-    fn do_next_op(&self, async_op: bool) -> Result<(), Result<(), ErrorCode>> {
+    fn do_next_op(&self, async_op: bool) -> Result<(), ErrorCode> {
         // Find a virtual device which has pending work.
         let mnode = self.users.iter().find(|node| node.operation.is_some());
 
@@ -219,7 +273,7 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
                                         node.operation.clear();
                                         if async_op {
                                             node.client.map(move |cb| {
-                                                cb.get_complete(e, unhashed_key, value);
+                                                cb.get_complete(Err(e), unhashed_key, value);
                                             });
                                             Ok(())
                                         } else {
@@ -231,7 +285,6 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
                                 }
                             })
                         }),
-
                         Operation::Set => node.value.take().map_or(Ok(()), |value| {
                             node.valid_ids.map_or(Ok(()), |perms| {
                                 match self.kv.set(unhashed_key, value, perms) {
@@ -243,7 +296,53 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
                                         node.operation.clear();
                                         if async_op {
                                             node.client.map(move |cb| {
-                                                cb.set_complete(e, unhashed_key, value);
+                                                cb.set_complete(Err(e), unhashed_key, value);
+                                            });
+                                            Ok(())
+                                        } else {
+                                            node.unhashed_key.replace(unhashed_key);
+                                            node.value.replace(value);
+                                            Err(e)
+                                        }
+                                    }
+                                }
+                            })
+                        }),
+                        Operation::Add => node.value.take().map_or(Ok(()), |value| {
+                            node.valid_ids.map_or(Ok(()), |perms| {
+                                match self.kv.add(unhashed_key, value, perms) {
+                                    Ok(()) => {
+                                        self.inflight.set(node);
+                                        Ok(())
+                                    }
+                                    Err((unhashed_key, value, e)) => {
+                                        node.operation.clear();
+                                        if async_op {
+                                            node.client.map(move |cb| {
+                                                cb.add_complete(Err(e), unhashed_key, value);
+                                            });
+                                            Ok(())
+                                        } else {
+                                            node.unhashed_key.replace(unhashed_key);
+                                            node.value.replace(value);
+                                            Err(e)
+                                        }
+                                    }
+                                }
+                            })
+                        }),
+                        Operation::Update => node.value.take().map_or(Ok(()), |value| {
+                            node.valid_ids.map_or(Ok(()), |perms| {
+                                match self.kv.update(unhashed_key, value, perms) {
+                                    Ok(()) => {
+                                        self.inflight.set(node);
+                                        Ok(())
+                                    }
+                                    Err((unhashed_key, value, e)) => {
+                                        node.operation.clear();
+                                        if async_op {
+                                            node.client.map(move |cb| {
+                                                cb.update_complete(Err(e), unhashed_key, value);
                                             });
                                             Ok(())
                                         } else {
@@ -265,7 +364,7 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
                                     node.operation.clear();
                                     if async_op {
                                         node.client.map(move |cb| {
-                                            cb.delete_complete(e, unhashed_key);
+                                            cb.delete_complete(Err(e), unhashed_key);
                                         });
                                         Ok(())
                                     } else {
@@ -281,12 +380,12 @@ impl<'a, V: kv_store::KV<'a>> MuxKV<'a, V> {
     }
 }
 
-impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for MuxKV<'a, V> {
+impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for MuxKVPermissions<'a, V> {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();
@@ -301,8 +400,8 @@ impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for MuxKV<'a, V> {
     fn set_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
-        value: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();
@@ -314,10 +413,42 @@ impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for MuxKV<'a, V> {
         let _ = self.do_next_op(true);
     }
 
+    fn add_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.inflight.take().map(|node| {
+            node.operation.clear();
+            node.client.map(move |cb| {
+                cb.add_complete(result, unhashed_key, value);
+            });
+        });
+
+        let _ = self.do_next_op(true);
+    }
+
+    fn update_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.inflight.take().map(|node| {
+            node.operation.clear();
+            node.client.map(move |cb| {
+                cb.update_complete(result, unhashed_key, value);
+            });
+        });
+
+        let _ = self.do_next_op(true);
+    }
+
     fn delete_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: LeasableMutableBuffer<'static, u8>,
+        unhashed_key: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();

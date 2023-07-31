@@ -52,10 +52,10 @@
 //! ---Finished TicKV Tests---
 //! ```
 
+use crate::tickv::{KVSystem, KVSystemClient, KeyType};
 use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::debug;
-use kernel::hil::kv_system::{self, KVSystem, KeyType};
 use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
@@ -92,7 +92,7 @@ impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
     }
 }
 
-impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::Client<T>
+impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> KVSystemClient<T>
     for KVSystemTest<'a, S, T>
 {
     fn generate_key_complete(

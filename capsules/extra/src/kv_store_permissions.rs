@@ -1,11 +1,10 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2023.
 
-//! Tock Key-Value store capsule.
+//! Tock Key-Value store capsule with permissions.
 //!
-//! This capsule provides a higher level Key-Value store interface based on an
-//! underlying `hil::kv_system` storage layer.
+//! This capsule provides a KV interface with permissions and access control.
 //!
 //! ```
 //! +-----------------------+
@@ -14,7 +13,7 @@
 //! |                       |
 //! +-----------------------+
 //!
-//!    capsules::kv_store
+//!    hil::kv::KVPermissions
 //!
 //! +-----------------------+
 //! |                       |
@@ -22,7 +21,7 @@
 //! |                       |
 //! +-----------------------+
 //!
-//!    hil::kv_system
+//!    hil::kv::KV
 //!
 //! +-----------------------+
 //! |                       |
@@ -35,7 +34,6 @@
 
 use core::mem;
 use kernel::hil::kv;
-use kernel::hil::kv_system::{self, KVSystem};
 use kernel::storage_permissions::StoragePermissions;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -45,6 +43,8 @@ use kernel::ErrorCode;
 enum Operation {
     Get,
     Set,
+    Add,
+    Update,
     Delete,
 }
 
@@ -78,89 +78,42 @@ impl KeyHeader {
     }
 }
 
-/// KVStore implements the Tock-specific extension to KVSystem that includes
-/// permissions and access control.
-pub struct KVStorePermissions<'a, K: kv::KV> {
+/// Key-Value store with Tock-specific extensions for permissions and access
+/// control.
+///
+/// Implements `KVPermissions` on top of `KV`.
+pub struct KVStorePermissions<'a, K: kv::KV<'a>> {
     kv: &'a K,
     header_value: TakeCell<'static, [u8]>,
 
     client: OptionalCell<&'a dyn kv::KVClient>,
     operation: OptionalCell<Operation>,
 
-    key: MapCell<SubSliceMut<'static, u8>>,
     value: MapCell<SubSliceMut<'static, u8>>,
     valid_ids: OptionalCell<StoragePermissions>,
 }
 
-impl<'a, K: kv::KV> KVStore<'a, K> {
-    pub fn new(kv: &'a K, header_value: &'static mut [u8; HEADER_LENGTH]) -> KVStore<'a, K> {
+impl<'a, K: kv::KV<'a>> KVStorePermissions<'a, K> {
+    pub fn new(
+        kv: &'a K,
+        header_value: &'static mut [u8; HEADER_LENGTH],
+    ) -> KVStorePermissions<'a, K> {
         Self {
             kv,
             header_value: TakeCell::new(header_value),
             client: OptionalCell::empty(),
             operation: OptionalCell::empty(),
-            key: MapCell::empty(),
             value: MapCell::empty(),
             valid_ids: OptionalCell::empty(),
         }
     }
-}
 
-impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv::KVPermissions<'a>
-    for KVStore<'a, K, T>
-{
-    fn set_client(&self, client: &'a dyn kv::KVClient) {
-        self.client.set(client);
-    }
-
-    fn get(
-        &self,
-        key: SubSliceMut<'static, u8>,
-        value: SubSliceMut<'static, u8>,
-        permissions: StoragePermissions,
-    ) -> Result<
-        (),
-        (
-            SubSliceMut<'static, u8>,
-            SubSliceMut<'static, u8>,
-            ErrorCode,
-        ),
-    > {
-        if self.operation.is_some() {
-            return Err((key, value, ErrorCode::BUSY));
-        }
-
-        self.operation.set(Operation::Get);
-        self.valid_ids.set(permissions);
-        // self.value.replace(value);
-
-        // self.key
-        //     .take()
-        //     .map_or(ErrorCode::FAIL, |key| {
-        match self.kv.get(key, value) {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                self.operation.clear();
-                // self.hashed_key.replace(hashed_key);
-                // self.unhashed_key.replace(unhashed_key);
-                e
-            }
-        }
-        // })
-        // .map_err(|e| {
-        //     (
-        //         self.unhashed_key.take().unwrap(),
-        //         self.value.take().unwrap(),
-        //         Err(e),
-        //     )
-        // })
-    }
-
-    fn set(
+    fn insert(
         &self,
         key: SubSliceMut<'static, u8>,
         mut value: SubSliceMut<'static, u8>,
         permissions: StoragePermissions,
+        operation: Operation,
     ) -> Result<
         (),
         (
@@ -193,85 +146,152 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv::KVPermissions<'a>
         // Copy in the header to the buffer.
         header.copy_to_buf(value.as_slice());
 
-        self.operation.set(Operation::Set);
-        self.valid_ids.set(permissions);
+        self.operation.set(operation);
 
-        // We first read what was there to see if we are allowed to overwrite
-        // it.
-        self.header_value.take().map(|header_value| {
-            match self.kv.get(key, SubSliceMut::new(header_value)) {
-                Ok(()) => {
-                    self.value.replace(value);
-                }
-                Err((key, hvalue, e)) => {
-                    self.header_value.replace(hvalue.take());
-                    self.operation.clear();
-                    (key, value, e)
+        match operation {
+            Operation::Set | Operation::Update => {
+                self.valid_ids.set(permissions);
+
+                // We first read the key to see if we are allowed to overwrite it.
+                match self.header_value.take() {
+                    Some(header_value) => match self.kv.get(key, SubSliceMut::new(header_value)) {
+                        Ok(()) => {
+                            self.value.replace(value);
+                            Ok(())
+                        }
+                        Err((key, hvalue, e)) => {
+                            self.header_value.replace(hvalue.take());
+                            self.operation.clear();
+                            Err((key, value, e))
+                        }
+                    },
+                    None => Err((key, value, ErrorCode::FAIL)),
                 }
             }
-        });
 
-        // self.hashed_key
-        //     .take()
-        //     .map_or(Err(ErrorCode::FAIL), |hashed_key| {
-        // match self.kv.set(key, value) {
-        //     Ok(()) => Ok(()),
-        //     Err((unhashed_key, hashed_key, e)) => {
-        //         self.operation.clear();
-        //         self.hashed_key.replace(hashed_key);
-        //         self.unhashed_key.replace(unhashed_key);
-        //         e
-        //     }
-        // }
-        // })
-        // .map_err(|e| {
-        //     (
-        //         self.unhashed_key.take().unwrap(),
-        //         self.value.take().unwrap(),
-        //         Err(e),
-        //     )
-        // })
+            Operation::Add => {
+                // Since add will only succeed if the key is not already there,
+                // we do not have to worry about overwriting and do not need to
+                // check permissions.
+                match self.kv.add(key, value) {
+                    Ok(()) => Ok(()),
+                    Err((key, val, e)) => {
+                        self.operation.clear();
+                        Err((key, val, e))
+                    }
+                }
+            }
+
+            _ => Err((key, value, ErrorCode::FAIL)),
+        }
+    }
+}
+
+impl<'a, K: kv::KV<'a>> kv::KVPermissions<'a> for KVStorePermissions<'a, K> {
+    fn set_client(&self, client: &'a dyn kv::KVClient) {
+        self.client.set(client);
+    }
+
+    fn get(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        if self.operation.is_some() {
+            return Err((key, value, ErrorCode::BUSY));
+        }
+
+        self.operation.set(Operation::Get);
+        self.valid_ids.set(permissions);
+
+        match self.kv.get(key, value) {
+            Ok(()) => Ok(()),
+            Err((key, val, e)) => {
+                self.operation.clear();
+                Err((key, val, e))
+            }
+        }
+    }
+
+    fn set(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        self.insert(key, value, permissions, Operation::Set)
+    }
+
+    fn add(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        self.insert(key, value, permissions, Operation::Add)
+    }
+
+    fn update(
+        &self,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+        permissions: StoragePermissions,
+    ) -> Result<
+        (),
+        (
+            SubSliceMut<'static, u8>,
+            SubSliceMut<'static, u8>,
+            ErrorCode,
+        ),
+    > {
+        self.insert(key, value, permissions, Operation::Update)
     }
 
     fn delete(
         &self,
         key: SubSliceMut<'static, u8>,
         permissions: StoragePermissions,
-    ) -> Result<(), (SubSliceMut<'static, u8>, Result<(), ErrorCode>)> {
+    ) -> Result<(), (SubSliceMut<'static, u8>, ErrorCode)> {
         if self.operation.is_some() {
-            return Err((key, Err(ErrorCode::BUSY)));
+            return Err((key, ErrorCode::BUSY));
         }
 
         self.operation.set(Operation::Delete);
         self.valid_ids.set(permissions);
 
-        // // self.hashed_key
-        // //     .take()
-        // //     .map_or(Err(ErrorCode::FAIL), |hashed_key| {
-        //         match self.kv.delete(key) {
-        //             Ok(()) => Ok(()),
-        //             Err((unhashed_key, hashed_key, e)) => {
-        //                 self.hashed_key.replace(hashed_key);
-        //                 self.operation.clear();
-        //                 self.unhashed_key.replace(unhashed_key);
-        //                 e
-        //             }
-        //         }
-        //     // })
-        //     // .map_err(|e| (self.unhashed_key.take().unwrap(), Err(e)))
-
-        self.header_value.take().map(|header_value| {
-            match self.kv.get(key, SubSliceMut::new(header_value)) {
-                Ok(()) => {
-                    self.value.replace(value);
-                }
+        match self.header_value.take() {
+            Some(header_value) => match self.kv.get(key, SubSliceMut::new(header_value)) {
+                Ok(()) => Ok(()),
                 Err((key, hvalue, e)) => {
                     self.header_value.replace(hvalue.take());
                     self.operation.clear();
-                    (key, value, e)
+                    Err((key, e))
                 }
-            }
-        });
+            },
+            None => Err((key, ErrorCode::FAIL)),
+        }
     }
 
     fn header_size(&self) -> usize {
@@ -279,182 +299,28 @@ impl<'a, K: KVSystem<'a, K = T>, T: kv_system::KeyType> kv::KVPermissions<'a>
     }
 }
 
-impl<'a, K: kv::KV> kv::KVClient for KVStorePermissions<'a, K> {
-    fn generate_key_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
-        hashed_key: &'static mut T,
-    ) {
-        self.operation.map(|op| {
-            if result.is_err() {
-                // On error, we re-store our state, run the next pending
-                // operation, and notify the original user that their operation
-                // failed using a callback.
-                self.hashed_key.replace(hashed_key);
-                self.operation.clear();
-
-                match op {
-                    Operation::Get => {
-                        self.value.take().map(|value| {
-                            self.client.map(move |cb| {
-                                cb.get_complete(result, unhashed_key, value);
-                            });
-                        });
-                    }
-                    Operation::Set => {
-                        self.value.take().map(|value| {
-                            self.client.map(move |cb| {
-                                cb.set_complete(result, unhashed_key, value);
-                            });
-                        });
-                    }
-                    Operation::Delete => {
-                        self.client.map(move |cb| {
-                            cb.delete_complete(result, unhashed_key);
-                        });
-                    }
-                }
-            } else {
-                match op {
-                    Operation::Get => {
-                        self.value
-                            .take()
-                            .map(|value| match self.kv.get_value(hashed_key, value) {
-                                Ok(()) => {
-                                    self.unhashed_key.replace(unhashed_key);
-                                }
-                                Err((key, value, e)) => {
-                                    self.hashed_key.replace(key);
-                                    self.operation.clear();
-                                    self.client.map(move |cb| {
-                                        cb.get_complete(e, unhashed_key, value);
-                                    });
-                                }
-                            });
-                    }
-                    Operation::Set => {
-                        self.value.take().map(|value| {
-                            match self.kv.append_key(hashed_key, value) {
-                                Ok(()) => {
-                                    self.unhashed_key.replace(unhashed_key);
-                                }
-                                Err((key, value, e)) => {
-                                    self.hashed_key.replace(key);
-                                    self.operation.clear();
-                                    self.client.map(move |cb| {
-                                        cb.set_complete(e, unhashed_key, value);
-                                    });
-                                }
-                            }
-                        });
-                    }
-                    Operation::Delete => {
-                        self.header_value.take().map(|value| {
-                            match self
-                                .kv
-                                .get_value(hashed_key, LeasableMutableBuffer::new(value))
-                            {
-                                Ok(()) => {
-                                    self.unhashed_key.replace(unhashed_key);
-                                }
-                                Err((key, value, e)) => {
-                                    self.hashed_key.replace(key);
-                                    self.header_value.replace(value.take());
-                                    self.operation.clear();
-                                    self.client.map(move |cb| {
-                                        cb.delete_complete(e, unhashed_key);
-                                    });
-                                }
-                            }
-                        });
-                    }
-                }
-            }
-        });
-    }
-
-    fn append_key_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        key: &'static mut T,
-        value: SubSliceMut<'static, u8>,
-    ) {
-        self.hashed_key.replace(key);
-
-        self.operation.map(|op| match op {
-            Operation::Get | Operation::Delete => {}
-            Operation::Set => {
-                match result {
-                    Err(ErrorCode::NOSUPPORT) => {
-                        // We could not append because of a collision. So now we
-                        // must figure out if we are allowed to overwrite this
-                        // key. That starts by reading the key.
-                        self.hashed_key.take().map(|hashed_key| {
-                            self.header_value.take().map(|header_value| {
-                                match self
-                                    .kv
-                                    .get_value(hashed_key, LeasableMutableBuffer::new(header_value))
-                                {
-                                    Ok(()) => {
-                                        self.value.replace(value);
-                                    }
-                                    Err((key, hvalue, e)) => {
-                                        self.hashed_key.replace(key);
-                                        self.header_value.replace(hvalue.take());
-                                        self.operation.clear();
-                                        self.unhashed_key.take().map(|unhashed_key| {
-                                            self.client.map(move |cb| {
-                                                cb.set_complete(e, unhashed_key, value);
-                                            });
-                                        });
-                                    }
-                                }
-                            });
-                        });
-                    }
-                    _ => {
-                        // On success or any other error we just return the
-                        // result back to the caller via a callback.
-                        self.operation.clear();
-                        self.unhashed_key.take().map(|unhashed_key| {
-                            self.client.map(move |cb| {
-                                cb.set_complete(result, unhashed_key, value);
-                            });
-                        });
-                    }
-                }
-            }
-        });
-    }
-
+impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
         key: SubSliceMut<'static, u8>,
         mut value: SubSliceMut<'static, u8>,
     ) {
-        fn access_allowed(result: Result<(), ErrorCode>, value: SubSliceMut<'static, u8>) -> bool {
-            let mut access_allowed = false;
-
-            if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
-                let header = KeyHeader::new_from_buf(value.as_slice());
-
-                if header.version == HEADER_VERSION {
-                    self.valid_ids.map(|perms| {
-                        access_allowed = perms.check_write_permission(header.write_id);
-                    });
-                }
-            }
-
-            access_allowed
-        }
-
         self.operation.map(|op| {
             match op {
                 Operation::Set => {
                     // Need to determine if we have permission to set this key.
-                    let access_allowed = self.access_allowed(result, value);
+                    let mut access_allowed = false;
+
+                    if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
+                        let header = KeyHeader::new_from_buf(value.as_slice());
+
+                        if header.version == HEADER_VERSION {
+                            self.valid_ids.map(|perms| {
+                                access_allowed = perms.check_write_permission(header.write_id);
+                            });
+                        }
+                    }
 
                     self.header_value.replace(value.take());
 
@@ -478,19 +344,14 @@ impl<'a, K: kv::KV> kv::KVClient for KVStorePermissions<'a, K> {
                                 cb.set_complete(Err(ErrorCode::FAIL), key, set_value);
                             });
                         });
-                        // });
                     }
                 }
-                Operation::Delete => {
+                Operation::Update => {
+                    // Need to determine if we have permission to set this key.
                     let mut access_allowed = false;
 
-                    // Before we delete an object we retrieve the header to
-                    // ensure that we have permissions to access it. In that
-                    // case we don't need to supply a buffer long enough to
-                    // store the full value, so a `SIZE` error code is ok and we
-                    // can continue to remove the object.
                     if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
-                        let header = KeyHeader::new_from_buf(ret_buf.as_slice());
+                        let header = KeyHeader::new_from_buf(value.as_slice());
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
@@ -499,7 +360,49 @@ impl<'a, K: kv::KV> kv::KVClient for KVStorePermissions<'a, K> {
                         }
                     }
 
-                    self.header_value.replace(ret_buf.take());
+                    self.header_value.replace(value.take());
+
+                    if access_allowed {
+                        self.value
+                            .take()
+                            .map(|set_value| match self.kv.update(key, set_value) {
+                                Ok(()) => {}
+
+                                Err((key, set_value, e)) => {
+                                    self.operation.clear();
+                                    self.client.map(move |cb| {
+                                        cb.update_complete(Err(e), key, set_value);
+                                    });
+                                }
+                            });
+                    } else {
+                        self.operation.clear();
+                        self.value.take().map(|set_value| {
+                            self.client.map(move |cb| {
+                                cb.update_complete(Err(ErrorCode::FAIL), key, set_value);
+                            });
+                        });
+                    }
+                }
+                Operation::Delete => {
+                    // Before we delete an object we retrieve the header to
+                    // ensure that we have permissions to access it. In that
+                    // case we don't need to supply a buffer long enough to
+                    // store the full value, so a `SIZE` error code is ok and we
+                    // can continue to remove the object.
+                    let mut access_allowed = false;
+
+                    if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
+                        let header = KeyHeader::new_from_buf(value.as_slice());
+
+                        if header.version == HEADER_VERSION {
+                            self.valid_ids.map(|perms| {
+                                access_allowed = perms.check_write_permission(header.write_id);
+                            });
+                        }
+                    }
+
+                    self.header_value.replace(value.take());
 
                     if access_allowed {
                         match self.kv.delete(key) {
@@ -507,32 +410,25 @@ impl<'a, K: kv::KV> kv::KVClient for KVStorePermissions<'a, K> {
 
                             Err((key, e)) => {
                                 self.operation.clear();
-                                // self.hashed_key.replace(key);
-                                // self.unhashed_key.take().map(|unhashed_key| {
                                 self.client.map(move |cb| {
                                     cb.delete_complete(Err(e), key);
                                 });
-                                // });
                             }
                         }
                     } else {
                         self.operation.clear();
-                        // self.hashed_key.replace(key);
-                        // self.unhashed_key.take().map(|unhashed_key| {
                         self.client.map(move |cb| {
                             cb.delete_complete(Err(ErrorCode::FAIL), key);
                         });
-                        // });
                     }
                 }
                 Operation::Get => {
-                    // self.hashed_key.replace(key);
                     self.operation.clear();
 
                     let mut read_allowed = false;
 
                     if result.is_ok() || result.err() == Some(ErrorCode::SIZE) {
-                        let header = KeyHeader::new_from_buf(ret_buf.as_slice());
+                        let header = KeyHeader::new_from_buf(value.as_slice());
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
@@ -542,83 +438,68 @@ impl<'a, K: kv::KV> kv::KVClient for KVStorePermissions<'a, K> {
                             if read_allowed {
                                 // Remove the header from the accessible portion
                                 // of the buffer.
-                                ret_buf.slice(HEADER_LENGTH..);
+                                value.slice(HEADER_LENGTH..);
                             }
                         }
                     }
 
                     if !read_allowed {
                         // Access denied or the header is invalid, zero the buffer.
-                        ret_buf.as_slice().iter_mut().for_each(|m| *m = 0)
+                        value.as_slice().iter_mut().for_each(|m| *m = 0)
                     }
 
-                    // self.unhashed_key.take().map(|unhashed_key| {
                     self.client.map(move |cb| {
                         if read_allowed {
-                            cb.get_complete(result, key, ret_buf);
+                            cb.get_complete(result, key, value);
                         } else {
                             // The operation failed or the caller doesn't
                             // have permission, just return the error for
                             // key not found (and an empty buffer).
-                            cb.get_complete(Err(ErrorCode::NOSUPPORT), key, ret_buf);
+                            cb.get_complete(Err(ErrorCode::NOSUPPORT), key, value);
                         }
                     });
-                    // });
                 }
+                _ => {}
             }
         });
     }
 
-    fn invalidate_key_complete(&self, result: Result<(), ErrorCode>, key: &'static mut T) {
-        self.hashed_key.replace(key);
-
-        self.operation.map(|op| match op {
-            Operation::Get => {}
-            Operation::Set => {
-                // Now that we have deleted the existing key-value we can store
-                // our new key and value.
-                match result {
-                    Ok(()) => {
-                        self.hashed_key.take().map(|hashed_key| {
-                            self.value.take().map(|value| {
-                                match self.kv.append_key(hashed_key, value) {
-                                    Ok(()) => {}
-                                    Err((key, value, e)) => {
-                                        self.hashed_key.replace(key);
-                                        self.operation.clear();
-                                        self.unhashed_key.take().map(|unhashed_key| {
-                                            self.client.map(move |cb| {
-                                                cb.set_complete(e, unhashed_key, value);
-                                            });
-                                        });
-                                    }
-                                }
-                            });
-                        });
-                    }
-                    _ => {
-                        // Some error with delete, signal error.
-                        self.operation.clear();
-                        self.unhashed_key.take().map(|unhashed_key| {
-                            self.value.take().map(|value| {
-                                self.client.map(move |cb| {
-                                    cb.set_complete(Err(ErrorCode::NOSUPPORT), unhashed_key, value);
-                                });
-                            });
-                        });
-                    }
-                }
-            }
-            Operation::Delete => {
-                self.operation.clear();
-                self.unhashed_key.take().map(|unhashed_key| {
-                    self.client.map(move |cb| {
-                        cb.delete_complete(result, unhashed_key);
-                    });
-                });
-            }
+    fn set_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.client.map(move |cb| {
+            cb.set_complete(result, key, value);
         });
     }
 
-    fn garbage_collect_complete(&self, _result: Result<(), ErrorCode>) {}
+    fn add_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.client.map(move |cb| {
+            cb.add_complete(result, key, value);
+        });
+    }
+
+    fn update_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.client.map(move |cb| {
+            cb.update_complete(result, key, value);
+        });
+    }
+
+    fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>) {
+        self.client.map(move |cb| {
+            cb.delete_complete(result, key);
+        });
+    }
 }

@@ -12,11 +12,11 @@ use capsules_core::driver;
 /// Syscall driver number.
 pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
 
-use crate::kv_store;
 use core::cmp;
 use kernel::errorcode;
 use kernel::grant::Grant;
 use kernel::grant::{AllowRoCount, AllowRwCount, UpcallCount};
+use kernel::hil::kv;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -52,6 +52,8 @@ enum UserSpaceOp {
     Get,
     Set,
     Delete,
+    Add,
+    Update,
 }
 
 /// Contents of the grant for each app.
@@ -61,8 +63,7 @@ pub struct App {
 }
 
 /// Capsule that provides userspace access to a key-value store.
-pub struct KVStoreDriver<'a, V: kv_store::KV<'a>> {
-    // pub struct KVStoreDriver<'a, V: kv_store::KV<'a>, T: 'static + kv_system::KeyType> {
+pub struct KVStoreDriver<'a, V: kv::KVPermissions<'a>> {
     /// Underlying k-v store implementation.
     kv: &'a V,
     /// Grant storage for each app.
@@ -81,7 +82,7 @@ pub struct KVStoreDriver<'a, V: kv_store::KV<'a>> {
     // keytype: PhantomData<T>,
 }
 
-impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
+impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
     pub fn new(
         kv: &'a V,
         data_buffer: &'static mut [u8],
@@ -131,7 +132,7 @@ impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
 
                     match app.op.get() {
                         Some(UserSpaceOp::Get) => {
-                            if let Some(Some(Err(e))) = self.data_buffer.take().map(|data_buffer| {
+                            if let Some(Some(e)) = self.data_buffer.take().map(|data_buffer| {
                                 self.dest_buffer.take().map(|dest_buffer| {
                                     let perms = processid
                                         .get_storage_permissions()
@@ -155,7 +156,9 @@ impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
                                 return e;
                             }
                         }
-                        Some(UserSpaceOp::Set) => {
+                        Some(UserSpaceOp::Set)
+                        | Some(UserSpaceOp::Add)
+                        | Some(UserSpaceOp::Update) => {
                             let value_len = kernel_data
                                 .get_readonly_processbuffer(ro_allow::VALUE)
                                 .and_then(|buffer| {
@@ -177,7 +180,7 @@ impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
                                 })
                                 .unwrap_or(Err(ErrorCode::RESERVE))?;
 
-                            if let Some(Some(Err(e))) = self.data_buffer.take().map(|data_buffer| {
+                            if let Some(Some(e)) = self.data_buffer.take().map(|data_buffer| {
                                 self.dest_buffer.take().map(|dest_buffer| {
                                     let perms = processid
                                         .get_storage_permissions()
@@ -193,9 +196,18 @@ impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
                                     let mut value = SubSliceMut::new(dest_buffer);
                                     value.slice(..(value_len + header_size));
 
-                                    if let Err((data, dest, e)) =
-                                        self.kv.set(unhashed_key, value, perms)
-                                    {
+                                    if let Err((data, dest, e)) = match app.op.get() {
+                                        Some(UserSpaceOp::Set) => {
+                                            self.kv.set(unhashed_key, value, perms)
+                                        }
+                                        Some(UserSpaceOp::Add) => {
+                                            self.kv.add(unhashed_key, value, perms)
+                                        }
+                                        Some(UserSpaceOp::Update) => {
+                                            self.kv.update(unhashed_key, value, perms)
+                                        }
+                                        _ => Ok(()),
+                                    } {
                                         self.data_buffer.replace(data.take());
                                         self.dest_buffer.replace(dest.take());
                                         return Err(e);
@@ -207,7 +219,7 @@ impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
                             }
                         }
                         Some(UserSpaceOp::Delete) => {
-                            if let Some(Err(e)) = self.data_buffer.take().map(|data_buffer| {
+                            if let Some(e) = self.data_buffer.take().map(|data_buffer| {
                                 let perms = processid
                                     .get_storage_permissions()
                                     .ok_or(ErrorCode::INVAL)?;
@@ -261,7 +273,7 @@ impl<'a, V: kv_store::KV<'a>> KVStoreDriver<'a, V> {
     }
 }
 
-impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for KVStoreDriver<'a, V> {
+impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
@@ -328,8 +340,61 @@ impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for KVStoreDriver<'a, V> {
         self.data_buffer.replace(key.take());
         self.dest_buffer.replace(value.take());
 
-        // Signal the upcall and clear the requested op. We have to do a lot of
-        // checking for robustness, but there is no reason this should fail.
+        // Signal the upcall and clear the requested op.
+        self.processid.map(move |id| {
+            self.apps.enter(id, move |app, upcalls| {
+                if app.op.contains(&UserSpaceOp::Set) {
+                    app.op.clear();
+                    upcalls
+                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
+                        .ok();
+                }
+            })
+        });
+
+        // We have completed the operation so see if there is a queued operation
+        // to run next.
+        self.processid.clear();
+        self.check_queue();
+    }
+
+    fn add_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.data_buffer.replace(key.take());
+        self.dest_buffer.replace(value.take());
+
+        // Signal the upcall and clear the requested op.
+        self.processid.map(move |id| {
+            self.apps.enter(id, move |app, upcalls| {
+                if app.op.contains(&UserSpaceOp::Set) {
+                    app.op.clear();
+                    upcalls
+                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
+                        .ok();
+                }
+            })
+        });
+
+        // We have completed the operation so see if there is a queued operation
+        // to run next.
+        self.processid.clear();
+        self.check_queue();
+    }
+
+    fn update_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: SubSliceMut<'static, u8>,
+        value: SubSliceMut<'static, u8>,
+    ) {
+        self.data_buffer.replace(key.take());
+        self.dest_buffer.replace(value.take());
+
+        // Signal the upcall and clear the requested op.
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
                 if app.op.contains(&UserSpaceOp::Set) {
@@ -368,7 +433,7 @@ impl<'a, V: kv_store::KV<'a>> kv_store::StoreClient for KVStoreDriver<'a, V> {
     }
 }
 
-impl<'a, V: kv_store::KV<'a>> SyscallDriver for KVStoreDriver<'a, V> {
+impl<'a, V: kv::KVPermissions<'a>> SyscallDriver for KVStoreDriver<'a, V> {
     fn command(
         &self,
         command_num: usize,
@@ -380,8 +445,8 @@ impl<'a, V: kv_store::KV<'a>> SyscallDriver for KVStoreDriver<'a, V> {
             // check if present
             0 => CommandReturn::success(),
 
-            // get, set, delete
-            1 | 2 | 3 => {
+            // get, set, delete, add, update
+            1 | 2 | 3 | 4 | 5 => {
                 if self.processid.is_none() {
                     // Nothing is using the KV store, so we can handle this
                     // request.
@@ -390,6 +455,8 @@ impl<'a, V: kv_store::KV<'a>> SyscallDriver for KVStoreDriver<'a, V> {
                         1 => app.op.set(UserSpaceOp::Get),
                         2 => app.op.set(UserSpaceOp::Set),
                         3 => app.op.set(UserSpaceOp::Delete),
+                        4 => app.op.set(UserSpaceOp::Add),
+                        5 => app.op.set(UserSpaceOp::Update),
                         _ => {}
                     });
                     let ret = self.run();
@@ -417,6 +484,8 @@ impl<'a, V: kv_store::KV<'a>> SyscallDriver for KVStoreDriver<'a, V> {
                                     1 => app.op.set(UserSpaceOp::Get),
                                     2 => app.op.set(UserSpaceOp::Set),
                                     3 => app.op.set(UserSpaceOp::Delete),
+                                    4 => app.op.set(UserSpaceOp::Add),
+                                    5 => app.op.set(UserSpaceOp::Update),
                                     _ => {}
                                 }
                                 CommandReturn::success()
