@@ -42,6 +42,7 @@ pub mod ieee802154;
 pub mod isl29035;
 pub mod kv_driver;
 pub mod kv_store;
+pub mod kv_store_permissions;
 pub mod l3gd20;
 pub mod led_matrix;
 pub mod log;
