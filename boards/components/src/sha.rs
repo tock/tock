@@ -98,3 +98,32 @@ impl<
         sha
     }
 }
+
+#[macro_export]
+macro_rules! sha_software_256_component_static {
+    ($(,)?) => {{
+        kernel::static_buf!(capsules_extra::sha256::Sha256Software<'static>)
+    };};
+}
+
+pub struct ShaSoftware256Component {}
+
+impl ShaSoftware256Component {
+    pub fn new() -> ShaSoftware256Component {
+        ShaSoftware256Component {}
+    }
+}
+
+impl Component for ShaSoftware256Component {
+    type StaticInput = &'static mut MaybeUninit<capsules_extra::sha256::Sha256Software<'static>>;
+
+    type Output = &'static capsules_extra::sha256::Sha256Software<'static>;
+
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let sha_256_sw = s.write(capsules_extra::sha256::Sha256Software::new());
+
+        kernel::deferred_call::DeferredCallClient::register(sha_256_sw);
+
+        sha_256_sw
+    }
+}
