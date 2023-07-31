@@ -11,6 +11,7 @@ The goals of the Network Tock Working Group (NWG) are to:
 - design a set of interfaces (traits) for networking
 - design the user land interfaces for networking
 - define how buffer management should be implemented
+- determine other kernel infrastructure useful for networking
 
 ## Members
 
