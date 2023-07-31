@@ -91,28 +91,21 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVStore<'a, K, T> {
         }
 
         self.operation.set(operation);
-        self.value.replace(value);
 
-        self.hashed_key
-            .take()
-            .map_or(Err(ErrorCode::FAIL), |hashed_key| {
-                match self.kv.generate_key(key, hashed_key) {
-                    Ok(()) => Ok(()),
-                    Err((unhashed_key, hashed_key, e)) => {
-                        self.operation.clear();
-                        self.hashed_key.replace(hashed_key);
-                        self.unhashed_key.replace(unhashed_key);
-                        e
-                    }
+        match self.hashed_key.take() {
+            Some(hashed_key) => match self.kv.generate_key(key, hashed_key) {
+                Ok(()) => {
+                    self.value.replace(value);
+                    Ok(())
                 }
-            })
-            .map_err(|e| {
-                (
-                    self.unhashed_key.take().unwrap(),
-                    self.value.take().unwrap(),
-                    e,
-                )
-            })
+                Err((unhashed_key, hashed_key, e)) => {
+                    self.operation.clear();
+                    self.hashed_key.replace(hashed_key);
+                    Err((unhashed_key, value, e))
+                }
+            },
+            None => Err((key, value, ErrorCode::FAIL)),
+        }
     }
 }
 
@@ -138,28 +131,21 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> kv::KV<'a> for KVStore<'a, K, T> {
         }
 
         self.operation.set(Operation::Get);
-        self.value.replace(value);
 
-        self.hashed_key
-            .take()
-            .map_or(Err(ErrorCode::FAIL), |hashed_key| {
-                match self.kv.generate_key(key, hashed_key) {
-                    Ok(()) => Ok(()),
-                    Err((unhashed_key, hashed_key, e)) => {
-                        self.operation.clear();
-                        self.hashed_key.replace(hashed_key);
-                        self.unhashed_key.replace(unhashed_key);
-                        e
-                    }
+        match self.hashed_key.take() {
+            Some(hashed_key) => match self.kv.generate_key(key, hashed_key) {
+                Ok(()) => {
+                    self.value.replace(value);
+                    Ok(())
                 }
-            })
-            .map_err(|e| {
-                (
-                    self.unhashed_key.take().unwrap(),
-                    self.value.take().unwrap(),
-                    e,
-                )
-            })
+                Err((unhashed_key, hashed_key, e)) => {
+                    self.operation.clear();
+                    self.hashed_key.replace(hashed_key);
+                    Err((unhashed_key, value, e))
+                }
+            },
+            None => Err((key, value, ErrorCode::FAIL)),
+        }
     }
 
     fn set(
@@ -217,20 +203,17 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> kv::KV<'a> for KVStore<'a, K, T> {
 
         self.operation.set(Operation::Delete);
 
-        self.hashed_key
-            .take()
-            .map_or(Err(ErrorCode::FAIL), |hashed_key| {
-                match self.kv.generate_key(key, hashed_key) {
-                    Ok(()) => Ok(()),
-                    Err((unhashed_key, hashed_key, e)) => {
-                        self.hashed_key.replace(hashed_key);
-                        self.operation.clear();
-                        self.unhashed_key.replace(unhashed_key);
-                        e
-                    }
+        match self.hashed_key.take() {
+            Some(hashed_key) => match self.kv.generate_key(key, hashed_key) {
+                Ok(()) => Ok(()),
+                Err((unhashed_key, hashed_key, e)) => {
+                    self.hashed_key.replace(hashed_key);
+                    self.operation.clear();
+                    Err((unhashed_key, e))
                 }
-            })
-            .map_err(|e| (self.unhashed_key.take().unwrap(), e))
+            },
+            None => Err((key, ErrorCode::FAIL)),
+        }
     }
 }
 
@@ -297,7 +280,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                     self.hashed_key.replace(key);
                                     self.operation.clear();
                                     self.client.map(move |cb| {
-                                        cb.get_complete(e, unhashed_key, value);
+                                        cb.get_complete(Err(e), unhashed_key, value);
                                     });
                                 }
                             });
@@ -313,7 +296,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                     self.hashed_key.replace(key);
                                     self.operation.clear();
                                     self.client.map(move |cb| {
-                                        cb.set_complete(e, unhashed_key, value);
+                                        cb.set_complete(Err(e), unhashed_key, value);
                                     });
                                 }
                             }
@@ -331,7 +314,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                     self.hashed_key.replace(key);
                                     self.operation.clear();
                                     self.client.map(move |cb| {
-                                        cb.add_complete(e, unhashed_key, value);
+                                        cb.add_complete(Err(e), unhashed_key, value);
                                     });
                                 }
                             }
@@ -349,7 +332,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                 self.operation.clear();
                                 self.value.take().map(|value| {
                                     self.client.map(move |cb| {
-                                        cb.update_complete(e, unhashed_key, value);
+                                        cb.update_complete(Err(e), unhashed_key, value);
                                     });
                                 });
                             }
@@ -364,7 +347,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                 self.hashed_key.replace(key);
                                 self.operation.clear();
                                 self.client.map(move |cb| {
-                                    cb.delete_complete(e, unhashed_key);
+                                    cb.delete_complete(Err(e), unhashed_key);
                                 });
                             }
                         };
@@ -399,7 +382,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                     self.operation.clear();
                                     self.unhashed_key.take().map(|unhashed_key| {
                                         self.client.map(move |cb| {
-                                            cb.set_complete(e, unhashed_key, value);
+                                            cb.set_complete(Err(e), unhashed_key, value);
                                         });
                                     });
                                 }
@@ -477,7 +460,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                         self.operation.clear();
                                         self.unhashed_key.take().map(|unhashed_key| {
                                             self.client.map(move |cb| {
-                                                cb.set_complete(e, unhashed_key, value);
+                                                cb.set_complete(Err(e), unhashed_key, value);
                                             });
                                         });
                                     }
@@ -512,7 +495,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                         self.operation.clear();
                                         self.unhashed_key.take().map(|unhashed_key| {
                                             self.client.map(move |cb| {
-                                                cb.update_complete(e, unhashed_key, value);
+                                                cb.update_complete(Err(e), unhashed_key, value);
                                             });
                                         });
                                     }
