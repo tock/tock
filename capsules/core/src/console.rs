@@ -148,7 +148,11 @@ impl<'a> Console<'a> {
     ) -> bool {
         if app.write_remaining > 0 {
             self.send(processid, app, kernel_data);
-            true
+
+            // The send may have errored, meaning nothing is being transmitted.
+            // In that case there is nothing pending and we return false. In the
+            // common case, this will return true.
+            self.tx_in_progress.is_some()
         } else {
             false
         }
@@ -193,7 +197,20 @@ impl<'a> Console<'a> {
                     })
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
-                let _ = self.uart.transmit_buffer(buffer, transaction_len);
+                match self.uart.transmit_buffer(buffer, transaction_len) {
+                    Err((_e, tx_buffer)) => {
+                        // The UART didn't start, so we will not get a transmit
+                        // done callback. Need to signal the app now.
+                        self.tx_buffer.replace(tx_buffer);
+                        self.tx_in_progress.clear();
+
+                        // Go ahead and signal the application
+                        let written = app.write_len;
+                        app.write_len = 0;
+                        kernel_data.schedule_upcall(1, (written, 0, 0)).ok();
+                    }
+                    Ok(()) => {}
+                }
             });
         } else {
             app.pending_write = true;
