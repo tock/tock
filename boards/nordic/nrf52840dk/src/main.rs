@@ -207,25 +207,28 @@ pub struct Platform {
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
-        capsules_extra::virtual_kv::VirtualKV<
+        capsules_extra::virtual_kv::VirtualKVPermissions<
             'static,
-            capsules_extra::kv_store::KVStore<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
-                capsules_extra::tickv::TicKVStore<
+                capsules_extra::kv_store::KVStore<
                     'static,
-                    capsules_extra::mx25r6435f::MX25R6435F<
+                    capsules_extra::tickv::TicKVStore<
                         'static,
-                        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                        capsules_extra::mx25r6435f::MX25R6435F<
                             'static,
-                            nrf52840::spi::SPIM<'static>,
+                            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                                'static,
+                                nrf52840::spi::SPIM<'static>,
+                            >,
+                            nrf52840::gpio::GPIOPin<'static>,
+                            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
                         >,
-                        nrf52840::gpio::GPIOPin<'static>,
-                        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        { capsules_extra::mx25r6435f::SECTOR_SIZE as usize },
                     >,
-                    capsules_extra::sip_hash::SipHasher24<'static>,
-                    { capsules_extra::mx25r6435f::SECTOR_SIZE as usize },
+                    [u8; 8],
                 >,
-                [u8; 8],
             >,
         >,
     >,
@@ -777,9 +780,8 @@ pub unsafe fn main() {
         ),
     );
 
-    // Share the KV stack with a mux.
-    let mux_kv = components::kv_system::KVMuxComponent::new(kv_store).finalize(
-        components::kv_mux_component_static!(
+    let kv_store_permissions = components::kv_system::KVStorePermissionsComponent::new(kv_store)
+        .finalize(components::kv_store_permissions_component_static!(
             capsules_extra::kv_store::KVStore<
                 capsules_extra::tickv::TicKVStore<
                     capsules_extra::mx25r6435f::MX25R6435F<
@@ -795,29 +797,51 @@ pub unsafe fn main() {
                 >,
                 capsules_extra::tickv::TicKVKeyType,
             >
-        ),
-    );
+        ));
+
+    // Share the KV stack with a mux.
+    let mux_kv = components::kv_system::KVPermissionsMuxComponent::new(kv_store_permissions)
+        .finalize(components::kv_permissions_mux_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::kv_store::KVStore<
+                    capsules_extra::tickv::TicKVStore<
+                        capsules_extra::mx25r6435f::MX25R6435F<
+                            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                                'static,
+                                nrf52840::spi::SPIM,
+                            >,
+                            nrf52840::gpio::GPIOPin,
+                            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        TICKV_PAGE_SIZE,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ));
 
     // Create a virtual component for the userspace driver.
-    let virtual_kv_driver = components::kv_system::VirtualKVComponent::new(mux_kv).finalize(
-        components::virtual_kv_component_static!(
-            capsules_extra::kv_store::KVStore<
-                capsules_extra::tickv::TicKVStore<
-                    capsules_extra::mx25r6435f::MX25R6435F<
-                        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-                            'static,
-                            nrf52840::spi::SPIM,
+    let virtual_kv_driver = components::kv_system::VirtualKVPermissionsComponent::new(mux_kv)
+        .finalize(components::virtual_kv_permissions_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::kv_store::KVStore<
+                    capsules_extra::tickv::TicKVStore<
+                        capsules_extra::mx25r6435f::MX25R6435F<
+                            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                                'static,
+                                nrf52840::spi::SPIM,
+                            >,
+                            nrf52840::gpio::GPIOPin,
+                            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
                         >,
-                        nrf52840::gpio::GPIOPin,
-                        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        TICKV_PAGE_SIZE,
                     >,
-                    capsules_extra::sip_hash::SipHasher24<'static>,
-                    TICKV_PAGE_SIZE,
+                    capsules_extra::tickv::TicKVKeyType,
                 >,
-                capsules_extra::tickv::TicKVKeyType,
             >
-        ),
-    );
+        ));
 
     // Userspace driver for KV.
     let kv_driver = components::kv_system::KVDriverComponent::new(
@@ -826,21 +850,23 @@ pub unsafe fn main() {
         capsules_extra::kv_driver::DRIVER_NUM,
     )
     .finalize(components::kv_driver_component_static!(
-        capsules_extra::virtual_kv::VirtualKV<
-            capsules_extra::kv_store::KVStore<
-                capsules_extra::tickv::TicKVStore<
-                    capsules_extra::mx25r6435f::MX25R6435F<
-                        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-                            'static,
-                            nrf52840::spi::SPIM,
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::kv_store::KVStore<
+                    capsules_extra::tickv::TicKVStore<
+                        capsules_extra::mx25r6435f::MX25R6435F<
+                            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                                'static,
+                                nrf52840::spi::SPIM,
+                            >,
+                            nrf52840::gpio::GPIOPin,
+                            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
                         >,
-                        nrf52840::gpio::GPIOPin,
-                        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        TICKV_PAGE_SIZE,
                     >,
-                    capsules_extra::sip_hash::SipHasher24<'static>,
-                    TICKV_PAGE_SIZE,
+                    capsules_extra::tickv::TicKVKeyType,
                 >,
-                capsules_extra::tickv::TicKVKeyType,
             >,
         >
     ));
