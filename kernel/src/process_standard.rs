@@ -561,7 +561,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config, &self.processid());
+            self.chip.mpu().configure_mpu(&config);
         });
     }
 
@@ -650,7 +650,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 } else {
                     let old_break = self.app_break.get();
                     self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config, &self.processid());
+                    self.chip.mpu().configure_mpu(&config);
                     Ok(old_break)
                 }
             })
@@ -1462,8 +1462,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // Otherwise, actually load the app.
         let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
+
         // Initialize MPU region configuration.
-        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        let mut mpu_config = match chip.mpu().new_config() {
+            Some(mpu_config) => mpu_config,
+            None => return Err((ProcessLoadError::MpuConfigurationError, remaining_memory)),
+        };
 
         // Allocate MPU region for flash.
         if chip
@@ -1917,7 +1921,14 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // both create() and reset(), but process load debugging complicates
         // this. We just want to create new config with only flash and memory
         // regions.
-        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        //
+        // We must have a previous MPU configuration stored, fault the
+        // process if this invariant is violated. We avoid allocating
+        // a new MPU configuration, as this may eventually exhaust the
+        // number of available MPU configurations.
+        let mut mpu_config = self.mpu_config.take().ok_or(ErrorCode::FAIL)?;
+        self.chip.mpu().reset_config(&mut mpu_config);
+
         // Allocate MPU region for flash.
         let app_mpu_flash = self.chip.mpu().allocate_region(
             self.flash.as_ptr(),
@@ -1989,7 +2000,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // process's memory region.
         self.allow_high_water_mark.set(app_mpu_mem_start);
 
-        // Drop the old config and use the clean one
+        // Store the adjusted MPU configuration:
         self.mpu_config.replace(mpu_config);
 
         // Handle any architecture-specific requirements for a process when it
