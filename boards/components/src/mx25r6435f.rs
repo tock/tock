@@ -30,6 +30,21 @@ use kernel::hil;
 use kernel::hil::spi::SpiMasterDevice;
 use kernel::hil::time::Alarm;
 
+#[macro_export]
+macro_rules! mx25r6435f_component_type {
+    ($S:ty, $P:ty, $A:ty $(,)?) => {
+        capsules_extra::mx25r6435f::MX25R6435F<
+            'static,
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                'static,
+                $S,
+            >,
+            $P,
+            VirtualMuxAlarm<'static, $A>,
+        >
+    };
+}
+
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! mx25r6435f_component_static {
