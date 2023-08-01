@@ -1658,6 +1658,33 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         }
 
+        // With our MPU allocation, we can begin to divide up the
+        // `remaining_memory` slice into individual regions for the process and
+        // kernel, as follows:
+        //
+        //
+        //  +-----------------------------------------------------------------
+        //  | remaining_memory
+        //  +----------------------------------------------------+------------
+        //  v                                                    v
+        //  +----------------------------------------------------+
+        //  | allocated_padded_memory                            |
+        //  +--+-------------------------------------------------+
+        //     v                                                 v
+        //     +-------------------------------------------------+
+        //     | allocated_memory                                |
+        //     +-------------------------------------------------+
+        //     v                                                 v
+        //     +-----------------------+-------------------------+
+        //     | app_accessible_memory | allocated_kernel_memory |
+        //     +-----------------------+-------------------+-----+
+        //                                                 v
+        //                               kernel memory break
+        //                                                  \---+/
+        //                                                      v
+        //                                        optional padding
+        //
+        //
         // First split the `remaining_memory` into two slices:
         //
         // - `allocated_padded_memory`: the allocated memory region, containing
