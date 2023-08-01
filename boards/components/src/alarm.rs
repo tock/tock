@@ -31,6 +31,19 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::time::{self, Alarm};
 
+#[macro_export]
+macro_rules! alarm_component_type {
+    ($A:ty $(,)?) => {
+        capsules_core::alarm::AlarmDriver<
+                'static,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                    'static,
+                    $A,
+                >,
+            >
+        };
+}
+
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! alarm_mux_component_static {
