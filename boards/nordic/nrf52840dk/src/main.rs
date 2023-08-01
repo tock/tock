@@ -678,15 +678,11 @@ pub unsafe fn main() {
         0x60000,   // Length of kernel region
     )
     .finalize(components::nonvolatile_storage_component_static!(
-        capsules_extra::mx25r6435f::MX25R6435F<
-            'static,
-            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-                'static,
-                nrf52840::spi::SPIM,
-            >,
+        components::mx25r6435f_component_type!(
+            nrf52840::spi::SPIM,
             nrf52840::gpio::GPIOPin,
-            VirtualMuxAlarm<'static, nrf52840::rtc::Rtc>,
-        >
+            nrf52840::rtc::Rtc
+        )
     ));
 
     //--------------------------------------------------------------------------
