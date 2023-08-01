@@ -314,6 +314,9 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
                                 access_allowed = perms.check_write_permission(header.write_id);
                             });
                         }
+                    } else if result.err() == Some(ErrorCode::NOSUPPORT) {
+                        // Key wasn't found, so we can create it fresh.
+                        access_allowed = true;
                     }
 
                     self.header_value.replace(value.take());
