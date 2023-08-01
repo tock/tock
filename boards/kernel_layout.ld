@@ -337,6 +337,40 @@ SECTIONS
     } > ram
     _eappmem = ORIGIN(ram) + LENGTH(ram);
 
+
+    /* Place attributes at the end of the kernel ROM region. These will be used
+     * for host-side tools to learn about the installed kernel.
+     *
+     * Attributes are stored as TLVs, but going backwards in flash.
+     *
+     *                           2 byte   2 byte   4 byte
+     * -----------+------------+--------+--------+------------+
+     *            | Value...   | Type   | Length | TOCK       | Start of `prog`
+     * -----------+------------+--------+--------+------------+
+     * <-TLVs...-> <-----TLV--------------------> <-Sentinel->
+     *
+     * `Length` specifies the size of the value (i.e. not include the header).
+     */
+    .attributes :
+    {
+        . = ABSOLUTE(ORIGIN(rom) + LENGTH(rom) - 16);
+
+        /* TLV: App Memory
+         * This indicates the start address and size of RAM available for
+         * userspace apps.
+         */
+        LONG(_sappmem) /* Address of start of app memory. */
+        LONG(_eappmem - _sappmem) /* Length of app memory. */
+        SHORT(0x0101) /* Type = App RAM Region = 0x0101 */
+        SHORT(8)      /* Length = 8 bytes */
+
+        BYTE(84) /* T */
+        BYTE(79) /* O */
+        BYTE(67) /* C */
+        BYTE(75) /* K */
+    }  > rom
+
+
     /* Discard RISC-V relevant .eh_frame, we are not doing unwind on panic
        so it is not needed. */
     /DISCARD/ :
