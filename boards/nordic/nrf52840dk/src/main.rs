@@ -181,13 +181,7 @@ pub struct Platform {
         'static,
         nrf52840::acomp::Comparator<'static>,
     >,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            nrf52840::rtc::Rtc<'static>,
-        >,
-    >,
+    alarm: &'static components::alarm_component_type!(nrf52840::rtc::Rtc<'static>),
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
