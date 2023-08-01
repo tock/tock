@@ -467,6 +467,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
+        self.operation.clear();
         self.client.map(move |cb| {
             cb.set_complete(result, key, value);
         });
@@ -478,6 +479,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
+        self.operation.clear();
         self.client.map(move |cb| {
             cb.add_complete(result, key, value);
         });
@@ -489,12 +491,14 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
+        self.operation.clear();
         self.client.map(move |cb| {
             cb.update_complete(result, key, value);
         });
     }
 
     fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>) {
+        self.operation.clear();
         self.client.map(move |cb| {
             cb.delete_complete(result, key);
         });
