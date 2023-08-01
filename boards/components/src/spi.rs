@@ -40,6 +40,19 @@ use kernel::create_capability;
 use kernel::hil::spi;
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
+#[macro_export]
+macro_rules! spi_syscall_component_type {
+    ($S:ty $(,)?) => {
+        capsules_core::spi_controller::Spi<
+                'static,
+                capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                    'static,
+                    $S,
+                >,
+            >
+    };
+}
+
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! spi_mux_component_static {

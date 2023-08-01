@@ -29,6 +29,21 @@ use kernel::hil::time::Alarm;
 use kernel::process::ProcessPrinter;
 
 #[macro_export]
+macro_rules! process_console_component_type {
+    ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {
+        capsules_core::process_console::ProcessConsole<
+            'static,
+            $COMMAND_HISTORY_LEN,
+            VirtualMuxAlarm<'static, $A>,
+            components::process_console::Capability,
+        >
+    };
+    ($A: ty $(,)?) => {
+        $crate::process_console_component_type!($A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
+    };
+}
+
+#[macro_export]
 macro_rules! process_console_component_static {
     ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
         let alarm = kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
