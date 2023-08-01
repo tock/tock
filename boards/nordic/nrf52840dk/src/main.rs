@@ -165,12 +165,7 @@ pub struct Platform {
     >,
     ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        components::process_console::Capability,
-    >,
+    pconsole: &'static components::process_console_component_type!(nrf52840::rtc::Rtc<'static>),
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -200,13 +195,7 @@ pub struct Platform {
         'static,
         nrf52840::i2c::TWI<'static>,
     >,
-    spi_controller: &'static capsules_core::spi_controller::Spi<
-        'static,
-        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-            'static,
-            nrf52840::spi::SPIM<'static>,
-        >,
-    >,
+    spi_controller: &'static components::spi_syscall_component_type!(nrf52840::spi::SPIM<'static>),
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
