@@ -57,7 +57,7 @@ pub struct VirtualKVPermissions<'a, V: kv::KVPermissions<'a>> {
     client: OptionalCell<&'a dyn kv::KVClient>,
     operation: OptionalCell<Operation>,
 
-    unhashed_key: MapCell<SubSliceMut<'static, u8>>,
+    key: MapCell<SubSliceMut<'static, u8>>,
     value: MapCell<SubSliceMut<'static, u8>>,
     valid_ids: OptionalCell<StoragePermissions>,
 }
@@ -77,7 +77,7 @@ impl<'a, V: kv::KVPermissions<'a>> VirtualKVPermissions<'a, V> {
             next: ListLink::empty(),
             client: OptionalCell::empty(),
             operation: OptionalCell::empty(),
-            unhashed_key: MapCell::empty(),
+            key: MapCell::empty(),
             value: MapCell::empty(),
             valid_ids: OptionalCell::empty(),
         }
@@ -117,16 +117,12 @@ impl<'a, V: kv::KVPermissions<'a>> VirtualKVPermissions<'a, V> {
 
         self.operation.set(operation);
         self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
+        self.key.replace(key);
         self.value.replace(value);
 
-        self.mux_kv.do_next_op(false).map_err(|e| {
-            (
-                self.unhashed_key.take().unwrap(),
-                self.value.take().unwrap(),
-                e,
-            )
-        })
+        self.mux_kv
+            .do_next_op(false)
+            .map_err(|e| (self.key.take().unwrap(), self.value.take().unwrap(), e))
     }
 }
 
@@ -154,16 +150,12 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVPermissions<'a> for VirtualKVPermission
 
         self.operation.set(Operation::Get);
         self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
+        self.key.replace(key);
         self.value.replace(value);
 
-        self.mux_kv.do_next_op(false).map_err(|e| {
-            (
-                self.unhashed_key.take().unwrap(),
-                self.value.take().unwrap(),
-                e,
-            )
-        })
+        self.mux_kv
+            .do_next_op(false)
+            .map_err(|e| (self.key.take().unwrap(), self.value.take().unwrap(), e))
     }
 
     fn set(
@@ -225,11 +217,11 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVPermissions<'a> for VirtualKVPermission
 
         self.operation.set(Operation::Delete);
         self.valid_ids.set(permissions);
-        self.unhashed_key.replace(key);
+        self.key.replace(key);
 
         self.mux_kv
             .do_next_op(false)
-            .map_err(|e| (self.unhashed_key.take().unwrap(), e))
+            .map_err(|e| (self.key.take().unwrap(), e))
     }
 
     fn header_size(&self) -> usize {
@@ -258,122 +250,121 @@ impl<'a, V: kv::KVPermissions<'a>> MuxKVPermissions<'a, V> {
 
         mnode.map_or(Ok(()), |node| {
             node.operation.map_or(Ok(()), |op| {
-                node.unhashed_key
-                    .take()
-                    .map_or(Ok(()), |unhashed_key| match op {
-                        Operation::Get => node.value.take().map_or(Ok(()), |value| {
-                            node.valid_ids.map_or(Ok(()), |perms| {
-                                match self.kv.get(unhashed_key, value, perms) {
-                                    Ok(()) => {
-                                        self.inflight.set(node);
-                                        Ok(())
-                                    }
-                                    Err((unhashed_key, value, e)) => {
-                                        node.operation.clear();
-                                        if async_op {
-                                            node.client.map(move |cb| {
-                                                cb.get_complete(Err(e), unhashed_key, value);
-                                            });
-                                            Ok(())
-                                        } else {
-                                            node.unhashed_key.replace(unhashed_key);
-                                            node.value.replace(value);
-                                            Err(e)
-                                        }
-                                    }
-                                }
-                            })
-                        }),
-                        Operation::Set => node.value.take().map_or(Ok(()), |value| {
-                            node.valid_ids.map_or(Ok(()), |perms| {
-                                match self.kv.set(unhashed_key, value, perms) {
-                                    Ok(()) => {
-                                        self.inflight.set(node);
-                                        Ok(())
-                                    }
-                                    Err((unhashed_key, value, e)) => {
-                                        node.operation.clear();
-                                        if async_op {
-                                            node.client.map(move |cb| {
-                                                cb.set_complete(Err(e), unhashed_key, value);
-                                            });
-                                            Ok(())
-                                        } else {
-                                            node.unhashed_key.replace(unhashed_key);
-                                            node.value.replace(value);
-                                            Err(e)
-                                        }
-                                    }
-                                }
-                            })
-                        }),
-                        Operation::Add => node.value.take().map_or(Ok(()), |value| {
-                            node.valid_ids.map_or(Ok(()), |perms| {
-                                match self.kv.add(unhashed_key, value, perms) {
-                                    Ok(()) => {
-                                        self.inflight.set(node);
-                                        Ok(())
-                                    }
-                                    Err((unhashed_key, value, e)) => {
-                                        node.operation.clear();
-                                        if async_op {
-                                            node.client.map(move |cb| {
-                                                cb.add_complete(Err(e), unhashed_key, value);
-                                            });
-                                            Ok(())
-                                        } else {
-                                            node.unhashed_key.replace(unhashed_key);
-                                            node.value.replace(value);
-                                            Err(e)
-                                        }
-                                    }
-                                }
-                            })
-                        }),
-                        Operation::Update => node.value.take().map_or(Ok(()), |value| {
-                            node.valid_ids.map_or(Ok(()), |perms| {
-                                match self.kv.update(unhashed_key, value, perms) {
-                                    Ok(()) => {
-                                        self.inflight.set(node);
-                                        Ok(())
-                                    }
-                                    Err((unhashed_key, value, e)) => {
-                                        node.operation.clear();
-                                        if async_op {
-                                            node.client.map(move |cb| {
-                                                cb.update_complete(Err(e), unhashed_key, value);
-                                            });
-                                            Ok(())
-                                        } else {
-                                            node.unhashed_key.replace(unhashed_key);
-                                            node.value.replace(value);
-                                            Err(e)
-                                        }
-                                    }
-                                }
-                            })
-                        }),
-                        Operation::Delete => node.valid_ids.map_or(Ok(()), |perms| {
-                            match self.kv.delete(unhashed_key, perms) {
+                node.key.take().map_or(Ok(()), |key| match op {
+                    Operation::Get => node.value.take().map_or(Ok(()), |value| {
+                        node.valid_ids.map_or(Ok(()), |perms| {
+                            match self.kv.get(key, value, perms) {
                                 Ok(()) => {
                                     self.inflight.set(node);
                                     Ok(())
                                 }
-                                Err((unhashed_key, e)) => {
+                                Err((key, value, e)) => {
                                     node.operation.clear();
                                     if async_op {
                                         node.client.map(move |cb| {
-                                            cb.delete_complete(Err(e), unhashed_key);
+                                            cb.get_complete(Err(e), key, value);
                                         });
                                         Ok(())
                                     } else {
-                                        node.unhashed_key.replace(unhashed_key);
+                                        node.key.replace(key);
+                                        node.value.replace(value);
                                         Err(e)
                                     }
                                 }
                             }
-                        }),
-                    })
+                        })
+                    }),
+                    Operation::Set => node.value.take().map_or(Ok(()), |value| {
+                        node.valid_ids.map_or(Ok(()), |perms| {
+                            match self.kv.set(key, value, perms) {
+                                Ok(()) => {
+                                    self.inflight.set(node);
+                                    Ok(())
+                                }
+                                Err((key, value, e)) => {
+                                    node.operation.clear();
+                                    if async_op {
+                                        node.client.map(move |cb| {
+                                            cb.set_complete(Err(e), key, value);
+                                        });
+                                        Ok(())
+                                    } else {
+                                        node.key.replace(key);
+                                        node.value.replace(value);
+                                        Err(e)
+                                    }
+                                }
+                            }
+                        })
+                    }),
+                    Operation::Add => node.value.take().map_or(Ok(()), |value| {
+                        node.valid_ids.map_or(Ok(()), |perms| {
+                            match self.kv.add(key, value, perms) {
+                                Ok(()) => {
+                                    self.inflight.set(node);
+                                    Ok(())
+                                }
+                                Err((key, value, e)) => {
+                                    node.operation.clear();
+                                    if async_op {
+                                        node.client.map(move |cb| {
+                                            cb.add_complete(Err(e), key, value);
+                                        });
+                                        Ok(())
+                                    } else {
+                                        node.key.replace(key);
+                                        node.value.replace(value);
+                                        Err(e)
+                                    }
+                                }
+                            }
+                        })
+                    }),
+                    Operation::Update => node.value.take().map_or(Ok(()), |value| {
+                        node.valid_ids.map_or(Ok(()), |perms| {
+                            match self.kv.update(key, value, perms) {
+                                Ok(()) => {
+                                    self.inflight.set(node);
+                                    Ok(())
+                                }
+                                Err((key, value, e)) => {
+                                    node.operation.clear();
+                                    if async_op {
+                                        node.client.map(move |cb| {
+                                            cb.update_complete(Err(e), key, value);
+                                        });
+                                        Ok(())
+                                    } else {
+                                        node.key.replace(key);
+                                        node.value.replace(value);
+                                        Err(e)
+                                    }
+                                }
+                            }
+                        })
+                    }),
+                    Operation::Delete => {
+                        node.valid_ids
+                            .map_or(Ok(()), |perms| match self.kv.delete(key, perms) {
+                                Ok(()) => {
+                                    self.inflight.set(node);
+                                    Ok(())
+                                }
+                                Err((key, e)) => {
+                                    node.operation.clear();
+                                    if async_op {
+                                        node.client.map(move |cb| {
+                                            cb.delete_complete(Err(e), key);
+                                        });
+                                        Ok(())
+                                    } else {
+                                        node.key.replace(key);
+                                        Err(e)
+                                    }
+                                }
+                            })
+                    }
+                })
             })
         })
     }
@@ -383,13 +374,13 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for MuxKVPermissions<'a, V> {
     fn get_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();
             node.client.map(move |cb| {
-                cb.get_complete(result, unhashed_key, value);
+                cb.get_complete(result, key, value);
             });
         });
 
@@ -399,13 +390,13 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for MuxKVPermissions<'a, V> {
     fn set_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();
             node.client.map(move |cb| {
-                cb.set_complete(result, unhashed_key, value);
+                cb.set_complete(result, key, value);
             });
         });
 
@@ -415,13 +406,13 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for MuxKVPermissions<'a, V> {
     fn add_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();
             node.client.map(move |cb| {
-                cb.add_complete(result, unhashed_key, value);
+                cb.add_complete(result, key, value);
             });
         });
 
@@ -431,28 +422,24 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for MuxKVPermissions<'a, V> {
     fn update_complete(
         &self,
         result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
+        key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
         self.inflight.take().map(|node| {
             node.operation.clear();
             node.client.map(move |cb| {
-                cb.update_complete(result, unhashed_key, value);
+                cb.update_complete(result, key, value);
             });
         });
 
         let _ = self.do_next_op(true);
     }
 
-    fn delete_complete(
-        &self,
-        result: Result<(), ErrorCode>,
-        unhashed_key: SubSliceMut<'static, u8>,
-    ) {
+    fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>) {
         self.inflight.take().map(|node| {
             node.operation.clear();
             node.client.map(move |cb| {
-                cb.delete_complete(result, unhashed_key);
+                cb.delete_complete(result, key);
             });
         });
 
