@@ -55,27 +55,29 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
-/// Ids for read-only allow buffers
+/// IDs for read-only allow buffers.
 mod ro_allow {
-    // unhashed key
-    pub const UNHASHED_KEY: usize = 0;
-    // input value
+    /// Key.
+    pub const KEY: usize = 0;
+    /// Input value for set/add/update.
     pub const VALUE: usize = 1;
-    /// The number of allow buffers the kernel stores for this grant
+    /// The number of RO allow buffers the kernel stores for this grant.
     pub const COUNT: u8 = 2;
 }
 
-/// Ids for read-write allow buffers
+/// IDs for read-write allow buffers.
 mod rw_allow {
+    /// Output value for get.
     pub const VALUE: usize = 0;
-    /// The number of allow buffers the kernel stores for this grant
+    /// The number of RW allow buffers the kernel stores for this grant.
     pub const COUNT: u8 = 1;
 }
 
-/// Ids for upcalls
+/// IDs for upcalls.
 mod upcalls {
+    /// Single upcall.
     pub const VALUE: usize = 0;
-    /// The number of allow buffers the kernel stores for this grant
+    /// The number of upcalls the kernel stores for this grant.
     pub const COUNT: u8 = 1;
 }
 
@@ -111,7 +113,6 @@ pub struct KVStoreDriver<'a, V: kv::KVPermissions<'a>> {
     data_buffer: TakeCell<'static, [u8]>,
     /// Value buffer.
     dest_buffer: TakeCell<'static, [u8]>,
-    // keytype: PhantomData<T>,
 }
 
 impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
@@ -139,18 +140,17 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
-                    let unhashed_key_len = if app.op.is_some() {
-                        // For all operations we need to copy in the unhashed
-                        // key.
+                    let key_len = if app.op.is_some() {
+                        // For all operations we need to copy in the key.
                         kernel_data
-                            .get_readonly_processbuffer(ro_allow::UNHASHED_KEY)
+                            .get_readonly_processbuffer(ro_allow::KEY)
                             .and_then(|buffer| {
-                                buffer.enter(|unhashed_key| {
+                                buffer.enter(|key| {
                                     self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
                                         // Determine the size of the static
                                         // buffer we have and copy the contents.
-                                        let static_buffer_len = buf.len().min(unhashed_key.len());
-                                        unhashed_key[..static_buffer_len]
+                                        let static_buffer_len = buf.len().min(key.len());
+                                        key[..static_buffer_len]
                                             .copy_to_slice(&mut buf[..static_buffer_len]);
 
                                         Ok(static_buffer_len)
@@ -170,14 +170,12 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
 
-                                    let mut unhashed_key = SubSliceMut::new(data_buffer);
-                                    unhashed_key.slice(..unhashed_key_len);
+                                    let mut key = SubSliceMut::new(data_buffer);
+                                    key.slice(..key_len);
 
                                     let value = SubSliceMut::new(dest_buffer);
 
-                                    if let Err((data, dest, e)) =
-                                        self.kv.get(unhashed_key, value, perms)
-                                    {
+                                    if let Err((data, dest, e)) = self.kv.get(key, value, perms) {
                                         self.data_buffer.replace(data.take());
                                         self.dest_buffer.replace(dest.take());
                                         return Err(e);
@@ -218,8 +216,8 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
 
-                                    let mut unhashed_key = SubSliceMut::new(data_buffer);
-                                    unhashed_key.slice(..unhashed_key_len);
+                                    let mut key = SubSliceMut::new(data_buffer);
+                                    key.slice(..key_len);
 
                                     // Make sure we provide a value buffer with
                                     // space for the tock kv header at the
@@ -229,14 +227,10 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                     value.slice(..(value_len + header_size));
 
                                     if let Err((data, dest, e)) = match app.op.get() {
-                                        Some(UserSpaceOp::Set) => {
-                                            self.kv.set(unhashed_key, value, perms)
-                                        }
-                                        Some(UserSpaceOp::Add) => {
-                                            self.kv.add(unhashed_key, value, perms)
-                                        }
+                                        Some(UserSpaceOp::Set) => self.kv.set(key, value, perms),
+                                        Some(UserSpaceOp::Add) => self.kv.add(key, value, perms),
                                         Some(UserSpaceOp::Update) => {
-                                            self.kv.update(unhashed_key, value, perms)
+                                            self.kv.update(key, value, perms)
                                         }
                                         _ => Ok(()),
                                     } {
@@ -256,10 +250,10 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                     .get_storage_permissions()
                                     .ok_or(ErrorCode::INVAL)?;
 
-                                let mut unhashed_key = SubSliceMut::new(data_buffer);
-                                unhashed_key.slice(..unhashed_key_len);
+                                let mut key = SubSliceMut::new(data_buffer);
+                                key.slice(..key_len);
 
-                                if let Err((data, e)) = self.kv.delete(unhashed_key, perms) {
+                                if let Err((data, e)) = self.kv.delete(key, perms) {
                                     self.data_buffer.replace(data.take());
                                     return Err(e);
                                 }
@@ -402,7 +396,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
         // Signal the upcall and clear the requested op.
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
-                if app.op.contains(&UserSpaceOp::Set) {
+                if app.op.contains(&UserSpaceOp::Add) {
                     app.op.clear();
                     upcalls
                         .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
@@ -429,7 +423,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
         // Signal the upcall and clear the requested op.
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
-                if app.op.contains(&UserSpaceOp::Set) {
+                if app.op.contains(&UserSpaceOp::Update) {
                     app.op.clear();
                     upcalls
                         .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
