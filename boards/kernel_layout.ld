@@ -354,6 +354,7 @@ SECTIONS
     .attributes :
     {
         . = ABSOLUTE(ORIGIN(rom) + LENGTH(rom) - 16);
+        _sattributes = .;
 
         /* TLV: App Memory
          * This indicates the start address and size of RAM available for
@@ -368,6 +369,7 @@ SECTIONS
         BYTE(79) /* O */
         BYTE(67) /* C */
         BYTE(75) /* K */
+        _eattributes = .;
     }  > rom
 
 
@@ -379,5 +381,6 @@ SECTIONS
     }
 }
 
-ASSERT((_etext - _stext) + (_erelocate - _srelocate) < LENGTH(rom), "
-Text plus relocations exceeds the available ROM space.");
+ASSERT((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes) < LENGTH(rom),
+"Text plus relocations plus attributes exceeds the available ROM space.");
+ASSERT(_eattributes == ORIGIN(rom) + LENGTH(rom), "Kernel attributes are not at the end of ROM.")
