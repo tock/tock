@@ -338,7 +338,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
                         self.operation.clear();
                         self.value.take().map(|set_value| {
                             self.client.map(move |cb| {
-                                cb.set_complete(Err(ErrorCode::FAIL), key, set_value);
+                                cb.set_complete(Err(ErrorCode::NOSUPPORT), key, set_value);
                             });
                         });
                     }
@@ -376,7 +376,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
                         self.operation.clear();
                         self.value.take().map(|set_value| {
                             self.client.map(move |cb| {
-                                cb.update_complete(Err(ErrorCode::FAIL), key, set_value);
+                                cb.update_complete(Err(ErrorCode::NOSUPPORT), key, set_value);
                             });
                         });
                     }
@@ -415,7 +415,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
                     } else {
                         self.operation.clear();
                         self.client.map(move |cb| {
-                            cb.delete_complete(Err(ErrorCode::FAIL), key);
+                            cb.delete_complete(Err(ErrorCode::NOSUPPORT), key);
                         });
                     }
                 }

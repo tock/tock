@@ -51,7 +51,15 @@ pub trait KVClient {
     ///
     /// ### Return Values
     ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `result`: `Ok(())` on success
+    /// - `Err(ErrorCode)` on error. Valid `ErrorCode`s:
+    ///   - `SIZE`: The value is longer than the provided buffer. The amount of
+    ///     the value that fits in the buffer is provided.
+    ///   - `NOSUPPORT`: The key could not be found or the caller does not have
+    ///     permission to read this key. The data in the `value` buffer is
+    ///     meaningless.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     /// - `key`: The key buffer.
     /// - `value`: The value buffer.
     fn get_complete(
@@ -65,7 +73,12 @@ pub trait KVClient {
     ///
     /// ### Return Values
     ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `result`: `Ok(())` on success, `Err(ErrorCode)` on error. Valid
+    ///   `ErrorCode`s:
+    ///   - `NOSUPPORT`: The caller does not have permission to store this key.
+    ///   - `NOMEM`: The key could not be set because the KV store is full.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     /// - `key`: The key buffer.
     /// - `value`: The value buffer.
     fn set_complete(
@@ -79,7 +92,12 @@ pub trait KVClient {
     ///
     /// ### Return Values
     ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `result`: `Ok(())` on success, `Err(ErrorCode)` on error. Valid
+    ///   `ErrorCode`s:
+    ///   - `NOSUPPORT`: The key already exists and cannot be added.
+    ///   - `NOMEM`: The key could not be added because the KV store is full.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     /// - `key`: The key buffer.
     /// - `value`: The value buffer.
     fn add_complete(
@@ -93,7 +111,13 @@ pub trait KVClient {
     ///
     /// ### Return Values
     ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `result`: `Ok(())` on success, `Err(ErrorCode)` on error. Valid
+    ///   `ErrorCode`s:
+    ///   - `NOSUPPORT`: The key does not already exist and cannot be modified
+    ///     or the caller does not have permission to modify this key.
+    ///   - `NOMEM`: The key could not be updated because the KV store is full.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     /// - `key`: The key buffer.
     /// - `value`: The value buffer.
     fn update_complete(
@@ -107,7 +131,12 @@ pub trait KVClient {
     ///
     /// ### Return Values
     ///
-    /// - `result`: `Ok(())` on success, `ErrorCode` on error.
+    /// - `result`: `Ok(())` on success, `Err(ErrorCode)` on error. Valid
+    ///   `ErrorCode`s:
+    ///   - `NOSUPPORT`: The key does not exist or the caller does not have
+    ///     permission to delete this key.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     /// - `key`: The key buffer.
     fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>);
 }
@@ -134,9 +163,9 @@ pub trait KVPermissions<'a> {
     ///
     /// - On success returns `Ok(())`. A callback will be issued.
     /// - On error, returns the buffers and:
-    ///   - `ENOSUPPORT`: The key could not be found.
-    ///   - `SIZE`: The value is longer than the provided buffer. The amount of
-    ///     the value that fits in the buffer will be provided.
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn get(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -163,6 +192,17 @@ pub trait KVPermissions<'a> {
     ///   `KVPermissions.header_size()` bytes after the beginning of the buffer
     ///   to enable the implementation to insert a header.
     /// - `permissions`: The read/write/modify permissions for this access.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `SIZE`: There is insufficient room to include the permission header
+    ///     in the `value` buffer.
+    ///   - `INVAL`: The caller does not have write permissions.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn set(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -190,6 +230,17 @@ pub trait KVPermissions<'a> {
     ///   `KVPermissions.header_size()` bytes after the beginning of the buffer
     ///   to enable the implementation to insert a header.
     /// - `permissions`: The read/write/modify permissions for this access.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `SIZE`: There is insufficient room to include the permission header
+    ///     in the `value` buffer.
+    ///   - `INVAL`: The caller does not have write permissions.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn add(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -216,6 +267,17 @@ pub trait KVPermissions<'a> {
     ///   `KVPermissions.header_size()` bytes after the beginning of the buffer
     ///   to enable the implementation to insert a header.
     /// - `permissions`: The read/write/modify permissions for this access.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `SIZE`: There is insufficient room to include the permission header
+    ///     in the `value` buffer.
+    ///   - `INVAL`: The caller does not have write permissions.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn update(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -236,6 +298,15 @@ pub trait KVPermissions<'a> {
     ///
     /// - `key`: The key to identify the k-v pair.
     /// - `permissions`: The read/write/modify permissions for this access.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `INVAL`: The caller does not have modify permissions.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn delete(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -270,9 +341,9 @@ pub trait KV<'a> {
     ///
     /// - On success returns `Ok(())`. A callback will be issued.
     /// - On error, returns the buffers and:
-    ///   - `ENOSUPPORT`: The key could not be found.
-    ///   - `SIZE`: The value is longer than the provided buffer. The amount of
-    ///     the value that fits in the buffer will be provided.
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn get(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -295,6 +366,14 @@ pub trait KV<'a> {
     ///
     /// - `key`: The key to identify the k-v pair.
     /// - `value`: The value to store.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn set(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -318,6 +397,14 @@ pub trait KV<'a> {
     ///
     /// - `key`: The key to identify the k-v pair.
     /// - `value`: The value to store.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn add(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -340,6 +427,14 @@ pub trait KV<'a> {
     ///
     /// - `key`: The key to identify the k-v pair.
     /// - `value`: The value to store.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn update(
         &self,
         key: SubSliceMut<'static, u8>,
@@ -358,6 +453,14 @@ pub trait KV<'a> {
     /// ### Arguments
     ///
     /// - `key`: The key to identify the k-v pair.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
     fn delete(
         &self,
         key: SubSliceMut<'static, u8>,
