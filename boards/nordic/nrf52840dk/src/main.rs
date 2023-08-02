@@ -177,8 +177,7 @@ pub struct Platform {
     adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
-        'static,
+    analog_comparator: &'static components::analog_comparator::AnalogComparatorComponentType<
         nrf52840::acomp::Comparator<'static>,
     >,
     alarm: &'static components::alarm_component_type!(nrf52840::rtc::Rtc<'static>),
