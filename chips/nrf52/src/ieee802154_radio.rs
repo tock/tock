@@ -881,7 +881,7 @@ impl<'a> Radio<'a> {
                                 .ack_buf
                                 .take()
                                 .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
-                                    let mut ack_buf_send = [2, 0, 0];
+                                    let mut ack_buf_send = [18, 0, 0];
                                     let sequence_counter = rbuf[4];
                                     ack_buf_send[2] = sequence_counter;
                                     ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
