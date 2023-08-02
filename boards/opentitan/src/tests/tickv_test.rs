@@ -8,10 +8,10 @@ use crate::tests::run_kernel_op;
 use crate::{SIPHASH, TICKV};
 use capsules_core::virtualizers::virtual_flash::FlashUser;
 use capsules_extra::test::kv_system::KVSystemTest;
+use capsules_extra::tickv::KVSystem;
 use capsules_extra::tickv::{TicKVKeyType, TicKVStore};
 use kernel::debug;
 use kernel::hil::hasher::Hasher;
-use kernel::hil::kv_system::KVSystem;
 use kernel::static_init;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 
