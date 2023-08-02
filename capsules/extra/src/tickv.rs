@@ -509,7 +509,21 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     // Need to wait for flash write to complete.
                     self.operation.set(Operation::None);
                 }
-                _ => {}
+                Ok(tickv::success_codes::SuccessCode::Queued) => {}
+                Err(e) => {
+                    self.operation.set(Operation::None);
+
+                    let tock_hil_error = match e {
+                        tickv::error_codes::ErrorCode::KeyNotFound => ErrorCode::NOSUPPORT,
+                        _ => ErrorCode::FAIL,
+                    };
+                    self.client.map(|cb| {
+                        cb.invalidate_key_complete(
+                            Err(tock_hil_error),
+                            self.key_buffer.take().unwrap(),
+                        );
+                    });
+                }
             },
             Operation::GarbageCollect => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
