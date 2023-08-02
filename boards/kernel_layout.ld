@@ -351,11 +351,8 @@ SECTIONS
      *
      * `Length` specifies the size of the value (i.e. not include the header).
      */
-    .attributes :
+    .attributes : AT (ORIGIN(rom) + LENGTH(rom) - SIZEOF(.attributes))
     {
-        . = ABSOLUTE(ORIGIN(rom) + LENGTH(rom) - 16);
-        _sattributes = .;
-
         /* TLV: App Memory
          * This indicates the start address and size of RAM available for
          * userspace apps.
@@ -369,7 +366,6 @@ SECTIONS
         BYTE(79) /* O */
         BYTE(67) /* C */
         BYTE(75) /* K */
-        _eattributes = .;
     }  > rom
 
 
@@ -381,6 +377,30 @@ SECTIONS
     }
 }
 
+/* LOADADDR: Return the absolute load address of the named section. This is
+ * normally the same as ADDR, but it may be different if the AT keyword is used
+ * in the section definition. */
+_sattributes = LOADADDR(.attributes);
+_eattributes = LOADADDR(.attributes) + SIZEOF(.attributes);
+_erom = ORIGIN(rom) + LENGTH(rom);
+
+/* This.. this is a dirty, not-fully-understood, hack. In some way, linking is
+ * a multi-pass process. i.e., if you were to ASSERT(0, "how many links")
+ * you'll get three assertions printed for one invocation of rust-lld.
+ *
+ * Emprically, in the first pass, _eattributes ends up at
+ *     _erom + SIZEOF(.attributes)
+ * So, we need to allow that case.
+ *
+ * That's really not the dream, since we can't identify passes. We really only
+ * want to let the wrong location through on the first pass. Thus, the _best_
+ * solution would be to extract the _erom and _eattributes symbols with readelf
+ * or similar and verify they're equal, but that would be yet-one-more-tool.
+ * Maybe something we can do in CI at some point, and remove this assert.
+ */
+ASSERT((_eattributes == _erom) || (_eattributes == _erom + SIZEOF(.attributes)), "Kernel attributes are not at the end of ROM.")
+
+/* This assert works out becuase even though some of the relative positions are
+ * off, the sizes are sane in each pass. */
 ASSERT((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes) < LENGTH(rom),
 "Text plus relocations plus attributes exceeds the available ROM space.");
-ASSERT(_eattributes == ORIGIN(rom) + LENGTH(rom), "Kernel attributes are not at the end of ROM.")
