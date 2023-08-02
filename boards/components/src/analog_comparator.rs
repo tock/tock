@@ -53,6 +53,9 @@ macro_rules! analog_comparator_component_static {
     };};
 }
 
+pub type AnalogComparatorComponentType<AC> =
+    capsules_extra::analog_comparator::AnalogComparator<'static, AC>;
+
 pub struct AnalogComparatorComponent<
     AC: 'static + kernel::hil::analog_comparator::AnalogComparator<'static>,
 > {
