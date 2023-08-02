@@ -679,6 +679,7 @@ pub struct Radio<'a> {
     channel: Cell<RadioChannel>,
     transmitting: Cell<bool>,
     timer0: OptionalCell<&'a crate::timer::TimerAlarm<'a>>,
+    sending_ack: Cell<bool>,
 }
 
 impl<'a> AlarmClient for Radio<'a> {
@@ -706,6 +707,7 @@ impl<'a> Radio<'a> {
             channel: Cell::new(RadioChannel::DataChannel26),
             transmitting: Cell::new(false),
             timer0: OptionalCell::empty(),
+            sending_ack: Cell::new(false),
         }
     }
 
@@ -775,6 +777,7 @@ impl<'a> Radio<'a> {
         self.disable_all_interrupts();
 
         if self.registers.event_ready.is_set(Event::READY) {
+            kernel::debug!("Ready event received");
             self.registers.event_ready.write(Event::READY::CLEAR);
             self.registers.event_end.write(Event::READY::CLEAR);
             if self.transmitting.get()
@@ -793,7 +796,9 @@ impl<'a> Radio<'a> {
         //   IF we receive the go ahead (channel is clear)
         // THEN start the transmit part of the radio
         if self.registers.event_ccaidle.is_set(Event::READY) {
-            self.registers.event_ccaidle.write(Event::READY::CLEAR);
+            if !self.sending_ack.get() {
+                self.registers.event_ccaidle.write(Event::READY::CLEAR);
+            }
             self.registers.task_txen.write(Task::ENABLE::SET)
         }
 
@@ -854,8 +859,9 @@ impl<'a> Radio<'a> {
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     self.tx_client.map(|client| {
                         let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
-                        if tbuf[2] == 2 {
+                        if self.sending_ack.get() {
                             self.ack_buf.replace(tbuf);
+                            self.sending_ack.set(false);
                         } else {
                             client.send_done(tbuf, false, result);
                         }
@@ -881,12 +887,14 @@ impl<'a> Radio<'a> {
                                 .ack_buf
                                 .take()
                                 .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
-                                    let mut ack_buf_send = [2, 0, 0];
+                                    let mut ack_buf_send = [18, 0, 0];
                                     let sequence_counter = rbuf[4];
                                     ack_buf_send[2] = sequence_counter;
                                     ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
+                                    self.sending_ack.set(true);
                                     if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
                                         self.ack_buf.replace(ret_buf);
+                                        self.sending_ack.set(false);
                                     };
                                     Ok(())
                                 });
@@ -1189,8 +1197,17 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         self.cca_count.set(0);
         self.cca_be.set(IEEE802154_MIN_BE);
 
-        self.radio_off();
-        self.radio_initialize();
+        if self.sending_ack.get() {
+            // The transmission is started by first putting the radio in receive mode sending the RXEN task.
+            self.registers.task_rxen.write(Task::ENABLE::SET);
+        } else {
+            self.radio_off();
+            self.radio_initialize();
+        }
+
+        // The receiver will ramp up and enter the RXIDLE state where the READY event is generated
+        // self.ieee802154_set_rampup_mode();
+
         Ok(())
     }
 }
