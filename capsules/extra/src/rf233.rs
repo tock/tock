@@ -1346,6 +1346,8 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioData<'a> for RF233<'a, S> {
         self.rx_buf.replace(buffer);
     }
 
+    fn set_ack_buffer(&self, _buffer: &'static mut [u8]) {}
+
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
         self.rx_buf.replace(buffer);
     }

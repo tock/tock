@@ -103,6 +103,7 @@ macro_rules! ieee802154_component_static {
         let radio_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let radio_rx_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let crypt_buf = kernel::static_buf!([u8; components::ieee802154::CRYPT_SIZE]);
+        let radio_ack_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
 
         (
             virtual_aes,
@@ -114,6 +115,7 @@ macro_rules! ieee802154_component_static {
             radio_buf,
             radio_rx_buf,
             crypt_buf,
+            radio_ack_buf,
         )
     };};
 }
@@ -177,6 +179,7 @@ impl<
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; CRYPT_SIZE]>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
     );
     type Output = (
         &'static capsules_extra::ieee802154::RadioDriver<'static>,
@@ -195,11 +198,14 @@ impl<
         );
         aes_ccm.setup();
 
+        let ack_buffer = static_buffer.9.write([0; radio::MAX_BUF_SIZE]);
+
         // Keeps the radio on permanently; pass-through layer.
         let radio_rx_buf = static_buffer.7.write([0; radio::MAX_BUF_SIZE]);
         let awake_mac = static_buffer.1.write(AwakeMac::new(self.radio));
         self.radio.set_transmit_client(awake_mac);
         self.radio.set_receive_client(awake_mac, radio_rx_buf);
+        self.radio.set_ack_buffer(ack_buffer);
 
         let mac_device = static_buffer
             .2
