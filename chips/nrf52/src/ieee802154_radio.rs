@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
-use kernel::hil::radio::{self, PowerClient};
+use kernel::hil::radio::{self, PowerClient, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -669,6 +669,7 @@ pub struct Radio<'a> {
     tx_client: OptionalCell<&'a dyn radio::TxClient>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
+    ack_buf: TakeCell<'static, [u8]>,
     addr: Cell<u16>,
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
@@ -695,6 +696,7 @@ impl<'a> Radio<'a> {
             tx_client: OptionalCell::empty(),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
+            ack_buf: TakeCell::empty(),
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
@@ -852,8 +854,11 @@ impl<'a> Radio<'a> {
                     //TODO: Acked is flagged as false until I get around to fixing it.
                     self.tx_client.map(|client| {
                         let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
-
-                        client.send_done(tbuf, false, result)
+                        if tbuf[2] == 2 {
+                            self.ack_buf.replace(tbuf);
+                        } else {
+                            client.send_done(tbuf, false, result);
+                        }
                     });
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
@@ -867,6 +872,25 @@ impl<'a> Radio<'a> {
                         // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
+
+                        if rbuf[2] & 0b00100000 != 0
+                            && !self.transmitting.get()
+                            && self.ack_buf.is_some()
+                        {
+                            let _ = self
+                                .ack_buf
+                                .take()
+                                .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
+                                    let mut ack_buf_send = [2, 0, 0];
+                                    let sequence_counter = rbuf[4];
+                                    ack_buf_send[2] = sequence_counter;
+                                    ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
+                                    if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
+                                        self.ack_buf.replace(ret_buf);
+                                    };
+                                    Ok(())
+                                });
+                        }
 
                         client.receive(rbuf, frame_len, self.registers.crcstatus.get() == 1, result)
                     });
@@ -1131,6 +1155,10 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
     fn set_receive_client(&self, client: &'a dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);
+    }
+
+    fn set_ack_buffer(&self, buffer: &'static mut [u8]) {
+        self.ack_buf.replace(buffer);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
