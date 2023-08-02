@@ -307,12 +307,14 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     /// `hash_function`: Hash function with no previous state. This is
     ///                  usually a newly created hash.
     ///
-    /// Returns a tuple of 4 values
+    /// Returns a tuple of 3 values
     ///    Result:
     ///        On success a `SuccessCode` will be returned.
     ///        On error a `ErrorCode` will be returned.
     ///    Buf Buffer:
     ///        An option of the buf buffer used
+    ///    Length usize:
+    ///        The number of valid bytes in the buffer. 0 if Buf is None.
     /// The buffers will only be returned on a non async error or on success.
     pub fn continue_operation(&self) -> ContinueReturn {
         let (ret, length) = match self.tickv.state.get() {
