@@ -94,7 +94,7 @@ endif
 		-binary -range-pad 8 --output binary.64.vmem --vmem 64
 	$(OPENTITAN_TREE)/bazel-out/k8-fastbuild/bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
 		--meminit=rom,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild-ST-2cc462681f62/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem \
-		--meminit=flash,./binary.64.vmem \
+		--meminit=flash0,./binary.64.vmem \
 		--meminit=otp,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild/bin/hw/ip/otp_ctrl/data/img_rma.24.vmem
 
 test:
@@ -116,4 +116,4 @@ test-verilator: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --no-default-features --features=hardware_tests,sim_verilator
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator
