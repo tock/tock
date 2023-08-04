@@ -17,7 +17,7 @@ use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SI
 use kernel::static_init;
 
 #[test_case]
-fn run_aes128_ccm() {
+fn run000_aes128_ccm() {
     debug!("check run AES128 CCM... ");
     run_kernel_op(100);
 
@@ -52,7 +52,7 @@ unsafe fn static_init_test_ccm(
 }
 
 #[test_case]
-fn run_aes128_gcm() {
+fn run001_aes128_gcm() {
     debug!("check run AES128 GCM... ");
     run_kernel_op(100);
 
@@ -88,7 +88,7 @@ unsafe fn static_init_test_gcm(
 }
 
 #[test_case]
-fn run_aes128_ecb() {
+fn run002_aes128_ecb() {
     debug!("check run AES128 ECB... ");
     run_kernel_op(100);
 
@@ -122,7 +122,7 @@ unsafe fn static_init_test_ecb(aes: &'static Aes) -> &'static TestAes128Ecb<'sta
 }
 
 #[test_case]
-fn run_aes128_cbc() {
+fn run003_aes128_cbc() {
     debug!("check run AES128 CBC... ");
     run_kernel_op(100);
 
@@ -157,7 +157,7 @@ unsafe fn static_init_test_cbc(aes: &'static Aes) -> &'static TestAes128Cbc<'sta
 }
 
 #[test_case]
-fn run_aes128_ctr() {
+fn run004_aes128_ctr() {
     debug!("check run AES128 CTR... ");
     run_kernel_op(100);
 
