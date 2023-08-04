@@ -77,6 +77,8 @@ pub trait KVClient {
     ///   `ErrorCode`s:
     ///   - `NOSUPPORT`: The caller does not have permission to store this key.
     ///   - `NOMEM`: The key could not be set because the KV store is full.
+    ///   - `SIZE`: The key could not be set because the key or value is too
+    ///     many bytes.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
     /// - `key`: The key buffer.
@@ -96,6 +98,8 @@ pub trait KVClient {
     ///   `ErrorCode`s:
     ///   - `NOSUPPORT`: The key already exists and cannot be added.
     ///   - `NOMEM`: The key could not be added because the KV store is full.
+    ///   - `SIZE`: The key could not be set because the key or value is too
+    ///     many bytes.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
     /// - `key`: The key buffer.
@@ -116,6 +120,8 @@ pub trait KVClient {
     ///   - `NOSUPPORT`: The key does not already exist and cannot be modified
     ///     or the caller does not have permission to modify this key.
     ///   - `NOMEM`: The key could not be updated because the KV store is full.
+    ///   - `SIZE`: The key could not be set because the key or value is too
+    ///     many bytes.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
     /// - `key`: The key buffer.
@@ -199,7 +205,7 @@ pub trait KVPermissions<'a> {
     /// - On error, returns the buffers and:
     ///   - `BUSY`: An operation is already in progress.
     ///   - `SIZE`: There is insufficient room to include the permission header
-    ///     in the `value` buffer.
+    ///     in the `value` buffer or the key/value is too large to store.
     ///   - `INVAL`: The caller does not have write permissions.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
@@ -237,7 +243,7 @@ pub trait KVPermissions<'a> {
     /// - On error, returns the buffers and:
     ///   - `BUSY`: An operation is already in progress.
     ///   - `SIZE`: There is insufficient room to include the permission header
-    ///     in the `value` buffer.
+    ///     in the `value` buffer or the key/value is too large to store.
     ///   - `INVAL`: The caller does not have write permissions.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
@@ -274,7 +280,7 @@ pub trait KVPermissions<'a> {
     /// - On error, returns the buffers and:
     ///   - `BUSY`: An operation is already in progress.
     ///   - `SIZE`: There is insufficient room to include the permission header
-    ///     in the `value` buffer.
+    ///     in the `value` buffer or the key/value is too large to store.
     ///   - `INVAL`: The caller does not have write permissions.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
@@ -376,6 +382,7 @@ pub trait KV<'a> {
     /// - On success returns `Ok(())`. A callback will be issued.
     /// - On error, returns the buffers and:
     ///   - `BUSY`: An operation is already in progress.
+    ///   - `SIZE`: The key/value is too large to store.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
     fn set(
@@ -407,6 +414,7 @@ pub trait KV<'a> {
     /// - On success returns `Ok(())`. A callback will be issued.
     /// - On error, returns the buffers and:
     ///   - `BUSY`: An operation is already in progress.
+    ///   - `SIZE`: The key/value is too large to store.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
     fn add(
@@ -437,6 +445,7 @@ pub trait KV<'a> {
     /// - On success returns `Ok(())`. A callback will be issued.
     /// - On error, returns the buffers and:
     ///   - `BUSY`: An operation is already in progress.
+    ///   - `SIZE`: The key/value is too large to store.
     ///   - `FAIL`: An internal error occurred and the operation cannot be
     ///     completed.
     fn update(

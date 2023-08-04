@@ -648,7 +648,13 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), ErrorCode::FAIL)),
+                    Err((buf, e)) => {
+                        let tock_error = match e {
+                            tickv::error_codes::ErrorCode::ObjectTooLarge => ErrorCode::SIZE,
+                            _ => ErrorCode::FAIL,
+                        };
+                        Err((key, SubSliceMut::new(buf), tock_error))
+                    }
                 }
             }
             Operation::Init => {

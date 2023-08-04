@@ -292,11 +292,11 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                 Ok(()) => {
                                     self.unhashed_key.replace(unhashed_key);
                                 }
-                                Err((key, value, _e)) => {
+                                Err((key, value, e)) => {
                                     self.hashed_key.replace(key);
                                     self.operation.clear();
                                     self.client.map(move |cb| {
-                                        cb.set_complete(Err(ErrorCode::FAIL), unhashed_key, value);
+                                        cb.set_complete(Err(e), unhashed_key, value);
                                     });
                                 }
                             }
@@ -310,11 +310,11 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                                 Ok(()) => {
                                     self.unhashed_key.replace(unhashed_key);
                                 }
-                                Err((key, value, _e)) => {
+                                Err((key, value, e)) => {
                                     self.hashed_key.replace(key);
                                     self.operation.clear();
                                     self.client.map(move |cb| {
-                                        cb.add_complete(Err(ErrorCode::FAIL), unhashed_key, value);
+                                        cb.add_complete(Err(e), unhashed_key, value);
                                     });
                                 }
                             }
@@ -492,16 +492,12 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K
                             self.value.take().map(|value| {
                                 match self.kv.append_key(hashed_key, value) {
                                     Ok(()) => {}
-                                    Err((key, value, _e)) => {
+                                    Err((key, value, e)) => {
                                         self.hashed_key.replace(key);
                                         self.operation.clear();
                                         self.unhashed_key.take().map(|unhashed_key| {
                                             self.client.map(move |cb| {
-                                                cb.set_complete(
-                                                    Err(ErrorCode::FAIL),
-                                                    unhashed_key,
-                                                    value,
-                                                );
+                                                cb.set_complete(Err(e), unhashed_key, value);
                                             });
                                         });
                                     }
