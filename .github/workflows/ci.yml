@@ -33,9 +33,6 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
-        with:
-          components: rustfmt
       - uses: actions/setup-node@v3
       - name: ci-job-format
         run:  make ci-job-format
@@ -52,9 +49,6 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
-        with:
-          components: clippy
       - name: ci-job-clippy
         run:  make ci-job-clippy
 
@@ -66,7 +60,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
 
       - name: ci-job-syntax
         run: make ci-job-syntax
@@ -103,7 +96,6 @@ jobs:
           brew install zeromq
         if: matrix.os == 'macos-latest'
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
       - name: ci-job-libraries
         run: make ci-job-libraries
       - name: ci-job-archs
@@ -127,6 +119,5 @@ jobs:
         run: |
           sudo apt install meson
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
       - name: ci-job-qemu
         run: make ci-job-qemu

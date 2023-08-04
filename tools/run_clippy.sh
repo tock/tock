@@ -4,11 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2023.
 
-# Install clippy if it is not already preset.
-if ! rustup component list | grep 'clippy.*(installed)' -q; then
-	rustup component add clippy || rustup component add clippy-preview
-fi
-
 # Notably, this runs clippy on the workspace from which it is called. When invoked
 # from the root folder, as is done in CI or by invoking `make ci-job-clippy`,
 # this code is not run on the rust code in tools/, as that code is in a
