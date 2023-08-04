@@ -143,7 +143,7 @@ pub trait KVClient {
 
 /// Key-Value interface with permissions.
 ///
-/// This interface provides access to key-value storage where access control.
+/// This interface provides access to key-value storage with access control.
 /// Each object is marked with a `write_id` (based on the `StoragePermissions`
 /// used to create it), and all further accesses and modifications to that
 /// object require suitable permissions.
@@ -322,10 +322,14 @@ pub trait KVPermissions<'a> {
 
 /// Key-Value interface.
 ///
-/// This interface provides access to key-value storage where access control.
-/// Each object is marked with a `write_id` (based on the `StoragePermissions`
-/// used to create it), and all further accesses and modifications to that
-/// object require suitable permissions.
+/// This interface provides access to key-value storage.
+///
+/// `KV` includes five typical commands:
+/// - `get(key) -> value`
+/// - `set(key, value)`
+/// - `add(key, value)`
+/// - `update(key, value)`
+/// - `delete(key)`
 pub trait KV<'a> {
     /// Configure the client for operation callbacks.
     fn set_client(&self, client: &'a dyn KVClient);
