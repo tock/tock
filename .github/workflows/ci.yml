@@ -32,11 +32,11 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
-      - uses: actions/setup-node@v1
         with:
           components: rustfmt
+      - uses: actions/setup-node@v3
       - name: ci-job-format
         run:  make ci-job-format
       - name: ci-markdown-toc
@@ -51,7 +51,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
         with:
           components: clippy
@@ -65,7 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
 
       - name: ci-job-syntax
@@ -78,7 +78,7 @@ jobs:
       - name: ci-job-collect-artifacts
         run: make ci-job-collect-artifacts
       - name: upload-build-artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
           path: tools/ci-artifacts
@@ -102,7 +102,7 @@ jobs:
         run: |
           brew install zeromq
         if: matrix.os == 'macos-latest'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
       - name: ci-job-libraries
         run: make ci-job-libraries
@@ -126,7 +126,7 @@ jobs:
         continue-on-error: true
         run: |
           sudo apt install meson
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
       - name: ci-job-qemu
         run: make ci-job-qemu
