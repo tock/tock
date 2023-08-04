@@ -13,15 +13,15 @@ use kernel::errorcode::ErrorCode;
 use kernel::hil;
 #[allow(unused_imports)]
 use kernel::hil::flash::Flash;
-#[allow(unused_imports)]
-use lowrisc::flash_ctrl::FlashMPConfig;
 use kernel::hil::flash::HasClient;
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
 #[allow(unused_imports)]
-use lowrisc::flash_ctrl::PAGE_SIZE;
+use lowrisc::flash_ctrl::FlashMPConfig;
 #[allow(unused_imports)]
 use lowrisc::flash_ctrl::FLASH_ADDR_OFFSET;
+#[allow(unused_imports)]
+use lowrisc::flash_ctrl::PAGE_SIZE;
 #[allow(dead_code)]
 struct FlashCtlCallBack {
     read_pending: Cell<bool>,
@@ -119,12 +119,15 @@ macro_rules! static_init_test {
     }};
 }
 
+// Note: the tests below need to run in a particular order, hence the a, b, c...
+// function name prefix (test runner seems to invoke them alphabetically).
+
 /// Tests: Erase Page -> Write Page -> Read Page
 ///
 /// Compare the data we wrote is stored in flash with a
 /// successive read.
 #[test_case]
-fn flash_ctrl_read_write_page() {
+fn a_flash_ctrl_read_write_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
@@ -184,7 +187,7 @@ fn flash_ctrl_read_write_page() {
 /// `0xFF`. Assert this is true after writing data to a page and erasing
 /// the page.
 #[test_case]
-fn flash_ctrl_erase_page() {
+fn b_flash_ctrl_erase_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
@@ -240,7 +243,7 @@ fn flash_ctrl_erase_page() {
 
 #[test_case]
 /// Tests: The basic api functionality and error handling of invalid arguments.
-fn flash_ctrl_mp_basic() {
+fn c_flash_ctrl_mp_basic() {
     debug!("[FLASH_CTRL] Test memory protection api....");
 
     #[cfg(feature = "hardware_tests")]
@@ -274,7 +277,12 @@ fn flash_ctrl_mp_basic() {
         };
         // Expect Fail
         assert_eq!(
-            flash_ctl.mp_set_region_perms(base_page_addr, invalid_page_addr, valid_region, &cfg_set),
+            flash_ctl.mp_set_region_perms(
+                base_page_addr,
+                invalid_page_addr,
+                valid_region,
+                &cfg_set
+            ),
             Err(ErrorCode::NOSUPPORT)
         );
         assert_eq!(
@@ -287,12 +295,22 @@ fn flash_ctrl_mp_basic() {
             Err(ErrorCode::NOSUPPORT)
         );
         assert_eq!(
-            flash_ctl.mp_set_region_perms(base_page_addr, base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE), invalid_region, &cfg_set),
+            flash_ctl.mp_set_region_perms(
+                base_page_addr,
+                base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE),
+                invalid_region,
+                &cfg_set
+            ),
             Err(ErrorCode::NOSUPPORT)
         );
         // Set Perms
         assert!(flash_ctl
-            .mp_set_region_perms(base_page_addr, base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE), valid_region, &cfg_set)
+            .mp_set_region_perms(
+                base_page_addr,
+                base_page_addr.saturating_add(valid_num_pages * PAGE_SIZE),
+                valid_region,
+                &cfg_set
+            )
             .is_ok());
         // Check Perms
         assert_eq!(
@@ -312,7 +330,7 @@ fn flash_ctrl_mp_basic() {
 #[test_case]
 /// Tests the memory protection functionality of the flash_ctrl
 /// Test: Setup memory protection -> Do bad OP/cause an MP Fault -> Expect fail/assert Err(FlashMPFault)
-fn flash_ctrl_mp_functionality() {
+fn d_flash_ctrl_mp_functionality() {
     debug!("[FLASH_CTRL] Test memory protection functionality....");
 
     #[cfg(feature = "hardware_tests")]
@@ -348,7 +366,12 @@ fn flash_ctrl_mp_functionality() {
         };
         // Set Perms
         assert!(flash_ctl
-            .mp_set_region_perms(base_page_addr, base_page_addr.saturating_add(num_pages * PAGE_SIZE), region, &cfg_set)
+            .mp_set_region_perms(
+                base_page_addr,
+                base_page_addr.saturating_add(num_pages * PAGE_SIZE),
+                region,
+                &cfg_set
+            )
             .is_ok());
         // Check Perms
         assert_eq!(flash_ctl.mp_read_region_perms(region).unwrap(), cfg_set);
