@@ -354,6 +354,15 @@ SECTIONS
      */
     .attributes : AT (ORIGIN(rom) + LENGTH(rom) - SIZEOF(.attributes))
     {
+        /* TLV: Kernel Flash
+         * This indicates the start address of the kernel flash and the size of
+         * the kernel binary.
+         */
+        LONG(ORIGIN(rom)) /* Address of start of kernel binary. */
+        LONG((LOADADDR(.relocate) + (_erelocate-_srelocate)) - ORIGIN(rom)) /* Length of kernel binary. */
+        SHORT(0x0102) /* Type = Kernel Flash = 0x0102 */
+        SHORT(8)      /* Length = 8 bytes */
+
         /* TLV: App Memory
          * This indicates the start address and size of RAM available for
          * userspace apps.
