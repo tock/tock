@@ -247,7 +247,7 @@ impl<'a> Sha256Software<'a> {
         self.perform_sha(&mut message_schedule);
     }
 
-    fn compute_block(&self, data: &mut [u8; 64]) {
+    fn compute_block(&self, data: &[u8; 64]) {
         self.compute_buffer(data);
     }
 

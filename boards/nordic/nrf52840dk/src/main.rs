@@ -330,7 +330,7 @@ pub unsafe fn main() {
         // rtt_memory. This aliases reference is only used inside a panic
         // handler, which should be OK, but maybe we should use a const
         // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
+        self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {

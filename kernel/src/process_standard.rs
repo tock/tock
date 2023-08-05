@@ -1789,7 +1789,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Create the Process struct in the app grant region.
         // Note that this requires every field be explicitly initialized, as
         // we are just transforming a pointer into a structure.
-        let mut process: &mut ProcessStandard<C> =
+        let process: &mut ProcessStandard<C> =
             &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C>);
 
         // Ask the kernel for a unique identifier for this process that is being

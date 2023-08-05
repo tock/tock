@@ -842,7 +842,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
 }
 
 impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMP<MAX_AVAILABLE_REGIONS_OVER_TWO> {
-    fn write_kernel_regions(&self, config: &mut PMPConfig<(), MAX_AVAILABLE_REGIONS_OVER_TWO>) {
+    fn write_kernel_regions(&self, config: &PMPConfig<(), MAX_AVAILABLE_REGIONS_OVER_TWO>) {
         for (i, region) in config.regions.iter().enumerate() {
             match region {
                 Some(r) => {
