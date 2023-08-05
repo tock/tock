@@ -388,7 +388,7 @@ _erom = ORIGIN(rom) + LENGTH(rom);
  * a multi-pass process. i.e., if you were to ASSERT(0, "how many links")
  * you'll get three assertions printed for one invocation of rust-lld.
  *
- * Emprically, in the first pass, _eattributes ends up at
+ * Empirically, in the first pass, _eattributes ends up at
  *     _erom + SIZEOF(.attributes)
  * So, we need to allow that case.
  *
@@ -400,7 +400,7 @@ _erom = ORIGIN(rom) + LENGTH(rom);
  */
 ASSERT((_eattributes == _erom) || (_eattributes == _erom + SIZEOF(.attributes)), "Kernel attributes are not at the end of ROM.")
 
-/* This assert works out becuase even though some of the relative positions are
+/* This assert works out because even though some of the relative positions are
  * off, the sizes are sane in each pass. */
 ASSERT((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes) < LENGTH(rom),
 "Text plus relocations plus attributes exceeds the available ROM space.");
