@@ -602,6 +602,12 @@ impl Kernel {
                     match process.dequeue_task() {
                         None => break,
                         Some(cb) => match cb {
+                            Task::NullSubscribableUpcall(_) => {
+                                // Per TRD104, Yield-Wait does not wake the
+                                // process for events that generate Null
+                                // Upcalls.
+                                break;
+                            }
                             Task::FunctionCall(ccb) => {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
@@ -643,19 +649,30 @@ impl Kernel {
                     // it is ready. If so, dequeue and execute it, otherwise move on.
                     match process.dequeue_specific_upcall(upcall_id) {
                         None => break,
-                        Some(ccb) => {
-                            if config::CONFIG.trace_syscalls {
-                                debug!(
-                                    "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
-                                    process.processid(),
-                                    ccb.pc,
-                                    ccb.argument0,
-                                    ccb.argument1,
-                                    ccb.argument2,
-                                    ccb.argument3,
-                                );
+                        Some(task) => {
+                            match task {
+                                Task::NullSubscribableUpcall(nu) => {
+                                    if config::CONFIG.trace_syscalls {
+                                        todo!();
+                                    }
+                                    process.set_syscall_return_value(SyscallReturn::YieldForSubscribableUpcall(nu.argument0, nu.argument1, nu.argument2));
+                                }
+                                Task::FunctionCall(ccb) => {
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!(
+                                            "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
+                                            process.processid(),
+                                            ccb.pc,
+                                            ccb.argument0,
+                                            ccb.argument1,
+                                            ccb.argument2,
+                                            ccb.argument3,
+                                        );
+                                    }
+                                    process.set_process_function(ccb);
+                                }
+                                Task::IPC(_) => todo!()
                             }
-                            process.set_process_function(ccb);
                         }
                     }
                 }

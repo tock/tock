@@ -415,6 +415,9 @@ pub enum SyscallReturn {
     /// Subscribe failure case, returns the passed upcall function
     /// pointer and application data.
     SubscribeFailure(ErrorCode, *const (), usize),
+
+    /// TODO
+    YieldForSubscribableUpcall(usize, usize, usize),
 }
 
 impl SyscallReturn {
@@ -449,6 +452,7 @@ impl SyscallReturn {
             SyscallReturn::UserspaceReadableAllowFailure(_, _, _) => false,
             SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
             SyscallReturn::SubscribeFailure(_, _, _) => false,
+            SyscallReturn::YieldForSubscribableUpcall(_, _, _) => true,
         }
     }
 
@@ -555,6 +559,11 @@ impl SyscallReturn {
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = data as u32;
+            }
+            SyscallReturn::YieldForSubscribableUpcall(data0, data1, data2) => {
+                *a0 = data0 as u32;
+                *a1 = data1 as u32;
+                *a2 = data2 as u32;
             }
         }
     }

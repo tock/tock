@@ -129,42 +129,45 @@ impl Upcall {
         r1: usize,
         r2: usize,
     ) -> Result<(), UpcallError> {
-        let res = self.fn_ptr.map_or(
-            // A null-Upcall is treated as being delivered to
-            // the process and ignored
-            Ok(()),
-            |fp| {
-                let enqueue_res =
-                    process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                        source: process::FunctionCallSource::Driver(self.upcall_id),
-                        argument0: r0,
-                        argument1: r1,
-                        argument2: r2,
-                        argument3: self.appdata,
-                        pc: fp.as_ptr() as usize,
-                    }));
-
-                match enqueue_res {
-                    Ok(()) => Ok(()),
-                    Err(ErrorCode::NODEVICE) => {
-                        // There should be no code path to schedule an
-                        // Upcall on a process that is no longer
-                        // alive. Indicate a kernel-internal error.
-                        Err(UpcallError::KernelError)
-                    }
-                    Err(ErrorCode::NOMEM) => {
-                        // No space left in the process' task queue.
-                        Err(UpcallError::QueueFull)
-                    }
-                    Err(_) => {
-                        // All other errors returned by
-                        // `Process::enqueue_task` must be treated as
-                        // kernel-internal errors
-                        Err(UpcallError::KernelError)
-                    }
-                }
+        let enqueue_res = self.fn_ptr.map_or_else(
+            || {
+                process.enqueue_task(process::Task::NullSubscribableUpcall(process::NullSubscribableUpcall {
+                    upcall_id: self.upcall_id,
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                }))
             },
-        );
+            |fp| {
+                process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                    source: process::FunctionCallSource::Driver(self.upcall_id),
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                    argument3: self.appdata,
+                    pc: fp.as_ptr() as usize,
+                }))
+        });
+
+        let res = match enqueue_res {
+            Ok(()) => Ok(()),
+            Err(ErrorCode::NODEVICE) => {
+                // There should be no code path to schedule an
+                // Upcall on a process that is no longer
+                // alive. Indicate a kernel-internal error.
+                Err(UpcallError::KernelError)
+            }
+            Err(ErrorCode::NOMEM) => {
+                // No space left in the process' task queue.
+                Err(UpcallError::QueueFull)
+            }
+            Err(_) => {
+                // All other errors returned by
+                // `Process::enqueue_task` must be treated as
+                // kernel-internal errors
+                Err(UpcallError::KernelError)
+            }
+        };
 
         if config::CONFIG.trace_syscalls {
             debug!(

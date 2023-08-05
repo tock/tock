@@ -293,7 +293,7 @@ result with an error of `NOSUPPORT`.
 The Yield system call class is how a userspace process handles
 upcalls, relinquishes the processor to other processes, or waits for
 one of its long-running calls to complete.  The Yield system call
-class implements the only blocking system calls in Tock that return,
+class implements the only blocking system calls in Tock that return:
 `yield-wait` and `yield-wait-for`.
 
 When a process calls a Yield system call, the kernel schedules one
@@ -362,31 +362,47 @@ Yield-NoWait until the queue is empty.
 ### 4.1.2 Yield-Wait
 
 Yield number 1, Yield-Wait, blocks until an upcall executes. It is
-commonly used to provide a blocking I/O interface to userspace or to
-indicate to the kernel that the process has no work to do so the system
-can be put into a sleep state. A userspace library starts a long-running
-operation that has an upcall, then calls Yield-Wait to wait for an
-upcall.  When the Yield-Wait returns, the process checks if the resuming
-upcall was the one it was expecting, and if not calls Yield-Wait again.
+commonly used when applications have no other work to do and are waiting
+for an event (upcall) to occur to do more work.
+
+This call will deliver events to the userspace application in the order
+they occurred in time in the kernel. If an application has multiple
+subscriptions, the userspace callback is responsible for in some way
+noting which callback occurred if necessary.
+
+_Note:_ This will _only_ return after an upcall _executes_. If an event
+occurs which would normally generate an upcall, but that UpcallId is
+currently assigned to the Null Upcall, no upcall executes and thus this
+syscall will not return.
 
 `yield-param-1`, `yield-param-2`, and `yield-param-3` are unused and reserved.
 
 
 ### 4.1.3 Yield-WaitFor
 
-The third call, Yield-WaitFor, blocks until a specific upcall executes.
-In contrast to the Yield-Wait call, only the specified upcall is
-eligible to execute. Any other upcall that arrives will be queued.
+The third call, Yield-WaitFor, suspends the process until one specific
+upcall---the `WaitedForUpcallId`---is ready to execute. If other events
+arrive that would invoke an upcall on this process, they are queued by
+the kernel, and will be delivered after the event for the
+`WaitedForUpcallId`.  Event order in this queue is maintained.
+
+This process will resume execution when an event in the kernel generates
+an upcall that matches the `WaitedForUpcallId`.
+
+_Note:_ In the case that the upcall for the `WaitedForUpcallId` is set
+to the Null Upcall, no userspace callback function will execute, but
+Yield-WaitFor will still return. If and only if the waited-for upcall is
+the Null Upcall, the contents of r0-r3 will be set to Upcall Arguments
+as-feasible, specifically:
+
+ - A SubscribableUpcall will set r0-r2 and leave r3 untouched.
+
 
 `yield-param-1` is the Driver number and `yield-param-2` is the
-Subscribe number to wait for.
+Subscribe number to wait for. Together, these make up the
+`WaitedForUpcallId`.
 
 `yield-param-3` is unused and reserved.
-
-_Note:_ In the case that the specified upcall is set to the Null Upcall,
-no upcall will execute, but Yield-WaitFor will still return. In this
-case, the contents of r0-r3 upon return are UNDEFINED and should not be
-relied on in any way.
 
 
 
@@ -414,6 +430,9 @@ The `upcall pointer` is the address of the first instruction of
 the upcall function. The `application data` argument is a parameter
 that an application passes in and the kernel passes back in upcalls
 unmodified.
+
+The `upcall pointer` SHOULD be a valid upcall, i.e., either a
+SubscribableUpcall or the Null Upcall, as defined in the next section.
 
 If the passed upcall is not valid (is outside process executable
 memory and is not the Null Upcall described below), the kernel MUST
@@ -464,36 +483,6 @@ failure, the first `u32` is the passed upcall pointer and the second
 call to Subscribe for a given upcall, the upcall pointer and
 application data pointer returned MUST be the Null Upcall (described
 below).
-
-4.2.1 The Null Upcall
----------------------------------
-
-The Tock kernel defines an upcall pointer as the Null Upcall.
-The Null Upcall denotes an upcall that the kernel will never invoke.
-The Null Upcall is used for two reasons. First, a userspace process
-passing the Null Upcall as the upcall pointer for Subscribe
-indicates that there should be no more upcalls. Second, the first
-time a userspace process calls Subscribe for a particular upcall,
-the kernel needs to return upcall and application pointers indicating
-the current configuration; in this case, the kernel returns the Null
-Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
-
-The Null Upcall upcall pointer MUST be 0x0. This means it is not possible
-for userspace to pass address 0x0 as a valid code entry point. Unlike
-systems with virtual memory, where 0x0 can be reserved a special meaning, in
-microcontrollers with only physical memory 0x0 is a valid memory location.
-It is possible that a Tock kernel is configured so its applications
-start at address 0x0. However, even if they do begin at 0x0, the
-Tock Binary Format for application images mean that the first address
-will not be executable code and so 0x0 will not be a valid function.
-In the case that 0x0 is valid application code and where the
-linker places an upcall function, the first instruction of the function
-should be a no-op and the address of the second instruction passed
-instead.
-
-If a userspace process invokes subscribe on a driver ID that is not
-installed in the kernel, the kernel MUST return a failure with an
-error code of `NODEVICE` and an upcall of the Null Upcall.
 
 4.3 Command (Class ID: 2)
 ---------------------------------
@@ -828,7 +817,52 @@ If an exit syscall is successful, it does not return. Therefore, the return
 value of an exit syscall is always `Failure`. `exit-restart` and
 `exit-terminate` MUST always succeed and so never return.
 
-5 libtock-c Userspace Library Methods
+
+5.0 Upcall Types
+=================================
+
+This section defines the Upcalls that are valid for the kernel to invoke
+on userspace. Applications are responsible for ensuring that references
+to Upcalls passed to the kernel adhere to the ABI.
+
+5.1 The Null Upcall
+---------------------------------
+
+The Tock kernel defines an upcall pointer as the Null Upcall.
+The Null Upcall denotes an upcall that the kernel will never invoke.
+The Null Upcall is used for two reasons. First, a userspace process
+passing the Null Upcall as the upcall pointer for Subscribe
+indicates that there should be no more upcalls. Second, the first
+time a userspace process calls Subscribe for a particular upcall,
+the kernel needs to return upcall and application pointers indicating
+the current configuration; in this case, the kernel returns the Null
+Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
+
+The Null Upcall upcall pointer MUST be 0x0. This means it is not possible
+for userspace to pass address 0x0 as a valid code entry point. Unlike
+systems with virtual memory, where 0x0 can be reserved a special meaning, in
+microcontrollers with only physical memory 0x0 is a valid memory location.
+It is possible that a Tock kernel is configured so its applications
+start at address 0x0. However, even if they do begin at 0x0, the
+Tock Binary Format for application images mean that the first address
+will not be executable code and so 0x0 will not be a valid function.
+In the case that 0x0 is valid application code and where the
+linker places an upcall function, the first instruction of the function
+should be a no-op and the address of the second instruction passed
+instead.
+
+If a userspace process invokes subscribe on a driver ID that is not
+installed in the kernel, the kernel MUST return a failure with an
+error code of `NODEVICE` and an upcall of the Null Upcall.
+
+
+5.2 SubscribableUpcall
+-------------------------------------
+
+TODO[if we go this route], define parameters, etc
+
+
+6 libtock-c Userspace Library Methods
 =================================
 
 This section describes the method signatures for system calls and upcalls in C, as an example
@@ -845,7 +879,7 @@ registers and invokes the system call, and on return copies the returned data in
 on the stack.
 
 
-5.1 Yield
+6.1 Yield
 ---------------------------------
 
 The Yield system calls have these function prototypes:
@@ -857,7 +891,7 @@ void yield(void);
 
 `yield_no_wait` returns 1 if an upcall was invoked and 0 if one was not invoked.
 
-5.2 Subscribe
+6.2 Subscribe
 ---------------------------------
 
 The subscribe system call has this function prototype:
@@ -880,7 +914,7 @@ The `success` field indicates whether the call to subscribe succeeded.
 If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined.
 
-5.3 Command
+6.3 Command
 -----------------------------------
 
 The subscribe system call has this function prototype:
@@ -899,7 +933,7 @@ mapping of the return registers. `rtype` contains the value of `r0`, while
 `data[0]` contains what was passed in `r1`, `data[1]` contains was passed in `r2`,
 and `data[2]` contains what was passed in `r3`.
 
-5.4 Read-Write Allow
+6.4 Read-Write Allow
 ---------------------------------
 
 The read-write allow system call has this function prototype:
@@ -921,7 +955,7 @@ the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
 
-5.5 Read-Only Allow
+6.5 Read-Only Allow
 ---------------------------------
 
 The read-only allow system call has this function prototype:
@@ -942,7 +976,7 @@ If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
-5.6 Memop
+6.6 Memop
 ---------------------------------
 
 Because the Memop system calls are defined by the kernel and not extensible, they are
@@ -965,7 +999,7 @@ They wrap around an underlying function which uses inline assembly:
 void* memop(uint32_t op_type, int arg1);
 ```
 
-5.7 Exit
+6.7 Exit
 ---------------------------------
 
 The Exit system calls have these function prototypes:

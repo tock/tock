@@ -347,12 +347,9 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
-    /// Remove the scheduled operation from the front of the queue and return it
-    /// to be handled by the scheduler.
-    ///
-    /// If there are no `Task`s in the queue for this process this will return
-    /// `None`.
-    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<FunctionCall>;
+    /// Search the work queue for a specific upcall_id. If it is present,
+    /// return the associated `Task`, otherwise return `None`.
+    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<Task>;
 
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
@@ -931,6 +928,10 @@ pub enum FaultAction {
 /// This is public for external implementations of `Process`.
 #[derive(Copy, Clone)]
 pub enum Task {
+    /// A task that should not actually be executed. This is used to resume a
+    /// suspended process without invoking any callbacks in userspace (e.g.,
+    /// when YieldFor resolves to a Null Upcall).
+    NullSubscribableUpcall(NullSubscribableUpcall),
     /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
@@ -974,6 +975,21 @@ pub struct FunctionCall {
     pub argument3: usize,
     /// The PC of the function to execute.
     pub pc: usize,
+}
+
+/// This is similar to `FunctionCall` but for the special case of the
+/// Null Upcall for a subscribe. This is used to pass around upcall parameters
+/// when there is no associated upcall to actually call or userdata for arg3.
+#[derive(Copy, Clone, Debug)]
+pub struct NullSubscribableUpcall {
+    /// Which upcall generates this event.
+    pub upcall_id: UpcallId,
+    /// The first argument to the function.
+    pub argument0: usize,
+    /// The second argument to the function.
+    pub argument1: usize,
+    /// The third argument to the function.
+    pub argument2: usize,
 }
 
 /// Collection of process state information related to the memory addresses of
