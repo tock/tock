@@ -20,6 +20,29 @@ with builtins;
 let
   inherit (pkgs) stdenv lib;
 
+  # Use builtins.fromTOML if available, otherwise use remarshal to
+  # generate JSON which can be read. Code taken from
+  # nixpkgs/pkgs/development/tools/poetry2nix/poetry2nix/lib.nix.
+  fromTOML = pkgs: builtins.fromTOML or (
+    toml: builtins.fromJSON (
+      builtins.readFile (
+        pkgs.runCommand "from-toml"
+          {
+            inherit toml;
+            allowSubstitutes = false;
+            preferLocalBuild = true;
+          }
+          ''
+            ${pkgs.remarshal}/bin/remarshal \
+              -if toml \
+              -i <(echo "$toml") \
+              -of json \
+              -o $out
+          ''
+      )
+    )
+  );
+
   pythonPackages = lib.fix' (self: with self; pkgs.python3Packages //
   {
 
@@ -57,13 +80,15 @@ let
         # Read the ./rust-toolchain (and trim whitespace) so we can extrapolate
         # the channel and date information. This makes it more convenient to
         # update the Rust toolchain used.
-        rustToolchain = builtins.replaceStrings ["\n" "\r" " " "\t"] ["" "" "" ""] (
-          builtins.readFile ./rust-toolchain
-        );
+        rustToolchain = (
+          fromTOML pkgs (
+            builtins.readFile ./rust-toolchain.toml
+          )
+        ).toolchain;
       in
         {
-          channel = lib.head (lib.splitString "-" rustToolchain);
-          date = lib.concatStringsSep "-" (lib.tail (lib.splitString "-" rustToolchain));
+          channel = lib.head (lib.splitString "-" rustToolchain.channel);
+          date = lib.concatStringsSep "-" (lib.tail (lib.splitString "-" rustToolchain.channel));
         }
     )
   ).rust.override {
