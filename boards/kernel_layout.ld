@@ -343,13 +343,14 @@ SECTIONS
      *
      * Attributes are stored as TLVs, but going backwards in flash.
      *
-     *                           2 byte   2 byte   4 byte
-     * -----------+------------+--------+--------+------------+
-     *            | Value...   | Type   | Length | TOCK       | Start of `prog`
-     * -----------+------------+--------+--------+------------+
-     * <-TLVs...-> <-----TLV--------------------> <-Sentinel->
+     *                           2 byte   2 byte   3 byte     1 byte    4 byte
+     * -----------+------------+--------+--------+----------+---------+---------+ Start
+     *            | Value...   | Type   | Length | Reserved | Version | TOCK    | of
+     * -----------+------------+--------+--------+----------+---------+---------+ `prog`
+     * <-TLVs...-> <-----TLV--------------------> <----Header--------> <-Sentl->
      *
-     * `Length` specifies the size of the value (i.e. not include the header).
+     * The TLV `Length` specifies the size of the TLV value (i.e. not including
+     * the TLV header).
      */
     .attributes : AT (ORIGIN(rom) + LENGTH(rom) - SIZEOF(.attributes))
     {
@@ -362,6 +363,15 @@ SECTIONS
         SHORT(0x0101) /* Type = App RAM Region = 0x0101 */
         SHORT(8)      /* Length = 8 bytes */
 
+        /* Version and Reserved. Current version is 0x01.
+         */
+        BYTE(0) /* Reserved */
+        BYTE(0) /* Reserved */
+        BYTE(0) /* Reserved */
+        BYTE(1) /* Version = 0x01 */
+
+        /* Sentinel.
+         */
         BYTE(84) /* T */
         BYTE(79) /* O */
         BYTE(67) /* C */
