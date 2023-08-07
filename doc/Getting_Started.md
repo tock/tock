@@ -29,7 +29,7 @@ developing Tock.
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/)
-2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
+2. [rustup](https://rustup.rs/) (version >= 1.23.0) to install Rust
 3. Host toolchain (gcc, glibc)
 4. Command line utilities: make, find
 5. A supported board or QEMU configuration.

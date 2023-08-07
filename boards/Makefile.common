@@ -175,7 +175,7 @@ ifneq ($(RUSTUP_ERROR),0)
 endif
 
 # Validate that rustup is new enough.
-MINIMUM_RUSTUP_VERSION := 1.11.0
+MINIMUM_RUSTUP_VERSION := 1.23.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
 ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
