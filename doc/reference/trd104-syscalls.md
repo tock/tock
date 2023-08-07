@@ -234,6 +234,39 @@ Values greater than 1023 are reserved for userspace library use. Value 1024
 (BADRVAL) is for when a system call returns a different failure or success
 variant than the userspace library expects.
 
+3.4 Context Switching Subtleties
+---------------------------------
+
+When the kernel returns to userspace, it only gets to set registers for
+one stack frame. In practice, we have two cases:
+
+### DirectResume
+_{command, subscribe, allow, memop; yield-no-wait_DidntWaitCase}_
+
+Userspace resumes execution directly after the `svc` invocation, so the
+assembly that follows the `svc` command can use the values in r0-r3
+as-set by the kernel.
+
+### PushedCallback
+_{yield-wait, yield-no-wait_DidWaitCase}_
+
+Userspace resumes execution at the start of the callback function.
+
+The values in r0-r3 are consumed by the callback. When the callback
+finishes, it will `pop {lr}` (or similar), where the link register in
+the callback stack frame has been set by the kernel to the instruction
+after the `svc` that relinquished control to the kernel.
+
+The assembly that invoked the syscall now gets to run. At this point
+r0-r3 are unknown as those are caller-save registers (which means the
+Upcall callback can clobber them freely). The assembly that invoked the
+`svc` cannot make any assumptions about the values in r0-r3, nor can the
+kernel use them to pass things "to" the calling assembly. Thus, the
+`PushedCallback` case has to use a pointer-based approach for the kernel
+to communicate with the assembly that invokes the `svc` (e.g.
+`yield-param-1` in `Yield-NoWait`).
+
+
 4 System Call API
 =================================
 
