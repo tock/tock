@@ -59,12 +59,6 @@ jobs:
           echo "$HOME/gcc-riscv64-unknown-elf-8.3.0-ubuntu/bin" >> $GITHUB_PATH
           popd
 
-      # Setup a Rust toolchain (pulls version from rust-toolchain file)
-      - name: Setup Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          components: rustfmt, clippy
-
       # Install elf2tab to be able to build userspace apps
       - name: Install elf2tab
         run: |
