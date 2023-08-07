@@ -647,6 +647,12 @@ pub unsafe fn main() {
     // ONBOARD EXTERNAL FLASH
     //--------------------------------------------------------------------------
 
+    components::mx25r6435f_component_static_and_type!(
+        nrf52840::spi::SPIM<'static>,
+        nrf52840::gpio::GPIOPin<'static>,
+        nrf52840::rtc::Rtc<'static>
+    );
+
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
         Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
@@ -654,11 +660,7 @@ pub unsafe fn main() {
         mux_alarm,
         mux_spi,
     )
-    .finalize(components::mx25r6435f_component_static!(
-        nrf52840::spi::SPIM,
-        nrf52840::gpio::GPIOPin,
-        nrf52840::rtc::Rtc
-    ));
+    .finalize(mx25r6435f::static_data());
 
     // API for accessing nonvolatile storage for both the kernel and userspace.
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
@@ -671,11 +673,7 @@ pub unsafe fn main() {
         0x60000,   // Length of kernel region
     )
     .finalize(components::nonvolatile_storage_component_static!(
-        components::mx25r6435f_component_type!(
-            nrf52840::spi::SPIM,
-            nrf52840::gpio::GPIOPin,
-            nrf52840::rtc::Rtc
-        )
+        mx25r6435f::ttype
     ));
 
     //--------------------------------------------------------------------------

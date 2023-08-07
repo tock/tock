@@ -71,6 +71,66 @@ macro_rules! mx25r6435f_component_static {
     };};
 }
 
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! mx25r6435f_component_static_and_type {
+    ($S:ty, $P:ty, $A:ty $(,)?) => {
+        pub mod mx25r6435f {
+            pub type ttype = capsules_extra::mx25r6435f::MX25R6435F<
+                'static,
+                capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                $P,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+            >;
+
+            pub unsafe fn static_data() -> (
+                &'static mut core::mem::MaybeUninit<
+                    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+                >,
+                &'static mut core::mem::MaybeUninit<
+                    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                >,
+                &'static mut core::mem::MaybeUninit<
+                    capsules_extra::mx25r6435f::MX25R6435F<
+                        'static,
+                        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                            'static,
+                            $S,
+                        >,
+                        $P,
+                        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                    >,
+                >,
+                &'static mut core::mem::MaybeUninit<[u8; capsules_extra::mx25r6435f::TX_BUF_LEN]>,
+                &'static mut core::mem::MaybeUninit<[u8; capsules_extra::mx25r6435f::RX_BUF_LEN]>,
+            ) {
+                let spi_device = kernel::static_buf!(
+                    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
+                );
+                let alarm = kernel::static_buf!(
+                    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+                );
+                let mx25r6435f = kernel::static_buf!(
+                    capsules_extra::mx25r6435f::MX25R6435F<
+                        'static,
+                        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+                            'static,
+                            $S,
+                        >,
+                        $P,
+                        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                    >
+                );
+
+                let tx_buf = kernel::static_buf!([u8; capsules_extra::mx25r6435f::TX_BUF_LEN]);
+                let rx_buf = kernel::static_buf!([u8; capsules_extra::mx25r6435f::RX_BUF_LEN]);
+
+                (spi_device, alarm, mx25r6435f, tx_buf, rx_buf)
+            }
+        }
+    };
+}
+
 pub struct Mx25r6435fComponent<
     S: 'static + hil::spi::SpiMaster<'static>,
     P: 'static + hil::gpio::Pin,
