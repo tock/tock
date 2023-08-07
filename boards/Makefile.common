@@ -60,7 +60,7 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 #   and the downside to `all` is that different functions in the code can end up
 #   with the same address in the binary. However, it can save a fair bit of code
 #   size.
-# - `-C symbol-manging-version=v0`: Opt-in to Rust v0 symbol mangling scheme.
+# - `-C symbol-mangling-version=v0`: Opt-in to Rust v0 symbol mangling scheme.
 #   See https://github.com/rust-lang/rust/issues/60705 and
 #   https://github.com/tock/tock/issues/3529.
 RUSTC_FLAGS ?= \
@@ -78,7 +78,7 @@ ifneq ($(findstring riscv32i, $(TARGET)),)
   # benefit is almost exclusively for RISC-V, we only apply it for those
   # targets.
   RUSTC_FLAGS += -C force-frame-pointers=no
-  # Ensure relocations generated is eligible for linker relaxtion.
+  # Ensure relocations generated is eligible for linker relaxation.
   # This provide huge space savings.
   RUSTC_FLAGS += -C target-feature=+relax
 endif
