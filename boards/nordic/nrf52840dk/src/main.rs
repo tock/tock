@@ -156,6 +156,8 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+components::alarm_component_static_and_type!(nrf52840::rtc::Rtc<'static>);
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -180,7 +182,7 @@ pub struct Platform {
     analog_comparator: &'static components::analog_comparator::AnalogComparatorComponentType<
         nrf52840::acomp::Comparator<'static>,
     >,
-    alarm: &'static components::alarm_component_type!(nrf52840::rtc::Rtc<'static>),
+    alarm: &'static alarm::ttype,
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
@@ -435,12 +437,13 @@ pub unsafe fn main() {
     let _ = rtc.start();
     let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
         .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
-    let alarm = components::alarm::AlarmDriverComponent::new(
+
+    let alarm_driver = components::alarm::AlarmDriverComponent::new(
         board_kernel,
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
+    .finalize(alarm::static_data());
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -794,7 +797,7 @@ pub unsafe fn main() {
         rng,
         adc,
         temp,
-        alarm,
+        alarm: alarm_driver,
         analog_comparator,
         nonvolatile_storage,
         udp_driver,

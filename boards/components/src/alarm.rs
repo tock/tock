@@ -70,6 +70,35 @@ macro_rules! alarm_component_static {
     };};
 }
 
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! alarm_component_static_and_type {
+    ($A:ty $(,)?) => {
+        /// Static definition for the Alarm Component.
+        pub mod alarm {
+            use core::mem::MaybeUninit;
+
+            use capsules_core::alarm::AlarmDriver;
+            use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+
+            /// Type definition for the Alarm syscall driver.
+            pub type ttype = AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>;
+
+            /// Static data for the Alarm syscall driver.
+            pub unsafe fn static_data() -> (
+                &'static mut MaybeUninit<VirtualMuxAlarm<'static, $A>>,
+                &'static mut MaybeUninit<AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>>,
+            ) {
+                let mux_alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
+                let alarm_driver =
+                    kernel::static_buf!(AlarmDriver<'static, VirtualMuxAlarm<'static, $A>>);
+
+                (mux_alarm, alarm_driver)
+            }
+        }
+    };
+}
+
 pub struct AlarmMuxComponent<A: 'static + time::Alarm<'static>> {
     alarm: &'static A,
 }
