@@ -67,7 +67,6 @@ impl From<MacAddress> for u64 {
     }
 }
 
-
 impl fmt::Display for MacAddress {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
