@@ -3,8 +3,8 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::utilities::StaticRef;
+use lowrisc::registers::uart_regs::UartRegisters;
 pub use lowrisc::uart::Uart;
-use lowrisc::uart::UartRegisters;
 
 use crate::chip_config::CONFIG;
 
