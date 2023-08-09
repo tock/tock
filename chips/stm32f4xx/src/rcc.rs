@@ -933,8 +933,10 @@ impl Rcc {
     pub(crate) fn get_mco1_clock_source(&self) -> MCO1Source {
         match self.registers.cfgr.read(CFGR::MCO1) {
             0b00 => MCO1Source::HSI,
+            // When LSE or HSE are added, uncomment the following lines
             //0b01 => MCO1Source::LSE,
             //0b10 => MCO1Source::HSE,
+            // 0b11 corresponds to MCO1Source::PLL
             _ => MCO1Source::PLL,
         }
     }
