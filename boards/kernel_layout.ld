@@ -345,5 +345,5 @@ SECTIONS
     }
 }
 
-ASSERT((_etext-_stext) + (_erelocate-_srelocate) < LENGTH(rom), "
+ASSERT((_etext - _stext) + (_erelocate - _srelocate) < LENGTH(rom), "
 Text plus relocations exceeds the available ROM space.");
