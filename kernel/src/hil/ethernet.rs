@@ -52,17 +52,28 @@ impl Default for MacAddress {
     }
 }
 
+impl From<u64> for MacAddress {
+    fn from(value: u64) -> Self {
+        // Can't panic
+        MacAddress(value.to_be_bytes()[2..8].try_into().unwrap())
+    }
+}
+
+impl From<MacAddress> for u64 {
+    fn from(address: MacAddress) -> Self {
+        let mut bytes = [0 as u8; 8];
+        bytes[2..].copy_from_slice(&address.0);
+        u64::from_be_bytes(bytes)
+    }
+}
+
+
 impl fmt::Display for MacAddress {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
             "{:02x}-{:02x}-{:02x}-{:02x}-{:02x}-{:02x}",
-            self.0[0],
-            self.0[1],
-            self.0[2],
-            self.0[3],
-            self.0[4],
-            self.0[5]
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
         )
     }
 }
@@ -114,7 +125,7 @@ pub trait Configure {
     /// Check whether loopback mode is enabled
     fn is_loopback_mode_enabled(&self) -> bool;
 
-    /// Set the peripheral MAC address 
+    /// Set the peripheral MAC address
     fn set_mac_address(&self, _mac_address: MacAddress) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
     }
@@ -144,7 +155,9 @@ mod tests {
         mac_address = MacAddress::new([0x11, 0x22, 0x33, 0x44, 0x55, 0x66]);
         assert_eq!(&[0x11, 0x22, 0x33, 0x44, 0x55, 0x66], &mac_address.0);
 
-        mac_address.0.copy_from_slice(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB]);
+        mac_address
+            .0
+            .copy_from_slice(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB]);
         assert_eq!(&[0x12, 0x34, 0x56, 0x78, 0x90, 0xAB], &mac_address.0);
 
         mac_address.0[5] = 0xCD;
