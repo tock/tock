@@ -206,14 +206,14 @@ review principles that will be used when evaluating pull requests.
   changed lines, but rather by the semantic meaning of the changes.
 - Are the commits all relevant to the change, or are there possibly unrelated
   branches that are unintentionally included?
-- Does the provide enough explanation to help reviewers understand its purpose,
+- Does the PR provide enough explanation to help reviewers understand its purpose,
   and to explain the change for future readers of the code? Does the PR link to
   relevant tracking issues or other discussions? Are there existing discussions
   that should be referenced?
 
 **Documentation and Comments**
 
-- Many core designs of Tock are document in specific markdown files. Does this
+- Many core designs of Tock are documented in specific markdown files. Does this
   PR change any of those designs/details, and are the corresponding documents
   updated?
 - Does the change include proper rustdoc comments for new files and new data
@@ -244,7 +244,7 @@ review principles that will be used when evaluating pull requests.
 - Is any new functionality both publicly exported and harmful to overall safety
   (not just correctness) if called at the wrong time? If so, this should likely
   be guarded with a capability.
-- Uses of `#inline` directives should be explained why they are needed.
+- Uses of `#inline` directives should explain why they are needed.
 
 ### Review Guide by Repository Subsystem
 
@@ -281,7 +281,7 @@ capability.
 
 #### HILs
 
-New HILs should follow the TRD on HIL design.
+New HILs should follow the [TRD on HIL design](./reference/trd3-hil-design.md).
 
 HILs should be well documented and not specifically matched to a single hardware
 platform.
@@ -299,7 +299,7 @@ rigorously commented.
 
 Virtualizers multiplex an underlying resource for multiple users.
 
-- The `Mux` struct should handle all interrupts, and route callback to specific
+- The `Mux` struct should handle all interrupts, and route callbacks to specific
   virtualizer users.
 - The virtualizer should provide the same interface (i.e. HIL) as it uses from
   the underlying shared resource.
