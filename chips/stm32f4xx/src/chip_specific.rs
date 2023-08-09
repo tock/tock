@@ -178,42 +178,31 @@ pub mod flash_specific {
                 feature = "stm32f423"
             )))]
             {
-                if frequency_mhz <= 30 {
-                    FlashLatency::Latency0
-                } else if frequency_mhz <= 60 {
-                    FlashLatency::Latency1
-                } else if frequency_mhz <= 90 {
-                    FlashLatency::Latency2
-                } else if frequency_mhz <= 120 {
-                    FlashLatency::Latency3
-                } else if frequency_mhz <= 150 {
-                    FlashLatency::Latency4
-                } else {
-                    FlashLatency::Latency5
+                match frequency_mhz {
+                    0..=30 => FlashLatency::Latency0,
+                    31..=60 => FlashLatency::Latency1,
+                    61..=90 => FlashLatency::Latency2,
+                    91..=120 => FlashLatency::Latency3,
+                    121..=150 => FlashLatency::Latency4,
+                    _ => FlashLatency::Latency5,
                 }
             }
             #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
             {
-                if frequency_mhz <= 30 {
-                    FlashLatency::Latency0
-                } else if frequency_mhz <= 64 {
-                    FlashLatency::Latency1
-                } else if frequency_mhz <= 90 {
-                    FlashLatency::Latency2
-                } else {
-                    FlashLatency::Latency3
+                match frequency_mhz {
+                    0..=30 => FlashLatency::Latency0,
+                    31..=64 => FlashLatency::Latency1,
+                    65..=90 => FlashLatency::Latency2,
+                    _ => FlashLatency::Latency3,
                 }
             }
             #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
             {
-                if frequency_mhz <= 25 {
-                    FlashLatency::Latency0
-                } else if frequency_mhz <= 50 {
-                    FlashLatency::Latency1
-                } else if frequency_mhz <= 75 {
-                    FlashLatency::Latency2
-                } else {
-                    FlashLatency::Latency3
+                match frequency_mhz {
+                    0..=25 => FlashLatency::Latency0,
+                    26..=50 => FlashLatency::Latency1,
+                    51..=75 => FlashLatency::Latency2,
+                    _ => FlashLatency::Latency3,
                 }
             }
         }
