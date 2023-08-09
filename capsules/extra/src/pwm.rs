@@ -44,7 +44,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
         self.active_process[pin].map_or(true, |id| {
             // If the app is empty, that means that there is no app currently using this pin,
             // therefore the pin could be usable by the new app
-            if id == &processid {
+            if id == processid {
                 // The same app is trying to access the pin it has access to, valid
                 true
             } else {

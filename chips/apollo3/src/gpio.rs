@@ -1019,21 +1019,6 @@ impl<'a> gpio::Configure for GpioPin<'a> {
         };
         regs.padreg[pagreg_offset].modify(pagreg_value);
 
-        // Set to push/pull
-        let cfgreg_offset = self.pin as usize / 8;
-        let cfgreg_value = match self.pin as usize % 8 {
-            0 => CFG::GPIO0INTD::CLEAR + CFG::GPIO0INCFG.val(0x1),
-            1 => CFG::GPIO1INTD::CLEAR + CFG::GPIO1INCFG.val(0x1),
-            2 => CFG::GPIO2INTD::CLEAR + CFG::GPIO2INCFG.val(0x1),
-            3 => CFG::GPIO3INTD::CLEAR + CFG::GPIO3INCFG.val(0x1),
-            4 => CFG::GPIO4INTD::CLEAR + CFG::GPIO4INCFG.val(0x1),
-            5 => CFG::GPIO5INTD::CLEAR + CFG::GPIO5INCFG.val(0x1),
-            6 => CFG::GPIO6INTD::CLEAR + CFG::GPIO6INCFG.val(0x1),
-            7 => CFG::GPIO7INTD::CLEAR + CFG::GPIO7INCFG.val(0x1),
-            _ => unreachable!(),
-        };
-        regs.cfg[cfgreg_offset].modify(cfgreg_value);
-
         // Unset key
         regs.padkey.set(0x00);
 

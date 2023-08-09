@@ -483,7 +483,7 @@ where
 {
     fn receive_event(&self, buf: &'static mut [u8], len: u8, result: Result<(), ErrorCode>) {
         self.receiving_app.map(|processid| {
-            let _ = self.app.enter(*processid, |app, kernel_data| {
+            let _ = self.app.enter(processid, |app, kernel_data| {
                 // Validate the received data, because ordinary BLE packets can be bigger than 39
                 // bytes. Thus, we need to check for that!
                 // Moreover, we use the packet header to find size but the radio reads maximum
@@ -521,7 +521,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38));
-                        self.receiving_app.set(*processid);
+                        self.receiving_app.set(processid);
                         let _ = self.radio.set_tx_power(app.tx_power);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel38);
@@ -529,7 +529,7 @@ where
                     Some(BLEState::Scanning(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Scanning(RadioChannel::AdvertisingChannel39));
-                        self.receiving_app.set(*processid);
+                        self.receiving_app.set(processid);
                         self.radio
                             .receive_advertisement(RadioChannel::AdvertisingChannel39);
                     }
@@ -558,15 +558,15 @@ where
     fn transmit_event(&self, buf: &'static mut [u8], _crc_ok: Result<(), ErrorCode>) {
         self.kernel_tx.replace(buf);
         self.sending_app.map(|processid| {
-            let _ = self.app.enter(*processid, |app, kernel_data| {
+            let _ = self.app.enter(processid, |app, kernel_data| {
                 match app.process_status {
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel37)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38));
-                        self.sending_app.set(*processid);
+                        self.sending_app.set(processid);
                         let _ = self.radio.set_tx_power(app.tx_power);
                         let _ = app.send_advertisement(
-                            *processid,
+                            processid,
                             kernel_data,
                             &self,
                             RadioChannel::AdvertisingChannel38,
@@ -576,9 +576,9 @@ where
                     Some(BLEState::Advertising(RadioChannel::AdvertisingChannel38)) => {
                         app.process_status =
                             Some(BLEState::Advertising(RadioChannel::AdvertisingChannel39));
-                        self.sending_app.set(*processid);
+                        self.sending_app.set(processid);
                         let _ = app.send_advertisement(
-                            *processid,
+                            processid,
                             kernel_data,
                             &self,
                             RadioChannel::AdvertisingChannel39,

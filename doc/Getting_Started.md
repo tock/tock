@@ -29,7 +29,7 @@ developing Tock.
 ## Requirements
 
 1. [Rust](http://www.rust-lang.org/)
-2. [rustup](https://rustup.rs/) to install Rust (version >= 1.11.0)
+2. [rustup](https://rustup.rs/) (version >= 1.23.0) to install Rust
 3. Host toolchain (gcc, glibc)
 4. Command line utilities: make, find
 5. A supported board or QEMU configuration.
@@ -77,7 +77,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2023-04-13`. We require
+We are using `nightly-2023-07-30`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -92,7 +92,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2023-04-13
+$ rustup install nightly-2023-07-30
 ```
 
 #### Tockloader

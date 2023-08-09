@@ -32,7 +32,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 use capsules_core::driver;
@@ -119,7 +119,7 @@ pub struct UDPDriver<'a> {
     /// UDP bound port table (manages kernel bindings)
     port_table: &'static UdpPortManager,
 
-    kernel_buffer: MapCell<LeasableMutableBuffer<'static, u8>>,
+    kernel_buffer: MapCell<SubSliceMut<'static, u8>>,
 
     driver_send_cap: &'static dyn UdpDriverCapability,
 
@@ -138,7 +138,7 @@ impl<'a> UDPDriver<'a> {
         interface_list: &'static [IPAddr],
         max_tx_pyld_len: usize,
         port_table: &'static UdpPortManager,
-        kernel_buffer: LeasableMutableBuffer<'static, u8>,
+        kernel_buffer: SubSliceMut<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
         net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
@@ -566,11 +566,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
 }
 
 impl<'a> UDPSendClient for UDPDriver<'a> {
-    fn send_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        mut dgram: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: SubSliceMut<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.kernel_buffer.replace(dgram);

@@ -39,7 +39,7 @@ jobs:
       # that other steps (such as the Rust toolchain) depend on files
       # in this repo.
       - name: Checkout the current repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       # Install basic packages required for the GitHub actions workflow
       - name: Update packages and install dependencies
@@ -59,12 +59,6 @@ jobs:
           echo "$HOME/gcc-riscv64-unknown-elf-8.3.0-ubuntu/bin" >> $GITHUB_PATH
           popd
 
-      # Setup a Rust toolchain (pulls version from rust-toolchain file)
-      - name: Setup Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          components: rustfmt, clippy
-
       # Install elf2tab to be able to build userspace apps
       - name: Install elf2tab
         run: |
@@ -79,7 +73,7 @@ jobs:
       # Clone tock-litex support repository under ./tock-litex, check out the
       # targeted release.
       - name: Checkout the tock-litex repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: lschuermann/tock-litex
           # The pinned revision is different from the targeted release as
@@ -114,7 +108,7 @@ jobs:
       # Revision to checkout defined in the main tock repository in
       # .libtock_c_ci_rev
       - name: Checkout libtock-c CI revision
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: tock/libtock-c
           # Pins a libtock-c revision for LiteX CI tests. In case of

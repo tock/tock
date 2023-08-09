@@ -19,17 +19,13 @@ use crate::otbn::OtbnComponent;
 use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
-use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
-use kernel::hil::kv_system::KVSystem;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -106,7 +102,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -122,32 +118,7 @@ struct EarlGrey {
         'static,
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
     >,
-    hmac: &'static capsules_extra::hmac::HmacDriver<
-        'static,
-        VirtualMuxHmac<
-            'static,
-            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<
-                'static,
-                lowrisc::hmac::Hmac<'static>,
-                32,
-            >,
-            32,
-        >,
-        32,
-    >,
-    sha: &'static capsules_extra::sha::ShaDriver<
-        'static,
-        VirtualMuxSha<
-            'static,
-            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<
-                'static,
-                lowrisc::hmac::Hmac<'static>,
-                32,
-            >,
-            32,
-        >,
-        32,
-    >,
+    hmac: &'static capsules_extra::hmac::HmacDriver<'static, lowrisc::hmac::Hmac<'static>, 32>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
@@ -169,7 +140,7 @@ struct EarlGrey {
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
     >,
-    kv_driver: &'static capsules_extra::kv_driver::KVSystemDriver<
+    kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
         capsules_extra::tickv::TicKVStore<
             'static,
@@ -198,7 +169,6 @@ impl SyscallDriverLookup for EarlGrey {
         match driver_num {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
-            capsules_extra::sha::DRIVER_NUM => f(Some(self.sha)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -395,44 +365,12 @@ unsafe fn setup() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
-        components::digest_mux_component_static!(lowrisc::hmac::Hmac, 32),
-    );
-
-    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
-        components::digest_component_static!(lowrisc::hmac::Hmac, 32,),
-    );
-
-    peripherals.hmac.set_client(digest);
-
-    let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
-    );
-
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
-        &mux_hmac,
+        &peripherals.hmac,
     )
-    .finalize(components::hmac_component_static!(
-        capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
-        32,
-    ));
-
-    digest.set_hmac_client(hmac);
-
-    let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
-    );
-
-    let sha = components::sha::ShaComponent::new(
-        board_kernel,
-        capsules_extra::sha::DRIVER_NUM,
-        &mux_sha,
-    )
-    .finalize(components::sha_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
-
-    digest.set_sha_client(sha);
+    .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
 
     let i2c_master_buffer = static_init!(
         [u8; capsules_core::i2c_master::BUFFER_LENGTH],
@@ -580,7 +518,6 @@ unsafe fn setup() -> (
             capsules_extra::tickv::TicKVKeyType,
         ),
     );
-    tickv.set_client(kv_store);
 
     let kv_driver = components::kv_system::KVDriverComponent::new(
         kv_store,
@@ -743,7 +680,6 @@ unsafe fn setup() -> (
             console,
             alarm,
             hmac,
-            sha,
             rng,
             lldb: lldb,
             i2c_master,

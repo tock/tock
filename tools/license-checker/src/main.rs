@@ -87,6 +87,8 @@
 
 #![allow(rustdoc::invalid_rust_codeblocks)]
 
+use colored::ColoredString;
+use colored::Colorize;
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -115,24 +117,28 @@ struct Args {
     verbose: bool,
 }
 
+fn error_prefix() -> ColoredString {
+    "error:".bright_red().bold()
+}
+
 #[derive(Debug, thiserror::Error, PartialEq)]
 enum LicenseError {
-    #[error("license header missing")]
+    #[error("{} {}", error_prefix(), "license header missing")]
     Missing,
 
-    #[error("missing blank line after header")]
+    #[error("{} {}", error_prefix(), "missing blank line after header")]
     MissingBlank,
 
-    #[error("missing copyright line")]
+    #[error("{} {}", error_prefix(), "missing copyright line")]
     MissingCopyright,
 
-    #[error("missing SPDX line")]
+    #[error("{} {}", error_prefix(), "missing SPDX line")]
     MissingSpdx,
 
-    #[error("incorrect first line")]
+    #[error("{} {}", error_prefix(), "incorrect first line")]
     WrongFirst,
 
-    #[error("wrong SPDX line")]
+    #[error("{} {}", error_prefix(), "wrong SPDX line")]
     WrongSpdx,
 }
 

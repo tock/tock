@@ -6,6 +6,7 @@
 #![no_std]
 
 pub mod test;
+pub mod tutorials;
 
 #[macro_use]
 pub mod net;
@@ -17,6 +18,7 @@ pub mod analog_comparator;
 pub mod analog_sensor;
 pub mod apds9960;
 pub mod app_flash_driver;
+pub mod at24c_eeprom;
 pub mod ble_advertising_driver;
 pub mod bme280;
 pub mod bmp280;
@@ -34,6 +36,7 @@ pub mod fxos8700cq;
 pub mod gpio_async;
 pub mod hd44780;
 pub mod hmac;
+pub mod hmac_sha256;
 pub mod hts221;
 pub mod humidity;
 pub mod ieee802154;

@@ -346,7 +346,7 @@ impl<'a> Pll<'a> {
     /// + [None]: if the PLL clock is disabled.
     pub fn get_frequency(&self) -> Option<usize> {
         if self.is_enabled() {
-            self.frequency.extract()
+            self.frequency.get()
         } else {
             None
         }
@@ -363,7 +363,7 @@ impl<'a> Pll<'a> {
     /// + [None]: if the PLL clock is disabled.
     pub fn get_frequency_pll48(&self) -> Option<usize> {
         if self.is_enabled() {
-            self.pll48_frequency.extract()
+            self.pll48_frequency.get()
         } else {
             None
         }

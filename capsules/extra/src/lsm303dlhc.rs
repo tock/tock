@@ -409,7 +409,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
                             .schedule_upcall(0, (if present { 1 } else { 0 }, 0, 0))
                             .ok();
@@ -424,7 +424,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 let set_power = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
                             .schedule_upcall(0, (if set_power { 1 } else { 0 }, 0, 0))
                             .ok();
@@ -445,7 +445,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 let set_scale_and_resolution = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
                             .schedule_upcall(
                                 0,
@@ -502,7 +502,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         if values {
                             upcalls.schedule_upcall(0, (x, y, z)).ok();
                         } else {
@@ -519,7 +519,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 let set_temperature_and_magneto_data_rate = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
                             .schedule_upcall(
                                 0,
@@ -550,7 +550,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 let set_range = status == Ok(());
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
                             .schedule_upcall(0, (if set_range { 1 } else { 0 }, 0, 0))
                             .ok();
@@ -577,7 +577,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 });
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         if let Ok(temp) = values {
                             upcalls.schedule_upcall(0, (temp as usize, 0, 0)).ok();
                         } else {
@@ -619,7 +619,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 };
 
                 self.current_process.map(|process_id| {
-                    let _ = self.apps.enter(*process_id, |_grant, upcalls| {
+                    let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         if values {
                             upcalls.schedule_upcall(0, (x, y, z)).ok();
                         } else {
@@ -659,7 +659,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
 

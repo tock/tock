@@ -333,7 +333,7 @@ impl<'a> Screen<'a> {
             || 0,
             |process_id| {
                 self.apps
-                    .enter(*process_id, |app, kernel_data| {
+                    .enter(process_id, |app, kernel_data| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         if position < len {

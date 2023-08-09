@@ -1446,7 +1446,7 @@ impl ProcessCheckerMachine {
             // Try to check the next footer.
             let check_result = self.policy.map_or(FooterCheckResult::Error, |c| {
                 self.processes[proc_index].map_or(FooterCheckResult::NoProcess, |p| {
-                    check_footer(p, *c, footer_index)
+                    check_footer(p, c, footer_index)
                 })
             });
 
