@@ -16,7 +16,6 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-#[allow(unused_imports)]
 use kernel::hil::ethernet::Configure;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
@@ -26,8 +25,7 @@ use kernel::{create_capability, debug, static_init};
 
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
-#[allow(unused_imports)]
-use stm32f429zi::rcc::{APBPrescaler, MCO1Source, SysClockSource};
+use stm32f429zi::rcc::{APBPrescaler, SysClockSource};
 use stm32f429zi::syscfg::EthernetInterface;
 
 /// Support routines for debugging I/O.
@@ -300,7 +298,6 @@ unsafe fn setup_peripherals(
 }
 
 // Helper function to setup Ethernet pins
-#[allow(dead_code)]
 fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     // RMII_REF_CLK
     gpio_ports.get_pin(PinId::PA01).map(|pin| {
@@ -345,15 +342,23 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     });
 }
 
+fn setup_clocks_for_ethernet(clocks: &stm32f429zi::clocks::Clocks) {
+    assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
+    assert_eq!(Ok(()), clocks.pll.enable());
+    assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
+    assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
+}
+
 // Helper function to initialize and start the ethernet peripheral
-#[allow(dead_code)]
 fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
+    setup_clocks_for_ethernet(&peripherals.stm32f4.clocks);
     let ethernet = &peripherals.ethernet;
     assert_eq!(Ok(()), ethernet.init());
     // TODO: Remove these calls once Transmit and Receive HILs are implemented
     assert_eq!(Ok(()), ethernet.start_transmit());
     assert_eq!(Ok(()), ethernet.start_receive());
+    assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -758,15 +763,10 @@ pub unsafe fn main() {
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // ETHERNET: Uncomment if needed
-    // Setup Ethernet
-    //let clocks = &peripherals.stm32f4.clocks;
-    //assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
-    //assert_eq!(Ok(()), clocks.pll.enable());
-    //assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
-    //assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
-    //setup_ethernet(&peripherals);
-    //assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
+    // This function changes clocks. The baud rate for the board is
+    // 180000 now. Also, this must be done late in the process to not impact the initialization of
+    // other peripherals.
+    setup_ethernet(&peripherals);
 
     debug!("Initialization complete. Entering main loop");
 
