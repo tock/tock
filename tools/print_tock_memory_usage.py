@@ -28,7 +28,6 @@ import os
 import re
 import sys
 import getopt
-import cxxfilt  # Demangling C++/Rust symbol names
 import copy
 
 OBJDUMP = "llvm-objdump"
@@ -127,108 +126,112 @@ def process_section_line(line):
     if match != None:
         sections[match.group(1)] = int(match.group(2), 16)
 
+def trim_vendor_suffix_from_symbol(symbol):
+    """Take a Rust symbol and strip away vendor-specific suffixes.
 
-# Take a Rust-style symbol of '::' delineated names and trim the last
-# one if it is a hash.  Many symbols have hashes appended which just
-# hurt readability; they take the form of h[16-digit hex number].
-def trim_hash_from_symbol(symbol):
-    """If the passed symbol ends with a hash of the form h[16-hex number]
-    trim this and return the trimmed symbol."""
-    # Remove the hash off the end
-    tokens = symbol.split("::")
-    last = tokens[-1]
-    if last[0] == "h":
-        tokens = tokens[:-1]  # Trim off hash if it exists
-        trimmed_name = "::".join(tokens)  # reassemble
-        return trimmed_name
+    Mangled symbols can contain '.' followed vendor-specific suffixes, e.g.
+    ".71" or ".llvm".
+
+    LLVM demangler will mangle the parts before the dot and put the rest in a
+    parenthesis after the demangled symbol.
+    E.g. `_RNvNtCsefdtF19kgsV_6kernel13deferred_call3CTR.0` becomes `kernel::deferred_call::CTR (.0)`"""
+    return symbol.split(" (.")[0]
+
+def parse_angle_bracket(string):
+    """Parse balanced angle brackets and split the string into parts.
+
+    This method also takes care of trait in UFCS syntax, so
+    if the string is of the form `<T as Trait>::rest`, it is split into ("T", "Trait", "Rest");
+    if the string is of the form `<T>::rest`, it is split into ("T", "", "Rest");
+
+    The first character of the string is assumed to be an opening angle bracket.
+    """
+    nesting = 0
+    as_pos = None
+    for i in range(len(string)):
+        if nesting == 1 and string[i:i+4] == " as ":
+            as_pos = i
+        elif string[i] == "<":
+            nesting += 1
+        elif string[i] == ">":
+            nesting -= 1
+            if nesting == 0:
+                break
+    assert nesting == 0, "Unbalanced angle brackets"
+
+    if as_pos == None:
+        return (string[1:i], "", string[i+1:])
     else:
-        return symbol
+        return (string[1:as_pos], string[as_pos+4:i], string[i+1:])
 
+def parse_symbol_name(name):
+    """Take a symbol name demangled by LLVM and further process it.
 
-escape_sequences = [
-    ["$C$", ","],
-    ["$SP$", "@"],
-    ["$BP$", "*"],
-    ["$RF$", "&"],
-    ["$LT,GT$", "<>"],
-    ["$LT$", "<"],
-    ["$GT$", ">"],
-    ["$LP$", "("],
-    ["$RP$", ")"],
-    ["$u20$", " "],
-    ["$u27$", "'"],
-    ["$u5b$", "["],
-    ["$u5d$", "]"],
-    ["..", "::"],
-    [".", "-"],
-]
-
-
-def parse_mangled_name(name):
-    """Take a potentially mangled symbol name and demangle it to its
-    name, removing the trailing hash. This is not just a simple
-    demangling: for methods, it outputs the structure + method
+    For methods, it outputs the structure + method
     as a :: separated name, eliding the trait (if any)."""
 
-    # Not a mangled name, just return it unchanged.
-    if name[0:3] != "_ZN":
+    # Not a Rust symbol name, just return it unchanged.
+    if not "::" in name:
         return name
 
-    # Trim a trailing . number (e.g., ".71") which breaks demangling
-    match = re.search("\.\d+$", name)
-    if match != None:
-        name = name[: match.start()]
+    prefix = ""
+    if name[0:8] == ".hidden ":
+        name = name[8:]
+        prefix = ".hidden "
 
-    # Trim a trailing ".llvm", which breaks demangling
-    match = re.search("\.llvm", name)
-    if match != None:
-        name = name[: match.start()]
+    # Trim a trailing vendor suffixes.
+    name = trim_vendor_suffix_from_symbol(name)
 
-    demangled = ""
-    try:
-        demangled = cxxfilt.demangle(name, external_only=False)
-    except cxxfilt.InvalidName:
-        demangled = name
-
-    corrected_name = trim_hash_from_symbol(demangled)
-    for escape in escape_sequences:
-        corrected_name = corrected_name.replace(escape[0], escape[1])
-
-    # Need to separate the name of the structure from the name of
-    # the method. If it starts with a _, then it's of the form
-    # _<structure as trait>::method otherwise it's
-    # structure::method. So first carve off the method name, then
-    # figure out the structure.
-
-    structure_end = corrected_name.rfind("::")
-    full_structure_name = ""
-
-    if structure_end >= 0:
-        method = corrected_name[structure_end + 2 :]
-        full_structure_name = corrected_name[0:structure_end]
+    # Unmangled method names will use the UFCS syntax, so it looks like
+    # <structure>::method for inherent methods and
+    # <structure as trait>::method for trait methods. We want to
+    # separate the structure from the method name.
+    if name[0] == "<":
+        structure, trait, trailing = parse_angle_bracket(name)
     else:
-        method = corrected_name
+        structure = name
+        trait = ""
+        trailing = ""
 
-    structure = full_structure_name
-    if corrected_name[0:1] == "_":
-        split = full_structure_name.split(" as ")
-        structure = split[0]
-        # trim the _<
-        structure = structure[2:]
+    # This can happen for closures or types that are defined inside an impl. Remove the angle bracket
+    while structure[0:1] == "<":
+        structure, _, t = parse_angle_bracket(structure)
+        structure += t
 
-    symbol = structure
-    if len(symbol) > 0:
-        symbol = symbol + "::" + method
-    else:
-        # No structure, just a method
-        symbol = method
+    # Methods on primitives types are defined in libcore.
+    if structure[0:1] == "&":
+        structure = "core::primitive::ref"
+    elif structure[0:1] == "*":
+        structure = "core::primitive::ptr"
+    elif structure[0:1] == "[":
+        structure = "core::primitive::slice"
+    elif structure[0:1] == "(":
+        structure = "core::primitive::tuple"
+    elif structure == "bool" or structure == "char" or structure == "str" \
+            or structure == "u8" or structure == "u16" or structure == "u32" \
+            or structure == "u64" or structure == "u128" or structure == "usize" \
+            or structure == "i8" or structure == "i16" or structure == "i32" \
+            or structure == "i64" or structure == "i128" or structure == "isize":
+        structure = "core::primitive::" + structure
 
-    if symbol[0:2] == "-L" or symbol[0:2] == "-l" or symbol[0:4] == "anon":
-        symbol = "Anonymous"
-    if symbol[0:7] == "-hidden":
-        symbol = "Hidden"
+    # For trait methods on libcore types, they must be defined in the crate that
+    # defines on the trait. So as an exception account them to the trait instead.
+    if trait != "" and structure[0:4] == "core" and trait[0:4] != "core":
+        structure = trait
 
-    return symbol
+    symbol = structure + trailing
+
+    # For grouping we want to strip away all generics
+    while "<" in symbol:
+        angle_start = symbol.find("<")
+        _, _, trailing = parse_angle_bracket(symbol[angle_start:])
+        # For turbofish also remove the :: before the angle brackets
+        if symbol[angle_start - 2:angle_start] == "::":
+            symbol = symbol[0:angle_start - 2] + trailing
+        else:
+            symbol = symbol[0:angle_start] + trailing
+
+    return prefix + symbol
 
 
 def process_symbol_line(line):
@@ -264,13 +267,13 @@ def process_symbol_line(line):
         # Initialized data: part of the flash image, then copied into RAM
         # on start. The .data section in normal hosted C.
         if segment == "relocate":
-            demangled = parse_mangled_name(name)
+            demangled = parse_symbol_name(name)
             kernel_initialized.append((demangled, addr, size, 0, "variable"))
 
         # Uninitialized data, stored in a zeroed RAM section. The
         # .bss section in normal hosted C.
         elif segment == "sram":
-            demangled = parse_mangled_name(name)
+            demangled = parse_symbol_name(name)
             kernel_uninitialized.append((demangled, addr, size, 0, "variable"))
 
         # Code and embedded data.
@@ -281,17 +284,11 @@ def process_symbol_line(line):
                 # Skip this symbol
                 return
             if symbol_type == "F" or symbol_type == "f":
-                try:
-                    symbol = parse_mangled_name(name)
-                    kernel_text.append((symbol, addr, size, 0, "function"))
-                except cxxfilt.InvalidName:
-                    kernel_text.append((name, addr, size, 0, "function"))
+                symbol = parse_symbol_name(name)
+                kernel_text.append((symbol, addr, size, 0, "function"))
             else:
-                try:
-                    symbol = parse_mangled_name(name)
-                    kernel_text.append((symbol, addr, size, 0, "data"))
-                except cxxfilt.InvalidName:
-                    kernel_text.append((name, addr, size, 0, "data"))
+                symbol = parse_symbol_name(name)
+                kernel_text.append((symbol, addr, size, 0, "data"))
 
 
 def print_section_information():
@@ -345,6 +342,13 @@ def group_symbols(groups, symbols, waste, section):
     waste_sum = 0
     prev_symbol = ""
     for (symbol, addr, size, real_size, _) in symbols:
+        if addr < expected_addr:
+            # We have some overlapping symbols. This can happen due to merging
+            # of functions and constants with non-significant address.
+            # Since we sort symbols with larger sizes to the front, the entire
+            # span of this symbol has been processed and thus we can ignore this.
+            continue
+
         # If we find a gap between symbol+size and the next symbol, we might
         # have waste. But this is only true if it's not the first symbol and
         # this is actually a variable and just just a symbol (e.g., _estart)
@@ -379,7 +383,7 @@ def group_symbols(groups, symbols, waste, section):
                 key = "Constant strings"
             elif symbol[0:8] == ".hidden ":
                 key = "ARM aeabi support"
-            elif symbol[0:3] == "_ZN":
+            elif symbol[0:3] == "_RN":
                 key = "Unidentified auto-generated"
             elif symbol == "Padding at end of kernel RAM":
                 key = symbol
@@ -552,8 +556,12 @@ def print_grouped_symbol_information():
 
 
 def sort_value(symbol_entry):
-    """Helper function for sorting symbols by start address and size."""
-    value = (symbol_entry[1] << 16) + symbol_entry[2]
+    """Helper function for sorting symbols by start address and size.
+
+    We sort symbols with smaller start address to the front, and if their starting address is the same,
+    the larger symbols comes first then the smaller ones.
+    """
+    value = (symbol_entry[1] << 16) - symbol_entry[2]
     return value
 
 def get_addr(symbol_entry):
@@ -659,7 +667,7 @@ if __name__ == "__main__":
         usage("could not detect architecture of ELF")
         sys.exit(-1)
 
-    objdump_lines = os.popen(OBJDUMP + " -t --section-headers " + elf_name).readlines()
+    objdump_lines = os.popen(OBJDUMP + " --demangle -t --section-headers " + elf_name).readlines()
     objdump_output_section = "start"
 
     for oline in objdump_lines:

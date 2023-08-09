@@ -156,16 +156,6 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -189,6 +179,7 @@ pub struct Platform {
         4,
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
@@ -232,6 +223,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
@@ -338,7 +330,7 @@ pub unsafe fn main() {
         // rtt_memory. This aliases reference is only used inside a panic
         // handler, which should be OK, but maybe we should use a const
         // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&mut *rtt_memory_refs.get_rtt_memory_ptr());
+        self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {
@@ -497,7 +489,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc<'static>
@@ -619,6 +611,31 @@ pub unsafe fn main() {
         &base_peripherals.trng,
     )
     .finalize(components::rng_component_static!());
+
+    //--------------------------------------------------------------------------
+    // ADC
+    //--------------------------------------------------------------------------
+
+    let adc_channels = static_init!(
+        [nrf52840::adc::AdcChannelSetup; 6],
+        [
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7),
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &base_peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(
+        nrf52840::adc::Adc
+    ));
 
     //--------------------------------------------------------------------------
     // SPI
@@ -799,6 +816,7 @@ pub unsafe fn main() {
         led,
         gpio,
         rng,
+        adc,
         temp,
         alarm,
         analog_comparator,
@@ -816,6 +834,7 @@ pub unsafe fn main() {
     };
 
     let _ = platform.pconsole.start();
+    base_peripherals.adc.calibrate();
 
     // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
     // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);

@@ -181,7 +181,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
             self.state.set(State::Idle);
             self.buffer.replace(buffer);
             self.owning_process.map(|pid| {
-                let _ = self.apps.enter(*pid, |_app, upcalls| {
+                let _ = self.apps.enter(pid, |_app, upcalls| {
                     upcalls.schedule_upcall(0, (0, 0, 0)).ok();
                 });
             });
@@ -207,7 +207,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
                     self.state.set(State::Idle);
                     self.buffer.replace(buffer);
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        let _ = self.apps.enter(pid, |_app, upcalls| {
                             upcalls
                                 .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
                                 .ok();
@@ -222,7 +222,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
                     self.state.set(State::Idle);
                     self.buffer.replace(buffer);
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        let _ = self.apps.enter(pid, |_app, upcalls| {
                             upcalls
                                 .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
                                 .ok();
@@ -241,7 +241,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
                     self.state.set(State::Idle);
                     self.buffer.replace(buffer);
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        let _ = self.apps.enter(pid, |_app, upcalls| {
                             upcalls
                                 .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
                                 .ok();
@@ -256,7 +256,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
                     self.state.set(State::Idle);
                     self.buffer.replace(buffer);
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        let _ = self.apps.enter(pid, |_app, upcalls| {
                             upcalls
                                 .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
                                 .ok();
@@ -275,7 +275,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
                 let pressure_ubar = (pressure * 1000) / 4096;
 
                 self.owning_process.map(|pid| {
-                    let _ = self.apps.enter(*pid, |_app, upcalls| {
+                    let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
                             .schedule_upcall(0, (pressure_ubar as usize, 0, 0))
                             .ok();
@@ -289,7 +289,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for LPS25HB<'_, I> {
                     self.state.set(State::Idle);
                     self.buffer.replace(buffer);
                     self.owning_process.map(|pid| {
-                        let _ = self.apps.enter(*pid, |_app, upcalls| {
+                        let _ = self.apps.enter(pid, |_app, upcalls| {
                             upcalls
                                 .schedule_upcall(0, (into_statuscode(Err(error.into())), 0, 0))
                                 .ok();
@@ -346,7 +346,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for LPS25HB<'_, I> {
         // some (alive) process
         let match_or_empty_or_nonexistant = self.owning_process.map_or(true, |current_process| {
             self.apps
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

@@ -8,6 +8,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
+use core::num::NonZeroUsize;
 
 use kernel;
 use kernel::platform::mpu;
@@ -16,7 +17,6 @@ use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
-use kernel::ProcessId;
 
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
@@ -136,16 +136,20 @@ const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
 pub struct MPU<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> {
     /// MMIO reference to MPU registers.
     registers: StaticRef<MpuRegisters>,
+    /// Monotonically increasing counter for allocated regions, used
+    /// to assign unique IDs to `CortexMConfig` instances.
+    config_count: Cell<NonZeroUsize>,
     /// Optimization logic. This is used to indicate which application the MPU
     /// is currently configured for so that the MPU can skip updating when the
     /// kernel returns to the same app.
-    hardware_is_configured_for: OptionalCell<ProcessId>,
+    hardware_is_configured_for: OptionalCell<NonZeroUsize>,
 }
 
 impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MIN_REGION_SIZE> {
     pub const unsafe fn new() -> Self {
         Self {
             registers: MPU_BASE_ADDRESS,
+            config_count: Cell::new(NonZeroUsize::MIN),
             hardware_is_configured_for: OptionalCell::empty(),
         }
     }
@@ -157,6 +161,9 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
 /// unused regions may be configured as disabled). This struct caches the result
 /// of region configuration calculation.
 pub struct CortexMConfig<const NUM_REGIONS: usize> {
+    /// Unique ID for this configuration, assigned from a
+    /// monotonically increasing counter in the MPU struct.
+    id: NonZeroUsize,
     /// The computed region configuration for this process.
     regions: [CortexMRegion; NUM_REGIONS],
     /// Has the configuration changed since the last time the this process
@@ -169,20 +176,6 @@ pub struct CortexMConfig<const NUM_REGIONS: usize> {
 /// with indices above APP_MEMORY_REGION_MAX_NUM can be used for other MPU
 /// needs.
 const APP_MEMORY_REGION_MAX_NUM: usize = 1;
-
-impl<const NUM_REGIONS: usize> Default for CortexMConfig<NUM_REGIONS> {
-    fn default() -> Self {
-        // a bit of a hack to initialize array without unsafe
-        let mut ret = Self {
-            regions: [CortexMRegion::empty(0); NUM_REGIONS],
-            is_dirty: Cell::new(true),
-        };
-        for i in 0..NUM_REGIONS {
-            ret.regions[i] = CortexMRegion::empty(i);
-        }
-        ret
-    }
-}
 
 impl<const NUM_REGIONS: usize> fmt::Display for CortexMConfig<NUM_REGIONS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -401,6 +394,31 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 
     fn number_total_regions(&self) -> usize {
         self.registers.mpu_type.read(Type::DREGION) as usize
+    }
+
+    fn new_config(&self) -> Option<Self::MpuConfig> {
+        let id = self.config_count.get();
+        self.config_count.set(id.checked_add(1)?);
+
+        // Allocate the regions with index `0` first, then use `reset_config` to
+        // write the properly-indexed `CortexMRegion`s:
+        let mut ret = CortexMConfig {
+            id,
+            regions: [CortexMRegion::empty(0); NUM_REGIONS],
+            is_dirty: Cell::new(true),
+        };
+
+        self.reset_config(&mut ret);
+
+        Some(ret)
+    }
+
+    fn reset_config(&self, config: &mut Self::MpuConfig) {
+        for i in 0..NUM_REGIONS {
+            config.regions[i] = CortexMRegion::empty(i);
+        }
+
+        config.is_dirty.set(true);
     }
 
     fn allocate_region(
@@ -758,16 +776,16 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig, processid: &ProcessId) {
+    fn configure_mpu(&self, config: &Self::MpuConfig) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
-        if !self.hardware_is_configured_for.contains(processid) || config.is_dirty.get() {
+        if !self.hardware_is_configured_for.contains(&config.id) || config.is_dirty.get() {
             // Set MPU regions
             for region in config.regions.iter() {
                 self.registers.rbar.write(region.base_address());
                 self.registers.rasr.write(region.attributes());
             }
-            self.hardware_is_configured_for.set(*processid);
+            self.hardware_is_configured_for.set(config.id);
             config.is_dirty.set(false);
         }
     }

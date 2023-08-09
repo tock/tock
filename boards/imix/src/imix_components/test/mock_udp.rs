@@ -131,7 +131,7 @@ impl Component for MockUDPComponent {
             udp_send,
             udp_recv,
             self.bound_port_table,
-            kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(
+            kernel::utilities::leasable_buffer::SubSliceMut::new(
                 self.udp_payload.take().expect("missing payload"),
             ),
             self.dst_port,

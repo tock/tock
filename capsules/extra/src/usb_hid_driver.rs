@@ -113,7 +113,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
     ) {
         self.processid.map(|id| {
             self.app
-                .enter(*id, |app, kernel_data| {
+                .enter(id, |app, kernel_data| {
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::RECV)
                         .and_then(|recv| {
@@ -143,7 +143,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
     ) {
         self.processid.map(|id| {
             self.app
-                .enter(*id, |_app, kernel_data| {
+                .enter(id, |_app, kernel_data| {
                     kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
                 })
                 .map_err(|err| {
@@ -161,7 +161,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
         self.processid
             .map(|id| {
                 self.app
-                    .enter(*id, |app, _| app.can_receive.get())
+                    .enter(id, |app, _| app.can_receive.get())
                     .unwrap_or(false)
             })
             .unwrap_or(false)
@@ -186,7 +186,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
         processid: ProcessId,
     ) -> CommandReturn {
         let can_access = self.processid.map_or(true, |owning_app| {
-            if owning_app == &processid {
+            if owning_app == processid {
                 // We own the HID device
                 true
             } else {
@@ -212,7 +212,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                             .and_then(|send| {
                                 send.enter(|data| {
                                     self.send_buffer.take().map_or(
-                                        CommandReturn::failure(ErrorCode::RESERVE),
+                                        CommandReturn::failure(ErrorCode::BUSY),
                                         |buf| {
                                             // Copy the data into the static buffer
                                             data.copy_to_slice(buf);
@@ -336,7 +336,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                                     .and_then(|send| {
                                         send.enter(|data| {
                                             self.send_buffer.take().map_or(
-                                                CommandReturn::failure(ErrorCode::RESERVE),
+                                                CommandReturn::failure(ErrorCode::BUSY),
                                                 |buf| {
                                                     // Copy the data into the static buffer
                                                     data.copy_to_slice(buf);

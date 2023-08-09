@@ -8,7 +8,7 @@ use core::cell::Cell;
 use kernel::hil::hasher::{self, Hasher};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::{debug, ErrorCode};
 
 struct SipHashTestCallback {
@@ -47,11 +47,11 @@ impl<'a> SipHashTestCallback {
 }
 
 impl<'a> hasher::Client<8> for SipHashTestCallback {
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: &'static [u8]) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
 
-    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: &'static mut [u8]) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, mut data: SubSliceMut<'static, u8>) {
         assert_eq!(result, Ok(()));
         self.data_add_done.set(true);
 
@@ -59,7 +59,7 @@ impl<'a> hasher::Client<8> for SipHashTestCallback {
         assert_eq!(self.cb_count.get() < 20, true);
 
         // Replace the input buffer with all of cb data
-        self.input_buf[self.cb_count.get()].replace(data.try_into().unwrap());
+        self.input_buf[self.cb_count.get()].replace(data.take().try_into().unwrap());
 
         self.cb_count.set(self.cb_count.get() + 1);
     }
@@ -185,7 +185,7 @@ fn sip_hasher_2_4() {
         // Data add done should be reset per each slice
         cb.run_reset();
         assert_eq!(
-            sip_hasher.add_mut_data(LeasableMutableBuffer::new(slice.take().unwrap())),
+            sip_hasher.add_mut_data(SubSliceMut::new(slice.take().unwrap())),
             Ok(8)
         );
 
@@ -203,7 +203,7 @@ fn sip_hasher_2_4() {
         // Data add done should be reset per each slice
         cb.run_reset();
         assert_eq!(
-            sip_hasher.add_mut_data(LeasableMutableBuffer::new(slice.take().unwrap())),
+            sip_hasher.add_mut_data(SubSliceMut::new(slice.take().unwrap())),
             Ok(8)
         );
 

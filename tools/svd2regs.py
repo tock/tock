@@ -107,6 +107,7 @@ const {name}_BASE: StaticRef<{title}Registers> =
 
     @staticmethod
     def fields(base, peripheral):
+        assert peripheral.base_address != 0, "Cannot create a `StaticRef` to address 0"
         return {
             "name": peripheral.name,
             "title": base.title(),

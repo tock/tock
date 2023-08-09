@@ -1507,7 +1507,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardDriver<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
     fn card_detection_changed(&self, installed: bool) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 kernel_data
                     .schedule_upcall(0, (0, installed as usize, 0))
                     .ok();
@@ -1517,7 +1517,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn init_done(&self, block_size: u32, total_size: u64) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 let size_in_kb = ((total_size >> 10) & 0xFFFFFFFF) as usize;
                 kernel_data
                     .schedule_upcall(0, (1, block_size as usize, size_in_kb))
@@ -1530,7 +1530,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(data);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_, kernel_data| {
+            let _ = self.grants.enter(process_id, |_, kernel_data| {
                 let mut read_len = 0;
                 self.kernel_buf.map(|data| {
                     kernel_data
@@ -1565,7 +1565,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
         self.kernel_buf.replace(buffer);
 
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 kernel_data.schedule_upcall(0, (3, 0, 0)).ok();
             });
         });
@@ -1573,7 +1573,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
 
     fn error(&self, error: u32) {
         self.current_process.map(|process_id| {
-            let _ = self.grants.enter(*process_id, |_app, kernel_data| {
+            let _ = self.grants.enter(process_id, |_app, kernel_data| {
                 kernel_data.schedule_upcall(0, (4, error as usize, 0)).ok();
             });
         });
@@ -1597,7 +1597,7 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
         // Check if this driver is free, or already dedicated to this process.
         let match_or_empty_or_nonexistant = self.current_process.map_or(true, |current_process| {
             self.grants
-                .enter(*current_process, |_, _| current_process == &process_id)
+                .enter(current_process, |_, _| current_process == process_id)
                 .unwrap_or(true)
         });
         if match_or_empty_or_nonexistant {

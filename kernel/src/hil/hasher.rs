@@ -4,8 +4,8 @@
 
 //! Interface for Hasher
 
-use crate::utilities::leasable_buffer::LeasableBuffer;
-use crate::utilities::leasable_buffer::LeasableMutableBuffer;
+use crate::utilities::leasable_buffer::SubSlice;
+use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
 /// Implement this trait and use `set_client()` in order to receive callbacks.
@@ -18,7 +18,7 @@ pub trait Client<const L: usize> {
     /// data supplied to `add_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_data_done(&self, result: Result<(), ErrorCode>, data: &'static [u8]);
+    fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>);
 
     /// This callback is called when the data has been added to the hash
     /// engine.
@@ -26,7 +26,7 @@ pub trait Client<const L: usize> {
     /// data supplied to `add_mut_data()`.
     /// The possible ErrorCodes are:
     ///    - SIZE: The size of the `data` buffer is invalid
-    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: &'static mut [u8]);
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>);
 
     /// This callback is called when a hash is computed.
     /// On error or success `hash` will contain a reference to the original
@@ -59,8 +59,8 @@ pub trait Hasher<'a, const L: usize> {
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_data(
         &self,
-        data: LeasableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static [u8])>;
+        data: SubSlice<'static, u8>,
+    ) -> Result<usize, (ErrorCode, SubSlice<'static, u8>)>;
 
     /// Add data to the hash block. This is the data that will be used
     /// for the hash function.
@@ -74,8 +74,8 @@ pub trait Hasher<'a, const L: usize> {
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_mut_data(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<usize, (ErrorCode, &'static mut [u8])>;
+        data: SubSliceMut<'static, u8>,
+    ) -> Result<usize, (ErrorCode, SubSliceMut<'static, u8>)>;
 
     /// Request the implementation to generate a hash and stores the returned
     /// hash in the memory location specified.

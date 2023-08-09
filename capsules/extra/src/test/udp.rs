@@ -19,7 +19,7 @@ use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, Frequency};
 use kernel::utilities::cells::MapCell;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub const DST_ADDR: IPAddr = IPAddr([
@@ -37,7 +37,7 @@ pub struct MockUdp<'a, A: Alarm<'a>> {
     udp_sender: &'a dyn UDPSender<'a>,
     udp_receiver: &'a UDPReceiver<'a>,
     port_table: &'static UdpPortManager,
-    udp_dgram: MapCell<LeasableMutableBuffer<'static, u8>>,
+    udp_dgram: MapCell<SubSliceMut<'static, u8>>,
     src_port: Cell<u16>,
     dst_port: Cell<u16>,
     send_loop: Cell<bool>,
@@ -51,7 +51,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         udp_sender: &'a dyn UDPSender<'a>,
         udp_receiver: &'a UDPReceiver<'a>,
         port_table: &'static UdpPortManager,
-        udp_dgram: LeasableMutableBuffer<'static, u8>,
+        udp_dgram: SubSliceMut<'static, u8>,
         dst_port: u16,
         net_cap: &'static NetworkCapability,
     ) -> MockUdp<'a, A> {
@@ -193,11 +193,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MockUdp<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> UDPSendClient for MockUdp<'a, A> {
-    fn send_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        mut dgram: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: SubSliceMut<'static, u8>) {
         debug!("Mock UDP done sending. Result: {:?}", result);
         dgram.reset();
         self.udp_dgram.replace(dgram);
