@@ -753,7 +753,7 @@ pub struct Ethernet<'a> {
     number_packets_missed: Cell<usize>,
     client: OptionalCell<&'a dyn EthernetAdapterClient>,
     clocks: EthernetClocks<'a>,
-    mac_address0: OptionalCell<MacAddress>,
+    mac_address0: Cell<MacAddress>,
 }
 
 const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62, 0x95, 0x1A]);
@@ -774,7 +774,7 @@ impl<'a> Ethernet<'a> {
             number_packets_missed: Cell::new(0),
             client: OptionalCell::empty(),
             clocks: EthernetClocks::new(rcc),
-            mac_address0: OptionalCell::new(DEFAULT_MAC_ADDRESS),
+            mac_address0: Cell::new(DEFAULT_MAC_ADDRESS),
         }
     }
 
@@ -996,7 +996,7 @@ impl<'a> Ethernet<'a> {
     }
 
     fn get_mac_address0(&self) -> MacAddress {
-        self.mac_address0.extract().unwrap()
+        self.mac_address0.get()
     }
 
     fn is_mac_address1_enabled(&self) -> bool {
@@ -2008,7 +2008,6 @@ pub mod tests {
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing Ethernet initialization...");
 
-        // This is broken for some reasons
         assert_eq!(Ok(()), ethernet.init());
         test_mac_default_values(ethernet);
         test_dma_default_values(ethernet);
