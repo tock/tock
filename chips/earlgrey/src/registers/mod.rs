@@ -11,3 +11,4 @@ pub mod pwrmgr_regs;
 pub mod rstmgr_regs;
 pub mod rv_plic_regs;
 pub mod sensor_ctrl_regs;
+pub mod top_earlgrey;
