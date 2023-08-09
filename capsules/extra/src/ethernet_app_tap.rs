@@ -404,10 +404,9 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
     fn acknowledge_rx_packet(&self, process_id: ProcessId) -> Result<(), ErrorCode> {
         self.apps
             .enter(process_id, |grant, _| {
-                // TODO: Is this really required?
-                //if grant.rx_packet_pending.is_none() {
-                    //return Err(ErrorCode::ALREADY);
-                //}
+                if grant.rx_packet_pending.is_none() {
+                    return Err(ErrorCode::ALREADY);
+                }
 
                 grant.rx_packet_pending = None;
 
