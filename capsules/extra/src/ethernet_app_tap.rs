@@ -406,7 +406,7 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
             .enter(process_id, |grant, _| {
                 // TODO: Is this really needed?
                 //if grant.rx_packet_pending.is_none() {
-                    //return Err(ErrorCode::ALREADY);
+                //return Err(ErrorCode::ALREADY);
                 //}
 
                 grant.rx_packet_pending = None;
