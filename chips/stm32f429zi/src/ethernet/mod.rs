@@ -7,8 +7,8 @@
 #![deny(dead_code)]
 #![deny(unused_imports)]
 
+pub mod ethernet;
 mod receive_descriptor;
 mod transmit_descriptor;
-pub mod ethernet;
 
 pub use ethernet::Ethernet;

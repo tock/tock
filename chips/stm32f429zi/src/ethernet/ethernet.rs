@@ -34,8 +34,8 @@ use crate::rcc;
 use crate::rcc::PeripheralClock;
 use crate::rcc::PeripheralClockType;
 
-use crate::ethernet::transmit_descriptor::TransmitDescriptor;
 use crate::ethernet::receive_descriptor::ReceiveDescriptor;
+use crate::ethernet::transmit_descriptor::TransmitDescriptor;
 
 register_structs! {
     /// Ethernet: media access control (MAC)
@@ -2286,4 +2286,3 @@ pub mod tests {
         debug!("");
     }
 }
-
