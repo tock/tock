@@ -48,7 +48,7 @@
  * Alex: We have the same TAP driver implemented for each?
  * Leon: The drivers all use the same HIL to interface with the TAP driver.
  * Branden: Oh wow. So all three of these fit with the same interface.
- * Leon: Amit has been working on Ethernet stuff. He has some form of Ethernet-over-USB, which presents the Tock board as an Ethernet device when attached over USB. He has some very crude IP and TCP stacks in the kernel, mostly for his own testing.
+ * Leon: Amit has been working on Ethernet stuff. He has some form of Ethernet-over-USB (USB CDC-EEM), which presents the Tock board as an Ethernet device when attached over USB. I believe he has some "rudimentary" IP and TCP stacks in the kernel, mostly for his own testing.
  * Alex: Is this for the nRF chip?
  * Leon: Should be anything that implements a USB stack
  * Alex: We have a USB stack, semi-working, for the RPI2040
