@@ -173,11 +173,7 @@ pub struct Flash {
     registers: StaticRef<FlashRegisters>,
 }
 
-impl SpecificFlashTrait for Flash {
-    fn read_latency_from_register(&self) -> u32 {
-        self.registers.acr.read(ACR::LATENCY)
-    }
-}
+impl SpecificFlashTrait for Flash {}
 
 impl Flash {
     // Flash constructor. It should be called when creating Stm32f4xxDefaultPeripherals.
@@ -185,6 +181,10 @@ impl Flash {
         Self {
             registers: FLASH_BASE,
         }
+    }
+
+    fn read_latency_from_register(&self) -> u32 {
+        self.registers.acr.read(ACR::LATENCY)
     }
 
     // TODO: Take into the account the power supply
@@ -212,6 +212,10 @@ impl Flash {
         // + recall this method
         // + or busy wait get_latency() until the flash latency has the desired value
         Err(ErrorCode::BUSY)
+    }
+
+    pub(crate) fn get_latency(&self) -> FlashLatency {
+        self.convert_register_to_enum(self.read_latency_from_register())
     }
 }
 
