@@ -2,20 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Tock Key-Value store capsule.
+//! TicKV to Tock key-value store capsule.
 //!
 //! This capsule provides a higher level Key-Value store interface based on an
-//! underlying `hil::kv_system` storage layer.
+//! underlying `tickv::kv_system` storage layer.
 //!
 //! ```
 //! +-----------------------+
 //! |  Capsule using K-V    |
-//! +-----------------------+
-//!
-//!    hil::kv::KVPermissions
-//!
-//! +-----------------------+
-//! |  KVStorePermissions   |
 //! +-----------------------+
 //!
 //!    hil::kv::KV
@@ -48,9 +42,9 @@ enum Operation {
     Delete,
 }
 
-/// KVStore implements the Tock-specific extension to KVSystem that includes
-/// permissions and access control.
-pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + KeyType> {
+/// `TicKVKVStore` implements the KV interface using the TicKV KVSystem
+/// interface.
+pub struct TicKVKVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + KeyType> {
     kv: &'a K,
     hashed_key: TakeCell<'static, T>,
 
@@ -61,8 +55,8 @@ pub struct KVStore<'a, K: KVSystem<'a> + KVSystem<'a, K = T>, T: 'static + KeyTy
     value: MapCell<SubSliceMut<'static, u8>>,
 }
 
-impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVStore<'a, K, T> {
-    pub fn new(kv: &'a K, key: &'static mut T) -> KVStore<'a, K, T> {
+impl<'a, K: KVSystem<'a, K = T>, T: KeyType> TicKVKVStore<'a, K, T> {
+    pub fn new(kv: &'a K, key: &'static mut T) -> TicKVKVStore<'a, K, T> {
         Self {
             kv,
             hashed_key: TakeCell::new(key),
@@ -109,7 +103,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVStore<'a, K, T> {
     }
 }
 
-impl<'a, K: KVSystem<'a, K = T>, T: KeyType> kv::KV<'a> for KVStore<'a, K, T> {
+impl<'a, K: KVSystem<'a, K = T>, T: KeyType> kv::KV<'a> for TicKVKVStore<'a, K, T> {
     fn set_client(&self, client: &'a dyn kv::KVClient) {
         self.client.set(client);
     }
@@ -217,7 +211,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> kv::KV<'a> for KVStore<'a, K, T> {
     }
 }
 
-impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for KVStore<'a, K, T> {
+impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<'a, K, T> {
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,

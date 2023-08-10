@@ -4,10 +4,10 @@
 
 //! Tock TicKV capsule.
 //!
-//! This capsule implements the TicKV library in Tock. This is done
-//! using the TicKV library (libraries/tickv).
+//! This capsule implements the TicKV library in Tock. This is done using the
+//! TicKV library (libraries/tickv).
 //!
-//! This capsule interfaces with flash and exposes the Tock `hil::kv_system`
+//! This capsule interfaces with flash and exposes the Tock `tickv::kv_system`
 //! interface to others.
 //!
 //! ```
@@ -18,7 +18,7 @@
 //!    hil::kv::KV
 //!
 //! +-----------------------+
-//! |  KVStore              |
+//! |  TickVKVStore         |
 //! +-----------------------+
 //!
 //!    capsules::tickv::KVSystem
@@ -26,8 +26,11 @@
 //! +-----------------------+
 //! |  TicKV (this file)    |
 //! +-----------------------+
-//!
-//!    hil::flash
+//!       |             |
+//!   hil::flash        |
+//!               +-----------------+
+//!               | libraries/tickv |
+//!               +-----------------+
 //! ```
 
 use core::cell::Cell;
@@ -202,6 +205,16 @@ enum Operation {
     GarbageCollect,
 }
 
+/// Wrapper object that provides the flash interface TicKV expects using the
+/// Tock flash HIL.
+///
+/// Note, TicKV expects a synchronous flash implementation, but the Tock flash
+/// HIL is asynchronous. To mediate this, this wrapper starts a flash
+/// read/write/erase, but returns without the requested operation having
+/// completed. To signal TicKV that this is what happened, this implementation
+/// returns `NotReady` errors. When the underlying flash operation has completed
+/// the `TicKVSystem` object will get the callback and then notify TicKV that
+/// the requested operation is now ready.
 pub struct TickFSFlashCtrl<'a, F: Flash + 'static> {
     flash: &'a F,
     flash_read_buffer: TakeCell<'static, F::Page>,
@@ -272,7 +285,8 @@ impl<'a, F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashControl
 
 pub type TicKVKeyType = [u8; 8];
 
-pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE: usize> {
+/// `TicKVSystem` implements `KVSystem` using the TicKV library.
+pub struct TicKVSystem<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE: usize> {
     /// Underlying asynchronous TicKV implementation.
     tickv: AsyncTicKV<'a, TickFSFlashCtrl<'a, F>, PAGE_SIZE>,
     /// Hash engine that converts key strings to 8 byte keys.
@@ -293,7 +307,7 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE:
     client: OptionalCell<&'a dyn KVSystemClient<TicKVKeyType>>,
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H, PAGE_SIZE> {
+impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVSystem<'a, F, H, PAGE_SIZE> {
     pub fn new(
         flash: &'a F,
         hasher: &'a H,
@@ -301,7 +315,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
         flash_size: usize,
-    ) -> TicKVStore<'a, F, H, PAGE_SIZE> {
+    ) -> TicKVSystem<'a, F, H, PAGE_SIZE> {
         let tickv = AsyncTicKV::<TickFSFlashCtrl<F>, PAGE_SIZE>::new(
             TickFSFlashCtrl::new(flash, flash_read_buffer, region_offset),
             tickfs_read_buf,
@@ -379,7 +393,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
-    for TicKVStore<'a, F, H, PAGE_SIZE>
+    for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.unhashed_key_buffer.replace(data);
@@ -398,7 +412,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
-    for TicKVStore<'a, F, H, PAGE_SIZE>
+    for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
         self.tickv.set_read_buffer(pagebuffer.as_mut());
@@ -608,7 +622,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
-    for TicKVStore<'a, F, H, PAGE_SIZE>
+    for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
     type K = TicKVKeyType;
 
