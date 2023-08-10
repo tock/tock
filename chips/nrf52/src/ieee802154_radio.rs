@@ -801,6 +801,9 @@ impl<'a> Radio<'a> {
     pub fn handle_interrupt(&self) {
         self.disable_all_interrupts();
 
+        let mut start_task = false;
+        let mut rx_init = false;
+
         match self.state.get() {
             RadioState::OFF => panic!("Received interrupt while off"),
             RadioState::RX => {
@@ -837,26 +840,29 @@ impl<'a> Radio<'a> {
                                     ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
                                     self.sending_ack.set(true);
                                     self.state.set(RadioState::ACK);
+                                    self.rx_buf.replace(rbuf);
                                     if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
                                         self.ack_buf.replace(ret_buf);
                                         self.sending_ack.set(false);
                                         self.state.set(RadioState::RX);
-                                        self.registers.task_start.write(Task::ENABLE::SET);
+                                        // self.registers.task_start.write(Task::ENABLE::SET);
+                                        start_task = true;
                                     };
                                     Ok(())
                                 });
                         } else {
                             // Radio returns to receiving state, listening for new packets
-                            self.registers.task_start.write(Task::ENABLE::SET);
-                        }
+                            // self.registers.task_start.write(Task::ENABLE::SET);
+                            start_task = true;
 
-                        // edge cases not yet handled here
-                        client.receive(
-                            rbuf,
-                            frame_len,
-                            self.registers.crcstatus.get() == 1,
-                            result,
-                        );
+                            // edge cases not yet handled here
+                            client.receive(
+                                rbuf,
+                                frame_len,
+                                self.registers.crcstatus.get() == 1,
+                                result,
+                            );
+                        }
                     });
                 }
             }
@@ -871,13 +877,21 @@ impl<'a> Radio<'a> {
                 }
 
                 if self.registers.event_ccabusy.is_set(Event::READY) {
-                    kernel::debug!("CCA BACK OFF");
+                    self.registers.event_ccabusy.write(Event::READY::CLEAR);
+                    rx_init = true;
+                    self.tx_client.map(|client| {
+                        let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
+
+                        client.send_done(tbuf, false, Err(ErrorCode::FAIL));
+                    });
+                    // panic!("BAD");
                 }
                 if self.registers.event_ready.is_set(Event::READY)
                     && self.registers.state.get() == nrf5x::constants::RADIO_STATE_TXIDLE
                 {
                     self.registers.event_ready.write(Event::READY::CLEAR);
-                    self.registers.task_start.write(Task::ENABLE::SET);
+                    // self.registers.task_start.write(Task::ENABLE::SET);
+                    start_task = true;
                 }
 
                 if self.registers.event_end.is_set(Event::READY) {
@@ -891,7 +905,8 @@ impl<'a> Radio<'a> {
                         client.send_done(tbuf, false, result);
                     });
 
-                    self.rx();
+                    // self.rx();
+                    rx_init = true;
                 }
             }
             RadioState::ACK => {
@@ -913,7 +928,27 @@ impl<'a> Radio<'a> {
                     self.ack_buf.replace(tbuf);
 
                     // Reset radio to proper receiving state
-                    self.rx();
+                    // self.rx();r
+                    rx_init = true;
+
+                    // Update receive client
+                    self.rx_client.map(|client| {
+                        let rbuf = self.rx_buf.take().unwrap(); // Unwrap fail = RX Buffer produced error when sending received packet to requestor
+
+                        let result = self.crc_check();
+                        let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
+                        // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                        // And because the length field is directly read from the packet
+                        // We need to add 2 to length to get the total length
+
+                        // edge cases not yet handled here
+                        client.receive(
+                            rbuf,
+                            frame_len,
+                            self.registers.crcstatus.get() == 1,
+                            result,
+                        );
+                    });
                 }
             }
         }
@@ -1125,7 +1160,14 @@ impl<'a> Radio<'a> {
         //     self.registers.event_txready.is_set(Event::READY)
         // );
         kernel::debug!("///////////////////////////////////////////");*/
+
         self.enable_interrupts();
+        if rx_init {
+            self.rx();
+        }
+        if start_task {
+            self.registers.task_start.write(Task::ENABLE::SET);
+        }
     }
 
     pub fn enable_interrupts(&self) {
@@ -1405,6 +1447,10 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
             return Err((ErrorCode::SIZE, buf));
         }
 
+        if let RadioState::OFF = self.state.get() {
+            self.radio_initialize();
+        }
+
         buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
         self.tx_buf.replace(buf);
 
@@ -1414,7 +1460,6 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         if let RadioState::ACK = self.state.get() {
             self.registers.task_txen.write(Task::ENABLE::SET);
         } else {
-            kernel::debug!("TX");
             self.state.set(RadioState::TX);
             self.registers.shorts.write(
                 Shortcut::DISABLED_RXEN::SET

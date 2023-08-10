@@ -50,7 +50,6 @@ impl<'a> MuxUdpReceiver<'a> {
 
 impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
-        kernel::debug!("START ----");
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
                 let len = udp_header.get_len() as usize;
@@ -62,8 +61,6 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
                 for rcvr in self.rcvr_list.iter() {
                     match rcvr.binding.take() {
                         Some(binding) => {
-                            kernel::debug!("AA");
-
                             if binding.get_port() == dst_port {
                                 rcvr.client.map(|client| {
                                     client.receive(
@@ -82,7 +79,6 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
                         // The UDPReceiver used by the driver will not have a binding
                         None => match self.driver.take() {
                             Some(driver) => {
-                                kernel::debug!("BB");
                                 if driver.is_bound(dst_port) {
                                     driver.receive(
                                         ip_header.get_src_addr(),

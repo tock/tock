@@ -614,6 +614,8 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
         aes_mux,
+        serial_num_bottom_16,
+        serial_num,
     )
     .finalize(components::thread_network_driver_component_static!(
         nrf52840::rtc::Rtc,

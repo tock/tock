@@ -106,6 +106,8 @@ pub struct UDPDriverComponent<
     port_table: &'static UdpPortManager,
     interface_list: &'static [IPAddr],
     aes_mux: &'static MuxAES128CCM<'static, B>,
+    serial_num_bottom_16: u16,
+    serial_num: [u8; 8],
 }
 
 impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB>
@@ -122,6 +124,8 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         port_table: &'static UdpPortManager,
         interface_list: &'static [IPAddr],
         aes_mux: &'static MuxAES128CCM<'static, B>,
+        serial_num_bottom_16: u16,
+        serial_num: [u8; 8],
     ) -> Self {
         Self {
             board_kernel,
@@ -131,6 +135,8 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
             port_table,
             interface_list,
             aes_mux,
+            serial_num_bottom_16,
+            serial_num,
         }
     }
 }
@@ -202,11 +208,12 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
                 udp_send,
                 aes_ccm,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                self.serial_num,
                 self.interface_list,
                 MAX_PAYLOAD_LEN,
                 self.port_table,
-                kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(send_buffer),
-                kernel::utilities::leasable_buffer::LeasableMutableBuffer::new(recv_buffer),
+                kernel::utilities::leasable_buffer::SubSliceMut::new(send_buffer),
+                kernel::utilities::leasable_buffer::SubSliceMut::new(recv_buffer),
                 &DRIVER_CAP,
                 net_cap,
             ),

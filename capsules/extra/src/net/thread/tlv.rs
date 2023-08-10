@@ -123,6 +123,13 @@ pub enum Tlv<'a> {
     PendingOperationalDataset(&'a [u8]),
 }
 
+pub fn unwrap_tlv_offset(res: SResult) -> usize {
+    match res {
+        SResult::Done(val, _) => val,
+        _ => 0,
+    }
+}
+
 impl Tlv<'_> {
     /// Serializes TLV data in `buf` into the format specific to the TLV
     /// type.

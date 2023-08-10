@@ -43,6 +43,7 @@ use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
+pub const ACK_BUFFER_SIZE: usize = 10;
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
 // upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
 pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;

@@ -171,8 +171,6 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         let mut addr_match = false;
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {
             if let Some(dst_addr) = header.dst_addr {
-                debug!("received addr is: {:?}", dst_addr);
-
                 addr_match = match dst_addr {
                     MacAddress::Short(addr) => {
                         (addr == self.radio.get_address()) || (addr == 0xFFFF)
@@ -181,7 +179,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
                 };
             }
         }
-
+        if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {}
         if addr_match {
             //debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
@@ -189,7 +187,6 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
             });
         } else {
             debug!("[AwakeMAC] Received a packet, but not addressed to us");
-            debug!("radio addr is: {:?}", self.radio.get_address());
             self.radio.set_receive_buffer(buf);
         }
     }
