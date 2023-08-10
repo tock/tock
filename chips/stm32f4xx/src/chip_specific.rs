@@ -162,95 +162,92 @@ pub mod flash_specific {
         Latency7,
     }
 
-    // Chip-specific trait that allows to read the current configured flash latency
-    pub(crate) trait SpecificFlashTrait {
-        // The number of wait cycles depends on two factors: system clock frequency and the supply
-        // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
-        // TODO: Take into the account the power supply
-        //
-        // The number of wait states varies from chip to chip.
-        fn get_number_wait_cycles_based_on_frequency(&self, frequency_mhz: usize) -> FlashLatency {
-            #[cfg(not(any(
-                feature = "stm32f410",
-                feature = "stm32f411",
-                feature = "stm32f412",
-                feature = "stm32f413",
-                feature = "stm32f423"
-            )))]
-            {
-                match frequency_mhz {
-                    0..=30 => FlashLatency::Latency0,
-                    31..=60 => FlashLatency::Latency1,
-                    61..=90 => FlashLatency::Latency2,
-                    91..=120 => FlashLatency::Latency3,
-                    121..=150 => FlashLatency::Latency4,
-                    _ => FlashLatency::Latency5,
-                }
-            }
-            #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
-            {
-                match frequency_mhz {
-                    0..=30 => FlashLatency::Latency0,
-                    31..=64 => FlashLatency::Latency1,
-                    65..=90 => FlashLatency::Latency2,
-                    _ => FlashLatency::Latency3,
-                }
-            }
-            #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-            {
-                match frequency_mhz {
-                    0..=25 => FlashLatency::Latency0,
-                    26..=50 => FlashLatency::Latency1,
-                    51..=75 => FlashLatency::Latency2,
-                    _ => FlashLatency::Latency3,
-                }
+    // The number of wait cycles depends on two factors: system clock frequency and the supply
+    // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
+    // TODO: Take into the account the power supply
+    //
+    // The number of wait states varies from chip to chip.
+    pub(crate) fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> FlashLatency {
+        #[cfg(not(any(
+            feature = "stm32f410",
+            feature = "stm32f411",
+            feature = "stm32f412",
+            feature = "stm32f413",
+            feature = "stm32f423"
+        )))]
+        {
+            match frequency_mhz {
+                0..=30 => FlashLatency::Latency0,
+                31..=60 => FlashLatency::Latency1,
+                61..=90 => FlashLatency::Latency2,
+                91..=120 => FlashLatency::Latency3,
+                121..=150 => FlashLatency::Latency4,
+                _ => FlashLatency::Latency5,
             }
         }
-
-        fn convert_register_to_enum(&self, flash_latency_register: u32) -> FlashLatency {
-            #[cfg(not(any(
-                feature = "stm32f405",
-                feature = "stm32f415",
-                feature = "stm32f407",
-                feature = "stm32f417"
-            )))]
-            match flash_latency_register {
-                0 => FlashLatency::Latency0,
-                1 => FlashLatency::Latency1,
-                2 => FlashLatency::Latency2,
-                3 => FlashLatency::Latency3,
-                4 => FlashLatency::Latency4,
-                5 => FlashLatency::Latency5,
-                6 => FlashLatency::Latency6,
-                7 => FlashLatency::Latency7,
-                8 => FlashLatency::Latency8,
-                9 => FlashLatency::Latency9,
-                10 => FlashLatency::Latency10,
-                11 => FlashLatency::Latency11,
-                12 => FlashLatency::Latency12,
-                13 => FlashLatency::Latency13,
-                14 => FlashLatency::Latency14,
-                // The hardware allows 4-bit latency values
-                _ => FlashLatency::Latency15,
+        #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
+        {
+            match frequency_mhz {
+                0..=30 => FlashLatency::Latency0,
+                31..=64 => FlashLatency::Latency1,
+                65..=90 => FlashLatency::Latency2,
+                _ => FlashLatency::Latency3,
             }
-
-            #[cfg(any(
-                feature = "stm32f405",
-                feature = "stm32f415",
-                feature = "stm32f407",
-                feature = "stm32f417"
-            ))]
-            match flash_latency_register {
-                0 => FlashLatency::Latency0,
-                1 => FlashLatency::Latency1,
-                2 => FlashLatency::Latency2,
-                3 => FlashLatency::Latency3,
-                4 => FlashLatency::Latency4,
-                5 => FlashLatency::Latency5,
-                6 => FlashLatency::Latency6,
-                // The hardware allows 3-bit latency values
-                _ => FlashLatency::Latency7,
+        }
+        #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
+        {
+            match frequency_mhz {
+                0..=25 => FlashLatency::Latency0,
+                26..=50 => FlashLatency::Latency1,
+                51..=75 => FlashLatency::Latency2,
+                _ => FlashLatency::Latency3,
             }
+        }
+    }
+
+    pub(crate) fn convert_register_to_enum(flash_latency_register: u32) -> FlashLatency {
+        #[cfg(not(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417"
+        )))]
+        match flash_latency_register {
+            0 => FlashLatency::Latency0,
+            1 => FlashLatency::Latency1,
+            2 => FlashLatency::Latency2,
+            3 => FlashLatency::Latency3,
+            4 => FlashLatency::Latency4,
+            5 => FlashLatency::Latency5,
+            6 => FlashLatency::Latency6,
+            7 => FlashLatency::Latency7,
+            8 => FlashLatency::Latency8,
+            9 => FlashLatency::Latency9,
+            10 => FlashLatency::Latency10,
+            11 => FlashLatency::Latency11,
+            12 => FlashLatency::Latency12,
+            13 => FlashLatency::Latency13,
+            14 => FlashLatency::Latency14,
+            // The hardware allows 4-bit latency values
+            _ => FlashLatency::Latency15,
+        }
+
+        #[cfg(any(
+            feature = "stm32f405",
+            feature = "stm32f415",
+            feature = "stm32f407",
+            feature = "stm32f417"
+        ))]
+        match flash_latency_register {
+            0 => FlashLatency::Latency0,
+            1 => FlashLatency::Latency1,
+            2 => FlashLatency::Latency2,
+            3 => FlashLatency::Latency3,
+            4 => FlashLatency::Latency4,
+            5 => FlashLatency::Latency5,
+            6 => FlashLatency::Latency6,
+            // The hardware allows 3-bit latency values
+            _ => FlashLatency::Latency7,
         }
     }
 }
