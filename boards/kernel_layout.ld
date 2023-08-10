@@ -341,7 +341,7 @@ SECTIONS
        so it is not needed. */
     /DISCARD/ :
     {
-      *(.eh_frame);
+      *(.eh_frame*);
     }
 }
 
