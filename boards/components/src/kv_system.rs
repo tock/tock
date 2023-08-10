@@ -40,9 +40,9 @@
 //! ```
 
 use capsules_extra::kv_driver::KVStoreDriver;
-use capsules_extra::kv_store::KVStore;
 use capsules_extra::kv_store_permissions::KVStorePermissions;
 use capsules_extra::tickv::{KVSystem, KeyType};
+use capsules_extra::tickv_kv_store::TicKVKVStore;
 use capsules_extra::virtual_kv::{MuxKVPermissions, VirtualKVPermissions};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -168,14 +168,15 @@ impl<V: hil::kv::KV<'static> + 'static> Component for KVStorePermissionsComponen
 }
 
 /////////////////////
-// KV Store
+// TicKV KV Store
 /////////////////////
 
 #[macro_export]
 macro_rules! kv_store_component_static {
     ($K:ty, $T:ty $(,)?) => {{
         let key = kernel::static_buf!($T);
-        let kv_store = kernel::static_buf!(capsules_extra::kv_store::KVStore<'static, $K, $T>);
+        let kv_store =
+            kernel::static_buf!(capsules_extra::tickv_kv_store::TicKVKVStore<'static, $K, $T>);
 
         (kv_store, key)
     };};
@@ -195,15 +196,17 @@ impl<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType + Default> Comp
     for KVStoreComponent<K, T>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<KVStore<'static, K, T>>,
+        &'static mut MaybeUninit<TicKVKVStore<'static, K, T>>,
         &'static mut MaybeUninit<T>,
     );
-    type Output = &'static KVStore<'static, K, T>;
+    type Output = &'static TicKVKVStore<'static, K, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let key_buf = static_buffer.1.write(T::default());
 
-        let kv_store = static_buffer.0.write(KVStore::new(self.kv_system, key_buf));
+        let kv_store = static_buffer
+            .0
+            .write(TicKVKVStore::new(self.kv_system, key_buf));
 
         self.kv_system.set_client(kv_store);
 

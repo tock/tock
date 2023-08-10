@@ -67,7 +67,7 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static>>> = None;
 // Test access to TicKV
 static mut TICKV: Option<
-    &capsules_extra::tickv::TicKVStore<
+    &capsules_extra::tickv::TicKVSystem<
         'static,
         capsules_core::virtualizers::virtual_flash::FlashUser<
             'static,
@@ -146,9 +146,9 @@ struct EarlGrey {
             'static,
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
-                capsules_extra::kv_store::KVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
                     'static,
-                    capsules_extra::tickv::TicKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         'static,
                         capsules_core::virtualizers::virtual_flash::FlashUser<
                             'static,
@@ -504,7 +504,7 @@ unsafe fn setup() -> (
 
     let kv_store = components::kv_system::KVStoreComponent::new(tickv).finalize(
         components::kv_store_component_static!(
-            capsules_extra::tickv::TicKVStore<
+            capsules_extra::tickv::TicKVSystem<
                 capsules_core::virtualizers::virtual_flash::FlashUser<
                     lowrisc::flash_ctrl::FlashCtrl,
                 >,
@@ -517,8 +517,8 @@ unsafe fn setup() -> (
 
     let kv_store_permissions = components::kv_system::KVStorePermissionsComponent::new(kv_store)
         .finalize(components::kv_store_permissions_component_static!(
-            capsules_extra::kv_store::KVStore<
-                capsules_extra::tickv::TicKVStore<
+            capsules_extra::tickv_kv_store::TicKVKVStore<
+                capsules_extra::tickv::TicKVSystem<
                     capsules_core::virtualizers::virtual_flash::FlashUser<
                         lowrisc::flash_ctrl::FlashCtrl,
                     >,
@@ -532,8 +532,8 @@ unsafe fn setup() -> (
     let mux_kv = components::kv_system::KVPermissionsMuxComponent::new(kv_store_permissions)
         .finalize(components::kv_permissions_mux_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
-                capsules_extra::kv_store::KVStore<
-                    capsules_extra::tickv::TicKVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         capsules_core::virtualizers::virtual_flash::FlashUser<
                             lowrisc::flash_ctrl::FlashCtrl,
                         >,
@@ -548,8 +548,8 @@ unsafe fn setup() -> (
     let virtual_kv_driver = components::kv_system::VirtualKVPermissionsComponent::new(mux_kv)
         .finalize(components::virtual_kv_permissions_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
-                capsules_extra::kv_store::KVStore<
-                    capsules_extra::tickv::TicKVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         capsules_core::virtualizers::virtual_flash::FlashUser<
                             lowrisc::flash_ctrl::FlashCtrl,
                         >,
@@ -569,8 +569,8 @@ unsafe fn setup() -> (
     .finalize(components::kv_driver_component_static!(
         capsules_extra::virtual_kv::VirtualKVPermissions<
             capsules_extra::kv_store_permissions::KVStorePermissions<
-                capsules_extra::kv_store::KVStore<
-                    capsules_extra::tickv::TicKVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         capsules_core::virtualizers::virtual_flash::FlashUser<
                             lowrisc::flash_ctrl::FlashCtrl,
                         >,
