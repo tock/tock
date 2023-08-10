@@ -207,16 +207,14 @@ pub mod flash_specific {
             }
         }
 
-        fn read_latency_from_register(&self) -> u32;
-
-        fn get_latency(&self) -> FlashLatency {
+        fn convert_register_to_enum(&self, flash_latency_register: u32) -> FlashLatency {
             #[cfg(not(any(
                 feature = "stm32f405",
                 feature = "stm32f415",
                 feature = "stm32f407",
                 feature = "stm32f417"
             )))]
-            match self.read_latency_from_register() {
+            match flash_latency_register {
                 0 => FlashLatency::Latency0,
                 1 => FlashLatency::Latency1,
                 2 => FlashLatency::Latency2,
@@ -242,7 +240,7 @@ pub mod flash_specific {
                 feature = "stm32f407",
                 feature = "stm32f417"
             ))]
-            match self.read_latency_from_register() {
+            match flash_latency_register {
                 0 => FlashLatency::Latency0,
                 1 => FlashLatency::Latency1,
                 2 => FlashLatency::Latency2,
