@@ -502,8 +502,8 @@ unsafe fn setup() -> (
     sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
-    let kv_store = components::kv_system::KVStoreComponent::new(tickv).finalize(
-        components::kv_store_component_static!(
+    let kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+        components::tickv_kv_store_component_static!(
             capsules_extra::tickv::TicKVSystem<
                 capsules_core::virtualizers::virtual_flash::FlashUser<
                     lowrisc::flash_ctrl::FlashCtrl,
@@ -515,8 +515,8 @@ unsafe fn setup() -> (
         ),
     );
 
-    let kv_store_permissions = components::kv_system::KVStorePermissionsComponent::new(kv_store)
-        .finalize(components::kv_store_permissions_component_static!(
+    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(kv_store).finalize(
+        components::kv_store_permissions_component_static!(
             capsules_extra::tickv_kv_store::TicKVKVStore<
                 capsules_extra::tickv::TicKVSystem<
                     capsules_core::virtualizers::virtual_flash::FlashUser<
@@ -527,10 +527,11 @@ unsafe fn setup() -> (
                 >,
                 capsules_extra::tickv::TicKVKeyType,
             >
-        ));
+        ),
+    );
 
-    let mux_kv = components::kv_system::KVPermissionsMuxComponent::new(kv_store_permissions)
-        .finalize(components::kv_permissions_mux_component_static!(
+    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+        components::kv_permissions_mux_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 capsules_extra::tickv_kv_store::TicKVKVStore<
                     capsules_extra::tickv::TicKVSystem<
@@ -543,10 +544,11 @@ unsafe fn setup() -> (
                     capsules_extra::tickv::TicKVKeyType,
                 >,
             >
-        ));
+        ),
+    );
 
-    let virtual_kv_driver = components::kv_system::VirtualKVPermissionsComponent::new(mux_kv)
-        .finalize(components::virtual_kv_permissions_component_static!(
+    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+        components::virtual_kv_permissions_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 capsules_extra::tickv_kv_store::TicKVKVStore<
                     capsules_extra::tickv::TicKVSystem<
@@ -559,9 +561,10 @@ unsafe fn setup() -> (
                     capsules_extra::tickv::TicKVKeyType,
                 >,
             >
-        ));
+        ),
+    );
 
-    let kv_driver = components::kv_system::KVDriverComponent::new(
+    let kv_driver = components::kv::KVDriverComponent::new(
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
