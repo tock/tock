@@ -409,14 +409,14 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 _ => unreachable!(),
             };
 
-            let mut region_data = self.read_buffer.take().unwrap();
+            let region_data = self.read_buffer.take().unwrap();
             if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region as usize))
                 && self.state.get()
                     != State::Init(InitState::AppendKeyReadRegion(new_region as usize))
             {
                 match self
                     .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
+                    .read_region(new_region as usize, 0, region_data)
                 {
                     Ok(()) => {}
                     Err(e) => {
@@ -599,7 +599,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Hash the new header data
                 check_sum.update(
-                    &region_data
+                    region_data
                         .get(offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7)
                         .ok_or(ErrorCode::CorruptData)?,
                 );
@@ -623,7 +623,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 // Write the data back to the region
                 if let Err(e) = self.controller.write(
                     S * new_region as usize + offset,
-                    &region_data
+                    region_data
                         .get(offset..(offset + package_length + CHECK_SUM_LEN))
                         .ok_or(ErrorCode::ObjectTooLarge)?,
                 ) {
@@ -675,13 +675,13 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             };
 
             // Get the data from that region
-            let mut region_data = self.read_buffer.take().unwrap();
+            let region_data = self.read_buffer.take().unwrap();
             if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region as usize))
                 && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region as usize))
             {
                 match self
                     .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
+                    .read_region(new_region as usize, 0, region_data)
                 {
                     Ok(()) => {}
                     Err(e) => {
@@ -698,7 +698,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 Ok((offset, total_length)) => {
                     // Add the header data to the check hash
                     check_sum.update(
-                        &region_data
+                        region_data
                             .get(offset..(HEADER_LENGTH + offset))
                             .ok_or(ErrorCode::ObjectTooLarge)?,
                     );
@@ -803,11 +803,11 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             };
 
             // Get the data from that region
-            let mut region_data = self.read_buffer.take().unwrap();
+            let region_data = self.read_buffer.take().unwrap();
             if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region as usize)) {
                 match self
                     .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
+                    .read_region(new_region as usize, 0, region_data)
                 {
                     Ok(()) => {}
                     Err(e) => {
@@ -830,7 +830,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                     if let Err(e) = self.controller.write(
                         S * new_region as usize + offset + LEN_OFFSET,
-                        &region_data
+                        region_data
                             .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
                             .ok_or(ErrorCode::ObjectTooLarge)?,
                     ) {
@@ -866,9 +866,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
     fn garbage_collect_region(&self, region: usize) -> Result<usize, ErrorCode> {
         // Get the data from that region
-        let mut region_data = self.read_buffer.take().unwrap();
+        let region_data = self.read_buffer.take().unwrap();
         if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region)) {
-            match self.controller.read_region(region, 0, &mut region_data) {
+            match self.controller.read_region(region, 0, region_data) {
                 Ok(()) => {}
                 Err(e) => {
                     self.read_buffer.replace(Some(region_data));

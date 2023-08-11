@@ -219,7 +219,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()

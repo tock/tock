@@ -58,7 +58,7 @@ pub unsafe fn run(
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
         Log,
-        log::Log::new(&TEST_LOG, &flash_controller, pagebuffer, true)
+        log::Log::new(&TEST_LOG, flash_controller, pagebuffer, true)
     );
     kernel::deferred_call::DeferredCallClient::register(log);
     flash::HasClient::set_client(flash_controller, log);

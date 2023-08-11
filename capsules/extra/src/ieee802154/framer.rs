@@ -481,7 +481,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 } else {
                     // No security needed, can yield the frame immediately
                     self.rx_client.map(|client| {
-                        client.receive(&buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+                        client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
                     });
                     None
                 }
@@ -629,7 +629,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // always receiving the frame payload in plaintext.
                         self.rx_client.map(|client| {
                             client.receive(
-                                &buf,
+                                buf,
                                 header,
                                 radio::PSDU_OFFSET + data_offset,
                                 frame_len - data_offset,

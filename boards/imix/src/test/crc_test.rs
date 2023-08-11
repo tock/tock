@@ -39,5 +39,5 @@ unsafe fn static_init_crc(crc: &'static Crccu) -> &'static TestCrc<'static, Crcc
     for i in 0..9 {
         data[i] = i as u8 + ('1' as u8);
     }
-    static_init!(TestCrc<'static, Crccu>, TestCrc::new(&crc, data))
+    static_init!(TestCrc<'static, Crccu>, TestCrc::new(crc, data))
 }

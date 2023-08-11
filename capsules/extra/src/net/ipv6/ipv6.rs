@@ -273,7 +273,7 @@ impl IP6Header {
                 udp_header.copy_from_slice(&buf[..UDP_HDR_LEN]);
                 let checksum = match UDPHeader::decode(&udp_header).done() {
                     Some((_offset, hdr)) => u16::from_be(compute_udp_checksum(
-                        &self,
+                        self,
                         &hdr,
                         buf.len() as u16,
                         &buf[UDP_HDR_LEN..],
@@ -292,7 +292,7 @@ impl IP6Header {
                 let checksum = match ICMP6Header::decode(&icmp_header).done() {
                     Some((_offset, mut hdr)) => {
                         hdr.set_len(buf.len() as u16);
-                        u16::from_be(compute_icmp_checksum(&self, &hdr, &buf[ICMP_HDR_LEN..]))
+                        u16::from_be(compute_icmp_checksum(self, &hdr, &buf[ICMP_HDR_LEN..]))
                     }
                     None => 0xffff, //Will be dropped, as ones comp -0 checksum is invalid
                 };
@@ -475,14 +475,14 @@ impl<'a> IP6Packet<'a> {
             TransportHeader::UDP(ref mut udp_header) => {
                 let cksum = compute_udp_checksum(
                     &self.header,
-                    &udp_header,
+                    udp_header,
                     udp_header.get_len(),
                     self.payload.payload,
                 );
                 udp_header.set_cksum(cksum);
             }
             TransportHeader::ICMP(ref mut icmp_header) => {
-                let cksum = compute_icmp_checksum(&self.header, &icmp_header, self.payload.payload);
+                let cksum = compute_icmp_checksum(&self.header, icmp_header, self.payload.payload);
                 icmp_header.set_cksum(cksum);
             }
             _ => {

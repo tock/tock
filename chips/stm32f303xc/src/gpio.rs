@@ -833,7 +833,7 @@ impl<'a> Pin<'a> {
     pub unsafe fn enable_interrupt(&'static self) {
         let exti_line_id = LineId::from_u8(self.pinid.get_pin_number() as u8).unwrap();
 
-        self.exti.associate_line_gpiopin(exti_line_id, &self);
+        self.exti.associate_line_gpiopin(exti_line_id, self);
     }
 
     pub fn set_exti_lineid(&self, lineid: exti::LineId) {

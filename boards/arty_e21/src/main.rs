@@ -97,7 +97,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()

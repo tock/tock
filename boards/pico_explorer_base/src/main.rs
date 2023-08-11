@@ -121,7 +121,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -281,7 +281,7 @@ pub unsafe fn main() {
         true,
     );
 
-    init_clocks(&peripherals);
+    init_clocks(peripherals);
 
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
@@ -387,26 +387,26 @@ pub unsafe fn main() {
         components::gpio_component_helper!(
             RPGpioPin,
             // Used for serial communication. Comment them in if you don't use serial.
-            // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
-            // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
-            2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
-            3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
-            4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
-            5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
-            6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
-            7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
-            20 => &peripherals.pins.get_pin(RPGpio::GPIO20),
-            21 => &peripherals.pins.get_pin(RPGpio::GPIO21),
-            22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
-            23 => &peripherals.pins.get_pin(RPGpio::GPIO23),
-            24 => &peripherals.pins.get_pin(RPGpio::GPIO24),
+            // 0 => peripherals.pins.get_pin(RPGpio::GPIO0),
+            // 1 => peripherals.pins.get_pin(RPGpio::GPIO1),
+            2 => peripherals.pins.get_pin(RPGpio::GPIO2),
+            3 => peripherals.pins.get_pin(RPGpio::GPIO3),
+            4 => peripherals.pins.get_pin(RPGpio::GPIO4),
+            5 => peripherals.pins.get_pin(RPGpio::GPIO5),
+            6 => peripherals.pins.get_pin(RPGpio::GPIO6),
+            7 => peripherals.pins.get_pin(RPGpio::GPIO7),
+            20 => peripherals.pins.get_pin(RPGpio::GPIO20),
+            21 => peripherals.pins.get_pin(RPGpio::GPIO21),
+            22 => peripherals.pins.get_pin(RPGpio::GPIO22),
+            23 => peripherals.pins.get_pin(RPGpio::GPIO23),
+            24 => peripherals.pins.get_pin(RPGpio::GPIO24),
         ),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
     let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
-        LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
+        LedHigh::new(peripherals.pins.get_pin(RPGpio::GPIO25))
     ));
 
     peripherals.adc.init();
@@ -446,7 +446,7 @@ pub unsafe fn main() {
 
     let bus = components::bus::SpiMasterBusComponent::new(
         mux_spi,
-        &peripherals.pins.get_pin(RPGpio::GPIO17),
+        peripherals.pins.get_pin(RPGpio::GPIO17),
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
@@ -480,22 +480,22 @@ pub unsafe fn main() {
         components::button_component_helper!(
             RPGpioPin,
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO12),
+                peripherals.pins.get_pin(RPGpio::GPIO12),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // A
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO13),
+                peripherals.pins.get_pin(RPGpio::GPIO13),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // B
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO14),
+                peripherals.pins.get_pin(RPGpio::GPIO14),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // X
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO15),
+                peripherals.pins.get_pin(RPGpio::GPIO15),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // Y
@@ -511,13 +511,13 @@ pub unsafe fn main() {
     )
     .finalize(components::screen_component_static!(57600));
 
-    let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
+    let adc_channel_0 = components::adc::AdcComponent::new(adc_mux, Channel::Channel0)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
+    let adc_channel_1 = components::adc::AdcComponent::new(adc_mux, Channel::Channel1)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
+    let adc_channel_2 = components::adc::AdcComponent::new(adc_mux, Channel::Channel2)
         .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =

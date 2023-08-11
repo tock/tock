@@ -112,7 +112,7 @@ impl
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -691,27 +691,27 @@ pub unsafe fn main() {
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel1)
+        components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel1)
             .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_1 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel11)
+        components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel11)
             .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_2 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel13)
+        components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel13)
             .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_3 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel14)
+        components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel14)
             .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_4 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel15)
+        components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel15)
             .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_channel_5 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f412g::adc::Channel::Channel8)
+        components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel8)
             .finalize(components::adc_component_static!(stm32f412g::adc::Adc));
 
     let adc_syscall =

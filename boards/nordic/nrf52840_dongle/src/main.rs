@@ -150,7 +150,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()

@@ -62,7 +62,7 @@ pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: 
     // Create actual log storage abstraction on top of flash.
     let log = static_init!(
         Log,
-        log::Log::new(&TEST_LOG, &flash_controller, pagebuffer, true)
+        log::Log::new(&TEST_LOG, flash_controller, pagebuffer, true)
     );
     flash::HasClient::set_client(flash_controller, log);
     kernel::deferred_call::DeferredCallClient::register(log);

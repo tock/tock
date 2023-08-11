@@ -82,7 +82,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -100,7 +100,7 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
         &self.systick
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        &self.wdt
+        self.wdt
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
