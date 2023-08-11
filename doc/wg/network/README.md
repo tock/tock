@@ -24,8 +24,8 @@ The goals of the Network Tock Working Group (NWG) are to:
 
 ## Membership and Communication
 
-The networking working group membership is a subset of the people who have
-commit (pull request merge) permissions on the Tock repository. It is
+The networking working group membership is open to Tock developers interested
+in the design of network interfaces. It is
 intended to be a smaller group that represents the major perspectives
 and issues, rather than a complete group. Group membership is decided by
 the group: the exact process is not yet determined and may organically
