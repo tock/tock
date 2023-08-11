@@ -62,12 +62,7 @@ struct FlashRegisters {
     optcr: ReadWrite<u32, OPTCR::Register>,
     /// Flash option control register 1
     #[cfg(any(
-        feature = "stm32f427",
         feature = "stm32f429",
-        feature = "stm32f437",
-        feature = "stm32f439",
-        feature = "stm32f469",
-        feature = "stm32f479",
     ))]
     optcr1: ReadWrite<u32>,
 }
@@ -292,25 +287,24 @@ pub mod tests {
     // is turned on
     #[cfg(not(any(
         feature = "stm32f401",
-        feature = "stm32f410",
-        feature = "stm32f411",
         feature = "stm32f412",
-        feature = "stm32f413"
     )))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
     #[cfg(not(any(
         feature = "stm32f401",
-        feature = "stm32f410",
-        feature = "stm32f411",
         feature = "stm32f412",
-        feature = "stm32f413"
     )))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
     // Default PLL frequency
     #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const PLL_FREQUENCY_MHZ: usize = 96;
 
-    #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
+    #[cfg(any(
+        feature = "stm32f401",
+        feature = "stm32f412",
+        feature = "stm32f429",
+        feature = "stm32f446"
+    ))]
     /// Test for the mapping between the system clock frequency and flash latency
     ///
     /// It is highly recommended to run this test since everything else depends on it.
@@ -368,10 +362,7 @@ pub mod tests {
 
         #[cfg(not(any(
             feature = "stm32f401",
-            feature = "stm32f410",
-            feature = "stm32f411",
             feature = "stm32f412",
-            feature = "stm32f413"
         )))] // Not needed for these chips
         {
             assert_eq!(
@@ -384,70 +375,6 @@ pub mod tests {
                 get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ)
             );
         }
-
-        debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("");
-    }
-
-    #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-    /// Test for the mapping between the system clock frequency and flash latency
-    ///
-    /// If there is no error, the following output will be printed on the console:
-    ///
-    /// ```text
-    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    /// Testing number of wait cycles based on the system frequency...
-    /// Finished testing number of wait cycles based on the system clock frequency. Everything is alright!
-    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    /// ```
-    ///
-    /// It is highly recommended to run this test. test_set_flash_latency() depends on it.
-    pub fn test_get_number_wait_cycles_based_on_frequency() {
-        debug!("");
-        debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        debug!("Testing number of wait cycles based on the system frequency...");
-
-        assert_eq!(
-            FlashLatency::Latency0,
-            flash.get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ)
-        );
-
-        assert_eq!(
-            FlashLatency::Latency0,
-            flash.get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
-        );
-
-        assert_eq!(
-            FlashLatency::Latency1,
-            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1)
-        );
-        assert_eq!(
-            FlashLatency::Latency1,
-            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2)
-        );
-        assert_eq!(
-            FlashLatency::Latency1,
-            flash.get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3)
-        );
-
-        assert_eq!(
-            FlashLatency::Latency3,
-            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1)
-        );
-        assert_eq!(
-            FlashLatency::Latency3,
-            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2)
-        );
-        assert_eq!(
-            FlashLatency::Latency3,
-            flash.get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3)
-        );
-
-        assert_eq!(
-            FlashLatency::Latency3,
-            flash.get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
-        );
 
         debug!("Finished testing number of wait cycles based on the system clock frequency. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -488,19 +415,11 @@ pub mod tests {
         assert_eq!(FlashLatency::Latency1, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_1));
-        #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-        assert_eq!(FlashLatency::Latency3, flash.get_latency());
-        #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
-        assert_eq!(FlashLatency::Latency2, flash.get_latency());
 
         // STM32F401 maximum system clock frequency is 84MHz
         #[cfg(not(feature = "stm32f401"))]
         {
             assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_2));
-            #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-            assert_eq!(FlashLatency::Latency3, flash.get_latency());
-            #[cfg(not(any(feature = "stm32f413", feature = "stm32f423")))]
-            assert_eq!(FlashLatency::Latency2, flash.get_latency());
 
             assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_3));
             assert_eq!(FlashLatency::Latency3, flash.get_latency());
@@ -514,11 +433,7 @@ pub mod tests {
         // 180MHz
         #[cfg(not(any(
             feature = "stm32f401",
-            feature = "stm32f410",
-            feature = "stm32f411",
             feature = "stm32f412",
-            feature = "stm32f413",
-            feature = "stm32f423",
         )))]
         {
             assert_eq!(

@@ -18,6 +18,7 @@ pub mod clock_constants {
     /// PLL-related constants for specific chips
     pub mod pll_constants {
         /// Minimum PLL frequency in MHz
+        // STM32F401 supports frequency down to 24MHz. All other chips down to 13MHz.
         pub const PLL_MIN_FREQ_MHZ: usize = if cfg!(not(feature = "stm32f401")) {
             13
         } else {
@@ -27,29 +28,16 @@ pub mod clock_constants {
 
     /// Maximum allowed APB1 frequency in MHz
     pub const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
-        feature = "stm32f410",
-        feature = "stm32f411",
         feature = "stm32f412",
-        feature = "stm32f413",
-        feature = "stm32f423"
     )) {
         50
     } else if cfg!(any(
-        feature = "stm32f427",
         feature = "stm32f429",
-        feature = "stm32f437",
-        feature = "stm32f439",
         feature = "stm32f446",
-        feature = "stm32f469",
-        feature = "stm32f479",
     )) {
         45
     } else {
         //feature = "stm32f401",
-        //feature = "stm32f405",
-        //feature = "stm32f407",
-        //feature = "stm32f415",
-        //feature = "stm32f417"
         42
     };
 
@@ -59,25 +47,12 @@ pub mod clock_constants {
 
     /// Maximum allowed system clock frequency in MHz
     pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
-        feature = "stm32f410",
-        feature = "stm32f411",
         feature = "stm32f412",
-        feature = "stm32f413",
-        feature = "stm32f423"
     )) {
         100
     } else if cfg!(any(
-        feature = "stm32f405",
-        feature = "stm32f407",
-        feature = "stm32f415",
-        feature = "stm32f417",
-        feature = "stm32f427",
         feature = "stm32f429",
-        feature = "stm32f437",
-        feature = "stm32f439",
         feature = "stm32f446",
-        feature = "stm32f469",
-        feature = "stm32f479"
     )) {
         // TODO: Some of these models support overdrive model. Change this constant when overdrive support
         // is added.
@@ -90,14 +65,12 @@ pub mod clock_constants {
 
 /// Chip-specific flash code
 pub mod flash_specific {
-    // All this hassle is caused by the fact that the following 4 chip models support 3 bit latency
-    // values, while the other chips support 4 bit values
-    #[cfg(not(any(
-        feature = "stm32f405",
-        feature = "stm32f415",
-        feature = "stm32f407",
-        feature = "stm32f417"
-    )))]
+    #[cfg(any(
+        feature = "stm32f401",
+        feature = "stm32f412",
+        feature = "stm32f429",
+        feature = "stm32f446"
+    ))]
     #[derive(Copy, Clone, PartialEq, Debug)]
     /// Enum representing all the possible values for the flash latency
     pub(crate) enum FlashLatency {
@@ -135,46 +108,17 @@ pub mod flash_specific {
         Latency15,
     }
 
-    #[cfg(any(
-        feature = "stm32f405",
-        feature = "stm32f415",
-        feature = "stm32f407",
-        feature = "stm32f417"
-    ))]
-    #[derive(Copy, Clone, PartialEq, Debug)]
-    /// Enum representing all the possible values for the flash latency
-    pub(crate) enum FlashLatency {
-        /// 0 wait cycles
-        Latency0,
-        /// 1 wait cycle
-        Latency1,
-        /// 2 wait cycles
-        Latency2,
-        /// 3 wait cycles
-        Latency3,
-        /// 4 wait cycles
-        Latency4,
-        /// 5 wait cycles
-        Latency5,
-        /// 6 wait cycles
-        Latency6,
-        /// 7 wait cycles
-        Latency7,
-    }
-
     // The number of wait cycles depends on two factors: system clock frequency and the supply
     // voltage. Currently, this method assumes 2.7-3.6V voltage supply (default value).
     // TODO: Take into the account the power supply
     //
     // The number of wait states varies from chip to chip.
     pub(crate) fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> FlashLatency {
-        #[cfg(not(any(
-            feature = "stm32f410",
-            feature = "stm32f411",
-            feature = "stm32f412",
-            feature = "stm32f413",
-            feature = "stm32f423"
-        )))]
+        #[cfg(any(
+            feature = "stm32f401",
+            feature = "stm32f429",
+            feature = "stm32f446",
+        ))]
         {
             match frequency_mhz {
                 0..=30 => FlashLatency::Latency0,
@@ -185,7 +129,7 @@ pub mod flash_specific {
                 _ => FlashLatency::Latency5,
             }
         }
-        #[cfg(any(feature = "stm32f410", feature = "stm32f411", feature = "stm32f412"))]
+        #[cfg(any(feature = "stm32f412"))]
         {
             match frequency_mhz {
                 0..=30 => FlashLatency::Latency0,
@@ -194,24 +138,15 @@ pub mod flash_specific {
                 _ => FlashLatency::Latency3,
             }
         }
-        #[cfg(any(feature = "stm32f413", feature = "stm32f423"))]
-        {
-            match frequency_mhz {
-                0..=25 => FlashLatency::Latency0,
-                26..=50 => FlashLatency::Latency1,
-                51..=75 => FlashLatency::Latency2,
-                _ => FlashLatency::Latency3,
-            }
-        }
     }
 
     pub(crate) fn convert_register_to_enum(flash_latency_register: u32) -> FlashLatency {
-        #[cfg(not(any(
-            feature = "stm32f405",
-            feature = "stm32f415",
-            feature = "stm32f407",
-            feature = "stm32f417"
-        )))]
+        #[cfg(any(
+            feature = "stm32f401",
+            feature = "stm32f412",
+            feature = "stm32f429",
+            feature = "stm32f446"
+        ))]
         match flash_latency_register {
             0 => FlashLatency::Latency0,
             1 => FlashLatency::Latency1,
@@ -230,24 +165,6 @@ pub mod flash_specific {
             14 => FlashLatency::Latency14,
             // The hardware allows 4-bit latency values
             _ => FlashLatency::Latency15,
-        }
-
-        #[cfg(any(
-            feature = "stm32f405",
-            feature = "stm32f415",
-            feature = "stm32f407",
-            feature = "stm32f417"
-        ))]
-        match flash_latency_register {
-            0 => FlashLatency::Latency0,
-            1 => FlashLatency::Latency1,
-            2 => FlashLatency::Latency2,
-            3 => FlashLatency::Latency3,
-            4 => FlashLatency::Latency4,
-            5 => FlashLatency::Latency5,
-            6 => FlashLatency::Latency6,
-            // The hardware allows 3-bit latency values
-            _ => FlashLatency::Latency7,
         }
     }
 }
