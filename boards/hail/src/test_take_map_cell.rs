@@ -35,7 +35,7 @@ pub unsafe fn test_take_map_cell() {
 
 #[inline(never)]
 #[allow(unused_unsafe)]
-unsafe fn test_map_cell<'a, A>(tc: &MapCell<A>) {
+unsafe fn test_map_cell<A>(tc: &MapCell<A>) {
     let dwt_ctl: *mut u32 = 0xE0001000 as *mut u32;
     let dwt_cycles: *mut u32 = 0xE0001004 as *mut u32;
     let demcr: *mut u32 = 0xE000EDFC as *mut u32;

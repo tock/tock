@@ -1131,7 +1131,7 @@ impl ClockInterface for CanClock<'_> {
     }
 }
 
-impl<'a> can::Configure for Can<'_> {
+impl can::Configure for Can<'_> {
     const MIN_BIT_TIMINGS: can::BitTiming = can::BitTiming {
         segment1: BitSegment1::CanBtrTs1Min as u8,
         segment2: BitSegment2::CanBtrTs2Min as u8,
@@ -1232,7 +1232,7 @@ impl<'a> can::Configure for Can<'_> {
     }
 }
 
-impl<'a> can::Controller for Can<'_> {
+impl can::Controller for Can<'_> {
     fn set_client(&self, client: Option<&'static dyn can::ControllerClient>) {
         if let Some(client) = client {
             self.controller_client.replace(client);
@@ -1294,7 +1294,7 @@ impl<'a> can::Controller for Can<'_> {
     }
 }
 
-impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+impl can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     fn set_client(
         &self,
         client: Option<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
@@ -1333,7 +1333,7 @@ impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     }
 }
 
-impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+impl can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     fn set_client(
         &self,
         client: Option<&'static dyn can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,

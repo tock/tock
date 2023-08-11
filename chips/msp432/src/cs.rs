@@ -321,7 +321,7 @@ impl ClockSystem {
     }
 }
 
-impl<'a> PeripheralManagement<NoClockControl> for ClockSystem {
+impl PeripheralManagement<NoClockControl> for ClockSystem {
     type RegisterType = CsRegisters;
 
     fn get_registers(&self) -> &CsRegisters {

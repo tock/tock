@@ -202,7 +202,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
+impl ClientVerify<32_usize> for AppCheckerSha256 {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
@@ -235,7 +235,7 @@ impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl<'a> ClientHash<32_usize> for AppCheckerSha256 {
+impl ClientHash<32_usize> for AppCheckerSha256 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32_usize]) {}
 }
 
