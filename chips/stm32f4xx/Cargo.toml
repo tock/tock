@@ -22,3 +22,5 @@ stm32f401 = []
 stm32f412 = []
 stm32f429 = []
 stm32f446 = []
+# Default feature is set just to pass CI tests.
+default = ["stm32f429"]
