@@ -359,7 +359,7 @@ SECTIONS
          * the kernel binary.
          */
         LONG(ORIGIN(rom)) /* Address of start of kernel binary. */
-        LONG((LOADADDR(.relocate) + (_erelocate-_srelocate)) - ORIGIN(rom)) /* Length of kernel binary. */
+        LONG((LOADADDR(.relocate) + (_erelocate - _srelocate)) - ORIGIN(rom)) /* Length of kernel binary. */
         SHORT(0x0102) /* Type = Kernel Flash = 0x0102 */
         SHORT(8)      /* Length = 8 bytes */
 
