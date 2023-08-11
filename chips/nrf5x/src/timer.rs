@@ -309,6 +309,10 @@ impl<'a> TimerAlarm<'a> {
         self.registers.tasks_capture[CC_CAPTURE].write(Task::ENABLE::SET);
         self.registers.cc[CC_CAPTURE].get()
     }
+
+    pub fn get_current_time(&self) -> hil::time::Ticks32 {
+        self.now()
+    }
 }
 
 impl Time for TimerAlarm<'_> {
