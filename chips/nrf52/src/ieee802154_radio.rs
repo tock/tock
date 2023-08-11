@@ -9,7 +9,6 @@ use core::convert::TryFrom;
 use kernel;
 use kernel::hil::radio::{self, PowerClient, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient};
-use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
@@ -699,7 +698,7 @@ pub struct Radio<'a> {
 
 impl<'a> AlarmClient for Radio<'a> {
     fn alarm(&self) {
-        self.rx();
+        self.registers.task_ccastart.write(Task::ENABLE::SET);
     }
 }
 #[derive(Debug, Clone, Copy)]
@@ -801,6 +800,9 @@ impl<'a> Radio<'a> {
     pub fn handle_interrupt(&self) {
         self.disable_all_interrupts();
 
+        let mut start_task = false;
+        let mut rx_init = false;
+
         match self.state.get() {
             RadioState::OFF => panic!("Received interrupt while off"),
             RadioState::RX => {
@@ -837,26 +839,29 @@ impl<'a> Radio<'a> {
                                     ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
                                     self.sending_ack.set(true);
                                     self.state.set(RadioState::ACK);
+                                    self.rx_buf.replace(rbuf);
                                     if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
                                         self.ack_buf.replace(ret_buf);
                                         self.sending_ack.set(false);
                                         self.state.set(RadioState::RX);
-                                        self.registers.task_start.write(Task::ENABLE::SET);
+                                        // self.registers.task_start.write(Task::ENABLE::SET);
+                                        start_task = true;
                                     };
                                     Ok(())
                                 });
                         } else {
                             // Radio returns to receiving state, listening for new packets
-                            self.registers.task_start.write(Task::ENABLE::SET);
-                        }
+                            // self.registers.task_start.write(Task::ENABLE::SET);
+                            start_task = true;
 
-                        // edge cases not yet handled here
-                        client.receive(
-                            rbuf,
-                            frame_len,
-                            self.registers.crcstatus.get() == 1,
-                            result,
-                        );
+                            // edge cases not yet handled here
+                            client.receive(
+                                rbuf,
+                                frame_len,
+                                self.registers.crcstatus.get() == 1,
+                                result,
+                            );
+                        }
                     });
                 }
             }
@@ -870,15 +875,48 @@ impl<'a> Radio<'a> {
                     panic!("Incorrect shortcut configuration for TX")
                 }
 
-                if self.registers.event_ccabusy.is_set(Event::READY) {
-                    kernel::debug!("CCA BACK OFF");
-                }
-                if self.registers.event_ready.is_set(Event::READY)
-                    && self.registers.state.get() == nrf5x::constants::RADIO_STATE_TXIDLE
-                {
+                if self.registers.event_ready.is_set(Event::READY) {
                     self.registers.event_ready.write(Event::READY::CLEAR);
-                    self.registers.task_start.write(Task::ENABLE::SET);
+
+                    if self.registers.state.get() == nrf5x::constants::RADIO_STATE_TXIDLE {
+                        // self.registers.task_start.write(Task::ENABLE::SET);
+                        start_task = true;
+                    }
                 }
+
+                /*THIS SECTION NEEDS TO BE REWRITTEN --> */
+                if self.registers.event_ccabusy.is_set(Event::READY) {
+                    self.registers.event_ccabusy.write(Event::READY::CLEAR);
+
+                    //need to back off for a period of time outlined
+                    //in the IEEE 802.15.4 standard (see Figure 69 in
+                    //section 7.5.1.4 The CSMA-CA algorithm of the
+                    //standard).
+                    if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {
+                        self.cca_count.set(self.cca_count.get() + 1);
+                        self.cca_be.set(self.cca_be.get() + 1);
+                        let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
+                        let current_time = self.timer0.unwrap_or_panic().get_current_time();
+                        self.timer0
+                            .unwrap_or_panic() // Unwrap fail = Missing timer reference for CSMA
+                            .set_alarm(
+                                current_time,
+                                kernel::hil::time::Ticks32::from(
+                                    backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
+                                ),
+                            );
+                    } else {
+                        //if we are transmitting, the CRCstatus check is always going to be an error
+                        let result = Err(ErrorCode::BUSY);
+                        //TODO: Acked is flagged as false until I get around to fixing it.
+                        self.tx_client.map(|client| {
+                            let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after the channel was busy.
+                            client.send_done(tbuf, false, result);
+                        });
+                        rx_init = true;
+                    }
+                }
+                /* <-- THIS SECTION NEEDS TO BE REWRITTEN */
 
                 if self.registers.event_end.is_set(Event::READY) {
                     self.registers.event_end.write(Event::READY::CLEAR);
@@ -891,7 +929,8 @@ impl<'a> Radio<'a> {
                         client.send_done(tbuf, false, result);
                     });
 
-                    self.rx();
+                    // self.rx();
+                    rx_init = true;
                 }
             }
             RadioState::ACK => {
@@ -913,219 +952,38 @@ impl<'a> Radio<'a> {
                     self.ack_buf.replace(tbuf);
 
                     // Reset radio to proper receiving state
-                    self.rx();
-                }
-            }
-        }
-        /*
-        kernel::debug!("**********************************************");
+                    // self.rx();r
+                    rx_init = true;
 
-        if self.registers.event_disabled.is_set(Event::READY) {
-            kernel::debug!("We are disabled!!");
-            self.registers.event_disabled.write(Event::READY::CLEAR);
-        }
-
-        kernel::debug!("START STATE {:?}", self.registers.state.get());
-        kernel::debug!(
-            "EVENT READY STATUS {:?}",
-            self.registers.event_ready.is_set(Event::READY)
-        );
-        kernel::debug!(
-            "EVENT End STATUS {:?}",
-            self.registers.event_end.is_set(Event::READY)
-        );
-        kernel::debug!(
-            "EVENT CCAIDLE STATUS {:?}",
-            self.registers.event_ccaidle.is_set(Event::READY)
-        );
-        // kernel::debug!(
-        //     "EVENT RXREADY STATUS {:?}",
-        //     self.registers.event_rxready.is_set(Event::READY)
-        // );
-        // kernel::debug!(
-        //     "EVENT TXREADY STATUS {:?}",
-        //     self.registers.event_txready.is_set(Event::READY)
-        // );
-
-        // if self.registers.event_txready.is_set(Event::READY) {
-        //     self.registers.event_txready.write(Event::READY::CLEAR);
-        // }
-        // if self.registers.event_rxready.is_set(Event::READY) {
-        //     self.registers.event_rxready.write(Event::READY::CLEAR);
-        // }
-
-        if self.registers.event_ready.is_set(Event::READY) {
-            self.registers.event_ready.write(Event::READY::CLEAR);
-            if self.registers.state.matches_any(&[State::STATE::TXIDLE]) {
-                self.registers.task_start.write(Task::ENABLE::SET);
-            }
-        }
-
-        // If short cuts are enabled for READY_START, we must clear event_ready
-        // since the hardware shortcut automatically triggers the START task
-        if self.registers.shorts.is_set(Shortcut::READY_START) {
-            self.registers.event_ready.write(Event::READY::CLEAR);
-        }
-
-        /* THIS SECTION HAS NOT BEEN REWRITTEN ... */
-        //   IF we receive the go ahead (channel is clear)
-        // THEN start the transmit part of the radio
-        // THIS CAN BE OPTIMIZED BY ADDING A SHORTCUT TO HANDLE IN HARDWARE
-        if self.registers.event_ccaidle.is_set(Event::READY) {
-            self.registers.event_ccaidle.write(Event::READY::CLEAR);
-            kernel::debug!("CCA IDLE AND NOW SENDING");
-            // self.registers.task_txen.write(Task::ENABLE::SET)
-        }
-
-        if self.registers.event_framestart.is_set(Event::READY) {
-            kernel::debug!("FRAM");
-            self.registers.event_framestart.write(Event::READY::CLEAR);
-        }
-
-        if self.registers.event_ccabusy.is_set(Event::READY) {
-            kernel::debug!("CCA BACK OFF");
-            self.registers.event_ccabusy.write(Event::READY::CLEAR);
-            // self.registers.event_ready.write(Event::READY::CLEAR);
-            // self.registers.task_disable.write(Task::ENABLE::SET);
-            // while self.registers.event_disabled.get() == 0 {}
-            // self.registers.event_disabled.write(Event::READY::CLEAR);
-            //need to back off for a period of time outlined
-            //in the IEEE 802.15.4 standard (see Figure 69 in
-            //section 7.5.1.4 The CSMA-CA algorithm of the
-            //standard).
-            if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {
-                self.cca_count.set(self.cca_count.get() + 1);
-                self.cca_be.set(self.cca_be.get() + 1);
-                let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                self.timer0
-                    .unwrap_or_panic() // Unwrap fail = Missing timer reference for CSMA
-                    .set_alarm(
-                        kernel::hil::time::Ticks32::from(0),
-                        kernel::hil::time::Ticks32::from(
-                            backoff_periods * (IEEE802154_BACKOFF_PERIOD as u32),
-                        ),
-                    );
-            } else {
-                self.transmitting.set(false);
-                //if we are transmitting, the CRCstatus check is always going to be an error
-                let result = Err(ErrorCode::BUSY);
-                //TODO: Acked is flagged as false until I get around to fixing it.
-                self.tx_client.map(|client| {
-                    let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after the channel was busy.
-                    client.send_done(tbuf, false, result)
-                });
-            }
-
-            self.enable_interrupts();
-        }
-        /* ... THIS SECTION HAS NOT BEEN REWRITTEN */
-
-        // tx or rx finished
-        if self.registers.event_end.is_set(Event::READY) {
-            kernel::debug!("END EVENT GENERATED");
-            self.registers.event_end.write(Event::READY::CLEAR);
-
-            let result = if self.registers.crcstatus.is_set(Event::READY) {
-                Ok(())
-            } else {
-                Err(ErrorCode::FAIL)
-            };
-
-            match self.registers.state.get() {
-                nrf5x::constants::RADIO_STATE_TXRU
-                | nrf5x::constants::RADIO_STATE_TXIDLE
-                | nrf5x::constants::RADIO_STATE_TXDISABLE
-                | nrf5x::constants::RADIO_STATE_TX => {
-                    self.transmitting.set(false);
-                    //if we are transmitting, the CRCstatus check is always going to be an error
-                    let result = Ok(());
-                    //TODO: Acked is flagged as false until I get around to fixing it.
-                    self.tx_client.map(|client| {
-                        let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
-
-                        // If we transmitted an ACK, we must replace the ACK buffer that was passed to tx_buf
-                        if self.sending_ack.get() {
-                            self.ack_buf.replace(tbuf);
-                            self.sending_ack.set(false);
-                        } else {
-                            client.send_done(tbuf, false, result);
-                        }
-                    });
-                    self.rx();
-                }
-                nrf5x::constants::RADIO_STATE_RXRU
-                | nrf5x::constants::RADIO_STATE_RXIDLE
-                | nrf5x::constants::RADIO_STATE_RXDISABLE
-                | nrf5x::constants::RADIO_STATE_RX => {
-                    // kernel::debug!("RX ENTER");
+                    // Update receive client
                     self.rx_client.map(|client| {
                         let rbuf = self.rx_buf.take().unwrap(); // Unwrap fail = RX Buffer produced error when sending received packet to requestor
 
+                        let result = self.crc_check();
                         let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
                         // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
-                        if rbuf[2] & 0b00100000 != 0
-                            && !self.transmitting.get()
-                            && self.ack_buf.is_some()
-                        {
-                            let _ = self
-                                .ack_buf
-                                .take()
-                                .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
-                                    // kernel::debug!("SEND ACK");
-                                    let mut ack_buf_send = [18, 0, 0];
-                                    let sequence_counter = rbuf[4];
-                                    ack_buf_send[2] = sequence_counter;
-                                    ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
-                                    self.sending_ack.set(true);
-                                    if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
-                                        self.ack_buf.replace(ret_buf);
-                                        self.sending_ack.set(false);
-                                    };
-                                    Ok(())
-                                });
-                        } else {
-                            self.registers.task_start.write(Task::ENABLE::SET);
-                        }
+                        // edge cases not yet handled here
                         client.receive(
                             rbuf,
                             frame_len,
                             self.registers.crcstatus.get() == 1,
                             result,
                         );
-
-                        // kernel::debug!("FINISHED RECV");
                     });
                 }
-                // Radio state - Disabled
-                _ => (),
             }
         }
-        kernel::debug!("END STATE {:?}", self.registers.state.get());
-        kernel::debug!(
-            "EVENT READY STATUS {:?}",
-            self.registers.event_ready.is_set(Event::READY)
-        );
-        kernel::debug!(
-            "EVENT End STATUS {:?}",
-            self.registers.event_end.is_set(Event::READY)
-        );
-        kernel::debug!(
-            "EVENT CCAIDLE STATUS {:?}",
-            self.registers.event_ccaidle.is_set(Event::READY)
-        );
-        // kernel::debug!(
-        //     "EVENT RXREADY STATUS {:?}",
-        //     self.registers.event_rxready.is_set(Event::READY)
-        // );
-        // kernel::debug!(
-        //     "EVENT TXREADY STATUS {:?}",
-        //     self.registers.event_txready.is_set(Event::READY)
-        // );
-        kernel::debug!("///////////////////////////////////////////");*/
+
         self.enable_interrupts();
+        if rx_init {
+            self.rx();
+        }
+        if start_task {
+            self.registers.task_start.write(Task::ENABLE::SET);
+        }
     }
 
     pub fn enable_interrupts(&self) {
@@ -1405,6 +1263,10 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
             return Err((ErrorCode::SIZE, buf));
         }
 
+        if let RadioState::OFF = self.state.get() {
+            self.radio_initialize();
+        }
+
         buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
         self.tx_buf.replace(buf);
 
@@ -1414,7 +1276,6 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         if let RadioState::ACK = self.state.get() {
             self.registers.task_txen.write(Task::ENABLE::SET);
         } else {
-            kernel::debug!("TX");
             self.state.set(RadioState::TX);
             self.registers.shorts.write(
                 Shortcut::DISABLED_RXEN::SET
