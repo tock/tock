@@ -13,7 +13,7 @@
  * Felix: Working at OxidOS, mainly on CAN bus. Started with Tock a couple of months ago. Worked on embedded for four-five years.
  * Leon: PhD student at Princeton working with Amit Levy. Working on Tock for five years. Funny enough my first real project was an Ethernet driver for Tock. Still in progress...
  * Tyler: Master's student at UC San Diego working with Pat Pannuto. Only involved in Tock for a few months. Working on adding support for Thread networking: 802.15.4, 6lowpan, UDP, etc.
- * Cristian: I teach at Bucharest. Background in wireless communication: 5G stuff. I'm here because I know about Tock and networking.
+ * Cristian: I teach at University of Bucharest. Background in wireless communication: 5G stuff. I'm here because I know about Tock and networking.
  * Alex: Professor at Polytechnic university in Bucharest. Started on Tock in 2020, interested in Rust OS for teaching. Still interested in network communication for teaching.
 
 # Organization of meetings
