@@ -836,7 +836,7 @@ impl<'a> Radio<'a> {
                                     let mut ack_buf_send = [18, 0, 0];
                                     let sequence_counter = rbuf[4];
                                     ack_buf_send[2] = sequence_counter;
-                                    ack_buf[2..5].copy_from_slice(&mut ack_buf_send);
+                                    ack_buf[2..5].copy_from_slice(&ack_buf_send);
                                     self.sending_ack.set(true);
                                     self.state.set(RadioState::ACK);
                                     self.rx_buf.replace(rbuf);
