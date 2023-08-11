@@ -56,6 +56,8 @@ pub trait IP6Sender<'a> {
     /// `send_done` callback
     fn set_client(&self, client: &'a dyn IP6SendClient);
 
+    fn set_dst_mac_addr(&self, addr: MacAddress);
+
     /// This method sets the source address for packets sent from the
     /// `IP6Sender` instance.
     ///
@@ -107,7 +109,7 @@ pub struct IP6SendStruct<'a, A: time::Alarm<'a>> {
     tx_buf: TakeCell<'static, [u8]>,
     sixlowpan: TxState<'a>,
     radio: &'a dyn MacDevice<'a>,
-    dst_mac_addr: MacAddress,
+    dst_mac_addr: Cell<MacAddress>,
     src_mac_addr: MacAddress,
     client: OptionalCell<&'a dyn IP6SendClient>,
     ip_vis: &'static IpVisibilityCapability,
@@ -124,6 +126,10 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
 
     fn set_gateway(&self, gateway: MacAddress) {
         self.gateway.set(gateway);
+    }
+
+    fn set_dst_mac_addr(&self, addr: MacAddress) {
+        self.dst_mac_addr.set(addr);
     }
 
     fn set_header(&mut self, ip6_header: IP6Header) {
@@ -143,7 +149,7 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         }
         let _ = self.sixlowpan.init(
             self.src_mac_addr,
-            self.dst_mac_addr,
+            self.dst_mac_addr.get(),
             self.radio.get_pan(),
             None,
         );
@@ -172,7 +178,7 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
             tx_buf: TakeCell::new(tx_buf),
             sixlowpan: sixlowpan,
             radio: radio,
-            dst_mac_addr: dst_mac_addr,
+            dst_mac_addr: Cell::new(dst_mac_addr),
             src_mac_addr: src_mac_addr,
             client: OptionalCell::empty(),
             ip_vis: ip_vis,

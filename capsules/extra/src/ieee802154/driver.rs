@@ -936,6 +936,7 @@ impl device::RxClient for RadioDriver<'_> {
                 .get_readwrite_processbuffer(rw_allow::READ)
                 .and_then(|read| {
                     read.mut_enter(|rbuf| {
+                        kernel::debug!("RECEIVED 15.4 packet...");
                         let len = min(rbuf.len(), data_offset + data_len);
                         // Copy the entire frame over to userland, preceded by two
                         // bytes: the data offset and the data length.

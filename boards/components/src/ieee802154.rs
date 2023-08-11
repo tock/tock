@@ -43,6 +43,7 @@ use kernel::create_capability;
 use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
+pub const ACK_BUFFER_SIZE: usize = 10;
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
 // upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
 pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
@@ -131,6 +132,7 @@ pub struct Ieee802154Component<
     aes_mux: &'static MuxAES128CCM<'static, A>,
     pan_id: capsules_extra::net::ieee802154::PanID,
     short_addr: u16,
+    long_addr: [u8; 8],
 }
 
 impl<
@@ -145,6 +147,7 @@ impl<
         aes_mux: &'static MuxAES128CCM<'static, A>,
         pan_id: capsules_extra::net::ieee802154::PanID,
         short_addr: u16,
+        long_addr: [u8; 8],
     ) -> Self {
         Self {
             board_kernel,
@@ -153,6 +156,7 @@ impl<
             aes_mux,
             pan_id,
             short_addr,
+            long_addr,
         }
     }
 }
@@ -250,6 +254,7 @@ impl<
         userspace_mac.set_receive_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
+        userspace_mac.set_address_long(self.long_addr);
 
         (radio_driver, mux_mac)
     }

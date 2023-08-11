@@ -195,6 +195,7 @@ pub struct Platform {
     >,
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
@@ -235,6 +236,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             _ => f(None),
         }
     }
@@ -537,7 +539,12 @@ pub unsafe fn main() {
 
     let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
     let serial_num_bottom_16 = serial_num[0] as u16 + ((serial_num[1] as u16) << 8);
-    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    // let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    let src_mac_from_serial_num: MacAddress =
+        MacAddress::Long([0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x36]);
+    // MacAddress::Long([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0xaa, 0xbb]);
+    let serial_num: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x36];
+
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
@@ -545,6 +552,7 @@ pub unsafe fn main() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        serial_num,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -555,9 +563,17 @@ pub unsafe fn main() {
         [IPAddr; 3],
         [
             IPAddr([
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
-                0x0e, 0x0f,
+                0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91, 0xee, 0x42,
+                0x56, 0x36
             ]),
+            // IPAddr([
+            //     0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+            //     0xaa, 0xbb
+            // ]),
+            // IPAddr([
+            //     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            //     0x0e, 0x0f,
+            // ]),
             IPAddr([
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
                 0x1e, 0x1f,
@@ -589,6 +605,22 @@ pub unsafe fn main() {
         local_ip_ifaces,
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+
+    let thread_driver = components::thread_network::UDPDriverComponent::new(
+        board_kernel,
+        capsules_extra::net::thread::driver::DRIVER_NUM,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+        aes_mux,
+        serial_num_bottom_16,
+        serial_num,
+    )
+    .finalize(components::thread_network_driver_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::aes::AesECB<'static>
+    ));
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
@@ -821,6 +853,7 @@ pub unsafe fn main() {
         alarm,
         analog_comparator,
         nonvolatile_storage,
+        thread_driver,
         udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,

@@ -76,6 +76,7 @@ pub mod temperature_rp2040;
 pub mod temperature_stm;
 pub mod test;
 pub mod text_screen;
+pub mod thread_network;
 pub mod tickv;
 pub mod touch;
 pub mod udp_driver;

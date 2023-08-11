@@ -11,6 +11,7 @@
 //! hard-coded).
 
 use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ip_utils::DEFAULT_DST_MAC_ADDR;
 use crate::net::network_capabilities::NetworkCapability;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
@@ -226,6 +227,7 @@ impl<'a> UDPDriver<'a> {
                                 kernel_buffer.slice(0..payload.len());
                                 match self.sender.driver_send_to(
                                     dst_addr,
+                                    DEFAULT_DST_MAC_ADDR,
                                     dst_port,
                                     src_port,
                                     kernel_buffer,
@@ -396,8 +398,10 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
             1 => {
+                kernel::debug!("SUCCESSFULLY ENTERED UDP CAPSULE..");
                 self.apps
                     .enter(processid, |_, kernel_data| {
+                        kernel::debug!("HERE WE GO AGAIN!!");
                         kernel_data
                             .get_readwrite_processbuffer(rw_allow::CFG)
                             .and_then(|cfg| {
@@ -591,6 +595,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
+        kernel::debug!("UDP DEBUGGER!!");
         self.apps.each(|_, app, kernel_data| {
             if app.bound_port.is_some() {
                 let mut for_me = false;
@@ -605,6 +610,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                         .get_readwrite_processbuffer(rw_allow::READ)
                         .and_then(|read| {
                             read.mut_enter(|rbuf| {
+                                kernel::debug!("UDP RBUF LEN {:?}", rbuf.len());
                                 if rbuf.len() >= len {
                                     rbuf[..len].copy_from_slice(&payload[..len]);
                                     Ok(())

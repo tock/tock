@@ -34,11 +34,17 @@ impl<'a> MuxUdpReceiver<'a> {
     }
 
     pub fn add_client(&self, rcvr: &'a UDPReceiver<'a>) {
+        kernel::debug!("adding client");
         self.rcvr_list.push_tail(rcvr);
     }
 
     pub fn set_driver(&self, driver_ref: &'static UDPDriver) {
         self.driver.replace(driver_ref);
+    }
+    pub fn print_recv_list(&self) {
+        for item in self.rcvr_list.iter() {
+            kernel::debug!("ITEM: {:?}", item.binding.take());
+        }
     }
 }
 
