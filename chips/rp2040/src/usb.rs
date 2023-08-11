@@ -1535,7 +1535,7 @@ impl<'a> UsbCtrl<'a> {
                         self.dpsram.ep_buf_ctrl[ep].ep_out_buf_ctrl.set(0);
                         self.dpsram.ep_buf_ctrl[ep].ep_out_buf_ctrl.modify(
                             EP_BUFFER_CONTROL::AVAILABLE0::SET
-                                + EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64 as u32),
+                                + EP_BUFFER_CONTROL::TRANSFER_LENGTH0.val(64_u32),
                         );
                     }
                 }

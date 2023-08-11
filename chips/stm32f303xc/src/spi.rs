@@ -269,7 +269,7 @@ impl<'a> Spi<'a> {
 
         if self.registers.sr.is_set(SR::RXNE) {
             while self.registers.sr.read(SR::FRLVL) > 0 {
-                let byte = self.registers.dr.read(DR::DR) as u8;
+                let byte = self.registers.dr.read(DR::DR);
                 if self.rx_buffer.is_some() && self.rx_position.get() < self.len.get() {
                     self.rx_buffer.map(|buf| {
                         buf[self.rx_position.get()] = byte;
@@ -463,7 +463,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         self.write_byte(val)?;
         // loop till RXNE becomes 1
         while !self.registers.sr.is_set(SR::RXNE) {}
-        Ok(self.registers.dr.read(DR::DR) as u8)
+        Ok(self.registers.dr.read(DR::DR))
     }
 
     fn read_write_bytes(

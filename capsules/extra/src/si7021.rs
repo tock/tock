@@ -201,7 +201,7 @@ impl<'a, A: time::Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SI7021<'a, A,
             }
             State::GotTempMeasurement => {
                 // Temperature in hundredths of degrees centigrade
-                let temp_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
+                let temp_raw = ((buffer[0] as u32) << 8) | (buffer[1] as u32);
                 let temp = ((temp_raw * 17572) / 65536) as i32 - 4685;
 
                 self.temp_callback.map(|cb| cb.callback(Ok(temp)));
@@ -221,7 +221,7 @@ impl<'a, A: time::Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SI7021<'a, A,
             }
             State::GotRhMeasurement => {
                 // Humidity in hundredths of percent
-                let humidity_raw = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as u32;
+                let humidity_raw = ((buffer[0] as u32) << 8) | (buffer[1] as u32);
                 let humidity = (((humidity_raw * 125 * 100) / 65536) - 600) as u16;
 
                 self.humidity_callback

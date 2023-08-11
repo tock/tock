@@ -205,7 +205,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
             self.registers.cs.modify(CS::AINSEL.val(*channel as u32));
             self.registers
                 .fcs
-                .modify(FCS::THRESH.val(1 as u32) + FCS::EN::SET);
+                .modify(FCS::THRESH.val(1_u32) + FCS::EN::SET);
             self.enable_interrupt();
             self.registers.cs.modify(CS::START_ONCE::SET);
             Ok(())

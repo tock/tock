@@ -245,7 +245,7 @@ impl Compress for AppCheckerSha256 {
     // Note that since these identifiers are only 31 bits, they do not
     // provide sufficient collision resistance to verify a unique identity.
     fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
-        let id: u32 = 0x8000000 as u32
+        let id: u32 = 0x8000000_u32
             | (credentials.data()[0] as u32) << 24
             | (credentials.data()[1] as u32) << 16
             | (credentials.data()[2] as u32) << 8
@@ -373,7 +373,7 @@ impl Compress for AppCheckerRsaSimulated<'_> {
         if data.len() < 4 {
             return ShortID::LocallyUnique;
         }
-        let id: u32 = 0x8000000 as u32
+        let id: u32 = 0x8000000_u32
             | (data[0] as u32) << 24
             | (data[1] as u32) << 16
             | (data[2] as u32) << 8

@@ -29,6 +29,7 @@ CLIPPY_ARGS="
 -D clippy::needless_return
 -D clippy::unnecessary_mut_passed
 -D clippy::empty_line_after_outer_attr
+-D clippy::unnecessary_cast
 -D clippy::default_trait_access
 -D clippy::map_unwrap_or
 -D clippy::wildcard_imports

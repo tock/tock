@@ -946,7 +946,7 @@ impl<'a> I2CHw<'a> {
         if self.dma.is_some() {
             self.dma.map(move |dma| {
                 dma.enable();
-                dma.prepare_transfer(self.dma_pids.1, data, len as usize);
+                dma.prepare_transfer(self.dma_pids.1, data, len);
                 self.setup_transfer(twim, chip, flags, Command::READ::Transmit, len);
                 self.master_enable(twim);
                 dma.start_transfer();
@@ -968,7 +968,7 @@ impl<'a> I2CHw<'a> {
         if self.dma.is_some() {
             self.dma.map(move |dma| {
                 dma.enable();
-                dma.prepare_transfer(self.dma_pids.0, data, len as usize);
+                dma.prepare_transfer(self.dma_pids.0, data, len);
                 self.setup_transfer(twim, chip, flags, Command::READ::Receive, len);
                 self.master_enable(twim);
                 dma.start_transfer();
@@ -990,7 +990,7 @@ impl<'a> I2CHw<'a> {
         if self.dma.is_some() {
             self.dma.map(move |dma| {
                 dma.enable();
-                dma.prepare_transfer(self.dma_pids.1, data, split as usize);
+                dma.prepare_transfer(self.dma_pids.1, data, split);
                 self.setup_transfer(
                     twim,
                     chip,
@@ -1005,7 +1005,7 @@ impl<'a> I2CHw<'a> {
                     Command::READ::Receive,
                     read_len,
                 );
-                self.on_deck.set(Some((self.dma_pids.0, read_len as usize)));
+                self.on_deck.set(Some((self.dma_pids.0, read_len)));
                 dma.start_transfer();
             });
             Ok(())
@@ -1152,8 +1152,7 @@ impl<'a> I2CHw<'a> {
 
                         if len > idx {
                             self.slave_write_buffer.map(|buffer| {
-                                buffer[idx as usize] =
-                                    twis.registers.rhr.read(ReceiveHolding::RXDATA) as u8;
+                                buffer[idx] = twis.registers.rhr.read(ReceiveHolding::RXDATA) as u8;
                             });
                             self.slave_write_buffer_index.set(idx + 1);
                         } else {
@@ -1182,9 +1181,9 @@ impl<'a> I2CHw<'a> {
 
                         if len > idx {
                             self.slave_read_buffer.map(|buffer| {
-                                twis.registers.thr.write(
-                                    TransmitHolding::TXDATA.val(buffer[idx as usize] as u32),
-                                );
+                                twis.registers
+                                    .thr
+                                    .write(TransmitHolding::TXDATA.val(buffer[idx] as u32));
                             });
                             self.slave_read_buffer_index.set(idx + 1);
                         } else {
@@ -1218,7 +1217,7 @@ impl<'a> I2CHw<'a> {
 
                             if len > idx {
                                 self.slave_write_buffer.map(|buffer| {
-                                    buffer[idx as usize] =
+                                    buffer[idx] =
                                         twis.registers.rhr.read(ReceiveHolding::RXDATA) as u8;
                                 });
                                 self.slave_write_buffer_index.set(idx + 1);

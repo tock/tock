@@ -363,7 +363,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
         // encoding of a_len:
         if a_data.len() == 0 {
             // L(a) is empty, and the Adata flag is zero
-        } else if a_data.len() < 0xff00 as usize {
+        } else if a_data.len() < 0xff00_usize {
             // L(a) is l(a) in 2 bytes of little-endian
             off = enc_consume!(buf, off; encode_u16,
                                          (a_data.len() as u16).to_le());

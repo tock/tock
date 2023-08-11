@@ -59,7 +59,7 @@ fn crc8(data: &[u8]) -> u8 {
     let mut crc = 0xff;
 
     for x in 0..data.len() {
-        crc ^= data[x as usize] as u8;
+        crc ^= data[x];
         for _i in 0..8 {
             if (crc & 0x80) != 0 {
                 crc = crc << 1 ^ polynomial;

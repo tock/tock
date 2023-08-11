@@ -701,7 +701,7 @@ impl Descriptor for EndpointDescriptor {
         // The below implicitly sets Synchronization Type to "No Synchronization" and
         // Usage Type to "Data endpoint"
         buf[3].set(self.transfer_type as u8);
-        put_u16(&buf[4..6], self.max_packet_size & 0x7ff as u16);
+        put_u16(&buf[4..6], self.max_packet_size & 0x7ff_u16);
         buf[6].set(self.interval);
         len
     }

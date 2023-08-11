@@ -8,7 +8,6 @@ use core::str;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
-use rv32i;
 
 use crate::CHIP;
 use crate::PROCESSES;

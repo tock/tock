@@ -177,7 +177,7 @@ impl<'a> Touch<'a> {
                 }
                 ScreenRotation::Rotated270 => {
                     mem::swap(&mut width, &mut height);
-                    (width as u16 - touch_event.y as u16, touch_event.x)
+                    (width as u16 - touch_event.y, touch_event.x)
                 }
                 _ => (touch_event.x, touch_event.y),
             };

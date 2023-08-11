@@ -489,8 +489,8 @@ fn load_process<C: Chip>(
                     index,
                     entry_flash.as_ptr() as usize,
                     entry_flash.as_ptr() as usize + entry_flash.len() - 1,
-                    process.get_addresses().sram_start as usize,
-                    process.get_addresses().sram_end as usize - 1,
+                    process.get_addresses().sram_start ,
+                    process.get_addresses().sram_end  - 1,
                     process.get_process_name()
                 );
             }
