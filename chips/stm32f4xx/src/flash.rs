@@ -36,9 +36,9 @@
 //! debug!("Current flash latency is {}", flash_latency);
 //! ```
 
-use crate::chip_specific::flash_specific::FlashLatency;
-use crate::chip_specific::flash_specific::get_number_wait_cycles_based_on_frequency;
 use crate::chip_specific::flash_specific::convert_register_to_enum;
+use crate::chip_specific::flash_specific::get_number_wait_cycles_based_on_frequency;
+use crate::chip_specific::flash_specific::FlashLatency;
 
 use kernel::debug;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -61,9 +61,7 @@ struct FlashRegisters {
     /// Flash option control register
     optcr: ReadWrite<u32, OPTCR::Register>,
     /// Flash option control register 1
-    #[cfg(any(
-        feature = "stm32f429",
-    ))]
+    #[cfg(any(feature = "stm32f429",))]
     optcr1: ReadWrite<u32>,
 }
 
@@ -285,15 +283,9 @@ pub mod tests {
     const APB2_MAX_FREQUENCY_MHZ_3: usize = 100;
     // Many STM32F4 chips allow a maximum frequency of 168MHz and some of them 180MHz if overdrive
     // is turned on
-    #[cfg(not(any(
-        feature = "stm32f401",
-        feature = "stm32f412",
-    )))] // Not needed for these chips
+    #[cfg(not(any(feature = "stm32f401", feature = "stm32f412",)))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ: usize = 168;
-    #[cfg(not(any(
-        feature = "stm32f401",
-        feature = "stm32f412",
-    )))] // Not needed for these chips
+    #[cfg(not(any(feature = "stm32f401", feature = "stm32f412",)))] // Not needed for these chips
     const SYS_MAX_FREQUENCY_OVERDRIVE_MHZ: usize = 180;
     // Default PLL frequency
     #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
@@ -360,10 +352,8 @@ pub mod tests {
             );
         }
 
-        #[cfg(not(any(
-            feature = "stm32f401",
-            feature = "stm32f412",
-        )))] // Not needed for these chips
+        #[cfg(not(any(feature = "stm32f401", feature = "stm32f412",)))]
+        // Not needed for these chips
         {
             assert_eq!(
                 FlashLatency::Latency5,
@@ -431,10 +421,7 @@ pub mod tests {
         // Low entries STM32F4 chips don't support frequencies higher than 100 MHz,
         // but the foundation and advanced ones support system clock frequencies up to
         // 180MHz
-        #[cfg(not(any(
-            feature = "stm32f401",
-            feature = "stm32f412",
-        )))]
+        #[cfg(not(any(feature = "stm32f401", feature = "stm32f412",)))]
         {
             assert_eq!(
                 Ok(()),
