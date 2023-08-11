@@ -36,7 +36,7 @@ participate in the call. Other people may be invited to participate to
 help contribute to particular topics or on-going discussions. The
 working group chair decides who beyond the working group members may
 participate in the call.
-
+Those looking to engage with the working group are encouraged to join the `#network-working-group` channel on the [Tock slack](https://github.com/tock/tock/#keep-up-to-date).
 The working group publishes detailed notes of its calls. These will be
 posted within a week of a call. This delay is to give participants an
 opportunity to correct any errors or better explain points that came up.
