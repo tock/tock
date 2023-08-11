@@ -71,6 +71,11 @@ attributes.
 
 ## TLVs
 
+The TLV types used for kernel attributes are unrelated to the TLV types used for
+the [Tock Binary Format](./doc/TockBinaryFormat.md#tlv-types). However, to
+minimize possible confusion, type values for each should not use the same
+numbers.
+
 ### App Memory (0x0101)
 
 Specifies the region of memory the kernel will use for applications.
