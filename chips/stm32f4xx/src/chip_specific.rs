@@ -27,14 +27,9 @@ pub mod clock_constants {
     }
 
     /// Maximum allowed APB1 frequency in MHz
-    pub const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
-        feature = "stm32f412",
-    )) {
+    pub const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(feature = "stm32f412",)) {
         50
-    } else if cfg!(any(
-        feature = "stm32f429",
-        feature = "stm32f446",
-    )) {
+    } else if cfg!(any(feature = "stm32f429", feature = "stm32f446",)) {
         45
     } else {
         //feature = "stm32f401",
@@ -46,14 +41,9 @@ pub mod clock_constants {
     pub const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
 
     /// Maximum allowed system clock frequency in MHz
-    pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(
-        feature = "stm32f412",
-    )) {
+    pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(feature = "stm32f412",)) {
         100
-    } else if cfg!(any(
-        feature = "stm32f429",
-        feature = "stm32f446",
-    )) {
+    } else if cfg!(any(feature = "stm32f429", feature = "stm32f446",)) {
         // TODO: Some of these models support overdrive model. Change this constant when overdrive support
         // is added.
         168
@@ -114,11 +104,10 @@ pub mod flash_specific {
     //
     // The number of wait states varies from chip to chip.
     pub(crate) fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> FlashLatency {
-        #[cfg(any(
-            feature = "stm32f401",
-            feature = "stm32f429",
-            feature = "stm32f446",
-        ))]
+        // feature = "stm32f401"
+        // feature = "stm32f429"
+        // feature = "stm32f446"
+        #[cfg(not(feature = "stm32f412"))]
         {
             match frequency_mhz {
                 0..=30 => FlashLatency::Latency0,
