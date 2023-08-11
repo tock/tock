@@ -113,18 +113,10 @@ pub struct CanCapsule<'a, Can: can::Can> {
     peripheral_state: OptionalCell<can::State>,
 }
 
+#[derive(Default)]
 pub struct App {
     receive_index: usize,
     lost_messages: u32,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            receive_index: 0,
-            lost_messages: 0,
-        }
-    }
 }
 
 impl<'a, Can: can::Can> CanCapsule<'a, Can> {
@@ -318,7 +310,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                                         Ok(_) => CommandReturn::success(),
                                         Err((err, _)) => CommandReturn::failure(err),
                                     },
-                                    Err(err) => CommandReturn::failure(err.into()),
+                                    Err(err) => CommandReturn::failure(err),
                                 }
                             })
                             .unwrap_or_else(|err| err.into())

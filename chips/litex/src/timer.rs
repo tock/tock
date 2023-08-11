@@ -80,7 +80,7 @@ pub struct LiteXTimerRegisters<R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXTimerRegisters<R> {
-    fn ev<'a>(&'a self) -> LiteXTimerEV<'a, R> {
+    fn ev(&self) -> LiteXTimerEV<'_, R> {
         LiteXTimerEV::<R>::new(&self.ev_status, &self.ev_pending, &self.ev_enable)
     }
 }

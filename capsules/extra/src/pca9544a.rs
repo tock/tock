@@ -228,16 +228,16 @@ impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
             0 => CommandReturn::success(),
 
             // Select channels.
-            1 => self.select_channels(data as u8).into(),
+            1 => self.select_channels(data as u8),
 
             // Disable all channels.
-            2 => self.select_channels(0).into(),
+            2 => self.select_channels(0),
 
             // Read the current interrupt fired mask.
-            3 => self.read_interrupts().into(),
+            3 => self.read_interrupts(),
 
             // Read the current selected channels.
-            4 => self.read_selected_channels().into(),
+            4 => self.read_selected_channels(),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

@@ -113,7 +113,7 @@ impl<'a> Touch<'a> {
     fn touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app, _| if app.touch_enable { true } else { false }) {
+            if app.enter(|app, _| app.touch_enable) {
                 enabled = true;
                 break;
             }
@@ -145,7 +145,7 @@ impl<'a> Touch<'a> {
     fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app, _| if app.multi_touch_enable { true } else { false }) {
+            if app.enter(|app, _| app.multi_touch_enable) {
                 enabled = true;
                 break;
             }
@@ -255,7 +255,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                     };
 
                                     for event_index in 0..num {
-                                        let mut event = touch_events[event_index].clone();
+                                        let mut event = touch_events[event_index];
                                         self.update_rotation(&mut event);
                                         let event_status = touch_status_to_number(&event.status);
                                         // debug!(

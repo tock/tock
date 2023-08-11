@@ -63,20 +63,10 @@ CLIPPY_ARGS_COMPLEXITY="
 
 
 -A clippy::unnecessary_cast
--A clippy::extra_unused_lifetimes
 -A clippy::unnecessary_unwrap
 -A clippy::needless_lifetimes
--A clippy::useless_conversion
--A clippy::precedence
--A clippy::redundant_slicing
--A clippy::derivable_impls
--A clippy::char_lit_as_u8
--A clippy::needless_bool
--A clippy::useless_asref
--A clippy::clone-on-copy
 -A clippy::explicit_auto_deref
 -A clippy::explicit_counter_loop
--A clippy::manual_unwrap_or
 -A clippy::borrow_deref_ref
 -A clippy::overflow_check_conditional
 -A clippy::needless-match

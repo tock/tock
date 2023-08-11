@@ -373,7 +373,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     .iter()
                     .take(8)
                     .enumerate()
-                    .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << i * 8));
+                    .fold(0u64, |rid, (i, b)| rid | ((*b as u64) << (i * 8)));
                 self.buffer.replace(buffer);
 
                 self.client.map(|client| {

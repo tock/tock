@@ -270,7 +270,7 @@ impl<'a> SpiHost<'a> {
                         if self.rx_offset.get() >= self.rx_len.get() {
                             break;
                         }
-                        val8 = ((val32 & shift_mask) >> i * 8) as u8;
+                        val8 = ((val32 & shift_mask) >> (i * 8)) as u8;
                         if let Some(ptr) = rx_buf.get_mut(self.rx_offset.get()) {
                             *ptr = val8;
                         } else {

@@ -361,11 +361,7 @@ impl CortexMRegion {
             None => return false,
         };
 
-        if region_start < other_end && other_start < region_end {
-            true
-        } else {
-            false
-        }
+        region_start < other_end && other_start < region_end
     }
 }
 

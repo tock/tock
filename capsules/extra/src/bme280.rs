@@ -53,7 +53,7 @@ enum Operation {
     Humidity,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Default)]
 struct CalibrationData {
     temp1: u16,
     temp2: u16,
@@ -75,33 +75,6 @@ struct CalibrationData {
     hum4: u16,
     hum5: u16,
     hum6: u16,
-}
-
-impl Default for CalibrationData {
-    fn default() -> Self {
-        CalibrationData {
-            temp1: 0,
-            temp2: 0,
-            temp3: 0,
-
-            press1: 0,
-            press2: 0,
-            press3: 0,
-            press4: 0,
-            press5: 0,
-            press6: 0,
-            press7: 0,
-            press8: 0,
-            press9: 0,
-
-            hum1: 0,
-            hum2: 0,
-            hum3: 0,
-            hum4: 0,
-            hum5: 0,
-            hum6: 0,
-        }
-    }
 }
 
 pub struct Bme280<'a> {

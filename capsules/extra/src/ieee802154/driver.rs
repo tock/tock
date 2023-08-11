@@ -43,19 +43,10 @@ mod rw_allow {
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 struct DeviceDescriptor {
     short_addr: u16,
     long_addr: [u8; 8],
-}
-
-impl Default for DeviceDescriptor {
-    fn default() -> Self {
-        DeviceDescriptor {
-            short_addr: 0,
-            long_addr: [0; 8],
-        }
-    }
 }
 
 /// The Key ID mode mapping expected by the userland driver
@@ -879,7 +870,7 @@ impl SyscallDriver for RadioDriver<'_> {
                         |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
                             Ok(_) => self.do_next_tx_sync(processid).into(),
-                            Err(e) => CommandReturn::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e),
                         },
                     )
             }
