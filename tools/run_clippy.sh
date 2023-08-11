@@ -39,12 +39,13 @@ CLIPPY_ARGS="
 #
 # There are three sections:
 # 1. The first section are lints we almost certainly don't want.
-# 2. The section section are lints we may not want, we probably have to see the
+# 2. The second section are lints we may not want, we probably have to see the
 #    resulting diff.
 # 3. The third section are lints that we do want we just need to fixup the code
 #    to pass the lint checks.
 CLIPPY_ARGS_COMPLEXITY="
 -D clippy::complexity
+
 -A clippy::too_many_arguments
 -A clippy::type_complexity
 -A clippy::option_map_unit_fn
@@ -86,12 +87,13 @@ CLIPPY_ARGS_COMPLEXITY="
 #
 # There are three sections:
 # 1. The first section are lints we almost certainly don't want.
-# 2. The section section are lints we may not want, we probably have to see the
+# 2. The second section are lints we may not want, we probably have to see the
 #    resulting diff.
 # 3. The third section are lints that we do want we just need to fixup the code
 #    to pass the lint checks.
 CLIPPY_ARGS_STYLE="
 -D clippy::style
+
 -A clippy::blocks-in-if-conditions
 -A clippy::collapsible_else_if
 -A clippy::collapsible_if
