@@ -2,7 +2,7 @@ Network Working Group (NWG)
 =================================
 
 - Working Group Charter
-- Adopted 7/28/2023
+- Adopted 8/11/2023
 
 ## Goals
 
