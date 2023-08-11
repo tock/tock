@@ -29,6 +29,8 @@ use self::Shortcut::RXREADY_CCASTART;
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
 
+const ACK_FLAG: u8 = 0b00100000;
+
 pub const IEEE802154_PAYLOAD_LENGTH: usize = 255;
 pub const IEEE802154_BACKOFF_PERIOD: usize = 320; //microseconds = 20 symbols
 pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
@@ -690,14 +692,14 @@ pub struct Radio<'a> {
     cca_be: Cell<u8>,
     random_nonce: Cell<u32>,
     channel: Cell<RadioChannel>,
-    transmitting: Cell<bool>,
     timer0: OptionalCell<&'a crate::timer::TimerAlarm<'a>>,
-    sending_ack: Cell<bool>,
-    state: Cell<RadioState>, //should this be different so that forced to take/replace?
+    state: Cell<RadioState>,
 }
 
 impl<'a> AlarmClient for Radio<'a> {
     fn alarm(&self) {
+        // This alarm function is the callback for when the CCA backoff alarm completes
+        // Attempt a new CCA period by issuesing CCASTART task
         self.registers.task_ccastart.write(Task::ENABLE::SET);
     }
 }
@@ -726,9 +728,7 @@ impl<'a> Radio<'a> {
             cca_be: Cell::new(0),
             random_nonce: Cell::new(0xDEADBEEF),
             channel: Cell::new(RadioChannel::DataChannel26),
-            transmitting: Cell::new(false),
             timer0: OptionalCell::empty(),
-            sending_ack: Cell::new(false),
             state: Cell::new(RadioState::OFF),
         }
     }
@@ -746,7 +746,8 @@ impl<'a> Radio<'a> {
     fn rx(&self) {
         self.state.set(RadioState::RX);
 
-        let rbuf = self.rx_buf.take().unwrap(); // Unwrap fail = Radio RX Buffer produced an invalid result when setting the DMA pointer.
+        // Unwrap fail = Radio RX Buffer produced an invalid result when setting the DMA pointer.
+        let rbuf = self.rx_buf.take().unwrap();
         self.rx_buf.replace(self.set_dma_ptr(rbuf));
 
         self.registers.shorts.write(Shortcut::READY_START::SET);
@@ -795,7 +796,9 @@ impl<'a> Radio<'a> {
         }
     }
 
-    // TODO: Theres an additional step for 802154 rx/tx handling
+    // TODO: RECEIVING ACK FOR A SENT TX IS NOT IMPLEMENTED //
+    // As a general note for the interrupt handler, event registers must still be cleared even when
+    // hardware shortcuts are enabled.
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         self.disable_all_interrupts();
@@ -804,6 +807,7 @@ impl<'a> Radio<'a> {
         let mut rx_init = false;
 
         match self.state.get() {
+            // It should not be possible to receive an interrupt while the tracked radio state is OFF
             RadioState::OFF => panic!("Received interrupt while off"),
             RadioState::RX => {
                 // Enforce READY_START shortcut enablement if radio is receiving
@@ -814,55 +818,66 @@ impl<'a> Radio<'a> {
                 // Since READY_START shortcut enabled, always clear READY event
                 self.registers.event_ready.write(Event::READY::CLEAR);
 
-                // Completed receiving a packet
+                // Completed receiving a packet, now determine if we need to send ACK
                 if self.registers.event_end.is_set(Event::READY) {
-                    // Clear event
                     self.registers.event_end.write(Event::READY::CLEAR);
                     let result = self.crc_check();
 
-                    self.rx_client.map(|client| {
-                        let rbuf = self.rx_buf.take().unwrap(); // Unwrap fail = RX Buffer produced error when sending received packet to requestor
+                    // Unwrap fail = RX Buffer produced error when sending received packet to requestor
+                    let rbuf = self.rx_buf.take().unwrap();
 
-                        let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
-                        // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                        // And because the length field is directly read from the packet
-                        // We need to add 2 to length to get the total length
+                    let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
+                    // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                    // And because the length field is directly read from the packet
+                    // We need to add 2 to length to get the total length
 
-                        if rbuf[2] & 0b00100000 != 0 {
-                            let _ = self
-                                .ack_buf
-                                .take()
-                                .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
-                                    let mut ack_buf_send = [18, 0, 0];
-                                    let sequence_counter = rbuf[4];
-                                    ack_buf_send[2] = sequence_counter;
-                                    ack_buf[2..5].copy_from_slice(&ack_buf_send);
-                                    self.sending_ack.set(true);
-                                    self.state.set(RadioState::ACK);
-                                    self.rx_buf.replace(rbuf);
-                                    if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
-                                        self.ack_buf.replace(ret_buf);
-                                        self.sending_ack.set(false);
-                                        self.state.set(RadioState::RX);
-                                        // self.registers.task_start.write(Task::ENABLE::SET);
-                                        start_task = true;
-                                    };
+                    // 6th bit in 2nd byte of received 15.4 packet determines if sender requested ACK
+                    if rbuf[2] & ACK_FLAG != 0 {
+                        self.ack_buf
+                            .take()
+                            .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
+                                // Entered ACK state //
+                                self.state.set(RadioState::ACK);
+
+                                // 4th byte of received packet is 15.4 sequence counter
+                                let sequence_counter = rbuf[4];
+
+                                // The frame control field is hardcoded for now; this is the
+                                // only possible type of ACK currently supported so it is reasonable to hardcode this
+                                let ack_buf_send = [2, 0, sequence_counter];
+
+                                // Copy constructed packet into ACK buffer; first two bytes
+                                // left empty for MIMIC_PSDU_OFFSET (see other comments)
+                                ack_buf[2..5].copy_from_slice(&ack_buf_send);
+                                self.rx_buf.replace(rbuf);
+
+                                // If the transmit function fails, return the buffer and return an error
+                                if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
+                                    self.ack_buf.replace(ret_buf);
+                                    Err(ErrorCode::FAIL)
+                                } else {
                                     Ok(())
-                                });
-                        } else {
-                            // Radio returns to receiving state, listening for new packets
-                            // self.registers.task_start.write(Task::ENABLE::SET);
+                                }
+                            })
+                            .unwrap_or_else(|_| {
+                                // If sending the ACK buffer failed, we must reset the radio to a receive state
+                                self.state.set(RadioState::RX);
+                                start_task = true;
+                            });
+                    } else {
+                        // Packet received that does not require an ACK
+                        // Pass received packet to client and return radio to general
+                        // receiving state to listen for new packets
+                        self.rx_client.map(|client| {
                             start_task = true;
-
-                            // edge cases not yet handled here
                             client.receive(
                                 rbuf,
                                 frame_len,
                                 self.registers.crcstatus.get() == 1,
                                 result,
                             );
-                        }
-                    });
+                        });
+                    }
                 }
             }
             RadioState::TX => {
@@ -875,16 +890,22 @@ impl<'a> Radio<'a> {
                     panic!("Incorrect shortcut configuration for TX")
                 }
 
+                // Handle Event_ready interrupt. The TX path performs both a TX ramp up and
+                // an RX ramp up. This means that there are two potential cases we must handle.
+                // The ready event due to the Rx Ramp up shortcuts to the CCASTART while the ready
+                // event due to the Tx ramp up requires we issue a start task in response to progress
+                // the state machine.
                 if self.registers.event_ready.is_set(Event::READY) {
+                    // In both cases, we must clear event
                     self.registers.event_ready.write(Event::READY::CLEAR);
 
+                    // Ready event from Tx ramp up will be in radio internal TXIDLE state
                     if self.registers.state.get() == nrf5x::constants::RADIO_STATE_TXIDLE {
-                        // self.registers.task_start.write(Task::ENABLE::SET);
                         start_task = true;
                     }
                 }
 
-                /*THIS SECTION NEEDS TO BE REWRITTEN --> */
+                // Handle CCA related interrupts.
                 if self.registers.event_ccabusy.is_set(Event::READY) {
                     self.registers.event_ccabusy.write(Event::READY::CLEAR);
 
@@ -906,30 +927,31 @@ impl<'a> Radio<'a> {
                                 ),
                             );
                     } else {
-                        //if we are transmitting, the CRCstatus check is always going to be an error
+                        // We have exceeded the IEEE802154_MAX_POLLING_ATTEMPTS and should
+                        // fail the transmission/return buffer to sending client
+
                         let result = Err(ErrorCode::BUSY);
-                        //TODO: Acked is flagged as false until I get around to fixing it.
+                        //TODO: Acked is hardcoded to always return false; add support to receive tx ACK
                         self.tx_client.map(|client| {
-                            let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after the channel was busy.
+                            // Unwrap fail = TX Buffer produced error when sending it back to the requestor after the channel was busy
+                            let tbuf = self.tx_buf.take().unwrap();
                             client.send_done(tbuf, false, result);
                         });
                         rx_init = true;
                     }
                 }
-                /* <-- THIS SECTION NEEDS TO BE REWRITTEN */
 
+                // End event received; The TX is now finished and we need to notify the sending client
                 if self.registers.event_end.is_set(Event::READY) {
                     self.registers.event_end.write(Event::READY::CLEAR);
                     let result = Ok(());
 
-                    //TODO: Acked is flagged as false until I get around to fixing it.
+                    //TODO: Acked is hardcoded to always return false; add support to receive tx ACK
                     self.tx_client.map(|client| {
-                        let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
-
+                        // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
+                        let tbuf = self.tx_buf.take().unwrap();
                         client.send_done(tbuf, false, result);
                     });
-
-                    // self.rx();
                     rx_init = true;
                 }
             }
@@ -944,20 +966,24 @@ impl<'a> Radio<'a> {
 
                 // Completed sending ACK
                 if self.registers.event_end.is_set(Event::READY) {
-                    // Clear event
                     self.registers.event_end.write(Event::READY::CLEAR);
-                    let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
+
+                    // Unwrap fail = TX Buffer produced error when sending it back to the requestor after successful transmission.
+                    let tbuf = self.tx_buf.take().unwrap();
 
                     // We must replace the ACK buffer that was passed to tx_buf
                     self.ack_buf.replace(tbuf);
 
                     // Reset radio to proper receiving state
-                    // self.rx();r
                     rx_init = true;
 
-                    // Update receive client
+                    // Notify receive client of packet. The client.receive(...) function has been moved
+                    // here to optimize the time taken to send an ACK. If the receive function was called in the
+                    // RX state handler, there is a non deterministic time required to complete the function as it may
+                    // be passed up the entirety of the networking stack (leading to ACK timeout being exceeded).
                     self.rx_client.map(|client| {
-                        let rbuf = self.rx_buf.take().unwrap(); // Unwrap fail = RX Buffer produced error when sending received packet to requestor
+                        // Unwrap fail = RX Buffer produced error when sending received packet to requestor
+                        let rbuf = self.rx_buf.take().unwrap();
 
                         let result = self.crc_check();
                         let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
@@ -965,7 +991,6 @@ impl<'a> Radio<'a> {
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
 
-                        // edge cases not yet handled here
                         client.receive(
                             rbuf,
                             frame_len,
@@ -977,6 +1002,10 @@ impl<'a> Radio<'a> {
             }
         }
 
+        // Enabling hardware shortcuts allows for a much faster operation. However, this can also lead
+        // to race conditions and strange edge cases. Namely, if a task_start or rx_en is set while interrupts are disabled,
+        // the event_end interrupt can be "missed" and the interrupt handler will not be called. If the event is missed, the state
+        // machine is unable to progress and the driver enters a deadlock
         self.enable_interrupts();
         if rx_init {
             self.rx();
@@ -1008,13 +1037,6 @@ impl<'a> Radio<'a> {
     fn radio_initialize(&self) {
         self.radio_on();
 
-        // what is the purpose of this?
-        // Radio disable
-        // self.registers.event_disabled.set(0);
-        // self.registers.task_disable.write(Task::ENABLE::SET);
-        // while self.registers.event_disabled.get() == 0 {}
-        // end radio disable
-
         // CONFIGURE RADIO //
         self.ieee802154_set_channel_rate();
 
@@ -1032,8 +1054,6 @@ impl<'a> Radio<'a> {
 
         self.set_tx_address();
         self.set_rx_address();
-
-        self.registers.event_ready.write(Event::READY::CLEAR);
 
         // Begin receiving procedure
         self.enable_interrupts();
@@ -1141,11 +1161,18 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
     fn stop(&self) -> Result<(), ErrorCode> {
         self.radio_off();
+        self.state.set(RadioState::OFF);
         Ok(())
     }
     fn is_on(&self) -> bool {
-        true
+        if self.registers.power.is_set(Task::ENABLE) {
+            return true;
+        } else {
+            return false;
+        }
     }
+
+    // Previous driver implementation //
     fn busy(&self) -> bool {
         false
     }
@@ -1256,7 +1283,9 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.tx_buf.is_some() || self.transmitting.get() {
+        if self.tx_buf.is_some() {
+            // tx_buf TakeCell is only occupied when a transmission is underway. This
+            // check insures we do not interrupt an ungoing transmission
             return Err((ErrorCode::BUSY, buf));
         } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
             // Not enough room for CRC
@@ -1268,14 +1297,17 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         }
 
         buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
-        self.tx_buf.replace(buf);
 
-        let tbuf = self.tx_buf.take().unwrap(); // Unwrap fail = Radio RX Buffer produced an invalid result when setting the DMA pointer.
-        self.tx_buf.replace(self.set_dma_ptr(tbuf));
+        // The tx_buf does not possess static memory. This buffer only temporarily holds
+        // a reference to another buffer passed as a function argument. The tx_buf holds
+        // ownership of this buffer until it is returned through the send_done(...) function
+        self.tx_buf.replace(self.set_dma_ptr(buf));
 
+        // The transmit function handles sending both ACK and standard packets
         if let RadioState::ACK = self.state.get() {
             self.registers.task_txen.write(Task::ENABLE::SET);
         } else {
+            // Configure radio for standard packet TX
             self.state.set(RadioState::TX);
             self.registers.shorts.write(
                 Shortcut::DISABLED_RXEN::SET
