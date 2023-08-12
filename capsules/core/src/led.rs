@@ -98,7 +98,7 @@ impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_
             // get number of LEDs
             // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
             // but this driver is unchanged since it has been stabilized. It will be brought into
-            // compliance as part of the next major release of Tock.
+            // compliance as part of the next major release of Tock. See #3375.
             0 => CommandReturn::success_u32(NUM_LEDS as u32),
 
             // on

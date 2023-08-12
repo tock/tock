@@ -142,7 +142,7 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
     ///
     /// ### `command_type`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Send the allowed buffer to the nRF.
     /// - `2`: Received from the nRF into the allowed buffer.
     /// - `3`: Reset the nRF51822.

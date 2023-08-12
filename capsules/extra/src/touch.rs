@@ -339,11 +339,8 @@ impl<'a> SyscallDriver for Touch<'a> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 =>
-            // This driver exists.
-            {
-                CommandReturn::success()
-            }
+            // driver existence check
+            0 => CommandReturn::success(),
 
             // touch enable
             1 => {

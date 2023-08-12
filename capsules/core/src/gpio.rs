@@ -178,7 +178,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Number of pins.
+    /// - `0`: Driver existence check.
     /// - `1`: Enable output on `pin`.
     /// - `2`: Set `pin`.
     /// - `3`: Clear `pin`.
@@ -188,6 +188,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
+    /// - `10`: Get number of GPIO ports supported.
     fn command(
         &self,
         command_num: usize,
@@ -198,8 +199,8 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
         let pins = self.pins;
         let pin_index = data1;
         match command_num {
-            // number of pins
-            0 => CommandReturn::success_u32(pins.len() as u32),
+            // Check existence.
+            0 => CommandReturn::success(),
 
             // enable output
             1 => {
@@ -330,6 +331,9 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
                     }
                 }
             }
+
+            // number of pins
+            10 => CommandReturn::success_u32(pins.len() as u32),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

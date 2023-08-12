@@ -254,7 +254,7 @@ impl SyscallDriver for Console<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     /// - `2`: Receives into a buffer passed via `allow`, up to the length

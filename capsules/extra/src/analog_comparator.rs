@@ -118,7 +118,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Perform a simple comparison.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
@@ -128,6 +128,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
     /// - `3`: Stop interrupt-based comparisons.
     ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
     ///        hail, 0-3 for imix)
+    /// - `4`: Get number of channels.
     fn command(
         &self,
         command_num: usize,
@@ -136,8 +137,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
         processid: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned unconditionally.
-            return CommandReturn::success_u32(self.channels.len() as u32);
+            // Handle unconditional driver existence check.
+            return CommandReturn::success();
         }
 
         // Check if this driver is free, or already dedicated to this process.
@@ -163,6 +164,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
             2 => self.start_comparing(channel).into(),
 
             3 => self.stop_comparing(channel).into(),
+
+            4 => CommandReturn::success_u32(self.channels.len() as u32),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

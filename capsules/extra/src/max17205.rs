@@ -522,7 +522,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Read the current status of the MAX17205.
     /// - `2`: Read the current state of charge percent.
     /// - `3`: Read the current voltage and current draw.

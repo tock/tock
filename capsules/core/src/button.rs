@@ -36,7 +36,7 @@
 //!
 //! #### `command_num`
 //!
-//! - `0`: Driver check and get number of buttons on the board.
+//! - `0`: Driver existence check and get number of buttons on the board.
 //! - `1`: Enable interrupts for a given button. This will enable both press
 //!   and depress events.
 //! - `2`: Disable interrupts for a button. No affect or reliance on
@@ -138,7 +138,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check and get number of buttons on the board.
+    /// - `0`: Driver existence check and get number of buttons on the board.
     /// - `1`: Enable interrupts for a given button. This will enable both press
     ///   and depress events.
     /// - `2`: Disable interrupts for a button. No affect or reliance on
@@ -156,7 +156,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // return button count
             // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
             // but this driver is unchanged since it has been stabilized. It will be brought into
-            // compliance as part of the next major release of Tock.
+            // compliance as part of the next major release of Tock. See #3375.
             0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable interrupts for a button
