@@ -293,6 +293,10 @@ impl<'a> TimerAlarm<'a> {
         });
     }
 
+    pub fn get_current_time(&self) -> hil::time::Ticks32 {
+        self.now()
+    }
+
     fn enable_interrupts(&self) {
         self.registers.intenset.write(Inte::COMPARE1::SET);
     }
@@ -308,10 +312,6 @@ impl<'a> TimerAlarm<'a> {
     fn value(&self) -> u32 {
         self.registers.tasks_capture[CC_CAPTURE].write(Task::ENABLE::SET);
         self.registers.cc[CC_CAPTURE].get()
-    }
-
-    pub fn get_current_time(&self) -> hil::time::Ticks32 {
-        self.now()
     }
 }
 
