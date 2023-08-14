@@ -4,6 +4,7 @@
 
 //! IEEE 802.15.4 radio driver for nRF52
 
+use crate::timer::TimerAlarm;
 use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
@@ -700,7 +701,7 @@ pub struct Radio<'a> {
     cca_be: Cell<u8>,
     random_nonce: Cell<u32>,
     channel: Cell<RadioChannel>,
-    timer0: OptionalCell<&'a crate::timer::TimerAlarm<'a>>,
+    timer0: OptionalCell<&'a TimerAlarm<'a>>,
     state: Cell<RadioState>,
 }
 
@@ -1174,9 +1175,9 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
     fn is_on(&self) -> bool {
         if self.registers.power.is_set(Task::ENABLE) {
-            return true;
+            true
         } else {
-            return false;
+            false
         }
     }
 
