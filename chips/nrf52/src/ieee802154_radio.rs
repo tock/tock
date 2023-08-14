@@ -20,11 +20,19 @@ use nrf5x::constants::TxPower;
 
 use self::Shortcut::RXREADY_CCASTART;
 
-// This driver has some significant flaws -- no ACK support, power cycles
-// the radio after every transmission or reception,
-// doesn't always check hardware for errors and instead defaults to
-// returning Ok(()). However as of 05/26/20 it does interoperate
-// with other 15.4 implementations for Tock's basic 15.4 apps.
+// This driver implements a subset of 802.15.4 sending and receiving for the
+// nRF52840 chip per the nRF52840_PS_v1.0 spec. Upon calling the initialization
+// function, the chip is powered on and configured to the fields of the Radio
+// struct. This driver maintains a state machine between receiving, transmitting,
+// and sending acknowledgements. Because the nRF52840 15.4 radio chip does not
+// possess hardware support for ACK, this driver implements software support
+// for sending ACK when a received packet requests to be acknowledged. The driver
+// currently lacks support to listen for requested ACK on packets the radio has sent.
+// As of 8/14/23, the driver is abled to send and receive 15.4 packets as used in the
+// basic 15.4 libtock-c apps.
+//
+// Author: Tyler Potyondy
+// 8/14/23
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
