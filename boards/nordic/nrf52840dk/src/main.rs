@@ -211,9 +211,9 @@ pub struct Platform {
             'static,
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
-                capsules_extra::kv_store::KVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
                     'static,
-                    capsules_extra::tickv::TicKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         'static,
                         capsules_extra::mx25r6435f::MX25R6435F<
                             'static,
@@ -761,10 +761,10 @@ pub unsafe fn main() {
         TICKV_PAGE_SIZE,
     ));
 
-    // Tock-specific interface to KV (built on TicKV).
-    let kv_store = components::kv_system::KVStoreComponent::new(tickv).finalize(
-        components::kv_store_component_static!(
-            capsules_extra::tickv::TicKVStore<
+    // KVSystem interface to KV (built on TicKV).
+    let tickv_kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+        components::tickv_kv_store_component_static!(
+            capsules_extra::tickv::TicKVSystem<
                 capsules_extra::mx25r6435f::MX25R6435F<
                     capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
                         'static,
@@ -780,10 +780,10 @@ pub unsafe fn main() {
         ),
     );
 
-    let kv_store_permissions = components::kv_system::KVStorePermissionsComponent::new(kv_store)
+    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(tickv_kv_store)
         .finalize(components::kv_store_permissions_component_static!(
-            capsules_extra::kv_store::KVStore<
-                capsules_extra::tickv::TicKVStore<
+            capsules_extra::tickv_kv_store::TicKVKVStore<
+                capsules_extra::tickv::TicKVSystem<
                     capsules_extra::mx25r6435f::MX25R6435F<
                         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
                             'static,
@@ -800,11 +800,11 @@ pub unsafe fn main() {
         ));
 
     // Share the KV stack with a mux.
-    let mux_kv = components::kv_system::KVPermissionsMuxComponent::new(kv_store_permissions)
-        .finalize(components::kv_permissions_mux_component_static!(
+    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+        components::kv_permissions_mux_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
-                capsules_extra::kv_store::KVStore<
-                    capsules_extra::tickv::TicKVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         capsules_extra::mx25r6435f::MX25R6435F<
                             capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
                                 'static,
@@ -819,14 +819,15 @@ pub unsafe fn main() {
                     capsules_extra::tickv::TicKVKeyType,
                 >,
             >
-        ));
+        ),
+    );
 
     // Create a virtual component for the userspace driver.
-    let virtual_kv_driver = components::kv_system::VirtualKVPermissionsComponent::new(mux_kv)
-        .finalize(components::virtual_kv_permissions_component_static!(
+    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+        components::virtual_kv_permissions_component_static!(
             capsules_extra::kv_store_permissions::KVStorePermissions<
-                capsules_extra::kv_store::KVStore<
-                    capsules_extra::tickv::TicKVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         capsules_extra::mx25r6435f::MX25R6435F<
                             capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
                                 'static,
@@ -841,10 +842,11 @@ pub unsafe fn main() {
                     capsules_extra::tickv::TicKVKeyType,
                 >,
             >
-        ));
+        ),
+    );
 
     // Userspace driver for KV.
-    let kv_driver = components::kv_system::KVDriverComponent::new(
+    let kv_driver = components::kv::KVDriverComponent::new(
         virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
@@ -852,8 +854,8 @@ pub unsafe fn main() {
     .finalize(components::kv_driver_component_static!(
         capsules_extra::virtual_kv::VirtualKVPermissions<
             capsules_extra::kv_store_permissions::KVStorePermissions<
-                capsules_extra::kv_store::KVStore<
-                    capsules_extra::tickv::TicKVStore<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
                         capsules_extra::mx25r6435f::MX25R6435F<
                             capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
                                 'static,
