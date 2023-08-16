@@ -437,6 +437,97 @@ Subscribe number to wait for. Together, these make up the
 
 `yield-param-3` is unused and reserved.
 
+#### Design Rationale and Alternatives
+
+The primary motivation for this syscall is is to simplify correctness
+for userspace applications. When the kernel guarantees which upcall(s)
+are eligible for execution, userspace upcall handlers do not have to
+worry about reentrancy. It becomes an opt-in synchronous API for
+userspace without reducing the fundamental asynchronous design of Tock.
+
+To minimize impact on kernel interfaces and drivers writ large, this
+syscall is designed to not affect the internal `SyscallDriver`
+interface. In particular, the Tock kernel assumes a fully asynchronous
+execution model. Allowing drivers, especially less-trusted capsules, to
+block could create challenging liveness concerns for the kernel.
+
+The secondary motivation of this syscall is to improve the efficiency of
+synchronous-style userspace operation. Prior to the implementation of
+this syscall, robust implementation of a "blocking command" required a
+`subscribe-command-{looping yield}-unsubscribe` idiom for each
+synchronous function call.
+
+This interface allows yielding only for one specific event.  A
+select/poll-style interface which enables userspace to wait on multiple
+possible events was considered. In this context, this would resemble
+`yeild_for_any_of([array of upcall ids])`, likely with return value of
+the index of which array entry fired. For the common-case of waiting for
+a single event, the ergonomics around first allowing the array of upcall
+ids and then sending the next syscall with the pointer is awkward. Thus,
+addition of this more complex interface has been deferred until proven
+necessary.
+
+The existing `Yield` syscall class requires that r0 be used for the
+Yield number, specifying which variant of `Yield` is requested. The
+`Subscribe` interface requires two full registers to uniquely identify
+an upcall to wait for, which consume r1 and r2 for Driver Number and
+Subscribe Number respectively. This leaves at-most one register, r3, for
+additional information.
+
+Within this design space, four alternatives were considered. Common to
+all designs, while "waiting-for" a specific event, any other upcalls for
+this process are queued in-order. After the "waited-for" event has been
+processed, subsequent queued upcalls are delivered as-per normal
+whenever userspace yields. The primary differences surround how
+"waited-for" events are dispatched to userspace:
+
+ - `Yield-WaitFor-Minimal` was the first proposal, and was designed as a
+     minimal-delta from the existing system. When the waited-for event
+     occurs, the kernel would attempt to dispatch the upcall subscribed
+     to the event. If this was the Null Upcall, no callback function
+     would be pushed, and execution would simply resume after the `svc`.
+     If no callback is called, the Upcall arguments are dropped and are
+     unavailable to userspace. No indication would be available at the
+     `svc` callsite of whether a callback function had been called or
+     not (see §3.4 for why this is infeasible).
+ - `Yield-WaitFor-NoCallback` never executes a callback, regardless of
+     whether one is registered. Instead, it returns the values that
+     would be passed to the callback as return values to the system call
+     site in r0-r3. In the case of a `SubscribeUpcall`, the value of r3
+     is possibly undefined in this variant.
+ - `Yield-WaitFor-CallbackIfPresent` always executes a callback if one
+     is present, otherwise it returns directly to the callsite returning
+     the values that would have been passed to the callback in registers
+     r0-r3. In the case of a `SubscribeUpcall`, the value of r3 is
+     possibly undefined in this variant when no callback is present.
+ - `Yield-WaitFor-OptionalSubscribe` passes an upcall handler if it
+     wants to use an upcall (which replaces any existing subscribed
+     upcall handler), otherwise upcall values are passed as return
+     values to the system call site. This design has a few open
+     questions:
+    - _What to do with app data?_
+        The original proposal suggested using r2 and r3 for upcall
+        pointer and app data respectively, but r2 is already in use for
+        the subscribe number. Only one register is available. Possible
+        solutions (I lean toward #4):
+        1. Use a dedicated syscall class to free up r0.
+        2. Use stack-based arguments to pass an additional argument.
+        3. r3 is a pointer to a struct in userspace of
+        `{upcall_ptr,app_data}`; this requires an Allow in advance.
+        4. Omit app data. As this is now synchronous, userspace can
+        safely use global state to pass something to the callback
+        method if-needed.
+    - _What to do with an existing subscription?_
+        Normally, providing a new subscription would return the old
+        subscription callback pointer and app data to userspace. This
+        syscall has no way to do that. The only thing I can come up with
+        would be to have subscription as a transient overlay, i.e.,
+        leave any info from a prior `Subscribe` untouched and store info
+        about the callback to use for this yield-for invocation. I
+        suspect for the rust runtime this could be tricky (though, it
+        would likely just never `Subscribe`).
+
+
 
 
 4.2 Subscribe (Class ID: 1)
