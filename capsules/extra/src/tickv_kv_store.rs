@@ -416,6 +416,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                     self.client.map(move |cb| {
                         cb.add_complete(
                             result.map_err(|e| match e {
+                                ErrorCode::NOSUPPORT => ErrorCode::NOSUPPORT,
                                 ErrorCode::NOMEM => ErrorCode::NOMEM,
                                 _ => ErrorCode::FAIL,
                             }),
