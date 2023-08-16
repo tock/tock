@@ -264,7 +264,7 @@ Upcall callback can clobber them freely). The assembly that invoked the
 kernel use them to pass things "to" the calling assembly. Thus, the
 `PushedCallback` case has to use a pointer-based approach for the kernel
 to communicate with the assembly that invokes the `svc` (e.g.
-`yield-param-1` in `Yield-NoWait`).
+`yield-param-A` in `Yield-NoWait`).
 
 
 4 System Call API
@@ -347,9 +347,9 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument               | Register |
 |------------------------|----------|
 | Yield number           | r0       |
-| yield-param-1          | r1       |
-| yield-param-2          | r2       |
-| yield-param-3          | r3       |
+| yield-result           | r1       |
+| yield-param-A          | r2       |
+| yield-param-B          | r3       |
 
 The Yield system call class has no return value. This is because
 invoking an upcall pushes that function call onto the stack, such
@@ -357,7 +357,7 @@ that the return value of a call to yield system call may be the
 return value of the upcall.
 
 Yield variants which return a result to the caller will use one or more
-of the `yield-param-N` arguments to do so.  Allowing the kernel to pass
+of the `yield-param-X` arguments to do so.  Allowing the kernel to pass
 a return value in a register back to userspace would require either
 re-entering the kernel or expensive execution architectures (e.g.,
 additional stacks or additional stack frames) for upcalls.
@@ -370,10 +370,27 @@ The Yield number (in r0) specifies which call is invoked:
 | yield-wait      |                  1 |
 | yield-wait-for  |                  2 |
 
-All other yield number values are reserved. If an invalid
-yield number is passed the kernel MUST return immediately.
+All other yield number values are reserved. If an invalid yield number
+is passed the kernel MUST return immediately and MUST NOT write to
+`yield-result`.
 
-The meaning of `yield-param-N` (r1-r3) is specific to the yield type.
+`yield-result` contains the memory address of an 8-bit byte that Yield
+writes to indicate whether an upcall was invoked. If invoking Yield
+resulted in an upcall executing, Yield writes 1 to the field address. If
+invoking Yield resulted in no upcall executing, Yield writes 0 to the
+field address. Userspace SHOULD ensure that r1 points to a valid address
+in the current process. If userspace does not wish to recieve the Yield
+result, it SHOULD set r1 to `0x0`. The kernel SHALL write Yield result
+if r1 points to any valid process memory and SHALL NOT write Yield
+result if it points to an address not in the memory allocated to the
+calling process.
+
+**OPEN QUESTION:** ^^ This documents what we currently do, but it is the
+case right now that there is no way for userspace to identify an
+errorneous call to yield (e.g. invalid value in r0)---should instead
+`yeild-result` be written no matter what and an error case defined?
+
+The meaning of `yield-param-X` (r2-r3) is specific to the yield type.
 
 
 ### 4.1.1 Yield-NoWait
@@ -381,15 +398,11 @@ The meaning of `yield-param-N` (r1-r3) is specific to the yield type.
 Yield number 0, Yield-NoWait, executes a single upcall if any is
 pending.  If no upcalls are pending it returns immediately.
 
-`yield-param-1` contains the memory address of an 8-bit byte that
-Yield-NoWait writes to indicate whether an upcall was invoked. If
-invoking Yield-NoWait resulted in an upcall executing, Yield-NoWait
-writes 1 to the field address. If invoking Yield-NoWait resulted in no
-upcall executing, Yield-NoWait writes 0 to the field address. This field
-allows userspace loops that want to flush the upcall queue to execute
-Yield-NoWait until the queue is empty.
+Yield-NoWait can use `yield-result` to allow userspace loops that want
+to flush the upcall queue to execute Yield-NoWait until the queue is
+empty.
 
-`yield-param-2` and `yield-param-3` are unused and reserved.
+`yield-param-A` and `yield-param-B` are unused and reserved.
 
 
 ### 4.1.2 Yield-Wait
@@ -408,16 +421,17 @@ occurs which would normally generate an upcall, but that UpcallId is
 currently assigned to the Null Upcall, no upcall executes and thus this
 syscall will not return.
 
-`yield-param-1`, `yield-param-2`, and `yield-param-3` are unused and reserved.
+`yield-param-A`, and `yield-param-B` are unused and reserved.
 
 
-### 4.1.3 Yield-WaitFor
+### 4.1.3 Yield-WaitFor-CallbackIfPresent
 
-The third call, Yield-WaitFor, suspends the process until one specific
-upcall---the `WaitedForUpcallId`---is ready to execute. If other events
-arrive that would invoke an upcall on this process, they are queued by
-the kernel, and will be delivered after the event for the
-`WaitedForUpcallId`.  Event order in this queue is maintained.
+The third call, Yield-WaitFor-CallbackIfPresent, suspends the process
+until one specific upcall---the `WaitedForUpcallId`---is ready to
+execute. If other events arrive that would invoke an upcall on this
+process, they are queued by the kernel, and will be delivered after the
+event for the `WaitedForUpcallId`.  Event order in this queue is
+maintained.
 
 This process will resume execution when an event in the kernel generates
 an upcall that matches the `WaitedForUpcallId`.
@@ -430,12 +444,12 @@ as-feasible, specifically:
 
  - A `SubscribeUpcall` will set r0-r2 and leave r3 untouched.
 
+Userspace can use `yield-result` to determine whether a callback
+executed.
 
-`yield-param-1` is the Driver number and `yield-param-2` is the
+`yield-param-A` is the Driver number and `yield-param-B` is the
 Subscribe number to wait for. Together, these make up the
 `WaitedForUpcallId`.
-
-`yield-param-3` is unused and reserved.
 
 #### Design Rationale and Alternatives
 
@@ -470,9 +484,10 @@ necessary.
 The existing `Yield` syscall class requires that r0 be used for the
 Yield number, specifying which variant of `Yield` is requested. The
 `Subscribe` interface requires two full registers to uniquely identify
-an upcall to wait for, which consume r1 and r2 for Driver Number and
-Subscribe Number respectively. This leaves at-most one register, r3, for
-additional information.
+an upcall to wait for, which consume ~~r1 and r2~~ r2 and r3 for Driver
+Number and Subscribe Number respectively. ~~This leaves at-most one
+register, r3, for additional information.~~ r1 is in use by the `Yield`
+class as the `yield-return` pointer.
 
 Within this design space, four alternatives were considered. Common to
 all designs, while "waiting-for" a specific event, any other upcalls for
@@ -487,19 +502,21 @@ whenever userspace yields. The primary differences surround how
      to the event. If this was the Null Upcall, no callback function
      would be pushed, and execution would simply resume after the `svc`.
      If no callback is called, the Upcall arguments are dropped and are
-     unavailable to userspace. No indication would be available at the
+     unavailable to userspace. ~~No indication would be available at the
      `svc` callsite of whether a callback function had been called or
-     not (see §3.4 for why this is infeasible).
+     not (see §3.4 for why this is infeasible).~~ `yield-result`
+     indicates which case occurred.
  - `Yield-WaitFor-NoCallback` never executes a callback, regardless of
      whether one is registered. Instead, it returns the values that
      would be passed to the callback as return values to the system call
-     site in r0-r3. In the case of a `SubscribeUpcall`, the value of r3
-     is possibly undefined in this variant.
+     site in r0-r3. In the case of a `SubscribeUpcall`, ~~the value of r3
+     is possibly undefined in this variant.~~, only r0-r2 are set.
  - `Yield-WaitFor-CallbackIfPresent` always executes a callback if one
      is present, otherwise it returns directly to the callsite returning
      the values that would have been passed to the callback in registers
-     r0-r3. In the case of a `SubscribeUpcall`, the value of r3 is
-     possibly undefined in this variant when no callback is present.
+     r0-r3. In the case of a `SubscribeUpcall`, ~~the value of r3 is
+     possibly undefined~~ only r0-r2 are set in this variant when no
+     callback is present.
  - `Yield-WaitFor-OptionalSubscribe` passes an upcall handler if it
      wants to use an upcall (which replaces any existing subscribed
      upcall handler), otherwise upcall values are passed as return
@@ -527,7 +544,17 @@ whenever userspace yields. The primary differences surround how
         suspect for the rust runtime this could be tricky (though, it
         would likely just never `Subscribe`).
 
+#### Aug 16, 2023 updates:
 
+ - Try to capture thread discussions in PR text
+ - Make r1 `yield-return` generic across all Yield flavors
+    - n.b., this actually matches current kernel behavior. The current
+        implementation **does not match TRD104.** Specifically, the
+        kernel always tries to set r1, even for the Yield-Wait case
+        (it's just lucky in some ways that no valid pointer has been in
+        r1 when Yield-Wait was called by apps s.t. a random byte getting
+        set to 1 would cause a problem[!]).
+ - Update main syscall proposal to `CallbackIfPresent` variant
 
 
 4.2 Subscribe (Class ID: 1)
