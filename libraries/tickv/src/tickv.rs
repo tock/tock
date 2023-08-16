@@ -611,113 +611,111 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     pub fn get_key(&self, hash: u64, buf: &mut [u8]) -> Result<(SuccessCode, usize), ErrorCode> {
         let region = self.get_region(hash);
 
-        loop {
-            let mut check_sum = crc32::Crc32::new();
-            let new_region = match self.state.get() {
-                State::None => region as isize,
-                State::Init(state) => {
-                    match state {
-                        InitState::GetKeyReadRegion(reg) => reg as isize,
-                        _ => {
-                            // Get the data from that region
-                            region as isize
-                        }
+        let mut check_sum = crc32::Crc32::new();
+        let new_region = match self.state.get() {
+            State::None => region as isize,
+            State::Init(state) => {
+                match state {
+                    InitState::GetKeyReadRegion(reg) => reg as isize,
+                    _ => {
+                        // Get the data from that region
+                        region as isize
                     }
                 }
-                State::GetKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
-                },
-                _ => unreachable!(),
-            };
-
-            // Get the data from that region
-            let mut region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region as usize))
-                && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region as usize))
-            {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
-                {
-                    Ok(()) => {}
-                    Err(e) => {
-                        self.read_buffer.replace(Some(region_data));
-                        if let ErrorCode::ReadNotReady(reg) = e {
-                            self.state.set(State::GetKey(KeyState::ReadRegion(reg)));
-                        }
-                        return Err(e);
-                    }
-                };
             }
+            State::GetKey(key_state) => match key_state {
+                KeyState::ReadRegion(reg) => reg as isize,
+            },
+            _ => unreachable!(),
+        };
 
-            match self.find_key_offset(hash, region_data) {
-                Ok((offset, total_length)) => {
-                    // Add the header data to the check hash
-                    check_sum.update(
-                        &region_data
-                            .get(offset..(HEADER_LENGTH + offset))
-                            .ok_or(ErrorCode::ObjectTooLarge)?,
-                    );
-
-                    // The size of the stored object's actual data;
-                    let value_length = total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN;
-
-                    // Make sure if will fit in the buffer
-                    if buf.len() < value_length {
-                        // The entire value is not going to fit,
-                        // Let's still copy in what we can and return an error
-                        for i in 0..buf.len() {
-                            *buf.get_mut(i)
-                                .ok_or(ErrorCode::BufferTooSmall(value_length))? = *region_data
-                                .get(offset + HEADER_LENGTH + i)
-                                .ok_or(ErrorCode::BufferTooSmall(value_length))?;
-                        }
-
-                        self.read_buffer.replace(Some(region_data));
-                        return Err(ErrorCode::BufferTooSmall(value_length));
+        // Get the data from that region
+        let mut region_data = self.read_buffer.take().unwrap();
+        if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region as usize))
+            && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region as usize))
+        {
+            match self
+                .controller
+                .read_region(new_region as usize, 0, &mut region_data)
+            {
+                Ok(()) => {}
+                Err(e) => {
+                    self.read_buffer.replace(Some(region_data));
+                    if let ErrorCode::ReadNotReady(reg) = e {
+                        self.state.set(State::GetKey(KeyState::ReadRegion(reg)));
                     }
+                    return Err(e);
+                }
+            };
+        }
 
-                    // Copy in the value
-                    for i in 0..value_length {
+        match self.find_key_offset(hash, region_data) {
+            Ok((offset, total_length)) => {
+                // Add the header data to the check hash
+                check_sum.update(
+                    &region_data
+                        .get(offset..(HEADER_LENGTH + offset))
+                        .ok_or(ErrorCode::ObjectTooLarge)?,
+                );
+
+                // The size of the stored object's actual data;
+                let value_length = total_length as usize - HEADER_LENGTH - CHECK_SUM_LEN;
+
+                // Make sure if will fit in the buffer
+                if buf.len() < value_length {
+                    // The entire value is not going to fit,
+                    // Let's still copy in what we can and return an error
+                    for i in 0..buf.len() {
                         *buf.get_mut(i)
                             .ok_or(ErrorCode::BufferTooSmall(value_length))? = *region_data
                             .get(offset + HEADER_LENGTH + i)
-                            .ok_or(ErrorCode::CorruptData)?;
-                        check_sum.update(&[*buf.get(i).ok_or(ErrorCode::CorruptData)?])
+                            .ok_or(ErrorCode::BufferTooSmall(value_length))?;
                     }
 
-                    // Check the hash
-                    let check_sum = check_sum.finalise();
-                    let check_sum = check_sum.to_ne_bytes();
+                    self.read_buffer.replace(Some(region_data));
+                    return Err(ErrorCode::BufferTooSmall(value_length));
+                }
 
-                    if *check_sum.get(3).ok_or(ErrorCode::InvalidCheckSum)?
+                // Copy in the value
+                for i in 0..value_length {
+                    *buf.get_mut(i)
+                        .ok_or(ErrorCode::BufferTooSmall(value_length))? = *region_data
+                        .get(offset + HEADER_LENGTH + i)
+                        .ok_or(ErrorCode::CorruptData)?;
+                    check_sum.update(&[*buf.get(i).ok_or(ErrorCode::CorruptData)?])
+                }
+
+                // Check the hash
+                let check_sum = check_sum.finalise();
+                let check_sum = check_sum.to_ne_bytes();
+
+                if *check_sum.get(3).ok_or(ErrorCode::InvalidCheckSum)?
+                    != *region_data
+                        .get(offset + total_length as usize - 1)
+                        .ok_or(ErrorCode::InvalidCheckSum)?
+                    || *check_sum.get(2).ok_or(ErrorCode::InvalidCheckSum)?
                         != *region_data
-                            .get(offset + total_length as usize - 1)
+                            .get(offset + total_length as usize - 2)
                             .ok_or(ErrorCode::InvalidCheckSum)?
-                        || *check_sum.get(2).ok_or(ErrorCode::InvalidCheckSum)?
-                            != *region_data
-                                .get(offset + total_length as usize - 2)
-                                .ok_or(ErrorCode::InvalidCheckSum)?
-                        || *check_sum.get(1).ok_or(ErrorCode::InvalidCheckSum)?
-                            != *region_data
-                                .get(offset + total_length as usize - 3)
-                                .ok_or(ErrorCode::InvalidCheckSum)?
-                        || *check_sum.get(0).ok_or(ErrorCode::InvalidCheckSum)?
-                            != *region_data
-                                .get(offset + total_length as usize - 4)
-                                .ok_or(ErrorCode::InvalidCheckSum)?
-                    {
-                        self.read_buffer.replace(Some(region_data));
-                        return Err(ErrorCode::InvalidCheckSum);
-                    }
+                    || *check_sum.get(1).ok_or(ErrorCode::InvalidCheckSum)?
+                        != *region_data
+                            .get(offset + total_length as usize - 3)
+                            .ok_or(ErrorCode::InvalidCheckSum)?
+                    || *check_sum.get(0).ok_or(ErrorCode::InvalidCheckSum)?
+                        != *region_data
+                            .get(offset + total_length as usize - 4)
+                            .ok_or(ErrorCode::InvalidCheckSum)?
+                {
+                    self.read_buffer.replace(Some(region_data));
+                    return Err(ErrorCode::InvalidCheckSum);
+                }
 
-                    self.read_buffer.replace(Some(region_data));
-                    return Ok((SuccessCode::Complete, value_length));
-                }
-                Err((_cont, e)) => {
-                    self.read_buffer.replace(Some(region_data));
-                    return Err(e);
-                }
+                self.read_buffer.replace(Some(region_data));
+                Ok((SuccessCode::Complete, value_length))
+            }
+            Err((_cont, e)) => {
+                self.read_buffer.replace(Some(region_data));
+                Err(e)
             }
         }
     }
@@ -734,62 +732,60 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     pub fn invalidate_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
         let region = self.get_region(hash);
 
-        loop {
-            // Get the data from that region
-            let new_region = match self.state.get() {
-                State::None => region as isize,
-                State::InvalidateKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
-                },
-                _ => unreachable!(),
-            };
+        // Get the data from that region
+        let new_region = match self.state.get() {
+            State::None => region as isize,
+            State::InvalidateKey(key_state) => match key_state {
+                KeyState::ReadRegion(reg) => reg as isize,
+            },
+            _ => unreachable!(),
+        };
 
-            // Get the data from that region
-            let mut region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region as usize)) {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
-                {
-                    Ok(()) => {}
-                    Err(e) => {
-                        self.read_buffer.replace(Some(region_data));
-                        if let ErrorCode::ReadNotReady(reg) = e {
-                            self.state
-                                .set(State::InvalidateKey(KeyState::ReadRegion(reg)));
-                        }
-                        return Err(e);
-                    }
-                };
-            }
-
-            match self.find_key_offset(hash, region_data) {
-                Ok((offset, _data_len)) => {
-                    // We found a key, let's delete it
-                    *region_data
-                        .get_mut(offset + LEN_OFFSET)
-                        .ok_or(ErrorCode::CorruptData)? &= !0x80;
-
-                    if let Err(e) = self.controller.write(
-                        S * new_region as usize + offset + LEN_OFFSET,
-                        &region_data
-                            .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
-                            .ok_or(ErrorCode::ObjectTooLarge)?,
-                    ) {
-                        self.read_buffer.replace(Some(region_data));
-                        match e {
-                            ErrorCode::WriteNotReady(_) => return Ok(SuccessCode::Queued),
-                            _ => return Err(e),
-                        }
-                    }
-
+        // Get the data from that region
+        let mut region_data = self.read_buffer.take().unwrap();
+        if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region as usize)) {
+            match self
+                .controller
+                .read_region(new_region as usize, 0, &mut region_data)
+            {
+                Ok(()) => {}
+                Err(e) => {
                     self.read_buffer.replace(Some(region_data));
-                    return Ok(SuccessCode::Written);
-                }
-                Err((_cont, e)) => {
-                    self.read_buffer.replace(Some(region_data));
+                    if let ErrorCode::ReadNotReady(reg) = e {
+                        self.state
+                            .set(State::InvalidateKey(KeyState::ReadRegion(reg)));
+                    }
                     return Err(e);
                 }
+            };
+        }
+
+        match self.find_key_offset(hash, region_data) {
+            Ok((offset, _data_len)) => {
+                // We found a key, let's delete it
+                *region_data
+                    .get_mut(offset + LEN_OFFSET)
+                    .ok_or(ErrorCode::CorruptData)? &= !0x80;
+
+                if let Err(e) = self.controller.write(
+                    S * new_region as usize + offset + LEN_OFFSET,
+                    &region_data
+                        .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
+                        .ok_or(ErrorCode::ObjectTooLarge)?,
+                ) {
+                    self.read_buffer.replace(Some(region_data));
+                    match e {
+                        ErrorCode::WriteNotReady(_) => return Ok(SuccessCode::Queued),
+                        _ => return Err(e),
+                    }
+                }
+
+                self.read_buffer.replace(Some(region_data));
+                Ok(SuccessCode::Written)
+            }
+            Err((_cont, e)) => {
+                self.read_buffer.replace(Some(region_data));
+                Err(e)
             }
         }
     }
