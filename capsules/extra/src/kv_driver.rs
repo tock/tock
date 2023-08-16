@@ -110,16 +110,16 @@ pub struct KVStoreDriver<'a, V: kv::KVPermissions<'a>> {
     /// App that is actively using the k-v store.
     processid: OptionalCell<ProcessId>,
     /// Key buffer.
-    data_buffer: TakeCell<'static, [u8]>,
+    key_buffer: TakeCell<'static, [u8]>,
     /// Value buffer.
-    dest_buffer: TakeCell<'static, [u8]>,
+    value_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
     pub fn new(
         kv: &'a V,
-        data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8],
+        key_buffer: &'static mut [u8],
+        value_buffer: &'static mut [u8],
         grant: Grant<
             App,
             UpcallCount<{ upcalls::COUNT }>,
@@ -131,8 +131,8 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
             kv,
             apps: grant,
             processid: OptionalCell::empty(),
-            data_buffer: TakeCell::new(data_buffer),
-            dest_buffer: TakeCell::new(dest_buffer),
+            key_buffer: TakeCell::new(key_buffer),
+            value_buffer: TakeCell::new(value_buffer),
         }
     }
 
@@ -146,12 +146,12 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                             .get_readonly_processbuffer(ro_allow::KEY)
                             .and_then(|buffer| {
                                 buffer.enter(|key| {
-                                    self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                    self.key_buffer.map_or(Err(ErrorCode::NOMEM), |key_buf| {
                                         // Error if we cannot fit the key.
-                                        if buf.len() < key.len() {
+                                        if key_buf.len() < key.len() {
                                             Err(ErrorCode::SIZE)
                                         } else {
-                                            key.copy_to_slice(&mut buf[..key.len()]);
+                                            key.copy_to_slice(&mut key_buf[..key.len()]);
                                             Ok(key.len())
                                         }
                                     })
@@ -164,20 +164,22 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
 
                     match app.op.get() {
                         Some(UserSpaceOp::Get) => {
-                            if let Some(Some(e)) = self.data_buffer.take().map(|data_buffer| {
-                                self.dest_buffer.take().map(|dest_buffer| {
+                            if let Some(Some(e)) = self.key_buffer.take().map(|key_buf| {
+                                self.value_buffer.take().map(|val_buf| {
                                     let perms = processid
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
 
-                                    let mut key = SubSliceMut::new(data_buffer);
+                                    let mut key = SubSliceMut::new(key_buf);
                                     key.slice(..key_len);
 
-                                    let value = SubSliceMut::new(dest_buffer);
+                                    let value = SubSliceMut::new(val_buf);
 
-                                    if let Err((data, dest, e)) = self.kv.get(key, value, perms) {
-                                        self.data_buffer.replace(data.take());
-                                        self.dest_buffer.replace(dest.take());
+                                    if let Err((key_ret, val_ret, e)) =
+                                        self.kv.get(key, value, perms)
+                                    {
+                                        self.key_buffer.replace(key_ret.take());
+                                        self.value_buffer.replace(val_ret.take());
                                         return Err(e);
                                     }
                                     Ok(())
@@ -193,16 +195,16 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                 .get_readonly_processbuffer(ro_allow::VALUE)
                                 .and_then(|buffer| {
                                     buffer.enter(|value| {
-                                        self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
+                                        self.value_buffer.map_or(Err(ErrorCode::NOMEM), |val_buf| {
                                             // Make sure there is room for the
                                             // Tock KV header and the value.
                                             let header_size = self.kv.header_size();
-                                            let remaining_space = buf.len() - header_size;
+                                            let remaining_space = val_buf.len() - header_size;
                                             if remaining_space < value.len() {
                                                 Err(ErrorCode::SIZE)
                                             } else {
                                                 value.copy_to_slice(
-                                                    &mut buf
+                                                    &mut val_buf
                                                         [header_size..(value.len() + header_size)],
                                                 );
                                                 Ok(value.len())
@@ -212,23 +214,23 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                 })
                                 .unwrap_or(Err(ErrorCode::RESERVE))?;
 
-                            if let Some(Some(e)) = self.data_buffer.take().map(|data_buffer| {
-                                self.dest_buffer.take().map(|dest_buffer| {
+                            if let Some(Some(e)) = self.key_buffer.take().map(|key_buf| {
+                                self.value_buffer.take().map(|val_buf| {
                                     let perms = processid
                                         .get_storage_permissions()
                                         .ok_or(ErrorCode::INVAL)?;
 
-                                    let mut key = SubSliceMut::new(data_buffer);
+                                    let mut key = SubSliceMut::new(key_buf);
                                     key.slice(..key_len);
 
                                     // Make sure we provide a value buffer with
                                     // space for the tock kv header at the
                                     // front.
                                     let header_size = self.kv.header_size();
-                                    let mut value = SubSliceMut::new(dest_buffer);
+                                    let mut value = SubSliceMut::new(val_buf);
                                     value.slice(..(value_len + header_size));
 
-                                    if let Err((data, dest, e)) = match app.op.get() {
+                                    if let Err((key_ret, val_ret, e)) = match app.op.get() {
                                         Some(UserSpaceOp::Set) => self.kv.set(key, value, perms),
                                         Some(UserSpaceOp::Add) => self.kv.add(key, value, perms),
                                         Some(UserSpaceOp::Update) => {
@@ -236,8 +238,8 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                         }
                                         _ => Ok(()),
                                     } {
-                                        self.data_buffer.replace(data.take());
-                                        self.dest_buffer.replace(dest.take());
+                                        self.key_buffer.replace(key_ret.take());
+                                        self.value_buffer.replace(val_ret.take());
                                         return Err(e);
                                     }
                                     Ok(())
@@ -247,16 +249,16 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                             }
                         }
                         Some(UserSpaceOp::Delete) => {
-                            if let Some(e) = self.data_buffer.take().map(|data_buffer| {
+                            if let Some(e) = self.key_buffer.take().map(|key_buf| {
                                 let perms = processid
                                     .get_storage_permissions()
                                     .ok_or(ErrorCode::INVAL)?;
 
-                                let mut key = SubSliceMut::new(data_buffer);
+                                let mut key = SubSliceMut::new(key_buf);
                                 key.slice(..key_len);
 
-                                if let Err((data, e)) = self.kv.delete(key, perms) {
-                                    self.data_buffer.replace(data.take());
+                                if let Err((key_ret, e)) = self.kv.delete(key, perms) {
+                                    self.key_buffer.replace(key_ret.take());
                                     return Err(e);
                                 }
                                 Ok(())
@@ -308,7 +310,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
-        self.data_buffer.replace(key.take());
+        self.key_buffer.replace(key.take());
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
@@ -349,7 +351,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
                     }
                 }
 
-                self.dest_buffer.replace(value.take());
+                self.value_buffer.replace(value.take());
             })
         });
 
@@ -365,8 +367,8 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
-        self.data_buffer.replace(key.take());
-        self.dest_buffer.replace(value.take());
+        self.key_buffer.replace(key.take());
+        self.value_buffer.replace(value.take());
 
         // Signal the upcall and clear the requested op.
         self.processid.map(move |id| {
@@ -392,8 +394,8 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
-        self.data_buffer.replace(key.take());
-        self.dest_buffer.replace(value.take());
+        self.key_buffer.replace(key.take());
+        self.value_buffer.replace(value.take());
 
         // Signal the upcall and clear the requested op.
         self.processid.map(move |id| {
@@ -419,8 +421,8 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
         key: SubSliceMut<'static, u8>,
         value: SubSliceMut<'static, u8>,
     ) {
-        self.data_buffer.replace(key.take());
-        self.dest_buffer.replace(value.take());
+        self.key_buffer.replace(key.take());
+        self.value_buffer.replace(value.take());
 
         // Signal the upcall and clear the requested op.
         self.processid.map(move |id| {
@@ -441,7 +443,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
     }
 
     fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>) {
-        self.data_buffer.replace(key.take());
+        self.key_buffer.replace(key.take());
 
         self.processid.map(move |id| {
             self.apps.enter(id, move |app, upcalls| {
