@@ -23,8 +23,8 @@ use kernel::hil;
 macro_rules! kv_driver_component_static {
     ($V:ty $(,)?) => {{
         let kv = kernel::static_buf!(capsules_extra::kv_driver::KVStoreDriver<'static, $V>);
-        let key_buffer = kernel::static_buf!([u8; 32]);
-        let value_buffer = kernel::static_buf!([u8; 48]);
+        let key_buffer = kernel::static_buf!([u8; 64]);
+        let value_buffer = kernel::static_buf!([u8; 256]);
 
         (kv, key_buffer, value_buffer)
     };};
@@ -49,16 +49,16 @@ impl<V: hil::kv::KVPermissions<'static>> KVDriverComponent<V> {
 impl<V: hil::kv::KVPermissions<'static>> Component for KVDriverComponent<V> {
     type StaticInput = (
         &'static mut MaybeUninit<KVStoreDriver<'static, V>>,
-        &'static mut MaybeUninit<[u8; 32]>,
-        &'static mut MaybeUninit<[u8; 48]>,
+        &'static mut MaybeUninit<[u8; 64]>,
+        &'static mut MaybeUninit<[u8; 256]>,
     );
     type Output = &'static KVStoreDriver<'static, V>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let key_buffer = static_buffer.1.write([0; 32]);
-        let value_buffer = static_buffer.2.write([0; 48]);
+        let key_buffer = static_buffer.1.write([0; 64]);
+        let value_buffer = static_buffer.2.write([0; 256]);
 
         let driver = static_buffer.0.write(KVStoreDriver::new(
             self.kv,
