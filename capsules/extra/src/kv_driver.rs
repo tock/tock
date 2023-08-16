@@ -147,13 +147,13 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                             .and_then(|buffer| {
                                 buffer.enter(|key| {
                                     self.data_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                        // Determine the size of the static
-                                        // buffer we have and copy the contents.
-                                        let static_buffer_len = buf.len().min(key.len());
-                                        key[..static_buffer_len]
-                                            .copy_to_slice(&mut buf[..static_buffer_len]);
-
-                                        Ok(static_buffer_len)
+                                        // Error if we cannot fit the key.
+                                        if buf.len() < key.len() {
+                                            Err(ErrorCode::SIZE)
+                                        } else {
+                                            key.copy_to_slice(&mut buf[..key.len()]);
+                                            Ok(key.len())
+                                        }
                                     })
                                 })
                             })
@@ -194,17 +194,19 @@ impl<'a, V: kv::KVPermissions<'a>> KVStoreDriver<'a, V> {
                                 .and_then(|buffer| {
                                     buffer.enter(|value| {
                                         self.dest_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
-                                            // Determine the size of the static
-                                            // buffer we have for the value and
-                                            // copy the contents.
+                                            // Make sure there is room for the
+                                            // Tock KV header and the value.
                                             let header_size = self.kv.header_size();
-                                            let copy_len =
-                                                (buf.len() - header_size).min(value.len());
-                                            value[..copy_len].copy_to_slice(
-                                                &mut buf[header_size..(copy_len + header_size)],
-                                            );
-
-                                            Ok(copy_len)
+                                            let remaining_space = buf.len() - header_size;
+                                            if remaining_space < value.len() {
+                                                Err(ErrorCode::SIZE)
+                                            } else {
+                                                value.copy_to_slice(
+                                                    &mut buf
+                                                        [header_size..(value.len() + header_size)],
+                                                );
+                                                Ok(value.len())
+                                            }
                                         })
                                     })
                                 })
