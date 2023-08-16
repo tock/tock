@@ -332,7 +332,11 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
                                 buffer.mut_enter(|appslice| {
                                     let copy_len = cmp::min(value_len, appslice.len());
                                     appslice[..copy_len].copy_from_slice(&value[..copy_len]);
-                                    Ok(())
+                                    if copy_len < value_len {
+                                        Err(ErrorCode::SIZE)
+                                    } else {
+                                        Ok(())
+                                    }
                                 })
                             })
                             .unwrap_or(Err(ErrorCode::RESERVE));
