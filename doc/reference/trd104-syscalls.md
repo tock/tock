@@ -42,7 +42,7 @@ in other documents.
 Three design considerations guide the design of Tock's system call API and
 ABI.
 
-  1. Tock is currently supported on the ARM CortexM and RISCV architectures.
+  1. Tock is currently supported on the ARM CortexM and RISC-V architectures.
   It may support others in the future. Its ABI must support both architectures
   and be flexible enough to support future ones.
   2. Tock userspace applications can be written in any language. The system
@@ -428,7 +428,7 @@ Yield-WaitFor will still return. If and only if the waited-for upcall is
 the Null Upcall, the contents of r0-r3 will be set to Upcall Arguments
 as-feasible, specifically:
 
- - A SubscribableUpcall will set r0-r2 and leave r3 untouched.
+ - A `SubscribeUpcall` will set r0-r2 and leave r3 untouched.
 
 
 `yield-param-1` is the Driver number and `yield-param-2` is the
@@ -465,7 +465,7 @@ that an application passes in and the kernel passes back in upcalls
 unmodified.
 
 The `upcall pointer` SHOULD be a valid upcall, i.e., either a
-SubscribableUpcall or the Null Upcall, as defined in the next section.
+`SubscribeUpcall` or the Null Upcall, as defined in the next section.
 
 If the passed upcall is not valid (is outside process executable
 memory and is not the Null Upcall described below), the kernel MUST
@@ -515,7 +515,7 @@ failure, the first `u32` is the passed upcall pointer and the second
 `u32` is the passed application data pointer. For the first successful
 call to Subscribe for a given upcall, the upcall pointer and
 application data pointer returned MUST be the Null Upcall (described
-below).
+in 5.1 below).
 
 4.3 Command (Class ID: 2)
 ---------------------------------
@@ -898,8 +898,9 @@ TODO[if we go this route], define parameters, etc
 6 libtock-c Userspace Library Methods
 =================================
 
-This section describes the method signatures for system calls and upcalls in C, as an example
-of how they appear to application/userspace code..
+This section describes the method signatures for system calls and
+upcalls in C, as an example of how they appear to application/userspace
+code.
 
 Because C allows a single return value but Tock system calls can return multiple values,
 they do not easily map to idiomatic C. These low-level APIs are translated into standard C
@@ -907,9 +908,9 @@ code by the userspace library. The general calling convention is that the comple
 are returned as structs. Since these structs are composite types larger than a single word, the
 ARM and RISC-V calling conventions pass them on the stack.
 
-The system calls are implemented as inline assembly. This assembly moves arguments into the correct
-registers and invokes the system call, and on return copies the returned data into the return type
-on the stack.
+The system calls are implemented as inline assembly. This assembly moves
+arguments into the correct registers and invokes the system call, and on
+return copies the returned data into the return type on the stack.
 
 
 6.1 Yield
