@@ -214,37 +214,6 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         (hash as usize & 0xFFFF) % num_region
     }
 
-    // Determine the new region offset to try.
-    // Returns None if there aren't any more in range.
-    fn increment_region_offset(&self, region_offset: isize) -> Option<isize> {
-        let mut too_big = false;
-        let mut too_small = false;
-        // Loop until we find a region we can use
-        while !too_big && !too_small {
-            let new_offset = match region_offset {
-                0 => 1,
-                region_offset if region_offset > 0 => -region_offset,
-                region_offset if region_offset < 0 => -region_offset + 1,
-                _ => unreachable!(),
-            };
-
-            // Make sure our new offset is valid
-            if new_offset as usize > ((self.flash_size / S) - 1) {
-                too_big = true;
-                continue;
-            }
-
-            if new_offset < 0 {
-                too_small = true;
-                continue;
-            }
-
-            return Some(new_offset);
-        }
-
-        None
-    }
-
     /// Find a key in some loaded region data.
     ///
     /// On success return the offset in the region_data where the key is and the
@@ -388,17 +357,15 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         // Create the header:
         let header = ObjectHeader::new(hash, object_length as u16);
 
-        let mut region_offset: isize = 0;
-
         loop {
             let new_region = match self.state.get() {
-                State::None => region as isize + region_offset,
+                State::None => region as isize,
                 State::Init(state) => {
                     match state {
                         InitState::AppendKeyReadRegion(reg) => reg as isize,
                         _ => {
                             // Get the data from that region
-                            region as isize + region_offset
+                            region as isize
                         }
                     }
                 }
@@ -444,16 +411,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                     // Replace the buffer
                     self.read_buffer.replace(Some(region_data));
-
-                    match self.increment_region_offset(new_region) {
-                        Some(o) => {
-                            region_offset = o;
-                        }
-                        None => {
-                            return Err(ErrorCode::FlashFull);
-                        }
-                    }
-                    break;
+                    return Err(ErrorCode::FlashFull);
                 }
 
                 // Check to see if we have data
@@ -653,18 +611,16 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     pub fn get_key(&self, hash: u64, buf: &mut [u8]) -> Result<(SuccessCode, usize), ErrorCode> {
         let region = self.get_region(hash);
 
-        let mut region_offset: isize = 0;
-
         loop {
             let mut check_sum = crc32::Crc32::new();
             let new_region = match self.state.get() {
-                State::None => region as isize + region_offset,
+                State::None => region as isize,
                 State::Init(state) => {
                     match state {
                         InitState::GetKeyReadRegion(reg) => reg as isize,
                         _ => {
                             // Get the data from that region
-                            region as isize + region_offset
+                            region as isize
                         }
                     }
                 }
@@ -758,21 +714,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     self.read_buffer.replace(Some(region_data));
                     return Ok((SuccessCode::Complete, value_length));
                 }
-                Err((cont, e)) => {
+                Err((_cont, e)) => {
                     self.read_buffer.replace(Some(region_data));
-
-                    if cont {
-                        match self.increment_region_offset(new_region) {
-                            Some(o) => {
-                                region_offset = o;
-                            }
-                            None => {
-                                return Err(e);
-                            }
-                        }
-                    } else {
-                        return Err(e);
-                    }
+                    return Err(e);
                 }
             }
         }
@@ -790,12 +734,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     pub fn invalidate_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
         let region = self.get_region(hash);
 
-        let mut region_offset: isize = 0;
-
         loop {
             // Get the data from that region
             let new_region = match self.state.get() {
-                State::None => region as isize + region_offset,
+                State::None => region as isize,
                 State::InvalidateKey(key_state) => match key_state {
                     KeyState::ReadRegion(reg) => reg as isize,
                 },
@@ -844,21 +786,9 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     self.read_buffer.replace(Some(region_data));
                     return Ok(SuccessCode::Written);
                 }
-                Err((cont, e)) => {
+                Err((_cont, e)) => {
                     self.read_buffer.replace(Some(region_data));
-
-                    if cont {
-                        match self.increment_region_offset(new_region) {
-                            Some(o) => {
-                                region_offset = o;
-                            }
-                            None => {
-                                return Err(e);
-                            }
-                        }
-                    } else {
-                        return Err(e);
-                    }
+                    return Err(e);
                 }
             }
         }
