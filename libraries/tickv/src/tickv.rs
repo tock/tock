@@ -215,26 +215,41 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     }
 
     // Determine the new region offset to try.
+    //
+    // `region` is the base region. This is the default region
+    // for the object, this won't change per key.
+    // `region_offset` is the current region offset are trying to use
+    // If multiple attempts are required this value will be different
+    // on each iteration. This should be the previous return value of
+    // this function, or zero on the first iteration.
+    //
+    // This function will return an offset that can be applied to
+    // region to determine a new flash region
     // Returns None if there aren't any more in range.
-    fn increment_region_offset(&self, region_offset: isize) -> Option<isize> {
+    fn increment_region_offset(&self, region: usize, region_offset: isize) -> Option<isize> {
         let mut too_big = false;
         let mut too_small = false;
+        let mut new_offset = region_offset;
+
         // Loop until we find a region we can use
-        while !too_big && !too_small {
-            let new_offset = match region_offset {
+        while !too_big || !too_small {
+            new_offset = match new_offset {
+                // If this is the first iteration, just try the next region
                 0 => 1,
-                region_offset if region_offset > 0 => -region_offset,
-                region_offset if region_offset < 0 => -region_offset + 1,
+                // If the offset is positive, return the negative value
+                new_offset if new_offset > 0 => -new_offset,
+                // If the offset is negative, convert to positive and increment by 1
+                new_offset if new_offset < 0 => -new_offset + 1,
                 _ => unreachable!(),
             };
 
             // Make sure our new offset is valid
-            if new_offset as usize > ((self.flash_size / S) - 1) {
+            if (region as isize + new_offset) > ((self.flash_size / S) - 1) as isize {
                 too_big = true;
                 continue;
             }
 
-            if new_offset < 0 {
+            if (region as isize + new_offset) < 0 {
                 too_small = true;
                 continue;
             }
@@ -395,7 +410,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 State::None => region as isize + region_offset,
                 State::Init(state) => {
                     match state {
-                        InitState::AppendKeyReadRegion(reg) => reg as isize,
+                        InitState::AppendKeyReadRegion(reg) => {
+                            region_offset = reg as isize - region as isize;
+                            reg as isize
+                        }
                         _ => {
                             // Get the data from that region
                             region as isize + region_offset
@@ -403,20 +421,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     }
                 }
                 State::AppendKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
+                    KeyState::ReadRegion(reg) => {
+                        region_offset = reg as isize - region as isize;
+                        reg as isize
+                    }
                 },
                 _ => unreachable!(),
-            };
+            }
+            .try_into()
+            .unwrap();
 
             let region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region as usize))
-                && self.state.get()
-                    != State::Init(InitState::AppendKeyReadRegion(new_region as usize))
+            if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region))
+                && self.state.get() != State::Init(InitState::AppendKeyReadRegion(new_region))
             {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, region_data)
-                {
+                match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -444,9 +463,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     // Replace the buffer
                     self.read_buffer.replace(Some(region_data));
 
-                    match self.increment_region_offset(new_region) {
+                    match self.increment_region_offset(region, region_offset) {
                         Some(o) => {
                             region_offset = o;
+                            self.state.set(State::None);
                         }
                         None => {
                             return Err(ErrorCode::FlashFull);
@@ -621,7 +641,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Write the data back to the region
                 if let Err(e) = self.controller.write(
-                    S * new_region as usize + offset,
+                    S * new_region + offset,
                     region_data
                         .get(offset..(offset + package_length + CHECK_SUM_LEN))
                         .ok_or(ErrorCode::ObjectTooLarge)?,
@@ -660,7 +680,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 State::None => region as isize + region_offset,
                 State::Init(state) => {
                     match state {
-                        InitState::GetKeyReadRegion(reg) => reg as isize,
+                        InitState::GetKeyReadRegion(reg) => {
+                            region_offset = reg as isize - region as isize;
+                            reg as isize
+                        }
                         _ => {
                             // Get the data from that region
                             region as isize + region_offset
@@ -668,20 +691,22 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     }
                 }
                 State::GetKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
+                    KeyState::ReadRegion(reg) => {
+                        region_offset = reg as isize - region as isize;
+                        reg as isize
+                    }
                 },
                 _ => unreachable!(),
-            };
+            }
+            .try_into()
+            .unwrap();
 
             // Get the data from that region
             let region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region as usize))
-                && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region as usize))
+            if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region))
+                && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region))
             {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, region_data)
-                {
+                match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -761,9 +786,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     self.read_buffer.replace(Some(region_data));
 
                     if cont {
-                        match self.increment_region_offset(new_region) {
+                        match self.increment_region_offset(region, region_offset) {
                             Some(o) => {
                                 region_offset = o;
+                                self.state.set(State::None);
                             }
                             None => {
                                 return Err(e);
@@ -796,18 +822,20 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             let new_region = match self.state.get() {
                 State::None => region as isize + region_offset,
                 State::InvalidateKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
+                    KeyState::ReadRegion(reg) => {
+                        region_offset = reg as isize - region as isize;
+                        reg as isize
+                    }
                 },
                 _ => unreachable!(),
-            };
+            }
+            .try_into()
+            .unwrap();
 
             // Get the data from that region
             let region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region as usize)) {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, region_data)
-                {
+            if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region)) {
+                match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -828,7 +856,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         .ok_or(ErrorCode::CorruptData)? &= !0x80;
 
                     if let Err(e) = self.controller.write(
-                        S * new_region as usize + offset + LEN_OFFSET,
+                        S * new_region + offset + LEN_OFFSET,
                         region_data
                             .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
                             .ok_or(ErrorCode::ObjectTooLarge)?,
@@ -847,9 +875,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     self.read_buffer.replace(Some(region_data));
 
                     if cont {
-                        match self.increment_region_offset(new_region) {
+                        match self.increment_region_offset(region, region_offset) {
                             Some(o) => {
                                 region_offset = o;
+                                self.state.set(State::None);
                             }
                             None => {
                                 return Err(e);

@@ -831,28 +831,56 @@ mod tests {
                 _ => unreachable!(),
             }
 
-            println!("Get non-existant key ONE");
+            println!("Get non-existent key ONE");
             unsafe {
-                let ret = tickv.get_key(get_hashed_key(b"ONE"), &mut BUF);
-                match ret {
+                match tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) {
                     Ok(SuccessCode::Queued) => {
                         flash_ctrl_callback(&tickv);
-                        assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
+
+                        assert_eq!(
+                            tickv.continue_operation().0,
+                            Err(ErrorCode::ReadNotReady(62))
+                        );
+                        flash_ctrl_callback(&tickv);
+
+                        match tickv.continue_operation().0 {
+                            Err(ErrorCode::ReadNotReady(reg)) => {
+                                panic!("Searching too far for keys: {reg}");
+                            }
+                            Err(ErrorCode::KeyNotFound) => {}
+                            e => {
+                                panic!("Expected ErrorCode::KeyNotFound, got {e:?}");
+                            }
+                        }
                     }
-                    Err(_) => {}
                     _ => unreachable!(),
                 }
             }
 
             println!("Try to delete Key ONE Again");
-            let ret = tickv.invalidate_key(get_hashed_key(b"ONE"));
-            match ret {
+            match tickv.invalidate_key(get_hashed_key(b"ONE")) {
                 Ok(SuccessCode::Queued) => {
                     flash_ctrl_callback(&tickv);
-                    assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(62))
+                    );
+                    flash_ctrl_callback(&tickv);
+
+                    match tickv.continue_operation().0 {
+                        Err(ErrorCode::ReadNotReady(_reg)) => {
+                            panic!("Searching too far for keys");
+                        }
+                        Err(ErrorCode::KeyNotFound) => {}
+                        e => {
+                            panic!("Expected ErrorCode::KeyNotFound, got {e:?}");
+                        }
+                    }
                 }
-                Err(_) => {}
-                _ => unreachable!(),
+                e => {
+                    panic!("Expected ErrorCode::KeyNotFound, got {e:?}");
+                }
             }
         }
 
@@ -949,9 +977,13 @@ mod tests {
             }
 
             println!("Get non-existent key ONE");
-            let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
-            match ret {
+            match unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) } {
                 Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(62))
+                    );
                     flash_ctrl_callback(&tickv);
                     assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                 }
@@ -966,8 +998,7 @@ mod tests {
                     flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Err(_) => {}
-                _ => unreachable!(),
+                _ => unreachable!("ret: {:?}", ret),
             }
         }
     }
