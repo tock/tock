@@ -869,9 +869,22 @@ impl<'a> Radio<'a> {
                                 }
                             })
                             .unwrap_or_else(|_| {
-                                // If sending the ACK buffer failed, we must reset the radio to a receive state
-                                self.state.set(RadioState::RX);
-                                start_task = true;
+                                // The ACK was not sent; we do not need to drop the packet, but print msg
+                                // for debugging purposes, notfiy receive client of packet, and reset radio
+                                // to receiving
+                                self.rx_client.map(|client| {
+                                    start_task = true;
+                                    client.receive(
+                                        self.rx_buf.take().unwrap(),
+                                        frame_len,
+                                        self.registers.crcstatus.get() == 1,
+                                        result,
+                                    );
+                                });
+
+                                kernel::debug!(
+                                    "[ACKFail] Failed sending ACK in response to received packet."
+                                );
                             });
                     } else {
                         // Packet received that does not require an ACK
@@ -1041,6 +1054,10 @@ impl<'a> Radio<'a> {
     pub fn disable_all_interrupts(&self) {
         // disable all possible interrupts
         self.registers.intenclr.set(0xffffffff);
+    }
+
+    pub fn set_ack_buffer(&self, buffer: &'static mut [u8]) {
+        self.ack_buf.replace(buffer);
     }
 
     fn radio_initialize(&self) {
@@ -1273,10 +1290,6 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
     fn set_receive_client(&self, client: &'a dyn radio::RxClient, buffer: &'static mut [u8]) {
         self.rx_client.set(client);
         self.rx_buf.replace(buffer);
-    }
-
-    fn set_ack_buffer(&self, buffer: &'static mut [u8]) {
-        self.ack_buf.replace(buffer);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {

@@ -24,10 +24,10 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
         }
     }
     // Necessary for setting up circular dependencies
-    pub fn init(&'static self) {
+    pub fn init(&'static self, ack_buf: &'static mut [u8; 6]) {
         self.nrf52.pwr_clk.set_usb_client(&self.usbd);
         self.usbd.set_power_ref(&self.nrf52.pwr_clk);
-        self.nrf52.init();
+        self.nrf52.init(ack_buf);
     }
 }
 impl<'a> kernel::platform::chip::InterruptService for Nrf52840DefaultPeripherals<'a> {

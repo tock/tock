@@ -14,6 +14,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
+pub const ACK_BUF_SIZE: usize = 6;
 
 pub struct NrfStartupComponent<'a> {
     nfc_as_gpios: bool,
@@ -236,4 +237,28 @@ impl Component for UartChannelComponent {
             }
         }
     }
+}
+
+pub struct NrfRadioACKBufComponent {}
+
+impl<'a> NrfRadioACKBufComponent {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<'a> Component for NrfRadioACKBufComponent {
+    type StaticInput = &'static mut MaybeUninit<[u8; ACK_BUF_SIZE]>;
+    type Output = &'static mut [u8; ACK_BUF_SIZE];
+
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        s.write([0; ACK_BUF_SIZE])
+    }
+}
+
+#[macro_export]
+macro_rules! radio_ack_component_static {
+    ($(,)?) => {
+        kernel::static_buf!([u8; nrf52_components::ACK_BUF_SIZE])
+    };
 }

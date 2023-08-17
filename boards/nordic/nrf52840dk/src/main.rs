@@ -87,7 +87,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{self, NrfRadioACKBufComponent, UartChannel, UartPins};
 
 #[allow(dead_code)]
 mod test;
@@ -302,12 +302,16 @@ pub unsafe fn main() {
     // Apply errata fixes and enable interrupts.
     nrf52840::init();
 
+    // Allocate ACK buffer
+    let ack_buf_802154 =
+        NrfRadioACKBufComponent::new().finalize(nrf52_components::radio_ack_component_static!());
+
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let nrf52840_peripherals = create_peripherals();
 
     // Set up circular peripheral dependencies.
-    nrf52840_peripherals.init();
+    nrf52840_peripherals.init(ack_buf_802154);
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Configure kernel debug GPIOs as early as possible.

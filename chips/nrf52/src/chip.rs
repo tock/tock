@@ -80,7 +80,8 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         }
     }
     // Necessary for setting up circular dependencies
-    pub fn init(&'static self) {
+    pub fn init(&'static self, ack_buf: &'static mut [u8; 6]) {
+        self.ieee802154_radio.set_ack_buffer(ack_buf);
         self.ieee802154_radio.set_timer_ref(&self.timer0);
         self.timer0.set_alarm_client(&self.ieee802154_radio);
         kernel::deferred_call::DeferredCallClient::register(&self.nvmc);
