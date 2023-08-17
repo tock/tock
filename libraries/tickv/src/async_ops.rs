@@ -471,12 +471,21 @@ mod tests {
             hash_function.finish()
         }
 
+        #[derive(Clone, Copy)]
+        enum FlashCtrlAction {
+            Idle,
+            Read,
+            Write,
+            Erase,
+        }
+
         // An example FlashCtrl implementation
         struct FlashCtrl {
             buf: RefCell<[[u8; 1024]; 64]>,
             run: Cell<u8>,
             async_read_region: Cell<usize>,
             async_erase_region: Cell<usize>,
+            waiting_on: Cell<FlashCtrlAction>,
         }
 
         impl FlashCtrl {
@@ -486,7 +495,12 @@ mod tests {
                     run: Cell::new(0),
                     async_read_region: Cell::new(100),
                     async_erase_region: Cell::new(100),
+                    waiting_on: Cell::new(FlashCtrlAction::Idle),
                 }
+            }
+
+            fn get_waiting_action(&self) -> FlashCtrlAction {
+                self.waiting_on.get()
             }
         }
 
@@ -494,25 +508,18 @@ mod tests {
             fn read_region(
                 &self,
                 region_number: usize,
-                offset: usize,
-                buf: &mut [u8; 1024],
+                _offset: usize,
+                _buf: &mut [u8; 1024],
             ) -> Result<(), ErrorCode> {
                 println!("Read from region: {}", region_number);
 
-                if self.async_read_region.get() != region_number {
-                    // Pretend that we aren't ready
-                    self.async_read_region.set(region_number);
-                    println!("  Not ready");
-                    return Err(ErrorCode::ReadNotReady(region_number));
-                }
+                // Pretend that we aren't ready
+                self.async_read_region.set(region_number);
+                println!("  Not ready");
 
-                for (i, b) in buf.iter_mut().enumerate() {
-                    *b = self.buf.borrow()[region_number][offset + i]
-                }
+                self.waiting_on.set(FlashCtrlAction::Read);
 
-                // println!("  buf: {:#x?}", self.buf.borrow()[region_number]);
-
-                Ok(())
+                Err(ErrorCode::ReadNotReady(region_number))
             }
 
             fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode> {
@@ -541,18 +548,12 @@ mod tests {
                 }
 
                 self.run.set(self.run.get() + 1);
-
-                Ok(())
+                self.waiting_on.set(FlashCtrlAction::Write);
+                Err(ErrorCode::WriteNotReady(address))
             }
 
             fn erase_region(&self, region_number: usize) -> Result<(), ErrorCode> {
                 println!("Erase region: {}", region_number);
-
-                if self.async_erase_region.get() != region_number {
-                    // Pretend that we aren't ready
-                    self.async_erase_region.set(region_number);
-                    return Err(ErrorCode::EraseNotReady(region_number));
-                }
 
                 let mut local_buf = self.buf.borrow_mut()[region_number];
 
@@ -560,7 +561,23 @@ mod tests {
                     *d = 0xFF;
                 }
 
-                Ok(())
+                // Pretend that we aren't ready
+                self.async_erase_region.set(region_number);
+
+                self.waiting_on.set(FlashCtrlAction::Erase);
+                Err(ErrorCode::EraseNotReady(region_number))
+            }
+        }
+
+        fn flash_ctrl_callback(tickv: &AsyncTicKV<FlashCtrl, 1024>) {
+            match tickv.tickv.controller.get_waiting_action() {
+                FlashCtrlAction::Read => {
+                    tickv.set_read_buffer(
+                        &tickv.tickv.controller.buf.borrow()
+                            [tickv.tickv.controller.async_read_region.get()],
+                    );
+                }
+                _ => {}
             }
         }
 
