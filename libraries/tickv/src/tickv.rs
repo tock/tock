@@ -349,7 +349,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     || *region_data
                         .get(offset + HASH_OFFSET + 7)
                         .ok_or((false, ErrorCode::CorruptData))?
-                        != *hash.get(0).ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.first().ok_or((false, ErrorCode::CorruptData))?
                 {
                     // Increment our offset by the length and repeat the loop
                     offset += total_length as usize;
@@ -614,7 +614,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Append a Check Hash
                 let check_sum = check_sum.finalise();
-                let slice = &mut region_data
+                let slice = region_data
                     .get_mut((offset + package_length)..(offset + package_length + CHECK_SUM_LEN))
                     .ok_or(ErrorCode::ObjectTooLarge)?;
                 slice.copy_from_slice(&check_sum.to_ne_bytes());
@@ -745,7 +745,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                             != *region_data
                                 .get(offset + total_length as usize - 3)
                                 .ok_or(ErrorCode::InvalidCheckSum)?
-                        || *check_sum.get(0).ok_or(ErrorCode::InvalidCheckSum)?
+                        || *check_sum.first().ok_or(ErrorCode::InvalidCheckSum)?
                             != *region_data
                                 .get(offset + total_length as usize - 4)
                                 .ok_or(ErrorCode::InvalidCheckSum)?
