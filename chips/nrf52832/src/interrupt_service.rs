@@ -20,8 +20,8 @@ impl<'a> Nrf52832DefaultPeripherals<'a> {
         }
     }
     // Necessary for setting up circular dependencies
-    pub fn init(&'static self) {
-        self.nrf52.init();
+    pub fn init(&'static self, ack_buf: &'static mut [u8; 6]) {
+        self.nrf52.init(ack_buf);
     }
 }
 impl<'a> kernel::platform::chip::InterruptService for Nrf52832DefaultPeripherals<'a> {
