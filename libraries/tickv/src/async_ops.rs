@@ -374,6 +374,7 @@ mod tests {
         use crate::async_ops::AsyncTicKV;
         use crate::error_codes::ErrorCode;
         use crate::flash_controller::FlashController;
+        use crate::success_codes::SuccessCode;
         use crate::tickv::{HASH_OFFSET, LEN_OFFSET, MAIN_KEY, VERSION, VERSION_OFFSET};
         use core::hash::{Hash, Hasher};
         use std::cell::Cell;
@@ -591,6 +592,8 @@ mod tests {
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
+                flash_ctrl_callback(&tickv);
+
                 // There is no actual delay in the test, just continue now
                 let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
@@ -598,25 +601,27 @@ mod tests {
 
             static mut VALUE: [u8; 32] = [0x23; 32];
 
+            println!("HASHED KEY {:?}", get_hashed_key(b"ONE"));
+
             let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
 
             let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
         }
@@ -632,6 +637,8 @@ mod tests {
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
+                flash_ctrl_callback(&tickv);
+
                 // There is no actual delay in the test, just continue now
                 let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
@@ -643,26 +650,33 @@ mod tests {
             println!("Add key ONE");
             let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
 
             println!("Get key ONE");
-            unsafe {
-                tickv.get_key(get_hashed_key(b"ONE"), &mut BUF).unwrap();
+
+            let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
             }
 
-            println!("Get non-existant key TWO");
+            println!("Get non-existent key TWO");
             let ret = unsafe { tickv.get_key(get_hashed_key(b"TWO"), &mut BUF) };
             match ret {
-                Err((_, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                 }
                 Err((_, ErrorCode::KeyNotFound)) => {}
@@ -672,9 +686,9 @@ mod tests {
             println!("Add key ONE again");
             let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     assert_eq!(
                         tickv.continue_operation().0,
                         Err(ErrorCode::KeyAlreadyExists)
@@ -687,57 +701,58 @@ mod tests {
             println!("Add key TWO");
             let ret = unsafe { tickv.append_key(get_hashed_key(b"TWO"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
 
             println!("Get key ONE");
             let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
             match ret {
-                Err((_, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
 
             println!("Get key TWO");
             let ret = unsafe { tickv.get_key(get_hashed_key(b"TWO"), &mut BUF) };
             match ret {
-                Err((_, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
 
-            println!("Get non-existant key THREE");
+            println!("Get non-existent key THREE");
             let ret = unsafe { tickv.get_key(get_hashed_key(b"THREE"), &mut BUF) };
             match ret {
-                Err((_, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                 }
                 _ => unreachable!(),
             }
 
-            unsafe {
-                match tickv.get_key(get_hashed_key(b"THREE"), &mut BUF) {
-                    Err((_, ErrorCode::KeyNotFound)) => {}
-                    _ => {
-                        panic!("Expected ErrorCode::KeyNotFound");
-                    }
+            let ret = unsafe { tickv.get_key(get_hashed_key(b"THREE"), &mut BUF) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                 }
+                Err(_) => {}
+                _ => unreachable!(),
             }
         }
 
@@ -752,6 +767,8 @@ mod tests {
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
+                flash_ctrl_callback(&tickv);
+
                 // There is no actual delay in the test, just continue now
                 let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
@@ -763,38 +780,61 @@ mod tests {
             println!("Add key ONE");
             let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
+                Err(_) => {}
                 _ => unreachable!(),
             }
 
             println!("Get key ONE");
-            unsafe {
-                tickv.get_key(get_hashed_key(b"ONE"), &mut BUF).unwrap();
+            let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
             }
 
             println!("Delete Key ONE");
-            tickv.invalidate_key(get_hashed_key(b"ONE")).unwrap();
+            let ret = tickv.invalidate_key(get_hashed_key(b"ONE"));
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
+            }
 
             println!("Get non-existant key ONE");
             unsafe {
-                match tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) {
-                    Err((_, ErrorCode::KeyNotFound)) => {}
-                    _ => {
-                        panic!("Expected ErrorCode::KeyNotFound");
+                let ret = tickv.get_key(get_hashed_key(b"ONE"), &mut BUF);
+                match ret {
+                    Ok(SuccessCode::Queued) => {
+                        flash_ctrl_callback(&tickv);
+                        assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                     }
+                    Err(_) => {}
+                    _ => unreachable!(),
                 }
             }
 
             println!("Try to delete Key ONE Again");
-            assert_eq!(
-                tickv.invalidate_key(get_hashed_key(b"ONE")),
-                Err(ErrorCode::KeyNotFound)
-            );
+            let ret = tickv.invalidate_key(get_hashed_key(b"ONE"));
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
+                }
+                Err(_) => {}
+                _ => unreachable!(),
+            }
         }
 
         #[test]
@@ -808,6 +848,8 @@ mod tests {
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
+                flash_ctrl_callback(&tickv);
+
                 // There is no actual delay in the test, just continue now
                 let (r, _buf, _len) = tickv.continue_operation();
                 ret = r;
@@ -817,21 +859,26 @@ mod tests {
             static mut BUF: [u8; 32] = [0; 32];
 
             println!("Garbage collect empty flash");
-            let mut ret = tickv.garbage_collect();
-            while ret.is_err() {
-                // There is no actual delay in the test, just continue now
-                ret = match tickv.continue_operation().0 {
-                    Ok(_) => Ok(0),
-                    Err(e) => Err(e),
-                };
+            let ret = tickv.garbage_collect();
+            match ret {
+                Ok(SuccessCode::Queued) => loop {
+                    flash_ctrl_callback(&tickv);
+                    let (res, _buf, len) = tickv.continue_operation();
+                    if res.is_ok() {
+                        assert_eq!(len, 0);
+                        break;
+                    }
+                },
+                Ok(_) => {}
+                _ => unreachable!(),
             }
 
             println!("Add key ONE");
             let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
             match ret {
-                Err((_buf, ErrorCode::ReadNotReady(reg))) => {
+                Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
                 Ok(_) => {}
@@ -839,79 +886,66 @@ mod tests {
             }
 
             println!("Garbage collect flash with valid key");
-            let mut ret = tickv.garbage_collect();
-            while ret.is_err() {
-                match ret {
-                    Err(ErrorCode::ReadNotReady(reg)) => {
-                        // There is no actual delay in the test, just continue now
-                        tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
-                        ret = match tickv.continue_operation().0 {
-                            Ok(_) => Ok(0),
-                            Err(e) => Err(e),
-                        };
+            let ret = tickv.garbage_collect();
+            match ret {
+                Ok(SuccessCode::Queued) => loop {
+                    flash_ctrl_callback(&tickv);
+                    let (res, _buf, len) = tickv.continue_operation();
+                    if res.is_ok() {
+                        assert_eq!(len, 0);
+                        break;
                     }
-                    Ok(num) => {
-                        assert_eq!(num, 0);
-                    }
-                    _ => unreachable!(),
-                }
+                },
+                Ok(_) => {}
+                _ => unreachable!(),
             }
 
             println!("Delete Key ONE");
             let ret = tickv.invalidate_key(get_hashed_key(b"ONE"));
             match ret {
-                Err(ErrorCode::ReadNotReady(reg)) => {
-                    // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Ok(_) => {}
-                _ => unreachable!("ret: {:?}", ret),
+                Err(_) => {}
+                _ => unreachable!(),
             }
 
             println!("Garbage collect flash with deleted key");
-            let mut ret = tickv.garbage_collect();
-            while ret.is_err() {
-                match ret {
-                    Err(ErrorCode::ReadNotReady(reg)) => {
-                        // There is no actual delay in the test, just continue now
-                        tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
-                        ret = match tickv.continue_operation().0 {
-                            Ok(_) => Ok(0),
-                            Err(e) => Err(e),
-                        };
+            let ret = tickv.garbage_collect();
+            match ret {
+                Ok(SuccessCode::Queued) => loop {
+                    flash_ctrl_callback(&tickv);
+                    let (res, _buf, len) = tickv.continue_operation();
+                    if res.is_ok() {
+                        assert_eq!(len, 1024);
+                        break;
                     }
-                    Err(ErrorCode::EraseNotReady(_reg)) => {
-                        // There is no actual delay in the test, just continue now
-                        ret = match tickv.continue_operation().0 {
-                            Ok(_) => Ok(0),
-                            Err(e) => Err(e),
-                        };
-                    }
-                    Ok(num) => {
-                        assert_eq!(num, 1024);
-                    }
-                    _ => unreachable!("ret: {:?}", ret),
-                }
+                },
+                Ok(_) => {}
+                _ => unreachable!(),
             }
 
-            println!("Get non-existant key ONE");
+            println!("Get non-existent key ONE");
             let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
             match ret {
-                Err((_, ErrorCode::ReadNotReady(reg))) => {
-                    // There is no actual delay in the test, just continue now
-                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
                     assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                 }
-                Err((_, ErrorCode::KeyNotFound)) => {}
-                _ => unreachable!("ret: {:?}", ret),
+                _ => unreachable!(),
             }
 
             println!("Add Key ONE");
-            unsafe {
-                tickv
-                    .append_key(get_hashed_key(b"ONE"), &mut VALUE, 32)
-                    .unwrap();
+            let ret = unsafe { tickv.append_key(get_hashed_key(b"ONE"), &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
             }
         }
     }
