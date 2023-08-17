@@ -280,12 +280,12 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
 
     /// Perform a garbage collection on TicKV
     ///
-    /// On success nothing is returned.
+    /// On success a `SuccessCode` will be returned.
     /// On error a `ErrorCode` will be returned.
-    pub fn garbage_collect(&self) -> Result<(), ErrorCode> {
+    pub fn garbage_collect(&self) -> Result<SuccessCode, ErrorCode> {
         match self.tickv.garbage_collect() {
             Ok(_code) => Err(ErrorCode::EraseFail),
-            Err(_e) => Ok(()),
+            Err(_e) => Ok(SuccessCode::Queued),
         }
     }
 
@@ -339,7 +339,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
             }
             State::InvalidateKey(_) => (self.tickv.invalidate_key(self.key.get().unwrap()), 0),
             State::GarbageCollect(_) => match self.tickv.garbage_collect() {
-                Ok(_) => (Ok(SuccessCode::Complete), 0),
+                Ok(bytes_freed) => (Ok(SuccessCode::Complete), bytes_freed),
                 Err(e) => (Err(e), 0),
             },
             _ => unreachable!(),

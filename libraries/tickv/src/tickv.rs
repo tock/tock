@@ -33,8 +33,8 @@ pub(crate) enum KeyState {
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum RubbishState {
-    ReadRegion(usize),
-    EraseRegion(usize),
+    ReadRegion(usize, usize),
+    EraseRegion(usize, usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -405,7 +405,6 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 State::AppendKey(key_state) => match key_state {
                     KeyState::ReadRegion(reg) => reg as isize,
                 },
-                State::GarbageCollect(RubbishState::ReadRegion(reg)) => reg as isize,
                 _ => unreachable!(),
             };
 
@@ -864,17 +863,25 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         }
     }
 
-    fn garbage_collect_region(&self, region: usize) -> Result<usize, ErrorCode> {
+    fn garbage_collect_region(
+        &self,
+        region: usize,
+        flash_freed: usize,
+    ) -> Result<usize, ErrorCode> {
         // Get the data from that region
         let mut region_data = self.read_buffer.take().unwrap();
-        if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region)) {
+        if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region, flash_freed))
+        {
             match self.controller.read_region(region, 0, &mut region_data) {
                 Ok(()) => {}
                 Err(e) => {
                     self.read_buffer.replace(Some(region_data));
                     if let ErrorCode::ReadNotReady(reg) = e {
                         self.state
-                            .set(State::GarbageCollect(RubbishState::ReadRegion(reg)));
+                            .set(State::GarbageCollect(RubbishState::ReadRegion(
+                                reg,
+                                flash_freed,
+                            )));
                     }
                     return Err(e);
                 }
@@ -959,7 +966,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         if let Err(e) = self.controller.erase_region(region) {
             if let ErrorCode::EraseNotReady(reg) = e {
                 self.state
-                    .set(State::GarbageCollect(RubbishState::EraseRegion(reg)));
+                    .set(State::GarbageCollect(RubbishState::EraseRegion(
+                        reg,
+                        flash_freed + S,
+                    )));
             }
             return Err(e);
         }
@@ -977,15 +987,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         let start = match self.state.get() {
             State::None => 0,
             State::GarbageCollect(state) => match state {
-                RubbishState::ReadRegion(reg) => reg,
+                RubbishState::ReadRegion(reg, ff) => {
+                    flash_freed += ff;
+                    reg
+                }
                 // We already erased region reg, so move to the next one
-                RubbishState::EraseRegion(reg) => reg + 1,
+                RubbishState::EraseRegion(reg, ff) => {
+                    flash_freed += ff;
+                    reg + 1
+                }
             },
             _ => unreachable!(),
         };
 
         for i in start..num_region {
-            match self.garbage_collect_region(i) {
+            match self.garbage_collect_region(i, flash_freed) {
                 Ok(freed) => flash_freed += freed,
                 Err(e) => return Err(e),
             }
