@@ -34,7 +34,7 @@ abreast of Tock development:
     wait at least one week to merge to allow for feedback.
 
 Finally, please don't hesitate to
-[ask for help](https://kiwiirc.com/client/irc.freenode.net/tock).
+[ask for help](https://github.com/tock/tock/#keep-up-to-date).
 
 
 Structure
