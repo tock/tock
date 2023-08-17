@@ -67,7 +67,7 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static>>> = None;
 // Test access to TicKV
 static mut TICKV: Option<
-    &capsules_extra::tickv::TicKVStore<
+    &capsules_extra::tickv::TicKVSystem<
         'static,
         capsules_core::virtualizers::virtual_flash::FlashUser<
             'static,
@@ -142,16 +142,25 @@ struct EarlGrey {
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
-        capsules_extra::tickv::TicKVStore<
+        capsules_extra::virtual_kv::VirtualKVPermissions<
             'static,
-            capsules_core::virtualizers::virtual_flash::FlashUser<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
-                lowrisc::flash_ctrl::FlashCtrl<'static>,
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    'static,
+                    capsules_extra::tickv::TicKVSystem<
+                        'static,
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            'static,
+                            lowrisc::flash_ctrl::FlashCtrl<'static>,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    [u8; 8],
+                >,
             >,
-            capsules_extra::sip_hash::SipHasher24<'static>,
-            2048,
         >,
-        [u8; 8],
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
@@ -493,9 +502,9 @@ unsafe fn setup() -> (
     sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
-    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_static!(
-            capsules_extra::tickv::TicKVStore<
+    let kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+        components::tickv_kv_store_component_static!(
+            capsules_extra::tickv::TicKVSystem<
                 capsules_core::virtualizers::virtual_flash::FlashUser<
                     lowrisc::flash_ctrl::FlashCtrl,
                 >,
@@ -506,31 +515,75 @@ unsafe fn setup() -> (
         ),
     );
 
-    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
-        components::kv_store_component_static!(
-            capsules_extra::tickv::TicKVStore<
-                capsules_core::virtualizers::virtual_flash::FlashUser<
-                    lowrisc::flash_ctrl::FlashCtrl,
+    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(kv_store).finalize(
+        components::kv_store_permissions_component_static!(
+            capsules_extra::tickv_kv_store::TicKVKVStore<
+                capsules_extra::tickv::TicKVSystem<
+                    capsules_core::virtualizers::virtual_flash::FlashUser<
+                        lowrisc::flash_ctrl::FlashCtrl,
+                    >,
+                    capsules_extra::sip_hash::SipHasher24<'static>,
+                    2048,
                 >,
-                capsules_extra::sip_hash::SipHasher24<'static>,
-                2048,
-            >,
-            capsules_extra::tickv::TicKVKeyType,
+                capsules_extra::tickv::TicKVKeyType,
+            >
         ),
     );
 
-    let kv_driver = components::kv_system::KVDriverComponent::new(
-        kv_store,
+    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+        components::kv_permissions_mux_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ),
+    );
+
+    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+        components::virtual_kv_permissions_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ),
+    );
+
+    let kv_driver = components::kv::KVDriverComponent::new(
+        virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
     )
     .finalize(components::kv_driver_component_static!(
-        capsules_extra::tickv::TicKVStore<
-            capsules_core::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-            capsules_extra::sip_hash::SipHasher24<'static>,
-            2048,
-        >,
-        capsules_extra::tickv::TicKVKeyType,
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >,
+        >
     ));
 
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
