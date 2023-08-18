@@ -241,8 +241,9 @@ review principles that will be used when evaluating pull requests.
   reference other modules and setup exports. Actual OS logic should be in
   descriptively named files.
 - `static_init!()` (and similar) must only be called from board crates.
-- Is any new functionality both publicly exported and harmful to overall safety
-  (not just correctness) if called at the wrong time? If so, this should likely
+- Is any new functionality both publicly exported and have invariants which
+  cannot be enforced by the type system or other automated means (e.g., they
+  provide access to sensitive core kernel data structures). If so, this should likely
   be guarded with a capability.
 - Uses of `#inline` directives should explain why they are needed.
 
@@ -308,8 +309,10 @@ Virtualizers multiplex an underlying resource for multiple users.
 
 Syscall drivers implement `SyscallDriver` to provide interfaces for userspace.
 
-- These drivers must support multiple processes. They do not need to be fully
-  virtualized, but they must not break if multiple processes use them.
+- These drivers must support potential calls from multiple processes. They do
+   not need to be fully virtualized, e.g. a driver which rejects syscalls from all
+   but the first process to access it is acceptable, but drivers must not break if
+   multiple processes attempt access.
 - They must return `CommandReturn::SUCCESS` for `command_id==0`.
 - They should use the first argument to any upcalls as a ReturnCode.
 - They should only provide an interface to userspace on top of some resource,
@@ -324,7 +327,8 @@ the code.
 
 Files in a chip crate should avoid giving the impression of functionality which
 is not actually implemented. This means avoiding peripheral files which only
-contain registers, or returning `ErrorCode::NOSUPPORT`.
+contain registers or return `ErrorCode::NOSUPPORT` for all methods. A peripheral
+must implement at least basic functionality to be merged in mainline Tock.
 
 Chip crates should be properly named. Many chips use nested crates to represent
 families of chips and to share implementations.
@@ -335,6 +339,9 @@ likely documented in a datashet, chip-variant configs may be used. They should
 be contained to a single file (i.e. not scattered throughout the crate). It
 should be entirely unambiguous whether a feature is set or not (i.e. it should
 be based on physical hardware where it is obvious which chip a user has).
+Generally, this means `cfg` directives should be an explicit list of chips or'd
+together. Rarely, if ever, is a `cfg(not ...)` the correct approach for anything
+outside of unit tests.
 
 #### Boards
 
