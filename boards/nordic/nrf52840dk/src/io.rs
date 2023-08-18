@@ -24,7 +24,7 @@ enum Writer {
 static mut WRITER: Writer = Writer::WriterUart(false);
 
 fn wait() {
-    for _ in 0..100 {
+    for _ in 0..1000 {
         cortexm4::support::nop();
     }
 }
