@@ -189,6 +189,13 @@ impl From<process::Error> for CommandReturn {
 /// corresponding function for capsules to implement.
 #[allow(unused_variables)]
 pub trait SyscallDriver {
+    // n.b. This requires new nightly features that are still a bit in flux:
+    // https://github.com/rust-lang/rust/issues/67792
+    #[cfg(AAAAAAAAAAAAAAAAA)]
+    const fn commandZero(&self) -> CommandReturn {
+        CommandReturn::failure(ErrorCode::NODEVICE)
+    }
+
     /// System call for a process to perform a short synchronous operation
     /// or start a long-running split-phase operation (whose completion
     /// is signaled with an upcall). Command 0 is a reserved command to
@@ -196,7 +203,7 @@ pub trait SyscallDriver {
     /// always return a CommandReturn::Success.
     fn command(
         &self,
-        command_num: usize,
+        command_num: core::num::NonZeroUsize,
         r2: usize,
         r3: usize,
         process_id: ProcessId,
