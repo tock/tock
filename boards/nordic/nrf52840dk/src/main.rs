@@ -87,7 +87,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{self, NrfRadioACKBufComponent, UartChannel, UartPins};
+use nrf52_components::{self, UartChannel, UartPins};
 
 #[allow(dead_code)]
 mod test;
@@ -245,10 +245,14 @@ impl SyscallDriverLookup for Platform {
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
+    );
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new()
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     nrf52840_peripherals
@@ -302,16 +306,12 @@ pub unsafe fn main() {
     // Apply errata fixes and enable interrupts.
     nrf52840::init();
 
-    // Allocate ACK buffer
-    let ack_buf_802154 =
-        NrfRadioACKBufComponent::new().finalize(nrf52_components::radio_ack_component_static!());
-
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let nrf52840_peripherals = create_peripherals();
 
     // Set up circular peripheral dependencies.
-    nrf52840_peripherals.init(ack_buf_802154);
+    nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Configure kernel debug GPIOs as early as possible.
@@ -545,7 +545,7 @@ pub unsafe fn main() {
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
-        &base_peripherals.ieee802154_radio,
+        &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,

@@ -16,8 +16,8 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use nrf5x;
-use nrf5x::constants::TxPower;
+use nrf52;
+use nrf52::constants::TxPower;
 
 use self::Shortcut::RXREADY_CCASTART;
 
@@ -49,6 +49,7 @@ pub const IEEE802154_MAX_BE: u8 = 5;
 pub const RAM_LEN_BITS: usize = 8;
 pub const RAM_S1_BITS: usize = 0;
 pub const PREBUF_LEN_BYTES: usize = 2;
+pub const ACK_BUF_SIZE: usize = 6;
 
 // artifact of entanglement with rf233 implementation, mac layer
 // places packet data starting PSDU_OFFSET=2 bytes after start of
@@ -721,7 +722,7 @@ enum RadioState {
 }
 
 impl<'a> Radio<'a> {
-    pub fn new() -> Self {
+    pub fn new(ack_buf: &'static mut [u8; ACK_BUF_SIZE]) -> Self {
         Self {
             registers: RADIO_BASE,
             tx_power: Cell::new(TxPower::ZerodBm),
@@ -729,7 +730,7 @@ impl<'a> Radio<'a> {
             tx_client: OptionalCell::empty(),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
-            ack_buf: TakeCell::empty(),
+            ack_buf: TakeCell::new(ack_buf),
             addr: Cell::new(0),
             addr_long: Cell::new([0x00; 8]),
             pan: Cell::new(0),
@@ -922,7 +923,7 @@ impl<'a> Radio<'a> {
                     self.registers.event_ready.write(Event::READY::CLEAR);
 
                     // Ready event from Tx ramp up will be in radio internal TXIDLE state
-                    if self.registers.state.get() == nrf5x::constants::RADIO_STATE_TXIDLE {
+                    if self.registers.state.get() == nrf52::constants::RADIO_STATE_TXIDLE {
                         start_task = true;
                     }
                 }
@@ -1093,10 +1094,10 @@ impl<'a> Radio<'a> {
             .write(CrcConfiguration::LEN::TWO + CrcConfiguration::SKIPADDR::IEEE802154);
         self.registers
             .crcinit
-            .set(nrf5x::constants::RADIO_CRCINIT_IEEE802154);
+            .set(nrf52::constants::RADIO_CRCINIT_IEEE802154);
         self.registers
             .crcpoly
-            .set(nrf5x::constants::RADIO_CRCPOLY_IEEE802154);
+            .set(nrf52::constants::RADIO_CRCPOLY_IEEE802154);
     }
 
     fn ieee802154_set_rampup_mode(&self) {
@@ -1107,10 +1108,10 @@ impl<'a> Radio<'a> {
 
     fn ieee802154_set_cca_config(&self) {
         self.registers.ccactrl.write(
-            CCAControl::CCAMODE.val(nrf5x::constants::IEEE802154_CCA_MODE)
-                + CCAControl::CCAEDTHRESH.val(nrf5x::constants::IEEE802154_CCA_ED_THRESH)
-                + CCAControl::CCACORRTHRESH.val(nrf5x::constants::IEEE802154_CCA_CORR_THRESH)
-                + CCAControl::CCACORRCNT.val(nrf5x::constants::IEEE802154_CCA_CORR_CNT),
+            CCAControl::CCAMODE.val(nrf52::constants::IEEE802154_CCA_MODE)
+                + CCAControl::CCAEDTHRESH.val(nrf52::constants::IEEE802154_CCA_ED_THRESH)
+                + CCAControl::CCACORRTHRESH.val(nrf52::constants::IEEE802154_CCA_CORR_THRESH)
+                + CCAControl::CCACORRCNT.val(nrf52::constants::IEEE802154_CCA_CORR_CNT),
         );
     }
 
@@ -1125,7 +1126,7 @@ impl<'a> Radio<'a> {
 
         self.registers
             .pcnf1
-            .write(PacketConfiguration1::MAXLEN.val(nrf5x::constants::RADIO_PAYLOAD_LENGTH as u32));
+            .write(PacketConfiguration1::MAXLEN.val(nrf52::constants::RADIO_PAYLOAD_LENGTH as u32));
     }
 
     fn ieee802154_set_channel_rate(&self) {
@@ -1274,7 +1275,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 
     fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
-        match nrf5x::constants::TxPower::try_from(tx_power as u8) {
+        match nrf52::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
             Err(_) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
