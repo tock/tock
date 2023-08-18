@@ -206,10 +206,10 @@ review principles that will be used when evaluating pull requests.
   changed lines, but rather by the semantic meaning of the changes.
 - Are the commits all relevant to the change, or are there possibly unrelated
   branches that are unintentionally included?
-- Does the PR provide enough explanation to help reviewers understand its purpose,
-  and to explain the change for future readers of the code? Does the PR link to
-  relevant tracking issues or other discussions? Are there existing discussions
-  that should be referenced?
+- Does the PR provide enough explanation to help reviewers understand its
+  purpose, and to explain the change for future readers of the code? Does the PR
+  link to relevant tracking issues or other discussions? Are there existing
+  discussions that should be referenced?
 
 **Documentation and Comments**
 
@@ -243,9 +243,10 @@ review principles that will be used when evaluating pull requests.
 - `static_init!()` (and similar) must only be called from board crates.
 - Is any new functionality both publicly exported and have invariants which
   cannot be enforced by the type system or other automated means (e.g., they
-  provide access to sensitive core kernel data structures). If so, this should likely
-  be guarded with a capability.
-- Uses of `#inline` directives should explain why they are needed.
+  provide access to sensitive core kernel data structures)? If so, this should
+  likely be guarded with a capability.
+- Uses of `#inline` directives should explain in an adjacent comment why they
+  are needed.
 
 ### Review Guide by Repository Subsystem
 
@@ -310,9 +311,9 @@ Virtualizers multiplex an underlying resource for multiple users.
 Syscall drivers implement `SyscallDriver` to provide interfaces for userspace.
 
 - These drivers must support potential calls from multiple processes. They do
-   not need to be fully virtualized, e.g. a driver which rejects syscalls from all
-   but the first process to access it is acceptable, but drivers must not break if
-   multiple processes attempt access.
+  not need to be fully virtualized, e.g. a driver which rejects syscalls from
+  all but the first process to access it is acceptable, but drivers must not
+  break if multiple processes attempt access.
 - They must return `CommandReturn::SUCCESS` for `command_id==0`.
 - They should use the first argument to any upcalls as a ReturnCode.
 - They should only provide an interface to userspace on top of some resource,
