@@ -481,22 +481,24 @@ mod tests {
         }
 
         // An example FlashCtrl implementation
-        struct FlashCtrl {
-            buf: RefCell<[[u8; 1024]; 64]>,
+        struct FlashCtrl<const S: usize> {
+            buf: RefCell<[[u8; S]; 64]>,
             run: Cell<u8>,
             async_read_region: Cell<usize>,
             async_erase_region: Cell<usize>,
             waiting_on: Cell<FlashCtrlAction>,
+            check_write_contents: bool,
         }
 
-        impl FlashCtrl {
-            fn new() -> Self {
+        impl<const S: usize> FlashCtrl<S> {
+            fn new(check_write_contents: bool) -> Self {
                 Self {
-                    buf: RefCell::new([[0xFF; 1024]; 64]),
+                    buf: RefCell::new([[0xFF; S]; 64]),
                     run: Cell::new(0),
                     async_read_region: Cell::new(100),
                     async_erase_region: Cell::new(100),
                     waiting_on: Cell::new(FlashCtrlAction::Idle),
+                    check_write_contents,
                 }
             }
 
@@ -505,12 +507,12 @@ mod tests {
             }
         }
 
-        impl FlashController<1024> for FlashCtrl {
+        impl<const S: usize> FlashController<S> for FlashCtrl<S> {
             fn read_region(
                 &self,
                 region_number: usize,
                 _offset: usize,
-                _buf: &mut [u8; 1024],
+                _buf: &mut [u8; S],
             ) -> Result<(), ErrorCode> {
                 println!("Read from region: {}", region_number);
 
@@ -524,18 +526,14 @@ mod tests {
             }
 
             fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode> {
-                println!(
-                    "Write to address: {:#x}, region: {}",
-                    address,
-                    address / 1024
-                );
+                println!("Write to address: {:#x}, region: {}", address, address / S);
 
                 for (i, d) in buf.iter().enumerate() {
-                    self.buf.borrow_mut()[address / 1024][(address % 1024) + i] = *d;
+                    self.buf.borrow_mut()[address / S][(address % S) + i] = *d;
                 }
 
                 // Check to see if we are adding a key
-                if buf.len() > 1 {
+                if buf.len() > 1 && self.check_write_contents {
                     if self.run.get() == 0 {
                         println!("Writing main key: {:#x?}", buf);
                         check_region_main(buf);
@@ -575,7 +573,7 @@ mod tests {
         /// callback handler, but since we don't actually have an async flash
         /// implementation, this is just called by each test after starting the
         /// flash operation.
-        fn flash_ctrl_callback(tickv: &AsyncTicKV<FlashCtrl, 1024>) {
+        fn flash_ctrl_callback<const S: usize>(tickv: &AsyncTicKV<FlashCtrl<S>, S>) {
             match tickv.tickv.controller.get_waiting_action() {
                 FlashCtrlAction::Read => {
                     // This mimics a read is complete, and we provide the buffer
@@ -599,7 +597,11 @@ mod tests {
             let mut hash_function = DefaultHasher::new();
             MAIN_KEY.hash(&mut hash_function);
 
-            let tickv = AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x1000);
+            let tickv = AsyncTicKV::<FlashCtrl<1024>, 1024>::new(
+                FlashCtrl::new(true),
+                &mut read_buf,
+                0x1000,
+            );
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
@@ -643,8 +645,11 @@ mod tests {
             let mut hash_function = DefaultHasher::new();
             MAIN_KEY.hash(&mut hash_function);
 
-            let tickv =
-                AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+            let tickv = AsyncTicKV::<FlashCtrl<1024>, 1024>::new(
+                FlashCtrl::new(true),
+                &mut read_buf,
+                0x10000,
+            );
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
@@ -768,13 +773,85 @@ mod tests {
         }
 
         #[test]
+        fn test_spread_pages() {
+            let mut read_buf: [u8; 64] = [0; 64];
+            let mut hash_function = DefaultHasher::new();
+            MAIN_KEY.hash(&mut hash_function);
+
+            let tickv =
+                AsyncTicKV::<FlashCtrl<64>, 64>::new(FlashCtrl::new(false), &mut read_buf, 64 * 64);
+
+            let mut ret = tickv.initialise(hash_function.finish());
+            while ret.is_err() {
+                flash_ctrl_callback(&tickv);
+
+                // There is no actual delay in the test, just continue now
+                let (r, _buf, _len) = tickv.continue_operation();
+                ret = r;
+            }
+
+            static mut VALUE: [u8; 32] = [0x23; 32];
+            static mut BUF: [u8; 32] = [0; 32];
+
+            println!("Add key 0x1000");
+            let ret = unsafe { tickv.append_key(0x1000, &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
+            }
+
+            println!("Add key 0x2000");
+            let ret = unsafe { tickv.append_key(0x2000, &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
+            }
+
+            println!("Add key 0x3000");
+            let ret = unsafe { tickv.append_key(0x3000, &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
+            }
+
+            println!("Get key 0x3000");
+            let ret = unsafe { tickv.get_key(0x3000, &mut BUF) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(_) => {}
+                _ => unreachable!(),
+            }
+        }
+
+        #[test]
         fn test_append_and_delete() {
             let mut read_buf: [u8; 1024] = [0; 1024];
             let mut hash_function = DefaultHasher::new();
             MAIN_KEY.hash(&mut hash_function);
 
-            let tickv =
-                AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+            let tickv = AsyncTicKV::<FlashCtrl<1024>, 1024>::new(
+                FlashCtrl::new(true),
+                &mut read_buf,
+                0x10000,
+            );
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
@@ -854,8 +931,11 @@ mod tests {
             let mut hash_function = DefaultHasher::new();
             MAIN_KEY.hash(&mut hash_function);
 
-            let tickv =
-                AsyncTicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+            let tickv = AsyncTicKV::<FlashCtrl<1024>, 1024>::new(
+                FlashCtrl::new(true),
+                &mut read_buf,
+                0x10000,
+            );
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
