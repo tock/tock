@@ -20,7 +20,6 @@
 CLIPPY_ARGS="
 -A clippy::pedantic
 -A clippy::nursery
--A clippy::perf
 -A clippy::cargo
 -A clippy::restriction
 
@@ -151,8 +150,18 @@ CLIPPY_ARGS_STYLE="
 -A clippy::zero_ptr
 "
 
+# Disallow all perf lints, then re-allow each one Tock does not comply with.
+CLIPPY_ARGS_PERF="
+-D clippy::perf
+
+-A clippy::large-enum-variant
+
+
+-A clippy::manual-memcpy
+"
+
 # Uncomment this line to automatically apply fixes to match changes to the
 # disallowed lints.
 # FIX="--fix --allow-dirty"
 
-cargo clippy $FIX -- $CLIPPY_ARGS $CLIPPY_ARGS_COMPLEXITY $CLIPPY_ARGS_STYLE
+cargo clippy $FIX -- $CLIPPY_ARGS $CLIPPY_ARGS_COMPLEXITY $CLIPPY_ARGS_STYLE $CLIPPY_ARGS_PERF
