@@ -777,6 +777,126 @@ mod tests {
         }
 
         #[test]
+        fn test_spread_pages() {
+            let mut read_buf: [u8; 64] = [0; 64];
+            let mut hash_function = DefaultHasher::new();
+            MAIN_KEY.hash(&mut hash_function);
+
+            let tickv =
+                AsyncTicKV::<FlashCtrl<64>, 64>::new(FlashCtrl::new(false), &mut read_buf, 64 * 64);
+
+            let mut ret = tickv.initialise(hash_function.finish());
+            while ret.is_err() {
+                tickv.set_read_buffer(
+                    &tickv.tickv.controller.buf.borrow()
+                        [tickv.tickv.controller.async_read_region.get()],
+                );
+
+                // There is no actual delay in the test, just continue now
+                let (r, _buf, _len) = tickv.continue_operation();
+                ret = r;
+            }
+
+            static mut VALUE: [u8; 32] = [0x23; 32];
+            static mut BUF: [u8; 32] = [0; 32];
+
+            println!("Add key 0x1000");
+            let ret = unsafe { tickv.append_key(0x1000, &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(e) => panic!("Unable to add key 0x100: {e:?}"),
+                _ => unreachable!(),
+            }
+
+            println!("Add key 0x2000");
+            let ret = unsafe { tickv.append_key(0x2000, &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(1))
+                    );
+                    flash_ctrl_callback(&tickv);
+
+                    tickv.continue_operation().0.unwrap();
+                }
+                Err(e) => panic!("Unable to add key 0x200: {e:?}"),
+                _ => unreachable!(),
+            }
+
+            println!("Add key 0x3000");
+            let ret = unsafe { tickv.append_key(0x3000, &mut VALUE, 32) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                }
+                Err(e) => panic!("Unable to add key 0x3000: {e:?}"),
+                _ => unreachable!(),
+            }
+
+            loop {
+                let ret = tickv.continue_operation().0;
+                match ret {
+                    Err(ErrorCode::ReadNotReady(_reg)) => {
+                        // There is no actual delay in the test, just continue now
+                        flash_ctrl_callback(&tickv);
+                    }
+                    Err(e) => panic!("Unable to add key 0x3000: {e:?}"),
+                    Ok(_) => break,
+                }
+            }
+
+            println!("Get key 0x1000");
+            let ret = unsafe { tickv.get_key(0x1000, &mut BUF) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                }
+                _ => unreachable!(),
+            }
+
+            loop {
+                let ret = tickv.continue_operation().0;
+                match ret {
+                    Err(ErrorCode::ReadNotReady(_reg)) => {
+                        // There is no actual delay in the test, just continue now
+                        flash_ctrl_callback(&tickv);
+                    }
+                    Err(e) => panic!("Unable to get key 0x1000: {e:?}"),
+                    Ok(_) => break,
+                }
+            }
+
+            println!("Get key 0x3000");
+            let ret = unsafe { tickv.get_key(0x3000, &mut BUF) };
+            match ret {
+                Ok(_) => flash_ctrl_callback(&tickv),
+                Err(_) => unreachable!(),
+            }
+
+            loop {
+                let ret = tickv.continue_operation().0;
+                match ret {
+                    Err(ErrorCode::ReadNotReady(reg)) => {
+                        // There is no actual delay in the test, just continue now
+                        tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    }
+                    Err(e) => panic!("Unable to get key 0x1000: {e:?}"),
+                    Ok(_) => break,
+                }
+            }
+        }
+
+        #[test]
         fn test_append_and_delete() {
             let mut read_buf: [u8; 1024] = [0; 1024];
             let mut hash_function = DefaultHasher::new();
