@@ -164,7 +164,7 @@ compiled binary.
 Tock supports resource constrained microcontrollers which do not support virtual
 memory. This means Tock process cannot assume a known address space. Tock
 supports two methods for enabling processes despite the lack of virtual memory:
-embedded PIC (ePIC) and fixed address loading.
+embedded PIC (FDPIC) and fixed address loading.
 
 #### Position Independent Code
 
@@ -175,22 +175,22 @@ systems and is typically addressed by dynamically linking and loading code at
 runtime.
 
 Tock, however, makes a different choice and requires applications to be compiled
-as position independent code. Compiling with ePIC makes all control flow
+as position independent code. Compiling with FDPIC makes all control flow
 relative to the current PC, rather than using jumps to specified absolute
 addresses. All data accesses are relative to the start of the data segment for
 that app, and the address of the data segment is stored in a register referred
 to as the `base register`. This allows the segments in Flash and RAM to be
 placed anywhere, and the OS only has to correctly initialize the base register.
 
-ePIC code can be inefficient on some architectures such as x86, but the ARM
-instruction set is optimized for ePIC operation and allows most code to execute
-with little to no overhead. Using ePIC still requires some fixup at runtime, but
+FDPIC code can be inefficient on some architectures such as x86, but the ARM
+instruction set is optimized for FDPIC operation and allows most code to execute
+with little to no overhead. Using FDPIC still requires some fixup at runtime, but
 the relocations are simple and cause only a one-time cost when an application is
 loaded. A more in-depth discussion of dynamically loading applications can be
 found on the Tock website: [Dynamic Code Loading on a
 MCU](http://www.tockos.org/blog/2016/dynamic-loading/).
 
-For applications compiled with `arm-none-eabi-gcc`, building ePIC code for Tock
+For applications compiled with `arm-none-eabi-gcc`, building FDPIC code for Tock
 requires four flags:
 
  - `-fPIC`: only emit code that uses relative addresses.
@@ -206,13 +206,13 @@ at Flash to be easily differentiated from relocations pointing at RAM.
 
 #### Fixed Address Loading
 
-Unfortunately, not all compilers support ePIC. As of August 2023, LLVM and
-riscv-gcc both do not support ePIC. This complicates running Tock processes, but
-Tock supports an alternative method using fixed addresses. This method works by
-compiling Tock processes for fixed addresses in both flash and RAM (as typical
-embedded compilation would do) and then processes are placed in flash so that
-they match their fixed flash address and the kernel sets their RAM region so
-their RAM addresses match. While this simplifies compilation, ensuring that
+Unfortunately, not all compilers support FDPIC. As of August 2023, LLVM and
+riscv-gcc both do not support FDPIC. This complicates running Tock processes,
+but Tock supports an alternative method using fixed addresses. This method works
+by compiling Tock processes for fixed addresses in both flash and RAM (as
+typical embedded compilation would do) and then processes are placed in flash so
+that they match their fixed flash address and the kernel sets their RAM region
+so their RAM addresses match. While this simplifies compilation, ensuring that
 those addresses are properly met involves several components.
 
 ##### Fixed Address TBF Header
