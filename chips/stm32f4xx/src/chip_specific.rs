@@ -34,8 +34,10 @@ pub mod clock_constants {
     #[cfg(any(feature = "stm32f412"))]
     const __APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
     #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
+    #[cfg(not(feature = "cargo-clippy"))]
     const __APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
     #[cfg(any(feature = "stm32f401"))]
+    #[cfg(not(feature = "cargo-clippy"))]
     const __APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
 
     /// Maximum allowed APB1 frequency in MHz
@@ -48,8 +50,10 @@ pub mod clock_constants {
     #[cfg(any(feature = "stm32f412"))]
     const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
     #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
+    #[cfg(not(feature = "cargo-clippy"))]
     const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
     #[cfg(any(feature = "stm32f401"))]
+    #[cfg(not(feature = "cargo-clippy"))]
     const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
 
     /// Maximum allowed system clock frequency in MHz
