@@ -511,10 +511,10 @@ mod tests {
             fn read_region(
                 &self,
                 region_number: usize,
-                _offset: usize,
+                offset: usize,
                 _buf: &mut [u8; S],
             ) -> Result<(), ErrorCode> {
-                println!("Read from region: {}", region_number);
+                println!("Read from region: {}, offset: {offset}", region_number);
 
                 // Pretend that we aren't ready
                 self.async_read_region.set(region_number);
@@ -526,7 +526,11 @@ mod tests {
             }
 
             fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode> {
-                println!("Write to address: {:#x}, region: {}", address, address / S);
+                println!(
+                    "Write to address: {:#x}, region: {}",
+                    address % S,
+                    address / S
+                );
 
                 for (i, d) in buf.iter().enumerate() {
                     self.buf.borrow_mut()[address / S][(address % S) + i] = *d;
