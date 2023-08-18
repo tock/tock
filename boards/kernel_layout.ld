@@ -337,6 +337,57 @@ SECTIONS
     } > ram
     _eappmem = ORIGIN(ram) + LENGTH(ram);
 
+
+    /* Place attributes at the end of the kernel ROM region. These will be used
+     * for host-side tools to learn about the installed kernel.
+     *
+     * Attributes are stored as TLVs, but going backwards in flash.
+     *
+     *                           2 byte   2 byte   3 byte     1 byte    4 byte
+     * -----------+------------+--------+--------+----------+---------+---------+ Start
+     *            | Value...   | Type   | Length | Reserved | Version | TOCK    | of
+     * -----------+------------+--------+--------+----------+---------+---------+ `prog`
+     * <-TLVs...-> <-----TLV--------------------> <----Header--------> <-Sentl->
+     *
+     * The TLV `Length` specifies the size of the TLV value (i.e. not including
+     * the TLV header).
+     */
+    .attributes : AT (ORIGIN(rom) + LENGTH(rom) - SIZEOF(.attributes))
+    {
+        /* TLV: Kernel Flash
+         * This indicates the start address of the kernel flash and the size of
+         * the kernel binary.
+         */
+        LONG(ORIGIN(rom)) /* Address of start of kernel binary. */
+        LONG((LOADADDR(.relocate) + (_erelocate - _srelocate)) - ORIGIN(rom)) /* Length of kernel binary. */
+        SHORT(0x0102) /* Type = Kernel Flash = 0x0102 */
+        SHORT(8)      /* Length = 8 bytes */
+
+        /* TLV: App Memory
+         * This indicates the start address and size of RAM available for
+         * userspace apps.
+         */
+        LONG(_sappmem) /* Address of start of app memory. */
+        LONG(_eappmem - _sappmem) /* Length of app memory. */
+        SHORT(0x0101) /* Type = App RAM Region = 0x0101 */
+        SHORT(8)      /* Length = 8 bytes */
+
+        /* Version and Reserved. Current version is 0x01.
+         */
+        BYTE(0) /* Reserved */
+        BYTE(0) /* Reserved */
+        BYTE(0) /* Reserved */
+        BYTE(1) /* Version = 0x01 */
+
+        /* Sentinel.
+         */
+        BYTE(84) /* T */
+        BYTE(79) /* O */
+        BYTE(67) /* C */
+        BYTE(75) /* K */
+    }  > rom
+
+
     /* Discard RISC-V relevant .eh_frame, we are not doing unwind on panic
        so it is not needed. */
     /DISCARD/ :
@@ -345,5 +396,30 @@ SECTIONS
     }
 }
 
-ASSERT((_etext - _stext) + (_erelocate - _srelocate) < LENGTH(rom), "
-Text plus relocations exceeds the available ROM space.");
+/* LOADADDR: Return the absolute load address of the named section. This is
+ * normally the same as ADDR, but it may be different if the AT keyword is used
+ * in the section definition. */
+_sattributes = LOADADDR(.attributes);
+_eattributes = LOADADDR(.attributes) + SIZEOF(.attributes);
+_erom = ORIGIN(rom) + LENGTH(rom);
+
+/* This.. this is a dirty, not-fully-understood, hack. In some way, linking is
+ * a multi-pass process. i.e., if you were to ASSERT(0, "how many links")
+ * you'll get three assertions printed for one invocation of rust-lld.
+ *
+ * Empirically, in the first pass, _eattributes ends up at
+ *     _erom + SIZEOF(.attributes)
+ * So, we need to allow that case.
+ *
+ * That's really not the dream, since we can't identify passes. We really only
+ * want to let the wrong location through on the first pass. Thus, the _best_
+ * solution would be to extract the _erom and _eattributes symbols with readelf
+ * or similar and verify they're equal, but that would be yet-one-more-tool.
+ * Maybe something we can do in CI at some point, and remove this assert.
+ */
+ASSERT((_eattributes == _erom) || (_eattributes == _erom + SIZEOF(.attributes)), "Kernel attributes are not at the end of ROM.")
+
+/* This assert works out because even though some of the relative positions are
+ * off, the sizes are sane in each pass. */
+ASSERT((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes) < LENGTH(rom),
+"Text plus relocations plus attributes exceeds the available ROM space.");
