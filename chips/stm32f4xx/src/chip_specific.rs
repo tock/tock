@@ -15,42 +15,45 @@
 
 /// Clock-related constants for specific chips
 pub mod clock_constants {
+    // Internal constants prefixed by double underscores are created to avoid the need to duplicate
+    // documentation comments
+
     /// PLL-related constants for specific chips
     pub mod pll_constants {
+        // STM32F401 supports frequency down to 24MHz. All other chips in the F4 family down to
+        // 13MHz.
+        #[cfg(not(feature = "stm32f401"))]
+        const __PLL_MIN_FREQ_MHZ: usize = 13;
+        #[cfg(feature = "stm32f401")]
+        const __PLL_MIN_FREQ_MHZ: usize = 24;
+
         /// Minimum PLL frequency in MHz
-        // STM32F401 supports frequency down to 24MHz. All other chips down to 13MHz.
-        pub const PLL_MIN_FREQ_MHZ: usize = if cfg!(not(feature = "stm32f401")) {
-            13
-        } else {
-            24
-        };
+        pub const PLL_MIN_FREQ_MHZ: usize = __PLL_MIN_FREQ_MHZ;
     }
 
+    #[cfg(any(feature = "stm32f412"))]
+    const __APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
+    #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
+    const __APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
+    #[cfg(any(feature = "stm32f401"))]
+    const __APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
+
     /// Maximum allowed APB1 frequency in MHz
-    pub const APB1_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(feature = "stm32f412",)) {
-        50
-    } else if cfg!(any(feature = "stm32f429", feature = "stm32f446",)) {
-        45
-    } else {
-        //feature = "stm32f401",
-        42
-    };
+    pub const APB1_FREQUENCY_LIMIT_MHZ: usize = __APB1_FREQUENCY_LIMIT_MHZ;
 
     /// Maximum allowed APB2 frequency in MHz
     // APB2 frequency limit is twice the APB1 frequency limit
     pub const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
 
+    #[cfg(any(feature = "stm32f412"))]
+    const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
+    #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
+    const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
+    #[cfg(any(feature = "stm32f401"))]
+    const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
+
     /// Maximum allowed system clock frequency in MHz
-    pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = if cfg!(any(feature = "stm32f412",)) {
-        100
-    } else if cfg!(any(feature = "stm32f429", feature = "stm32f446",)) {
-        // TODO: Some of these models support overdrive model. Change this constant when overdrive support
-        // is added.
-        168
-    } else {
-        //feature = "stm32f401"
-        84
-    };
+    pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = __SYS_CLOCK_FREQUENCY_LIMIT_MHZ;
 }
 
 /// Chip-specific flash code
