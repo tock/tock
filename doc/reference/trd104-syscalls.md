@@ -496,14 +496,32 @@ failure variant of `Failure`, with an associated error code of
 handle userspace/kernel mismatches should be able to handle `Failure` in
 addition to the expected failure variant (if different than `Failure`).
 
-4.3.1 Command Identifier 0
+4.3.1 Command Identifier 0 [PROPOSAL A]
 --------------------------------
 
-Every device driver MUST implement command number 0 as the
-"exists" command.  This command always returns `Success`. This command
-allows userspace to determine if a particular system call driver is
-installed; if it is, the command returns `Success`. If it is not, the
-kernel returns `Failure` with an error code of `NODEVICE`.
+Every device driver MUST implement command number 0 as the "exists"
+command.  If the driver is not installed, the kernel will return
+`Failure` with an error code of `NODEVICE`.
+
+Device drivers MUST return `Success` OR a success variant for command
+number 0. Drivers MAY use success variants to convey additional
+information, e.g. an LED driver might return the number of LEDs
+physically present on the board via `Success with u32`. Command 0
+implementation MUST NOT have ANY runtime effects. Any code present in
+the `0` match arm MUST be suitable for [constant evaluation by the
+Rust compiler](https://doc.rust-lang.org/reference/const_eval.html).
+
+
+4.3.1 Command Idenfitier 0 [PROPOSAL B]
+-------------------------------
+
+Command Identifier 0 is implemented by the core kernel and provides an
+existence check for drivers. If a driver is installed, the kernel will
+return `Success` for Command 0. If a driver is not installed, the kernel
+will return `Failure` with and error code of `NODEVICE`.
+
+Device drivers CANNOT modify the behavior of Command Identifier 0.
+
 
 4.4 Read-Write Allow (Class ID: 3)
 ---------------------------------
