@@ -68,6 +68,7 @@
 //! | P0.27 | P24 17 | I2C SCL  |
 
 #![no_std]
+#![feature(iter_next_chunk)]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
@@ -83,6 +84,7 @@ use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::static_buf;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -154,7 +156,8 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
+
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -757,6 +760,10 @@ pub unsafe fn main() {
     // USB EXAMPLES
     //--------------------------------------------------------------------------
     // Uncomment to experiment with this.
+
+    // USB Ethernet example
+    //
+    // test::ethernet_test::setup(nrf52840_peripherals);
 
     // // Create the strings we include in the USB descriptor.
     // let strings = static_init!(

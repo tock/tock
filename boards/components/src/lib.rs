@@ -26,6 +26,7 @@ pub mod ctap;
 pub mod dac;
 pub mod debug_queue;
 pub mod debug_writer;
+pub mod eem;
 pub mod flash;
 pub mod fm25cl;
 pub mod ft6x06;
