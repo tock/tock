@@ -53,7 +53,7 @@ jobs:
       - name: Setup RISC-V GCC toolchain
         run: |
           RISCV_TOOLCHAIN_MIRRORS=(\
-            "http://cs.virginia.edu/~bjc8c/archive/gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip" \
+            "http://www.cs.virginia.edu/~bjc8c/archive/gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip" \
             "https://alpha.mirror.svc.schuermann.io/files/2023-08-17_gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip"\
           )
           pushd $HOME
