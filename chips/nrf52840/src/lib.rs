@@ -13,7 +13,7 @@ pub mod interrupt_service;
 
 // FIXME: We need a nrf528xx crate as well. The nrf52832 does NOT support 15.4,
 // but the nrf52833 and nrf52840 do support it. That's a more substantial
-// restructurting than belongs in the ACK-fix PR, however.
+// restructuring than belongs in the ACK-fix PR, however.
 pub mod ieee802154_radio;
 
 pub mod peripheral_interrupts;

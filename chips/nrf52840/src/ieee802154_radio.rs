@@ -27,7 +27,7 @@ use nrf52::constants::TxPower;
 // possess hardware support for ACK, this driver implements software support
 // for sending ACK when a received packet requests to be acknowledged. The driver
 // currently lacks support to listen for requested ACK on packets the radio has sent.
-// As of 8/14/23, the driver is abled to send and receive 15.4 packets as used in the
+// As of 8/14/23, the driver is able to send and receive 15.4 packets as used in the
 // basic 15.4 libtock-c apps.
 //
 // To aid in future implementations, a simplified and concise version of the nrf52840 radio
@@ -743,7 +743,7 @@ pub struct Radio<'a> {
 impl<'a> AlarmClient for Radio<'a> {
     fn alarm(&self) {
         // This alarm function is the callback for when the CCA backoff alarm completes
-        // Attempt a new CCA period by issuesing CCASTART task
+        // Attempt a new CCA period by issuing CCASTART task
         self.registers.task_ccastart.write(Task::ENABLE::SET);
     }
 }
@@ -881,7 +881,7 @@ impl<'a> Radio<'a> {
                     // We need to add 2 to length to get the total length
 
                     // 6th bit in 2nd byte of received 15.4 packet determines if sender requested ACK
-                    if rbuf[2] & ACK_FLAG != 0 {
+                    if rbuf[2] & ACK_FLAG != 0 && result.is_ok() {
                         self.ack_buf
                             .take()
                             .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
@@ -1018,10 +1018,11 @@ impl<'a> Radio<'a> {
                 }
             }
             RadioState::ACK => {
-                // Enforce READY_START shortcut enablement if radio is sending ACK
-                if !self.registers.shorts.is_set(Shortcut::READY_START) {
-                    panic!("READY_START shortcut not enabled while undergoing ACK.")
-                }
+                ////////////////////////////////////////////////////////////////////////////
+                // NOTE: This state machine assumes that the READY_START shortcut is enabled
+                // at this point in time. If the READY_START shortcut is not enabled, the
+                // state machine/driver will likely exhibit undefined behavior.
+                ////////////////////////////////////////////////////////////////////////////
 
                 // Since READY_START shortcut enabled, always clear READY event
                 self.registers.event_ready.write(Event::READY::CLEAR);
@@ -1220,11 +1221,11 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
 
     fn reset(&self) -> Result<(), ErrorCode> {
-        self.radio_on();
+        self.radio_initialize();
         Ok(())
     }
     fn start(&self) -> Result<(), ErrorCode> {
-        let _ = self.reset();
+        self.radio_initialize();
         Ok(())
     }
     fn stop(&self) -> Result<(), ErrorCode> {
