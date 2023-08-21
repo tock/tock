@@ -570,15 +570,26 @@ mod tests {
             }
         }
 
+        /// This function implements what would happen in the callback function
+        /// triggered by the underlying flash hardware. In effect, it is the
+        /// callback handler, but since we don't actually have an async flash
+        /// implementation, this is just called by each test after starting the
+        /// flash operation.
         fn flash_ctrl_callback(tickv: &AsyncTicKV<FlashCtrl, 1024>) {
             match tickv.tickv.controller.get_waiting_action() {
                 FlashCtrlAction::Read => {
+                    // This mimics a read is complete, and we provide the buffer
+                    // with the newly read data to the tickv layer.
                     tickv.set_read_buffer(
                         &tickv.tickv.controller.buf.borrow()
                             [tickv.tickv.controller.async_read_region.get()],
                     );
                 }
-                _ => {}
+                _ => {
+                    // For write an erase all of the operation already occurred
+                    // in the original operation, and nothing needs to be done
+                    // in the simulated callback.
+                }
             }
         }
 
