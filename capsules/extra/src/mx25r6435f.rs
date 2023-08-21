@@ -67,8 +67,8 @@ pub const TX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
 pub const RX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
 
 const SPI_SPEED: u32 = 8000000;
-const SECTOR_SIZE: u32 = 4096;
-const PAGE_SIZE: u32 = 256;
+pub const SECTOR_SIZE: u32 = 4096;
+pub const PAGE_SIZE: u32 = 256;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
 /// MX25R6435F. The page size is 4k because that is the smallest size that can
