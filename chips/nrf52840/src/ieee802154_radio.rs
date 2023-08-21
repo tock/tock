@@ -820,10 +820,11 @@ impl<'a> Radio<'a> {
             // It should not be possible to receive an interrupt while the tracked radio state is OFF
             RadioState::OFF => panic!("Received interrupt while off"),
             RadioState::RX => {
-                // Enforce READY_START shortcut enablement if radio is receiving
-                if !self.registers.shorts.is_set(Shortcut::READY_START) {
-                    panic!("READY_START shortcut not enabled while sending.")
-                }
+                ////////////////////////////////////////////////////////////////////////////
+                // NOTE: This state machine assumes that the READY_START shortcut is enabled
+                // at this point in time. If the READY_START shortcut is not enabled, the
+                // state machine/driver will likely exhibit undefined behavior.
+                ////////////////////////////////////////////////////////////////////////////
 
                 // Since READY_START shortcut enabled, always clear READY event
                 self.registers.event_ready.write(Event::READY::CLEAR);
@@ -904,14 +905,12 @@ impl<'a> Radio<'a> {
                 }
             }
             RadioState::TX => {
-                // Confirm proper hardware shortcuts are enabled
-                if !self.registers.shorts.matches_all(
-                    Shortcut::DISABLED_RXEN::SET
-                        + Shortcut::CCAIDLE_TXEN::SET
-                        + RXREADY_CCASTART::SET,
-                ) {
-                    panic!("Incorrect shortcut configuration for TX")
-                }
+                ////////////////////////////////////////////////////////////////////////
+                // NOTE: This state machine assumes that the DISABLED_RXEN, CCAIDLE_TXEN,
+                // RXREADY_CCASTART shortcuts are enabled at this point in time. If
+                // the READY_START shortcut is not enabled, the state machine/driver
+                // will likely exhibit undefined behavior.
+                ////////////////////////////////////////////////////////////////////////
 
                 // Handle Event_ready interrupt. The TX path performs both a TX ramp up and
                 // an RX ramp up. This means that there are two potential cases we must handle.
