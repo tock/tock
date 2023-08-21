@@ -14,7 +14,7 @@
 #  $ nix-shell
 #
 
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import <nixpkgs> {}, withUnfreePkgs ? false }:
 
 with builtins;
 let
@@ -43,30 +43,15 @@ let
     )
   );
 
-  pythonPackages = lib.fix' (self: with self; pkgs.python3Packages //
-  {
-
-    tockloader = buildPythonPackage rec {
-      pname = "tockloader";
-      version = "1.9.0";
-      name = "${pname}-${version}";
-
-      propagatedBuildInputs = [
-        argcomplete
-        colorama
-        crcmod
-        pyserial
-        toml
-        tqdm
-        questionary
-      ];
-
-      src = fetchPypi {
-        inherit pname version;
-        sha256 = "sha256-7W55jugVtamFUL8N3dD1LFLJP2UDQb74V6o96rd/tEg=";
-      };
-    };
-  });
+  # Tockloader v1.10.0
+  tockloader = import (pkgs.fetchFromGitHub {
+    owner = "tock";
+    repo = "tockloader";
+    # TODO: change to tag once there is a Tockloader release with
+    # `default.nix` included.
+    rev = "6f37412d5608d9bb48510c98a929cc3f96f8cc8f";
+    sha256 = "sha256-0WobupjSqJ36+nME9YO9wcEx4X6jE+edSn4PNM+aDUo=";
+  }) { inherit pkgs withUnfreePkgs; };
 
   moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
   nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
@@ -113,10 +98,10 @@ in
 
       # --- Convenience and support packages ---
       python3Full
-      pythonPackages.tockloader
+      tockloader
 
       # Required for tools/print_tock_memory_usage.py
-      pythonPackages.cxxfilt
+      python3Packages.cxxfilt
 
 
       # --- CI support packages ---
