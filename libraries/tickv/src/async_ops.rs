@@ -984,17 +984,51 @@ mod tests {
             println!("Try to delete Key ONE Again");
             match tickv.invalidate_key(get_hashed_key(b"ONE")) {
                 Ok(SuccessCode::Queued) => {
+                    let reg = tickv.tickv.controller.async_read_region.get();
+
                     flash_ctrl_callback(&tickv);
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg + 1))
+                    );
+
+                    // In normal operation we will read region `reg`, determine
+                    // that it isn't full and stop looking for the key
+                    //
+                    // The following test is a hack to continue testing.
+                    // We don't fill the read buffer with new data. So
+                    // the read buffer will continue to provide the data from
+                    // `reg`, which means TicKV will continue searching for
+                    // an empty region.
+                    //
+                    // In normal operation this isn't correct, but for the test
+                    // case it's a good check to test region searching
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg - 1))
+                    );
 
                     assert_eq!(
                         tickv.continue_operation().0,
-                        Err(ErrorCode::ReadNotReady(62))
+                        Err(ErrorCode::ReadNotReady(reg + 2))
                     );
-                    flash_ctrl_callback(&tickv);
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg - 2))
+                    );
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg - 3))
+                    );
+
+                    // Now set the read buffer and end the search
+                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg - 1]);
 
                     match tickv.continue_operation().0 {
-                        Err(ErrorCode::ReadNotReady(_reg)) => {
-                            panic!("Searching too far for keys");
+                        Err(ErrorCode::ReadNotReady(reg)) => {
+                            panic!("Searching too far for keys: {reg}");
                         }
                         Err(ErrorCode::KeyNotFound) => {}
                         e => {
