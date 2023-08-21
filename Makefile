@@ -492,12 +492,8 @@ ci-job-tools: ci-setup-tools
 	$(if $(CI_JOB_TOOLS),$(call ci_job_tools))
 
 
-.PHONY: ci-setup-miri
-ci-setup-miri:
-	@rustup component list | grep miri | grep -q installed || rustup component add miri
-
 .PHONY: ci-job-miri
-ci-job-miri: ci-setup-miri
+ci-job-miri:
 	$(call banner,CI-Job: Miri)
 	#
 	# Note: This is highly experimental and limited at the moment.

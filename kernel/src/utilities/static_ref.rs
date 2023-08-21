@@ -42,7 +42,7 @@ impl<T> StaticRef<T> {
 
 impl<T> Clone for StaticRef<T> {
     fn clone(&self) -> Self {
-        StaticRef { ptr: self.ptr }
+        *self
     }
 }
 

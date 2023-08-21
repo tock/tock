@@ -44,6 +44,11 @@ pub enum ProcessLoadError {
     /// also be caused by a bad MPU implementation.
     MpuInvalidFlashLength,
 
+    /// The MPU configuration failed for some other, unspecified reason. This
+    /// could be of an internal resource exhaustion, or a mismatch between the
+    /// (current) MPU constraints and process requirements.
+    MpuConfigurationError,
+
     /// A process specified a fixed memory address that it needs its memory
     /// range to start at, and the kernel did not or could not give the process
     /// a memory region starting at that address.
@@ -123,6 +128,10 @@ impl fmt::Debug for ProcessLoadError {
 
             ProcessLoadError::MpuInvalidFlashLength => {
                 write!(f, "App flash length not supported by MPU")
+            }
+
+            ProcessLoadError::MpuConfigurationError => {
+                write!(f, "Configuring the MPU failed")
             }
 
             ProcessLoadError::MemoryAddressMismatch {

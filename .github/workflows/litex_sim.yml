@@ -39,7 +39,7 @@ jobs:
       # that other steps (such as the Rust toolchain) depend on files
       # in this repo.
       - name: Checkout the current repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       # Install basic packages required for the GitHub actions workflow
       - name: Update packages and install dependencies
@@ -52,18 +52,25 @@ jobs:
       # follows the libtock-c GitHub actions definition.
       - name: Setup RISC-V GCC toolchain
         run: |
+          RISCV_TOOLCHAIN_MIRRORS=(\
+            "http://www.cs.virginia.edu/~bjc8c/archive/gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip" \
+            "https://alpha.mirror.svc.schuermann.io/files/2023-08-17_gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip"\
+          )
           pushd $HOME
-          wget -q http://cs.virginia.edu/~bjc8c/archive/gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip
-          echo "2c82a8f3ac77bf2b24d66abff3aa5e873750c76de24c77e12dae91b9d2f4da27 gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip" | sha256sum -c
-          unzip gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip
+          for MIRROR in ${RISCV_TOOLCHAIN_MIRRORS[@]}; do
+            echo "Fetching RISC-V toolchain from ${MIRROR}..."
+            wget -Oriscv-toolchain.zip -q "$MIRROR" &&\
+              (echo "2c82a8f3ac77bf2b24d66abff3aa5e873750c76de24c77e12dae91b9d2f4da27 riscv-toolchain.zip" |\
+                sha256sum -c)
+            if [ $? -ne 0 ]; then
+              echo "WARNING: Fetching RISC-V from mirror $MIRROR failed!" >&2
+            else
+              break
+            fi
+          done
+          unzip riscv-toolchain.zip
           echo "$HOME/gcc-riscv64-unknown-elf-8.3.0-ubuntu/bin" >> $GITHUB_PATH
           popd
-
-      # Setup a Rust toolchain (pulls version from rust-toolchain file)
-      - name: Setup Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          components: rustfmt, clippy
 
       # Install elf2tab to be able to build userspace apps
       - name: Install elf2tab
@@ -79,7 +86,7 @@ jobs:
       # Clone tock-litex support repository under ./tock-litex, check out the
       # targeted release.
       - name: Checkout the tock-litex repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: lschuermann/tock-litex
           # The pinned revision is different from the targeted release as
@@ -114,7 +121,7 @@ jobs:
       # Revision to checkout defined in the main tock repository in
       # .libtock_c_ci_rev
       - name: Checkout libtock-c CI revision
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: tock/libtock-c
           # Pins a libtock-c revision for LiteX CI tests. In case of

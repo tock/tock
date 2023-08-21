@@ -90,3 +90,55 @@ impl<
         hmac
     }
 }
+
+#[macro_export]
+macro_rules! hmac_sha256_software_component_static {
+    ($S:ty $(,)?) => {{
+        let hmac_sha256 =
+            kernel::static_buf!(capsules_extra::hmac_sha256::HmacSha256Software<'static, $S>);
+
+        let data_buffer = kernel::static_buf!([u8; 64]);
+        let verify_buffer = kernel::static_buf!([u8; 32]);
+
+        (hmac_sha256, data_buffer, verify_buffer)
+    };};
+}
+
+pub struct HmacSha256SoftwareComponent<
+    S: digest::Sha256 + digest::DigestDataHash<'static, 32> + 'static,
+> {
+    sha_256: &'static S,
+}
+
+impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32>> HmacSha256SoftwareComponent<S> {
+    pub fn new(sha_256: &'static S) -> HmacSha256SoftwareComponent<S> {
+        HmacSha256SoftwareComponent { sha_256 }
+    }
+}
+
+impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32> + 'static> Component
+    for HmacSha256SoftwareComponent<S>
+{
+    type StaticInput = (
+        &'static mut MaybeUninit<capsules_extra::hmac_sha256::HmacSha256Software<'static, S>>,
+        &'static mut MaybeUninit<[u8; 64]>,
+        &'static mut MaybeUninit<[u8; 32]>,
+    );
+    type Output = &'static capsules_extra::hmac_sha256::HmacSha256Software<'static, S>;
+
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let data_buffer = s.1.write([0; 64]);
+        let verify_buffer = s.2.write([0; 32]);
+
+        let hmac_sha256_sw =
+            s.0.write(capsules_extra::hmac_sha256::HmacSha256Software::new(
+                self.sha_256,
+                data_buffer,
+                verify_buffer,
+            ));
+
+        self.sha_256.set_client(hmac_sha256_sw);
+
+        hmac_sha256_sw
+    }
+}

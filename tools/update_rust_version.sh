@@ -30,15 +30,12 @@ NIGHTLY=nightly-$BEST_DATE
 
 echo Updating Rust to $NIGHTLY
 
-# Set the Rust version in rust-toolchain file.
-echo $NIGHTLY > rust-toolchain
-
 # Update all relevant files with the new version string.
 # Note, x-platform `sed -i` has odd, but particular syntax
 # https://stackoverflow.com/questions/5694228/sed-in-place-flag-that-works-both-on-mac-bsd-and-linux
+sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" rust-toolchain.toml
 sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .vscode/settings.json
 sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" doc/Getting_Started.md
-sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" rust-toolchain
 sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" tools/netlify-build.sh
 
 find . -name '*._SED_HACK' -delete
