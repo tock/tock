@@ -5,10 +5,10 @@ System Calls
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why, dcz <br/>
+**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** March 9, 2022<br/>
-**Draft-Version:** 7<br/>
+**Draft-Modified:** August 21, 2022<br/>
+**Draft-Version:** 8<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -496,24 +496,11 @@ failure variant of `Failure`, with an associated error code of
 handle userspace/kernel mismatches should be able to handle `Failure` in
 addition to the expected failure variant (if different than `Failure`).
 
-4.3.1 Command Identifier 0 [PROPOSAL A]
---------------------------------
 
-Every device driver MUST implement command number 0 as the "exists"
-command.  If the driver is not installed, the kernel will return
-`Failure` with an error code of `NODEVICE`.
+4.3.1 Command Idenfitier 0
+--------------------------
 
-Device drivers MUST return `Success` OR a success variant for command
-number 0. Drivers MAY use success variants to convey additional
-information, e.g. an LED driver might return the number of LEDs
-physically present on the board via `Success with u32`. Command 0
-implementation MUST NOT have ANY runtime effects. Any code present in
-the `0` match arm MUST be suitable for [constant evaluation by the
-Rust compiler](https://doc.rust-lang.org/reference/const_eval.html).
-
-
-4.3.1 Command Idenfitier 0 [PROPOSAL B]
--------------------------------
+ - [Added August, 2023](../rfcs/2023-08-18--CommandZeroSemantics.md).
 
 Command Identifier 0 is implemented by the core kernel and provides an
 existence check for drivers. If a driver is installed, the kernel will
@@ -980,6 +967,8 @@ Email: pal@cs.stanford.edu
 
 
 Amit Levy <aalevy@cs.princeton.edu>
+
+Pat Pannuto <ppannuto@ucsd.edu>
 
 Leon Schuermann <leon@is.currently.online>
 
