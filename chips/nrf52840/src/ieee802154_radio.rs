@@ -9,7 +9,7 @@ use core::cell::Cell;
 use core::convert::TryFrom;
 use kernel;
 use kernel::hil::radio::{self, PowerClient, RadioData};
-use kernel::hil::time::{Alarm, AlarmClient};
+use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
@@ -940,7 +940,7 @@ impl<'a> Radio<'a> {
                         self.cca_count.set(self.cca_count.get() + 1);
                         self.cca_be.set(self.cca_be.get() + 1);
                         let backoff_periods = self.random_nonce() & ((1 << self.cca_be.get()) - 1);
-                        let current_time = self.timer0.unwrap_or_panic().get_current_time();
+                        let current_time = self.timer0.unwrap_or_panic().now();
                         self.timer0
                             .unwrap_or_panic() // Unwrap fail = Missing timer reference for CSMA
                             .set_alarm(
