@@ -855,7 +855,7 @@ impl<'a> Radio<'a> {
 
         match self.state.get() {
             // It should not be possible to receive an interrupt while the tracked radio state is OFF
-            RadioState::OFF => panic!("Received interrupt while off"),
+            RadioState::OFF => kernel::debug!("[ERROR]--15.4 state machine diverged from expected behavior. Received interrupt while off"),
             RadioState::RX => {
                 ////////////////////////////////////////////////////////////////////////////
                 // NOTE: This state machine assumes that the READY_START shortcut is enabled
