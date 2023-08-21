@@ -52,7 +52,7 @@ unsafe fn static_init_test_hmacsha256() -> &'static TestHmacSha256 {
             &mut WIKI_KEY,
             &mut WIKI_STR,
             &mut DIGEST_DATA,
-            &mut WIKI_HMAC
+            &WIKI_HMAC
         )
     );
 

@@ -11,7 +11,6 @@
 # Files that do not support comments.
 *.json
 *.md
-/rust-toolchain
 
 # We're a bit more permissive in the doc/ directory.
 /doc/**/*.svg

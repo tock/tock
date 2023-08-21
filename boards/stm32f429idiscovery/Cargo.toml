@@ -6,8 +6,8 @@
 name = "stm32f429idiscovery"
 version.workspace = true
 authors.workspace = true
+edition.workspace = true
 build = "build.rs"
-edition = "2018"
 
 [dependencies]
 components = { path = "../components" }

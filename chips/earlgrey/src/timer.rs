@@ -5,6 +5,7 @@
 //! Timer driver.
 
 use crate::chip_config::CONFIG;
+use crate::registers::top_earlgrey::TOP_EARLGREY_RV_TIMER_BASE_ADDR;
 use kernel::hil::time::{self, Ticks64};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -161,4 +162,4 @@ impl<'a> time::Alarm<'a> for RvTimer<'a> {
 }
 
 const TIMER_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x4010_0000 as *const TimerRegisters) };
+    unsafe { StaticRef::new(TOP_EARLGREY_RV_TIMER_BASE_ADDR as *const TimerRegisters) };
