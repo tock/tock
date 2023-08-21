@@ -1034,19 +1034,7 @@ impl Kernel {
                         arg1,
                     } => {
                         let cres = match driver {
-                            Some(d) => {
-                                if subdriver_number == 0 {
-                                    #[cfg(AAAAAAAAAAAAAAAAAAAA)]
-                                    d.commandZero()
-                                    #[cfg(BBBBBBBBBBBBBBBBBBBB)]
-                                    CommandReturn::success()
-                                } else {
-                                    let sd_arg = unsafe {
-                                        core::num::NonZeroUsize::new_unchecked(subdriver_number)
-                                    };
-                                    d.command(sd_arg, arg0, arg1, process.processid())
-                                }
-                            },
+                            Some(d) => d.command(subdriver_number, arg0, arg1, process.processid()),
                             None => CommandReturn::failure(ErrorCode::NODEVICE),
                         };
 

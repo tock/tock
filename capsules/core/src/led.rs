@@ -81,11 +81,6 @@ impl<'a, L: led::Led, const NUM_LEDS: usize> LedDriver<'a, L, NUM_LEDS> {
 }
 
 impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_LEDS> {
-    #[cfg(AAAAAAAAAAAAAAAA)]
-    const fn commandZero(&self) -> CommandReturn {
-        0 => CommandReturn::success_u32(NUM_LEDS as u32),
-    }
-
     /// Control the LEDs.
     ///
     /// ### `command_num`
@@ -98,8 +93,14 @@ impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_
     ///        if the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
     ///        `INVAL` if the LED index is not valid.
-    fn command(&self, command_num: core::num::NonZeroUsize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
+    fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
+            // get number of LEDs
+            // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
+            // but this driver is unchanged since it has been stabilized. It will be brought into
+            // compliance as part of the next major release of Tock.
+            0 => CommandReturn::success_u32(NUM_LEDS as u32),
+
             // on
             1 => {
                 if data >= NUM_LEDS {
@@ -128,12 +129,6 @@ impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_
                     self.leds[data].toggle();
                     CommandReturn::success()
                 }
-            }
-
-            #[cfg(BBBBBBBBBBBBBBBBBBBBBBBBBBB)]
-            // LED count
-            4 => {
-                CommandReturn::success_u32(NUM_LEDS as u32)
             }
 
             // default
