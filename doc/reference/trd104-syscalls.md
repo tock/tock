@@ -7,7 +7,7 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** August 21, 2022<br/>
+**Draft-Modified:** August 21, 2023<br/>
 **Draft-Version:** 8<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
