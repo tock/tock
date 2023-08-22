@@ -132,7 +132,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::redundant_static_lifetimes
 -A clippy::single-component-path-imports
 -A clippy::unnecessary_lazy_evaluations
--A clippy::write-with-newline
 -A clippy::zero_ptr
 "
 

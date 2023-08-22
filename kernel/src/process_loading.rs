@@ -114,7 +114,7 @@ impl fmt::Debug for ProcessLoadError {
             }
 
             ProcessLoadError::TbfHeaderParseFailure(tbf_parse_error) => {
-                write!(f, "Error parsing TBF header\n")?;
+                writeln!(f, "Error parsing TBF header")?;
                 write!(f, "{:?}", tbf_parse_error)
             }
 
