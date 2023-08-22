@@ -1710,14 +1710,26 @@ impl<'a> Ethernet<'a> {
             self.clear_early_transmit_interrupt();
         } else if self.did_receive_watchdog_timeout_interrupt_occur() {
             self.clear_receive_watchdog_timeout_interrupt();
-            panic!("Receive watchdog timeout interrupt");
+            // Watchdog is disabled by default, so this situation will never arrive in practice.
         } else if self.did_receive_process_stopped_interrupt_occur() {
             self.clear_receive_process_stopped_interrupt();
+            // The current HIL doesn't allow the Ethernet peripheral to inform the capsule that the
+            // receive process stopped
             panic!("Receive process stopped");
         } else if self.did_receive_buffer_unavailable_interrupt_occur() {
             self.clear_receive_buffer_unavailable_interrupt();
         } else if self.did_transmit_buffer_underflow_interrupt_occur() {
             self.clear_transmit_buffer_underflow_interrupt();
+            self.client.map(|client| {
+                client.tx_done(
+                    // TODO: Does FAIL describe the error the best?
+                    Err(ErrorCode::FAIL),
+                    self.transmit_packet.take().unwrap(),
+                    self.transmit_packet_length.take().unwrap(),
+                    self.packet_identifier.take().unwrap(),
+                    None,
+                )
+            });
             panic!("Transmit buffer underflow interrupt");
         } else if self.did_receive_fifo_overflow_interrupt_occur() {
             self.clear_receive_fifo_overflow_interrupt();
@@ -1725,9 +1737,13 @@ impl<'a> Ethernet<'a> {
             assert_eq!(Ok(()), self.receive_packet());
         } else if self.did_transmit_jabber_timeout_interrupt_occur() {
             self.clear_transmit_jabber_timeout_interrupt();
+            // When transmit jabber timeout occurs, the transmit process is stopped. Since there is
+            // no way we can transmit this information to the capsule, we just panic.
             panic!("Transmit buffer jabber timeout interrupt");
         } else if self.did_transmit_process_stopped_interrupt_occur() {
             self.clear_transmit_process_stopped_interrupt();
+            // The current HIL doesn't allow the Ethernet peripheral to inform the capsule that the
+            // transmit process stopped
             panic!("Transmit process stopped");
         }
     }
