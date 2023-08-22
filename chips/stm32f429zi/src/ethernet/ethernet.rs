@@ -1575,16 +1575,6 @@ impl<'a> Ethernet<'a> {
         self.dma_registers.dmaier.is_set(DMAIER::TBUIE)
     }
 
-    #[allow(dead_code)]
-    fn get_current_host_transmit_descriptor_address(&self) -> u32 {
-        self.dma_registers.dmachtdr.get()
-    }
-
-    #[allow(dead_code)]
-    fn get_current_host_transmit_buffer_address(&self) -> u32 {
-        self.dma_registers.dmachtbar.get()
-    }
-
     /* === High-level functions */
 
     fn is_mac_enabled(&self) -> bool {
