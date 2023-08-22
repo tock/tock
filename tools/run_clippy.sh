@@ -27,6 +27,7 @@ CLIPPY_ARGS="
 -A clippy::if_same_then_else
 
 -D clippy::needless_return
+-D clippy::unused_unit
 -D clippy::unnecessary_mut_passed
 -D clippy::empty_line_after_outer_attr
 -D clippy::default_trait_access

@@ -223,7 +223,7 @@ pub trait RsaKey: PubKey {
     /// The modulus is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    fn map_modulus(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()>;
+    fn map_modulus(&self, closure: &dyn Fn(&[u8])) -> Option<()>;
 
     /// The the modulus if it exists.
     /// The modulus is returned MSB (big endian)
@@ -241,7 +241,7 @@ pub trait RsaPrivKey: PubPrivKey + RsaKey {
     /// The exponent is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    fn map_exponent(&self, closure: &dyn Fn(&[u8]) -> ()) -> Option<()>;
+    fn map_exponent(&self, closure: &dyn Fn(&[u8])) -> Option<()>;
 
     /// The the private exponent if it exists.
     /// The exponent is returned MSB (big endian)
@@ -256,7 +256,7 @@ pub trait RsaKeyMut: PubKeyMut {
     /// The modulus is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    fn map_modulus(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()>;
+    fn map_modulus(&self, closure: &dyn Fn(&mut [u8])) -> Option<()>;
 
     /// The the modulus if it exists.
     /// The modulus is returned MSB (big endian)
@@ -274,7 +274,7 @@ pub trait RsaPrivKeyMut: PubPrivKeyMut + RsaKeyMut {
     /// The exponent is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    fn map_exponent(&self, closure: &dyn Fn(&mut [u8]) -> ()) -> Option<()>;
+    fn map_exponent(&self, closure: &dyn Fn(&mut [u8])) -> Option<()>;
 
     /// The the private exponent if it exists.
     /// The exponent is returned MSB (big endian)
