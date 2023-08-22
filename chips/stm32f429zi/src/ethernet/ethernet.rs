@@ -1021,6 +1021,7 @@ impl<'a> Ethernet<'a> {
     fn reset_dma(&self) -> Result<(), ErrorCode> {
         self.dma_registers.dmabmr.modify(DMABMR::SR::SET);
 
+        // Arbitrary value. May change in the future if required.
         for _ in 0..100 {
             if !self.dma_registers.dmabmr.is_set(DMABMR::SR) {
                 return Ok(());
@@ -1277,7 +1278,7 @@ impl<'a> Ethernet<'a> {
 
         self.dma_registers.dmaomr.modify(DMAOMR::FTF::SET);
 
-        // TODO: Adjust this value
+        // Arbitrary value. May change in the future if required.
         for _ in 0..100 {
             if self.dma_registers.dmaomr.read(DMAOMR::FTF) == 0 {
                 return Ok(());
@@ -1594,6 +1595,7 @@ impl<'a> Ethernet<'a> {
         self.enable_dma_transmission()?;
         self.enable_mac_transmitter();
 
+        // Arbitrary value. May change in the future if required.
         for _ in 0..10 {
             if self.get_transmit_process_state() != DmaTransmitProcessState::Stopped {
                 return Ok(());
@@ -1620,6 +1622,7 @@ impl<'a> Ethernet<'a> {
         self.enable_dma_reception()?;
         self.enable_mac_receiver();
 
+        // Arbitrary value. May change in the future if required.
         for _ in 0..10 {
             if self.get_receive_process_state() != DmaReceiveProcessState::Stopped {
                 return Ok(());
