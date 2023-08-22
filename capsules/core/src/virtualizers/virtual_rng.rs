@@ -121,7 +121,7 @@ impl<'a> VirtualRngMasterDevice<'a> {
 impl<'a> PartialEq<VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
     fn eq(&self, other: &VirtualRngMasterDevice<'a>) -> bool {
         // Check whether two rng devices point to the same device
-        self as *const VirtualRngMasterDevice<'a> == other as *const VirtualRngMasterDevice<'a>
+        core::ptr::eq(self, other)
     }
 }
 

@@ -31,6 +31,7 @@ CLIPPY_ARGS="
 -D clippy::empty_line_after_outer_attr
 -D clippy::default_trait_access
 -D clippy::map_unwrap_or
+-D clippy::ptr_eq
 -D clippy::wildcard_imports
 "
 

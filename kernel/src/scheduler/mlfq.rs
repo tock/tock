@@ -117,7 +117,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
                     let cur = queue.pop_head();
                     match cur {
                         Some(node) => {
-                            if node as *const _ == next.unwrap() as *const _ {
+                            if core::ptr::eq(node, next.unwrap()) {
                                 queue.push_head(node);
                                 // match! Put back on front
                                 return (next, idx);
