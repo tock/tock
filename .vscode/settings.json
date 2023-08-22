@@ -1,4 +1,6 @@
 {
+    "files.insertFinalNewline": true,
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true,
     "rust-analyzer.server.extraEnv": {
         "RUSTUP_TOOLCHAIN": "nightly-2023-07-30"
