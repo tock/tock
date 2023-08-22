@@ -1711,11 +1711,13 @@ impl<'a> Ethernet<'a> {
         } else if self.did_receive_watchdog_timeout_interrupt_occur() {
             self.clear_receive_watchdog_timeout_interrupt();
             // Watchdog is disabled by default, so this situation will never arrive in practice.
+            // Additionally, to receive very large frames, receive must be configured in Threshold
+            // mode which for now is not the case.
         } else if self.did_receive_process_stopped_interrupt_occur() {
             self.clear_receive_process_stopped_interrupt();
-            // The current HIL doesn't allow the Ethernet peripheral to inform the capsule that the
-            // receive process stopped
-            panic!("Receive process stopped");
+            // The receive process can't be normally stopped since the current HIL doesn't expose
+            // this functionality to the capsule. The following line is added just in case.
+            self.enable_receiver().unwrap();
         } else if self.did_receive_buffer_unavailable_interrupt_occur() {
             self.clear_receive_buffer_unavailable_interrupt();
         } else if self.did_transmit_buffer_underflow_interrupt_occur() {
@@ -1730,21 +1732,21 @@ impl<'a> Ethernet<'a> {
                     None,
                 )
             });
-            panic!("Transmit buffer underflow interrupt");
         } else if self.did_receive_fifo_overflow_interrupt_occur() {
             self.clear_receive_fifo_overflow_interrupt();
             self.number_packets_missed.add(1);
             assert_eq!(Ok(()), self.receive_packet());
         } else if self.did_transmit_jabber_timeout_interrupt_occur() {
             self.clear_transmit_jabber_timeout_interrupt();
-            // When transmit jabber timeout occurs, the transmit process is stopped. Since there is
-            // no way we can transmit this information to the capsule, we just panic.
-            panic!("Transmit buffer jabber timeout interrupt");
+            // When a buffer jabber timeout occurs, the transmit engine is stopped. Attempt to
+            // restart it. If it fails, just panic, since the current HIL doesn't allow to
+            // communicate to the capsule that the peripheral stopped
+            self.enable_transmitter().unwrap();
         } else if self.did_transmit_process_stopped_interrupt_occur() {
             self.clear_transmit_process_stopped_interrupt();
-            // The current HIL doesn't allow the Ethernet peripheral to inform the capsule that the
-            // transmit process stopped
-            panic!("Transmit process stopped");
+            // The transmit process can't be normally stopped since the current HIL doesn't expose
+            // this functionality to the capsule. The following line is added just in case.
+            self.enable_transmitter().unwrap();
         }
     }
 
