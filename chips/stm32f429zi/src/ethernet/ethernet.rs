@@ -39,7 +39,7 @@ use crate::ethernet::transmit_descriptor::TransmitDescriptor;
 
 register_structs! {
     /// Ethernet: media access control (MAC)
-    Ethernet_MacRegisters {
+    EthernetMacRegisters {
         /// Ethernet MAC configuration register
         (0x000 => maccr: ReadWrite<u32, MACCR::Register>),
         /// Ethernet MAC frame filter register
@@ -313,12 +313,12 @@ register_bitfields![u32,
     ]
 ];
 
-const ETHERNET_MAC_BASE: StaticRef<Ethernet_MacRegisters> =
-    unsafe { StaticRef::new(0x40028000 as *const Ethernet_MacRegisters) };
+const ETHERNET_MAC_BASE: StaticRef<EthernetMacRegisters> =
+    unsafe { StaticRef::new(0x40028000 as *const EthernetMacRegisters) };
 
 register_structs! {
     /// Ethernet: DMA controller operation
-    Ethernet_DmaRegisters {
+    EthernetDmaRegisters {
         /// Ethernet DMA bus mode register
         (0x000 => dmabmr: ReadWrite<u32, DMABMR::Register>),
         /// Ethernet DMA transmit poll demand register
@@ -528,12 +528,12 @@ register_bitfields![u32,
     ]
 ];
 
-const ETHERNET_DMA_BASE: StaticRef<Ethernet_DmaRegisters> =
-    unsafe { StaticRef::new(0x40029000 as *const Ethernet_DmaRegisters) };
+const ETHERNET_DMA_BASE: StaticRef<EthernetDmaRegisters> =
+    unsafe { StaticRef::new(0x40029000 as *const EthernetDmaRegisters) };
 
 register_structs! {
     /// Ethernet: MAC management counters
-    Ethernet_MmcRegisters {
+    EthernetMmcRegisters {
         /// Ethernet MMC control register
         (0x000 => mmccr: ReadWrite<u32, MMCCR::Register>),
         /// Ethernet MMC receive interrupt register
@@ -636,8 +636,8 @@ register_bitfields![u32,
     ]
 ];
 
-const ETHERNET_MMC_BASE: StaticRef<Ethernet_MmcRegisters> =
-    unsafe { StaticRef::new(0x40028100 as *const Ethernet_MmcRegisters) };
+const ETHERNET_MMC_BASE: StaticRef<EthernetMmcRegisters> =
+    unsafe { StaticRef::new(0x40028100 as *const EthernetMmcRegisters) };
 
 #[derive(PartialEq, Debug)]
 enum MacTxReaderStatus {
@@ -738,9 +738,9 @@ impl<'a> EthernetClocks<'a> {
 
 /// Ethernet peripheral
 pub struct Ethernet<'a> {
-    mac_registers: StaticRef<Ethernet_MacRegisters>,
-    _mmc_registers: StaticRef<Ethernet_MmcRegisters>,
-    dma_registers: StaticRef<Ethernet_DmaRegisters>,
+    mac_registers: StaticRef<EthernetMacRegisters>,
+    _mmc_registers: StaticRef<EthernetMmcRegisters>,
+    dma_registers: StaticRef<EthernetDmaRegisters>,
     transmit_descriptor: TransmitDescriptor,
     receive_descriptor: ReceiveDescriptor,
     transmit_packet: TakeCell<'static, [u8]>,
