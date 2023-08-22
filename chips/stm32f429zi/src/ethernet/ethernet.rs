@@ -810,6 +810,8 @@ impl<'a> Ethernet<'a> {
         self.enable_transmit_store_and_forward()?;
         self.enable_receive_store_and_forward()?;
 
+        // This is safe since both TransmitDescriptor and ReceiveDescriptor are #[repr(C)] structs
+        // which only contain in memory registers
         self.set_transmit_descriptor_list_address(
             &self.transmit_descriptor as *const TransmitDescriptor as u32,
         )?;
