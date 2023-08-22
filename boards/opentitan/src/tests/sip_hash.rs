@@ -47,7 +47,7 @@ impl<'a> SipHashTestCallback {
 }
 
 impl<'a> hasher::Client<8> for SipHashTestCallback {
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
 

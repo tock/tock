@@ -11,10 +11,19 @@ Tock currently supports OpenTitan on the ChipWhisperer
 CW310 FPGA board. For more details on the boards see:
 https://docs.opentitan.org/doc/ug/fpga_boards/
 
-You can get started with OpenTitan using either the, ChipWhisperer CW310
+You can get started with OpenTitan using either the ChipWhisperer CW310
 board or a simulation. See the OpenTitan
-[getting started](https://docs.opentitan.org/doc/ug/getting_started/index.html)
+[getting started guide](https://opentitan.org/guides/getting_started/index.html)
 for more details.
+
+Supported version
+-----------------
+
+The OpenTitan project is producing its first chip, _Earlgrey_, from release
+[`Earlgrey-M2.5.2-RC0`](https://github.com/lowRISC/opentitan/releases/tag/Earlgrey-M2.5.2-RC0).
+You should use either an FPGA
+[bitstream](https://storage.googleapis.com/opentitan-bitstreams/master/bitstream-21ce4e9761abdf5c919b46e5ae64a5a8e24992f7.tar.gz)
+or simulator built from that version of the OpenTitan codebase.
 
 Programming
 -----------
