@@ -34,8 +34,9 @@ pub struct Config<'a> {
 #[cfg(any(feature = "config_fpga_cw310", not(feature = "config_disable_default")))]
 pub const CONFIG: Config = Config {
     name: "fpga_cw310",
-    cpu_freq: 10_000_000,
-    peripheral_freq: 2_500_000,
+    // Clock frequencies as of https://github.com/lowRISC/opentitan/pull/19368
+    cpu_freq: 24_000_000,
+    peripheral_freq: 6_000_000,
     aon_timer_freq: 250_000,
     uart_baudrate: 115200,
 };
