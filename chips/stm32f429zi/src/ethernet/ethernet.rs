@@ -17,7 +17,6 @@
 use core::cell::Cell;
 
 use cortexm4::support::nop;
-use kernel::hil::ethernet::Configure;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::ethernet::EthernetAdapterClient;
 use kernel::hil::ethernet::EthernetSpeed;
@@ -775,6 +774,17 @@ impl<'a> Ethernet<'a> {
         }
     }
 
+    /// Initializes the Ethernet peripheral
+    pub fn init(&self) -> Result<(), ErrorCode> {
+        self.clocks.enable();
+        self.init_transmit_descriptors();
+        self.init_receive_descriptors();
+        self.init_dma()?;
+        self.init_mac()?;
+
+        Ok(())
+    }
+
     fn init_transmit_descriptors(&self) {
         self.transmit_descriptor.release();
         self.transmit_descriptor.enable_interrupt_on_completion();
@@ -814,9 +824,9 @@ impl<'a> Ethernet<'a> {
 
     fn init_mac(&self) -> Result<(), ErrorCode> {
         self.disable_mac_watchdog();
-        self.set_speed(EthernetSpeed::Speed100Mbs)?;
-        self.set_loopback_mode(false)?;
-        self.set_operation_mode(OperationMode::FullDuplex)?;
+        self.set_ethernet_speed(EthernetSpeed::Speed100Mbs);
+        self.disable_loopback_mode();
+        self.internal_set_operation_mode(OperationMode::FullDuplex);
         self.disable_address_filter();
 
         Ok(())
@@ -1581,7 +1591,8 @@ impl<'a> Ethernet<'a> {
         self.is_mac_receiver_enabled() || self.is_mac_transmiter_enabled()
     }
 
-    fn enable_transmitter(&self) -> Result<(), ErrorCode> {
+    /// Enables transmit engine
+    pub fn enable_transmitter(&self) -> Result<(), ErrorCode> {
         self.enable_dma_transmission()?;
         self.enable_mac_transmitter();
 
@@ -1608,7 +1619,8 @@ impl<'a> Ethernet<'a> {
         self.is_mac_transmiter_enabled() && self.is_dma_transmission_enabled()
     }
 
-    fn enable_receiver(&self) -> Result<(), ErrorCode> {
+    /// Enables receive engine
+    pub fn enable_receiver(&self) -> Result<(), ErrorCode> {
         self.enable_dma_reception()?;
         self.enable_mac_receiver();
 
@@ -1765,79 +1777,6 @@ impl<'a> Ethernet<'a> {
     }
 }
 
-impl Configure for Ethernet<'_> {
-    fn init(&self) -> Result<(), ErrorCode> {
-        self.clocks.enable();
-        self.init_transmit_descriptors();
-        self.init_receive_descriptors();
-        self.init_dma()?;
-        self.init_mac()?;
-
-        Ok(())
-    }
-
-    fn set_operation_mode(&self, operation_mode: OperationMode) -> Result<(), ErrorCode> {
-        if self.is_mac_enabled() {
-            return Err(ErrorCode::FAIL);
-        }
-
-        self.internal_set_operation_mode(operation_mode);
-
-        Ok(())
-    }
-
-    fn get_operation_mode(&self) -> OperationMode {
-        self.internal_get_operation_mode()
-    }
-
-    fn set_speed(&self, speed: EthernetSpeed) -> Result<(), ErrorCode> {
-        if self.is_mac_enabled() {
-            return Err(ErrorCode::FAIL);
-        }
-
-        self.set_ethernet_speed(speed);
-
-        Ok(())
-    }
-
-    fn get_speed(&self) -> EthernetSpeed {
-        self.get_ethernet_speed()
-    }
-
-    fn set_loopback_mode(&self, enable: bool) -> Result<(), ErrorCode> {
-        match enable {
-            false => self.disable_loopback_mode(),
-            true => self.enable_loopback_mode(),
-        };
-
-        Ok(())
-    }
-
-    fn is_loopback_mode_enabled(&self) -> bool {
-        self.internal_is_loopback_mode_enabled()
-    }
-
-    fn set_mac_address(&self, mac_address: MacAddress) -> Result<(), ErrorCode> {
-        self.set_mac_address0(mac_address);
-
-        Ok(())
-    }
-
-    fn get_mac_address(&self) -> MacAddress {
-        self.get_mac_address0()
-    }
-
-    // TODO: Remove this once Transmit trait is implemented
-    fn start_transmit(&self) -> Result<(), ErrorCode> {
-        self.enable_transmitter()
-    }
-
-    // TODO: Remove this once Receive trait is implemented
-    fn start_receive(&self) -> Result<(), ErrorCode> {
-        self.enable_receiver()
-    }
-}
-
 impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
     fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
         self.client.set(client);
@@ -1938,9 +1877,9 @@ pub mod tests {
     use kernel::debug;
 
     fn test_mac_default_values(ethernet: &Ethernet) {
-        assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_speed());
-        assert_eq!(false, ethernet.is_loopback_mode_enabled());
-        assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
+        assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_ethernet_speed());
+        assert_eq!(false, ethernet.internal_is_loopback_mode_enabled());
+        assert_eq!(OperationMode::FullDuplex, ethernet.internal_get_operation_mode());
         assert_eq!(false, ethernet.is_mac_transmiter_enabled());
         assert_eq!(false, ethernet.is_mac_receiver_enabled());
         assert_eq!(false, ethernet.is_address_filter_enabled());
@@ -2105,26 +2044,20 @@ pub mod tests {
 
         assert_eq!(Ok(()), ethernet.init());
 
-        assert_eq!(Ok(()), ethernet.set_speed(EthernetSpeed::Speed100Mbs));
-        assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_speed());
-        assert_eq!(Ok(()), ethernet.set_speed(EthernetSpeed::Speed10Mbs));
-        assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_speed());
+        ethernet.set_ethernet_speed(EthernetSpeed::Speed100Mbs);
+        assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_ethernet_speed());
+        ethernet.set_ethernet_speed(EthernetSpeed::Speed10Mbs);
+        assert_eq!(EthernetSpeed::Speed10Mbs, ethernet.get_ethernet_speed());
 
-        assert_eq!(Ok(()), ethernet.set_loopback_mode(true));
-        assert_eq!(true, ethernet.is_loopback_mode_enabled());
-        assert_eq!(Ok(()), ethernet.set_loopback_mode(false));
-        assert_eq!(false, ethernet.is_loopback_mode_enabled());
+        ethernet.enable_loopback_mode();
+        assert_eq!(true, ethernet.internal_is_loopback_mode_enabled());
+        ethernet.disable_loopback_mode();
+        assert_eq!(false, ethernet.internal_is_loopback_mode_enabled());
 
-        assert_eq!(
-            Ok(()),
-            ethernet.set_operation_mode(OperationMode::FullDuplex)
-        );
-        assert_eq!(OperationMode::FullDuplex, ethernet.get_operation_mode());
-        assert_eq!(
-            Ok(()),
-            ethernet.set_operation_mode(OperationMode::HalfDuplex)
-        );
-        assert_eq!(OperationMode::HalfDuplex, ethernet.get_operation_mode());
+        ethernet.internal_set_operation_mode(OperationMode::FullDuplex);
+        assert_eq!(OperationMode::FullDuplex, ethernet.internal_get_operation_mode());
+        ethernet.internal_set_operation_mode(OperationMode::HalfDuplex);
+        assert_eq!(OperationMode::HalfDuplex, ethernet.internal_get_operation_mode());
 
         ethernet.enable_address_filter();
         assert_eq!(true, ethernet.is_address_filter_enabled());
@@ -2152,6 +2085,30 @@ pub mod tests {
 
         test_ethernet_transmission_configuration(ethernet);
         test_ethernet_reception_configuration(ethernet);
+
+        assert_eq!(Ok(()), ethernet.enable_transmitter());
+        assert_eq!(true, ethernet.is_mac_transmiter_enabled());
+        assert_eq!(Ok(()), ethernet.disable_transmitter());
+        assert_eq!(false, ethernet.is_mac_transmiter_enabled());
+
+        assert_eq!(Ok(()), ethernet.enable_receiver());
+        assert_eq!(true, ethernet.is_mac_transmiter_enabled());
+        assert_eq!(Ok(()), ethernet.disable_receiver());
+        assert_eq!(false, ethernet.is_mac_transmiter_enabled());
+
+        assert_eq!(Ok(()), ethernet.enable_transmitter());
+        assert_eq!(Ok(()), ethernet.enable_receiver());
+        assert_eq!(true, ethernet.is_mac_enabled());
+
+        assert_eq!(Ok(()), ethernet.disable_transmitter());
+        assert_eq!(true, ethernet.is_mac_enabled());
+
+        assert_eq!(Ok(()), ethernet.enable_transmitter());
+        assert_eq!(Ok(()), ethernet.disable_receiver());
+        assert_eq!(true, ethernet.is_mac_enabled());
+
+        assert_eq!(Ok(()), ethernet.disable_transmitter());
+        assert_eq!(false, ethernet.is_mac_enabled());
 
         // Restore Ethernet to its initial state
         assert_eq!(Ok(()), ethernet.init());

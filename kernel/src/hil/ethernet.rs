@@ -95,52 +95,6 @@ pub enum EthernetSpeed {
     Speed100Mbs = 0b1,
 }
 
-/// Ethernet configuration
-pub trait Configure {
-    /// Initialize the peripheral
-    fn init(&self) -> Result<(), ErrorCode>;
-
-    /// Set operation mode
-    fn set_operation_mode(&self, _operation_mode: OperationMode) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-
-    /// Get the current operation mode
-    fn get_operation_mode(&self) -> OperationMode;
-
-    /// Set peripheral speed
-    fn set_speed(&self, _speed: EthernetSpeed) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-
-    /// Get the current speed
-    fn get_speed(&self) -> EthernetSpeed;
-
-    /// Enable loopback mode
-    fn set_loopback_mode(&self, _enable: bool) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-
-    /// Check whether loopback mode is enabled
-    fn is_loopback_mode_enabled(&self) -> bool;
-
-    /// Set the peripheral MAC address
-    fn set_mac_address(&self, _mac_address: MacAddress) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-
-    /// Get the current MAC address
-    fn get_mac_address(&self) -> MacAddress;
-
-    // TODO: Move this into the Transmit trait
-    /// Start transmission
-    fn start_transmit(&self) -> Result<(), ErrorCode>;
-
-    // TODO: Move this into the Receive trait
-    /// Start reception
-    fn start_receive(&self) -> Result<(), ErrorCode>;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -16,7 +16,6 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil::ethernet::Configure;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -356,8 +355,8 @@ fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     let ethernet = &peripherals.ethernet;
     assert_eq!(Ok(()), ethernet.init());
     // TODO: Remove these calls once Transmit and Receive HILs are implemented
-    assert_eq!(Ok(()), ethernet.start_transmit());
-    assert_eq!(Ok(()), ethernet.start_receive());
+    assert_eq!(Ok(()), ethernet.enable_transmitter());
+    assert_eq!(Ok(()), ethernet.enable_receiver());
     assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
 }
 
