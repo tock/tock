@@ -132,7 +132,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::redundant_static_lifetimes
 -A clippy::single-component-path-imports
 -A clippy::unnecessary_lazy_evaluations
--A clippy::zero_ptr
 "
 
 # Disallow all perf lints, then re-allow each one Tock does not comply with.
