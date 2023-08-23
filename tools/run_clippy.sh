@@ -125,7 +125,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::excessive-precision
 -A clippy::init-numbered-fields
 -A clippy::let-unit-value
--A clippy::manual-saturating-arithmetic
 -A clippy::needless_borrow
 -A clippy::op-ref
 "

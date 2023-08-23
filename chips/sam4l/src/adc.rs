@@ -507,10 +507,7 @@ impl<'a> Adc<'a> {
                 let cpu_frequency = self.pm.get_system_frequency();
                 let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
                 let divisor_pow2 = math::closest_power_of_two(divisor);
-                let clock_divisor = cmp::min(
-                    math::log_base_two(divisor_pow2).checked_sub(2).unwrap_or(0),
-                    7,
-                );
+                let clock_divisor = cmp::min(math::log_base_two(divisor_pow2).saturating_sub(2), 7);
                 self.adc_clk_freq
                     .set(cpu_frequency / (1 << (clock_divisor + 2)));
                 cfg_val += Configuration::PRESCAL.val(clock_divisor);
