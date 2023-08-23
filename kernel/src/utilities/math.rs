@@ -115,7 +115,7 @@ fn ln_1to2_series_approximation(x: f32) -> f32 {
     //https://en.wikipedia.org/wiki/Remez_algorithm
     let ln_1to2_polynomial: f32 = -1.741_793_9_f32
         + (2.821_202_6_f32
-            + (-1.469_956_8_f32 + (0.447_179_55_f32 - 0.056_570_851_f32 * x_working) * x_working)
+            + (-1.469_956_8_f32 + (0.447_179_55_f32 - 0.056_570_85_f32 * x_working) * x_working)
                 * x_working)
             * x_working;
     // ln(2) * n + ln(y)
