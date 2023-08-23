@@ -152,14 +152,14 @@ impl<'a> Uart<'a> {
                     let mut return_code = Ok(());
 
                     for i in 0..self.rx_len.get() {
-                        rx_buf[i] = regs.rdata.get() as u8;
-                        len = i + 1;
-
                         if regs.status.is_set(STATUS::RXEMPTY) {
                             /* RX is empty */
                             return_code = Err(ErrorCode::SIZE);
                             break;
                         }
+
+                        rx_buf[i] = regs.rdata.get() as u8;
+                        len = i + 1;
                     }
 
                     client.received_buffer(rx_buf, len, return_code, uart::Error::None);
