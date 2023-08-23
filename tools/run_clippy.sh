@@ -123,7 +123,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::assign_op_pattern
 -A clippy::bool_assert_comparison
 -A clippy::excessive-precision
--A clippy::init-numbered-fields
 -A clippy::needless_borrow
 -A clippy::op-ref
 "
