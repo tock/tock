@@ -74,12 +74,11 @@ impl<'a, I: i2c::I2CMaster<'a>> I2CMasterDriver<'a, I> {
                     self.buf.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
                         app_buffer[..wlen].copy_to_slice(&mut buffer[..wlen]);
 
-                        let read_len: OptionalCell<usize>;
-                        if rlen == 0 {
-                            read_len = OptionalCell::empty();
+                        let read_len = if rlen == 0 {
+                            OptionalCell::empty()
                         } else {
-                            read_len = OptionalCell::new(rlen);
-                        }
+                            OptionalCell::new(rlen)
+                        };
                         self.tx.put(Transaction {
                             processid,
                             read_len,

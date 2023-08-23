@@ -343,18 +343,17 @@ impl<'a, 'c> I2c<'a, 'c> {
         // internally provide a hold time of at least 300ns for the SDA signal to
         // bridge the undefined region of the falling edge of SCL. A smaller hold
         // time of 120ns is used for fast mode plus.
-        let sda_tx_hold_count;
-        if baudrate < 1000000 {
+        let sda_tx_hold_count = if baudrate < 1000000 {
             // sda_tx_hold_count = freq_in [cycles/s] * 300ns * (1s / 1e9ns)
             // Reduce 300/1e9 to 3/1e7 to avoid numbers that don't fit in uint.
             // Add 1 to avoid division truncation.
-            sda_tx_hold_count = ((freq_in * 3) / 10000000) + 1;
+            ((freq_in * 3) / 10000000) + 1
         } else {
             // sda_tx_hold_count = freq_in [cycles/s] * 120ns * (1s / 1e9ns)
             // Reduce 120/1e9 to 3/25e6 to avoid numbers that don't fit in uint.
             // Add 1 to avoid division truncation.
-            sda_tx_hold_count = ((freq_in * 3) / 25000000) + 1;
-        }
+            ((freq_in * 3) / 25000000) + 1
+        };
         assert!(sda_tx_hold_count <= lcnt - 2);
 
         self.registers.ic_enable.modify(IC_ENABLE::ENABLE::CLEAR);

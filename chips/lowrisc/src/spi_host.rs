@@ -360,16 +360,15 @@ impl<'a> SpiHost<'a> {
     /// Currently only Bi-Directional transactions are supported
     fn start_transceive(&self) {
         let regs = self.registers;
-        //8-bits that describe command transfer len (cannot exceed 255)
-        let num_transfer_bytes: u32;
         //TXQD holds number of 32bit words
         let txfifo_num_bytes = regs.status.read(status::TXQD) * 4;
 
-        if txfifo_num_bytes > u8::MAX as u32 {
-            num_transfer_bytes = u8::MAX as u32;
+        //8-bits that describe command transfer len (cannot exceed 255)
+        let num_transfer_bytes: u32 = if txfifo_num_bytes > u8::MAX as u32 {
+            u8::MAX as u32
         } else {
-            num_transfer_bytes = txfifo_num_bytes;
-        }
+            txfifo_num_bytes
+        };
 
         //Flush all data in TXFIFO and assert CSAAT for all
         // but the last transfer segment.

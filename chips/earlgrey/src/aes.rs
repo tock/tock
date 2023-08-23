@@ -417,17 +417,14 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             ));
         }
 
-        let ret;
         self.dest.replace(dest);
-        match source {
-            None => {
-                ret = self.do_crypt(start_index, stop_index, start_index);
-            }
+        let ret = match source {
+            None => self.do_crypt(start_index, stop_index, start_index),
             Some(src) => {
                 self.source.replace(src);
-                ret = self.do_crypt(start_index, stop_index, 0);
+                self.do_crypt(start_index, stop_index, 0)
             }
-        }
+        };
 
         if ret.is_ok() {
             // Schedule a deferred call

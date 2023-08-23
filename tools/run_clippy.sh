@@ -110,7 +110,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::let_and_return
 -A clippy::missing_safety_doc
 -A clippy::needless-range-loop
--A clippy::needless_late_init
 -A clippy::option_map_or_none
 -A clippy::redundant_field_names
 -A clippy::redundant_pattern_matching
