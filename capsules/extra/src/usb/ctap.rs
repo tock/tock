@@ -34,7 +34,7 @@ const ENDPOINT_NUM: usize = 1;
 const OUT_BUFFER: usize = 0;
 const IN_BUFFER: usize = 1;
 
-static LANGUAGES: &'static [u16; 1] = &[
+static LANGUAGES: &[u16; 1] = &[
     0x0409, // English (United States)
 ];
 /// Max packet size specified by spec
@@ -47,7 +47,7 @@ const N_ENDPOINTS: usize = 2;
 ///     - the CTAP spec, example 8
 ///     - USB HID spec examples
 /// Plus it matches: https://chromium.googlesource.com/chromiumos/platform2/+/master/u2fd/u2fhid.cc
-static REPORT_DESCRIPTOR: &'static [u8] = &[
+static REPORT_DESCRIPTOR: &[u8] = &[
     0x06, 0xD0, 0xF1, // HID_UsagePage ( FIDO_USAGE_PAGE ),
     0x09, 0x01, // HID_Usage ( FIDO_USAGE_CTAPHID ),
     0xA1, 0x01, // HID_Collection ( HID_Application ),
@@ -70,7 +70,7 @@ static REPORT: ReportDescriptor<'static> = ReportDescriptor {
     desc: REPORT_DESCRIPTOR,
 };
 
-static SUB_HID_DESCRIPTOR: &'static [HIDSubordinateDescriptor] = &[HIDSubordinateDescriptor {
+static SUB_HID_DESCRIPTOR: &[HIDSubordinateDescriptor] = &[HIDSubordinateDescriptor {
     typ: DescriptorType::Report,
     len: REPORT_DESCRIPTOR.len() as u16,
 }];

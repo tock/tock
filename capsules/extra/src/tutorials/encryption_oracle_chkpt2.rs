@@ -10,8 +10,7 @@ use kernel::ProcessId;
 
 pub const DRIVER_NUM: usize = 0x99999;
 
-pub static KEY: &'static [u8; kernel::hil::symmetric_encryption::AES128_KEY_SIZE] =
-    b"InsecureAESKey12";
+pub static KEY: &[u8; kernel::hil::symmetric_encryption::AES128_KEY_SIZE] = b"InsecureAESKey12";
 
 #[derive(Default)]
 pub struct ProcessState {

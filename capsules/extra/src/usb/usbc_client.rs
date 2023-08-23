@@ -21,11 +21,11 @@ use kernel::utilities::cells::VolatileCell;
 const VENDOR_ID: u16 = 0x6667;
 const PRODUCT_ID: u16 = 0xabcd;
 
-static LANGUAGES: &'static [u16; 1] = &[
+static LANGUAGES: &[u16; 1] = &[
     0x0409, // English (United States)
 ];
 
-static STRINGS: &'static [&'static str] = &[
+static STRINGS: &[&str] = &[
     "XYZ Corp.",      // Manufacturer
     "The Zorpinator", // Product
     "Serial No. 5",   // Serial number

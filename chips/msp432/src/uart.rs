@@ -23,7 +23,7 @@ struct BaudFraction {
 
 #[rustfmt::skip]
 // Table out of the datasheet to correct the baudrate
-const BAUD_FRACTIONS: &'static [BaudFraction; 36] = &[
+const BAUD_FRACTIONS: &[BaudFraction; 36] = &[
     BaudFraction { frac: 0.0000, reg_val: 0x00 },
     BaudFraction { frac: 0.0529, reg_val: 0x01 },
     BaudFraction { frac: 0.0715, reg_val: 0x02 },
