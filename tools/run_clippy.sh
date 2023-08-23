@@ -119,7 +119,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::wrong-self-convention
 
 
--A clippy::assertions-on-constants
 -A clippy::assign_op_pattern
 -A clippy::needless_borrow
 -A clippy::op-ref

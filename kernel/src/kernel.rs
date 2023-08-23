@@ -636,10 +636,7 @@ impl Kernel {
                             Task::IPC((otherapp, ipc_type)) => {
                                 ipc.map_or_else(
                                     || {
-                                        assert!(
-                                            false,
-                                            "Kernel consistency error: IPC Task with no IPC"
-                                        );
+                                        panic!("Kernel consistency error: IPC Task with no IPC");
                                     },
                                     |ipc| {
                                         // TODO(alevy): this could error for a variety of reasons.
