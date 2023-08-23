@@ -539,9 +539,9 @@ pub unsafe fn main() {
         LiteXSimInterruptablePeripherals,
         LiteXSimInterruptablePeripherals {
             gpio0,
-            timer0,
             uart0,
-            ethmac0,
+            timer0,
+            ethmac0
         }
     );
     interrupt_service.init();

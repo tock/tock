@@ -383,9 +383,9 @@ unsafe fn setup() -> (
         RedboardArtemisNano,
         RedboardArtemisNano {
             alarm,
-            console,
-            gpio,
             led,
+            gpio,
+            console,
             i2c_master,
             spi_controller,
             ble_radio,
@@ -393,7 +393,7 @@ unsafe fn setup() -> (
             humidity,
             air_quality,
             scheduler,
-            systick,
+            systick
         }
     );
 

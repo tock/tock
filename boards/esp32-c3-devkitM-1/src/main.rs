@@ -287,11 +287,11 @@ unsafe fn setup() -> (
     let esp32_c3_board = static_init!(
         Esp32C3Board,
         Esp32C3Board {
+            gpio,
             console,
             alarm,
-            gpio,
             scheduler,
-            scheduler_timer,
+            scheduler_timer
         }
     );
 

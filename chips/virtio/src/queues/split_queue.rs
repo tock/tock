@@ -89,7 +89,7 @@ fn init_constgeneric_default_array<const N: usize, T: Default>() -> [T; N] {
     // https://github.com/rust-lang/rust/issues/62875#issuecomment-513834029
     let uninit_arr_ptr: *mut [core::mem::MaybeUninit<T>; N] = &mut uninit_arr as *mut _;
     core::mem::forget(uninit_arr);
-    let transmuted: [T; N] = unsafe { core::ptr::read(uninit_arr_ptr as *mut [T; N]) };
+    let transmuted: [T; N] = unsafe { core::ptr::read(uninit_arr_ptr.cast::<[T; N]>()) };
 
     // With the original value forgotten and new value recreated from its
     // pointer, return it:

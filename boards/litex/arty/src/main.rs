@@ -449,9 +449,9 @@ pub unsafe fn main() {
     let interrupt_service = static_init!(
         LiteXArtyInterruptablePeripherals,
         LiteXArtyInterruptablePeripherals {
-            timer0,
             uart0,
-            ethmac0,
+            timer0,
+            ethmac0
         }
     );
     interrupt_service.init();

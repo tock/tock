@@ -266,7 +266,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixLed<'a, L, A> {
         if col >= matrix.cols_len() || row >= matrix.rows_len() {
             panic!("LED at position ({}, {}) does not exist", col, row);
         }
-        LedMatrixLed { matrix, col, row }
+        LedMatrixLed { matrix, row, col }
     }
 }
 

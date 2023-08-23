@@ -150,8 +150,8 @@ impl<'a, I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'a, I> {
                                 x,
                                 y,
                                 id,
-                                pressure,
                                 size,
+                                pressure,
                             };
                         });
                         num_touches += 1;

@@ -131,7 +131,7 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if present { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(present), 0, 0))
                             .ok();
                     });
                 });

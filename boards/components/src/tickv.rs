@@ -114,8 +114,8 @@ impl<
         flash_read_buffer: &'static mut F::Page,
     ) -> Self {
         Self {
-            hasher,
             mux_flash,
+            hasher,
             region_offset,
             flash_size,
             tickfs_read_buf,
@@ -185,8 +185,8 @@ impl<
         flash_read_buffer: &'static mut F::Page,
     ) -> Self {
         Self {
-            hasher,
             flash,
+            hasher,
             region_offset,
             flash_size,
             flash_read_buffer,

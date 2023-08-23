@@ -110,7 +110,7 @@ impl Plic {
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
     pub unsafe fn save_interrupt(&self, index: u32) {
-        let offset = if index < 32 { 0 } else { 1 };
+        let offset = usize::from(index >= 32);
         let irq = index % 32;
 
         // OR the current saved state with the new value
@@ -140,7 +140,7 @@ impl Plic {
     pub unsafe fn complete(&self, index: u32) {
         self.registers.claim.set(index);
 
-        let offset = if index < 32 { 0 } else { 1 };
+        let offset = usize::from(index >= 32);
         let irq = index % 32;
 
         // OR the current saved state with the new value
