@@ -1632,7 +1632,7 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
             }
             Ok(process_checker::CheckResult::Reject) => {
                 self.processes[self.process.get()].map(|p| {
-                    let _r = p.mark_credentials_fail(&self.approve_cap);
+                    p.mark_credentials_fail(&self.approve_cap);
                 });
                 self.process.set(self.process.get() + 1);
             }

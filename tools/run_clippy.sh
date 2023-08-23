@@ -124,7 +124,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::bool_assert_comparison
 -A clippy::excessive-precision
 -A clippy::init-numbered-fields
--A clippy::let-unit-value
 -A clippy::needless_borrow
 -A clippy::op-ref
 "
