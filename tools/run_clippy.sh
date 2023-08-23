@@ -96,7 +96,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::manual_range_contains
 -A clippy::match_like_matches_macro
 -A clippy::module_inception
--A clippy::neg-multiply
 -A clippy::new-ret-no-self
 -A clippy::new_without_default
 -A clippy::redundant_closure
