@@ -108,7 +108,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::declare-interior-mutable-const
 -A clippy::from-over-into
 -A clippy::let_and_return
--A clippy::manual-bits
 -A clippy::missing_safety_doc
 -A clippy::needless-range-loop
 -A clippy::needless_late_init
