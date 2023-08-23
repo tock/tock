@@ -7,7 +7,7 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** August 21, 2023<br/>
+**Draft-Modified:** August 23, 2023<br/>
 **Draft-Version:** 8<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
@@ -497,15 +497,20 @@ handle userspace/kernel mismatches should be able to handle `Failure` in
 addition to the expected failure variant (if different than `Failure`).
 
 
-4.3.1 Command Idenfitier 0
+4.3.1 Command Identifier 0
 --------------------------
 
- - [Added August, 2023](../rfcs/2023-08-18--CommandZeroSemantics.md).
+ - [Design RFC](../rfcs/2023-08-18--CommandZeroSemantics.md).
 
-Command Identifier 0 is implemented by the core kernel and provides an
-existence check for drivers. If a driver is installed, the kernel will
-return `Success` for Command 0. If a driver is not installed, the kernel
-will return `Failure` with and error code of `NODEVICE`.
+Command Identifier 0 provides an existence check for drivers. If a
+driver is accessible to calling application, the kernel will return
+`Success` for Command 0. If a driver is not accessible, the kernel will
+return `Failure` with an error code of `NODEVICE`.
+
+_Note:_ The kernel may still elect to return the error condition even
+though driver and its associated hardware may be physically present on
+the current platform (for example, if the application does not have the
+required permissions to access this driver).
 
 Device drivers CANNOT modify the behavior of Command Identifier 0.
 
