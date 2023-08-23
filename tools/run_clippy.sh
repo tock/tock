@@ -121,7 +121,6 @@ CLIPPY_ARGS_STYLE="
 
 -A clippy::assertions-on-constants
 -A clippy::assign_op_pattern
--A clippy::bool_assert_comparison
 -A clippy::needless_borrow
 -A clippy::op-ref
 "
