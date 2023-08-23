@@ -147,9 +147,7 @@ impl<
                             })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE));
-                    if ret.is_err() {
-                        return ret;
-                    }
+                    ret?;
 
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::DATA)

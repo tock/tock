@@ -580,9 +580,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 &mut config,
             );
 
-            if new_region.is_none() {
-                return None;
-            }
+            new_region?;
 
             for region in self.mpu_regions.iter() {
                 if region.get().is_none() {

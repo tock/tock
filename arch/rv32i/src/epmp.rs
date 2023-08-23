@@ -612,9 +612,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
 
         let region = PMPRegion::new_app(start as *const u8, size, permissions);
 
-        if region.is_none() {
-            return None;
-        }
+        region?;
 
         config.regions[region_num] = region;
         config.is_dirty.set(true);
@@ -706,9 +704,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
             permissions,
         );
 
-        if region.is_none() {
-            return None;
-        }
+        region?;
 
         config.regions[region_num] = region;
 
@@ -962,9 +958,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
 
         let region = PMPRegion::new_kernel(start as *const u8, size, permissions);
 
-        if region.is_none() {
-            return None;
-        }
+        region?;
 
         config.regions[region_num] = region;
 

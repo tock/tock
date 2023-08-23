@@ -124,9 +124,7 @@ impl<
                     } else {
                         Err(ErrorCode::INVAL)
                     };
-                    if ret.is_err() {
-                        return ret;
-                    }
+                    ret?;
 
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::DATA)
