@@ -91,24 +91,20 @@ impl<
             self.apps
                 .enter(processid, |app, kernel_data| {
                     self.aes.enable();
-                    let ret = if let Some(op) = &app.aes_operation {
-                        match op {
-                            AesOperation::AES128Ctr(encrypt) => {
-                                self.aes.set_mode_aes128ctr(*encrypt)
-                            }
-                            AesOperation::AES128CBC(encrypt) => {
-                                self.aes.set_mode_aes128cbc(*encrypt)
-                            }
-                            AesOperation::AES128ECB(encrypt) => {
-                                self.aes.set_mode_aes128ecb(*encrypt)
-                            }
-                            AesOperation::AES128CCM(_encrypt) => Ok(()),
-                            AesOperation::AES128GCM(_encrypt) => Ok(()),
+                    match app.aes_operation {
+                        Some(AesOperation::AES128Ctr(encrypt)) => {
+                            self.aes.set_mode_aes128ctr(encrypt)?
                         }
-                    } else {
-                        Err(ErrorCode::INVAL)
-                    };
-                    ret?;
+                        Some(AesOperation::AES128CBC(encrypt)) => {
+                            self.aes.set_mode_aes128cbc(encrypt)?
+                        }
+                        Some(AesOperation::AES128ECB(encrypt)) => {
+                            self.aes.set_mode_aes128ecb(encrypt)?
+                        }
+                        Some(AesOperation::AES128CCM(_encrypt)) => {}
+                        Some(AesOperation::AES128GCM(_encrypt)) => {}
+                        _ => return Err(ErrorCode::INVAL),
+                    }
 
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::KEY)
