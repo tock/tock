@@ -142,9 +142,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
         match credentials.format() {
             TbfFooterV2CredentialsType::SHA256 => {
                 self.hash.map(|h| {
-                    for i in 0..32 {
-                        h[i] = credentials.data()[i];
-                    }
+                    h[..32].copy_from_slice(&credentials.data()[..32]);
                 });
                 self.hasher.clear_data();
                 match self.hasher.add_data(SubSlice::new(binary)) {
