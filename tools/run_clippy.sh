@@ -18,10 +18,6 @@
 # - `clippy::if_same_then_else`: There are often good reasons to enumerate
 #   different states that have the same effect.
 CLIPPY_ARGS="
--A clippy::pedantic
--A clippy::nursery
--A clippy::perf
--A clippy::cargo
 -A clippy::restriction
 
 -A clippy::if_same_then_else
@@ -153,8 +149,118 @@ CLIPPY_ARGS_STYLE="
 -A clippy::zero_ptr
 "
 
+# Disallow all perf lints, then re-allow each one Tock does not comply with.
+CLIPPY_ARGS_PERF="
+-D clippy::perf
+
+-A clippy::large-enum-variant
+
+
+-A clippy::manual-memcpy
+"
+
+# Disallow all cargo lints, then re-allow each one Tock does not comply with.
+CLIPPY_ARGS_CARGO="
+-D clippy::cargo
+
+-A clippy::cargo_common_metadata
+-A clippy::negative-feature-names
+"
+
+# Disallow all nursery lints, then re-allow each one Tock does not comply with.
+CLIPPY_ARGS_NURSERY="
+-D clippy::nursery
+
+-A clippy::use_self
+-A clippy::option_if_let_else
+-A clippy::cognitive_complexity
+-A clippy::or_fun_call
+-A clippy::collection_is_never_read
+
+
+-A clippy::manual_clamp
+-A clippy::unused_peekable
+-A clippy::branches_sharing_code
+
+
+-A clippy::missing_const_for_fn
+-A clippy::redundant_pub_crate
+-A clippy::equatable_if_let
+-A clippy::fallible_impl_from
+-A clippy::derive_partial_eq_without_eq
+-A clippy::empty_line_after_doc_comments
+-A clippy::trait_duplication_in_bounds
+-A clippy::useless_let_if_seq
+-A clippy::as_ptr_cast_mut
+-A clippy::unnecessary_struct_initialization
+-A clippy::type_repetition_in_bounds
+"
+
+# Disallow all pedantic lints, then re-allow each one Tock does not comply with.
+CLIPPY_ARGS_PEDANTIC="
+-D clippy::pedantic
+
+-A clippy::doc_markdown
+-A clippy::missing_errors_doc
+-A clippy::if_not_else
+-A clippy::cast_sign_loss
+-A clippy::too_many_lines
+-A clippy::must_use_candidate
+-A clippy::manual_let_else
+-A clippy::single_match_else
+-A clippy::inline_always
+-A clippy::module_name_repetitions
+-A clippy::unnested-or-patterns
+-A clippy::redundant_else
+-A clippy::return_self_not_must_use
+-A clippy::match_same_arms
+-A clippy::explicit_iter_loop
+-A clippy::similar_names
+-A clippy::unnecessary_wraps
+-A clippy::manual_assert
+-A clippy::transmute_ptr_to_ptr
+-A clippy::struct_excessive_bools
+-A clippy::fn_params_excessive_bools
+-A clippy::trivially_copy_pass_by_ref
+-A clippy::borrow_as_ptr
+-A clippy::tuple_array_conversions
+-A clippy::verbose_bit_mask
+-A clippy::large_types_passed_by_value
+-A clippy::no_mangle_with_rust_abi
+
+
+-A clippy::cast_lossless
+-A clippy::cast_possible_truncation
+-A clippy::cast_precision_loss
+-A clippy::range_plus_one
+-A clippy::missing_panics_doc
+-A clippy::match_wildcard_for_single_variants
+-A clippy::unused_self
+-A clippy::cast-possible-wrap
+-A clippy::uninlined_format_args
+-A clippy::unreadable_literal
+-A clippy::needless_pass_by_value
+-A clippy::items_after_statements
+-A clippy::ref_option_ref
+-A clippy::match_bool
+-A clippy::redundant_closure_for_method_calls
+-A clippy::no_effect_underscore_binding
+
+
+-A clippy::semicolon_if_nothing_returned
+-A clippy::ptr_as_ptr
+-A clippy::ptr_cast_constness
+-A clippy::mut_mut
+-A clippy::cast_ptr_alignment
+-A clippy::enum_glob_use
+-A clippy::used_underscore_binding
+-A clippy::bool_to_int_with_if
+-A clippy::inconsistent_struct_constructor
+-A clippy::checked_conversions
+"
+
 # Uncomment this line to automatically apply fixes to match changes to the
 # disallowed lints.
 # FIX="--fix --allow-dirty"
 
-cargo clippy $FIX -- $CLIPPY_ARGS $CLIPPY_ARGS_COMPLEXITY $CLIPPY_ARGS_STYLE
+cargo clippy $FIX -- $CLIPPY_ARGS $CLIPPY_ARGS_COMPLEXITY $CLIPPY_ARGS_STYLE $CLIPPY_ARGS_PERF $CLIPPY_ARGS_CARGO $CLIPPY_ARGS_NURSERY $CLIPPY_ARGS_PEDANTIC
