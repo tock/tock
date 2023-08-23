@@ -252,7 +252,6 @@ CLIPPY_ARGS_PEDANTIC="
 -A clippy::ptr_cast_constness
 -A clippy::mut_mut
 -A clippy::cast_ptr_alignment
--A clippy::enum_glob_use
 -A clippy::used_underscore_binding
 -A clippy::bool_to_int_with_if
 -A clippy::inconsistent_struct_constructor
