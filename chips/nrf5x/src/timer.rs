@@ -242,7 +242,7 @@ impl Timer {
             // clear it and store its bit in val to pass in callback.
             for i in 0..4 {
                 if self.registers.events_compare[i].is_set(Event::READY) {
-                    val = val | 1 << i;
+                    val |= 1 << i;
                     self.registers.events_compare[i].write(Event::READY::CLEAR);
                     // Disable corresponding interrupt
                     let interrupt_bit = match i {

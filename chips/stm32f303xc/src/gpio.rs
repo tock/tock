@@ -496,7 +496,7 @@ impl PinId {
     pub fn get_pin_number(&self) -> u8 {
         let mut pin_num = *self as u8;
 
-        pin_num = pin_num & 0b00001111;
+        pin_num &= 0b00001111;
         pin_num
     }
 

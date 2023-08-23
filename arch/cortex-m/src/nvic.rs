@@ -33,11 +33,11 @@ macro_rules! interrupt_mask {
         let mut low_interrupt: u128 = 0;
         $(
             if ($interrupt < 128) {
-                low_interrupt = low_interrupt | (1 << $interrupt) as u128
+                low_interrupt |= (1 << $interrupt) as u128
             }
             else
             {
-                high_interrupt = high_interrupt | (1 << ($interrupt-128)) as u128
+                high_interrupt |= (1 << ($interrupt-128)) as u128
             }
         );+
         (high_interrupt, low_interrupt)

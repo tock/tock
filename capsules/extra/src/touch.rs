@@ -304,7 +304,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                 .ok();
                         }
                     } else {
-                        app.dropped_events = app.dropped_events + 1;
+                        app.dropped_events += 1;
                     }
                 });
             }

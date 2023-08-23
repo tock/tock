@@ -1405,7 +1405,7 @@ impl ProcessCheckerMachine {
             // process array changes under us, don't actually trust
             // this value.
             while proc_index < self.processes.len() && self.processes[proc_index].is_none() {
-                proc_index = proc_index + 1;
+                proc_index += 1;
                 self.process.set(proc_index);
                 self.footer.set(0);
             }
@@ -1598,7 +1598,7 @@ fn check_footer(
                 }
             }
         }
-        current_footer = current_footer + 1;
+        current_footer += 1;
     }
     FooterCheckResult::PastLastFooter
 }

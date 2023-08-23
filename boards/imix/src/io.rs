@@ -51,7 +51,7 @@ impl IoWrite for Writer {
         for &c in buf {
             uart.send_byte(regs_manager, c);
             while !uart.tx_ready(regs_manager) {}
-            total = total + 1;
+            total += 1;
         }
         total
     }

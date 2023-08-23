@@ -278,7 +278,7 @@ impl<'a> SpiHost<'a> {
                             break;
                         }
                         self.rx_offset.set(self.rx_offset.get() + 1);
-                        shift_mask = shift_mask << 8;
+                        shift_mask <<= 8;
                     }
                 }
                 //Save buffer!

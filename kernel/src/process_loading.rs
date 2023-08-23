@@ -332,7 +332,7 @@ fn load_processes_from_flash<C: Chip>(
                         proc.map(|p| debug!("Loaded process {}", p.get_process_name()));
                     }
                     procs[index] = proc;
-                    index = index + 1;
+                    index += 1;
                 } else {
                     if config::CONFIG.debug_load_processes {
                         debug!("No process loaded.");

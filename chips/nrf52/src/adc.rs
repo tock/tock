@@ -499,7 +499,7 @@ impl<'a> Adc<'a> {
                     // ADC HIL requirement.
                     let length = self.length.get();
                     for i in 0..length {
-                        ret_buf[i] = ret_buf[i] << 4;
+                        ret_buf[i] <<= 4;
                     }
 
                     self.highspeed_client.map(|client| {

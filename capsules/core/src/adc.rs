@@ -1042,7 +1042,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                                         let mut val = sample;
                                         for byte in chunk.iter() {
                                             byte.set((val & 0xFF) as u8);
-                                            val = val >> 8;
+                                            val >>= 8;
                                         }
                                     }
                                 });

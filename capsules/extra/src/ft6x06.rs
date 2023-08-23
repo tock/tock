@@ -154,7 +154,7 @@ impl<'a, I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'a, I> {
                                 size,
                             };
                         });
-                        num_touches = num_touches + 1;
+                        num_touches += 1;
                     }
                 }
                 self.events.map(|buffer| {

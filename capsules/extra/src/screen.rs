@@ -350,7 +350,7 @@ impl<'a> Screen<'a> {
                                                 for (i, byte) in chunk.iter().enumerate() {
                                                     if pos < len {
                                                         buffer[i] = byte.get();
-                                                        pos = pos + 1
+                                                        pos += 1
                                                     } else {
                                                         break;
                                                     }
@@ -370,7 +370,7 @@ impl<'a> Screen<'a> {
                             }
                             ScreenCommand::Fill => {
                                 // TODO bytes per pixel
-                                len = len - position;
+                                len -= position;
                                 let bytes_per_pixel = pixels_in_bytes(
                                     1,
                                     self.pixel_format.get().get_bits_per_pixel(),
@@ -379,8 +379,7 @@ impl<'a> Screen<'a> {
                                 if write_len > len {
                                     write_len = len
                                 };
-                                app.write_position =
-                                    app.write_position + write_len * bytes_per_pixel;
+                                app.write_position += write_len * bytes_per_pixel;
                                 kernel_data
                                     .get_readonly_processbuffer(ro_allow::SHARED)
                                     .and_then(|shared| {

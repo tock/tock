@@ -417,7 +417,7 @@ impl<'a> Ble<'a> {
                         PAYLOAD[i + 2] = temp[2];
                         PAYLOAD[i + 3] = temp[3];
 
-                        i = i + 4;
+                        i += 4;
                     }
 
                     client.receive_event(&mut PAYLOAD, 10, Ok(()));

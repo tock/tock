@@ -280,7 +280,7 @@ impl<'a> Aes<'a> {
 
             self.wait_for_output_valid()?;
             self.read_block(i)?;
-            write_block = write_block + AES128_BLOCK_SIZE;
+            write_block += AES128_BLOCK_SIZE;
         }
 
         Ok(())

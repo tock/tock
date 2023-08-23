@@ -405,13 +405,11 @@ impl hil::digest::HmacSha256 for Hmac<'_> {
             let mut k = 0;
 
             for i in 0..(key.len() % 4) {
-                k = k
-                    | ((*key.get(key_idx * 4 + 1).ok_or(ErrorCode::INVAL)? as u32)
-                        << (8 * (3 - i)));
+                k |= (*key.get(key_idx * 4 + 1).ok_or(ErrorCode::INVAL)? as u32) << (8 * (3 - i));
             }
 
             regs.key.get(key_idx).ok_or(ErrorCode::INVAL)?.set(k);
-            key_idx = key_idx + 1;
+            key_idx += 1;
         }
 
         for i in key_idx..8 {
