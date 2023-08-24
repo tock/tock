@@ -233,10 +233,15 @@ pub unsafe fn start() -> (
 ) {
     nrf52840::init();
 
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
+    );
+
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new()
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     // set up circular peripheral dependencies
@@ -530,7 +535,7 @@ pub unsafe fn start() -> (
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
-        &base_peripherals.ieee802154_radio,
+        &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
