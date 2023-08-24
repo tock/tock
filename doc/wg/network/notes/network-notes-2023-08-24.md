@@ -1,6 +1,5 @@
 # Tock Network WG Meeting Notes
 
-:::info
 - **Date:** August 24th, 2023
 - **Participants:**
     - Alex Radovici
@@ -11,17 +10,12 @@
     - Amit Levy
 - **Agenda**
     1. Updates
-    2. Solution for drawing during meetings
-        [name=Alexandru]
-    3. Interfaces for different layers used for Thread networking
- 	    [name=Tyler]
-    4. Tock-ethernet integration strategy
-        [name=Leon]
+    2. Alexandru: Solution for drawing during meetings
+    3. Tyler: Interfaces for different layers used for Thread networking
+    4. Leon: Tock-ethernet integration strategy
 - **References:**
     - [NRF52840 802.15.4 PR](https://github.com/tock/tock/pull/3615)
     - [STM32F429 Ethernet PR](https://github.com/tock/tock/pull/3523)
-
-:::
 
 ## Updates
 - Branden: There's a label for Network WG related PRs on the Tock github repo
@@ -103,6 +97,6 @@
 > It sounds like, from a reception perspective, the thread application receives UDP packets on port 12345 (whatever.. > I keep forgetting) and that's it. So it's _basically_ like a normal application on the reception side
 
 
-# Tock Ethernet
+## Tock Ethernet
 - Leon: Workshopping Ethernet support in Tock over the next two weeks with Amit. Hoping to talk about that and SK_BUFF stuff next meeting
 
