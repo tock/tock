@@ -1,4 +1,4 @@
-# Tock Network WG Meeting Notes
+# Tock Network WG Meeting Notes 2023-08-10
 
 - **Date:** August 24th, 2023
 - **Participants:**
