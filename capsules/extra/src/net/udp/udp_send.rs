@@ -327,7 +327,7 @@ impl<'a, T: IP6Sender<'a>> UDPSender<'a> for UDPSendStruct<'a, T> {
         self.next_th.replace(transport_header); // th = transport header
         match self
             .udp_mux_sender
-            .send_to(dest, transport_header, &self, net_cap)
+            .send_to(dest, transport_header, self, net_cap)
         {
             Ok(()) => Ok(()),
             _ => Err(self.tx_buffer.take().unwrap()),

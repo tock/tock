@@ -561,7 +561,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config);
+            self.chip.mpu().configure_mpu(config);
         });
     }
 
@@ -571,13 +571,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<mpu::Region> {
-        self.mpu_config.and_then(|mut config| {
+        self.mpu_config.and_then(|config| {
             let new_region = self.chip.mpu().allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
                 mpu::Permissions::ReadWriteOnly,
-                &mut config,
+                config,
             );
 
             if new_region.is_none() {
@@ -597,7 +597,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
-        self.mpu_config.map_or(Err(ErrorCode::INVAL), |mut config| {
+        self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
             // Find the existing mpu region that we are removing; it needs to match exactly.
             if let Some(internal_region) = self
                 .mpu_regions
@@ -606,7 +606,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             {
                 self.chip
                     .mpu()
-                    .remove_memory_region(region, &mut config)
+                    .remove_memory_region(region, config)
                     .or(Err(ErrorCode::FAIL))?;
 
                 // Remove this region from the tracking cache of mpu_regions
@@ -634,26 +634,25 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             return Err(Error::InactiveApp);
         }
 
-        self.mpu_config
-            .map_or(Err(Error::KernelError), |mut config| {
-                if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
-                    Err(Error::AddressOutOfBounds)
-                } else if new_break > self.kernel_memory_break.get() {
-                    Err(Error::OutOfMemory)
-                } else if let Err(_) = self.chip.mpu().update_app_memory_region(
-                    new_break,
-                    self.kernel_memory_break.get(),
-                    mpu::Permissions::ReadWriteOnly,
-                    &mut config,
-                ) {
-                    Err(Error::OutOfMemory)
-                } else {
-                    let old_break = self.app_break.get();
-                    self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config);
-                    Ok(old_break)
-                }
-            })
+        self.mpu_config.map_or(Err(Error::KernelError), |config| {
+            if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
+                Err(Error::AddressOutOfBounds)
+            } else if new_break > self.kernel_memory_break.get() {
+                Err(Error::OutOfMemory)
+            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+                new_break,
+                self.kernel_memory_break.get(),
+                mpu::Permissions::ReadWriteOnly,
+                config,
+            ) {
+                Err(Error::OutOfMemory)
+            } else {
+                let old_break = self.app_break.get();
+                self.app_break.set(new_break);
+                self.chip.mpu().configure_mpu(config);
+                Ok(old_break)
+            }
+        })
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -2080,7 +2079,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
-        self.mpu_config.and_then(|mut config| {
+        self.mpu_config.and_then(|config| {
             // First, compute the candidate new pointer. Note that at this point
             // we have not yet checked whether there is space for this
             // allocation or that it meets alignment requirements.
@@ -2110,7 +2109,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 self.app_break.get(),
                 new_break,
                 mpu::Permissions::ReadWriteOnly,
-                &mut config,
+                config,
             ) {
                 None
             } else {

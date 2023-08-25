@@ -97,7 +97,7 @@ impl<'a, A: AES128GCM<'a>> Test<'a, A> {
             panic!("aes_gcm_test failed: cannot set key.");
         }
 
-        if self.aes_gcm.set_iv(&iv) != Ok(()) {
+        if self.aes_gcm.set_iv(iv) != Ok(()) {
             panic!("aes_gcm_test failed: cannot set IV.");
         }
 

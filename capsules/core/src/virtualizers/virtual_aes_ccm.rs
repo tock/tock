@@ -260,7 +260,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
     ) -> VirtualAES128CCM<'a, A> {
         VirtualAES128CCM {
             mux: mux,
-            aes: &mux.aes,
+            aes: mux.aes,
             next: ListLink::empty(),
             crypt_buf: TakeCell::new(crypt_buf),
             crypt_auth_len: Cell::new(0),

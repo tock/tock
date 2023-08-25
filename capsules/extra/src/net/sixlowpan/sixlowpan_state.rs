@@ -724,14 +724,14 @@ impl<'a> RxState<'a> {
         dgram_offset: usize,
         ctx_store: &dyn ContextStore,
     ) -> Result<bool, Result<(), ErrorCode>> {
-        let mut packet = self.packet.take().ok_or(Err(ErrorCode::NOMEM))?;
+        let packet = self.packet.take().ok_or(Err(ErrorCode::NOMEM))?;
         let uncompressed_len = if dgram_offset == 0 {
             let (consumed, written) = sixlowpan_compression::decompress(
                 ctx_store,
                 &payload[0..payload_len],
                 self.src_mac_addr.get(),
                 self.dst_mac_addr.get(),
-                &mut packet,
+                packet,
                 dgram_size,
                 true,
             )
@@ -774,7 +774,7 @@ impl<'a> RxState<'a> {
             // and thus the packet should always be here.
             self.packet
                 .map(|packet| {
-                    client.receive(&packet, self.dgram_size.get() as usize, result);
+                    client.receive(packet, self.dgram_size.get() as usize, result);
                 })
                 .unwrap(); // Unwrap fail = Error: `packet` is None in call to end_receive.
         });
@@ -905,7 +905,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
                 dgram_offset,
             )
         } else {
-            self.receive_single_packet(&packet, packet_len, src_mac_addr, dst_mac_addr)
+            self.receive_single_packet(packet, packet_len, src_mac_addr, dst_mac_addr)
         }
     }
 
@@ -931,14 +931,14 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
             // The packet buffer should *always* be there; in particular,
             // since this state is not busy, it must have the packet buffer.
             // Otherwise, we are in an inconsistent state and can fail.
-            let mut packet = state.packet.take().unwrap();
+            let packet = state.packet.take().unwrap();
             if is_lowpan(payload) {
                 let decompressed = sixlowpan_compression::decompress(
                     &self.ctx_store,
                     &payload[0..payload_len],
                     src_mac_addr,
                     dst_mac_addr,
-                    &mut packet,
+                    packet,
                     0,
                     false,
                 );

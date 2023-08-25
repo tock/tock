@@ -417,7 +417,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                 Some(ref ip6_packet) => {
                     match self
                         .sixlowpan_tx
-                        .next_fragment(&ip6_packet, tx_buf, self.radio)
+                        .next_fragment(ip6_packet, tx_buf, self.radio)
                     {
                         Ok((is_done, frame)) => {
                             //TODO: Fix ordering so that debug output does not indicate extra frame sent

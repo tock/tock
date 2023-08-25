@@ -450,7 +450,7 @@ where
                             let _ = app.send_advertisement(
                                 processid,
                                 kernel_data,
-                                &self,
+                                self,
                                 RadioChannel::AdvertisingChannel37,
                             );
                         }
@@ -568,7 +568,7 @@ where
                         let _ = app.send_advertisement(
                             processid,
                             kernel_data,
-                            &self,
+                            self,
                             RadioChannel::AdvertisingChannel38,
                         );
                     }
@@ -580,7 +580,7 @@ where
                         let _ = app.send_advertisement(
                             processid,
                             kernel_data,
-                            &self,
+                            self,
                             RadioChannel::AdvertisingChannel39,
                         );
                     }

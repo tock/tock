@@ -389,7 +389,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
                                 self.adc
-                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -531,7 +531,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                                 // begin sampling
                                 app.using_app_buf0.set(true);
                                 self.adc
-                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again

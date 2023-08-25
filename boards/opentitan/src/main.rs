@@ -206,10 +206,10 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
-        &self.syscall_filter
+        self.syscall_filter
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
@@ -221,10 +221,10 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
+        self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        &self.watchdog
+        self.watchdog
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
@@ -486,7 +486,7 @@ unsafe fn setup() -> (
     // TicKV
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
-        &mux_flash,                                    // Flash controller
+        mux_flash,                                     // Flash controller
         lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK - 1, // Region offset (End of Bank0/Use Bank1)
         // Region Size
         lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK * lowrisc::flash_ctrl::PAGE_SIZE,
@@ -589,7 +589,7 @@ unsafe fn setup() -> (
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_static!());
 
-    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_static!());
+    let otbn = OtbnComponent::new(mux_otbn).finalize(crate::otbn_component_static!());
 
     let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
 

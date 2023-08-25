@@ -31,6 +31,7 @@ CLIPPY_ARGS="
 -D clippy::map_unwrap_or
 -D clippy::ptr_eq
 -D clippy::wildcard_imports
+-D clippy::needless_borrow
 "
 
 # Disallow all complexity lints, then re-allow each one Tock does not comply
