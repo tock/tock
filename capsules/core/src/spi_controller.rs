@@ -262,7 +262,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
             }
             6 => {
                 // get baud rate
-                CommandReturn::success_u32(self.spi_master.get_rate() as u32)
+                CommandReturn::success_u32(self.spi_master.get_rate())
             }
             7 => {
                 // set phase

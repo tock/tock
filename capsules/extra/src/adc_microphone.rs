@@ -50,7 +50,7 @@ impl<'a, P: gpio::Pin> AdcMicrophone<'a, P> {
                 .iter()
                 .map(|v| if *v > avg { v - avg } else { 0 })
                 .fold(0, |a, v| if a > v { a } else { v });
-            let mut conv = (max as f32) / (((1 << 15) - 1) as f32) * 9 as f32;
+            let mut conv = (max as f32) / (((1 << 15) - 1) as f32) * 9_f32;
             conv = 20f32 * math::log10(conv / 0.00002f32);
             conv as u8
         });

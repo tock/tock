@@ -220,7 +220,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwSlaveClient
                                     // userspace. The I2C syscall API should pass back lengths.
                                     // -pal 3/5/21
                                     let buf_len = cmp::min(app_rx.len(), buffer.len());
-                                    let read_len = cmp::min(buf_len, length as usize);
+                                    let read_len = cmp::min(buf_len, length);
 
                                     for (i, c) in buffer[0..read_len].iter_mut().enumerate() {
                                         app_rx[i].set(*c);
@@ -232,7 +232,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwSlaveClient
                             })
                             .unwrap_or(0);
 
-                        kernel_data.schedule_upcall(0, (3, length as usize, 0)).ok();
+                        kernel_data.schedule_upcall(0, (3, length, 0)).ok();
                     });
                 });
             }
@@ -243,7 +243,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwSlaveClient
                 // Notify the app that the read finished
                 self.app.map(|app| {
                     let _ = self.apps.enter(app, |_, kernel_data| {
-                        kernel_data.schedule_upcall(0, (4, length as usize, 0)).ok();
+                        kernel_data.schedule_upcall(0, (4, length, 0)).ok();
                     });
                 });
             }

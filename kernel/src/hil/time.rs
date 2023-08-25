@@ -659,7 +659,7 @@ impl From<u32> for Ticks64 {
 
 impl From<u64> for Ticks64 {
     fn from(val: u64) -> Self {
-        Ticks64(val as u64)
+        Ticks64(val)
     }
 }
 

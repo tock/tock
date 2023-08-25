@@ -1216,9 +1216,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                         let previous_byte = self.previous_byte.get();
                         self.previous_byte.set(read_buf[0]);
-                        let index = self.command_index.get() as usize;
+                        let index = self.command_index.get();
 
-                        let cursor = self.cursor.get() as usize;
+                        let cursor = self.cursor.get();
 
                         if let EscState::Complete(key) = esc_state {
                             match key {

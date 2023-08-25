@@ -577,10 +577,10 @@ impl<'a> Can<'a> {
                 .modify(CAN_BTR::TS2.val(bit_timing_settings.segment2 as u32));
             self.registers
                 .can_btr
-                .modify(CAN_BTR::SJW.val(bit_timing_settings.sync_jump_width as u32));
+                .modify(CAN_BTR::SJW.val(bit_timing_settings.sync_jump_width));
             self.registers
                 .can_btr
-                .modify(CAN_BTR::BRP.val(bit_timing_settings.baud_rate_prescaler as u32));
+                .modify(CAN_BTR::BRP.val(bit_timing_settings.baud_rate_prescaler));
         } else {
             self.enter_sleep_mode();
             return Err(kernel::ErrorCode::INVAL);

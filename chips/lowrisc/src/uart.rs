@@ -82,7 +82,7 @@ impl<'a> Uart<'a> {
 
         // Generate an interrupt if we get any value in the RX buffer
         regs.intr_enable.modify(INTR::RX_WATERMARK::SET);
-        regs.fifo_ctrl.write(FIFO_CTRL::RXILVL.val(0 as u32));
+        regs.fifo_ctrl.write(FIFO_CTRL::RXILVL.val(0_u32));
     }
 
     fn disable_rx_interrupt(&self) {
@@ -187,7 +187,7 @@ impl hil::uart::Configure for Uart<'_> {
             .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
 
         // Disable all interrupts for now
-        regs.intr_enable.set(0 as u32);
+        regs.intr_enable.set(0_u32);
 
         Ok(())
     }

@@ -1541,7 +1541,7 @@ fn check_footer(
     let flash_start_ptr = process.get_addresses().flash_start as *const u8;
     let flash_start = flash_start_ptr as usize;
     let flash_integrity_len = footers_position - flash_start;
-    let flash_end = process.get_addresses().flash_end as usize;
+    let flash_end = process.get_addresses().flash_end;
     let footers_len = flash_end - footers_position;
 
     if config::CONFIG.debug_process_credentials {

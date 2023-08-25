@@ -209,7 +209,7 @@ impl<'a, I: hil::i2c::I2CDevice> MCP230xx<'a, I> {
     /// and size of the bank.
     fn calc_register_addr(&self, register: Registers, pin_number: u8) -> u8 {
         if self.number_of_banks == 1 {
-            pin_number as u8
+            pin_number
         } else {
             // Calculate an offset based on which bank this pin is in.
             let offset = pin_number / self.bank_size;

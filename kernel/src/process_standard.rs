@@ -333,7 +333,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.enqueue_task(Task::FunctionCall(FunctionCall {
             source: FunctionCallSource::Kernel,
             pc: init_fn,
-            argument0: app_start as usize,
+            argument0: app_start,
             argument1: self.memory_start as usize,
             argument2: self.memory_len,
             argument3: self.app_break.get() as usize,
@@ -874,7 +874,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     .map_or(false, |grant_entry| {
                         // Actually set the driver num and grant pointer.
                         grant_entry.driver_num = driver_num;
-                        grant_entry.grant_ptr = grant_ptr.as_ptr() as *mut u8;
+                        grant_entry.grant_ptr = grant_ptr.as_ptr();
 
                         // If all of this worked, return true.
                         true
@@ -1348,7 +1348,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
     {
         // Get a slice for just the app header.
-        let header_flash = match app_flash.get(0..header_length as usize) {
+        let header_flash = match app_flash.get(0..header_length) {
             Some(h) => h,
             None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory)),
         };
@@ -1605,7 +1605,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         //   of this allocation, `initial_kernel_memory_size` bytes long.
         //
         let (allocation_start, allocation_size) = match chip.mpu().allocate_app_memory_region(
-            remaining_memory.as_ptr() as *const u8,
+            remaining_memory.as_ptr(),
             remaining_memory.len(),
             min_total_memory_size,
             min_process_memory_size,

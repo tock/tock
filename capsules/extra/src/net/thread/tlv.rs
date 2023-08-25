@@ -888,7 +888,7 @@ impl HasRouteTlvValue {
     pub fn encode(&self, buf: &mut [u8]) -> SResult {
         stream_len_cond!(buf, 3);
         let mut offset = enc_consume!(buf, 0; encode_u16, self.r_border_router_16.to_be());
-        let last_byte = ((self.r_preference & 0b11) as u8) << 6;
+        let last_byte = (self.r_preference & 0b11) << 6;
         offset = enc_consume!(buf, offset; encode_u8, last_byte);
         stream_done!(offset)
     }
