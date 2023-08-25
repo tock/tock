@@ -147,7 +147,12 @@ enum EscState {
 
 impl EscState {
     fn next_state(self, data: u8) -> Self {
-        use self::{EscKey::*, EscState::*};
+        use self::{
+            EscKey::{Delete, Down, End, Home, Left, Right, Up},
+            EscState::{
+                Bracket, Bracket3, Bypass, Complete, Started, Unrecognized, UnrecognizedDone,
+            },
+        };
         match (self, data) {
             (Bypass, ESC) | (UnrecognizedDone, ESC) | (Complete(_), ESC) => Started,
             (Bypass, _) | (UnrecognizedDone, _) | (Complete(_), _) => Bypass,

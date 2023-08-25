@@ -755,7 +755,10 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GarbageCollect);
-                self.tickv.garbage_collect().or(Err(ErrorCode::FAIL))
+                self.tickv
+                    .garbage_collect()
+                    .and(Ok(()))
+                    .or(Err(ErrorCode::FAIL))
             }
             Operation::Init => {
                 // The init process is still occurring.
