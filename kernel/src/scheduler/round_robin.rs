@@ -21,9 +21,9 @@
 use core::cell::Cell;
 
 use crate::collections::list::{List, ListLink, ListNode};
-use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
 use crate::process::Process;
+use crate::process::StoppedExecutingReason;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 
 /// A node in the linked list the scheduler uses to track processes
