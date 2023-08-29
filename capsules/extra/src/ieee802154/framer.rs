@@ -89,6 +89,7 @@ use kernel::hil::radio;
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 /// A `Frame` wraps a static mutable byte slice and keeps just enough
@@ -211,10 +212,12 @@ impl FrameInfo {
             (self.unsecured_length(), 0)
         } else {
             // Otherwise, a data is the header and the open payload, and
-            // m data is the private payload field
+            // m data is the private payload field; unsecured length is the end of
+            // private payload, length of private payload is difference between
+            // the offset and unsecured length
             (
-                private_payload_offset,
-                self.unsecured_length() | private_payload_offset,
+                private_payload_offset,                           // m_offset
+                self.unsecured_length() - private_payload_offset, // m_len
             )
         }
     }
@@ -337,10 +340,15 @@ pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
     rx_client: OptionalCell<&'a dyn RxClient>,
+    crypt_buf: MapCell<SubSliceMut<'static, u8>>,
 }
 
 impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
-    pub fn new(mac: &'a M, aes_ccm: &'a A) -> Framer<'a, M, A> {
+    pub fn new(
+        mac: &'a M,
+        aes_ccm: &'a A,
+        crypt_buf: SubSliceMut<'static, u8>,
+    ) -> Framer<'a, M, A> {
         Framer {
             mac: mac,
             aes_ccm: aes_ccm,
@@ -351,6 +359,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             tx_client: OptionalCell::empty(),
             rx_state: MapCell::new(RxState::Idle),
             rx_client: OptionalCell::empty(),
+            crypt_buf: MapCell::new(crypt_buf),
         }
     }
 
@@ -488,7 +497,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             });
 
         match result {
-            None => RxState::ReadyToReturn(buf),
+            None => {
+                self.mac.set_receive_buffer(buf);
+                RxState::Idle
+            }
             Some(frame_info) => RxState::ReadyToDecrypt(frame_info, buf),
         }
     }
@@ -567,14 +579,14 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     /// Advances the reception pipeline if it can be advanced.
     fn step_receive_state(&self) {
         self.rx_state.take().map(|state| {
-            let (next_state, buf) = match state {
-                RxState::Idle => (RxState::Idle, None),
+            let next_state = match state {
+                RxState::Idle => RxState::Idle,
                 RxState::ReadyToDecrypt(info, buf) => {
                     match info.security_params {
                         None => {
                             // `ReadyToDecrypt` should only be entered when
                             // `security_params` is not `None`.
-                            (RxState::Idle, Some(buf))
+                            RxState::Idle
                         }
                         Some((level, key, nonce)) => {
                             let (m_off, m_len) = info.ccm_encrypt_ranges();
@@ -583,23 +595,40 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             if self.aes_ccm.set_key(&key) != Ok(())
                                 || self.aes_ccm.set_nonce(&nonce) != Ok(())
                             {
-                                (RxState::Idle, Some(buf))
+                                RxState::Idle
                             } else {
-                                let res = self.aes_ccm.crypt(
-                                    buf,
-                                    a_off,
-                                    m_off,
-                                    m_len,
-                                    info.mic_len,
-                                    level.encryption_needed(),
-                                    true,
-                                );
+                                let res = self
+                                    .crypt_buf
+                                    .take()
+                                    .map(|mut crypt_buf| {
+                                        crypt_buf[0..buf.len()].copy_from_slice(&buf);
+                                        crypt_buf.slice(0..buf.len());
+
+                                        self.aes_ccm.crypt(
+                                            crypt_buf.take(),
+                                            a_off,
+                                            m_off,
+                                            m_len,
+                                            info.mic_len,
+                                            level.encryption_needed(),
+                                            true,
+                                        )
+                                    })
+                                    .unwrap();
+
                                 match res {
-                                    Ok(()) => (RxState::Decrypting(info), None),
-                                    Err((ErrorCode::BUSY, buf)) => {
-                                        (RxState::ReadyToDecrypt(info, buf), None)
+                                    Ok(()) => {
+                                        self.mac.set_receive_buffer(buf);
+                                        RxState::Decrypting(info)
                                     }
-                                    Err((_, buf)) => (RxState::Idle, Some(buf)),
+                                    Err((ErrorCode::BUSY, buf)) => {
+                                        RxState::ReadyToDecrypt(info, buf)
+                                    }
+                                    Err((_, fail_crypt_buf)) => {
+                                        self.mac.set_receive_buffer(buf);
+                                        self.crypt_buf.replace(SubSliceMut::new(fail_crypt_buf));
+                                        RxState::Idle
+                                    }
                                 }
                             }
                         }
@@ -608,7 +637,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 RxState::Decrypting(info) => {
                     // This state should be advanced only by the hardware
                     // encryption callback.
-                    (RxState::Decrypting(info), None)
+                    RxState::Decrypting(info)
                 }
                 RxState::ReadyToYield(info, buf) => {
                     // Between the secured and unsecured frames, the
@@ -635,17 +664,13 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 frame_len - data_offset,
                             );
                         });
+                        self.crypt_buf.replace(SubSliceMut::new(buf));
                     }
-                    (RxState::Idle, Some(buf))
+                    RxState::Idle
                 }
-                RxState::ReadyToReturn(buf) => (RxState::Idle, Some(buf)),
+                RxState::ReadyToReturn(_) => RxState::Idle, // should this be like this?
             };
             self.rx_state.replace(next_state);
-
-            // Return the buffer to the radio if we are done with it.
-            if let Some(buf) = buf {
-                self.mac.set_receive_buffer(buf);
-            }
         });
     }
 }
@@ -893,7 +918,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
         // The crypto operation was from the reception pipeline.
         if let Some(buf) = opt_buf {
             self.rx_state.take().map(|state| {
-                let buf = buf;
                 match state {
                     RxState::Decrypting(info) => {
                         let next_state = if tag_is_valid {

@@ -411,7 +411,7 @@ impl Ficr {
         }
     }
 
-    pub fn address(&self) -> [u8; 6] {
+    pub fn address(&self) -> [u8; 8] {
         let lo = self
             .registers
             .deviceaddr0
@@ -419,8 +419,8 @@ impl Ficr {
         let hi = self
             .registers
             .deviceaddr1
-            .read(DeviceAddress1::DEVICEADDRESS) as u16;
-        let mut addr = [0; 6];
+            .read(DeviceAddress1::DEVICEADDRESS);
+        let mut addr = [0; 8];
         addr[..4].copy_from_slice(&lo.to_le_bytes());
         addr[4..].copy_from_slice(&hi.to_le_bytes());
         addr
