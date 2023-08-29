@@ -511,10 +511,10 @@ mod tests {
             fn read_region(
                 &self,
                 region_number: usize,
-                _offset: usize,
+                offset: usize,
                 _buf: &mut [u8; S],
             ) -> Result<(), ErrorCode> {
-                println!("Read from region: {}", region_number);
+                println!("Read from region: {}, offset: {offset}", region_number);
 
                 // Pretend that we aren't ready
                 self.async_read_region.set(region_number);
@@ -526,7 +526,11 @@ mod tests {
             }
 
             fn write(&self, address: usize, buf: &[u8]) -> Result<(), ErrorCode> {
-                println!("Write to address: {:#x}, region: {}", address, address / S);
+                println!(
+                    "Write to address: {:#x}, region: {}",
+                    address % S,
+                    address / S
+                );
 
                 for (i, d) in buf.iter().enumerate() {
                     self.buf.borrow_mut()[address / S][(address % S) + i] = *d;
@@ -783,7 +787,10 @@ mod tests {
 
             let mut ret = tickv.initialise(hash_function.finish());
             while ret.is_err() {
-                flash_ctrl_callback(&tickv);
+                tickv.set_read_buffer(
+                    &tickv.tickv.controller.buf.borrow()
+                        [tickv.tickv.controller.async_read_region.get()],
+                );
 
                 // There is no actual delay in the test, just continue now
                 let (r, _buf, _len) = tickv.continue_operation();
@@ -801,7 +808,7 @@ mod tests {
                     flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Err(_) => {}
+                Err(e) => panic!("Unable to add key 0x100: {e:?}"),
                 _ => unreachable!(),
             }
 
@@ -811,9 +818,16 @@ mod tests {
                 Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
                     flash_ctrl_callback(&tickv);
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(1))
+                    );
+                    flash_ctrl_callback(&tickv);
+
                     tickv.continue_operation().0.unwrap();
                 }
-                Err(_) => {}
+                Err(e) => panic!("Unable to add key 0x200: {e:?}"),
                 _ => unreachable!(),
             }
 
@@ -823,21 +837,62 @@ mod tests {
                 Ok(SuccessCode::Queued) => {
                     // There is no actual delay in the test, just continue now
                     flash_ctrl_callback(&tickv);
-                    tickv.continue_operation().0.unwrap();
                 }
-                Err(_) => {}
+                Err(e) => panic!("Unable to add key 0x3000: {e:?}"),
                 _ => unreachable!(),
+            }
+
+            loop {
+                let ret = tickv.continue_operation().0;
+                match ret {
+                    Err(ErrorCode::ReadNotReady(_reg)) => {
+                        // There is no actual delay in the test, just continue now
+                        flash_ctrl_callback(&tickv);
+                    }
+                    Err(e) => panic!("Unable to add key 0x3000: {e:?}"),
+                    Ok(_) => break,
+                }
+            }
+
+            println!("Get key 0x1000");
+            let ret = unsafe { tickv.get_key(0x1000, &mut BUF) };
+            match ret {
+                Ok(SuccessCode::Queued) => {
+                    // There is no actual delay in the test, just continue now
+                    flash_ctrl_callback(&tickv);
+                }
+                _ => unreachable!(),
+            }
+
+            loop {
+                let ret = tickv.continue_operation().0;
+                match ret {
+                    Err(ErrorCode::ReadNotReady(_reg)) => {
+                        // There is no actual delay in the test, just continue now
+                        flash_ctrl_callback(&tickv);
+                    }
+                    Err(e) => panic!("Unable to get key 0x1000: {e:?}"),
+                    Ok(_) => break,
+                }
             }
 
             println!("Get key 0x3000");
             let ret = unsafe { tickv.get_key(0x3000, &mut BUF) };
             match ret {
-                Ok(SuccessCode::Queued) => {
-                    flash_ctrl_callback(&tickv);
-                    tickv.continue_operation().0.unwrap();
+                Ok(_) => flash_ctrl_callback(&tickv),
+                Err(_) => unreachable!(),
+            }
+
+            loop {
+                let ret = tickv.continue_operation().0;
+                match ret {
+                    Err(ErrorCode::ReadNotReady(reg)) => {
+                        // There is no actual delay in the test, just continue now
+                        tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg]);
+                    }
+                    Err(e) => panic!("Unable to get key 0x1000: {e:?}"),
+                    Ok(_) => break,
                 }
-                Err(_) => {}
-                _ => unreachable!(),
             }
         }
 
@@ -900,28 +955,90 @@ mod tests {
                 _ => unreachable!(),
             }
 
-            println!("Get non-existant key ONE");
+            println!("Get non-existent key ONE");
             unsafe {
-                let ret = tickv.get_key(get_hashed_key(b"ONE"), &mut BUF);
-                match ret {
+                match tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) {
                     Ok(SuccessCode::Queued) => {
                         flash_ctrl_callback(&tickv);
-                        assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
+
+                        assert_eq!(
+                            tickv.continue_operation().0,
+                            Err(ErrorCode::ReadNotReady(62))
+                        );
+                        flash_ctrl_callback(&tickv);
+
+                        match tickv.continue_operation().0 {
+                            Err(ErrorCode::ReadNotReady(reg)) => {
+                                panic!("Searching too far for keys: {reg}");
+                            }
+                            Err(ErrorCode::KeyNotFound) => {}
+                            e => {
+                                panic!("Expected ErrorCode::KeyNotFound, got {e:?}");
+                            }
+                        }
                     }
-                    Err(_) => {}
                     _ => unreachable!(),
                 }
             }
 
             println!("Try to delete Key ONE Again");
-            let ret = tickv.invalidate_key(get_hashed_key(b"ONE"));
-            match ret {
+            match tickv.invalidate_key(get_hashed_key(b"ONE")) {
                 Ok(SuccessCode::Queued) => {
+                    let reg = tickv.tickv.controller.async_read_region.get();
+
                     flash_ctrl_callback(&tickv);
-                    assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg + 1))
+                    );
+
+                    // In normal operation we will read region `reg`, determine
+                    // that it isn't full and stop looking for the key
+                    //
+                    // The following test is a hack to continue testing.
+                    // We don't fill the read buffer with new data. So
+                    // the read buffer will continue to provide the data from
+                    // `reg`, which means TicKV will continue searching for
+                    // an empty region.
+                    //
+                    // In normal operation this isn't correct, but for the test
+                    // case it's a good check to test region searching
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg - 1))
+                    );
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg + 2))
+                    );
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg - 2))
+                    );
+
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(reg - 3))
+                    );
+
+                    // Now set the read buffer and end the search
+                    tickv.set_read_buffer(&tickv.tickv.controller.buf.borrow()[reg - 1]);
+
+                    match tickv.continue_operation().0 {
+                        Err(ErrorCode::ReadNotReady(reg)) => {
+                            panic!("Searching too far for keys: {reg}");
+                        }
+                        Err(ErrorCode::KeyNotFound) => {}
+                        e => {
+                            panic!("Expected ErrorCode::KeyNotFound, got {e:?}");
+                        }
+                    }
                 }
-                Err(_) => {}
-                _ => unreachable!(),
+                e => {
+                    panic!("Expected ErrorCode::KeyNotFound, got {e:?}");
+                }
             }
         }
 
@@ -1018,9 +1135,13 @@ mod tests {
             }
 
             println!("Get non-existent key ONE");
-            let ret = unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) };
-            match ret {
+            match unsafe { tickv.get_key(get_hashed_key(b"ONE"), &mut BUF) } {
                 Ok(SuccessCode::Queued) => {
+                    flash_ctrl_callback(&tickv);
+                    assert_eq!(
+                        tickv.continue_operation().0,
+                        Err(ErrorCode::ReadNotReady(62))
+                    );
                     flash_ctrl_callback(&tickv);
                     assert_eq!(tickv.continue_operation().0, Err(ErrorCode::KeyNotFound));
                 }
@@ -1035,8 +1156,7 @@ mod tests {
                     flash_ctrl_callback(&tickv);
                     tickv.continue_operation().0.unwrap();
                 }
-                Err(_) => {}
-                _ => unreachable!(),
+                _ => unreachable!("ret: {:?}", ret),
             }
         }
     }
