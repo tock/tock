@@ -731,12 +731,16 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // TODO: For Thread, in the case of `KeyIdMode::Source4Index`, the source
         // address should instead be some constant defined in their
         // specification.
+        let mut src_addr = src_addr; // NOT SURE IF THIS IS OPTIMAL
         let src_addr_long = self.get_address_long();
         let security_desc = security_needed.and_then(|(level, key_id)| {
             self.lookup_key(level, key_id).map(|key| {
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
+                if level != SecurityLevel::None {
+                    src_addr = MacAddress::Long(src_addr_long);
+                }
                 (
                     Security {
                         level: level,
@@ -769,7 +773,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             dst_pan: Some(dst_pan),
             dst_addr: Some(dst_addr),
             src_pan: Some(src_pan),
-            src_addr: Some(src_addr),
+            src_addr: Some(src_addr), //Not entirely sure what to do here?
             security: security,
             header_ies: Default::default(),
             header_ies_len: 0,
