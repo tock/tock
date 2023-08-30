@@ -496,6 +496,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
 
         match result {
             None => {
+                // The packet was not encrypted, we completed the 15.4 framer procedure, and passed the packet to the
+                // client. We can now return the recv buffer to the radio driver and enter framer's idle state.
                 self.mac.set_receive_buffer(buf);
                 RxState::Idle
             }
@@ -634,7 +636,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 //   the radio drivers recv buffer and return the framer recv state machine to idle
                                 // - (4) The crypto buffer is empty (in use elsewhere) and we are unable to copy the received
                                 //   packet. This packet is dropped and we must return the buffer to the radio driver. This
-                                //   scenario is handled in None case
+                                //   scenario is handled in the None case
                                 match res {
                                     // Scenario 1
                                     Some(Ok(())) => {
@@ -757,7 +759,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // TODO: For Thread, in the case of `KeyIdMode::Source4Index`, the source
         // address should instead be some constant defined in their
         // specification.
-        let mut src_addr = src_addr; // NOT SURE IF THIS IS OPTIMAL
+
+        // copy function parameter src_addr as a mut variable so that we can update the src address to extended address if we are encrypting
+        let mut src_addr = src_addr;
+
         let src_addr_long = self.get_address_long();
         let security_desc = security_needed.and_then(|(level, key_id)| {
             self.lookup_key(level, key_id).map(|key| {
@@ -799,7 +804,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             dst_pan: Some(dst_pan),
             dst_addr: Some(dst_addr),
             src_pan: Some(src_pan),
-            src_addr: Some(src_addr), //Not entirely sure what to do here?
+            src_addr: Some(src_addr),
             security: security,
             header_ies: Default::default(),
             header_ies_len: 0,

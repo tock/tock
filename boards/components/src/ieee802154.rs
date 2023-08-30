@@ -252,8 +252,8 @@ impl<
         userspace_mac.set_transmit_client(radio_driver);
         userspace_mac.set_receive_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
-        userspace_mac.set_address(self.short_addr); // should we assign this here?
-        userspace_mac.set_address_long(self.long_addr); //this must be assigned here
+        userspace_mac.set_address(self.short_addr);
+        userspace_mac.set_address_long(self.long_addr);
 
         (radio_driver, mux_mac)
     }
