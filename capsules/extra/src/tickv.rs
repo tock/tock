@@ -4,46 +4,196 @@
 
 //! Tock TicKV capsule.
 //!
-//! This capsule implements the TicKV library in Tock. This is done
-//! using the TicKV library (libraries/tickv).
+//! This capsule implements the TicKV library in Tock. This is done using the
+//! TicKV library (libraries/tickv).
 //!
-//! This capsule interfaces with flash and exposes the Tock `hil::kv_system`
+//! This capsule interfaces with flash and exposes the Tock `tickv::kv_system`
 //! interface to others.
 //!
 //! ```
 //! +-----------------------+
-//! |                       |
 //! |  Capsule using K-V    |
-//! |                       |
 //! +-----------------------+
 //!
-//!    hil::kv_store
+//!    hil::kv::KV
 //!
 //! +-----------------------+
-//! |                       |
-//! |  K-V in Tock          |
-//! |                       |
+//! |  TickVKVStore         |
 //! +-----------------------+
 //!
-//!    hil::kv_system
+//!    capsules::tickv::KVSystem
 //!
 //! +-----------------------+
-//! |                       |
 //! |  TicKV (this file)    |
-//! |                       |
 //! +-----------------------+
-//!
-//!    hil::flash
+//!       |             |
+//!   hil::flash        |
+//!               +-----------------+
+//!               | libraries/tickv |
+//!               +-----------------+
 //! ```
 
 use core::cell::Cell;
 use kernel::hil::flash::{self, Flash};
 use kernel::hil::hasher::{self, Hasher};
-use kernel::hil::kv_system::{self, KVSystem};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
 use tickv::{self, AsyncTicKV};
+
+/// The type of keys, this should define the output size of the digest
+/// operations.
+pub trait KeyType: Eq + Copy + Clone + Sized + AsRef<[u8]> + AsMut<[u8]> {}
+
+impl KeyType for [u8; 8] {}
+
+/// Implement this trait and use `set_client()` in order to receive callbacks.
+pub trait KVSystemClient<K: KeyType> {
+    /// This callback is called when the append_key operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `unhashed_key`: The unhashed_key buffer
+    /// - `key_buf`: The key_buf buffer
+    fn generate_key_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        unhashed_key: SubSliceMut<'static, u8>,
+        key_buf: &'static mut K,
+    );
+
+    /// This callback is called when the append_key operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    /// - `value`: The value buffer
+    fn append_key_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: &'static mut K,
+        value: SubSliceMut<'static, u8>,
+    );
+
+    /// This callback is called when the get_value operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    /// - `ret_buf`: The ret_buf buffer
+    fn get_value_complete(
+        &self,
+        result: Result<(), ErrorCode>,
+        key: &'static mut K,
+        ret_buf: SubSliceMut<'static, u8>,
+    );
+
+    /// This callback is called when the invalidate_key operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    /// - `key`: The key buffer
+    fn invalidate_key_complete(&self, result: Result<(), ErrorCode>, key: &'static mut K);
+
+    /// This callback is called when the garbage_collect operation completes.
+    ///
+    /// - `result`: Nothing on success, 'ErrorCode' on error
+    fn garbage_collect_complete(&self, result: Result<(), ErrorCode>);
+}
+
+pub trait KVSystem<'a> {
+    /// The type of the hashed key. For example `[u8; 8]`.
+    type K: KeyType;
+
+    /// Set the client.
+    fn set_client(&self, client: &'a dyn KVSystemClient<Self::K>);
+
+    /// Generate key.
+    ///
+    /// - `unhashed_key`: A unhashed key that should be hashed.
+    /// - `key_buf`: A buffer to store the hashed key output.
+    ///
+    /// On success returns nothing.
+    /// On error the unhashed_key, key_buf and `Result<(), ErrorCode>` will be returned.
+    fn generate_key(
+        &self,
+        unhashed_key: SubSliceMut<'static, u8>,
+        key_buf: &'static mut Self::K,
+    ) -> Result<(), (SubSliceMut<'static, u8>, &'static mut Self::K, ErrorCode)>;
+
+    /// Appends the key/value pair.
+    ///
+    /// If the key already exists in the store and has not been invalidated then
+    /// the append operation will fail. To update an existing key to a new value
+    /// the key must first be invalidated.
+    ///
+    /// - `key`: A hashed key. This key will be used in future to retrieve
+    ///          or remove the `value`.
+    /// - `value`: A buffer containing the data to be stored to flash.
+    ///
+    /// On success nothing will be returned.
+    /// On error the key, value and a `Result<(), ErrorCode>` will be returned.
+    ///
+    /// The possible `Result<(), ErrorCode>`s are:
+    /// - `BUSY`: An operation is already in progress
+    /// - `INVAL`: An invalid parameter was passed
+    /// - `NODEVICE`: No KV store was setup
+    /// - `NOSUPPORT`: The key could not be added due to a collision.
+    /// - `NOMEM`: The key could not be added due to no more space.
+    fn append_key(
+        &self,
+        key: &'static mut Self::K,
+        value: SubSliceMut<'static, u8>,
+    ) -> Result<(), (&'static mut Self::K, SubSliceMut<'static, u8>, ErrorCode)>;
+
+    /// Retrieves the value from a specified key.
+    ///
+    /// - `key`: A hashed key. This key will be used to retrieve the `value`.
+    /// - `ret_buf`: A buffer to store the value to.
+    ///
+    /// On success nothing will be returned.
+    /// On error the key, ret_buf and a `Result<(), ErrorCode>` will be returned.
+    ///
+    /// The possible `Result<(), ErrorCode>`s are:
+    /// - `BUSY`: An operation is already in progress
+    /// - `INVAL`: An invalid parameter was passed
+    /// - `NODEVICE`: No KV store was setup
+    /// - `ENOSUPPORT`: The key could not be found.
+    /// - `SIZE`: The value is longer than the provided buffer.
+    fn get_value(
+        &self,
+        key: &'static mut Self::K,
+        ret_buf: SubSliceMut<'static, u8>,
+    ) -> Result<(), (&'static mut Self::K, SubSliceMut<'static, u8>, ErrorCode)>;
+
+    /// Invalidates the key in flash storage.
+    ///
+    /// - `key`: A hashed key. This key will be used to remove the `value`.
+    ///
+    /// On success nothing will be returned.
+    /// On error the key and a `Result<(), ErrorCode>` will be returned.
+    ///
+    /// The possible `Result<(), ErrorCode>`s are:
+    /// - `BUSY`: An operation is already in progress
+    /// - `INVAL`: An invalid parameter was passed
+    /// - `NODEVICE`: No KV store was setup
+    /// - `ENOSUPPORT`: The key could not be found.
+    fn invalidate_key(
+        &self,
+        key: &'static mut Self::K,
+    ) -> Result<(), (&'static mut Self::K, ErrorCode)>;
+
+    /// Perform a garbage collection on the KV Store.
+    ///
+    /// For implementations that don't require garbage collecting this should
+    /// return `Err(ErrorCode::ALREADY)`.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `Result<(), ErrorCode>` will be returned.
+    ///
+    /// The possible `ErrorCode`s are:
+    /// - `BUSY`: An operation is already in progress.
+    /// - `ALREADY`: Nothing to be done. Callback will not trigger.
+    /// - `INVAL`: An invalid parameter was passed.
+    /// - `NODEVICE`: No KV store was setup.
+    fn garbage_collect(&self) -> Result<(), ErrorCode>;
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Operation {
@@ -55,6 +205,16 @@ enum Operation {
     GarbageCollect,
 }
 
+/// Wrapper object that provides the flash interface TicKV expects using the
+/// Tock flash HIL.
+///
+/// Note, TicKV expects a synchronous flash implementation, but the Tock flash
+/// HIL is asynchronous. To mediate this, this wrapper starts a flash
+/// read/write/erase, but returns without the requested operation having
+/// completed. To signal TicKV that this is what happened, this implementation
+/// returns `NotReady` errors. When the underlying flash operation has completed
+/// the `TicKVSystem` object will get the callback and then notify TicKV that
+/// the requested operation is now ready.
 pub struct TickFSFlashCtrl<'a, F: Flash + 'static> {
     flash: &'a F,
     flash_read_buffer: TakeCell<'static, F::Page>,
@@ -125,7 +285,8 @@ impl<'a, F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashControl
 
 pub type TicKVKeyType = [u8; 8];
 
-pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE: usize> {
+/// `TicKVSystem` implements `KVSystem` using the TicKV library.
+pub struct TicKVSystem<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE: usize> {
     /// Underlying asynchronous TicKV implementation.
     tickv: AsyncTicKV<'a, TickFSFlashCtrl<'a, F>, PAGE_SIZE>,
     /// Hash engine that converts key strings to 8 byte keys.
@@ -143,10 +304,10 @@ pub struct TicKVStore<'a, F: Flash + 'static, H: Hasher<'a, 8>, const PAGE_SIZE:
     /// key-value store.
     value_buffer: MapCell<SubSliceMut<'static, u8>>,
     /// Callback client when the `KVSystem` operation completes.
-    client: OptionalCell<&'a dyn kv_system::Client<TicKVKeyType>>,
+    client: OptionalCell<&'a dyn KVSystemClient<TicKVKeyType>>,
 }
 
-impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H, PAGE_SIZE> {
+impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVSystem<'a, F, H, PAGE_SIZE> {
     pub fn new(
         flash: &'a F,
         hasher: &'a H,
@@ -154,7 +315,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
         flash_read_buffer: &'static mut F::Page,
         region_offset: usize,
         flash_size: usize,
-    ) -> TicKVStore<'a, F, H, PAGE_SIZE> {
+    ) -> TicKVSystem<'a, F, H, PAGE_SIZE> {
         let tickv = AsyncTicKV::<TickFSFlashCtrl<F>, PAGE_SIZE>::new(
             TickFSFlashCtrl::new(flash, flash_read_buffer, region_offset),
             tickfs_read_buf,
@@ -189,7 +350,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                 ) {
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
-                            cb.get_value_complete(error, key, value);
+                            cb.get_value_complete(Err(error), key, value);
                         });
                     }
                     _ => {}
@@ -202,7 +363,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                 ) {
                     Err((key, value, error)) => {
                         self.client.map(move |cb| {
-                            cb.append_key_complete(error, key, value);
+                            cb.append_key_complete(Err(error), key, value);
                         });
                     }
                     _ => {}
@@ -212,7 +373,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
                 match self.invalidate_key(self.key_buffer.take().unwrap()) {
                     Err((key, error)) => {
                         self.client.map(move |cb| {
-                            cb.invalidate_key_complete(error, key);
+                            cb.invalidate_key_complete(Err(error), key);
                         });
                     }
                     _ => {}
@@ -232,7 +393,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVStore<'a, F, H
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
-    for TicKVStore<'a, F, H, PAGE_SIZE>
+    for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.unhashed_key_buffer.replace(data);
@@ -251,7 +412,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
-    for TicKVStore<'a, F, H, PAGE_SIZE>
+    for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
     fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
         self.tickv.set_read_buffer(pagebuffer.as_mut());
@@ -362,7 +523,21 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     // Need to wait for flash write to complete.
                     self.operation.set(Operation::None);
                 }
-                _ => {}
+                Ok(tickv::success_codes::SuccessCode::Queued) => {}
+                Err(e) => {
+                    self.operation.set(Operation::None);
+
+                    let tock_hil_error = match e {
+                        tickv::error_codes::ErrorCode::KeyNotFound => ErrorCode::NOSUPPORT,
+                        _ => ErrorCode::FAIL,
+                    };
+                    self.client.map(|cb| {
+                        cb.invalidate_key_complete(
+                            Err(tock_hil_error),
+                            self.key_buffer.take().unwrap(),
+                        );
+                    });
+                }
             },
             Operation::GarbageCollect => match ret {
                 Ok(tickv::success_codes::SuccessCode::Complete)
@@ -447,11 +622,11 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
 }
 
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
-    for TicKVStore<'a, F, H, PAGE_SIZE>
+    for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
     type K = TicKVKeyType;
 
-    fn set_client(&self, client: &'a dyn kv_system::Client<Self::K>) {
+    fn set_client(&self, client: &'a dyn KVSystemClient<Self::K>) {
         self.client.set(client);
     }
 
@@ -459,20 +634,13 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         &self,
         unhashed_key: SubSliceMut<'static, u8>,
         key: &'static mut Self::K,
-    ) -> Result<
-        (),
-        (
-            SubSliceMut<'static, u8>,
-            &'static mut Self::K,
-            Result<(), ErrorCode>,
-        ),
-    > {
+    ) -> Result<(), (SubSliceMut<'static, u8>, &'static mut Self::K, ErrorCode)> {
         match self.hasher.add_mut_data(unhashed_key) {
             Ok(_) => {
                 self.key_buffer.replace(key);
                 Ok(())
             }
-            Err((e, buf)) => Err((buf, key, Err(e))),
+            Err((e, buf)) => Err((buf, key, e)),
         }
     }
 
@@ -480,14 +648,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         &self,
         key: &'static mut Self::K,
         value: SubSliceMut<'static, u8>,
-    ) -> Result<
-        (),
-        (
-            &'static mut [u8; 8],
-            SubSliceMut<'static, u8>,
-            Result<(), kernel::ErrorCode>,
-        ),
-    > {
+    ) -> Result<(), (&'static mut [u8; 8], SubSliceMut<'static, u8>, ErrorCode)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::AppendKey);
@@ -501,7 +662,13 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
+                    Err((buf, e)) => {
+                        let tock_error = match e {
+                            tickv::error_codes::ErrorCode::ObjectTooLarge => ErrorCode::SIZE,
+                            _ => ErrorCode::FAIL,
+                        };
+                        Err((key, SubSliceMut::new(buf), tock_error))
+                    }
                 }
             }
             Operation::Init => {
@@ -514,7 +681,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             }
             _ => {
                 // An operation is already in process.
-                Err((key, value, Err(ErrorCode::BUSY)))
+                Err((key, value, ErrorCode::BUSY))
             }
         }
     }
@@ -523,16 +690,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         &self,
         key: &'static mut Self::K,
         value: SubSliceMut<'static, u8>,
-    ) -> Result<
-        (),
-        (
-            &'static mut [u8; 8],
-            SubSliceMut<'static, u8>,
-            Result<(), kernel::ErrorCode>,
-        ),
-    > {
+    ) -> Result<(), (&'static mut [u8; 8], SubSliceMut<'static, u8>, ErrorCode)> {
         if value.is_sliced() {
-            return Err((key, value, Err(ErrorCode::SIZE)));
+            return Err((key, value, ErrorCode::SIZE));
         }
         match self.operation.get() {
             Operation::None => {
@@ -543,7 +703,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), Err(ErrorCode::FAIL))),
+                    Err((buf, _e)) => Err((key, SubSliceMut::new(buf), ErrorCode::FAIL)),
                 }
             }
             Operation::Init => {
@@ -556,7 +716,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             }
             _ => {
                 // An operation is already in process.
-                Err((key, value, Err(ErrorCode::BUSY)))
+                Err((key, value, ErrorCode::BUSY))
             }
         }
     }
@@ -564,7 +724,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
     fn invalidate_key(
         &self,
         key: &'static mut Self::K,
-    ) -> Result<(), (&'static mut Self::K, Result<(), ErrorCode>)> {
+    ) -> Result<(), (&'static mut Self::K, ErrorCode)> {
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::InvalidateKey);
@@ -574,7 +734,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
                         self.key_buffer.replace(key);
                         Ok(())
                     }
-                    Err(_e) => Err((key, Err(ErrorCode::FAIL))),
+                    Err(_e) => Err((key, ErrorCode::FAIL)),
                 }
             }
             Operation::Init => {
@@ -586,7 +746,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
             }
             _ => {
                 // An operation is already in process.
-                Err((key, Err(ErrorCode::BUSY)))
+                Err((key, ErrorCode::BUSY))
             }
         }
     }
@@ -595,7 +755,10 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GarbageCollect);
-                self.tickv.garbage_collect().or(Err(ErrorCode::FAIL))
+                self.tickv
+                    .garbage_collect()
+                    .and(Ok(()))
+                    .or(Err(ErrorCode::FAIL))
             }
             Operation::Init => {
                 // The init process is still occurring.

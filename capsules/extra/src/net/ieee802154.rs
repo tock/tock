@@ -311,7 +311,8 @@ impl Security {
         let asn_in_nonce = (scf & security_control::ASN_IN_NONCE) != 0;
 
         // Frame counter field
-        let frame_counter_present = (scf & security_control::FRAME_COUNTER_SUPPRESSION) != 0;
+        // if frame counter suppresion is enabled, the frame counter field will not be in the header
+        let frame_counter_present = (scf & security_control::FRAME_COUNTER_SUPPRESSION) == 0;
         let (off, frame_counter) = if frame_counter_present {
             let (off, frame_counter_be) = dec_try!(buf, off; decode_u32);
             (off, Some(u32::from_be(frame_counter_be)))

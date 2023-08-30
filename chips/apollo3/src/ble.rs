@@ -452,7 +452,7 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
 
         // Setup all of the buffers
         self.buffer.replace(res);
-        self.write_len.set(len as usize);
+        self.write_len.set(len);
         self.read_len.set(0);
         self.read_index.set(0);
 

@@ -121,7 +121,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for Isl29035<'a, A> {
             // Turn on i2c to send commands.
             self.i2c.enable();
 
-            buffer[0] = 0x02 as u8;
+            buffer[0] = 0x02_u8;
             if let Err((_error, buf)) = self.i2c.write_read(buffer, 1, 2) {
                 self.buffer.replace(buf);
                 self.i2c.disable();

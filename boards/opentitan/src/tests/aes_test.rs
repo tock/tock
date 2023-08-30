@@ -16,7 +16,18 @@ use kernel::debug;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
 
+/// The only 'test_case' for aes_test as directly invoked by the test runner,
+/// this calls all the other tests, preserving the order in which they must
+/// be ran.
 #[test_case]
+fn aes_tester() {
+    run_aes128_ccm();
+    run_aes128_gcm();
+    run_aes128_ecb();
+    run_aes128_cbc();
+    run_aes128_ctr();
+}
+
 fn run_aes128_ccm() {
     debug!("check run AES128 CCM... ");
     run_kernel_op(100);
@@ -51,7 +62,6 @@ unsafe fn static_init_test_ccm(
     )
 }
 
-#[test_case]
 fn run_aes128_gcm() {
     debug!("check run AES128 GCM... ");
     run_kernel_op(100);
@@ -87,7 +97,6 @@ unsafe fn static_init_test_gcm(
     )
 }
 
-#[test_case]
 fn run_aes128_ecb() {
     debug!("check run AES128 ECB... ");
     run_kernel_op(100);
@@ -121,7 +130,6 @@ unsafe fn static_init_test_ecb(aes: &'static Aes) -> &'static TestAes128Ecb<'sta
     )
 }
 
-#[test_case]
 fn run_aes128_cbc() {
     debug!("check run AES128 CBC... ");
     run_kernel_op(100);
@@ -156,7 +164,6 @@ unsafe fn static_init_test_cbc(aes: &'static Aes) -> &'static TestAes128Cbc<'sta
     )
 }
 
-#[test_case]
 fn run_aes128_ctr() {
     debug!("check run AES128 CTR... ");
     run_kernel_op(100);

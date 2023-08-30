@@ -6,6 +6,7 @@
 //!
 //! <https://docs.opentitan.org/hw/ip/aes/doc/>
 
+use crate::registers::top_earlgrey::TOP_EARLGREY_AES_BASE_ADDR;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
@@ -114,7 +115,7 @@ enum Mode {
 
 // https://docs.opentitan.org/hw/top_earlgrey/doc/
 const AES_BASE: StaticRef<AesRegisters> =
-    unsafe { StaticRef::new(0x4110_0000 as *const AesRegisters) };
+    unsafe { StaticRef::new(TOP_EARLGREY_AES_BASE_ADDR as *const AesRegisters) };
 
 pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,

@@ -199,7 +199,7 @@ impl<'a> I2c<'a> {
             if idx < self.write_len.get() {
                 // Transmit another byte
                 self.buffer
-                    .map(|buf| self.registers.txbuf.set(buf[idx as usize] as u16));
+                    .map(|buf| self.registers.txbuf.set(buf[idx] as u16));
                 self.buf_idx.set(idx + 1);
             } else {
                 self.disable_transmit_interrupt();
@@ -230,7 +230,7 @@ impl<'a> I2c<'a> {
                 }
                 // Store received byte in buffer
                 self.buffer
-                    .map(|buf| buf[idx as usize] = self.registers.rxbuf.get() as u8);
+                    .map(|buf| buf[idx] = self.registers.rxbuf.get() as u8);
                 self.buf_idx.set(idx + 1);
             } else if mode == OperatingMode::WriteReadRead {
                 // For some reason generating a stop condition manually in receive mode doesn't
@@ -242,7 +242,7 @@ impl<'a> I2c<'a> {
             // Start condition interrupt
             if mode == OperatingMode::Write || mode == OperatingMode::WriteReadWrite {
                 self.buffer
-                    .map(|buf| self.registers.txbuf.set(buf[idx as usize] as u16));
+                    .map(|buf| self.registers.txbuf.set(buf[idx] as u16));
                 self.buf_idx.set(idx + 1);
             }
         } else if (ifg & (1 << usci::UCBxIFG::UCSTPIFG.shift)) > 0 {

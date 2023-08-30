@@ -237,7 +237,7 @@ impl<'a> I2c<'_> {
                     break;
                 }
                 // Read the data
-                buf[i as usize] = regs.rdata.read(RDATA::RDATA) as u8;
+                buf[i] = regs.rdata.read(RDATA::RDATA) as u8;
                 data_popped = i;
             }
 
@@ -247,7 +247,7 @@ impl<'a> I2c<'_> {
                     client.command_complete(self.buffer.take().unwrap(), Ok(()));
                 });
             } else {
-                self.read_index.set(data_popped as usize + 1);
+                self.read_index.set(data_popped + 1);
 
                 // Update the FIFO depth
                 if len - data_popped > 8 {
@@ -294,7 +294,7 @@ impl<'a> I2c<'_> {
                     client.command_complete(self.buffer.take().unwrap(), Ok(()));
                 });
             } else {
-                self.write_index.set(data_pushed as usize + 1);
+                self.write_index.set(data_pushed + 1);
 
                 // Update the FIFO depth
                 if len - data_pushed > 8 {
@@ -347,7 +347,7 @@ impl<'a> I2c<'_> {
 
                 self.read_data();
             } else {
-                self.write_index.set(data_pushed as usize + 1);
+                self.write_index.set(data_pushed + 1);
 
                 // Update the FIFO depth
                 if len - data_pushed > 8 {
@@ -434,8 +434,8 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
         // Save all the data and offsets we still need to send and receive
         self.slave_read_address.set(addr);
         self.buffer.replace(data);
-        self.write_len.set(write_len as usize);
-        self.read_len.set(read_len as usize);
+        self.write_len.set(write_len);
+        self.read_len.set(read_len);
         self.write_index.set(0);
         self.read_index.set(0);
 
@@ -473,7 +473,7 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
         // Save all the data and offsets we still need to send
         self.slave_read_address.set(0);
         self.buffer.replace(data);
-        self.write_len.set(len as usize);
+        self.write_len.set(len);
         self.write_index.set(0);
 
         self.write_data();
@@ -510,7 +510,7 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
         // Save all the data and offsets we still need to read
         self.slave_read_address.set(0);
         self.buffer.replace(buffer);
-        self.read_len.set(len as usize);
+        self.read_len.set(len);
         self.read_index.set(0);
 
         self.read_data();

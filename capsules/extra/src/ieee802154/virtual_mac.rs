@@ -165,7 +165,7 @@ impl<'a> MuxMac<'a> {
         new_node: &MacUser<'a>,
     ) -> Option<Result<(), (ErrorCode, &'static mut [u8])>> {
         self.get_next_op_if_idle().and_then(|(node, op)| {
-            if node as *const _ == new_node as *const _ {
+            if core::ptr::eq(node, new_node) {
                 // The new node's operation is the one being scheduled, so the
                 // operation is synchronous
                 self.perform_op_sync(node, op)

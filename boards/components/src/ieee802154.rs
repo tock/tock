@@ -40,14 +40,13 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::radio;
+use kernel::hil::radio::{self, MAX_BUF_SIZE};
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
 pub const ACK_BUFFER_SIZE: usize = 10;
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
 // upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
 pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radio::MAX_BUF_SIZE;
-pub const ACK_BUF_SIZE: usize = 6;
 
 #[macro_export]
 macro_rules! mux_aes128ccm_component_static {
@@ -105,7 +104,7 @@ macro_rules! ieee802154_component_static {
         let radio_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let radio_rx_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let crypt_buf = kernel::static_buf!([u8; components::ieee802154::CRYPT_SIZE]);
-        let radio_ack_buf = kernel::static_buf!([u8; components::ieee802154::ACK_BUF_SIZE]);
+        let radio_rx_crypt_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
 
         (
             virtual_aes,
@@ -117,7 +116,7 @@ macro_rules! ieee802154_component_static {
             radio_buf,
             radio_rx_buf,
             crypt_buf,
-            radio_ack_buf,
+            radio_rx_crypt_buf,
         )
     };};
 }
@@ -184,7 +183,7 @@ impl<
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; CRYPT_SIZE]>,
-        &'static mut MaybeUninit<[u8; ACK_BUF_SIZE]>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
     );
     type Output = (
         &'static capsules_extra::ieee802154::RadioDriver<'static>,
@@ -203,19 +202,20 @@ impl<
         );
         aes_ccm.setup();
 
-        let ack_buffer = static_buffer.9.write([0; ACK_BUF_SIZE]);
-
         // Keeps the radio on permanently; pass-through layer.
         let radio_rx_buf = static_buffer.7.write([0; radio::MAX_BUF_SIZE]);
         let awake_mac = static_buffer.1.write(AwakeMac::new(self.radio));
         self.radio.set_transmit_client(awake_mac);
         self.radio.set_receive_client(awake_mac, radio_rx_buf);
-        self.radio.set_ack_buffer(ack_buffer);
+
+        let radio_rx_crypt_buf = static_buffer.9.write([0; MAX_BUF_SIZE]);
 
         let mac_device = static_buffer
             .2
             .write(capsules_extra::ieee802154::framer::Framer::new(
-                awake_mac, aes_ccm,
+                awake_mac,
+                aes_ccm,
+                kernel::utilities::leasable_buffer::SubSliceMut::new(radio_rx_crypt_buf),
             ));
         AES128CCM::set_client(aes_ccm, mac_device);
         awake_mac.set_transmit_client(mac_device);

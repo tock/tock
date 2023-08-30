@@ -108,7 +108,7 @@ impl IPAddr {
 
         self.0[0..full_bytes].copy_from_slice(&prefix[0..full_bytes]);
         if remaining != 0 {
-            let mask = (0xff as u8) << (8 - remaining);
+            let mask = 0xff_u8 << (8 - remaining);
             self.0[full_bytes] &= !mask;
             self.0[full_bytes] |= mask & prefix[full_bytes];
         }

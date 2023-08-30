@@ -238,7 +238,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient for FM25CL<
                         cmp::min(write_buffer.len(), self.client_write_len.get() as usize);
 
                     for i in 0..write_len {
-                        write_buffer[(i + 3) as usize] = buffer[i as usize];
+                        write_buffer[i + 3] = buffer[i];
                     }
 
                     let _ = self

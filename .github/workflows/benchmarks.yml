@@ -24,12 +24,9 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
-        with:
-          components: rustfmt, clippy
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
       - name: Install dependencies

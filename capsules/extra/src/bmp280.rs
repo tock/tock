@@ -71,7 +71,7 @@ fn twobyte(lsb: u8, msb: u8) -> u16 {
 impl CalibrationData {
     fn new(i2c_raw: &[u8]) -> Self {
         CalibrationData {
-            dig_t1: twobyte(i2c_raw[0], i2c_raw[1]) as u16,
+            dig_t1: twobyte(i2c_raw[0], i2c_raw[1]),
             dig_t2: twobyte(i2c_raw[2], i2c_raw[3]) as i16,
             dig_t3: twobyte(i2c_raw[4], i2c_raw[5]) as i16,
         }

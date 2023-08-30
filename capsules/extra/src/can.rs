@@ -292,7 +292,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
             7 => {
                 self.can_rx
                     .take()
-                    .map(|dest_buffer| {
+                    .map_or(CommandReturn::failure(ErrorCode::NOMEM), |dest_buffer| {
                         self.processes
                             .enter(processid, |_, kernel| {
                                 match kernel.get_readwrite_processbuffer(0).map_or_else(
@@ -323,7 +323,6 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                             })
                             .unwrap_or_else(|err| err.into())
                     })
-                    .unwrap_or(CommandReturn::failure(ErrorCode::NOMEM))
             }
 
             // Stop receiving messages
@@ -519,7 +518,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                 up_calls::UPCALL_MESSAGE_RECEIVED,
                                 (
                                     0,
-                                    shared_len as usize,
+                                    shared_len,
                                     match id {
                                         can::Id::Standard(u16) => u16 as usize,
                                         can::Id::Extended(u32) => u32 as usize,

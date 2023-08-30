@@ -10,9 +10,9 @@ pub mod priority;
 pub mod round_robin;
 
 use crate::deferred_call::DeferredCall;
-use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
+use crate::process::StoppedExecutingReason;
 
 /// Trait which any scheduler must implement.
 pub trait Scheduler<C: Chip> {

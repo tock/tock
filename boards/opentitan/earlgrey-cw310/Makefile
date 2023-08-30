@@ -13,8 +13,9 @@ QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
 # This offset is calculated (from the linker file) as:
 # ORIGIN(rom) + size_manifest = 0x20000000 + 0x400
 QEMU_ENTRY_POINT=0x20000400
-# Latest supported commmit of OpenTitan
-OPENTITAN_SUPPORTED_SHA := 8a3159dbeb743a64c6898e1e8ecac4f18808c00c
+# OpenTitan commit 21ce4e9761abdf5c919b46e5ae64a5a8e24992f7 is Earlgrey-M2.5.2-RC0.
+# This commit is what is being taped out in the first Earlgrey chip.
+OPENTITAN_SUPPORTED_SHA := 21ce4e9761abdf5c919b46e5ae64a5a8e24992f7
 # Enable virtual function elimination
 VFUNC_ELIM=1
 
@@ -93,7 +94,7 @@ endif
 		-binary -range-pad 8 --output binary.64.vmem --vmem 64
 	$(OPENTITAN_TREE)/bazel-out/k8-fastbuild/bin/hw/build.verilator_real/sim-verilator/Vchip_sim_tb \
 		--meminit=rom,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild-ST-2cc462681f62/bin/sw/device/lib/testing/test_rom/test_rom_sim_verilator.39.scr.vmem \
-		--meminit=flash,./binary.64.vmem \
+		--meminit=flash0,./binary.64.vmem \
 		--meminit=otp,$(OPENTITAN_TREE)/bazel-out/k8-fastbuild/bin/hw/ip/otp_ctrl/data/img_rma.24.vmem
 
 test:
@@ -115,4 +116,4 @@ test-verilator: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --no-default-features --features=hardware_tests,sim_verilator
+	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator

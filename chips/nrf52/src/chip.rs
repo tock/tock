@@ -4,7 +4,6 @@
 
 use core::fmt::Write;
 use cortexm4::{self, nvic, CortexM4, CortexMVariant};
-use kernel::hil::time::Alarm;
 use kernel::platform::chip::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService + 'a> {
@@ -32,7 +31,6 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub acomp: crate::acomp::Comparator<'a>,
     pub ecb: crate::aes::AesECB<'a>,
     pub pwr_clk: crate::power::Power<'a>,
-    pub ieee802154_radio: crate::ieee802154_radio::Radio<'a>,
     pub ble_radio: crate::ble_radio::Radio<'a>,
     pub trng: crate::trng::Trng<'a>,
     pub rtc: crate::rtc::Rtc<'a>,
@@ -58,7 +56,6 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             acomp: crate::acomp::Comparator::new(),
             ecb: crate::aes::AesECB::new(),
             pwr_clk: crate::power::Power::new(),
-            ieee802154_radio: crate::ieee802154_radio::Radio::new(),
             ble_radio: crate::ble_radio::Radio::new(),
             trng: crate::trng::Trng::new(),
             rtc: crate::rtc::Rtc::new(),
@@ -81,8 +78,6 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
     }
     // Necessary for setting up circular dependencies
     pub fn init(&'static self) {
-        self.ieee802154_radio.set_timer_ref(&self.timer0);
-        self.timer0.set_alarm_client(&self.ieee802154_radio);
         kernel::deferred_call::DeferredCallClient::register(&self.nvmc);
     }
 }
@@ -92,19 +87,10 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
             crate::peripheral_interrupts::ECB => self.ecb.handle_interrupt(),
             crate::peripheral_interrupts::POWER_CLOCK => self.pwr_clk.handle_interrupt(),
-            crate::peripheral_interrupts::RADIO => {
-                match (
-                    self.ieee802154_radio.is_enabled(),
-                    self.ble_radio.is_enabled(),
-                ) {
-                    (false, false) => (),
-                    (true, false) => self.ieee802154_radio.handle_interrupt(),
-                    (false, true) => self.ble_radio.handle_interrupt(),
-                    (true, true) => kernel::debug!(
-                        "nRF 802.15.4 and BLE radios cannot be simultaneously enabled!"
-                    ),
-                }
-            }
+            crate::peripheral_interrupts::RADIO => match self.ble_radio.is_enabled() {
+                false => (),
+                true => self.ble_radio.handle_interrupt(),
+            },
             crate::peripheral_interrupts::RNG => self.trng.handle_interrupt(),
             crate::peripheral_interrupts::RTC1 => self.rtc.handle_interrupt(),
             crate::peripheral_interrupts::TEMP => self.temp.handle_interrupt(),

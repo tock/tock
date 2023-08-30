@@ -50,7 +50,7 @@ impl hil::i2c::I2CHwMasterClient for ScanClient {
 }
 
 /// This test should be called with I2C2, specifically
-pub fn i2c_scan_slaves(i2c_master: &'static mut dyn I2CMaster<'static>) {
+pub fn i2c_scan_slaves(i2c_master: &'static dyn I2CMaster<'static>) {
     static mut DATA: [u8; 255] = [0; 255];
 
     let dev = i2c_master;

@@ -497,7 +497,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
             let end = start + size_of::<TbfHeaderDriverPermission>();
             if let Some(perm) = perms.get_mut(i) {
                 *perm = b
-                    .get(start..end as usize)
+                    .get(start..end)
                     .ok_or(TbfParseError::NotEnoughFlash)?
                     .try_into()?;
             } else {
@@ -538,7 +538,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermiss
             read_end = start + size_of::<u32>();
             if let Some(read_id) = read_ids.get_mut(i) {
                 *read_id = u32::from_le_bytes(
-                    b.get(start..read_end as usize)
+                    b.get(start..read_end)
                         .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
@@ -561,7 +561,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermiss
             let modify_end = start + size_of::<u32>();
             if let Some(modify_id) = modify_ids.get_mut(i) {
                 *modify_id = u32::from_le_bytes(
-                    b.get(start..modify_end as usize)
+                    b.get(start..modify_end)
                         .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
@@ -938,7 +938,7 @@ impl TbfHeader {
         match self {
             TbfHeader::TbfHeaderV2(hd) => hd
                 .program
-                .map_or(hd.base.total_size as u32, |p| p.binary_end_offset),
+                .map_or(hd.base.total_size, |p| p.binary_end_offset),
             _ => 0,
         }
     }

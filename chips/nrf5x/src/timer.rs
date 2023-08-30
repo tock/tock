@@ -293,10 +293,6 @@ impl<'a> TimerAlarm<'a> {
         });
     }
 
-    pub fn get_current_time(&self) -> hil::time::Ticks32 {
-        self.now()
-    }
-
     fn enable_interrupts(&self) {
         self.registers.intenset.write(Inte::COMPARE1::SET);
     }
