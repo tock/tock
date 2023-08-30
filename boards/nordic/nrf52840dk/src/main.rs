@@ -194,6 +194,7 @@ pub struct Platform {
         >,
     >,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
         nrf52840::i2c::TWI<'static>,
@@ -636,8 +637,8 @@ pub unsafe fn main() {
         udp_port_table,
         local_ip_ifaces,
         aes_mux,
-        serial_num_bottom_16,
-        serial_num,
+        device_id_bottom_16,
+        device_id,
     )
     .finalize(components::thread_network_driver_component_static!(
         nrf52840::rtc::Rtc,
