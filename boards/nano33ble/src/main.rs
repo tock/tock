@@ -539,6 +539,7 @@ pub unsafe fn start() -> (
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        serial_num,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,

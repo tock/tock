@@ -308,8 +308,6 @@ enum RxState {
     /// the client.
     #[allow(dead_code)]
     ReadyToYield(FrameInfo, &'static mut [u8]),
-    /// The buffer containing the frame needs to be returned to the radio.
-    ReadyToReturn(&'static mut [u8]),
 }
 
 /// This struct wraps an IEEE 802.15.4 radio device `kernel::hil::radio::Radio`
@@ -526,6 +524,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 let (a_off, m_off) =
                                     (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
+                                // Crypto setup failed; fail sending packet and return to idle
                                 if self.aes_ccm.set_key(&key) != Ok(())
                                     || self.aes_ccm.set_nonce(&nonce) != Ok(())
                                 {
@@ -592,41 +591,69 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             let (m_off, m_len) = info.ccm_encrypt_ranges();
                             let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
+                            // Crypto setup failed; fail receiving packet and return to idle
                             if self.aes_ccm.set_key(&key) != Ok(())
                                 || self.aes_ccm.set_nonce(&nonce) != Ok(())
                             {
+                                // No error is returned for the receive function because recv occurs implicitly
+                                // Log debug statement here so that this error does not occur silently
+                                kernel::debug!(
+                                    "[15.4 RECV FAIL] - Failed setting crypto key/nonce."
+                                );
                                 RxState::Idle
                             } else {
-                                let res = self
-                                    .crypt_buf
-                                    .take()
-                                    .map(|mut crypt_buf| {
-                                        crypt_buf[0..buf.len()].copy_from_slice(&buf);
-                                        crypt_buf.slice(0..buf.len());
+                                // The crypto operation requires multiple steps through the receiving pipeline and
+                                // an unknown quanitity of time to perform decryption. Holding the 15.4 radio's
+                                // receive buffer for this period of time is suboptimal as packets will be dropped.
+                                // The radio driver assumes the mac.set_receive_buffer(...) funcion is called prior
+                                // to returning from the framer. These constraints necessitate the creation of a seperate
+                                // crypto buffer for the radio framer so that the framer can return the radio driver's
+                                // receive buffer and then perform decryption using the copied packet in the crypto buffer.
+                                let res = self.crypt_buf.take().map(|mut crypt_buf| {
+                                    crypt_buf[0..buf.len()].copy_from_slice(buf);
+                                    crypt_buf.slice(0..buf.len());
 
-                                        self.aes_ccm.crypt(
-                                            crypt_buf.take(),
-                                            a_off,
-                                            m_off,
-                                            m_len,
-                                            info.mic_len,
-                                            level.encryption_needed(),
-                                            true,
-                                        )
-                                    })
-                                    .unwrap();
+                                    self.aes_ccm.crypt(
+                                        crypt_buf.take(),
+                                        a_off,
+                                        m_off,
+                                        m_len,
+                                        info.mic_len,
+                                        level.encryption_needed(),
+                                        true,
+                                    )
+                                });
 
+                                // The potential scenarios include:
+                                // - (1) Successfully transfer packet to crypto buffer and succesfully begin crypto operation
+                                // - (2) Succesfully transfer packet to crypto buffer, but the crypto operation aes_ccm.crypt(...)
+                                //   is busy so we do not advance the reception pipeline and retry on the next iteration
+                                // - (3) Succesfully transfer packet to crypto buffer, but the crypto operation fails for some
+                                //   unknown reason (likely due to the crypto buffer's configuration or the offset/len parameters
+                                //   passed to the function. It is not possible to decrypt the packet so we drop the packet, return
+                                //   the radio drivers recv buffer and return the framer recv state machine to idle
+                                // - (4) The crypto buffer is empty (in use elsewhere) and we are unable to copy the received
+                                //   packet. This packet is dropped and we must return the buffer to the radio driver. This
+                                //   scenario is handled in None case
                                 match res {
-                                    Ok(()) => {
+                                    // Scenario 1
+                                    Some(Ok(())) => {
                                         self.mac.set_receive_buffer(buf);
                                         RxState::Decrypting(info)
                                     }
-                                    Err((ErrorCode::BUSY, buf)) => {
+                                    // Scenario 2
+                                    Some(Err((ErrorCode::BUSY, buf))) => {
                                         RxState::ReadyToDecrypt(info, buf)
                                     }
-                                    Err((_, fail_crypt_buf)) => {
+                                    // Scenario 3
+                                    Some(Err((_, fail_crypt_buf))) => {
                                         self.mac.set_receive_buffer(buf);
                                         self.crypt_buf.replace(SubSliceMut::new(fail_crypt_buf));
+                                        RxState::Idle
+                                    }
+                                    // Scenario 4
+                                    None => {
+                                        self.mac.set_receive_buffer(buf);
                                         RxState::Idle
                                     }
                                 }
@@ -668,7 +695,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                     }
                     RxState::Idle
                 }
-                RxState::ReadyToReturn(_) => RxState::Idle, // should this be like this?
             };
             self.rx_state.replace(next_state);
         });
@@ -927,7 +953,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                         let next_state = if tag_is_valid {
                             RxState::ReadyToYield(info, buf)
                         } else {
-                            RxState::ReadyToReturn(buf)
+                            // The CRC tag is invalid, meaning the packet was corrupted. Drop this packet
+                            // and reset reception pipeline
+                            self.crypt_buf.replace(SubSliceMut::new(buf));
+                            RxState::Idle
                         };
                         self.rx_state.replace(next_state);
                         self.step_receive_state();

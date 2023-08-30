@@ -45,9 +45,11 @@ const BUTTON_PIN: Pin = Pin::P0_17;
 const I2C_TEMP_SDA_PIN: Pin = Pin::P1_15;
 const I2C_TEMP_SCL_PIN: Pin = Pin::P0_02;
 
-// Constants related to the configuration of the 15.4 network stack
+// Constants related to the configuration of the 15.4 network stack; DEFAULT_EXT_SRC_MAC
+// should be replaced by an extended src address generated from device serial number
 const SRC_MAC: u16 = 0xf00f;
 const PAN_ID: u16 = 0xABCD;
+const DEFAULT_EXT_SRC_MAC: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
 
 /// UART Writer
 pub mod io;
@@ -345,6 +347,7 @@ pub unsafe fn main() {
         aes_mux,
         PAN_ID,
         SRC_MAC,
+        DEFAULT_EXT_SRC_MAC,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
