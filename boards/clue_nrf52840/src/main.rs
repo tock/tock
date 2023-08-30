@@ -706,9 +706,9 @@ pub unsafe fn main() {
     kernel::deferred_call::DeferredCallClient::register(aes_mux);
     base_peripherals.ecb.set_client(aes_mux);
 
-    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
+    let device_id = nrf52840::ficr::FICR_INSTANCE.address();
 
-    let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
+    let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
@@ -716,8 +716,8 @@ pub unsafe fn main() {
         &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
-        serial_num_bottom_16,
-        serial_num,
+        device_id_bottom_16,
+        device_id,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
