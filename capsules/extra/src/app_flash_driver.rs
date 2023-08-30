@@ -39,8 +39,17 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AppFlash as usize;
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// `write_done` callback.
+    pub const WRITE_DONE: usize = 0;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 1;
+}
+
 /// Ids for read-only allow buffers
 mod ro_allow {
+    /// Set write buffer. This entire buffer will be written to flash.
     pub const BUFFER: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 1;
@@ -54,7 +63,12 @@ pub struct App {
 
 pub struct AppFlash<'a> {
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
+    apps: Grant<
+        App,
+        UpcallCount<{ upcall::COUNT }>,
+        AllowRoCount<{ ro_allow::COUNT }>,
+        AllowRwCount<0>,
+    >,
     current_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
@@ -62,7 +76,12 @@ pub struct AppFlash<'a> {
 impl<'a> AppFlash<'a> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
+        grant: Grant<
+            App,
+            UpcallCount<{ upcall::COUNT }>,
+            AllowRoCount<{ ro_allow::COUNT }>,
+            AllowRwCount<0>,
+        >,
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {
@@ -140,7 +159,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
         // Notify the current application that the command finished.
         self.current_app.take().map(|processid| {
             let _ = self.apps.enter(processid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                upcalls.schedule_upcall(upcall::WRITE_DONE, (0, 0, 0)).ok();
             });
         });
 
