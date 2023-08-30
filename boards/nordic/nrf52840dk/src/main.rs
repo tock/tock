@@ -562,10 +562,8 @@ pub unsafe fn main() {
     // IEEE 802.15.4 and UDP
     //--------------------------------------------------------------------------
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.address();
-
-    let device_id_bottom_16: u16 = device_id[0] as u16 + ((device_id[1] as u16) << 8);
-    let short_mac_addr: MacAddress = MacAddress::Short(device_id_bottom_16);
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
@@ -602,7 +600,7 @@ pub unsafe fn main() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        short_mac_addr,
+        MacAddress::Short(device_id_bottom_16),
         local_ip_ifaces,
         mux_alarm,
     )

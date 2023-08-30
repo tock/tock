@@ -411,10 +411,25 @@ impl Ficr {
         }
     }
 
-    pub fn address(&self) -> [u8; 8] {
+    pub fn id(&self) -> [u8; 8] {
         let lo = self.registers.deviceid0.read(DeviceId0::DEVICEID);
         let hi = self.registers.deviceid1.read(DeviceId1::DEVICEID);
         let mut addr = [0; 8];
+        addr[..4].copy_from_slice(&lo.to_le_bytes());
+        addr[4..].copy_from_slice(&hi.to_le_bytes());
+        addr
+    }
+
+    pub fn address(&self) -> [u8; 6] {
+        let lo = self
+            .registers
+            .deviceaddr0
+            .read(DeviceAddress0::DEVICEADDRESS);
+        let hi = self
+            .registers
+            .deviceaddr1
+            .read(DeviceAddress1::DEVICEADDRESS) as u16;
+        let mut addr = [0; 6];
         addr[..4].copy_from_slice(&lo.to_le_bytes());
         addr[4..].copy_from_slice(&hi.to_le_bytes());
         addr

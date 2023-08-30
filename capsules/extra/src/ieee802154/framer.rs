@@ -602,12 +602,13 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 kernel::debug!(
                                     "[15.4 RECV FAIL] - Failed setting crypto key/nonce."
                                 );
+                                self.mac.set_receive_buffer(buf);
                                 RxState::Idle
                             } else {
                                 // The crypto operation requires multiple steps through the receiving pipeline and
                                 // an unknown quanitity of time to perform decryption. Holding the 15.4 radio's
                                 // receive buffer for this period of time is suboptimal as packets will be dropped.
-                                // The radio driver assumes the mac.set_receive_buffer(...) funcion is called prior
+                                // The radio driver assumes the mac.set_receive_buffer(...) function is called prior
                                 // to returning from the framer. These constraints necessitate the creation of a seperate
                                 // crypto buffer for the radio framer so that the framer can return the radio driver's
                                 // receive buffer and then perform decryption using the copied packet in the crypto buffer.
@@ -750,7 +751,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         dst_pan: PanID,
         dst_addr: MacAddress,
         src_pan: PanID,
-        src_addr: MacAddress,
+        mut src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
@@ -759,9 +760,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // TODO: For Thread, in the case of `KeyIdMode::Source4Index`, the source
         // address should instead be some constant defined in their
         // specification.
-
-        // copy function parameter src_addr as a mut variable so that we can update the src address to extended address if we are encrypting
-        let mut src_addr = src_addr;
 
         let src_addr_long = self.get_address_long();
         let security_desc = security_needed.and_then(|(level, key_id)| {
