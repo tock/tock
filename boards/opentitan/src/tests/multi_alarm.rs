@@ -19,13 +19,17 @@ use crate::tests::run_kernel_op;
 use crate::ALARM;
 use capsules_core::test::random_alarm::TestRandomAlarm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use earlgrey::chip_config::EarlGreyConfig;
 use earlgrey::timer::RvTimer;
 use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 
 static mut TESTS: Option<
-    [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>; 3],
+    [&'static TestRandomAlarm<
+        'static,
+        VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>,
+    >; 3],
 > = None;
 
 #[test_case]
@@ -51,40 +55,43 @@ pub fn run_multi_alarm() {
 }
 
 unsafe fn static_init_multi_alarm_test(
-    mux: &'static MuxAlarm<'static, RvTimer<'static>>,
-) -> [&'static TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>; 3] {
+    mux: &'static MuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>,
+) -> [&'static TestRandomAlarm<
+    'static,
+    VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>,
+>; 3] {
     let virtual_alarm1 = static_init!(
-        VirtualMuxAlarm<'static, RvTimer<'static>>,
+        VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>,
         VirtualMuxAlarm::new(mux)
     );
     virtual_alarm1.setup();
 
     let test1 = static_init!(
-        TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>,
+        TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>>,
         TestRandomAlarm::new(virtual_alarm1, 19, 'A', false)
     );
     virtual_alarm1.set_alarm_client(test1);
 
     let virtual_alarm2 = static_init!(
-        VirtualMuxAlarm<'static, RvTimer<'static>>,
+        VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>,
         VirtualMuxAlarm::new(mux)
     );
     virtual_alarm2.setup();
 
     let test2 = static_init!(
-        TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>,
+        TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>>,
         TestRandomAlarm::new(virtual_alarm2, 37, 'B', false)
     );
     virtual_alarm2.set_alarm_client(test2);
 
     let virtual_alarm3 = static_init!(
-        VirtualMuxAlarm<'static, RvTimer<'static>>,
+        VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>,
         VirtualMuxAlarm::new(mux)
     );
     virtual_alarm3.setup();
 
     let test3 = static_init!(
-        TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static>>>,
+        TestRandomAlarm<'static, VirtualMuxAlarm<'static, RvTimer<'static, crate::ChipConfig>>>,
         TestRandomAlarm::new(virtual_alarm3, 89, 'C', false)
     );
     virtual_alarm3.set_alarm_client(test3);
