@@ -264,11 +264,16 @@ PTMU_ARGS ?=
 # flags. See https://github.com/RazrFalcon/cargo-bloat/issues/62.
 CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
 
-# Check whether the system already has a sha256sum application present. If not,
-# use the custom shipped one.
+# Check whether the system already has a sha256sum or shasum application
+# present. If not, use the custom shipped one.
 ifeq (, $(shell sha256sum --version 2>/dev/null))
-  # No system sha256sum available.
-  SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
+  ifeq (, $(shell shasum --version 2>/dev/null))
+    # No system sha256sum available.
+    SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
+  else
+    # Use shasum found on MacOS.
+    SHA256SUM := shasum -a 256
+  endif
 else
   # Use system sha256sum.
   SHA256SUM := sha256sum
