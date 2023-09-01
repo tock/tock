@@ -10,9 +10,7 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
-use nrf52840::gpio::{self, Pin};
-
-use kernel::hil::gpio::{Configure, Input, Output};
+use nrf52840::gpio::Pin;
 
 use crate::CHIP;
 use crate::PROCESSES;
