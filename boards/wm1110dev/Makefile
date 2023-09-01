@@ -25,4 +25,4 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: flash-bootloader
 flash-bootloader:
-	tockloader flash --address 0 bootloader.bin
+	tockloader flash --address 0 wm1110_dev-bootloader.bin
