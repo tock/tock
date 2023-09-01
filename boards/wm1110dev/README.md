@@ -29,13 +29,29 @@ to use an nRF52840dk board.
 ### Connect the nRF52840dk to the WM1110-dev
 
 First we jumper the board as shown here:
-https://devzone.nordicsemi.com/f/nordic-q-a/97159/nrf52-dk-v3-0-0-debug-out-for-programming-external-board-can-t-work
+
+<img src="media/wm1110-dev-connections.png" width="50%">
+
+Pin mappings:
+
+| nRF52840dk | WM1110-dev |
+|------------|------------|
+| GND        | GND        |
+| SWD SEL    | 3V3        |
+| SWD CLK    | CLK        |
+| SWD IO     | DIO        |
+
+Make sure _both_ the nRF52840dk board and the WM1110-dev board are attached to
+your computer via two USB connections.
 
 Then:
 
 ```
 make flash-bootloader
 ```
+
+This will use JLinkExe to flash the bootloader using the nRF52840dk's onboard
+jtag hardware.
 
 ### Using the Bootloader
 
