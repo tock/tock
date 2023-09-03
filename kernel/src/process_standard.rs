@@ -578,16 +578,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 min_region_size,
                 mpu::Permissions::ReadWriteOnly,
                 config,
-            );
-
-            if new_region.is_none() {
-                return None;
-            }
+            )?;
 
             for region in self.mpu_regions.iter() {
                 if region.get().is_none() {
-                    region.set(new_region);
-                    return new_region;
+                    region.set(Some(new_region));
+                    return Some(new_region);
                 }
             }
 

@@ -1100,16 +1100,12 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            if let Err(e) = self.configure_data_partition(self.region_num) {
-                return Err(e);
-            }
+            self.configure_data_partition(self.region_num)?;
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
-                return Err(e);
-            }
+            self.configure_info_partition(FlashBank::BANK1, self.region_num)?;
         }
 
         // Check control status before we commit
