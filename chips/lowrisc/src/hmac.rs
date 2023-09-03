@@ -316,7 +316,7 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn clear_data(&self) {
         let regs = self.registers;
         regs.cmd.modify(CMD::START::CLEAR);
-        regs.wipe_secret.set(1 as u32);
+        regs.wipe_secret.set(1_u32);
         self.cancelled.set(true);
     }
 

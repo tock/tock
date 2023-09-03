@@ -108,7 +108,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type WatchDog = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -123,7 +123,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
         self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
+        self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
         &()

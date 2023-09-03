@@ -84,7 +84,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -196,7 +196,7 @@ pub unsafe fn main() {
 
     peripherals.dcdc.clock().enable();
     peripherals.dcdc.set_target_vdd_soc(1250);
-    set_arm_clock(&peripherals.ccm, &peripherals.ccm_analog);
+    set_arm_clock(peripherals.ccm, &peripherals.ccm_analog);
     // IPG clock is 600MHz / 4 == 150MHz
     peripherals.ccm.set_ipg_divider(4);
 

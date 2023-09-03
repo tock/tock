@@ -197,7 +197,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -233,10 +233,15 @@ pub unsafe fn start() -> (
 ) {
     nrf52840::init();
 
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
+    );
+
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new()
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     // set up circular peripheral dependencies
@@ -412,49 +417,49 @@ pub unsafe fn start() -> (
             .finalize(components::adc_syscall_component_helper!(
                 // A0
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A1
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput3)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A2
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A3
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A4
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A5
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput0)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A6
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A7
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
@@ -530,7 +535,7 @@ pub unsafe fn start() -> (
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
-        &base_peripherals.ieee802154_radio,
+        &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,

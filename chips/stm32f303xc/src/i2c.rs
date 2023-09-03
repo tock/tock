@@ -339,7 +339,7 @@ impl<'a> I2C<'a> {
             // send the next byte
             if self.buffer.is_some() && self.tx_position.get() < self.tx_len.get() {
                 self.buffer.map(|buf| {
-                    let byte = buf[self.tx_position.get() as usize];
+                    let byte = buf[self.tx_position.get()];
                     self.registers.txdr.write(TXDR::TXDATA.val(byte as u32));
                     self.tx_position.set(self.tx_position.get() + 1);
                 });
@@ -353,7 +353,7 @@ impl<'a> I2C<'a> {
             let byte = self.registers.rxdr.read(RXDR::RXDATA) as u8;
             if self.buffer.is_some() && self.rx_position.get() < self.rx_len.get() {
                 self.buffer.map(|buf| {
-                    buf[self.rx_position.get() as usize] = byte;
+                    buf[self.rx_position.get()] = byte;
                     self.rx_position.set(self.rx_position.get() + 1);
                 });
             }

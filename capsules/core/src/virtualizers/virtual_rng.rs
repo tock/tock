@@ -152,7 +152,7 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
     }
 
     fn set_client(&'a self, client: &'a dyn Client) {
-        self.mux.devices.push_head(&self);
+        self.mux.devices.push_head(self);
 
         // Set client to handle callbacks for current device
         self.client.set(client);

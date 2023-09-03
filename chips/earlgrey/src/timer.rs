@@ -4,8 +4,9 @@
 
 //! Timer driver.
 
-use crate::chip_config::CONFIG;
+use crate::chip_config::EarlGreyConfig;
 use crate::registers::top_earlgrey::TOP_EARLGREY_RV_TIMER_BASE_ADDR;
+use core::marker::PhantomData;
 use kernel::hil::time::{self, Ticks64};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -13,8 +14,6 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadWri
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use rv32i::machine_timer::MachineTimer;
-
-const PRESCALE: u16 = ((CONFIG.cpu_freq / 10_000) - 1) as u16; // 10Khz
 
 /// 10KHz `Frequency`
 #[derive(Debug)]
@@ -55,14 +54,15 @@ register_bitfields![u32,
     ],
 ];
 
-pub struct RvTimer<'a> {
+pub struct RvTimer<'a, CFG: EarlGreyConfig> {
     registers: StaticRef<TimerRegisters>,
     alarm_client: OptionalCell<&'a dyn time::AlarmClient>,
     overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
     mtimer: MachineTimer<'a>,
+    _cfg: PhantomData<CFG>,
 }
 
-impl<'a> RvTimer<'a> {
+impl<'a, CFG: EarlGreyConfig> RvTimer<'a, CFG> {
     pub fn new() -> Self {
         Self {
             registers: TIMER_BASE,
@@ -74,14 +74,17 @@ impl<'a> RvTimer<'a> {
                 &TIMER_BASE.value_low,
                 &TIMER_BASE.value_high,
             ),
+            _cfg: PhantomData,
         }
     }
 
     pub fn setup(&self) {
+        let prescale: u16 = ((CFG::CPU_FREQ / 10_000) - 1) as u16; // 10Khz
+
         let regs = self.registers;
         // Set proper prescaler and the like
         regs.config
-            .write(config::prescale.val(PRESCALE as u32) + config::step.val(1u32));
+            .write(config::prescale.val(prescale as u32) + config::step.val(1u32));
         regs.compare_high.set(0);
         regs.value_low.set(0xFFFF_0000);
         regs.intr_enable.write(intr::timer0::CLEAR);
@@ -98,7 +101,7 @@ impl<'a> RvTimer<'a> {
     }
 }
 
-impl time::Time for RvTimer<'_> {
+impl<CFG: EarlGreyConfig> time::Time for RvTimer<'_, CFG> {
     type Frequency = Freq10KHz;
     type Ticks = Ticks64;
 
@@ -107,7 +110,7 @@ impl time::Time for RvTimer<'_> {
     }
 }
 
-impl<'a> time::Counter<'a> for RvTimer<'a> {
+impl<'a, CFG: EarlGreyConfig> time::Counter<'a> for RvTimer<'a, CFG> {
     fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
     }
@@ -131,7 +134,7 @@ impl<'a> time::Counter<'a> for RvTimer<'a> {
     }
 }
 
-impl<'a> time::Alarm<'a> for RvTimer<'a> {
+impl<'a, CFG: EarlGreyConfig> time::Alarm<'a> for RvTimer<'a, CFG> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.alarm_client.set(client);
     }

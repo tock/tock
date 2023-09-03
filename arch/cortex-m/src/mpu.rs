@@ -472,7 +472,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                 let tz = start.trailing_zeros();
                 if tz < 32 {
                     // Find the largest power of two that divides `start`
-                    (1 as usize) << tz
+                    1_usize << tz
                 } else {
                     // This case means `start` is 0.
                     let mut ceil = math::closest_power_of_two(size as u32) as usize;

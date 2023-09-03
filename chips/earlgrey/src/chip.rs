@@ -5,6 +5,7 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::marker::PhantomData;
 use kernel;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -12,21 +13,22 @@ use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
 use rv32i::epmp::PMP;
 use rv32i::syscall::SysCall;
 
-use crate::chip_config::CONFIG;
+use crate::chip_config::EarlGreyConfig;
 use crate::interrupts;
 use crate::plic::Plic;
 use crate::plic::PLIC;
 
-pub struct EarlGrey<'a, I: InterruptService + 'a> {
+pub struct EarlGrey<'a, I: InterruptService + 'a, CFG: EarlGreyConfig + 'static> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMP<8>,
     plic: &'a Plic,
-    timer: &'static crate::timer::RvTimer<'static>,
+    timer: &'static crate::timer::RvTimer<'static, CFG>,
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
     plic_interrupt_service: &'a I,
+    _cfg: PhantomData<CFG>,
 }
 
-pub struct EarlGreyDefaultPeripherals<'a> {
+pub struct EarlGreyDefaultPeripherals<'a, CFG: EarlGreyConfig> {
     pub aes: crate::aes::Aes<'a>,
     pub hmac: lowrisc::hmac::Hmac<'a>,
     pub usb: lowrisc::usbdev::Usb<'a>,
@@ -39,28 +41,26 @@ pub struct EarlGreyDefaultPeripherals<'a> {
     pub flash_ctrl: lowrisc::flash_ctrl::FlashCtrl<'a>,
     pub rng: lowrisc::csrng::CsRng<'a>,
     pub watchdog: lowrisc::aon_timer::AonTimer,
+    _cfg: PhantomData<CFG>,
 }
 
-impl<'a> EarlGreyDefaultPeripherals<'a> {
+impl<'a, CFG: EarlGreyConfig> EarlGreyDefaultPeripherals<'a, CFG> {
     pub fn new() -> Self {
         Self {
             aes: crate::aes::Aes::new(),
             hmac: lowrisc::hmac::Hmac::new(crate::hmac::HMAC0_BASE),
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
-            uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CONFIG.peripheral_freq),
+            uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CFG::PERIPHERAL_FREQ),
             otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE),
             gpio_port: crate::gpio::Port::new(),
-            i2c0: lowrisc::i2c::I2c::new(
-                crate::i2c::I2C0_BASE,
-                (1 / CONFIG.cpu_freq) * 1000 * 1000,
-            ),
+            i2c0: lowrisc::i2c::I2c::new(crate::i2c::I2C0_BASE, (1 / CFG::CPU_FREQ) * 1000 * 1000),
             spi_host0: lowrisc::spi_host::SpiHost::new(
                 crate::spi_host::SPIHOST0_BASE,
-                CONFIG.cpu_freq,
+                CFG::CPU_FREQ,
             ),
             spi_host1: lowrisc::spi_host::SpiHost::new(
                 crate::spi_host::SPIHOST1_BASE,
-                CONFIG.cpu_freq,
+                CFG::CPU_FREQ,
             ),
             flash_ctrl: lowrisc::flash_ctrl::FlashCtrl::new(
                 crate::flash_ctrl::FLASH_CTRL_BASE,
@@ -70,8 +70,9 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
             rng: lowrisc::csrng::CsRng::new(crate::csrng::CSRNG_BASE),
             watchdog: lowrisc::aon_timer::AonTimer::new(
                 crate::aon_timer::AON_TIMER_BASE,
-                CONFIG.cpu_freq,
+                CFG::CPU_FREQ,
             ),
+            _cfg: PhantomData,
         }
     }
 
@@ -80,7 +81,7 @@ impl<'a> EarlGreyDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for EarlGreyDefaultPeripherals<'a> {
+impl<'a, CFG: EarlGreyConfig> InterruptService for EarlGreyDefaultPeripherals<'a, CFG> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0_TX_WATERMARK..=interrupts::UART0_RX_PARITYERR => {
@@ -120,10 +121,10 @@ impl<'a> InterruptService for EarlGreyDefaultPeripherals<'a> {
     }
 }
 
-impl<'a, I: InterruptService + 'a> EarlGrey<'a, I> {
+impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig> EarlGrey<'a, I, CFG> {
     pub unsafe fn new(
         plic_interrupt_service: &'a I,
-        timer: &'static crate::timer::RvTimer,
+        timer: &'static crate::timer::RvTimer<'_, CFG>,
     ) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
@@ -132,6 +133,7 @@ impl<'a, I: InterruptService + 'a> EarlGrey<'a, I> {
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
             plic_interrupt_service,
+            _cfg: PhantomData,
         }
     }
 
@@ -225,7 +227,9 @@ impl<'a, I: InterruptService + 'a> EarlGrey<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for EarlGrey<'a, I> {
+impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig> kernel::platform::chip::Chip
+    for EarlGrey<'a, I, CFG>
+{
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
 
@@ -278,7 +282,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for EarlGrey<'a,
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
             "\r\n---| OpenTitan Earlgrey configuration for {} |---",
-            CONFIG.name
+            CFG::NAME
         ));
         rv32i::print_riscv_state(writer);
         let _ = writer.write_fmt(format_args!("{}", self.pmp));

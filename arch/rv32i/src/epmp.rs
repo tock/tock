@@ -229,7 +229,7 @@ impl PartialEq<mpu::Region> for PMPRegion {
 impl fmt::Display for PMPRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn bit_str<'a>(reg: &PMPRegion, bit: u8, on_str: &'a str, off_str: &'a str) -> &'a str {
-            match reg.cfg.value & bit as u8 {
+            match reg.cfg.value & bit {
                 0 => off_str,
                 _ => on_str,
             }
@@ -742,7 +742,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         // Get size of updated region
         let region_size = app_memory_break - region_start as usize;
 
-        let region = PMPRegion::new_app(region_start as *const u8, region_size, permissions);
+        let region = PMPRegion::new_app(region_start, region_size, permissions);
 
         if region.is_none() {
             return Err(());

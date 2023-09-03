@@ -259,7 +259,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                 self.buffer.take().map(|selfbuf| {
                     // Get SOC mAh and percentage
                     // Write reqcap address
-                    selfbuf[0] = ((Registers::FullCapRep as u8) & 0xFF) as u8;
+                    selfbuf[0] = (Registers::FullCapRep as u8) & 0xFF;
                     // TODO verify errors
                     let _ = self.i2c_lower.write(selfbuf, 1);
 
@@ -331,7 +331,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                 // Now issue write of memory address of current
                 // Setup read capacity
                 self.buffer.take().map(|selfbuf| {
-                    selfbuf[0] = ((Registers::Current as u8) & 0xFF) as u8;
+                    selfbuf[0] = (Registers::Current as u8) & 0xFF;
                     // TODO verify errors
                     let _ = self.i2c_lower.write(selfbuf, 1);
 

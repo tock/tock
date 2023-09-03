@@ -193,7 +193,7 @@ impl<A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static>
         let buffer3 = s.3.write([0; capsules_core::adc::BUF_LEN]);
 
         let adc = s.0.write(AdcDedicated::new(
-            &self.adc,
+            self.adc,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.channels,
             buffer1,

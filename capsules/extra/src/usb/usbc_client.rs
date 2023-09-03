@@ -240,7 +240,7 @@ impl<'a, C: hil::usb::UsbController<'a>> hil::usb::Client<'a> for Client<'a, C> 
                 // Consume a packet from the endpoint buffer
                 let new_len = packet_bytes as usize;
                 let current_len = self.echo_len.get();
-                let total_len = current_len + new_len as usize;
+                let total_len = current_len + new_len;
 
                 if total_len > self.echo_buf.len() {
                     // The packet won't fit in our little buffer.  We'll have

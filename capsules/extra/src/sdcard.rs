@@ -1642,7 +1642,7 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
                                             // copy over write data from application
                                             // Limit to minimum length between kernel_buf,
                                             // write_buffer, and 512 (block size)
-                                            for (kernel_byte, ref write_byte) in kernel_buf
+                                            for (kernel_byte, write_byte) in kernel_buf
                                                 .iter_mut()
                                                 .zip(write_buffer.iter())
                                                 .take(512)

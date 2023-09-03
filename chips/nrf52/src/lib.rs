@@ -15,7 +15,6 @@ pub mod clock;
 pub mod crt1;
 pub mod ficr;
 pub mod i2c;
-pub mod ieee802154_radio;
 pub mod nvmc;
 pub mod power;
 pub mod ppi;
