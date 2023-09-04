@@ -449,10 +449,7 @@ impl Ficr {
             .deviceaddr1
             .read(DeviceAddress1::DEVICEADDRESS);
 
-        let h: [u8; 16] = [
-            b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd',
-            b'e', b'f',
-        ];
+        let h: [u8; 16] = *b"0123456789abcdef";
 
         buf[0] = h[((hi >> 12) & 0xf) as usize];
         buf[1] = h[((hi >> 8) & 0xf) as usize];

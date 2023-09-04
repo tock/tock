@@ -409,7 +409,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
-                let present = status == Ok(()) && buffer[0] == 60;
+                let present = status.is_ok() && buffer[0] == 60;
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
