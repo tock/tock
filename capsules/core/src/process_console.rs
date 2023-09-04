@@ -1211,7 +1211,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
-                        let esc_state = self.esc_state.get().next_state(read_buf[0]);
+                        let mut esc_state = self.esc_state.get().next_state(read_buf[0]);
                         self.esc_state.set(esc_state);
 
                         let previous_byte = self.previous_byte.get();
@@ -1219,6 +1219,14 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         let index = self.command_index.get();
 
                         let cursor = self.cursor.get();
+
+                        // If we get the ANSI "DELETE" byte, we want to treat it the same as
+                        // the "delete" escape sequence. This is a dirty short-circuit.
+                        if read_buf[0] == DEL {
+                            if let EscState::Bypass = esc_state {
+                                esc_state = EscState::Complete(EscKey::Delete);
+                            }
+                        }
 
                         if let EscState::Complete(key) = esc_state {
                             match key {
@@ -1280,13 +1288,20 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 }
                                 EscKey::Delete if cursor < index => {
                                     // Move the bytes one position to left
-                                    for i in cursor..index {
+                                    for i in cursor..(index - 1) {
                                         command[i] = command[i + 1];
                                         let _ = self.write_byte(command[i]);
                                     }
+                                    // We don't want to write the EOL byte, but we want to copy it to the left
+                                    command[index - 1] = command[index];
 
-                                    // Remove the EOL character at the end of the command
-                                    let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                    // Now that we copied all bytes to the left, we are left over with
+                                    // a dublicate "ghost" character of the last byte,
+                                    // In case we deleted the first character, this doesn't do anything as
+                                    // the dublicate is not there.
+                                    // |abcdef -> bcdef
+                                    // abc|def -> abceff -> abcef
+                                    let _ = self.write_bytes(&[SPACE, BS]);
 
                                     // Move the cursor to last position
                                     for _ in cursor..(index - 1) {
@@ -1326,7 +1341,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     });
                                 }
                             }
-                        } else if read_buf[0] == BS || read_buf[0] == DEL {
+                        } else if read_buf[0] == BS {
                             if cursor > 0 {
                                 // Backspace, echo and remove the byte
                                 // preceding the cursor
@@ -1334,13 +1349,20 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 let _ = self.write_bytes(&[BS, SPACE, BS]);
 
                                 // Move the bytes one position to left
-                                for i in (cursor - 1)..index {
+                                for i in (cursor - 1)..(index - 1) {
                                     command[i] = command[i + 1];
                                     let _ = self.write_byte(command[i]);
                                 }
+                                // We don't want to write the EOL byte, but we want to copy it to the left
+                                command[index - 1] = command[index];
 
-                                // Remove the EOL character at the end of the command
-                                let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                // Now that we copied all bytes to the left, we are left over with
+                                // a dublicate "ghost" character of the last byte,
+                                // In case we deleted the last character, this doesn't do anything as
+                                // the dublicate is not there.
+                                // abcdef| -> abcdef
+                                // abcd|ef -> abceff -> abcef
+                                let _ = self.write_bytes(&[SPACE, BS]);
 
                                 // Move the cursor to last position
                                 for _ in cursor..index {
