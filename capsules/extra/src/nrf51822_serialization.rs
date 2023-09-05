@@ -38,8 +38,21 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Nrf51822Serialization as usize;
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// Callback will be called when a TX finishes and when RX data is
+    /// available.
+    pub const TX_DONE_RX_READY: usize = 0;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 1;
+}
+
 /// Ids for read-only allow buffers
 mod ro_allow {
+    /// TX buffer.
+    ///
+    /// This also sets which app is currently using this driver. Only one app
+    /// can control the nRF51 serialization driver.
     pub const TX: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 1;
@@ -47,6 +60,10 @@ mod ro_allow {
 
 /// Ids for read-write allow buffers
 mod rw_allow {
+    /// RX buffer.
+    ///
+    /// This also sets which app is currently using this driver. Only one app
+    /// can control the nRF51 serialization driver.
     pub const RX: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 1;
@@ -67,7 +84,7 @@ pub struct Nrf51822Serialization<'a> {
     reset_pin: &'a dyn hil::gpio::Pin,
     apps: Grant<
         App,
-        UpcallCount<1>,
+        UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
@@ -81,7 +98,7 @@ impl<'a> Nrf51822Serialization<'a> {
         uart: &'a dyn uart::UartAdvanced<'a>,
         grant: Grant<
             App,
-            UpcallCount<1>,
+            UpcallCount<{ upcall::COUNT }>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
@@ -121,33 +138,6 @@ impl<'a> Nrf51822Serialization<'a> {
 }
 
 impl SyscallDriver for Nrf51822Serialization<'_> {
-    /// Pass application space memory to this driver.
-    ///
-    /// This also sets which app is currently using this driver. Only one app
-    /// can control the nRF51 serialization driver.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Provide a RX buffer.
-
-    /// Pass application space memory to this driver.
-    ///
-    /// This also sets which app is currently using this driver. Only one app
-    /// can control the nRF51 serialization driver.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Provide a TX buffer.
-
-    // Register a callback to the Nrf51822Serialization driver.
-    //
-    // The callback will be called when a TX finishes and when
-    // RX data is available.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Set callback.
-
     /// Issue a command to the Nrf51822Serialization driver.
     ///
     /// ### `command_type`
@@ -290,7 +280,9 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
         self.active_app.map(|processid| {
             let _ = self.apps.enter(processid, |_app, kernel_data| {
                 // Call the callback after TX has finished
-                kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
+                kernel_data
+                    .schedule_upcall(upcall::TX_DONE_RX_READY, (1, 0, 0))
+                    .ok();
             });
         });
     }
@@ -339,7 +331,9 @@ impl uart::ReceiveClient for Nrf51822Serialization<'_> {
                 // Note: This indicates how many bytes were received by
                 // hardware, regardless of how much space (if any) was
                 // available in the buffer provided by the app.
-                kernel_data.schedule_upcall(0, (4, rx_len, len)).ok();
+                kernel_data
+                    .schedule_upcall(upcall::TX_DONE_RX_READY, (4, rx_len, len))
+                    .ok();
             }) {
                 // The app we had as active no longer exists. Clear that and
                 // stop receiving. This puts us back in an idle state. A new app
