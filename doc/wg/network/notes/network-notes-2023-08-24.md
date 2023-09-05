@@ -46,7 +46,7 @@
 
 ## Interfaces for different layers used for Thread networking
 
-- Tyler: Was quickly sketching up a design of what Pat and I came up with yesterday. (sharing draw.io)
+- Tyler: Was quickly sketching up a design of what Pat and I came up with yesterday. ([sharing draw.io diagram](./2023-08-24/2023-08-24_thread_stack_tyler.drawio.pdf))
     - Original thought was to put Thread on top of UDP.
     - It may be best instead to just give Thread access to each of these layers.
     - Userspace driver would issue system calls to the Thread control-layer to the Thread component itself (control path).
@@ -59,7 +59,7 @@
 - Amit: TCP seems hard to implement in the kernel. In userspace, there is dynamic memory allocation and libraries, etc.
 
   Is the purpose of having them in the kernel purely for abstraction purposes? Or perhaps also for ACL reasons?
-- Alex: It seems there is another reason - some hardware peripherals expose UDP and TCP sockets directly. So having support in the kernel would let us work with those or with other boards.
+- Alex: It seems there is another reason - some hardware peripherals expose UDP and CTP sockets directly. So having support in the kernel would let us work with those or with other boards.
 - Leon: Apart from these external hardware devices, I think UDP/TCP could definitely be in userspace. So we could construct things assuming that we accept arbitrary IP interfaces. Then it would be easy to move the interface to kernel for some things. The userspace application could be the same.
 - Alex: Another note is that having TCP/UDP in userspace would mean if multiple apps need to communicate they would both need complete copies of the stack since we can't share libraries. We could use IPC for this though.
 - Amit: For code size?
@@ -80,7 +80,7 @@
 - Tyler: I believe this is handled by means of a specific port (`19788`).
 - Amit: If applications are sending payload data, the 15.4 frame will not have any Thread-specific TLVs, right?
 - Tyler: Yes. Once the network is established, everything is sent with link-layer encryption as well. Once you formed your network, the only control that is occurring are heartbeat messages. The UDP port is what differentiates control from data messages. Thread does not intend to replace or wrap UDP / 15.4, but simply acts as a control layer on top of it.
-- Branden: *shares different draw.io image which adds an "encryption" box between 6LoWPAN and 15.4*
+- Branden: [*shares different draw.io image which adds an "encryption" box between 6LoWPAN and 15.4*](./2023-08-24/2023-08-24_thread_stack_branden.drawio.pdf)
 - Tyler: This seems accurate.
 - Amit: Perhaps the encryption is not a dedicated component between layers, as it might be implemented in hardware or implicitly as part of one of the other components (such as the 15.4 implementation).
 - Tyler: It's very near to where we're able to join a sleepy-end device. Hoping to get a PR soon which may not be a finalized version of this, but gets us closer to a fully-working implementation.
