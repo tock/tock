@@ -20,13 +20,32 @@
 ## Updates
 - Branden: There's a label for Network WG related PRs on the Tock github repo
 - Tyler: Working on 15.4 PR. Need some closure on behavior for transmit
-- Branden: We had a discussion about handling on/off states for the 15.4 radio. Other things in Tock like GPIO just "do the right thing" and set themselves in the state they need to be. The 15.4 radio HIL expects callbacks when changing power states though, which likely makes sense for external radio chips and radios that take some real-world time to start up.
-- [TODO Fill in notes from recording]
-- Amit: Takeaway is - what Tyler implemented is fine, what was there before was fine. Figure out what the right behavior is, not clear if the old was _wrong_.
+- Branden: We had a discussion about handling on/off states for the 15.4
+  radio. Other things in Tock like GPIO just "do the right thing" and set
+  themselves in the state they need to be. The 15.4 radio HIL expects callbacks
+  when changing power states though, which likely makes sense for external radio
+  chips and radios that take some real-world time to start up.
 
-  The existing clients (like XMAC?) won't work before your PR. This would need to be fixed, but not on this PR.
-- Branden, Amit: Action for here - Tyler should leave the PR as is, it already has one approval.
-- Amit: Finished EEM (Ethernet over USB driver). It'll be nice that's available on anything with USB. Also, it's a very simple hardware implementation; sidesteps a bunch of the low-level implementation details at is relies on USB for the transport. Good simple simulation of Ethernet hardware (maybe too simple) but great for experimenting.
+  Long story short: in Tyler's PR, calling `transmit()` also turns the radio
+  on. While this might be fine, we may want to back away from that in the
+  future.
+- Tyler: Previous PR did not even have a check for that before. Add this
+  functionality after some discussion with Amit.
+
+  Alternative would be to return an error, if the radio is off.
+- Amit: Takeaway is - what Tyler implemented is fine, what was there before was
+  probably also fine. Figure out what the right behavior is, not clear if the
+  old was _wrong_.
+
+  The existing clients (like XMAC?) won't work before your PR. This would need
+  to be fixed, but not on this PR.
+- Branden, Amit: Action for here - Tyler should leave the PR as is, it already
+  has one approval.
+- Amit: Finished EEM (Ethernet over USB driver). It'll be nice that's available
+  on anything with USB. Also, it's a very simple hardware implementation;
+  sidesteps a bunch of the low-level implementation details at is relies on USB
+  for the transport. Good simple simulation of Ethernet hardware (maybe too
+  simple) but great for experimenting.
 - Leon: Especially good for working on higher layers without an Ethernet board
 
 
