@@ -155,6 +155,9 @@ impl<
     }
 }
 
+pub type TicKVDedicatedFlashComponentType<F, H, const PAGE: usize> =
+    capsules_extra::tickv::TicKVSystem<'static, F, H, PAGE>;
+
 pub struct TicKVDedicatedFlashComponent<
     F: 'static
         + hil::flash::Flash

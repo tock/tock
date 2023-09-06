@@ -30,6 +30,8 @@ macro_rules! kv_driver_component_static {
     };};
 }
 
+pub type KVDriverComponentType<V> = capsules_extra::kv_driver::KVStoreDriver<'static, V>;
+
 pub struct KVDriverComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     kv: &'static V,
     board_kernel: &'static kernel::Kernel,
@@ -84,6 +86,9 @@ macro_rules! kv_permissions_mux_component_static {
     };};
 }
 
+pub type KVPermissionsMuxComponentType<V> =
+    capsules_extra::kv_store_permissions::KVStorePermissions<'static, V>;
+
 pub struct KVPermissionsMuxComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     kv: &'static V,
 }
@@ -118,6 +123,9 @@ macro_rules! virtual_kv_permissions_component_static {
         virtual_kv
     };};
 }
+
+pub type VirtualKVPermissionsComponentType<V> =
+    capsules_extra::virtual_kv::VirtualKVPermissions<'static, V>;
 
 pub struct VirtualKVPermissionsComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     mux_kv: &'static MuxKVPermissions<'static, V>,
@@ -155,6 +163,9 @@ macro_rules! kv_store_permissions_component_static {
         (kv_store, buffer)
     };};
 }
+
+pub type KVStorePermissionsComponentType<V> =
+    capsules_extra::kv_store_permissions::KVStorePermissions<'static, V>;
 
 pub struct KVStorePermissionsComponent<V: hil::kv::KV<'static> + 'static> {
     kv: &'static V,
@@ -202,6 +213,9 @@ macro_rules! tickv_kv_store_component_static {
         (kv_store, key)
     };};
 }
+
+pub type TicKVKVStoreComponentType<K, T> =
+    capsules_extra::tickv_kv_store::TicKVKVStore<'static, K, T>;
 
 pub struct TicKVKVStoreComponent<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> {
     kv_system: &'static K,
