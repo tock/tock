@@ -78,7 +78,7 @@
 - Amit: TCP seems hard to implement in the kernel. In userspace, there is dynamic memory allocation and libraries, etc.
 
   Is the purpose of having them in the kernel purely for abstraction purposes? Or perhaps also for ACL reasons?
-- Alex: It seems there is another reason - some hardware peripherals expose UDP and CTP sockets directly. So having support in the kernel would let us work with those or with other boards.
+- Alex: It seems there is another reason - some hardware peripherals expose UDP and TCP sockets directly. So having support in the kernel would let us work with those or with other boards.
 - Leon: Apart from these external hardware devices, I think UDP/TCP could definitely be in userspace. So we could construct things assuming that we accept arbitrary IP interfaces. Then it would be easy to move the interface to kernel for some things. The userspace application could be the same.
 - Alex: Another note is that having TCP/UDP in userspace would mean if multiple apps need to communicate they would both need complete copies of the stack since we can't share libraries. We could use IPC for this though.
 - Amit: For code size?
