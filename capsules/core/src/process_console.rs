@@ -155,6 +155,9 @@ impl EscState {
         };
         match (self, data) {
             (Bypass, ESC) | (UnrecognizedDone, ESC) | (Complete(_), ESC) => Started,
+            // This is a short-circuit.
+            // ASCII DEL and ANSI Escape Sequence "Delete" should be treated the same way.
+            (Bypass, DEL) | (UnrecognizedDone, DEL) | (Complete(_), DEL) => Complete(Delete),
             (Bypass, _) | (UnrecognizedDone, _) | (Complete(_), _) => Bypass,
             (Started, b'[') => Bracket,
             (Bracket, b'A') => Complete(Up),
@@ -1211,7 +1214,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 0 => debug!("ProcessConsole had read of 0 bytes"),
                 1 => {
                     self.command_buffer.map(|command| {
-                        let mut esc_state = self.esc_state.get().next_state(read_buf[0]);
+                        let esc_state = self.esc_state.get().next_state(read_buf[0]);
                         self.esc_state.set(esc_state);
 
                         let previous_byte = self.previous_byte.get();
@@ -1219,14 +1222,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         let index = self.command_index.get();
 
                         let cursor = self.cursor.get();
-
-                        // If we get the ANSI "DELETE" byte, we want to treat it the same as
-                        // the "delete" escape sequence. This is a dirty short-circuit.
-                        if read_buf[0] == DEL {
-                            if let EscState::Bypass = esc_state {
-                                esc_state = EscState::Complete(EscKey::Delete);
-                            }
-                        }
 
                         if let EscState::Complete(key) = esc_state {
                             match key {
