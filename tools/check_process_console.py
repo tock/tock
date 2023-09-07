@@ -96,7 +96,15 @@ class SerialPort:
         The function will evaluate just Backspace and Left
         escape sequences
         '''
+
+        # delete previous character
         encoded = encoded.replace("\x08 \x08", "@")
+        
+        # deletes leftover character from previous message.
+        # As such we can ignore it
+        # ! This check must go after the '@' replacement !
+        encoded = encoded.replace(" \x08", "")
+
         decoded = ""
         count = 0
 
