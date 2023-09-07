@@ -141,7 +141,7 @@ impl<'a> Trng<'a> {
                 //  e = 1 -> byte 2
                 //  e = 2 -> byte 3
                 //  e = 3 -> byte 4 MSB
-                rn |= r << 8 * e;
+                rn |= r << (8 * e);
                 self.randomness.set(rn);
 
                 self.index.set(e + 1);

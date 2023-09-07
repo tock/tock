@@ -71,17 +71,12 @@ pub struct App {
     upper_proximity: u8,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Default)]
 pub enum ProximityCommand {
     ReadProximity = 1,
     ReadProximityOnInterrupt = 2,
+    #[default]
     NoCommand = 3,
-}
-
-impl Default for ProximityCommand {
-    fn default() -> Self {
-        ProximityCommand::NoCommand
-    }
 }
 
 #[derive(Default)]

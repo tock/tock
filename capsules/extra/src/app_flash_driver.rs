@@ -123,9 +123,7 @@ impl<'a> AppFlash<'a> {
                                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
                                         let length = cmp::min(buffer.len(), app_buffer.len());
                                         let d = &app_buffer[0..length];
-                                        for (i, c) in
-                                            buffer.as_mut()[0..length].iter_mut().enumerate()
-                                        {
+                                        for (i, c) in buffer[0..length].iter_mut().enumerate() {
                                             *c = d[i].get();
                                         }
 
@@ -183,9 +181,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
                                         // Copy contents to internal buffer and write it.
                                         let length = cmp::min(buffer.len(), app_buffer.len());
                                         let d = &app_buffer[0..length];
-                                        for (i, c) in
-                                            buffer.as_mut()[0..length].iter_mut().enumerate()
-                                        {
+                                        for (i, c) in buffer[0..length].iter_mut().enumerate() {
                                             *c = d[i].get();
                                         }
 

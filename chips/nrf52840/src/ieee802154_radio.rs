@@ -1234,11 +1234,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         Ok(())
     }
     fn is_on(&self) -> bool {
-        if self.registers.power.is_set(Task::ENABLE) {
-            true
-        } else {
-            false
-        }
+        self.registers.power.is_set(Task::ENABLE)
     }
 
     // Previous driver implementation //

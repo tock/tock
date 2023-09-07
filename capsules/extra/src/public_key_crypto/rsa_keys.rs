@@ -23,7 +23,7 @@ struct RSAKeys<const L: usize> {
     private_key: OptionalCell<MutImutBuffer<'static, u8>>,
 }
 
-impl<'a, const L: usize> RSAKeys<L> {
+impl<const L: usize> RSAKeys<L> {
     const fn new() -> Self {
         Self {
             public_key: OptionalCell::empty(),

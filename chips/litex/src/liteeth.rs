@@ -75,11 +75,11 @@ pub struct LiteEthMacRegisters<R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> LiteEthMacRegisters<R> {
-    fn rx_ev<'a>(&'a self) -> LiteEthRXEV<'a, R> {
+    fn rx_ev(&self) -> LiteEthRXEV<'_, R> {
         LiteEthRXEV::<R>::new(&self.rx_ev_status, &self.rx_ev_pending, &self.rx_ev_enable)
     }
 
-    fn tx_ev<'a>(&'a self) -> LiteEthTXEV<'a, R> {
+    fn tx_ev(&self) -> LiteEthTXEV<'_, R> {
         LiteEthTXEV::<R>::new(&self.tx_ev_status, &self.tx_ev_pending, &self.tx_ev_enable)
     }
 }
@@ -159,7 +159,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         self.initialized.set(true);
     }
 
-    unsafe fn get_slot_buffer<'s>(&'s self, tx: bool, slot_id: usize) -> Option<&'s mut [u8]> {
+    unsafe fn get_slot_buffer(&self, tx: bool, slot_id: usize) -> Option<&mut [u8]> {
         if (tx && slot_id > self.tx_slots) || (!tx && slot_id > self.rx_slots) {
             return None;
         }

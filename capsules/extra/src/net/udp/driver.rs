@@ -450,7 +450,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                             &tmp_cfg_buffer[..size_of::<UDPEndpoint>()],
                                         ),
                                     ) {
-                                        if Some(src.clone()) == app.bound_port {
+                                        if Some(src) == app.bound_port {
                                             Some([src, dst])
                                         } else {
                                             None
@@ -470,7 +470,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
                     Ok(_) => self.do_next_tx_immediate(processid).map_or_else(
-                        |err| CommandReturn::failure(err.into()),
+                        |err| CommandReturn::failure(err),
                         |v| CommandReturn::success_u32(v),
                     ),
                     Err(e) => CommandReturn::failure(e),
@@ -651,7 +651,7 @@ impl<'a> PortQuery for UDPDriver<'a> {
         for app in self.apps.iter() {
             app.enter(|other_app, _| {
                 if other_app.bound_port.is_some() {
-                    let other_addr_opt = other_app.bound_port.clone();
+                    let other_addr_opt = other_app.bound_port;
                     let other_addr = other_addr_opt.unwrap(); // Unwrap fail = Missing other_addr
                     if other_addr.port == port {
                         port_bound = true;

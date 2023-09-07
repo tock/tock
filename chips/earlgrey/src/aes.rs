@@ -508,7 +508,7 @@ impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
     }
 }
 
-impl<'a> DeferredCallClient for Aes<'_> {
+impl DeferredCallClient for Aes<'_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }

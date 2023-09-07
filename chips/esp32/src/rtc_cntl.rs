@@ -105,7 +105,7 @@ pub struct RtcCntl {
     registers: StaticRef<RtcCntlRegisters>,
 }
 
-impl<'a> RtcCntl {
+impl RtcCntl {
     pub const fn new(base: StaticRef<RtcCntlRegisters>) -> RtcCntl {
         Self { registers: base }
     }

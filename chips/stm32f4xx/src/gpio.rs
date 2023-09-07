@@ -1205,7 +1205,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
         unsafe {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
-                    let l = lineid.clone();
+                    let l = lineid;
 
                     // disable the interrupt
                     self.exti.mask_interrupt(l);
@@ -1236,7 +1236,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
         unsafe {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
-                    let l = lineid.clone();
+                    let l = lineid;
                     self.exti.mask_interrupt(l);
                     self.exti.clear_pending(l);
                 });

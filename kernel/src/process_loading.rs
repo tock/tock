@@ -359,7 +359,7 @@ fn load_processes_from_flash<C: Chip>(
 /// by enqueueing a stack frame to run the initialization function as
 /// indicated in the TBF header.
 #[inline(always)]
-fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
+fn check_processes<KR: KernelResources<C>, C: Chip>(
     kernel_resources: &KR,
     machine: &'static ProcessCheckerMachine,
 ) -> Result<(), ProcessLoadError> {

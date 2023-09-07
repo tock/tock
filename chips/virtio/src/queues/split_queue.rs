@@ -735,7 +735,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         let mut i = 0;
         let mut next_index: Option<usize> = Some(top_descriptor_index);
 
-        while let Some(current_index) = next_index.clone() {
+        while let Some(current_index) = next_index {
             // Get a reference over the current descriptor
             let current_desc = &self.descriptors.0[current_index];
 

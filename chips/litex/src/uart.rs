@@ -63,7 +63,7 @@ pub struct LiteXUartRegisters<R: LiteXSoCRegisterConfiguration> {
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXUartRegisters<R> {
     /// Create an event manager instance for the UART events
-    fn ev<'a>(&'a self) -> LiteXUartEV<'a, R> {
+    fn ev(&self) -> LiteXUartEV<'_, R> {
         LiteXUartEV::<R>::new(&self.ev_status, &self.ev_pending, &self.ev_enable)
     }
 }

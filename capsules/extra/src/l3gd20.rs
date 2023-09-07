@@ -379,7 +379,7 @@ impl SyscallDriver for L3gd20Spi<'_> {
             // Set High Pass Filter Mode and Divider
             5 => {
                 if self.status.get() == L3gd20Status::Idle {
-                    let enabled = if data1 == 1 { true } else { false };
+                    let enabled = data1 == 1;
                     self.enable_hpf(enabled);
                     CommandReturn::success()
                 } else {
@@ -427,11 +427,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                 self.status.set(match self.status.get() {
                     L3gd20Status::IsPresent => {
                         let present = if let Some(ref buf) = read_buffer {
-                            if buf[1] == L3GD20_WHO_AM_I {
-                                true
-                            } else {
-                                false
-                            }
+                            buf[1] == L3GD20_WHO_AM_I
                         } else {
                             false
                         };

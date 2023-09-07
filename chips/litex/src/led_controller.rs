@@ -69,7 +69,7 @@ impl<R: LiteXSoCRegisterConfiguration> LiteXLedController<R> {
     /// instance for the requested LED already exists. Call
     /// [`LiteXLed::destroy`] (or drop the [`LiteXLed`]) to be create
     /// a new instance for this LED.
-    pub fn get_led<'a>(&'a self, index: usize) -> Option<LiteXLed<'a, R>> {
+    pub fn get_led(&self, index: usize) -> Option<LiteXLed<'_, R>> {
         if index < self.led_count() && (self.led_references.get() & (1 << index)) == 0 {
             self.led_references
                 .set(self.led_references.get() | (1 << index));
@@ -89,7 +89,7 @@ impl<R: LiteXSoCRegisterConfiguration> LiteXLedController<R> {
     /// This function only checks whether the requested LEDs is within
     /// the controller's range of available LEDs, but *NOT* whether
     /// there already is a different reference to the same LED.
-    pub unsafe fn panic_led<'a>(&'a self, index: usize) -> Option<LiteXLed<'a, R>> {
+    pub unsafe fn panic_led(&self, index: usize) -> Option<LiteXLed<'_, R>> {
         if index < self.led_count() {
             Some(LiteXLed::new(self, index))
         } else {

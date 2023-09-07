@@ -46,25 +46,25 @@ const VALID_COMMANDS_STR: &[u8] =
     b"help status list stop start fault boot terminate process kernel reset panic console-start console-stop\r\n";
 
 /// Escape character for ANSI escape sequences.
-const ESC: u8 = '\x1B' as u8;
+const ESC: u8 = b'\x1B';
 
 /// End of line character.
-const EOL: u8 = '\x00' as u8;
+const EOL: u8 = b'\x00';
 
 /// Backspace ANSI character
-const BS: u8 = '\x08' as u8;
+const BS: u8 = b'\x08';
 
 /// Delete ANSI character
-const DEL: u8 = '\x7F' as u8;
+const DEL: u8 = b'\x7F';
 
 /// Space ANSI character
-const SPACE: u8 = '\x20' as u8;
+const SPACE: u8 = b'\x20';
 
 /// Carriage return ANSI character
-const CR: u8 = '\x0D' as u8;
+const CR: u8 = b'\x0D';
 
 /// Newline ANSI character
-const NLINE: u8 = '\x0A' as u8;
+const NLINE: u8 = b'\x0A';
 
 /// Upper limit for ASCII characters
 const ASCII_LIMIT: u8 = 128;
@@ -72,8 +72,9 @@ const ASCII_LIMIT: u8 = 128;
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
 /// each section of the debug message.
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Default)]
 enum WriterState {
+    #[default]
     Empty,
     KernelStart,
     KernelBss,
@@ -89,12 +90,6 @@ enum WriterState {
         index: isize,
         total: isize,
     },
-}
-
-impl Default for WriterState {
-    fn default() -> Self {
-        WriterState::Empty
-    }
 }
 
 /// Key that can be part from an escape sequence.
@@ -436,7 +431,7 @@ impl ConsoleWriter {
 impl fmt::Write for ConsoleWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let curr = (s).as_bytes().len();
-        self.buf[self.size..self.size + curr].copy_from_slice(&(s).as_bytes()[..]);
+        self.buf[self.size..self.size + curr].copy_from_slice((s).as_bytes());
         self.size += curr;
         Ok(())
     }
