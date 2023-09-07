@@ -888,9 +888,7 @@ impl<'a> Can<'a> {
             | (self.registers.can_rx_mailbox[0].can_rdlr.get() as u64);
         let rx_buf = recv.to_le_bytes();
         self.rx_buffer.map(|rx| {
-            for i in 0..8 {
-                rx[i] = rx_buf[i];
-            }
+            rx[..8].copy_from_slice(&rx_buf[..8]);
         });
 
         (message_id, message_length, rx_buf)

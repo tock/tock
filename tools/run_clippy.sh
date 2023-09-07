@@ -155,9 +155,6 @@ CLIPPY_ARGS_PERF="
 -D clippy::perf
 
 -A clippy::large-enum-variant
-
-
--A clippy::manual-memcpy
 "
 
 # Disallow all cargo lints, then re-allow each one Tock does not comply with.
