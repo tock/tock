@@ -310,7 +310,7 @@ pub struct FlashMPConfig {
 
 impl Default for LowRiscPage {
     fn default() -> Self {
-        Self { 0: [0; PAGE_SIZE] }
+        Self([0; PAGE_SIZE])
     }
 }
 

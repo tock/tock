@@ -238,7 +238,7 @@ impl<const L: usize> RsaKey for RSAKeys<L> {
             match public_key {
                 MutImutBuffer::Mutable(ref _buf) => unreachable!(),
                 MutImutBuffer::Immutable(buf) => {
-                    let _ = closure(buf);
+                    closure(buf);
                 }
             }
             self.public_key.replace(public_key);
@@ -269,7 +269,7 @@ impl<const L: usize> RsaKeyMut for RSAKeys<L> {
         if let Some(mut public_key) = self.public_key.take() {
             match public_key {
                 MutImutBuffer::Mutable(ref mut buf) => {
-                    let _ = closure(buf);
+                    closure(buf);
                 }
                 MutImutBuffer::Immutable(_buf) => unreachable!(),
             }
@@ -302,7 +302,7 @@ impl<const L: usize> RsaPrivKey for RSAKeys<L> {
             match private_key {
                 MutImutBuffer::Mutable(ref _buf) => unreachable!(),
                 MutImutBuffer::Immutable(buf) => {
-                    let _ = closure(buf);
+                    closure(buf);
                 }
             };
             self.private_key.replace(private_key);
@@ -329,7 +329,7 @@ impl<const L: usize> RsaPrivKeyMut for RSAKeys<L> {
         if let Some(mut private_key) = self.private_key.take() {
             match private_key {
                 MutImutBuffer::Mutable(ref mut buf) => {
-                    let _ = closure(buf);
+                    closure(buf);
                 }
                 MutImutBuffer::Immutable(_buf) => unreachable!(),
             };

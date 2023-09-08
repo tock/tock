@@ -198,7 +198,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
         // comparator registers.'
         while Self::Ticks::from(regs.scmpr[0].get()) != expire && tries < 5 {
             regs.scmpr[0].set(timer_delta.into_u32());
-            tries = tries + 1;
+            tries += 1;
         }
 
         // Timers can be missed, so set a second one a little larger
@@ -208,7 +208,7 @@ impl<'a> Alarm<'a> for STimer<'a> {
 
         while Self::Ticks::from(regs.scmpr[1].get()) != expire && tries < 5 {
             regs.scmpr[1].set(timer_delta.into_u32());
-            tries = tries + 1;
+            tries += 1;
         }
 
         // Enable the compare

@@ -337,13 +337,12 @@ impl Bus8080<'static> for Fsmc<'_> {
             for pos in 0..len {
                 let mut data: u16 = 0;
                 for byte in 0..bytes {
-                    data = data
-                        | (buffer[bytes * pos
-                            + match data_width {
-                                BusWidth::Bits8 | BusWidth::Bits16LE => byte,
-                                BusWidth::Bits16BE => bytes - byte - 1,
-                            }] as u16)
-                            << (8 * byte);
+                    data |= (buffer[bytes * pos
+                        + match data_width {
+                            BusWidth::Bits8 | BusWidth::Bits16LE => byte,
+                            BusWidth::Bits16BE => bytes - byte - 1,
+                        }] as u16)
+                        << (8 * byte);
                 }
                 self.write_data(FsmcBanks::Bank1, data);
             }

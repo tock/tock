@@ -23,13 +23,11 @@ CLIPPY_ARGS="
 -A clippy::if_same_then_else
 
 -D clippy::needless_return
--D clippy::unused_unit
 -D clippy::unnecessary_mut_passed
 -D clippy::empty_line_after_outer_attr
 -D clippy::unnecessary_cast
 -D clippy::default_trait_access
 -D clippy::map_unwrap_or
--D clippy::ptr_eq
 -D clippy::wildcard_imports
 -D clippy::needless_borrow
 "
@@ -98,7 +96,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::manual_range_contains
 -A clippy::match_like_matches_macro
 -A clippy::module_inception
--A clippy::neg-multiply
 -A clippy::new-ret-no-self
 -A clippy::new_without_default
 -A clippy::redundant_closure
@@ -110,10 +107,8 @@ CLIPPY_ARGS_STYLE="
 -A clippy::declare-interior-mutable-const
 -A clippy::from-over-into
 -A clippy::let_and_return
--A clippy::manual-bits
 -A clippy::missing_safety_doc
 -A clippy::needless-range-loop
--A clippy::needless_late_init
 -A clippy::option_map_or_none
 -A clippy::redundant_field_names
 -A clippy::redundant_pattern_matching
@@ -121,23 +116,7 @@ CLIPPY_ARGS_STYLE="
 -A clippy::wrong-self-convention
 
 
--A clippy::assertions-on-constants
--A clippy::assign_op_pattern
--A clippy::bool_assert_comparison
--A clippy::excessive-precision
--A clippy::init-numbered-fields
--A clippy::let-unit-value
--A clippy::manual-saturating-arithmetic
--A clippy::match-ref-pats
 -A clippy::needless_borrow
--A clippy::op-ref
--A clippy::ptr-eq
--A clippy::redundant_static_lifetimes
--A clippy::single-component-path-imports
--A clippy::unnecessary_lazy_evaluations
--A clippy::unused_unit
--A clippy::write-with-newline
--A clippy::zero_ptr
 "
 
 # Disallow all perf lints, then re-allow each one Tock does not comply with.

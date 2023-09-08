@@ -324,7 +324,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                 if let Some(parameters) = cmd.parameters {
                     for parameter in parameters.iter() {
                         buffer[len] = *parameter;
-                        len = len + 1;
+                        len += 1;
                     }
                 }
             },

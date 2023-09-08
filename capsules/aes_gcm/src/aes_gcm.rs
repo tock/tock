@@ -352,7 +352,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
                     let mut tag = mac.finalize().into_bytes();
 
                     for i in 0..AES128_BLOCK_SIZE {
-                        tag[i] = tag[i] ^ crypt_buf[copy_offset + i];
+                        tag[i] ^= crypt_buf[copy_offset + i];
                     }
 
                     buf[0..AES128_BLOCK_SIZE].copy_from_slice(&tag);
@@ -390,7 +390,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB + AES128CCM<'a>>
                     let mut tag = mac.finalize().into_bytes();
 
                     for i in 0..AES128_BLOCK_SIZE {
-                        tag[i] = tag[i] ^ crypt_buf[tag_offset + i];
+                        tag[i] ^= crypt_buf[tag_offset + i];
                     }
 
                     buf[(message_offset + message_len)

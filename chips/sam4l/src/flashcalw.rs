@@ -377,9 +377,7 @@ pub struct Sam4lPage(pub [u8; PAGE_SIZE as usize]);
 
 impl Default for Sam4lPage {
     fn default() -> Self {
-        Self {
-            0: [0; PAGE_SIZE as usize],
-        }
+        Self([0; PAGE_SIZE as usize])
     }
 }
 

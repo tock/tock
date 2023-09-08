@@ -297,7 +297,7 @@ impl Command {
 
         if let Some(buf_byte) = self.buf.get_mut(pos) {
             *buf_byte = byte;
-            self.len = self.len + 1;
+            self.len += 1;
         }
     }
 
@@ -308,7 +308,7 @@ impl Command {
 
         if let Some(buf_byte) = self.buf.get_mut(self.len - 1) {
             *buf_byte = EOL;
-            self.len = self.len - 1;
+            self.len -= 1;
         }
     }
 

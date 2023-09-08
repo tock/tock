@@ -471,9 +471,9 @@ impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
             let mut i = 0;
             while i < 4000000 {
                 ARRAY[i % 100] = (i % 100) as u8;
-                i = i + 1;
+                i += 1;
                 if i % 1000000 == 0 {
-                    i = i + 2;
+                    i += 2;
                 }
             }
         }

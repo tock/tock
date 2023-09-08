@@ -162,7 +162,7 @@ pub struct NrfPage(pub [u8; PAGE_SIZE]);
 
 impl Default for NrfPage {
     fn default() -> Self {
-        Self { 0: [0; PAGE_SIZE] }
+        Self([0; PAGE_SIZE])
     }
 }
 impl NrfPage {

@@ -85,9 +85,7 @@ pub struct Mx25r6435fSector(pub [u8; SECTOR_SIZE as usize]);
 
 impl Mx25r6435fSector {
     pub const fn new() -> Self {
-        Self {
-            0: [0; SECTOR_SIZE as usize],
-        }
+        Self([0; SECTOR_SIZE as usize])
     }
 }
 

@@ -478,7 +478,7 @@ impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
                                         read.mut_enter(|data| {
                                             let mut c = 0;
                                             for (a, b) in data.iter().zip(rx_buffer) {
-                                                c = c + 1;
+                                                c += 1;
                                                 a.set(*b);
                                             }
                                             c

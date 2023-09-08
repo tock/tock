@@ -480,16 +480,14 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                                     .copy_from_slice(&(contor + 1).to_le_bytes());
                                                 if app_data.receive_index + len > user_buffer.len()
                                                 {
-                                                    app_data.lost_messages =
-                                                        app_data.lost_messages + 1;
+                                                    app_data.lost_messages += 1;
                                                     Err(ErrorCode::SIZE)
                                                 } else {
                                                     let r = user_buffer[app_data.receive_index
                                                         ..app_data.receive_index + len]
                                                         .copy_from_slice_or_err(&buffer[0..len]);
                                                     if r.is_ok() {
-                                                        app_data.receive_index =
-                                                            app_data.receive_index + len;
+                                                        app_data.receive_index += len;
                                                     }
                                                     r
                                                 }

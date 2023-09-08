@@ -113,15 +113,15 @@ pub trait ContextStore {
 /// Computes the LoWPAN Interface Identifier from either the 16-bit short MAC or
 /// the IEEE EUI-64 that is derived from the 48-bit MAC.
 pub fn compute_iid(mac_addr: &MacAddress) -> [u8; 8] {
-    match mac_addr {
-        &MacAddress::Short(short_addr) => {
+    match *mac_addr {
+        MacAddress::Short(short_addr) => {
             // IID is 0000:00ff:fe00:XXXX, where XXXX is 16-bit MAC
             let mut iid: [u8; 8] = iphc::MAC_BASE;
             iid[6] = (short_addr >> 1) as u8;
             iid[7] = (short_addr & 0xff) as u8;
             iid
         }
-        &MacAddress::Long(long_addr) => {
+        MacAddress::Long(long_addr) => {
             // IID is IEEE EUI-64 with universal/local bit inverted
             let mut iid: [u8; 8] = long_addr;
             iid[0] ^= iphc::MAC_UL;

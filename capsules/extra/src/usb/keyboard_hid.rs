@@ -28,7 +28,7 @@ const ENDPOINT_NUM: usize = 1;
 
 const IN_BUFFER: usize = 0;
 
-static LANGUAGES: &'static [u16; 1] = &[
+static LANGUAGES: &[u16; 1] = &[
     0x0409, // English (United States)
 ];
 /// Max packet size specified by spec
@@ -38,7 +38,7 @@ const N_ENDPOINTS: usize = 1;
 
 /// The HID report descriptor for keyboard from
 /// https://www.usb.org/sites/default/files/hid1_11.pdf
-static REPORT_DESCRIPTOR: &'static [u8] = &[
+static REPORT_DESCRIPTOR: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop),
     0x09, 0x06, // Usage (Keyboard),
     0xA1, 0x01, // Collection (Application),
@@ -81,7 +81,7 @@ static REPORT: ReportDescriptor<'static> = ReportDescriptor {
     desc: REPORT_DESCRIPTOR,
 };
 
-static SUB_HID_DESCRIPTOR: &'static [HIDSubordinateDescriptor] = &[HIDSubordinateDescriptor {
+static SUB_HID_DESCRIPTOR: &[HIDSubordinateDescriptor] = &[HIDSubordinateDescriptor {
     typ: DescriptorType::Report,
     len: REPORT_DESCRIPTOR.len() as u16,
 }];

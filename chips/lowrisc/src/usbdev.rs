@@ -822,7 +822,7 @@ impl<'a> Usb<'a> {
 
                 // We are handling this case, clear it
                 self.registers.in_sent.set(1 << ep);
-                in_sent = in_sent & !(1 << ep);
+                in_sent &= !(1 << ep);
 
                 let buf = self.registers.configin[ep as usize].read(CONFIGIN::BUFFER);
 

@@ -44,7 +44,6 @@ use sam4l::chip::Sam4lDefaultPeripherals;
 
 use capsules_extra::sha256::Sha256Software;
 
-use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleOrderedComponent, UartMuxComponent};
 use components::crc::CrcComponent;

@@ -582,7 +582,7 @@ pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
         let buf: [u8; 1] = [b.get(); 1];
         let count = writer.write(&buf);
         if count > 0 {
-            total = total + count;
+            total += count;
         } else {
             break;
         }

@@ -316,7 +316,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 
     fn ptr(&self) -> *const u8 {
         if self.len == 0 {
-            0x0 as *const u8
+            core::ptr::null::<u8>()
         } else {
             self.ptr
         }
@@ -358,7 +358,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 impl Default for ReadOnlyProcessBuffer {
     fn default() -> Self {
         ReadOnlyProcessBuffer {
-            ptr: 0x0 as *mut u8,
+            ptr: core::ptr::null_mut::<u8>(),
             len: 0,
             process_id: None,
         }
@@ -517,7 +517,7 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
 
     fn ptr(&self) -> *const u8 {
         if self.len == 0 {
-            0x0 as *const u8
+            core::ptr::null::<u8>()
         } else {
             self.ptr
         }

@@ -49,7 +49,7 @@ impl AddrRange {
                 let full_bytes: usize = prefix_len / 8;
                 let remainder_bits: usize = prefix_len % 8;
                 // initial bytes -- TODO: edge case
-                if &allowed_addr.0[0..full_bytes] != &addr.0[0..full_bytes] {
+                if allowed_addr.0[0..full_bytes] != addr.0[0..full_bytes] {
                     false
                 } else if remainder_bits == 0 {
                     true //this case is necessary bc right shifting a u8 by 8 bits is UB
