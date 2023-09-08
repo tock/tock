@@ -462,10 +462,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     FunctionCallSource::Driver(upid) => upid == upcall_id,
                     _ => false,
                 },
-                Task::NullSubscribableUpcall(nu) => {
-                    nu.upcall_id == upcall_id
-                }
-                Task::IPC(_) => todo!()
+                Task::NullSubscribableUpcall(nu) => nu.upcall_id == upcall_id,
+                Task::IPC(_) => todo!(),
             })
         })
     }

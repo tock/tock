@@ -649,23 +649,28 @@ impl Kernel {
                     // it is ready. If so, dequeue and execute it, otherwise move on.
                     match process.dequeue_specific_upcall(upcall_id) {
                         None => break,
-                        Some(task) => {
-                            match task {
-                                Task::NullSubscribableUpcall(nu) => {
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
-                                            "[{:?}] Yield-NoCallback: [NSU] ({:#x}, {:#x}, {:#x})",
-                                            process.processid(),
-                                            nu.argument0,
-                                            nu.argument1,
-                                            nu.argument2,
-                                        );
-                                    }
-                                    process.set_syscall_return_value(SyscallReturn::YieldForSubscribableUpcall(nu.argument0, nu.argument1, nu.argument2));
+                        Some(task) => match task {
+                            Task::NullSubscribableUpcall(nu) => {
+                                if config::CONFIG.trace_syscalls {
+                                    debug!(
+                                        "[{:?}] Yield-NoCallback: [NSU] ({:#x}, {:#x}, {:#x})",
+                                        process.processid(),
+                                        nu.argument0,
+                                        nu.argument1,
+                                        nu.argument2,
+                                    );
                                 }
-                                Task::FunctionCall(ccb) => {
-                                    if config::CONFIG.trace_syscalls {
-                                        debug!(
+                                process.set_syscall_return_value(
+                                    SyscallReturn::YieldForSubscribableUpcall(
+                                        nu.argument0,
+                                        nu.argument1,
+                                        nu.argument2,
+                                    ),
+                                );
+                            }
+                            Task::FunctionCall(ccb) => {
+                                if config::CONFIG.trace_syscalls {
+                                    debug!(
                                             "[{:?}] Yield-NoCallback [Suppressed function_call @{:#x}] ({:#x}, {:#x}, {:#x}, {:#x})",
                                             process.processid(),
                                             ccb.pc,
@@ -674,12 +679,17 @@ impl Kernel {
                                             ccb.argument2,
                                             ccb.argument3,
                                         );
-                                    }
-                                    process.set_syscall_return_value(SyscallReturn::YieldForSubscribableUpcall(ccb.argument0, ccb.argument1, ccb.argument2));
                                 }
-                                Task::IPC(_) => todo!()
+                                process.set_syscall_return_value(
+                                    SyscallReturn::YieldForSubscribableUpcall(
+                                        ccb.argument0,
+                                        ccb.argument1,
+                                        ccb.argument2,
+                                    ),
+                                );
                             }
-                        }
+                            Task::IPC(_) => todo!(),
+                        },
                     }
                 }
                 process::State::Faulted | process::State::Terminated => {
