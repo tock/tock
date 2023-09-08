@@ -1,11 +1,9 @@
 # Tock Network WG Meeting Notes
 
-###### tags: `Meeting` `Network`
 
 2023-09-07
 ===
 
-:::info
 - **Date:** September 7th, 2023
 - **Participants:**
     - Alex Radovici
@@ -18,14 +16,11 @@
 - **Agenda**
     1. Updates
     2. Buffer Management
-        [name=Leon]
     3. Discuss 14.5 Layer Security (maybe during updates?)
-        [name=Tyler]
 - **References:**
     - [14.5 Layer Security](https://github.com/tock/tock/pull/3652)
     - 
 
-:::
 
 ## Updates
 ### Drawings
