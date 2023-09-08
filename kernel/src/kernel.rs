@@ -653,14 +653,20 @@ impl Kernel {
                             match task {
                                 Task::NullSubscribableUpcall(nu) => {
                                     if config::CONFIG.trace_syscalls {
-                                        todo!();
+                                        debug!(
+                                            "[{:?}] Yield-NoCallback: [NSU] ({:#x}, {:#x}, {:#x})",
+                                            process.processid(),
+                                            nu.argument0,
+                                            nu.argument1,
+                                            nu.argument2,
+                                        );
                                     }
                                     process.set_syscall_return_value(SyscallReturn::YieldForSubscribableUpcall(nu.argument0, nu.argument1, nu.argument2));
                                 }
                                 Task::FunctionCall(ccb) => {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
-                                            "[{:?}] function_call @{:#x}({:#x}, {:#x}, {:#x}, {:#x})",
+                                            "[{:?}] Yield-NoCallback [Suppressed function_call @{:#x}] ({:#x}, {:#x}, {:#x}, {:#x})",
                                             process.processid(),
                                             ccb.pc,
                                             ccb.argument0,
@@ -669,7 +675,7 @@ impl Kernel {
                                             ccb.argument3,
                                         );
                                     }
-                                    process.set_process_function(ccb);
+                                    process.set_syscall_return_value(SyscallReturn::YieldForSubscribableUpcall(ccb.argument0, ccb.argument1, ccb.argument2));
                                 }
                                 Task::IPC(_) => todo!()
                             }
@@ -830,7 +836,7 @@ impl Kernel {
                         process.set_yielded_state();
                     }
 
-                    which if which == YieldCall::WaitFor as usize => {
+                    which if which == YieldCall::WaitForNoCallback as usize => {
                         let upcall_id = UpcallId {
                             driver_num: param1,
                             subscribe_num: param2,
