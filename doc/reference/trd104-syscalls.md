@@ -424,28 +424,20 @@ syscall will not return.
 `yield-param-A`, and `yield-param-B` are unused and reserved.
 
 
-### 4.1.3 Yield-WaitFor-CallbackIfPresent
+### 4.1.3 Yield-WaitFor-NoCallback
 
-The third call, Yield-WaitFor-CallbackIfPresent, suspends the process
-until one specific upcall---the `WaitedForUpcallId`---is ready to
-execute. If other events arrive that would invoke an upcall on this
-process, they are queued by the kernel, and will be delivered after the
-event for the `WaitedForUpcallId`.  Event order in this queue is
-maintained.
+The third call, Yield-WaitFor-NoCallback, suspends the process until one
+specific upcall---the `WaitedForUpcallId`---is ready to execute. If
+other events arrive that would invoke an upcall on this process, they
+are queued by the kernel, and will be delivered after the event for the
+`WaitedForUpcallId`.  Event order in this queue is maintained.
 
 This process will resume execution when an event in the kernel generates
-an upcall that matches the `WaitedForUpcallId`.
-
-_Note:_ In the case that the upcall for the `WaitedForUpcallId` is set
-to the Null Upcall, no userspace callback function will execute, but
-Yield-WaitFor will still return. If and only if the waited-for upcall is
-the Null Upcall, the contents of r0-r3 will be set to Upcall Arguments
-as-feasible, specifically:
+an upcall that matches the `WaitedForUpcallId`. No userspace callback
+function will invoked by the kernel. Instead, the contents of r0-r3 will
+be set to Upcall Arguments as-feasible, specifically:
 
  - A `SubscribeUpcall` will set r0-r2 and leave r3 untouched.
-
-Userspace can use `yield-result` to determine whether a callback
-executed.
 
 `yield-param-A` is the Driver number and `yield-param-B` is the
 Subscribe number to wait for. Together, these make up the
@@ -469,7 +461,16 @@ The secondary motivation of this syscall is to improve the efficiency of
 synchronous-style userspace operation. Prior to the implementation of
 this syscall, robust implementation of a "blocking command" required a
 `subscribe-command-{looping yield}-unsubscribe` idiom for each
-synchronous function call.
+synchronous function call. This collapses this pattern to a single
+syscall.
+
+A tertiary effect of this interface is an expectation of a modest
+reduction of overall code size. While this adds modest additional logic
+to the kernel, implementating the functionality at the kernel syscall
+level rather than in individaul capsules keeps the in-kernel overhead
+fixed.  For userspace, this can eliminate multiple syscalls as-described
+in the prior paragraph, as well as redundant, simplistic common-case
+Upcall callback functions that simply set flags or similar.
 
 This interface allows yielding only for one specific event.  A
 select/poll-style interface which enables userspace to wait on multiple
@@ -546,15 +547,20 @@ whenever userspace yields. The primary differences surround how
 
 #### Aug 16, 2023 updates:
 
- - Try to capture thread discussions in PR text
- - Make r1 `yield-return` generic across all Yield flavors
+ - Try to capture thread discussions in PR text.
+ - Make r1 `yield-return` generic across all Yield flavors.
     - n.b., this actually matches current kernel behavior. The current
         implementation **does not match TRD104.** Specifically, the
         kernel always tries to set r1, even for the Yield-Wait case
         (it's just lucky in some ways that no valid pointer has been in
         r1 when Yield-Wait was called by apps s.t. a random byte getting
         set to 1 would cause a problem[!]).
- - Update main syscall proposal to `CallbackIfPresent` variant
+ - Update main syscall proposal to `WaitFor-CallbackIfPresent` variant.
+
+#### Sep 8, 2023 updates:
+
+ - Capture more discussion from PR text.
+ - Update main syscall proposal to `WaitFor-NoCallback` variant.
 
 
 4.2 Subscribe (Class ID: 1)
