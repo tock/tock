@@ -972,3 +972,8 @@ Leon Schuermann <leon@is.currently.online>
 
 Johnathan Van Why <jrvanwhy@google.com>
 ```
+
+7 References and Additional Information
+=======================================
+
+- [Design RFC for Command 0 Semantics](../rfcs/2023-08-18--CommandZeroSemantics.md).
