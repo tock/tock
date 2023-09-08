@@ -32,6 +32,7 @@ WG-OpenTitan:
   - boards/opentitan/**/*
   - chips/earlgrey/**/*
   - chips/lowrisc/**/*
+  - doc/wg/opentitan/**/*
 
 # add kernel label unless already covered by hil label
 kernel:
