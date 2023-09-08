@@ -529,16 +529,16 @@ pub unsafe fn start() -> (
             nrf52840::aes::AesECB
         ));
 
-    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
-    let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
-    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
         &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
-        serial_num_bottom_16,
+        device_id_bottom_16,
+        device_id,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -558,7 +558,7 @@ pub unsafe fn start() -> (
                 0x1e, 0x1f,
             ]),
             IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
-                serial_num_bottom_16
+                device_id_bottom_16
             )),
         ]
     );
@@ -568,7 +568,7 @@ pub unsafe fn start() -> (
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        src_mac_from_serial_num,
+        MacAddress::Short(device_id_bottom_16),
         local_ip_ifaces,
         mux_alarm,
     )
