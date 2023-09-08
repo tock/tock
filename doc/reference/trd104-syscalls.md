@@ -500,20 +500,13 @@ addition to the expected failure variant (if different than `Failure`).
 4.3.1 Command Identifier 0
 --------------------------
 
- - [Design RFC](../rfcs/2023-08-18--CommandZeroSemantics.md).
-
-Command Identifier 0 provides an existence check for drivers. If a
-driver is accessible to calling application, the kernel will return
-`Success` for Command 0. If a driver is not accessible, the kernel will
-return `Failure` with an error code of `NODEVICE`.
-
-_Note:_ The kernel may still elect to return the error condition even
-though driver and its associated hardware may be physically present on
-the current platform (for example, if the application does not have the
-required permissions to access this driver).
-
-Device drivers CANNOT modify the behavior of Command Identifier 0.
-
+Command Identifier 0 provides an existence check for drivers. Command
+Identifier 0 MUST return either `Success` or `Failure` with `ENODEVICE`.
+`Success` indicates that the driver is present and the userspace process can
+issue system calls to it. If the driver is not accessible, Command Identifier 0
+returns `Failure` with an error code of `ENODEVICE`. A driver may be not
+accessible because the kernel does not have it, the process does not have the
+required permissions to use it, or other reasons.
 
 4.4 Read-Write Allow (Class ID: 3)
 ---------------------------------
