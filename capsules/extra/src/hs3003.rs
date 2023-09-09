@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2023.
+
 use core::cell::Cell;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{HumidityClient, HumidityDriver, TemperatureClient, TemperatureDriver};
@@ -119,7 +123,8 @@ impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
                 let humidity = ((humidity_raw as f32 / ((1 << 14) - 1) as f32) * 100.0) as usize;
 
                 let temperature_raw = buffer[2] as u16 | (buffer[3] as u16 >> 2);
-                let temperature = ((temperature_raw as f32 / ((1 << 14) - 1) as f32) * 165.0 - 40.0) as i32;
+                let temperature =
+                    ((temperature_raw as f32 / ((1 << 14) - 1) as f32) * 165.0 - 40.0) as i32;
 
                 self.state.set(State::Sleep(temperature, humidity));
             }

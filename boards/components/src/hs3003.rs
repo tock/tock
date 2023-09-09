@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2023.
+
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::hs3003::Hs3003;
 use core::mem::MaybeUninit;
@@ -8,7 +12,8 @@ use kernel::hil::i2c;
 #[macro_export]
 macro_rules! hs3003_component_static {
     ($I:ty $(,)?) => {{
-        let i2c_device = kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
+        let i2c_device =
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let buffer = kernel::static_buf!([u8; 5]);
         let hs3003 = kernel::static_buf!(
             capsules_extra::hs3003::Hs3003<
