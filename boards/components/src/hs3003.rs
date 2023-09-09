@@ -2,6 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
+//! Components for the HS3003 Temperature/Humidity Sensor.
+//!
+//! Usage
+//! -----
+//! ```rust
+//! let hs3003 = Hs3003Component::new(mux_i2c, mux_alarm, 0x44).finalize(
+//!     components::hs3003_component_static!(sam4l::ast::Ast));
+//! let temperature = components::temperature::TemperatureComponent::new(board_kernel, hs3003).finalize(());
+//! let humidity = components::humidity::HumidityComponent::new(board_kernel, hs3003).finalize(());
+//! ```
+
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::hs3003::Hs3003;
 use core::mem::MaybeUninit;

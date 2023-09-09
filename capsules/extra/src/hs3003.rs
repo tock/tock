@@ -2,6 +2,52 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
+//! Sensor Driver for the Renesas HS3003 Temperature/Humidity sensor
+//! using the I2C bus.
+//!
+//! <https://www.renesas.com/us/en/document/dst/hs300x-datasheet>
+//!
+//! > The HS300x (HS3001 and HS3003) series is a highly accurate,
+//! > fully calibrated relative humidity and temperature sensor.
+//! > The MEMS sensor features a proprietary sensor-level protection,
+//! > ensuring high reliability and long-term stability. The high
+//! > accuracy, fast measurement response time, and long-term stability
+//! > combined with the small package size makes the HS300x series ideal
+//! > for a wide number of applications ranging from portable devices to
+//! > products designed for harsh environments.
+//!
+//! Driver Semantics
+//! ----------------
+//!
+//! This driver exposes the HS3003's temperature and humidity functionality via
+//! the [TemperatureDriver] and [HumidityDriver] HIL interfaces. If the driver
+//! receives a request for either temperature or humidity while a request for the
+//! other is outstanding, both will be returned to their respective clients when
+//! the I2C transaction is completed, rather than performing two separate transactions.
+//!
+//! Limitations
+//! -----------
+//!
+//! The driver uses floating point math to adjust the readings. This must be
+//! done and macthes the chip's datasheet. This could decrease performance
+//! on platforms that don't have hardware support for floating point math.
+//!
+//! Usage
+//! -----
+//!
+//! ```rust
+//! # use kernel::static_init;
+//!
+//! let hs3003_i2c = static_init!(
+//!     capsules::virtual_i2c::I2CDevice,
+//!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x44));
+//! let hs3003 = static_init!(
+//!     capsules::hs3003::Hs3003<'static>,
+//!     capsules::hs3003::Hs3003::new(hs3003_i2c,
+//!         &mut capsules::hs3003::BUFFER));
+//! hs3003_i2c.set_client(hs3003);
+//! ```
+
 use core::cell::Cell;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{HumidityClient, HumidityDriver, TemperatureClient, TemperatureDriver};
