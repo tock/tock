@@ -472,6 +472,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                             );
                         });
                     }
+                    Err(tickv::error_codes::ErrorCode::ReadNotReady(_)) => {
+                        // Need to do another flash read.
+                    }
                     Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) | Ok(_) => {}
                     Err(e) => {
                         let get_tock_err = match e {
