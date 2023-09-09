@@ -71,7 +71,7 @@ const PAN_ID: u16 = 0xABCD;
 const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
     capsules_extra::net::ieee802154::MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
 
 /// UART Writer for panic!()s.
 pub mod io;
