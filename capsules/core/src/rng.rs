@@ -157,7 +157,7 @@ impl rng::Client for RngDriver<'_> {
             // Check if done switched to false. If it did, then that app
             // didn't get enough random, so there's no way there is more for
             // other apps.
-            if done == false {
+            if !done {
                 break;
             }
         }

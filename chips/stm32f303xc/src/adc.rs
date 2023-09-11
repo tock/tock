@@ -644,7 +644,7 @@ impl<'a> Adc<'a> {
     }
 
     fn sample_u32(&self, channel: u32) -> Result<(), ErrorCode> {
-        if self.sc_enabled.get() == false {
+        if !self.sc_enabled.get() {
             self.enable_special_channels();
         }
         if self.status.get() == ADCStatus::Idle {

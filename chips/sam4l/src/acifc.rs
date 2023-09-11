@@ -318,7 +318,7 @@ impl<'a> Acifc<'a> {
 
         // Make sure enabling was succesful
         let result = regs.ctrl.is_set(Control::EN);
-        if result == false {
+        if !result {
             debug!("Failed enabling analog comparator, are you sure the clock is enabled?");
         }
     }

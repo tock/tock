@@ -528,7 +528,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
-            || params.hw_flow_control != false
+            || params.hw_flow_control
             || params.width != hil::uart::Width::Eight
         {
             panic!(

@@ -1246,7 +1246,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         // if there is no detect pin, assume an sd card is installed
         self.detect_pin.get().map_or(true, |pin| {
             // sd card detection pin is active low
-            pin.read() == false
+            !pin.read()
         })
     }
 
