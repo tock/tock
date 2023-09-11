@@ -52,7 +52,6 @@ CLIPPY_ARGS_COMPLEXITY="
 
 
 -A clippy::unnecessary_unwrap
--A clippy::needless_lifetimes
 -A clippy::explicit_auto_deref
 -A clippy::explicit_counter_loop
 -A clippy::borrow_deref_ref

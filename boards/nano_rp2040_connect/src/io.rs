@@ -27,7 +27,7 @@ impl Writer {
         self.uart.set(uart);
     }
 
-    fn write_to_uart<'a>(&self, uart: &'a Uart, buf: &[u8]) {
+    fn write_to_uart(&self, uart: &Uart, buf: &[u8]) {
         for &c in buf {
             uart.send_byte(c);
         }
