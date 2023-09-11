@@ -10,16 +10,18 @@
 //! Also exposes a list of interface addresses to the application (currently
 //! hard-coded).
 
-use crate::ieee802154::framer::get_ccm_nonce;
-use crate::net::ieee802154::MacAddress;
-use crate::net::ieee802154::SecurityLevel;
+use crate::ieee802154::framer;
+use crate::ieee802154::RadioDriver;
+use crate::net::ieee802154::{KeyId, MacAddress, SecurityLevel};
 use crate::net::ipv6::ip_utils::IPAddr;
-use crate::net::ipv6::ip_utils::MacAddr;
-use crate::net::ipv6::ip_utils::DEFAULT_DST_MAC_ADDR;
+
+const PARENT_REQUEST_SIZE: usize = 21;
 use crate::net::thread::thread::find_challenge;
 use crate::net::thread::thread::generate_src_ipv6;
+use crate::net::thread::thread::ThreadRadioState;
 use crate::net::thread::thread::ThreadState;
 use crate::net::thread::thread::MULTICAST_IPV6;
+use kernel::hil::time;
 
 use crate::net::network_capabilities::NetworkCapability;
 use crate::net::stream::encode_bytes;
@@ -35,25 +37,16 @@ use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use crate::net::udp::udp_port_table::{PortQuery, UdpPortManager};
 use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
-use crate::net::util::host_slice_to_u16;
-use capsules_core::stream::decode_bytes;
 use capsules_core::stream::decode_u32;
 use kernel::hil::symmetric_encryption::CCMClient;
 use kernel::hil::symmetric_encryption::AES128CCM;
-use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 
 use core::cell::Cell;
-use core::convert::TryFrom;
-use core::convert::TryInto;
-use core::iter::Map;
 use core::mem::size_of;
-use core::{cmp, mem};
 
 use kernel::capabilities::UdpDriverCapability;
-use kernel::debug;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::MapCell;
 use kernel::{ErrorCode, ProcessId};
@@ -123,11 +116,11 @@ pub struct App {
 }
 
 #[allow(dead_code)]
-pub struct ThreadNetworkDriver<'a> {
+pub struct ThreadNetworkDriver<'a, A: time::Alarm<'a>> {
     /// UDP sender
     sender: &'a dyn UDPSender<'a>,
     crypto: &'a dyn AES128CCM<'a>,
-
+    alarm: &'a A,
     /// Grant of apps that use this radio driver.
     apps: Grant<
         App,
@@ -153,26 +146,24 @@ pub struct ThreadNetworkDriver<'a> {
 
     recv_buffer: MapCell<SubSliceMut<'static, u8>>,
 
+    crypt_state: MapCell<ThreadRadioState>,
+
     state: MapCell<ThreadState>,
 
     driver_send_cap: &'static dyn UdpDriverCapability,
 
     net_cap: &'static NetworkCapability,
 
-    send: Cell<bool>,
+    frame_count: Cell<u32>,
 
-    second_send: Cell<bool>,
-
-    frame_count: u32,
-
-    networkkey: Cell<[u8; 16]>,
+    networkkey: MapCell<[u8; 16]>,
 }
 
-impl<'a> ThreadNetworkDriver<'a> {
+impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
         crypto: &'a dyn AES128CCM<'a>,
-
+        alarm: &'a A,
         grant: Grant<
             App,
             UpcallCount<2>,
@@ -187,10 +178,11 @@ impl<'a> ThreadNetworkDriver<'a> {
         recv_buffer: SubSliceMut<'static, u8>,
         driver_send_cap: &'static dyn UdpDriverCapability,
         net_cap: &'static NetworkCapability,
-    ) -> ThreadNetworkDriver<'a> {
+    ) -> ThreadNetworkDriver<'a, A> {
         ThreadNetworkDriver {
             sender: sender,
             crypto: crypto,
+            alarm: alarm,
             apps: grant,
             current_app: Cell::new(None),
             src_mac_addr: src_mac_addr,
@@ -199,26 +191,17 @@ impl<'a> ThreadNetworkDriver<'a> {
             port_table: port_table,
             send_buffer: MapCell::new(send_buffer),
             recv_buffer: MapCell::new(recv_buffer),
-            state: MapCell::new(ThreadState::CryptReady),
+            crypt_state: MapCell::new(ThreadRadioState::CryptReady),
+            state: MapCell::new(ThreadState::Detached),
             driver_send_cap: driver_send_cap,
             net_cap: net_cap,
-            send: Cell::new(true),
-            second_send: Cell::new(false),
-            frame_count: 5,
-            networkkey: Cell::new([0; 16]),
+            frame_count: Cell::new(5),
+            networkkey: MapCell::new([0; 16]),
         }
     }
 
-    fn set_send(&self) {
-        self.send.set(false);
-    }
-
     pub fn set_networkkey(&self, key: [u8; 16]) {
-        self.networkkey.set(key);
-    }
-
-    pub fn get_networkkey(&self) -> [u8; 16] {
-        self.networkkey.get()
+        self.networkkey.replace(key);
     }
 
     pub fn init_thread_binding(&self) -> (UdpPortBindingRx, UdpPortBindingTx) {
@@ -240,69 +223,114 @@ impl<'a> ThreadNetworkDriver<'a> {
     }
 
     fn send_parent_req(&self) -> Result<(), ErrorCode> {
-        let state_check = self.state.take().map_or(Err(ErrorCode::BUSY), |state| {
-            if let ThreadState::CryptReady = state {
-                self.state.replace(ThreadState::CryptSend(
-                    IPAddr(MULTICAST_IPV6),
-                    MacAddress::Short(0xFFFF),
-                    35,
-                ));
-                Ok(())
-            } else {
-                Err(ErrorCode::BUSY)
-            }
-        });
+        // Parent Request has now begun, save previous state and then
+        // update state machine accordingly
+        let original_state = self.state.take().unwrap();
+        self.state.replace(ThreadState::SendParentReq);
 
-        if let Err(ErrorCode::BUSY) = state_check {
+        kernel::debug!("Sending parent request...");
+
+        // Before beginning process to construct Parent Request, confirm that
+        // the cryptography resources allocated to thread are idle/ready
+        let crypt_state_check =
+            self.crypt_state
+                .take()
+                .map_or(Err(ErrorCode::BUSY), |crypt_state| {
+                    if let ThreadRadioState::CryptReady = crypt_state {
+                        self.crypt_state.replace(ThreadRadioState::CryptSend(
+                            MULTICAST_IPV6,
+                            MacAddress::Short(0xFFFF),
+                            35,
+                        ));
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::BUSY)
+                    }
+                });
+
+        // Handle error of busy thread cryptographic resources; fail parent request
+        if let Err(ErrorCode::BUSY) = crypt_state_check {
+            self.state.replace(ThreadState::Detached);
             kernel::debug!("Sending parent req failed; crypt is busy");
-            return state_check;
+            return crypt_state_check;
         }
 
-        let src_ipv6 = generate_src_ipv6(&self.src_mac_addr);
-        let prepared_buf: &mut [u8; 67] = &mut [0; 67];
-
-        // ENCODE SRC/DESTINATION AUTH DATA //
-        encode_bytes(&mut prepared_buf[..16], &src_ipv6);
-        encode_bytes(&mut prepared_buf[16..32], &MULTICAST_IPV6);
-
-        // ENCODE AUXILARY SUITE //
-        encode_u8(&mut prepared_buf[32..33], 0x15); // security control field (replace this later..needs to be more robust)
-        let mut frame_count_bytes: [u8; 4] = [0; 4];
-        encode_u32(&mut frame_count_bytes, self.frame_count); // frame counter
-        encode_bytes_be(&mut prepared_buf[33..37], &frame_count_bytes);
-        let key_ident_field: [u8; 5] = [0, 0, 0, 0, 1];
-        encode_bytes(&mut prepared_buf[37..42], &key_ident_field);
+        let prepared_buf: &mut [u8; PARENT_REQUEST_SIZE] = &mut [0; PARENT_REQUEST_SIZE];
 
         // ENCODE PAYLOAD //
-        encode_u8(&mut prepared_buf[42..43], 9); //Command Parent Request
+        encode_u8(&mut prepared_buf[0..1], 9); //Command Parent Request
         let mode_tlv: [u8; 3] = [1, 1, 0x0f];
         let challenge_tlv: [u8; 10] = [3, 8, 0, 0, 0, 0, 0, 0, 0, 0];
         let scan_mask_tlv: [u8; 3] = [0x0e, 0x01, 0x80];
         let version_tlv: [u8; 4] = [0x12, 0x02, 0x00, 0x04];
-        encode_bytes(&mut prepared_buf[43..46], &mode_tlv);
-        encode_bytes(&mut prepared_buf[46..56], &challenge_tlv);
-        encode_bytes(&mut prepared_buf[56..59], &scan_mask_tlv);
-        encode_bytes(&mut prepared_buf[59..63], &version_tlv);
+        encode_bytes(&mut prepared_buf[1..4], &mode_tlv);
+        encode_bytes(&mut prepared_buf[4..14], &challenge_tlv);
+        encode_bytes(&mut prepared_buf[14..17], &scan_mask_tlv);
+        encode_bytes(&mut prepared_buf[17..21], &version_tlv);
 
-        let nonce = get_ccm_nonce(
+        self.thread_send(prepared_buf, MULTICAST_IPV6)
+    }
+
+    fn thread_send(&self, buf: &[u8], dest_addr: IPAddr) -> Result<(), ErrorCode> {
+        let mut aux_buf: [u8; 42] = [0; 42];
+        let src_ipv6 = generate_src_ipv6(&self.src_mac_addr);
+        // ENCODE SRC/DESTINATION AUTH DATA //
+        encode_bytes(&mut aux_buf[..16], &src_ipv6);
+        encode_bytes(&mut aux_buf[16..32], &dest_addr.0);
+
+        // ENCODE AUXILARY SUITE //
+        encode_u8(&mut aux_buf[32..33], 0x15); // security control field (replace this later..needs to be more robust)
+        let mut frame_count_bytes: [u8; 4] = [0; 4];
+        encode_u32(&mut frame_count_bytes, self.frame_count.get()); // frame counter
+        encode_bytes_be(&mut aux_buf[33..37], &frame_count_bytes);
+        let key_ident_field: [u8; 5] = [0, 0, 0, 0, 1];
+        encode_bytes(&mut aux_buf[37..42], &key_ident_field);
+
+        let nonce = framer::get_ccm_nonce(
             &self.src_mac_addr,
-            self.frame_count,
+            self.frame_count.get(),
             SecurityLevel::EncMic32,
         );
 
-        self.crypto.set_key(&self.get_networkkey());
-        self.crypto.set_nonce(&nonce);
+        let networkkey = self.networkkey.get();
+
+        match networkkey {
+            Some(key) => {
+                if let Err(code) = self.crypto.set_key(&key) {
+                    return Err(code);
+                } else if let Err(code) = self.crypto.set_nonce(&nonce) {
+                    return Err(code);
+                }
+            }
+            None => {
+                kernel::debug!("Attempt to access networkkey when no networkkey set.");
+                self.state.replace(ThreadState::Detached); // This is not necissarily correct
+                return Err(ErrorCode::NOSUPPORT);
+            }
+        }
+
+        self.frame_count.set(self.frame_count.get() + 1);
+
         self.send_buffer
             .take()
             .map_or(Err(ErrorCode::NOMEM), |mut send_buffer| {
-                send_buffer[..prepared_buf.len()].copy_from_slice(prepared_buf);
-                send_buffer.slice(0..(prepared_buf.len()));
+                send_buffer.reset();
 
-                // add error check here
-                self.crypto
-                    .crypt(send_buffer.take(), 0, 42, 21, 4, true, true);
+                send_buffer[0..42].copy_from_slice(&aux_buf);
+                send_buffer[42..42 + buf.len()].copy_from_slice(buf);
 
-                Ok(())
+                send_buffer.slice(0..(aux_buf.len() + buf.len() + 4));
+
+                let crypto_res =
+                    self.crypto
+                        .crypt(send_buffer.take(), 0, 42, buf.len(), 4, true, true);
+
+                if let Err((code, buf)) = crypto_res {
+                    self.send_buffer.replace(SubSliceMut::new(buf));
+                    Err(code)
+                } else {
+                    Ok(())
+                }
             })
     }
 
@@ -313,7 +341,9 @@ impl<'a> ThreadNetworkDriver<'a> {
         let _ = self
             .recv_buffer
             .take()
-            .map_or(Err(ErrorCode::NOMEM), |recv_buf| {
+            .map_or(Err(ErrorCode::NOMEM), |mut recv_buf| {
+                kernel::debug!("RECV LOGIC CALLED {:?}", recv_buf[0]);
+
                 // Command for Parent Response
                 if recv_buf[0] == 10 {
                     /* -- Child ID Request TLVs (Thread Spec 4.5.1 (v1.3.0)) --
@@ -347,7 +377,6 @@ impl<'a> ThreadNetworkDriver<'a> {
                         let mut rsp_buf: [u8; 8] = [0; 8];
                         rsp_buf.copy_from_slice(received_challenge_tlv.unwrap());
                         rsp_buf.reverse(); // NEED TO DISCUSS BIG/LITTLE ENDIAN ASSUMPTIONS
-                        kernel::debug!("RECEIVED CHALLENGE {:?}", rsp_buf);
                         offset += tlv::unwrap_tlv_offset(tlv::Tlv::encode(
                             &tlv::Tlv::Response(rsp_buf),
                             &mut output[offset..],
@@ -360,20 +389,23 @@ impl<'a> ThreadNetworkDriver<'a> {
                         &mut output[offset..],
                     ));
 
+                    // MLE Frame Counter TLV //
+                    offset += tlv::unwrap_tlv_offset(tlv::Tlv::encode(
+                        &tlv::Tlv::MleFrameCounter(self.frame_count.get().to_be()),
+                        &mut output[offset..],
+                    ));
+
                     // Mode TLV //
                     offset += tlv::unwrap_tlv_offset(tlv::Tlv::encode(
                         &tlv::Tlv::Mode(
-                            LinkMode::SecureDataRequests as u8
-                                + LinkMode::FullNetworkDataRequired as u8
-                                + LinkMode::FullThreadDevice as u8
-                                + LinkMode::ReceiverOnWhenIdle as u8,
+                            LinkMode::FullThreadDevice as u8 + LinkMode::ReceiverOnWhenIdle as u8,
                         ),
                         &mut output[offset..],
                     ));
 
                     // Timeout TLV //
                     offset += tlv::unwrap_tlv_offset(tlv::Tlv::encode(
-                        &tlv::Tlv::Timeout((0xf0 as u32).to_be()),
+                        &tlv::Tlv::Timeout((10 as u32).to_be()),
                         &mut output[offset..],
                     ));
 
@@ -391,67 +423,62 @@ impl<'a> ThreadNetworkDriver<'a> {
                         &mut output[offset..],
                     ));
                 }
+
+                if recv_buf[0] == 12 {
+                    kernel::debug!("Received child id response")
+                }
+
+                recv_buf.reset();
+                self.recv_buffer.replace(recv_buf);
                 Ok(())
             });
 
         let dest_mac_addr = mac_from_ipv6(sender_ip);
 
-        let state_check = self.state.take().map_or(Err(ErrorCode::BUSY), |state| {
-            if let ThreadState::CryptReady = state {
-                self.state.replace(ThreadState::CryptSend(
-                    sender_ip,
-                    MacAddress::Long(dest_mac_addr),
-                    offset + 4 + 10,
-                ));
-                Ok(())
-            } else {
-                Err(ErrorCode::BUSY)
-            }
-        });
-
-        let src_ipv6 = generate_src_ipv6(&self.src_mac_addr);
-
-        output.copy_within(0..offset, 42);
-
-        // AUTH DATA //
-        // src ipv6
-        encode_bytes(&mut output[0..16], &src_ipv6);
-
-        // destination ipv6
-        encode_bytes(&mut output[16..32], &sender_ip.0);
-
-        // ENCODE AUXILARY SUITE //
-        encode_u8(&mut output[32..33], 0x15); // security control field (replace this later..needs to be more robust)
-        let mut frame_count_bytes: [u8; 4] = [0; 4];
-        encode_u32(&mut frame_count_bytes, self.frame_count); // frame counter
-        encode_bytes_be(&mut output[33..37], &frame_count_bytes);
-        let key_ident_field: [u8; 5] = [0, 0, 0, 0, 1];
-        encode_bytes(&mut output[37..42], &key_ident_field);
-
-        let nonce = get_ccm_nonce(
-            &self.src_mac_addr,
-            self.frame_count,
-            SecurityLevel::EncMic32,
-        );
-        self.crypto.set_key(&self.get_networkkey());
-        self.crypto.set_nonce(&nonce);
-
-        let _ = self
-            .send_buffer
+        // NEED TO HANDLE THIS POTENTIAL ERROR
+        let crypt_state_res = self
+            .crypt_state
             .take()
-            .map_or(Err(ErrorCode::NOMEM), |mut send_buffer| {
-                send_buffer[0..42 + offset].copy_from_slice(&mut output[0..42 + offset]);
-                send_buffer.slice(0..42 + offset + 4);
-                // add error check here
-                self.crypto
-                    .crypt(send_buffer.take(), 0, 42, offset, 4, true, true);
-
-                Ok(())
+            .map_or(Err(ErrorCode::BUSY), |crypt_state| {
+                if let ThreadRadioState::CryptReady = crypt_state {
+                    self.crypt_state.replace(ThreadRadioState::CryptSend(
+                        sender_ip,
+                        MacAddress::Long(dest_mac_addr),
+                        offset + 4 + 10,
+                    ));
+                    Ok(())
+                } else {
+                    Err(ErrorCode::BUSY)
+                }
             });
+
+        self.thread_send(&output[0..offset], sender_ip); // need to add error checks
     }
 }
 
-impl<'a> SyscallDriver for ThreadNetworkDriver<'a> {
+impl<'a, A: time::Alarm<'a>> framer::KeyProcedure for ThreadNetworkDriver<'a, A> {
+    /// Gets the key corresponding to the key that matches the given security
+    /// level `level` and key ID `key_id`. If no such key matches, returns
+    /// `None`.
+    fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
+        // self.networkkey.get()
+        Some([
+            0xde, 0x89, 0xc5, 0x3a, 0xf3, 0x82, 0xb4, 0x21, 0xe0, 0xfd, 0xe5, 0xa9, 0xba, 0xe3,
+            0xbe, 0xf0,
+        ])
+    }
+}
+
+impl<'a, A: time::Alarm<'a>> framer::DeviceProcedure for ThreadNetworkDriver<'a, A> {
+    /// Gets the key corresponding to the key that matches the given security
+    /// level `level` and key ID `key_id`. If no such key matches, returns
+    /// `None`.
+    fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
+        Some(self.src_mac_addr.clone())
+    }
+}
+
+impl<'a, A: time::Alarm<'a>> SyscallDriver for ThreadNetworkDriver<'a, A> {
     fn command(
         &self,
         command_num: usize,
@@ -464,6 +491,8 @@ impl<'a> SyscallDriver for ThreadNetworkDriver<'a> {
 
             // Init Thread Network for Device
             1 => {
+                // self.alarm
+                //     .set_alarm(self.alarm.now(), self.alarm.ticks_from_seconds(5));
                 self.send_parent_req();
 
                 CommandReturn::success_u32(self.max_tx_pyld_len as u32)
@@ -482,15 +511,32 @@ impl<'a> SyscallDriver for ThreadNetworkDriver<'a> {
     }
 }
 
-impl<'a> UDPSendClient for ThreadNetworkDriver<'a> {
+impl<'a, A: time::Alarm<'a>> UDPSendClient for ThreadNetworkDriver<'a, A> {
     fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: SubSliceMut<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
         self.send_buffer.replace(dgram);
+        self.crypt_state.replace(ThreadRadioState::CryptReady);
+        kernel::debug!("SENDING DONE!!");
     }
 }
 
-impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
+impl<'a, A: time::Alarm<'a>> time::AlarmClient for ThreadNetworkDriver<'a, A> {
+    // handle case here where state is empty?
+    fn alarm(&self) {
+        match self.state.take().unwrap() {
+            ThreadState::Detached => (),
+            ThreadState::SendParentReq => panic!("Sending PR timeout"),
+            ThreadState::SendChildIdReq => panic!("Sending CR timeout"),
+            ThreadState::SEDActive => {
+                // we need to ping parent again
+                ()
+            }
+        }
+    }
+}
+
+impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
     fn receive(
         &self,
         src_addr: IPAddr,
@@ -499,15 +545,19 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
-        let state_check = self.state.take().map_or(Err(ErrorCode::BUSY), |state| {
-            if let ThreadState::CryptReady = state {
-                self.state
-                    .replace(ThreadState::CryptReceive(src_addr, payload.len()));
-                Ok(())
-            } else {
-                Err(ErrorCode::BUSY)
-            }
-        });
+        kernel::debug!("RECEIVE!!");
+        let state_check = self
+            .crypt_state
+            .take()
+            .map_or(Err(ErrorCode::BUSY), |crypt_state| {
+                if let ThreadRadioState::CryptReady = crypt_state {
+                    self.crypt_state
+                        .replace(ThreadRadioState::CryptReceive(src_addr, payload.len()));
+                    Ok(())
+                } else {
+                    Err(ErrorCode::BUSY)
+                }
+            });
 
         if let Err(ErrorCode::BUSY) = state_check {
             kernel::debug!("Received failed; crypt is busy");
@@ -534,13 +584,18 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
         ];
 
         // generate nonce
-        let nonce = get_ccm_nonce(&src_device_addr, frame_counter, SecurityLevel::EncMic32);
+        let nonce = framer::get_ccm_nonce(&src_device_addr, frame_counter, SecurityLevel::EncMic32);
 
-        // set nonce/key for encryption
-        if self.crypto.set_key(&self.get_networkkey()) != Ok(())
-            || self.crypto.set_nonce(&nonce) != Ok(())
-        {
-            kernel::debug!("FAIL KEY SET AND NONCE");
+        let networkkey = self.networkkey.get();
+        match networkkey {
+            Some(key) => {
+                if self.crypto.set_key(&key).is_err() || self.crypto.set_nonce(&nonce).is_err() {
+                    kernel::debug!("Error configuring crypt.");
+                }
+            }
+            None => {
+                kernel::debug!("Attempt to access networkkey when no networkkey set.");
+            }
         }
 
         let crypto_res =
@@ -553,6 +608,7 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
                         return Err(ErrorCode::SIZE);
                     }
 
+                    kernel::debug!("*****************crypto take");
                     recv_buffer[..payload_slice.len()].copy_from_slice(payload_slice);
 
                     let cryp_out = self.crypto.crypt(
@@ -571,10 +627,12 @@ impl<'a> UDPRecvClient for ThreadNetworkDriver<'a> {
 
                     Ok(())
                 });
+
+        kernel::debug!("Crypto res value {:?}", crypto_res);
     }
 }
 
-impl<'a> PortQuery for ThreadNetworkDriver<'a> {
+impl<'a, A: time::Alarm<'a>> PortQuery for ThreadNetworkDriver<'a, A> {
     // Returns true if |port| is bound (on any iface), false otherwise.
     fn is_bound(&self, port: u16) -> bool {
         let mut port_bound = false;
@@ -593,16 +651,16 @@ impl<'a> PortQuery for ThreadNetworkDriver<'a> {
     }
 }
 
-impl<'a> CCMClient for ThreadNetworkDriver<'a> {
+impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
     fn crypt_done(&self, buf: &'static mut [u8], res: Result<(), ErrorCode>, tag_is_valid: bool) {
+        kernel::debug!("CRYPTO DONE");
         const AuthDataLen: usize = 32;
 
         let res = self
-            .state
+            .crypt_state
             .take()
-            .map_or(Err(ErrorCode::BUSY), |state| match state {
-                ThreadState::CryptSend(dst_ipv6, dst_mac, payload_len) => {
-                    kernel::debug!("Entered Crypt Send");
+            .map_or(Err(ErrorCode::BUSY), |crypt_state| match crypt_state {
+                ThreadRadioState::CryptSend(dst_ipv6, dst_mac, payload_len) => {
                     buf.copy_within(AuthDataLen..(AuthDataLen + payload_len), 1);
 
                     buf[0..1].copy_from_slice(&[0]);
@@ -614,6 +672,11 @@ impl<'a> CCMClient for ThreadNetworkDriver<'a> {
                             send_buffer.slice(0..(payload_len + 1));
 
                             kernel::debug!("udp sending...");
+
+                            // Set alarm for sending timeout. The value is not correct
+                            // self.alarm
+                            //     .set_alarm(self.alarm.now(), self.alarm.ticks_from_seconds(2));
+
                             self.sender.driver_send_to(
                                 dst_ipv6,
                                 dst_mac,
@@ -624,112 +687,22 @@ impl<'a> CCMClient for ThreadNetworkDriver<'a> {
                                 self.net_cap,
                             );
 
-                            self.state.replace(ThreadState::CryptReady);
+                            self.crypt_state.replace(ThreadRadioState::CryptReady);
+
                             Ok(())
                         })
                 }
-                ThreadState::CryptReceive(sender_ipv6, payload_len) => {
+                ThreadRadioState::CryptReceive(sender_ipv6, payload_len) => {
+                    kernel::debug!("cryptreceive enter");
                     let mut new_recv_buffer = SubSliceMut::new(buf);
                     new_recv_buffer.slice(0..payload_len);
                     self.recv_buffer.replace(new_recv_buffer);
 
-                    self.state.replace(ThreadState::CryptReady);
+                    self.crypt_state.replace(ThreadRadioState::CryptReady);
                     self.recv_logic(sender_ipv6);
                     Ok(())
                 }
                 _ => panic!("This should not be possible"),
             });
-        /*
-        if self.second_send.get() {
-            kernel::debug!("ENTERING CHILD REQUEST");
-            buf.copy_within(32..91, 1);
-
-            let zero_slic: &[u8; 1] = &[0];
-            buf[0..1].copy_from_slice(zero_slic);
-
-            self.send_buffer.replace(SubSliceMut::new(buf));
-            self.send_buffer
-                .take()
-                .map_or(Err(ErrorCode::NOMEM), |mut send_buffer| {
-                    send_buffer.slice(0..60);
-
-                    kernel::debug!("SENDING CHILD REQUEST");
-
-                    self.sender.driver_send_to(
-                        IPAddr([
-                            0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91,
-                            0xee, 0x42, 0x56, 0x35,
-                        ]),
-                        MacAddress::Long([0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x35]),
-                        19788,
-                        19788,
-                        send_buffer,
-                        self.driver_send_cap,
-                        self.net_cap,
-                    );
-
-                    self.send.set(false);
-                    Ok(())
-                });
-        } else {
-            kernel::debug!("THS IS THE RECV BUF {:?}", buf);
-            let link_layer_frame_ct: [u8; 6] = [5, 4, 0, 0, 0, 0];
-            let mle_frame_ct: [u8; 6] = [8, 4, 0, 0, 0, 0x09];
-            let mode: [u8; 3] = [1, 1, 0x0f];
-            let timeout: [u8; 6] = [2, 4, 0, 0, 0, 0xf0];
-            let version: [u8; 4] = [0x12, 2, 0, 4];
-            let a: [u8; 4] = [0x1b, 2, 0, 0x81];
-            let elev_slice: [u8; 3] = [11, 4, 8];
-            let tlv_request: [u8; 5] = [0x0d, 0x03, 0x0a, 0x0c, 0x09];
-            let start_auth: [u8; 32] = [
-                0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91, 0xee, 0x42,
-                0x56, 0x36, 0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91,
-                0xee, 0x42, 0x56, 0x35,
-            ];
-
-            let aux_sec_header: [u8; 11] = [
-                0x00, 0x15, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-            ];
-
-            self.send_buffer
-                .take()
-                .map_or(Err(ErrorCode::NOMEM), |mut send_buffer| {
-                    kernel::debug!("PREPARING TO SEND");
-                    send_buffer.reset();
-                    send_buffer[0..32].copy_from_slice(&start_auth);
-                    send_buffer[32..42].copy_from_slice(&aux_sec_header[1..11]);
-                    send_buffer[42..45].copy_from_slice(&elev_slice);
-                    send_buffer[45..53].copy_from_slice(&buf[39..47]);
-                    send_buffer[53..59].copy_from_slice(&link_layer_frame_ct);
-                    send_buffer[59..65].copy_from_slice(&mle_frame_ct);
-                    send_buffer[65..68].copy_from_slice(&mode);
-                    send_buffer[68..74].copy_from_slice(&timeout);
-                    send_buffer[74..78].copy_from_slice(&version);
-                    send_buffer[78..82].copy_from_slice(&a);
-                    send_buffer[82..87].copy_from_slice(&tlv_request);
-
-                    send_buffer.slice(0..91);
-
-                    // Hardcoded for now, this should probably be moved elsewhere (already stored in kernel)
-                    let device_addr: [u8; 8] = [0xa2, 0xb5, 0xa6, 0x91, 0xee, 0x42, 0x56, 0x36];
-
-                    // let key = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
-                    let key = [
-                        0x54, 0x45, 0xf4, 0x15, 0x8f, 0xd7, 0x59, 0x12, 0x17, 0x58, 0x09, 0xf8,
-                        0xb5, 0x7a, 0x66, 0xa4,
-                    ];
-
-                    let nonce = get_ccm_nonce(&device_addr, 9, SecurityLevel::EncMic32);
-
-                    self.crypto.set_nonce(&nonce);
-                    self.crypto.set_key(&key);
-                    kernel::debug!("CRYPTO IS IN PROGRESS!");
-
-                    self.crypto
-                        .crypt(send_buffer.take(), 0, 42, 45, 4, true, true);
-                    self.second_send.set(true);
-                    Ok(())
-                });
-        } */
     }
 }

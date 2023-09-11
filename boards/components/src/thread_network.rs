@@ -34,7 +34,8 @@ use capsules_extra::net::network_capabilities::{
 };
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
-use capsules_extra::net::thread::driver::ThreadNetworkDriver;
+use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
+use capsules_extra::net::sixlowpan;
 use capsules_extra::net::udp::udp_port_table::UdpPortManager;
 use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
@@ -70,8 +71,12 @@ macro_rules! thread_network_driver_component_static {
             kernel::static_buf!(capsules_extra::net::network_capabilities::UdpVisibilityCapability);
         let net_cap =
             kernel::static_buf!(capsules_extra::net::network_capabilities::NetworkCapability);
-        let udp_driver =
-            kernel::static_buf!(capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>);
+        let thread_network_driver = kernel::static_buf!(
+            capsules_extra::net::thread::driver::ThreadNetworkDriver<
+                'static,
+                VirtualMuxAlarm<'static, $A>,
+            >
+        );
         let send_buffer = kernel::static_buf!([u8; MAX_PAYLOAD_LEN]);
         let recv_buffer = kernel::static_buf!([u8; MAX_PAYLOAD_LEN]);
         let udp_recv =
@@ -80,23 +85,25 @@ macro_rules! thread_network_driver_component_static {
         let crypt = kernel::static_buf!(
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $B>,
         );
+        let alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
 
         (
             udp_send,
             udp_vis_cap,
             net_cap,
-            udp_driver,
+            thread_network_driver,
             send_buffer,
             recv_buffer,
             udp_recv,
             crypt_buf,
             crypt,
+            alarm,
         )
     };};
 }
-pub struct UDPDriverComponent<
+pub struct ThreadNetworkComponent<
     A: Alarm<'static> + 'static,
-    B: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB,
+    B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -108,10 +115,13 @@ pub struct UDPDriverComponent<
     aes_mux: &'static MuxAES128CCM<'static, B>,
     serial_num_bottom_16: u16,
     serial_num: [u8; 8],
+    alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB>
-    UDPDriverComponent<A, B>
+impl<
+        A: Alarm<'static> + 'static,
+        B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
+    > ThreadNetworkComponent<A, B>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -126,6 +136,7 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         aes_mux: &'static MuxAES128CCM<'static, B>,
         serial_num_bottom_16: u16,
         serial_num: [u8; 8],
+        alarm_mux: &'static MuxAlarm<'static, A>,
     ) -> Self {
         Self {
             board_kernel,
@@ -137,12 +148,15 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
             aes_mux,
             serial_num_bottom_16,
             serial_num,
+            alarm_mux,
         }
     }
 }
 
-impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> Component
-    for UDPDriverComponent<A, B>
+impl<
+        A: Alarm<'static> + 'static,
+        B: AES128<'static> + AES128Ctr + AES128CBC + AES128ECB + 'static,
+    > Component for ThreadNetworkComponent<A, B>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
@@ -158,7 +172,12 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
             capsules_extra::net::network_capabilities::UdpVisibilityCapability,
         >,
         &'static mut MaybeUninit<capsules_extra::net::network_capabilities::NetworkCapability>,
-        &'static mut MaybeUninit<capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>>,
+        &'static mut MaybeUninit<
+            capsules_extra::net::thread::driver::ThreadNetworkDriver<
+                'static,
+                VirtualMuxAlarm<'static, A>,
+            >,
+        >,
         &'static mut MaybeUninit<[u8; MAX_PAYLOAD_LEN]>,
         &'static mut MaybeUninit<[u8; MAX_PAYLOAD_LEN]>,
         &'static mut MaybeUninit<UDPReceiver<'static>>,
@@ -166,10 +185,18 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         &'static mut MaybeUninit<
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, B>,
         >,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
     );
-    type Output = &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>;
+    type Output = &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<
+        'static,
+        VirtualMuxAlarm<'static, A>,
+    >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        let thread_virtual_alarm: &mut VirtualMuxAlarm<'_, A> =
+            s.9.write(VirtualMuxAlarm::new(self.alarm_mux));
+        thread_virtual_alarm.setup();
+
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         //crypt
@@ -203,10 +230,21 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
         let send_buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
         let recv_buffer = s.5.write([0; MAX_PAYLOAD_LEN]);
 
+        let a = sixlowpan::sixlowpan_state::Sixlowpan::new(
+            sixlowpan::sixlowpan_compression::Context {
+                prefix: [0; 16],
+                prefix_len: 0,
+                id: 0,
+                compress: false,
+            },
+            thread_virtual_alarm, // OK to reuse bc only used to get time, not set alarms
+        );
+
         let thread_network_driver = s.3.write(
             capsules_extra::net::thread::driver::ThreadNetworkDriver::new(
                 udp_send,
                 aes_ccm,
+                thread_virtual_alarm,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 self.serial_num,
                 self.interface_list,
@@ -218,6 +256,9 @@ impl<A: Alarm<'static>, B: 'static + AES128<'static> + AES128Ctr + AES128CBC + A
                 net_cap,
             ),
         );
+
+        thread_virtual_alarm.set_alarm_client(thread_network_driver);
+
         udp_send.set_client(thread_network_driver);
         AES128CCM::set_client(aes_ccm, thread_network_driver);
 

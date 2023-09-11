@@ -955,7 +955,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
                     }
                 }
             } else {
-                packet[0..payload_len].copy_from_slice(&payload[0..payload_len]);
+                return (None, Ok(()));
             }
             state.packet.replace(packet);
             (Some(state), Ok(()))

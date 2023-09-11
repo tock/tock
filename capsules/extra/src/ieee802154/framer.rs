@@ -450,11 +450,20 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // specifies `KeyIdMode::Source4Index`, the source
                         // address used for the nonce is actually a constant
                         // defined in their spec
-                        let device_addr = match self.lookup_addr_long(header.src_addr) {
-                            Some(addr) => addr,
-                            None => {
-                                return None;
-                            }
+                        /*let device_addr = match self.lookup_addr_long(header.src_addr) {
+                                                    Some(addr) => addr,
+                                                    None => {
+                                                        return None;
+                                                    }
+                                                };
+                        */
+
+                        let device_addr = match header.src_addr {
+                            Some(mac) => match mac {
+                                MacAddress::Long(val) => val,
+                                MacAddress::Short(_) => panic!("ONLY SHORT ADDR PROVIDED"),
+                            },
+                            None => panic!("EMPTY SRC ADDR"),
                         };
 
                         // Step g, h: Check frame counter
@@ -472,6 +481,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 return None;
                             }
                         };
+
+                        kernel::debug!("FRAME COUNTER {:?}", frame_counter);
 
                         // Compute ccm nonce
                         let nonce = get_ccm_nonce(&device_addr, frame_counter, security.level);
@@ -615,6 +626,19 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 let res = self.crypt_buf.take().map(|mut crypt_buf| {
                                     crypt_buf[0..buf.len()].copy_from_slice(buf);
                                     crypt_buf.slice(0..buf.len());
+
+                                    // kernel::debug!(
+                                    //     "-*-* {:02X?}",
+                                    //     &buf[(m_off as usize)..(m_off + m_len as usize)]
+                                    // );
+
+                                    // kernel::debug!("KEY {:02X?}", key);
+                                    // kernel::debug!("NONCE {:02X?}", nonce);
+                                    // kernel::debug!("a off {a_off}");
+                                    // kernel::debug!("m off {m_off}");
+                                    // kernel::debug!("m len {m_len}");
+                                    // kernel::debug!("mic len {:?}", info.mic_len);
+                                    // kernel::debug!("conf {:?}", level.encryption_needed());
 
                                     self.aes_ccm.crypt(
                                         crypt_buf.take(),
@@ -762,6 +786,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // specification.
 
         let src_addr_long = self.get_address_long();
+        src_addr = MacAddress::Long(src_addr_long);
         let security_desc = security_needed.and_then(|(level, key_id)| {
             self.lookup_key(level, key_id).map(|key| {
                 // TODO: lookup frame counter for device

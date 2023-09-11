@@ -181,12 +181,12 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         }
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {}
         if addr_match {
-            //debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
+            debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
             });
         } else {
-            debug!("[AwakeMAC] Received a packet, but not addressed to us");
+            // debug!("[AwakeMAC] Received a packet, but not addressed to us");
             self.radio.set_receive_buffer(buf);
         }
     }

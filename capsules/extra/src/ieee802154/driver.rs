@@ -228,6 +228,9 @@ pub struct RadioDriver<'a> {
 
     /// Used to save result for passing a callback from a deferred call.
     saved_result: OptionalCell<Result<(), ErrorCode>>,
+
+    backup_key_procedure: OptionalCell<&'a dyn framer::KeyProcedure>,
+    backup_device_procedure: OptionalCell<&'a dyn framer::DeviceProcedure>,
 }
 
 impl<'a> RadioDriver<'a> {
@@ -253,7 +256,17 @@ impl<'a> RadioDriver<'a> {
             deferred_call: DeferredCall::new(),
             saved_processid: OptionalCell::empty(),
             saved_result: OptionalCell::empty(),
+            backup_key_procedure: OptionalCell::empty(),
+            backup_device_procedure: OptionalCell::empty(),
         }
+    }
+
+    pub fn set_key_procedure(&self, key_procedure: &'a dyn framer::KeyProcedure) {
+        self.backup_key_procedure.set(key_procedure);
+    }
+
+    pub fn set_device_procedure(&self, device_procedure: &'a dyn framer::DeviceProcedure) {
+        self.backup_device_procedure.set(device_procedure);
     }
 
     // Neighbor management functions
@@ -514,7 +527,7 @@ impl framer::DeviceProcedure for RadioDriver<'_> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
-        self.neighbors.and_then(|neighbors| {
+        let res = self.neighbors.and_then(|neighbors| {
             neighbors[..self.num_neighbors.get()]
                 .iter()
                 .find(|neighbor| match addr {
@@ -522,7 +535,14 @@ impl framer::DeviceProcedure for RadioDriver<'_> {
                     MacAddress::Long(addr) => addr == neighbor.long_addr,
                 })
                 .map(|neighbor| neighbor.long_addr)
-        })
+        });
+        if res.is_none() {
+            self.backup_device_procedure
+                .unwrap_or_panic()
+                .lookup_addr_long(addr)
+        } else {
+            res
+        }
     }
 }
 
@@ -531,12 +551,20 @@ impl framer::KeyProcedure for RadioDriver<'_> {
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
-        self.keys.and_then(|keys| {
+        let res = self.keys.and_then(|keys| {
             keys[..self.num_keys.get()]
                 .iter()
                 .find(|key| key.level == level && key.key_id == key_id)
                 .map(|key| key.key)
-        })
+        });
+
+        if res.is_none() {
+            self.backup_key_procedure
+                .unwrap_or_panic()
+                .lookup_key(SecurityLevel::EncMic32, KeyId::Index(2))
+        } else {
+            res
+        }
     }
 }
 

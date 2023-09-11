@@ -15,9 +15,9 @@ use kernel::ErrorCode;
 
 use crate::net::{ieee802154::MacAddress, ipv6::ip_utils::IPAddr};
 
-pub const MULTICAST_IPV6: [u8; 16] = [
+pub const MULTICAST_IPV6: IPAddr = IPAddr([
     0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
-];
+]);
 
 /* THREAD SPEC 5.2.2.4 (V1.3.0) -- A Thread Device MUST assign a link-local IPv6 address where the
 interface identifier is set to the MAC Extended Address with the universal/local bit inverted.
@@ -57,9 +57,16 @@ pub fn find_challenge(buf: &[u8]) -> Result<&[u8], ErrorCode> {
     Err(ErrorCode::FAIL)
 }
 
-pub enum ThreadState {
+pub enum ThreadRadioState {
     CryptSend(IPAddr, MacAddress, usize),
     CryptReceive(IPAddr, usize),
     CryptReady,
     Sending,
+}
+
+pub enum ThreadState {
+    SendParentReq,
+    SendChildIdReq,
+    SEDActive,
+    Detached,
 }

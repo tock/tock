@@ -194,7 +194,10 @@ pub struct Platform {
         >,
     >,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
-    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<'static>,
+    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<
+        'static,
+        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    >,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
         nrf52840::i2c::TWI<'static>,
@@ -583,10 +586,7 @@ pub unsafe fn main() {
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
         [
-            IPAddr([
-                0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa0, 0xb5, 0xa6, 0x91, 0xee, 0x42,
-                0x56, 0x36
-            ]),
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
             // IPAddr([
             //     0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
             //     0xaa, 0xbb
@@ -627,7 +627,7 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
-    let thread_driver = components::thread_network::UDPDriverComponent::new(
+    let thread_driver = components::thread_network::ThreadNetworkComponent::new(
         board_kernel,
         capsules_extra::net::thread::driver::DRIVER_NUM,
         udp_send_mux,
@@ -637,11 +637,15 @@ pub unsafe fn main() {
         aes_mux,
         device_id_bottom_16,
         device_id,
+        mux_alarm,
     )
     .finalize(components::thread_network_driver_component_static!(
         nrf52840::rtc::Rtc,
         nrf52840::aes::AesECB<'static>
     ));
+
+    ieee802154_radio.set_key_procedure(thread_driver);
+    ieee802154_radio.set_device_procedure(thread_driver);
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
