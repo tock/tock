@@ -706,7 +706,7 @@ pub unsafe fn main() {
     kernel::deferred_call::DeferredCallClient::register(aes_mux);
     base_peripherals.ecb.set_client(aes_mux);
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.address();
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
 
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 

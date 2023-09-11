@@ -71,8 +71,7 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
         }
         match IP6Header::decode(buf).done() {
             Some((offset, ip6_header)) => {
-                let checksum_result =
-                    ip6_header.check_transport_checksum(&buf[offset..offset + len]);
+                let checksum_result = ip6_header.check_transport_checksum(&buf[offset..len]);
                 if checksum_result == Err(ErrorCode::FAIL) {
                     debug!("cksum fail!: {:?}", checksum_result);
                     return; //Dropped.
@@ -81,7 +80,7 @@ impl<'a> SixlowpanRxClient for IP6RecvStruct<'a> {
                 // are automatically assumed as fine, rather than dropped
 
                 self.client
-                    .map(|client| client.receive(ip6_header, &buf[offset..offset + len]));
+                    .map(|client| client.receive(ip6_header, &buf[offset..len]));
             }
             None => {
                 debug!("failed to decode ipv6 header");
