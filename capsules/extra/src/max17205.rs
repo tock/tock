@@ -394,19 +394,27 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
     }
 }
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// Callback for when all events complete or data is ready.
+    pub const EVENT_COMPLETE: usize = 0;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 1;
+}
+
 #[derive(Default)]
 pub struct App {}
 
 pub struct MAX17205Driver<'a, I: i2c::I2CDevice> {
     max17205: &'a MAX17205<'a, I>,
     owning_process: OptionalCell<ProcessId>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a, I: i2c::I2CDevice> MAX17205Driver<'a, I> {
     pub fn new(
         max: &'a MAX17205<I>,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         Self {
             max17205: max,
@@ -422,7 +430,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
             let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
-                        0,
+                        upcall::EVENT_COMPLETE,
                         (
                             kernel::errorcode::into_statuscode(error),
                             status as usize,
@@ -445,7 +453,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
             let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
-                        0,
+                        upcall::EVENT_COMPLETE,
                         (
                             kernel::errorcode::into_statuscode(error),
                             percent as usize,
@@ -462,7 +470,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
             let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
-                        0,
+                        upcall::EVENT_COMPLETE,
                         (
                             kernel::errorcode::into_statuscode(error),
                             voltage as usize,
@@ -479,7 +487,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
             let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
-                        0,
+                        upcall::EVENT_COMPLETE,
                         (
                             kernel::errorcode::into_statuscode(error),
                             coulomb as usize,
@@ -496,7 +504,7 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
             let _ = self.apps.enter(pid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
-                        0,
+                        upcall::EVENT_COMPLETE,
                         (
                             kernel::errorcode::into_statuscode(error),
                             (rid & 0xffffffff) as usize,
@@ -510,12 +518,6 @@ impl<I: i2c::I2CDevice> MAX17205Client for MAX17205Driver<'_, I> {
 }
 
 impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
-    // Setup callback.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup a callback for when all events complete or data is ready.
-
     /// Setup and read the MAX17205.
     ///
     /// ### `command_num`

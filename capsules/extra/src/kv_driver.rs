@@ -42,7 +42,7 @@
 
 use capsules_core::driver;
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Kv as usize;
 
 use core::cmp;
 use kernel::errorcode;

@@ -39,8 +39,26 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Udp as usize;
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// Callback for when packet is received. If no port has been bound, return
+    /// `RESERVE` to indicate that port binding is is a prerequisite to
+    /// reception.
+    pub const PACKET_RECEIVED: usize = 0;
+    /// Callback for when packet is transmitted. Notably, this callback receives
+    /// the result of the send_done callback from udp_send.rs, which does not
+    /// currently pass information regarding whether packets were acked at the
+    /// link layer.
+    pub const PACKET_TRANSMITTED: usize = 1;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 2;
+}
+
 /// Ids for read-only allow buffers
 mod ro_allow {
+    /// Write buffer. Contains the UDP payload to be transmitted. Returns SIZE
+    /// if the passed buffer is too long, and NOSUPPORT if an invalid
+    /// `allow_num` is passed.
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 1;
@@ -48,8 +66,14 @@ mod ro_allow {
 
 /// Ids for read-write allow buffers
 mod rw_allow {
+    /// Read buffer. Will contain the received payload.
     pub const READ: usize = 0;
+    /// Config buffer. Used to contain miscellaneous data associated with some
+    /// commands, namely source/destination addresses and ports.
     pub const CFG: usize = 1;
+    /// Rx config buffer. Used to contain source/destination addresses and ports
+    /// for receives (separate from `2` because receives may be waiting for an
+    /// incoming packet asynchronously).
     pub const RX_CFG: usize = 2;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 3;
@@ -104,7 +128,7 @@ pub struct UDPDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<
         App,
-        UpcallCount<2>,
+        UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
@@ -132,7 +156,7 @@ impl<'a> UDPDriver<'a> {
         sender: &'a dyn UDPSender<'a>,
         grant: Grant<
             App,
-            UpcallCount<2>,
+            UpcallCount<{ upcall::COUNT }>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
@@ -188,7 +212,10 @@ impl<'a> UDPDriver<'a> {
         if result != Ok(()) {
             let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
+                    .schedule_upcall(
+                        upcall::PACKET_TRANSMITTED,
+                        (kernel::errorcode::into_statuscode(result), 0, 0),
+                    )
                     .ok();
             });
         }
@@ -308,37 +335,6 @@ impl<'a> UDPDriver<'a> {
 }
 
 impl<'a> SyscallDriver for UDPDriver<'a> {
-    /// Setup buffers to read/write from.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Read buffer. Will contain the received payload.
-    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
-    ///        some commands, namely source/destination addresses and ports.
-    /// - `2`: Rx config buffer. Used to contain source/destination addresses
-    ///        and ports for receives (separate from `2` because receives may
-    ///        be waiting for an incoming packet asynchronously).
-
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Write buffer. Contains the UDP payload to be transmitted.
-    ///        Returns SIZE if the passed buffer is too long, and NOSUPPORT
-    ///        if an invalid `allow_num` is passed.
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup callback for when packet is received. If no port has
-    //        been bound, return RESERVE to indicate that port binding is
-    //        is a prerequisite to reception.
-    // - `1`: Setup callback for when packet is transmitted. Notably,
-    //        this callback receives the result of the send_done callback
-    //        from udp_send.rs, which does not currently pass information
-    //        regarding whether packets were acked at the link layer.
-
     /// UDP control
     ///
     /// ### `command_num`
@@ -577,7 +573,10 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
         self.current_app.get().map(|processid| {
             let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
-                    .schedule_upcall(1, (kernel::errorcode::into_statuscode(result), 0, 0))
+                    .schedule_upcall(
+                        upcall::PACKET_TRANSMITTED,
+                        (kernel::errorcode::into_statuscode(result), 0, 0),
+                    )
                     .ok();
             });
         });
@@ -626,7 +625,9 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                             addr: src_addr,
                             port: src_port,
                         };
-                        kernel_data.schedule_upcall(0, (len, 0, 0)).ok();
+                        kernel_data
+                            .schedule_upcall(upcall::PACKET_RECEIVED, (len, 0, 0))
+                            .ok();
                         const CFG_LEN: usize = 2 * size_of::<UDPEndpoint>();
                         let _ = kernel_data
                             .get_readwrite_processbuffer(rw_allow::RX_CFG)
