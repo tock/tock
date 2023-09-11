@@ -1,4 +1,4 @@
-Syscalls: Commando 0 Semantics
+Syscalls: Command 0 Semantics
 ==============================
 
 - Initial Proposal: 2023-08-18
@@ -113,7 +113,7 @@ index b1b4de38e..8f78712f2 100644
 +Rust compiler](https://doc.rust-lang.org/reference/const_eval.html).
 +
 +
-+4.3.1 Command Idenfitier 0 [PROPOSAL B]
++4.3.1 Command Identifier 0 [PROPOSAL B]
 +-------------------------------
 +
 +Command Identifier 0 is implemented by the core kernel and provides an

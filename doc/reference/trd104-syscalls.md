@@ -807,7 +807,7 @@ Because C allows a single return value but Tock system calls can return multiple
 they do not easily map to idiomatic C. These low-level APIs are translated into standard C
 code by the userspace library. The general calling convention is that the complex return types
 are returned as structs. Since these structs are composite types larger than a single word, the
-ARM and RISCV calling conventions pass them on the stack.
+ARM and RISC-V calling conventions pass them on the stack.
 
 The system calls are implemented as inline assembly. This assembly moves arguments into the correct
 registers and invokes the system call, and on return copies the returned data into the return type
