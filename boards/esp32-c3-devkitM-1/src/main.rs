@@ -291,7 +291,7 @@ unsafe fn setup() -> (
             console,
             alarm,
             scheduler,
-            scheduler_timer
+            scheduler_timer,
         }
     );
 

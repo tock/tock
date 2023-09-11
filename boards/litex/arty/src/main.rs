@@ -451,7 +451,7 @@ pub unsafe fn main() {
         LiteXArtyInterruptablePeripherals {
             uart0,
             timer0,
-            ethmac0
+            ethmac0,
         }
     );
     interrupt_service.init();

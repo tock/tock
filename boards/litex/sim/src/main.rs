@@ -541,7 +541,7 @@ pub unsafe fn main() {
             gpio0,
             uart0,
             timer0,
-            ethmac0
+            ethmac0,
         }
     );
     interrupt_service.init();

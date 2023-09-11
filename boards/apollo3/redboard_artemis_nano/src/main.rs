@@ -393,7 +393,7 @@ unsafe fn setup() -> (
             humidity,
             air_quality,
             scheduler,
-            systick
+            systick,
         }
     );
 
