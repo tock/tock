@@ -474,6 +474,9 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     }
                     Err(tickv::error_codes::ErrorCode::ReadNotReady(_)) => {
                         // Need to do another flash read.
+                        //
+                        // `self.operation` will still be `GetKey`, so this will automatically
+                        // be retried by the primary state machine.
                     }
                     Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) | Ok(_) => {}
                     Err(e) => {
