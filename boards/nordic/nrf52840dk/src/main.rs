@@ -964,7 +964,7 @@ pub unsafe fn main() {
     //
     // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
     //     board_kernel,
-    //     capsules_core::driver::KeyboardHid,
+    //     capsules_core::driver::NUM::KeyboardHid as usize,
     //     &nrf52840_peripherals.usbd,
     //     0x1915, // Nordic Semiconductor
     //     0x503a,
