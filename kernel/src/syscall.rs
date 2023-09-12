@@ -51,6 +51,7 @@ pub enum SyscallClass {
 pub enum YieldCall {
     NoWait = 0,
     Wait = 1,
+    WaitForNoCallback = 2,
 }
 
 // Required as long as no solution to
@@ -79,7 +80,12 @@ impl TryFrom<u8> for SyscallClass {
 pub enum Syscall {
     /// Structure representing an invocation of the Yield system call class.
     /// `which` is the Yield identifier value and `address` is the no wait field.
-    Yield { which: usize, address: *mut u8 },
+    Yield {
+        which: usize,
+        param1: usize,
+        param2: usize,
+        param3: usize,
+    },
 
     /// Structure representing an invocation of the Subscribe system call
     /// class. `driver_number` is the driver identifier, `subdriver_number`
@@ -168,7 +174,9 @@ impl Syscall {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
-                address: r1 as *mut u8,
+                param1: r1,
+                param2: r2,
+                param3: r3,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
@@ -312,6 +320,9 @@ pub enum SyscallReturn {
     /// Subscribe failure case, returns the passed upcall function
     /// pointer and application data.
     SubscribeFailure(ErrorCode, *const (), usize),
+
+    /// TODO
+    YieldForSubscribableUpcall(usize, usize, usize),
 }
 
 impl SyscallReturn {
@@ -346,6 +357,7 @@ impl SyscallReturn {
             SyscallReturn::UserspaceReadableAllowFailure(_, _, _) => false,
             SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
             SyscallReturn::SubscribeFailure(_, _, _) => false,
+            SyscallReturn::YieldForSubscribableUpcall(_, _, _) => true,
         }
     }
 
@@ -452,6 +464,11 @@ impl SyscallReturn {
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = data as u32;
+            }
+            &SyscallReturn::YieldForSubscribableUpcall(data0, data1, data2) => {
+                *a0 = data0 as u32;
+                *a1 = data1 as u32;
+                *a2 = data2 as u32;
             }
         }
     }

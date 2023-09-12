@@ -42,7 +42,7 @@ in other documents.
 Three design considerations guide the design of Tock's system call API and
 ABI.
 
-  1. Tock is currently supported on the ARM CortexM and RISCV architectures.
+  1. Tock is currently supported on the ARM CortexM and RISC-V architectures.
   It may support others in the future. Its ABI must support both architectures
   and be flexible enough to support future ones.
   2. Tock userspace applications can be written in any language. The system
@@ -234,6 +234,39 @@ Values greater than 1023 are reserved for userspace library use. Value 1024
 (BADRVAL) is for when a system call returns a different failure or success
 variant than the userspace library expects.
 
+3.4 Context Switching Subtleties
+---------------------------------
+
+When the kernel returns to userspace, it only gets to set registers for
+one stack frame. In practice, we have two cases:
+
+### DirectResume
+_{command, subscribe, allow, memop; yield-no-wait_DidntWaitCase}_
+
+Userspace resumes execution directly after the `svc` invocation, so the
+assembly that follows the `svc` command can use the values in r0-r3
+as-set by the kernel.
+
+### PushedCallback
+_{yield-wait, yield-no-wait_DidWaitCase}_
+
+Userspace resumes execution at the start of the callback function.
+
+The values in r0-r3 are consumed by the callback. When the callback
+finishes, it will `pop {lr}` (or similar), where the link register in
+the callback stack frame has been set by the kernel to the instruction
+after the `svc` that relinquished control to the kernel.
+
+The assembly that invoked the syscall now gets to run. At this point
+r0-r3 are unknown as those are caller-save registers (which means the
+Upcall callback can clobber them freely). The assembly that invoked the
+`svc` cannot make any assumptions about the values in r0-r3, nor can the
+kernel use them to pass things "to" the calling assembly. Thus, the
+`PushedCallback` case has to use a pointer-based approach for the kernel
+to communicate with the assembly that invokes the `svc` (e.g.
+`yield-param-A` in `Yield-NoWait`).
+
+
 4 System Call API
 =================================
 
@@ -293,8 +326,8 @@ result with an error of `NOSUPPORT`.
 The Yield system call class is how a userspace process handles
 upcalls, relinquishes the processor to other processes, or waits for
 one of its long-running calls to complete.  The Yield system call
-class implements the only blocking system call in Tock that returns,
-`yield-wait`.
+class implements the only blocking system calls in Tock that return:
+`yield-wait` and `yield-wait-for`.
 
 When a process calls a Yield system call, the kernel schedules one
 pending upcall (if any) to execute on the userspace stack.  If there
@@ -303,20 +336,10 @@ call to invoke. The kernel invokes upcalls only in response to Yield
 system calls.  This form of very limited preemption allows userspace
 to manage concurrent access to its variables.
 
-There are two Yield system calls:
-  - `yield-wait`
-  - `yield-no-wait`
-
-The first call, `yield-wait`, blocks until an upcall executes. It is
-commonly used to provide a blocking I/O interface to userspace or to
-indicate to the kernel that the process has no work to do so the system
-can be put into a sleep state. A userspace library starts a long-running
-operation that has an upcall, then calls `yield-wait` to wait for an upcall.
-When the `yield-wait` returns, the process checks if the resuming upcall was
-the one it was expecting, and if not calls `yield-wait` again.
-
-The second call, `yield-no-wait`, executes a single upcall if any is pending.
-If no upcalls are pending it returns immediately.
+There are three Yield system calls:
+  - Yield-Wait
+  - Yield-NoWait
+  - Yield-WaitFor
 
 The register arguments for Yield system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
@@ -324,40 +347,221 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument               | Register |
 |------------------------|----------|
 | Yield number           | r0       |
-| No wait field          | r1       |
-| unused                 | r2       |
-| unused                 | r3       |
+| yield-result           | r1       |
+| yield-param-A          | r2       |
+| yield-param-B          | r3       |
 
+The Yield system call class has no return value. This is because
+invoking an upcall pushes that function call onto the stack, such
+that the return value of a call to yield system call may be the
+return value of the upcall.
 
-The yield number specifies which call is invoked.
+Yield variants which return a result to the caller will use one or more
+of the `yield-param-X` arguments to do so.  Allowing the kernel to pass
+a return value in a register back to userspace would require either
+re-entering the kernel or expensive execution architectures (e.g.,
+additional stacks or additional stack frames) for upcalls.
+
+The Yield number (in r0) specifies which call is invoked:
 
 | System call     | Yield number value |
 |-----------------|--------------------|
 | yield-no-wait   |                  0 |
 | yield-wait      |                  1 |
+| yield-wait-for  |                  2 |
+
+All other yield number values are reserved. If an invalid yield number
+is passed the kernel MUST return immediately and MUST NOT write to
+`yield-result`.
+
+`yield-result` contains the memory address of an 8-bit byte that Yield
+writes to indicate whether an upcall was invoked. If invoking Yield
+resulted in an upcall executing, Yield writes 1 to the field address. If
+invoking Yield resulted in no upcall executing, Yield writes 0 to the
+field address. Userspace SHOULD ensure that r1 points to a valid address
+in the current process. If userspace does not wish to recieve the Yield
+result, it SHOULD set r1 to `0x0`. The kernel SHALL write Yield result
+if r1 points to any valid process memory and SHALL NOT write Yield
+result if it points to an address not in the memory allocated to the
+calling process.
+
+**OPEN QUESTION:** ^^ This documents what we currently do, but it is the
+case right now that there is no way for userspace to identify an
+errorneous call to yield (e.g. invalid value in r0)---should instead
+`yeild-result` be written no matter what and an error case defined?
+
+The meaning of `yield-param-X` (r2-r3) is specific to the yield type.
 
 
-All other yield number values are reserved. If an invalid
-yield number is passed the kernel MUST return immediately.
+### 4.1.1 Yield-NoWait
 
-The no wait field is only used by `yield-no-wait`. It contains the
-memory address of an 8-bit byte that `yield-no-wait` writes to
-indicate whether an upcall was invoked. If invoking `yield-no-wait`
-resulted in an upcall executing, `yield-no-wait` writes 1 to the
-field address. If invoking `yield-no-wait` resulted in no upcall
-executing, `yield-no-wait` writes 0 to the field address. This field
-allows userspace loops that want to flush the upcall queue to
-execute `yield-no-wait` until the queue is empty.
+Yield number 0, Yield-NoWait, executes a single upcall if any is
+pending.  If no upcalls are pending it returns immediately.
 
-The Yield system call class has no return value. This is because
-invoking an upcall pushes that function call onto the stack, such
-that the return value of a call to yield system call may be the
-return value of the upcall. This is why the no wait field exists,
-so that `yield-no-wait` can return a result to the caller. Allowing
-the kernel to pass a return value in register back to userspace
-would require either re-entering the kernel or expensive
-execution architectures (e.g., additional stacks or additional
-stack frames) for upcalls.
+Yield-NoWait can use `yield-result` to allow userspace loops that want
+to flush the upcall queue to execute Yield-NoWait until the queue is
+empty.
+
+`yield-param-A` and `yield-param-B` are unused and reserved.
+
+
+### 4.1.2 Yield-Wait
+
+Yield number 1, Yield-Wait, blocks until an upcall executes. It is
+commonly used when applications have no other work to do and are waiting
+for an event (upcall) to occur to do more work.
+
+This call will deliver events to the userspace application in the order
+they occurred in time in the kernel. If an application has multiple
+subscriptions, the userspace callback is responsible for in some way
+noting which callback occurred if necessary.
+
+_Note:_ This will _only_ return after an upcall _executes_. If an event
+occurs which would normally generate an upcall, but that UpcallId is
+currently assigned to the Null Upcall, no upcall executes and thus this
+syscall will not return.
+
+`yield-param-A`, and `yield-param-B` are unused and reserved.
+
+
+### 4.1.3 Yield-WaitFor-NoCallback
+
+The third call, Yield-WaitFor-NoCallback, suspends the process until one
+specific upcall---the `WaitedForUpcallId`---is ready to execute. If
+other events arrive that would invoke an upcall on this process, they
+are queued by the kernel, and will be delivered after the event for the
+`WaitedForUpcallId`.  Event order in this queue is maintained.
+
+This process will resume execution when an event in the kernel generates
+an upcall that matches the `WaitedForUpcallId`. No userspace callback
+function will invoked by the kernel. Instead, the contents of r0-r3 will
+be set to Upcall Arguments as-feasible, specifically:
+
+ - A `SubscribeUpcall` will set r0-r2 and leave r3 untouched.
+
+`yield-param-A` is the Driver number and `yield-param-B` is the
+Subscribe number to wait for. Together, these make up the
+`WaitedForUpcallId`.
+
+#### Design Rationale and Alternatives
+
+The primary motivation for this syscall is is to simplify correctness
+for userspace applications. When the kernel guarantees which upcall(s)
+are eligible for execution, userspace upcall handlers do not have to
+worry about reentrancy. It becomes an opt-in synchronous API for
+userspace without reducing the fundamental asynchronous design of Tock.
+
+To minimize impact on kernel interfaces and drivers writ large, this
+syscall is designed to not affect the internal `SyscallDriver`
+interface. In particular, the Tock kernel assumes a fully asynchronous
+execution model. Allowing drivers, especially less-trusted capsules, to
+block could create challenging liveness concerns for the kernel.
+
+The secondary motivation of this syscall is to improve the efficiency of
+synchronous-style userspace operation. Prior to the implementation of
+this syscall, robust implementation of a "blocking command" required a
+`subscribe-command-{looping yield}-unsubscribe` idiom for each
+synchronous function call. This collapses this pattern to a single
+syscall.
+
+A tertiary effect of this interface is an expectation of a modest
+reduction of overall code size. While this adds modest additional logic
+to the kernel, implementating the functionality at the kernel syscall
+level rather than in individaul capsules keeps the in-kernel overhead
+fixed.  For userspace, this can eliminate multiple syscalls as-described
+in the prior paragraph, as well as redundant, simplistic common-case
+Upcall callback functions that simply set flags or similar.
+
+This interface allows yielding only for one specific event.  A
+select/poll-style interface which enables userspace to wait on multiple
+possible events was considered. In this context, this would resemble
+`yeild_for_any_of([array of upcall ids])`, likely with return value of
+the index of which array entry fired. For the common-case of waiting for
+a single event, the ergonomics around first allowing the array of upcall
+ids and then sending the next syscall with the pointer is awkward. Thus,
+addition of this more complex interface has been deferred until proven
+necessary.
+
+The existing `Yield` syscall class requires that r0 be used for the
+Yield number, specifying which variant of `Yield` is requested. The
+`Subscribe` interface requires two full registers to uniquely identify
+an upcall to wait for, which consume ~~r1 and r2~~ r2 and r3 for Driver
+Number and Subscribe Number respectively. ~~This leaves at-most one
+register, r3, for additional information.~~ r1 is in use by the `Yield`
+class as the `yield-return` pointer.
+
+Within this design space, four alternatives were considered. Common to
+all designs, while "waiting-for" a specific event, any other upcalls for
+this process are queued in-order. After the "waited-for" event has been
+processed, subsequent queued upcalls are delivered as-per normal
+whenever userspace yields. The primary differences surround how
+"waited-for" events are dispatched to userspace:
+
+ - `Yield-WaitFor-Minimal` was the first proposal, and was designed as a
+     minimal-delta from the existing system. When the waited-for event
+     occurs, the kernel would attempt to dispatch the upcall subscribed
+     to the event. If this was the Null Upcall, no callback function
+     would be pushed, and execution would simply resume after the `svc`.
+     If no callback is called, the Upcall arguments are dropped and are
+     unavailable to userspace. ~~No indication would be available at the
+     `svc` callsite of whether a callback function had been called or
+     not (see §3.4 for why this is infeasible).~~ `yield-result`
+     indicates which case occurred.
+ - `Yield-WaitFor-NoCallback` never executes a callback, regardless of
+     whether one is registered. Instead, it returns the values that
+     would be passed to the callback as return values to the system call
+     site in r0-r3. In the case of a `SubscribeUpcall`, ~~the value of r3
+     is possibly undefined in this variant.~~, only r0-r2 are set.
+ - `Yield-WaitFor-CallbackIfPresent` always executes a callback if one
+     is present, otherwise it returns directly to the callsite returning
+     the values that would have been passed to the callback in registers
+     r0-r3. In the case of a `SubscribeUpcall`, ~~the value of r3 is
+     possibly undefined~~ only r0-r2 are set in this variant when no
+     callback is present.
+ - `Yield-WaitFor-OptionalSubscribe` passes an upcall handler if it
+     wants to use an upcall (which replaces any existing subscribed
+     upcall handler), otherwise upcall values are passed as return
+     values to the system call site. This design has a few open
+     questions:
+    - _What to do with app data?_
+        The original proposal suggested using r2 and r3 for upcall
+        pointer and app data respectively, but r2 is already in use for
+        the subscribe number. Only one register is available. Possible
+        solutions (I lean toward #4):
+        1. Use a dedicated syscall class to free up r0.
+        2. Use stack-based arguments to pass an additional argument.
+        3. r3 is a pointer to a struct in userspace of
+        `{upcall_ptr,app_data}`; this requires an Allow in advance.
+        4. Omit app data. As this is now synchronous, userspace can
+        safely use global state to pass something to the callback
+        method if-needed.
+    - _What to do with an existing subscription?_
+        Normally, providing a new subscription would return the old
+        subscription callback pointer and app data to userspace. This
+        syscall has no way to do that. The only thing I can come up with
+        would be to have subscription as a transient overlay, i.e.,
+        leave any info from a prior `Subscribe` untouched and store info
+        about the callback to use for this yield-for invocation. I
+        suspect for the rust runtime this could be tricky (though, it
+        would likely just never `Subscribe`).
+
+#### Aug 16, 2023 updates:
+
+ - Try to capture thread discussions in PR text.
+ - Make r1 `yield-return` generic across all Yield flavors.
+    - n.b., this actually matches current kernel behavior. The current
+        implementation **does not match TRD104.** Specifically, the
+        kernel always tries to set r1, even for the Yield-Wait case
+        (it's just lucky in some ways that no valid pointer has been in
+        r1 when Yield-Wait was called by apps s.t. a random byte getting
+        set to 1 would cause a problem[!]).
+ - Update main syscall proposal to `WaitFor-CallbackIfPresent` variant.
+
+#### Sep 8, 2023 updates:
+
+ - Capture more discussion from PR text.
+ - Update main syscall proposal to `WaitFor-NoCallback` variant.
+
 
 4.2 Subscribe (Class ID: 1)
 --------------------------------
@@ -383,6 +587,9 @@ The `upcall pointer` is the address of the first instruction of
 the upcall function. The `application data` argument is a parameter
 that an application passes in and the kernel passes back in upcalls
 unmodified.
+
+The `upcall pointer` SHOULD be a valid upcall, i.e., either a
+`SubscribeUpcall` or the Null Upcall, as defined in the next section.
 
 If the passed upcall is not valid (is outside process executable
 memory and is not the Null Upcall described below), the kernel MUST
@@ -432,37 +639,7 @@ failure, the first `u32` is the passed upcall pointer and the second
 `u32` is the passed application data pointer. For the first successful
 call to Subscribe for a given upcall, the upcall pointer and
 application data pointer returned MUST be the Null Upcall (described
-below).
-
-4.2.1 The Null Upcall
----------------------------------
-
-The Tock kernel defines an upcall pointer as the Null Upcall.
-The Null Upcall denotes an upcall that the kernel will never invoke.
-The Null Upcall is used for two reasons. First, a userspace process
-passing the Null Upcall as the upcall pointer for Subscribe
-indicates that there should be no more upcalls. Second, the first
-time a userspace process calls Subscribe for a particular upcall,
-the kernel needs to return upcall and application pointers indicating
-the current configuration; in this case, the kernel returns the Null
-Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
-
-The Null Upcall upcall pointer MUST be 0x0. This means it is not possible
-for userspace to pass address 0x0 as a valid code entry point. Unlike
-systems with virtual memory, where 0x0 can be reserved a special meaning, in
-microcontrollers with only physical memory 0x0 is a valid memory location.
-It is possible that a Tock kernel is configured so its applications
-start at address 0x0. However, even if they do begin at 0x0, the
-Tock Binary Format for application images mean that the first address
-will not be executable code and so 0x0 will not be a valid function.
-In the case that 0x0 is valid application code and where the
-linker places an upcall function, the first instruction of the function
-should be a no-op and the address of the second instruction passed
-instead.
-
-If a userspace process invokes subscribe on a driver ID that is not
-installed in the kernel, the kernel MUST return a failure with an
-error code of `NODEVICE` and an upcall of the Null Upcall.
+in 5.1 below).
 
 4.3 Command (Class ID: 2)
 ---------------------------------
@@ -794,24 +971,93 @@ If an exit syscall is successful, it does not return. Therefore, the return
 value of an exit syscall is always `Failure`. `exit-restart` and
 `exit-terminate` MUST always succeed and so never return.
 
-5 libtock-c Userspace Library Methods
+
+5.0 Upcall Types
 =================================
 
-This section describes the method signatures for system calls and upcalls in C, as an example
-of how they appear to application/userspace code..
+This section defines the Upcalls that are valid for the kernel to invoke
+on userspace. Applications are responsible for ensuring that references
+to Upcalls passed to the kernel adhere to the ABI.
 
-Because C allows a single return value but Tock system calls can return multiple values,
-they do not easily map to idiomatic C. These low-level APIs are translated into standard C
-code by the userspace library. The general calling convention is that the complex return types
-are returned as structs. Since these structs are composite types larger than a single word, the
-ARM and RISCV calling conventions pass them on the stack.
+5.1 The Null Upcall
+---------------------------------
 
-The system calls are implemented as inline assembly. This assembly moves arguments into the correct
-registers and invokes the system call, and on return copies the returned data into the return type
-on the stack.
+The Tock kernel defines a sentinel upcall pointer as the Null Upcall.
+The Null Upcall denotes an upcall that the kernel will never invoke.
+The Null Upcall is used for two reasons. First, a userspace process
+passing the Null Upcall as the upcall pointer for `Subscribe` indicates
+that there should be no more upcalls. Second, the first time a userspace
+process calls `Subscribe` for a particular upcall, the kernel needs to
+return upcall and application pointers indicating the current
+configuration; in this case, the kernel returns the Null Upcall. The
+Tock kernel MUST NOT invoke the Null Upcall.
+
+The Null Upcall upcall pointer MUST be `0x0`. This means it is not
+possible for userspace to pass address 0x0 as a valid code entry point.
+Unlike systems with virtual memory, where `0x0` can be reserved a
+special meaning, in microcontrollers with only physical memory `0x0` is
+a valid memory location.  It is possible that a Tock kernel is
+configured so its applications start at address `0x0`. However, even if
+they do begin at `0x0`, the Tock Binary Format for application images
+mean that the first address will not be executable code and so `0x0`
+will not be a valid function.  In the case that `0x0` is valid
+application code and where the linker places an upcall function, the
+first instruction of the function should be a no-op and the address of
+the second instruction passed instead.
+
+If a userspace process invokes subscribe on a driver ID that is not
+installed in the kernel, the kernel MUST return a failure with an
+error code of `NODEVICE` and an upcall of the Null Upcall.
 
 
-5.1 Yield
+5.2 SubscribeUpcall
+-------------------------------------
+
+A `SubscribeUpcall` is an upcall which is generated in response to an
+event an application has subscribed to using the `Subscribe` system
+call.
+
+The `SubscribeUpcall` uses all four Upcall Arguments.
+
+The values in r0-r2 are IMPLEMENTATION DEFINED. Their meaning is defined
+by the driver which is subscribed to. Some upcalls do not require all
+three of these arguments, and MAY only specify semantic meaning for some
+(or none) of r0-r2. Userspace MUST treat unspecified upcall arguments as
+RESERVED, and MUST NOT make any assumptions about the contents of such
+registers. Drivers SHOULD treat these as numeric arguments, i.e. of type
+`u32`, however they MAY document alternative types. Userspace
+implementations MUST consult driver documentation for each upcall they
+subscribe to. Low-level support libraries in userspace MUST tolerate
+(i.e. transparently pass-through values without modification) non-`u32`
+semantics for these arguments.
+
+The value in r3 MUST be the "Application Data" as supplied to the kernel
+in the `Subscribe` system call. In most cases, this is a pointer to
+somewhere in userspace, however applications MAY use this value however
+they like. The kernel MUST return exactly the value provided by
+userspace, and the kernel SHOULD NOT read or rely on the value.
+
+
+6 libtock-c Userspace Library Methods
+=================================
+
+This section describes the method signatures for system calls and
+upcalls in C, as an example of how they appear to application/userspace
+code.
+
+Because C allows a single return value but Tock system calls can return
+multiple values, they do not easily map to idiomatic C. These low-level
+APIs are translated into standard C code by the userspace library. The
+general calling convention is that the complex return types are returned
+as structs. Since these structs are composite types larger than a single
+word, the ARM and RISC-V calling conventions pass them on the stack.
+
+The system calls are implemented as inline assembly. This assembly moves
+arguments into the correct registers and invokes the system call, and on
+return copies the returned data into the return type on the stack.
+
+
+6.1 Yield
 ---------------------------------
 
 The Yield system calls have these function prototypes:
@@ -823,7 +1069,7 @@ void yield(void);
 
 `yield_no_wait` returns 1 if an upcall was invoked and 0 if one was not invoked.
 
-5.2 Subscribe
+6.2 Subscribe
 ---------------------------------
 
 The subscribe system call has this function prototype:
@@ -846,7 +1092,7 @@ The `success` field indicates whether the call to subscribe succeeded.
 If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined.
 
-5.3 Command
+6.3 Command
 -----------------------------------
 
 The subscribe system call has this function prototype:
@@ -865,7 +1111,7 @@ mapping of the return registers. `rtype` contains the value of `r0`, while
 `data[0]` contains what was passed in `r1`, `data[1]` contains was passed in `r2`,
 and `data[2]` contains what was passed in `r3`.
 
-5.4 Read-Write Allow
+6.4 Read-Write Allow
 ---------------------------------
 
 The read-write allow system call has this function prototype:
@@ -887,7 +1133,7 @@ the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
 
-5.5 Read-Only Allow
+6.5 Read-Only Allow
 ---------------------------------
 
 The read-only allow system call has this function prototype:
@@ -908,7 +1154,7 @@ If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
-5.6 Memop
+6.6 Memop
 ---------------------------------
 
 Because the Memop system calls are defined by the kernel and not extensible, they are
@@ -931,7 +1177,7 @@ They wrap around an underlying function which uses inline assembly:
 void* memop(uint32_t op_type, int arg1);
 ```
 
-5.7 Exit
+6.7 Exit
 ---------------------------------
 
 The Exit system calls have these function prototypes:

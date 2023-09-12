@@ -353,6 +353,10 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
+    /// Search the work queue for a specific upcall_id. If it is present,
+    /// return the associated `Task`, otherwise return `None`.
+    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<Task>;
+
     /// Returns the number of pending tasks. If 0 then `dequeue_task()` will
     /// return `None` when called.
     fn pending_tasks(&self) -> usize;
@@ -373,6 +377,12 @@ pub trait Process {
     /// This will fail (i.e. not do anything) if the process was not previously
     /// running.
     fn set_yielded_state(&self);
+
+    /// Move this process from the running state to the yielded-for state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
+    fn set_yielded_for_state(&self, upcall_id: UpcallId);
 
     /// Move this process from running or yielded state into the stopped state.
     ///
@@ -885,6 +895,12 @@ pub enum State {
     /// scheduled again.
     Yielded,
 
+    /// Process stopped executing and returned to the kernel because it called
+    /// the `WaitFor` variant of the `yield` syscall. The process should not be
+    /// scheduled until the specified driver attempts to execute the specified
+    /// subscribe.
+    YieldedFor(UpcallId),
+
     /// The process is stopped, and its previous state was Running. This is used
     /// if the kernel forcibly stops a process when it is in the `Running`
     /// state. This state indicates to the kernel not to schedule the process,
@@ -955,6 +971,10 @@ pub enum FaultAction {
 /// This is public for external implementations of `Process`.
 #[derive(Copy, Clone)]
 pub enum Task {
+    /// A task that should not actually be executed. This is used to resume a
+    /// suspended process without invoking any callbacks in userspace (e.g.,
+    /// when YieldFor resolves to a Null Upcall).
+    NullSubscribableUpcall(NullSubscribableUpcall),
     /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
@@ -998,6 +1018,21 @@ pub struct FunctionCall {
     pub argument3: usize,
     /// The PC of the function to execute.
     pub pc: usize,
+}
+
+/// This is similar to `FunctionCall` but for the special case of the
+/// Null Upcall for a subscribe. This is used to pass around upcall parameters
+/// when there is no associated upcall to actually call or userdata for arg3.
+#[derive(Copy, Clone, Debug)]
+pub struct NullSubscribableUpcall {
+    /// Which upcall generates this event.
+    pub upcall_id: UpcallId,
+    /// The first argument to the function.
+    pub argument0: usize,
+    /// The second argument to the function.
+    pub argument1: usize,
+    /// The third argument to the function.
+    pub argument2: usize,
 }
 
 /// Collection of process state information related to the memory addresses of
