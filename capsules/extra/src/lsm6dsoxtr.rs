@@ -410,7 +410,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                                 0,
                                 (
                                     into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    if self.is_present.get() { 1 } else { 0 },
+                                    usize::from(self.is_present.get()),
                                     0,
                                 ),
                             )
@@ -520,7 +520,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                                 0,
                                 (
                                     into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    if status == Ok(()) { 1 } else { 0 },
+                                    usize::from(status == Ok(())),
                                     0,
                                 ),
                             )
@@ -541,7 +541,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                                 0,
                                 (
                                     into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    if status == Ok(()) { 1 } else { 0 },
+                                    usize::from(status == Ok(())),
                                     0,
                                 ),
                             )

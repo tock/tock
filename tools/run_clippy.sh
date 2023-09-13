@@ -220,8 +220,6 @@ CLIPPY_ARGS_PEDANTIC="
 -A clippy::mut_mut
 -A clippy::cast_ptr_alignment
 -A clippy::used_underscore_binding
--A clippy::bool_to_int_with_if
--A clippy::inconsistent_struct_constructor
 -A clippy::checked_conversions
 "
 

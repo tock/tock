@@ -249,7 +249,7 @@ impl<'a> L3gd20Spi<'a> {
         self.hpf_enabled.set(enabled);
         self.txbuffer.take().map(|buf| {
             buf[0] = L3GD20_REG_CTRL_REG5;
-            buf[1] = if enabled { 1 } else { 0 } << 4;
+            buf[1] = u8::from(enabled) << 4;
             // TODO verify SPI return value
             let _ = self.spi.read_write_bytes(buf, None, 2);
         });
@@ -432,7 +432,7 @@ impl spi::SpiMasterClient for L3gd20Spi<'_> {
                             false
                         };
                         upcalls
-                            .schedule_upcall(0, (1, if present { 1 } else { 0 }, 0))
+                            .schedule_upcall(0, (1, usize::from(present), 0))
                             .ok();
                         L3gd20Status::Idle
                     }

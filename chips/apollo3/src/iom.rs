@@ -1288,13 +1288,10 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         let div: u32 = 48000000 / rate; // TODO: Change to `48000000_u32.div_ceil(rate)` when api out of nightly
         let n = div.trailing_zeros().max(6);
 
-        let div3 = if (rate < (48000000 / 16384))
-            || ((rate >= (48000000 / 3)) && (rate <= ((48000000 / 2) - 1)))
-        {
-            1
-        } else {
-            0
-        };
+        let div3 = u32::from(
+            (rate < (48000000 / 16384))
+                || ((rate >= (48000000 / 3)) && (rate <= ((48000000 / 2) - 1))),
+        );
         let denom = (1 << n) * (1 + (div3 * 2));
         let tot_per = if div % denom > 0 {
             (div / denom) + 1
@@ -1308,11 +1305,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             return Err(ErrorCode::NOSUPPORT);
         }
 
-        let diven = if (rate >= (48000000 / 4)) || ((1 << (fsel - 1)) == div) {
-            1
-        } else {
-            0
-        };
+        let diven = u32::from((rate >= (48000000 / 4)) || ((1 << (fsel - 1)) == div));
         let low_per = if self.spi_phase.get() == ClockPhase::SampleLeading {
             (tot_per - 1) / 2
         } else {

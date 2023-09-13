@@ -413,7 +413,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if present { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(present), 0, 0))
                             .ok();
                     });
                 });
@@ -426,7 +426,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if set_power { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(set_power), 0, 0))
                             .ok();
                     });
                 });
@@ -447,10 +447,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(
-                                0,
-                                (if set_scale_and_resolution { 1 } else { 0 }, 0, 0),
-                            )
+                            .schedule_upcall(0, (usize::from(set_scale_and_resolution), 0, 0))
                             .ok();
                     });
                 });
@@ -514,7 +511,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if set_magneto_data_rate { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(set_magneto_data_rate), 0, 0))
                             .ok();
                     });
                 });
@@ -532,7 +529,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303agrI2C<'_, I> {
                 self.owning_process.map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if set_range { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(set_range), 0, 0))
                             .ok();
                     });
                 });

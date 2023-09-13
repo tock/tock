@@ -539,8 +539,8 @@ pub unsafe fn main() {
         LiteXSimInterruptablePeripherals,
         LiteXSimInterruptablePeripherals {
             gpio0,
-            timer0,
             uart0,
+            timer0,
             ethmac0,
         }
     );
