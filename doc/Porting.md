@@ -19,7 +19,7 @@ _It is a work in progress. Comments and pull requests are appreciated!_
     + [Component Creation](#component-creation)
     + [Board Support](#board-support)
       - [`panic!`s (aka `io.rs`)](#panics-aka-iors)
-      - [Board Cargo.toml, build.rs](#board-cargotoml-buildrs)
+      - [Board Cargo.toml, build.rs, .cargo/config.toml](#board-cargotoml-buildrs)
       - [Board Makefile](#board-makefile)
         * [Getting the built kernel onto a board](#getting-the-built-kernel-onto-a-board)
       - [Board README](#board-readme)
@@ -348,7 +348,7 @@ with a call to
 For largely historical reasons, panic implementations for all boards live in a
 file named `io.rs` adjacent to the board's `main.rs` file.
 
-##### Board Cargo.toml, build.rs
+##### Board Cargo.toml, build.rs, .cargo/config.toml
 
 Every board crate must author a top-level manifest, `Cargo.toml`. In general,
 you can probably simply copy this from another board, modifying the board name
@@ -357,6 +357,15 @@ and author(s) as appropriate.
 Note that Tock also provides a build script, `boards/build.rs`, that you should
 add to your `Cargo.toml` manifest. The build script simply adds a dependency
 on any link scripts to ensure the board is rebuilt when any changes.
+
+Board crate directories should also include a `.cargo/config.toml` file which
+sets the compilation target triple to use. This target triple should match the
+`TARGET` variable in the Makefile (see below). An example `.cargo/config.toml`:
+
+```toml
+[build]
+target = "thumbv6em-none-eabi"
+```
 
 ##### Board Makefile
 
