@@ -34,7 +34,7 @@ WG-OpenTitan:
   - chips/lowrisc/**/*
   - doc/wg/opentitan/**/*
 
-WG-Network
+WG-Network:
   - capsules/extra/src/ble_advertising_driver.rs
   - capsules/extra/src/can.rs
   - capsules/extra/src/ieee802154/**/*
