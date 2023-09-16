@@ -15,20 +15,13 @@
 
 /// Clock-related constants for specific chips
 pub mod clock_constants {
-    // Internal constants prefixed by double underscores are created to avoid the need to duplicate
-    // documentation comments
-
     /// PLL-related constants for specific chips
-    pub mod pll_constants {
-        // STM32F401 supports frequency down to 24MHz. All other chips in the F4 family down to
-        // 13MHz.
-        #[cfg(not(feature = "stm32f401"))]
-        const __PLL_MIN_FREQ_MHZ: usize = 13;
-        #[cfg(feature = "stm32f401")]
-        const __PLL_MIN_FREQ_MHZ: usize = 24;
-
-        /// Minimum PLL frequency in MHz
-        pub const PLL_MIN_FREQ_MHZ: usize = __PLL_MIN_FREQ_MHZ;
+    pub trait PllConstants {
+        /// PLL minimum frequency in MHz
+        const MIN_FREQ_MHZ: usize;
+        /// PLL maximum frequency in MHz
+        // All boards support PLL frequencies up to 216MHz
+        const MAX_FREQ_MHZ: usize = 216;
     }
 
     #[cfg(any(feature = "stm32f412"))]
