@@ -154,9 +154,7 @@
 //!
 //! [^usage_note]: For the purpose of brevity, any error checking has been removed.
 
-use crate::chip_specific::clock_constants::APB1_FREQUENCY_LIMIT_MHZ;
-use crate::chip_specific::clock_constants::APB2_FREQUENCY_LIMIT_MHZ;
-use crate::chip_specific::clock_constants::SYS_CLOCK_FREQUENCY_LIMIT_MHZ;
+use crate::chip_specific::clock_constants::ClockConstants;
 use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::clocks::pll::Pll;
@@ -180,6 +178,24 @@ pub struct Clocks<'a> {
     pub hsi: Hsi<'a>,
     /// Main phase loop-lock clock
     pub pll: Pll<'a>,
+}
+
+#[cfg(any(feature = "stm32f412"))]
+impl ClockConstants for Clocks<'_> {
+    const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
+    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
+}
+
+#[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
+impl ClockConstants for Clocks<'_> {
+    const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
+    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
+}
+
+#[cfg(any(feature = "stm32f401"))]
+impl CLockConstants for Clocks<'_> {
+    const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
+    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
 }
 
 impl<'a> Clocks<'a> {
@@ -246,7 +262,7 @@ impl<'a> Clocks<'a> {
     // hypothetical future frequency.
     fn check_apb1_frequency_limit(&self, ahb_frequency_mhz: usize) -> bool {
         ahb_frequency_mhz
-            <= APB1_FREQUENCY_LIMIT_MHZ * Into::<usize>::into(self.rcc.get_apb1_prescaler())
+            <= Self::APB1_FREQUENCY_LIMIT_MHZ * Into::<usize>::into(self.rcc.get_apb1_prescaler())
     }
 
     /// Set the APB1 prescaler.
@@ -261,7 +277,7 @@ impl<'a> Clocks<'a> {
     pub fn set_apb1_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
         let ahb_frequency = self.get_ahb_frequency();
         let divider: usize = prescaler.into();
-        if ahb_frequency / divider > APB1_FREQUENCY_LIMIT_MHZ {
+        if ahb_frequency / divider > Self::APB1_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::FAIL);
         }
 
@@ -291,7 +307,7 @@ impl<'a> Clocks<'a> {
     // Same as for APB1, APB2 has a frequency limit that must be enforced by software
     fn check_apb2_frequency_limit(&self, ahb_frequency_mhz: usize) -> bool {
         ahb_frequency_mhz
-            <= APB2_FREQUENCY_LIMIT_MHZ * Into::<usize>::into(self.rcc.get_apb2_prescaler())
+            <= Self::APB2_FREQUENCY_LIMIT_MHZ * Into::<usize>::into(self.rcc.get_apb2_prescaler())
     }
 
     /// Set the APB2 prescaler.
@@ -306,7 +322,7 @@ impl<'a> Clocks<'a> {
     pub fn set_apb2_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
         let current_ahb_frequency = self.get_ahb_frequency();
         let divider: usize = prescaler.into();
-        if current_ahb_frequency / divider > APB2_FREQUENCY_LIMIT_MHZ {
+        if current_ahb_frequency / divider > Self::APB2_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::FAIL);
         }
 
@@ -366,7 +382,7 @@ impl<'a> Clocks<'a> {
         };
 
         // Check the alternate frequency is not higher than the system clock limit
-        if alternate_frequency > SYS_CLOCK_FREQUENCY_LIMIT_MHZ {
+        if alternate_frequency > Self::SYS_CLOCK_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::SIZE);
         }
 
