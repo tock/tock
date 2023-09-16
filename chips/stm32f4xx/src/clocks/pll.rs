@@ -127,7 +127,6 @@ pub struct Pll<'a> {
     pll48_calibrated: Cell<bool>,
 }
 
-
 impl<'a> Pll<'a> {
     // Create a new instance of the PLL clock.
     //

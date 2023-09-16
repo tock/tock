@@ -30,7 +30,7 @@ pub mod clock_constants {
     }
 
     #[cfg(feature = "stm32f401")]
-    impl PllConstants for Pll {
+    impl PllConstants for Pll<'_> {
         const MIN_FREQ_MHZ: usize = 24;
     }
 
@@ -60,11 +60,10 @@ pub mod clock_constants {
     }
 
     #[cfg(any(feature = "stm32f401"))]
-    impl CLockConstants for Clocks<'_> {
+    impl ClockConstants for Clocks<'_> {
         const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
         const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
     }
-
 }
 
 /// Chip-specific flash code
