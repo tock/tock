@@ -87,29 +87,25 @@ pub mod flash_specific {
     // TODO: Take into the account the power supply
     //
     // The number of wait states varies from chip to chip.
+    #[cfg(any(feature = "stm32f401", feature = "stm32f429", feature = "stm32f446"))]
     pub(crate) fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> FlashLatency {
-        // feature = "stm32f401"
-        // feature = "stm32f429"
-        // feature = "stm32f446"
-        #[cfg(not(feature = "stm32f412"))]
-        {
-            match frequency_mhz {
-                0..=30 => FlashLatency::Latency0,
-                31..=60 => FlashLatency::Latency1,
-                61..=90 => FlashLatency::Latency2,
-                91..=120 => FlashLatency::Latency3,
-                121..=150 => FlashLatency::Latency4,
-                _ => FlashLatency::Latency5,
-            }
+        match frequency_mhz {
+            0..=30 => FlashLatency::Latency0,
+            31..=60 => FlashLatency::Latency1,
+            61..=90 => FlashLatency::Latency2,
+            91..=120 => FlashLatency::Latency3,
+            121..=150 => FlashLatency::Latency4,
+            _ => FlashLatency::Latency5,
         }
-        #[cfg(any(feature = "stm32f412"))]
-        {
-            match frequency_mhz {
-                0..=30 => FlashLatency::Latency0,
-                31..=64 => FlashLatency::Latency1,
-                65..=90 => FlashLatency::Latency2,
-                _ => FlashLatency::Latency3,
-            }
+    }
+
+    #[cfg(feature = "stm32f412")]
+    pub(crate) fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> FlashLatency {
+        match frequency_mhz {
+            0..=30 => FlashLatency::Latency0,
+            31..=64 => FlashLatency::Latency1,
+            65..=90 => FlashLatency::Latency2,
+            _ => FlashLatency::Latency3,
         }
     }
 
