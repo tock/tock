@@ -6,6 +6,7 @@
 
 #![deny(missing_docs)]
 #![deny(dead_code)]
+#![deny(unused_imports)]
 
 //! This module contains all chip-specific code.
 //!
@@ -24,33 +25,16 @@ pub mod clock_constants {
         const MAX_FREQ_MHZ: usize = 216;
     }
 
-    #[cfg(any(feature = "stm32f412"))]
-    const __APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
-    #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
-    #[cfg(not(feature = "cargo-clippy"))]
-    const __APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-    #[cfg(any(feature = "stm32f401"))]
-    #[cfg(not(feature = "cargo-clippy"))]
-    const __APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
-
-    /// Maximum allowed APB1 frequency in MHz
-    pub const APB1_FREQUENCY_LIMIT_MHZ: usize = __APB1_FREQUENCY_LIMIT_MHZ;
-
-    /// Maximum allowed APB2 frequency in MHz
-    // APB2 frequency limit is twice the APB1 frequency limit
-    pub const APB2_FREQUENCY_LIMIT_MHZ: usize = APB1_FREQUENCY_LIMIT_MHZ << 1;
-
-    #[cfg(any(feature = "stm32f412"))]
-    const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
-    #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
-    #[cfg(not(feature = "cargo-clippy"))]
-    const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
-    #[cfg(any(feature = "stm32f401"))]
-    #[cfg(not(feature = "cargo-clippy"))]
-    const __SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
-
-    /// Maximum allowed system clock frequency in MHz
-    pub const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = __SYS_CLOCK_FREQUENCY_LIMIT_MHZ;
+    /// Generic clock constants
+    pub trait ClockConstants {
+        /// Maximum allowed APB1 frequency in MHz
+        const APB1_FREQUENCY_LIMIT_MHZ: usize;
+        /// Maximum allowed APB2 frequency in MHz
+        // APB2 frequency limit is twice the APB1 frequency limit
+        const APB2_FREQUENCY_LIMIT_MHZ: usize = Self::APB1_FREQUENCY_LIMIT_MHZ << 1;
+        /// Maximum allowed system clock frequency in MHz
+        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize;
+    }
 }
 
 /// Chip-specific flash code
