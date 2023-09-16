@@ -21,6 +21,19 @@ pub mod clock_constants {
         const MAX_FREQ_MHZ: usize = 216;
     }
 
+    use crate::clocks::pll::Pll;
+
+    // STM32F401 minimum frequency is 24MHz. All other chips in the F4 family down to 13MHz.
+    #[cfg(not(feature = "stm32f401"))]
+    impl PllConstants for Pll<'_> {
+        const MIN_FREQ_MHZ: usize = 13;
+    }
+
+    #[cfg(feature = "stm32f401")]
+    impl PllConstants for Pll {
+        const MIN_FREQ_MHZ: usize = 24;
+    }
+
     /// Generic clock constants
     pub trait ClockConstants {
         /// Maximum allowed APB1 frequency in MHz
@@ -31,6 +44,27 @@ pub mod clock_constants {
         /// Maximum allowed system clock frequency in MHz
         const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize;
     }
+
+    use crate::clocks::clocks::Clocks;
+
+    #[cfg(any(feature = "stm32f412"))]
+    impl ClockConstants for Clocks<'_> {
+        const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
+        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
+    }
+
+    #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
+    impl ClockConstants for Clocks<'_> {
+        const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
+        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
+    }
+
+    #[cfg(any(feature = "stm32f401"))]
+    impl CLockConstants for Clocks<'_> {
+        const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
+        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
+    }
+
 }
 
 /// Chip-specific flash code
