@@ -106,7 +106,7 @@
 //!
 //! [^doc_ref]: See 6.2.3 in the documentation.
 
-use crate::chip_specific::clock_constants::pll_constants::PLL_MIN_FREQ_MHZ;
+use crate::chip_specific::clock_constants::PllConstants;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
@@ -127,13 +127,15 @@ pub struct Pll<'a> {
     pll48_calibrated: Cell<bool>,
 }
 
-/// PLL max frequency in MHz
-pub const PLL_MAX_FREQ_MHZ: usize = 216;
+// STM32F401 minimum frequency is 24MHz. All other chips in the F4 family down to 13MHz.
+#[cfg(not(feature = "stm32f401"))]
+impl PllConstants for Pll<'_> {
+    const MIN_FREQ_MHZ: usize = 13;
+}
 
-/// PLL frequency limit values (minimum and maximum)
-pub mod limits {
-    pub use super::PLL_MAX_FREQ_MHZ;
-    pub use crate::chip_specific::clock_constants::pll_constants::PLL_MIN_FREQ_MHZ;
+#[cfg(feature = "stm32f401")]
+impl PllConstants for Pll {
+    const MIN_FREQ_MHZ: usize = 24;
 }
 
 impl<'a> Pll<'a> {
@@ -168,8 +170,8 @@ impl<'a> Pll<'a> {
         }
     }
 
-    // The caller must ensure the desired frequency lies between PLL_MIN_FREQ_MHZ and PLL_MAX_FREQ_MHZ. Otherwise, the
-    // return value makes no sense.
+    // The caller must ensure the desired frequency lies between MIN_FREQ_MHZ and
+    // MAX_FREQ_MHZ.  Otherwise, the return value makes no sense.
     fn compute_pllp(desired_frequency_mhz: usize) -> PLLP {
         if desired_frequency_mhz < 55 {
             PLLP::DivideBy8
@@ -182,8 +184,8 @@ impl<'a> Pll<'a> {
         }
     }
 
-    // The caller must ensure the desired frequency lies between PLL_MIN_FREQ_MHZ and PLL_MAX_FREQ_MHZ. Otherwise, the
-    // return value makes no sense.
+    // The caller must ensure the desired frequency lies between MIN_FREQ_MHZ and
+    // MAX_FREQ_MHZ. Otherwise, the return value makes no sense.
     fn compute_plln(desired_frequency_mhz: usize, pllp: PLLP) -> usize {
         const VCO_INPUT_FREQUENCY: usize = HSI_FREQUENCY_MHZ / DEFAULT_PLLM_VALUE as usize;
         desired_frequency_mhz * Into::<usize>::into(pllp) / VCO_INPUT_FREQUENCY
@@ -298,8 +300,8 @@ impl<'a> Pll<'a> {
         // + invalid frequency
         if self.rcc.is_enabled_pll_clock() {
             return Err(ErrorCode::FAIL);
-        } else if desired_frequency_mhz < PLL_MIN_FREQ_MHZ
-            || desired_frequency_mhz > PLL_MAX_FREQ_MHZ
+        } else if desired_frequency_mhz < Self::MIN_FREQ_MHZ
+            || desired_frequency_mhz > Self::MAX_FREQ_MHZ
         {
             return Err(ErrorCode::INVAL);
         }
@@ -442,9 +444,9 @@ pub mod tests {
         debug!("Testing PLL configuration...");
 
         // 13 or 24MHz --> minimum value
-        let mut pllp = Pll::compute_pllp(PLL_MIN_FREQ_MHZ);
+        let mut pllp = Pll::compute_pllp(Pll::MIN_FREQ_MHZ);
         assert_eq!(PLLP::DivideBy8, pllp);
-        let mut plln = Pll::compute_plln(PLL_MIN_FREQ_MHZ, pllp);
+        let mut plln = Pll::compute_plln(Pll::MIN_FREQ_MHZ, pllp);
 
         #[cfg(not(feature = "stm32f401"))]
         assert_eq!(52 * MULTIPLIER, plln);
