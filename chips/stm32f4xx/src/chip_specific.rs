@@ -4,10 +4,6 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
-#![deny(missing_docs)]
-#![deny(dead_code)]
-#![deny(unused_imports)]
-
 //! This module contains all chip-specific code.
 //!
 //! Some models in the STM32F4 family may have additional features, while others not. Or they can
