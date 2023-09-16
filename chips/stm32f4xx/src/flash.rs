@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL.
 
-#![deny(dead_code)]
-#![deny(missing_docs)]
-#![deny(unused_imports)]
 //! STM32F4xx flash driver
 //!
 //! This driver provides basic functionalities for the entire STM32F4 series.
