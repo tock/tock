@@ -180,24 +180,6 @@ pub struct Clocks<'a> {
     pub pll: Pll<'a>,
 }
 
-#[cfg(any(feature = "stm32f412"))]
-impl ClockConstants for Clocks<'_> {
-    const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
-    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
-}
-
-#[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
-impl ClockConstants for Clocks<'_> {
-    const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
-}
-
-#[cfg(any(feature = "stm32f401"))]
-impl CLockConstants for Clocks<'_> {
-    const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
-    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
-}
-
 impl<'a> Clocks<'a> {
     // The constructor must be called when the default peripherals are created
     pub(crate) fn new(rcc: &'a Rcc) -> Self {

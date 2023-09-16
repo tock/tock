@@ -127,16 +127,6 @@ pub struct Pll<'a> {
     pll48_calibrated: Cell<bool>,
 }
 
-// STM32F401 minimum frequency is 24MHz. All other chips in the F4 family down to 13MHz.
-#[cfg(not(feature = "stm32f401"))]
-impl PllConstants for Pll<'_> {
-    const MIN_FREQ_MHZ: usize = 13;
-}
-
-#[cfg(feature = "stm32f401")]
-impl PllConstants for Pll {
-    const MIN_FREQ_MHZ: usize = 24;
-}
 
 impl<'a> Pll<'a> {
     // Create a new instance of the PLL clock.
