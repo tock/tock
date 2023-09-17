@@ -12,7 +12,7 @@
 
 /// Clock-related constants for specific chips
 pub mod clock_constants {
-    /// PLL-related constants for specific chips
+    /// PLL-related constants for specific for a specific chip
     pub trait PllConstants {
         /// PLL minimum frequency in MHz
         const MIN_FREQ_MHZ: usize;
@@ -21,21 +21,8 @@ pub mod clock_constants {
         const MAX_FREQ_MHZ: usize = 216;
     }
 
-    use crate::clocks::pll::Pll;
-
-    // STM32F401 minimum frequency is 24MHz. All other chips in the F4 family down to 13MHz.
-    #[cfg(not(feature = "stm32f401"))]
-    impl PllConstants for Pll<'_> {
-        const MIN_FREQ_MHZ: usize = 13;
-    }
-
-    #[cfg(feature = "stm32f401")]
-    impl PllConstants for Pll<'_> {
-        const MIN_FREQ_MHZ: usize = 24;
-    }
-
-    /// Generic clock constants
-    pub trait ClockConstants {
+    /// Generic clock constants for a specific chip
+    pub trait SystemClockConstants {
         /// Maximum allowed APB1 frequency in MHz
         const APB1_FREQUENCY_LIMIT_MHZ: usize;
         /// Maximum allowed APB2 frequency in MHz
@@ -45,25 +32,10 @@ pub mod clock_constants {
         const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize;
     }
 
-    use crate::clocks::clocks::Clocks;
+    /// Clock constants for a specific chip
+    pub trait ClockConstants: SystemClockConstants + PllConstants {}
 
-    #[cfg(any(feature = "stm32f412"))]
-    impl ClockConstants for Clocks<'_> {
-        const APB1_FREQUENCY_LIMIT_MHZ: usize = 50;
-        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
-    }
-
-    #[cfg(any(feature = "stm32f429", feature = "stm32f446"))]
-    impl ClockConstants for Clocks<'_> {
-        const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
-    }
-
-    #[cfg(any(feature = "stm32f401"))]
-    impl ClockConstants for Clocks<'_> {
-        const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
-        const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
-    }
+    impl<T: SystemClockConstants + PllConstants> ClockConstants for T {}
 }
 
 /// Chip-specific flash code
