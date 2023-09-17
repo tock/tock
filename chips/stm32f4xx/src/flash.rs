@@ -33,15 +33,17 @@
 //! debug!("Current flash latency is {}", flash_latency);
 //! ```
 
-use crate::chip_specific::flash_specific::convert_register_to_enum;
-use crate::chip_specific::flash_specific::get_number_wait_cycles_based_on_frequency;
-use crate::chip_specific::flash_specific::FlashLatency;
+use crate::chip_specific::flash_specific::FlashLatency16;
+use crate::chip_specific::flash_specific::RegisterToFlashLatency;
+use crate::chip_specific::flash_specific::FlashChipSpecific as FlashChipSpecificTrait;
 
 use kernel::debug;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use core::marker::PhantomData;
 
 #[repr(C)]
 struct FlashRegisters {
@@ -160,15 +162,17 @@ const FLASH_BASE: StaticRef<FlashRegisters> =
     unsafe { StaticRef::new(0x40023C00 as *const FlashRegisters) };
 
 /// Main Flash struct
-pub struct Flash {
+pub struct Flash<FlashChipSpecific> {
     registers: StaticRef<FlashRegisters>,
+    _marker: PhantomData<FlashChipSpecific>,
 }
 
-impl Flash {
+impl<FlashChipSpecific: FlashChipSpecificTrait> Flash<FlashChipSpecific> {
     // Flash constructor. It should be called when creating Stm32f4xxDefaultPeripherals.
     pub(crate) fn new() -> Self {
         Self {
             registers: FLASH_BASE,
+            _marker: PhantomData,
         }
     }
 
@@ -182,10 +186,10 @@ impl Flash {
     // Flash latency is dependent on the system clock frequency. Other peripherals will modify this
     // when appropriate.
     pub(crate) fn set_latency(&self, sys_clock_frequency: usize) -> Result<(), ErrorCode> {
-        let flash_latency = get_number_wait_cycles_based_on_frequency(sys_clock_frequency);
+        let flash_latency = FlashChipSpecific::get_number_wait_cycles_based_on_frequency(sys_clock_frequency);
         self.registers
             .acr
-            .modify(ACR::LATENCY.val(flash_latency as u32));
+            .modify(ACR::LATENCY.val(flash_latency.into()));
 
         // Wait until the flash latency is set
         // The value 16 was chosen randomly, but it behaves well in tests. It can be tuned in a
@@ -203,8 +207,8 @@ impl Flash {
         Err(ErrorCode::BUSY)
     }
 
-    pub(crate) fn get_latency(&self) -> FlashLatency {
-        convert_register_to_enum(self.read_latency_from_register())
+    pub(crate) fn get_latency(&self) -> FlashChipSpecific::FlashLatency {
+        FlashChipSpecific::FlashLatency::convert_register_to_enum(self.read_latency_from_register())
     }
 }
 
@@ -297,55 +301,55 @@ pub mod tests {
     /// Test for the mapping between the system clock frequency and flash latency
     ///
     /// It is highly recommended to run this test since everything else depends on it.
-    pub fn test_get_number_wait_cycles_based_on_frequency() {
+    pub fn test_get_number_wait_cycles_based_on_frequency<FlashChipSpecific: FlashChipSpecificTrait<FlashLatency = FlashLatency16>>() {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing number of wait cycles based on the system frequency...");
 
         assert_eq!(
-            FlashLatency::Latency0,
-            get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ)
+            FlashChipSpecific::FlashLatency::Latency0,
+            FlashChipSpecific::get_number_wait_cycles_based_on_frequency(HSI_FREQUENCY_MHZ)
         );
 
         assert_eq!(
-            FlashLatency::Latency0,
-            get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
+            FlashChipSpecific::FlashLatency::Latency0,
+            FlashChipSpecific::get_number_wait_cycles_based_on_frequency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
         );
 
         assert_eq!(
-            FlashLatency::Latency1,
-            get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1)
+            FlashChipSpecific::FlashLatency::Latency1,
+            FlashChipSpecific::get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_1)
         );
         assert_eq!(
-            FlashLatency::Latency1,
-            get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2)
+            FlashChipSpecific::FlashLatency::Latency1,
+            FlashChipSpecific::get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_2)
         );
         assert_eq!(
-            FlashLatency::Latency1,
-            get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3)
+            FlashChipSpecific::FlashLatency::Latency1,
+            FlashChipSpecific::get_number_wait_cycles_based_on_frequency(APB1_MAX_FREQUENCY_MHZ_3)
         );
 
         assert_eq!(
-            FlashLatency::Latency2,
-            get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1)
+            FlashChipSpecific::FlashLatency::Latency2,
+            FlashChipSpecific::get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_1)
         );
 
         // STM32F401 maximum clock frequency is 84MHz
         #[cfg(not(feature = "stm32f401"))]
         {
             assert_eq!(
-                FlashLatency::Latency2,
-                get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2)
+                FlashChipSpecific::FlashLatency::Latency2,
+                FlashChipSpecific::get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_2)
             );
 
             assert_eq!(
-                FlashLatency::Latency3,
-                get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3)
+                FlashChipSpecific::FlashLatency::Latency3,
+                FlashChipSpecific::get_number_wait_cycles_based_on_frequency(APB2_MAX_FREQUENCY_MHZ_3)
             );
 
             assert_eq!(
-                FlashLatency::Latency3,
-                get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
+                FlashChipSpecific::FlashLatency::Latency3,
+                FlashChipSpecific::get_number_wait_cycles_based_on_frequency(PLL_FREQUENCY_MHZ)
             );
         }
 
@@ -353,13 +357,13 @@ pub mod tests {
         // Not needed for these chips
         {
             assert_eq!(
-                FlashLatency::Latency5,
-                get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
+                FlashChipSpecific::FlashLatency::Latency5,
+                FlashChipSpecific::get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
             );
 
             assert_eq!(
-                FlashLatency::Latency5,
-                get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ)
+                FlashChipSpecific::FlashLatency::Latency5,
+                FlashChipSpecific::get_number_wait_cycles_based_on_frequency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ)
             );
         }
 
@@ -378,28 +382,28 @@ pub mod tests {
     /// Finished testing setting flash latency. Everything is alright!
     /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     /// ```
-    pub fn test_set_flash_latency(flash: &Flash) {
+    pub fn test_set_flash_latency<FlashChipSpecific: FlashChipSpecificTrait<FlashLatency = FlashLatency16>>(flash: &Flash<FlashChipSpecific>) {
         debug!("");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
         debug!("Testing setting flash latency...");
 
         assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
-        assert_eq!(FlashLatency::Latency0, flash.get_latency());
+        assert_eq!(FlashChipSpecific::FlashLatency::Latency0, flash.get_latency());
 
         assert_eq!(
             Ok(()),
             flash.set_latency(AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ)
         );
-        assert_eq!(FlashLatency::Latency0, flash.get_latency());
+        assert_eq!(FlashChipSpecific::FlashLatency::Latency0, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_1));
-        assert_eq!(FlashLatency::Latency1, flash.get_latency());
+        assert_eq!(FlashChipSpecific::FlashLatency::Latency1, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_2));
-        assert_eq!(FlashLatency::Latency1, flash.get_latency());
+        assert_eq!(FlashChipSpecific::FlashLatency::Latency1, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB1_MAX_FREQUENCY_MHZ_3));
-        assert_eq!(FlashLatency::Latency1, flash.get_latency());
+        assert_eq!(FlashChipSpecific::FlashLatency::Latency1, flash.get_latency());
 
         assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_1));
 
@@ -409,10 +413,10 @@ pub mod tests {
             assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_2));
 
             assert_eq!(Ok(()), flash.set_latency(APB2_MAX_FREQUENCY_MHZ_3));
-            assert_eq!(FlashLatency::Latency3, flash.get_latency());
+            assert_eq!(FlashChipSpecific::FlashLatency::Latency3, flash.get_latency());
 
             assert_eq!(Ok(()), flash.set_latency(PLL_FREQUENCY_MHZ));
-            assert_eq!(FlashLatency::Latency3, flash.get_latency());
+            assert_eq!(FlashChipSpecific::FlashLatency::Latency3, flash.get_latency());
         }
 
         // Low entries STM32F4 chips don't support frequencies higher than 100 MHz,
@@ -424,15 +428,15 @@ pub mod tests {
                 Ok(()),
                 flash.set_latency(SYS_MAX_FREQUENCY_NO_OVERDRIVE_MHZ)
             );
-            assert_eq!(FlashLatency::Latency5, flash.get_latency());
+            assert_eq!(FlashChipSpecific::FlashLatency::Latency5, flash.get_latency());
 
             assert_eq!(Ok(()), flash.set_latency(SYS_MAX_FREQUENCY_OVERDRIVE_MHZ));
-            assert_eq!(FlashLatency::Latency5, flash.get_latency());
+            assert_eq!(FlashChipSpecific::FlashLatency::Latency5, flash.get_latency());
         }
 
         // Revert to default settings
         assert_eq!(Ok(()), flash.set_latency(HSI_FREQUENCY_MHZ));
-        assert_eq!(FlashLatency::Latency0, flash.get_latency());
+        assert_eq!(FlashChipSpecific::FlashLatency::Latency0, flash.get_latency());
 
         debug!("Finished testing setting flash latency. Everything is alright!");
         debug!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
@@ -440,13 +444,13 @@ pub mod tests {
     }
 
     /// Run the entire test suite
-    pub fn run_all(flash: &Flash) {
+    pub fn run_all<FlashChipSpecific: FlashChipSpecificTrait<FlashLatency = FlashLatency16>>(flash: &Flash<FlashChipSpecific>) {
         debug!("");
         debug!("===============================================");
         debug!("Testing setting flash latency...");
 
-        test_get_number_wait_cycles_based_on_frequency();
-        test_set_flash_latency(flash);
+        test_get_number_wait_cycles_based_on_frequency::<FlashChipSpecific>();
+        test_set_flash_latency::<FlashChipSpecific>(flash);
 
         debug!("Finished testing flash. Everything is alright!");
         debug!("===============================================");
