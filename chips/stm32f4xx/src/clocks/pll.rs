@@ -576,7 +576,9 @@ pub mod tests {
     /// /* Code goes here */
     /// pll::test::test_pll_struct(&peripherals.stm32f4.pll); // Run the tests
     /// ```
-    pub fn test_pll_struct<'a, PllConstants: clock_constants::PllConstants>(pll: &'a Pll<'a, PllConstants>) {
+    pub fn test_pll_struct<'a, PllConstants: clock_constants::PllConstants>(
+        pll: &'a Pll<'a, PllConstants>,
+    ) {
         debug!("Testing PLL struct...");
         // Make sure the PLL clock is disabled
         assert_eq!(Ok(()), pll.disable());

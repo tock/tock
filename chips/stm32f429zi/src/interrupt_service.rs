@@ -22,14 +22,14 @@ impl SystemClockConstants for ChipSpecs {
 impl FlashChipSpecific for ChipSpecs {
     type FlashLatency = FlashLatency16;
 
-    fn  get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> Self::FlashLatency {
+    fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> Self::FlashLatency {
         match frequency_mhz {
             0..=30 => Self::FlashLatency::Latency0,
             31..=60 => Self::FlashLatency::Latency1,
             61..=90 => Self::FlashLatency::Latency2,
             91..=120 => Self::FlashLatency::Latency3,
             121..=150 => Self::FlashLatency::Latency4,
-            _ => Self::FlashLatency::Latency5
+            _ => Self::FlashLatency::Latency5,
         }
     }
 }
