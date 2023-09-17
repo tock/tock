@@ -3,11 +3,23 @@
 // Copyright Tock Contributors 2022.
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
+use stm32f4xx::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
+pub enum ChipSpecs {}
+
+impl PllConstants for ChipSpecs {
+    const MIN_FREQ_MHZ: usize = 13;
+}
+
+impl SystemClockConstants for ChipSpecs {
+    const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
+    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
+}
+
 pub struct Stm32f429ziDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, ChipSpecs>,
     // Once implemented, place Stm32f429zi specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
     pub can1: stm32f4xx::can::Can<'a>,
