@@ -4,6 +4,7 @@
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 use stm32f4xx::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
+use stm32f4xx::chip_specific::flash_specific::{FlashChipSpecific, FlashLatency16};
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
@@ -16,6 +17,21 @@ impl PllConstants for ChipSpecs {
 impl SystemClockConstants for ChipSpecs {
     const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
     const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
+}
+
+impl FlashChipSpecific for ChipSpecs {
+    type FlashLatency = FlashLatency16;
+
+    fn  get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> Self::FlashLatency {
+        match frequency_mhz {
+            0..=30 => Self::FlashLatency::Latency0,
+            31..=60 => Self::FlashLatency::Latency1,
+            61..=90 => Self::FlashLatency::Latency2,
+            91..=120 => Self::FlashLatency::Latency3,
+            121..=150 => Self::FlashLatency::Latency4,
+            _ => Self::FlashLatency::Latency5
+        }
+    }
 }
 
 pub struct Stm32f429ziDefaultPeripherals<'a> {
