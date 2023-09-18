@@ -506,7 +506,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     /// Set the underlying [`VirtIOTransport`]. This must be done prior to
     /// initialization.
     pub fn set_transport(&self, transport: &'a dyn VirtIOTransport) {
-        assert!(self.initialized.get() == false);
+        assert!(!self.initialized.get());
         self.transport.set(transport);
     }
 
@@ -886,7 +886,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'a, 'b, M
     }
 
     fn negotiate_queue_size(&self, max_elements: usize) -> usize {
-        assert!(self.initialized.get() == false);
+        assert!(!self.initialized.get());
         let negotiated = cmp::min(MAX_QUEUE_SIZE, max_elements);
         self.max_elements.set(negotiated);
         self.available_ring_state.reset(negotiated);
@@ -894,7 +894,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'a, 'b, M
     }
 
     fn initialize(&self, queue_number: u32, _queue_elements: usize) {
-        assert!(self.initialized.get() == false);
+        assert!(!self.initialized.get());
 
         // The transport must be set prior to initialization:
         assert!(self.transport.is_some());

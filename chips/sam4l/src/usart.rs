@@ -299,7 +299,7 @@ static IS_PANICING: AtomicBool = AtomicBool::new(false);
 
 impl<'a> USARTRegManager<'a> {
     fn real_new(usart: &'a USART) -> USARTRegManager<'a> {
-        if pm::is_clock_enabled(usart.clock) == false {
+        if !pm::is_clock_enabled(usart.clock) {
             pm::enable_clock(usart.clock);
         }
         let regs: &UsartRegisters = &*usart.registers;

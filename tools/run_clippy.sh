@@ -46,7 +46,6 @@ CLIPPY_ARGS_COMPLEXITY="
 -A clippy::manual-flatten
 
 
--A clippy::bool_comparison
 -A clippy::zero_prefixed_literal
 -A clippy::needless-if
 

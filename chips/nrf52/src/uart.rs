@@ -479,7 +479,7 @@ impl<'a> uart::Configure for Uarte<'a> {
         if params.parity != uart::Parity::None {
             return Err(ErrorCode::NOSUPPORT);
         }
-        if params.hw_flow_control != false {
+        if params.hw_flow_control {
             return Err(ErrorCode::NOSUPPORT);
         }
 

@@ -43,7 +43,7 @@ impl<'a> VirtualMuxAccel<'a> {
 
     pub fn load_binary(&self, input: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
-        if self.mux.running.get() == false {
+        if !self.mux.running.get() {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
             self.mux.accel.load_binary(input)
@@ -56,7 +56,7 @@ impl<'a> VirtualMuxAccel<'a> {
 
     pub fn load_data(&self, address: usize, data: &[u8]) -> Result<(), ErrorCode> {
         // Check if any mux is enabled. If it isn't we enable it for us.
-        if self.mux.running.get() == false {
+        if !self.mux.running.get() {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
             self.mux.accel.load_data(address, data)
@@ -73,7 +73,7 @@ impl<'a> VirtualMuxAccel<'a> {
         output: &'static mut [u8],
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Check if any mux is enabled. If it isn't we enable it for us.
-        if self.mux.running.get() == false {
+        if !self.mux.running.get() {
             self.mux.running.set(true);
             self.mux.running_id.set(self.id);
             self.mux.accel.run(address, output)
