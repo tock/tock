@@ -36,7 +36,12 @@ macro_rules! bme280_component_static {
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
         let i2c_buffer = kernel::static_buf!([u8; 26]);
-        let bme280 = kernel::static_buf!(capsules_extra::bme280::Bme280<'static>);
+        let bme280 = kernel::static_buf!(
+            capsules_extra::bme280::Bme280<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
+            >
+        );
 
         (i2c_device, i2c_buffer, bme280)
     };};
@@ -60,9 +65,9 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Bme280Component<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
         &'static mut MaybeUninit<[u8; 26]>,
-        &'static mut MaybeUninit<Bme280<'static>>,
+        &'static mut MaybeUninit<Bme280<'static, I2CDevice<'static, I>>>,
     );
-    type Output = &'static Bme280<'static>;
+    type Output = &'static Bme280<'static, I2CDevice<'static, I>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let bme280_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));

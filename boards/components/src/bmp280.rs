@@ -37,7 +37,7 @@ use kernel::hil::time::Alarm;
 
 #[macro_export]
 macro_rules! bmp280_component_static {
-    ($A:ty $(,)?, $I:ty) => {{
+    ($A:ty, $I:ty $(,)?) => {{
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
         let alarm = kernel::static_buf!(
