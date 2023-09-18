@@ -38,7 +38,7 @@ impl<'a> Rng<'_> {
     }
 }
 
-impl<'a> DeferredCallClient for Rng<'_> {
+impl<'a> DeferredCallClient for Rng<'a> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
