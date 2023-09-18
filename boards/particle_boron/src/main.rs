@@ -110,7 +110,10 @@ pub struct Platform {
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     rng: &'static capsules_core::rng::RngDriver<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        nrf52840::temperature::Temp<'static>,
+    >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
@@ -450,7 +453,9 @@ pub unsafe fn start_particle_boron() -> (
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS

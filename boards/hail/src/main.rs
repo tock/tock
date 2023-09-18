@@ -61,7 +61,20 @@ struct Hail {
         >,
     >,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::si7021::SI7021<
+            'static,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                sam4l::ast::Ast<'static>,
+            >,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                sam4l::i2c::I2CHw<'static>,
+            >,
+        >,
+    >,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     spi: &'static capsules_core::spi_controller::Spi<
@@ -328,7 +341,16 @@ unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        capsules_extra::si7021::SI7021<
+            'static,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                sam4l::i2c::I2CHw<'static>,
+            >,
+        >
+    ));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,

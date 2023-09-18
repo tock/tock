@@ -69,7 +69,16 @@ struct NucleoF446RE {
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
 
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::temperature_stm::TemperatureSTM<
+            'static,
+            capsules_core::virtualizers::virtual_adc::AdcDevice<
+                'static,
+                stm32f446re::adc::Adc<'static>,
+            >,
+        >,
+    >,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -391,15 +400,18 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f446re::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        capsules_extra::temperature_stm::TemperatureSTM<
+            'static,
+            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f446re::adc::Adc>,
+        >
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f446re::adc::Channel::Channel0)

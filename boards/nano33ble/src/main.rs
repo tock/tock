@@ -137,7 +137,16 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::hts221::Hts221<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52840::i2c::TWI<'static>,
+            >,
+        >,
+    >,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -499,7 +508,12 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        capsules_extra::hts221::Hts221<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
+        >
+    ));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,

@@ -180,7 +180,20 @@ pub struct Platform {
         >,
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::sht3x::SHT3x<
+            'static,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                nrf52::rtc::Rtc<'static>,
+            >,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                nrf52840::i2c::TWI<'static>,
+            >,
+        >,
+    >,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -621,7 +634,13 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         sht3x,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        capsules_extra::sht3x::SHT3x<
+            'static,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
+        >
+    ));
 
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,

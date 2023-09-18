@@ -64,7 +64,16 @@ struct STM32F412GDiscovery {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     touch: &'static capsules_extra::touch::Touch<'static>,
     screen: &'static capsules_extra::screen::Screen<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::temperature_stm::TemperatureSTM<
+            'static,
+            capsules_core::virtualizers::virtual_adc::AdcDevice<
+                'static,
+                stm32f412g::adc::Adc<'static>,
+            >,
+        >,
+    >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -680,15 +689,18 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f412g::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        capsules_extra::temperature_stm::TemperatureSTM<
+            'static,
+            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f412g::adc::Adc>,
+        >
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel1)

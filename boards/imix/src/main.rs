@@ -124,7 +124,17 @@ struct Imix {
     >,
     gpio: &'static capsules_core::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::si7021::SI7021<
+            'static,
+            VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                sam4l::i2c::I2CHw<'static>,
+            >,
+        >,
+    >,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
@@ -461,7 +471,16 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        capsules_extra::si7021::SI7021<
+            'static,
+            VirtualMuxAlarm<'static, sam4l::ast::Ast>,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
+                'static,
+                sam4l::i2c::I2CHw<'static>,
+            >,
+        >
+    ));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,

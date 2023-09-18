@@ -75,7 +75,10 @@ pub struct Platform {
         4,
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        nrf52832::temperature::Temp<'static>,
+    >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -473,17 +476,14 @@ pub unsafe fn main() {
     //
 
     // Setup internal temperature sensor
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(
-            &base_peripherals.temp,
-            board_kernel.create_grant(
-                capsules_extra::temperature::DRIVER_NUM,
-                &memory_allocation_capability
-            )
-        )
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(&base_peripherals.temp, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        &base_peripherals.temp,
+    )
+    .finalize(components::temperature_component_static!(
+        nrf52832::temperature::Temp
+    ));
 
     //
     // RNG

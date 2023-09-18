@@ -100,7 +100,10 @@ pub struct Platform {
         4,
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        nrf52840::temperature::Temp<'static>,
+    >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
@@ -386,7 +389,9 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     let rng = components::rng::RngComponent::new(
         board_kernel,

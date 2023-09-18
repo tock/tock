@@ -112,7 +112,10 @@ pub struct MicroBit {
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        nrf52833::temperature::Temp<'static>,
+    >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -485,7 +488,9 @@ unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52833::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // ADC

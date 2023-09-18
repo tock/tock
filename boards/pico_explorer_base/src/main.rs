@@ -78,7 +78,13 @@ pub struct PicoExplorerBase {
     gpio: &'static capsules_core::gpio::GPIO<'static, RPGpioPin<'static>>,
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+        'static,
+        capsules_extra::temperature_rp2040::TemperatureRp2040<
+            'static,
+            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
+        >,
+    >,
     buzzer_driver: &'static capsules_extra::buzzer_driver::Buzzer<
         'static,
         capsules_extra::buzzer_pwm::PwmBuzzer<
@@ -442,15 +448,17 @@ pub unsafe fn main() {
         rp2040::adc::Adc
     ));
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
-
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        capsules_extra::temperature_rp2040::TemperatureRp2040<
+            'static,
+            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc>,
+        >
+    ));
 
     //set CLK, MOSI and CS pins in SPI mode
     let spi_clk = peripherals.pins.get_pin(RPGpio::GPIO18);
