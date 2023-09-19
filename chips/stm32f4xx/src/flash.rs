@@ -33,9 +33,9 @@
 //! debug!("Current flash latency is {}", flash_latency);
 //! ```
 
-use crate::chip_specific::flash_specific::FlashChipSpecific as FlashChipSpecificTrait;
-use crate::chip_specific::flash_specific::FlashLatency16;
-use crate::chip_specific::flash_specific::RegisterToFlashLatency;
+use crate::chip_specific::flash::FlashChipSpecific as FlashChipSpecificTrait;
+use crate::chip_specific::flash::FlashLatency16;
+use crate::chip_specific::flash::RegisterToFlashLatency;
 
 use kernel::debug;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
