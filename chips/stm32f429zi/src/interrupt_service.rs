@@ -3,39 +3,12 @@
 // Copyright Tock Contributors 2022.
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
-use stm32f4xx::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
-use stm32f4xx::chip_specific::flash_specific::{FlashChipSpecific, FlashLatency16};
+use stm32f4xx::chip_specific::Stm32f429Specs;
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
-pub enum ChipSpecs {}
-
-impl PllConstants for ChipSpecs {
-    const MIN_FREQ_MHZ: usize = 13;
-}
-
-impl SystemClockConstants for ChipSpecs {
-    const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
-}
-
-impl FlashChipSpecific for ChipSpecs {
-    type FlashLatency = FlashLatency16;
-
-    fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> Self::FlashLatency {
-        match frequency_mhz {
-            0..=30 => Self::FlashLatency::Latency0,
-            31..=60 => Self::FlashLatency::Latency1,
-            61..=90 => Self::FlashLatency::Latency2,
-            91..=120 => Self::FlashLatency::Latency3,
-            121..=150 => Self::FlashLatency::Latency4,
-            _ => Self::FlashLatency::Latency5,
-        }
-    }
-}
-
 pub struct Stm32f429ziDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, ChipSpecs>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, Stm32f429Specs>,
     // Once implemented, place Stm32f429zi specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
     pub can1: stm32f4xx::can::Can<'a>,
