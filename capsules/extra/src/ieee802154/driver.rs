@@ -902,7 +902,7 @@ impl SyscallDriver for RadioDriver<'_> {
                         |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
                             Ok(_) => self.do_next_tx_sync(processid).into(),
-                            Err(e) => CommandReturn::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e),
                         },
                     )
             }
@@ -959,7 +959,6 @@ impl device::RxClient for RadioDriver<'_> {
                 .get_readwrite_processbuffer(rw_allow::READ)
                 .and_then(|read| {
                     read.mut_enter(|rbuf| {
-                        kernel::debug!("RECEIVED 15.4 packet...");
                         let len = min(rbuf.len(), data_offset + data_len);
                         // Copy the entire frame over to userland, preceded by two
                         // bytes: the data offset and the data length.

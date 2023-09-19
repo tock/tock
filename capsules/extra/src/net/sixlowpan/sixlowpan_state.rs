@@ -932,31 +932,34 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
             // since this state is not busy, it must have the packet buffer.
             // Otherwise, we are in an inconsistent state and can fail.
             let packet = state.packet.take().unwrap();
-            if is_lowpan(payload) {
-                let decompressed = sixlowpan_compression::decompress(
-                    &self.ctx_store,
-                    &payload[0..payload_len],
-                    src_mac_addr,
-                    dst_mac_addr,
-                    packet,
-                    0,
-                    false,
-                );
-                match decompressed {
-                    Ok((consumed, written)) => {
-                        let remaining = payload_len - consumed;
-                        packet[written..written + remaining]
-                            .copy_from_slice(&payload[consumed..consumed + remaining]);
-                        // Want dgram_size to contain decompressed size of packet
-                        state.dgram_size.set((written + remaining) as u16);
-                    }
-                    Err(_) => {
-                        return (None, Err(ErrorCode::FAIL));
-                    }
-                }
-            } else {
+
+            // Filter non 7LoWPAN packets and return
+            if !is_lowpan(payload) {
                 return (None, Ok(()));
             }
+
+            let decompressed = sixlowpan_compression::decompress(
+                &self.ctx_store,
+                &payload[0..payload_len],
+                src_mac_addr,
+                dst_mac_addr,
+                packet,
+                0,
+                false,
+            );
+            match decompressed {
+                Ok((consumed, written)) => {
+                    let remaining = payload_len - consumed;
+                    packet[written..written + remaining]
+                        .copy_from_slice(&payload[consumed..consumed + remaining]);
+                    // Want dgram_size to contain decompressed size of packet
+                    state.dgram_size.set((written + remaining) as u16);
+                }
+                Err(_) => {
+                    return (None, Err(ErrorCode::FAIL));
+                }
+            }
+
             state.packet.replace(packet);
             (Some(state), Ok(()))
         })

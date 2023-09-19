@@ -20,7 +20,7 @@
 //! packet to the MuxUdpSender queue at a time.
 
 use crate::net::ieee802154::MacAddress;
-use crate::net::ipv6::ip_utils::{IPAddr, MacAddr};
+use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
 use crate::net::ipv6::TransportHeader;
 use crate::net::network_capabilities::{NetworkCapability, UdpVisibilityCapability};

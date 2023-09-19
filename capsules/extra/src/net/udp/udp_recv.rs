@@ -40,11 +40,6 @@ impl<'a> MuxUdpReceiver<'a> {
     pub fn set_driver(&self, driver_ref: &'static UDPDriver) {
         self.driver.replace(driver_ref);
     }
-    pub fn print_recv_list(&self) {
-        for item in self.rcvr_list.iter() {
-            kernel::debug!("ITEM: {:?}", item.binding.take());
-        }
-    }
 }
 
 impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {

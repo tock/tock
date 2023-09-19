@@ -144,7 +144,7 @@ impl<A: Alarm<'static>> Component for UDPDriverComponent<A> {
             &create_cap,
         ));
 
-        let buffer: &mut [u8; 200] = s.4.write([0; MAX_PAYLOAD_LEN]);
+        let buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
 
         let udp_driver = s.3.write(capsules_extra::net::udp::UDPDriver::new(
             udp_send,

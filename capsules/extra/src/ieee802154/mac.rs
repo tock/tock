@@ -173,6 +173,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
             if let Some(dst_addr) = header.dst_addr {
                 addr_match = match dst_addr {
                     MacAddress::Short(addr) => {
+                        // Check if address matches radio or is set to multicast short addr 0xFFFF
                         (addr == self.radio.get_address()) || (addr == 0xFFFF)
                     }
                     MacAddress::Long(long_addr) => long_addr == self.radio.get_address_long(),
@@ -181,7 +182,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         }
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {}
         if addr_match {
-            debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
+            // debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
                 c.receive(buf, frame_len, crc_valid, result);
             });

@@ -450,14 +450,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // specifies `KeyIdMode::Source4Index`, the source
                         // address used for the nonce is actually a constant
                         // defined in their spec
-                        /*let device_addr = match self.lookup_addr_long(header.src_addr) {
-                                                    Some(addr) => addr,
-                                                    None => {
-                                                        return None;
-                                                    }
-                                                };
-                        */
-
                         let device_addr = match header.src_addr {
                             Some(mac) => match mac {
                                 MacAddress::Long(val) => val,
@@ -624,19 +616,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 let res = self.crypt_buf.take().map(|mut crypt_buf| {
                                     crypt_buf[0..buf.len()].copy_from_slice(buf);
                                     crypt_buf.slice(0..buf.len());
-
-                                    // kernel::debug!(
-                                    //     "-*-* {:02X?}",
-                                    //     &buf[(m_off as usize)..(m_off + m_len as usize)]
-                                    // );
-
-                                    // kernel::debug!("KEY {:02X?}", key);
-                                    // kernel::debug!("NONCE {:02X?}", nonce);
-                                    // kernel::debug!("a off {a_off}");
-                                    // kernel::debug!("m off {m_off}");
-                                    // kernel::debug!("m len {m_len}");
-                                    // kernel::debug!("mic len {:?}", info.mic_len);
-                                    // kernel::debug!("conf {:?}", level.encryption_needed());
 
                                     self.aes_ccm.crypt(
                                         crypt_buf.take(),

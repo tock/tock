@@ -394,10 +394,8 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
             //  Writes the requested number of network interface addresses
             // `arg1`: number of interfaces requested that will fit into the buffer
             1 => {
-                kernel::debug!("SUCCESSFULLY ENTERED UDP CAPSULE..");
                 self.apps
                     .enter(processid, |_, kernel_data| {
-                        kernel::debug!("HERE WE GO AGAIN!!");
                         kernel_data
                             .get_readwrite_processbuffer(rw_allow::CFG)
                             .and_then(|cfg| {
@@ -594,7 +592,6 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
         dst_port: u16,
         payload: &[u8],
     ) {
-        kernel::debug!("UDP DEBUGGER!!");
         self.apps.each(|_, app, kernel_data| {
             if app.bound_port.is_some() {
                 let mut for_me = false;
@@ -609,7 +606,6 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
                         .get_readwrite_processbuffer(rw_allow::READ)
                         .and_then(|read| {
                             read.mut_enter(|rbuf| {
-                                kernel::debug!("UDP RBUF LEN {:?}", rbuf.len());
                                 if rbuf.len() >= len {
                                     rbuf[..len].copy_from_slice(&payload[..len]);
                                     Ok(())
