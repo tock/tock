@@ -3,9 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
+use stm32f4xx::chip_specific::Stm32f446Specs;
 
 pub struct Stm32f446reDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, Stm32f446Specs>,
     // Once implemented, place Stm32f446re specific peripherals here
 }
 
