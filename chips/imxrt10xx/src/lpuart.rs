@@ -806,7 +806,7 @@ impl<'a> hil::uart::Configure for Lpuart<'a> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
-            || params.hw_flow_control != false
+            || params.hw_flow_control
             || params.width != hil::uart::Width::Eight
         {
             panic!(

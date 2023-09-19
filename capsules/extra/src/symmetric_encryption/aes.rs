@@ -55,7 +55,6 @@ pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static> + AES128GCM<'static>
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -551,7 +550,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -629,7 +627,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -707,7 +704,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC

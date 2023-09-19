@@ -60,19 +60,10 @@ mod rw_allow {
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 struct DeviceDescriptor {
     short_addr: u16,
     long_addr: [u8; 8],
-}
-
-impl Default for DeviceDescriptor {
-    fn default() -> Self {
-        DeviceDescriptor {
-            short_addr: 0,
-            long_addr: [0; 8],
-        }
-    }
 }
 
 /// The Key ID mode mapping expected by the userland driver

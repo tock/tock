@@ -44,7 +44,6 @@ use sam4l::chip::Sam4lDefaultPeripherals;
 
 use capsules_extra::sha256::Sha256Software;
 
-use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleOrderedComponent, UartMuxComponent};
 use components::crc::CrcComponent;
@@ -92,7 +91,7 @@ const NUM_PROCS: usize = 4;
 const RADIO_CHANNEL: u8 = 26;
 const DST_MAC_ADDR: MacAddress = MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults

@@ -46,6 +46,7 @@ commands = {
     "home": 		"\x1B[H",
     "end": 			"\x1B[F",
     "delete": 		"\x1B[3~",
+    "delete-ascii": "\x7F",
     "backspace": 	"\x08 \x08",
     "up": 			"\x1B[A",
     "down": 		"\x1B[B",
@@ -96,7 +97,15 @@ class SerialPort:
         The function will evaluate just Backspace and Left
         escape sequences
         '''
+
+        # delete previous character
         encoded = encoded.replace("\x08 \x08", "@")
+        
+        # deletes leftover character from previous message.
+        # As such we can ignore it
+        # ! This check must go after the '@' replacement !
+        encoded = encoded.replace(" \x08", "")
+
         decoded = ""
         count = 0
 
@@ -332,37 +341,45 @@ def test_inserting(port: SerialPort):
 
 
 def test_deleting(port: SerialPort):
-    ''' Performs a serios of deletions from different places of the command '''
+    ''' Performs a series of deletions from different places of the command '''
     print_title("Deleting from a command using backspace and delete:")
     fail_test("deleting")
+    
+    def test_deleting_with(delete_char: str):
+        print("Typing 'DummyFooDummyBarDummy'")
+        port.send_input("DummyFooDummyBarDummy")
 
-    print("Typing 'DummyFooDummyBarDummy'")
-    port.send_input("DummyFooDummyBarDummy")
+        print("Moving to the start of the command")
+        port.send_input(commands["home"])
 
-    print("Moving to the start of the command")
-    port.send_input(commands["home"])
+        print("Delete first 'Dummy'")
+        port.send_input(delete_char * 5)
 
-    print("Delete first 'Dummy'")
-    port.send_input(commands["delete"] * 5)
+        print("Moving to the end of the command")
+        port.send_input(commands["end"])
 
-    print("Moving to the end of the command")
-    port.send_input(commands["end"])
+        print("Delete last 'Dummy'")
+        port.send_input(commands["backspace"] * 5)
 
-    print("Delete last 'Dummy'")
-    port.send_input(commands["backspace"] * 5)
+        print("Moving to the begining of the middle 'Dummy'")
+        port.send_input(commands["left"] * 8)
 
-    print("Moving to the begining of the middle 'Dummy'")
-    port.send_input(commands["left"] * 8)
+        print("Delete middle 'Dummy'")
+        port.send_input(delete_char * 5)
 
-    print("Delete middle 'Dummy'")
-    port.send_input(commands["delete"] * 5)
+        out = port.recv_output()
+        port.send_input("\r\n")
+        exit_if_condition(out != "FooBar",
+                        "[ERROR] Command does not match")
 
-    out = port.recv_output()
-    port.send_input("\r\n")
-    exit_if_condition(out != "FooBar",
-                      "[ERROR] Command does not match")
-
+    print("Testing with ANSI Escpae Sequence...")
+    test_deleting_with(commands["delete"])
     port.clear_input()
+
+    print("Testing with ASCII character...")
+    test_deleting_with(commands["delete-ascii"])
+    port.clear_input()
+
     pass_test("deleting")
 
 

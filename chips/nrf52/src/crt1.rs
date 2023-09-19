@@ -146,7 +146,7 @@ pub unsafe extern "C" fn init() {
     // correctly for Tock. The bootloader _may_ set this for us, but it may not
     // so that any errors early in the Tock boot process trap back to the bootloader.
     // To be safe we unconditionally set the vector table.
-    scb::set_vector_table_offset(BASE_VECTORS.as_ptr() as *const ());
+    scb::set_vector_table_offset(BASE_VECTORS.as_ptr().cast::<()>());
 
     nvic::enable_all();
 }

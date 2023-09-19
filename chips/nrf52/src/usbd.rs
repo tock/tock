@@ -326,7 +326,7 @@ mod detail {
 
     impl<'a> EndpointRegisters<'a> {
         pub fn set_buffer(&self, slice: &'a [VolatileCell<u8>]) {
-            self.ptr.set(slice.as_ptr() as *const u8);
+            self.ptr.set(slice.as_ptr().cast::<u8>());
             self.maxcnt.write(Count::MAXCNT.val(slice.len() as u32));
         }
     }

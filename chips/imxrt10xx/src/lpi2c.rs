@@ -703,9 +703,9 @@ impl<'a> Lpi2c<'a> {
 
         // setting slave address
         self.registers.mier.modify(MIER::EPIE::CLEAR);
-        self.registers
-            .mtdr
-            .write(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
+        self.registers.mtdr.write(
+            MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << (1 + 1)) as u32),
+        );
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
         self.registers

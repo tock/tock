@@ -105,19 +105,25 @@ macro_rules! hmac_sha256_software_component_static {
 }
 
 pub struct HmacSha256SoftwareComponent<
-    S: digest::Sha256 + digest::DigestDataHash<'static, 32> + 'static,
+    S: digest::Sha256 + digest::DigestDataHash<'static, 32> + digest::Digest<'static, 32> + 'static,
 > {
     sha_256: &'static S,
 }
 
-impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32>> HmacSha256SoftwareComponent<S> {
+impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32> + digest::Digest<'static, 32>>
+    HmacSha256SoftwareComponent<S>
+{
     pub fn new(sha_256: &'static S) -> HmacSha256SoftwareComponent<S> {
         HmacSha256SoftwareComponent { sha_256 }
     }
 }
 
-impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32> + 'static> Component
-    for HmacSha256SoftwareComponent<S>
+impl<
+        S: digest::Sha256
+            + digest::DigestDataHash<'static, 32>
+            + digest::Digest<'static, 32>
+            + 'static,
+    > Component for HmacSha256SoftwareComponent<S>
 {
     type StaticInput = (
         &'static mut MaybeUninit<capsules_extra::hmac_sha256::HmacSha256Software<'static, S>>,
@@ -137,7 +143,7 @@ impl<S: digest::Sha256 + digest::DigestDataHash<'static, 32> + 'static> Componen
                 verify_buffer,
             ));
 
-        self.sha_256.set_client(hmac_sha256_sw);
+        kernel::hil::digest::Digest::set_client(self.sha_256, hmac_sha256_sw);
 
         hmac_sha256_sw
     }

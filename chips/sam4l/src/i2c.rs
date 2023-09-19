@@ -582,7 +582,7 @@ impl<'a> PeripheralManagement<TWIMClock> for I2CHw<'a> {
     }
 
     fn before_peripheral_access(&self, clock: &TWIMClock, _: &TWIMRegisters) {
-        if clock.is_enabled() == false {
+        if !clock.is_enabled() {
             clock.enable();
         }
     }
@@ -600,7 +600,7 @@ type TWIMRegisterManager<'a, 'm> = PeripheralManager<'m, I2CHw<'a>, TWIMClock>;
 impl<'a> PeripheralManagement<TWISClock> for I2CHw<'a> {
     type RegisterType = TWISRegisters;
 
-    fn get_registers<'b>(&'b self) -> &'b TWISRegisters {
+    fn get_registers(&self) -> &TWISRegisters {
         &*self.slave_mmio_address.as_ref().unwrap() // Unwrap fail = Access of non-existent slave
     }
 
@@ -609,7 +609,7 @@ impl<'a> PeripheralManagement<TWISClock> for I2CHw<'a> {
     }
 
     fn before_peripheral_access(&self, clock: &TWISClock, _: &TWISRegisters) {
-        if clock.is_enabled() == false {
+        if !clock.is_enabled() {
             clock.enable();
         }
     }

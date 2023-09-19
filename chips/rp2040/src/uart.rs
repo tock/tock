@@ -552,14 +552,9 @@ impl<'a> Uart<'a> {
     }
 
     pub fn is_configured(&self) -> bool {
-        if self.registers.uartcr.is_set(UARTCR::UARTEN)
+        self.registers.uartcr.is_set(UARTCR::UARTEN)
             && (self.registers.uartcr.is_set(UARTCR::RXE)
                 || self.registers.uartcr.is_set(UARTCR::TXE))
-        {
-            true
-        } else {
-            false
-        }
     }
 }
 

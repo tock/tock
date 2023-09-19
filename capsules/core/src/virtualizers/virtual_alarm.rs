@@ -151,7 +151,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         if enabled == 0 {
             //debug!("virtual_alarm: first alarm: set it.");
             self.mux.set_alarm(reference, dt);
-        } else if self.mux.firing.get() == false {
+        } else if !self.mux.firing.get() {
             // If firing is true, the mux will scan all the alarms after
             // firing and pick the soonest one so do not need to modify the
             // mux. Otherwise, this is an alarm

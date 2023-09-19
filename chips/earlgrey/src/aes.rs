@@ -280,7 +280,7 @@ impl<'a> Aes<'a> {
 
             self.wait_for_output_valid()?;
             self.read_block(i)?;
-            write_block = write_block + AES128_BLOCK_SIZE;
+            write_block += AES128_BLOCK_SIZE;
         }
 
         Ok(())
@@ -417,17 +417,14 @@ impl<'a> hil::symmetric_encryption::AES128<'a> for Aes<'a> {
             ));
         }
 
-        let ret;
         self.dest.replace(dest);
-        match source {
-            None => {
-                ret = self.do_crypt(start_index, stop_index, start_index);
-            }
+        let ret = match source {
+            None => self.do_crypt(start_index, stop_index, start_index),
             Some(src) => {
                 self.source.replace(src);
-                ret = self.do_crypt(start_index, stop_index, 0);
+                self.do_crypt(start_index, stop_index, 0)
             }
-        }
+        };
 
         if ret.is_ok() {
             // Schedule a deferred call
@@ -508,7 +505,7 @@ impl kernel::hil::symmetric_encryption::AES128CBC for Aes<'_> {
     }
 }
 
-impl<'a> DeferredCallClient for Aes<'_> {
+impl DeferredCallClient for Aes<'_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }

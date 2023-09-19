@@ -313,7 +313,7 @@ impl I2CClient for Fxos8700cq<'_> {
                 }
             }
             State::ReadAccelWait => {
-                if self.interrupt_pin1.read() == false {
+                if !self.interrupt_pin1.read() {
                     // Sample is already ready.
                     self.interrupt_pin1.disable_interrupts();
                     buffer[0] = Registers::OutXMsb as u8;

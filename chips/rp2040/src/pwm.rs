@@ -1089,13 +1089,13 @@ pub mod unit_tests {
         // The counter must run at less than full speed (div_int + div_frac / 16 > 1) to pass
         // advance_count()
         pwm.set_div_mode(channel_number, DivMode::FreeRunning);
-        assert_eq!(pwm.advance_count(channel_number), true);
+        assert!(pwm.advance_count(channel_number));
         assert_eq!(pwm.get_counter(channel_number), 2);
         pwm.set_enabled(channel_number, true);
         // No assert for retard count since it is impossible to predict how much the counter
         // will advance while running. However, the fact that the function returns true is a
         // good indicator that it does its job.
-        assert_eq!(pwm.retard_count(channel_number), true);
+        assert!(pwm.retard_count(channel_number));
         // Disabling PWM to prevent it from generating interrupts signals for next tests
         pwm.set_enabled(channel_number, false);
 
@@ -1112,12 +1112,12 @@ pub mod unit_tests {
         pwm.enable_interrupt(channel_number);
         pwm.set_counter(channel_number, 12345);
         pwm.advance_count(channel_number);
-        assert_eq!(pwm.get_interrupt_status(channel_number), true);
+        assert!(pwm.get_interrupt_status(channel_number));
         pwm.disable_interrupt(channel_number);
 
         // Testing clear_interrupt()
         pwm.clear_interrupt(channel_number);
-        assert_eq!(pwm.get_interrupt_status(channel_number), false);
+        assert!(!pwm.get_interrupt_status(channel_number));
 
         // Testing force_interrupt(), unforce_interrupt()
         pwm.force_interrupt(channel_number);
@@ -1125,10 +1125,10 @@ pub mod unit_tests {
             pwm.registers.intf.read(CH::CH),
             1 << (channel_number as u32)
         );
-        assert_eq!(pwm.get_interrupt_status(channel_number), true);
+        assert!(pwm.get_interrupt_status(channel_number));
         pwm.unforce_interrupt(channel_number);
         assert_eq!(pwm.registers.intf.read(CH::CH), 0);
-        assert_eq!(pwm.get_interrupt_status(channel_number), false);
+        assert!(!pwm.get_interrupt_status(channel_number));
 
         debug!("Channel {} works!", channel_number as usize);
     }

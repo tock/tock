@@ -669,7 +669,7 @@ impl<'a> AdcVirtualized<'a> {
                 match self
                     .apps
                     .enter(processid, |app, _| {
-                        if app.pending_command == true {
+                        if app.pending_command {
                             Err(ErrorCode::BUSY)
                         } else {
                             app.pending_command = true;
@@ -1009,12 +1009,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                         let skip_amt = app.app_buf_offset.get() / 2;
 
                         {
-                            let app_buf;
-                            if use0 {
-                                app_buf = &app_buf0;
-                            } else {
-                                app_buf = &app_buf1;
-                            }
+                            let app_buf = if use0 { &app_buf0 } else { &app_buf1 };
 
                             // next we should copy bytes to the app buffer
                             let _ = app_buf.mut_enter(|app_buf| {
@@ -1042,7 +1037,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                                         let mut val = sample;
                                         for byte in chunk.iter() {
                                             byte.set((val & 0xFF) as u8);
-                                            val = val >> 8;
+                                            val >>= 8;
                                         }
                                     }
                                 });

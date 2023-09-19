@@ -142,9 +142,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
         match credentials.format() {
             TbfFooterV2CredentialsType::SHA256 => {
                 self.hash.map(|h| {
-                    for i in 0..32 {
-                        h[i] = credentials.data()[i];
-                    }
+                    h[..32].copy_from_slice(&credentials.data()[..32]);
                 });
                 self.hasher.clear_data();
                 match self.hasher.add_data(SubSlice::new(binary)) {
@@ -202,7 +200,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
+impl ClientVerify<32_usize> for AppCheckerSha256 {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
@@ -235,7 +233,7 @@ impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl<'a> ClientHash<32_usize> for AppCheckerSha256 {
+impl ClientHash<32_usize> for AppCheckerSha256 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32_usize]) {}
 }
 

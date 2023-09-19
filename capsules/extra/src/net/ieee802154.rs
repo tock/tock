@@ -351,17 +351,15 @@ mod ie_control {
     pub const TYPE: u16 = 0x8000;
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 pub enum HeaderIE<'a> {
-    Undissected { element_id: u8, content: &'a [u8] },
+    Undissected {
+        element_id: u8,
+        content: &'a [u8],
+    },
+    #[default]
     Termination1,
     Termination2,
-}
-
-impl Default for HeaderIE<'_> {
-    fn default() -> Self {
-        HeaderIE::Termination1
-    }
 }
 
 impl HeaderIE<'_> {
@@ -397,7 +395,7 @@ impl HeaderIE<'_> {
         stream_done!(off);
     }
 
-    pub fn decode<'b>(buf: &'b [u8]) -> SResult<HeaderIE<'b>> {
+    pub fn decode(buf: &[u8]) -> SResult<HeaderIE<'_>> {
         let (off, ie_ctl_be) = dec_try!(buf; decode_u16);
         let ie_ctl = u16::from_be(ie_ctl_be);
 
@@ -422,16 +420,14 @@ impl HeaderIE<'_> {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 pub enum PayloadIE<'a> {
-    Undissected { group_id: u8, content: &'a [u8] },
+    Undissected {
+        group_id: u8,
+        content: &'a [u8],
+    },
+    #[default]
     Termination,
-}
-
-impl Default for PayloadIE<'_> {
-    fn default() -> Self {
-        PayloadIE::Termination
-    }
 }
 
 impl PayloadIE<'_> {
@@ -463,7 +459,7 @@ impl PayloadIE<'_> {
         stream_done!(off);
     }
 
-    pub fn decode<'b>(buf: &'b [u8]) -> SResult<PayloadIE<'b>> {
+    pub fn decode(buf: &[u8]) -> SResult<PayloadIE<'_>> {
         let (off, ie_ctl_be) = dec_try!(buf; decode_u16);
         let ie_ctl = u16::from_be(ie_ctl_be);
 

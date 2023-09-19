@@ -41,7 +41,7 @@ pub struct LiteXGPIORegisters<R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXGPIORegisters<R> {
-    fn ev<'a>(&'a self) -> LiteXGPIOEV<'a, R> {
+    fn ev(&self) -> LiteXGPIOEV<'_, R> {
         LiteXGPIOEV::<R>::new(
             &self.gpio_ev_status,
             &self.gpio_ev_pending,

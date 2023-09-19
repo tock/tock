@@ -26,7 +26,6 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
-use rp2040;
 
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -403,16 +402,16 @@ pub unsafe fn main() {
             // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
             // Used for Buzzer.
             // 2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
-            3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
-            4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
-            5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
-            6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
-            7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
-            20 => &peripherals.pins.get_pin(RPGpio::GPIO20),
-            21 => &peripherals.pins.get_pin(RPGpio::GPIO21),
-            22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
-            23 => &peripherals.pins.get_pin(RPGpio::GPIO23),
-            24 => &peripherals.pins.get_pin(RPGpio::GPIO24),
+            3 => peripherals.pins.get_pin(RPGpio::GPIO3),
+            4 => peripherals.pins.get_pin(RPGpio::GPIO4),
+            5 => peripherals.pins.get_pin(RPGpio::GPIO5),
+            6 => peripherals.pins.get_pin(RPGpio::GPIO6),
+            7 => peripherals.pins.get_pin(RPGpio::GPIO7),
+            20 => peripherals.pins.get_pin(RPGpio::GPIO20),
+            21 => peripherals.pins.get_pin(RPGpio::GPIO21),
+            22 => peripherals.pins.get_pin(RPGpio::GPIO22),
+            23 => peripherals.pins.get_pin(RPGpio::GPIO23),
+            24 => peripherals.pins.get_pin(RPGpio::GPIO24),
         ),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
@@ -574,7 +573,7 @@ pub unsafe fn main() {
         .finalize(components::pwm_mux_component_static!(rp2040::pwm::Pwm));
 
     let virtual_pwm_buzzer =
-        components::pwm::PwmPinUserComponent::new(&mux_pwm, rp2040::gpio::RPGpio::GPIO2)
+        components::pwm::PwmPinUserComponent::new(mux_pwm, rp2040::gpio::RPGpio::GPIO2)
             .finalize(components::pwm_pin_user_component_static!(rp2040::pwm::Pwm));
 
     let virtual_alarm_buzzer = static_init!(

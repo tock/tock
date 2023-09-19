@@ -254,7 +254,7 @@ const FRAG_TIMEOUT: u32 = 60;
 /// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
 pub trait SixlowpanRxClient {
-    fn receive<'a>(&self, buf: &'a [u8], len: usize, result: Result<(), ErrorCode>);
+    fn receive(&self, buf: &[u8], len: usize, result: Result<(), ErrorCode>);
 }
 
 pub mod lowpan_frag {
@@ -933,7 +933,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
             // Otherwise, we are in an inconsistent state and can fail.
             let packet = state.packet.take().unwrap();
 
-            // Filter non 7LoWPAN packets and return
+            // Filter non 6LoWPAN packets and return
             if !is_lowpan(payload) {
                 return (None, Ok(()));
             }

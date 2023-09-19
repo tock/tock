@@ -349,7 +349,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
                         upcalls
                             .schedule_upcall(
                                 upcalls::VALUE,
-                                (errorcode::into_statuscode(ret.into()), value_len, 0),
+                                (errorcode::into_statuscode(ret), value_len, 0),
                             )
                             .ok();
                     }

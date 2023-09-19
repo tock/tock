@@ -410,7 +410,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                                 0,
                                 (
                                     into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    if self.is_present.get() { 1 } else { 0 },
+                                    usize::from(self.is_present.get()),
                                     0,
                                 ),
                             )
@@ -520,7 +520,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                                 0,
                                 (
                                     into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    if status == Ok(()) { 1 } else { 0 },
+                                    usize::from(status == Ok(())),
                                     0,
                                 ),
                             )
@@ -541,7 +541,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                                 0,
                                 (
                                     into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    if status == Ok(()) { 1 } else { 0 },
+                                    usize::from(status == Ok(())),
                                     0,
                                 ),
                             )
@@ -586,10 +586,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm6dsoxtrI2C<'_, I> {
             2 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = LSM6DSOXAccelDataRate::from_usize(data1) {
-                        match self.set_accelerometer_power_mode(
-                            data_rate,
-                            if data2 != 0 { true } else { false },
-                        ) {
+                        match self.set_accelerometer_power_mode(data_rate, data2 != 0) {
                             Ok(()) => {
                                 self.syscall_process.set(process_id);
                                 CommandReturn::success()
@@ -607,10 +604,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm6dsoxtrI2C<'_, I> {
             3 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = LSM6DSOXGyroDataRate::from_usize(data1) {
-                        match self.set_gyroscope_power_mode(
-                            data_rate,
-                            if data2 != 0 { true } else { false },
-                        ) {
+                        match self.set_gyroscope_power_mode(data_rate, data2 != 0) {
                             Ok(()) => {
                                 self.syscall_process.set(process_id);
                                 CommandReturn::success()

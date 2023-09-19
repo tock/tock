@@ -460,9 +460,9 @@ unsafe fn setup() -> (
         LoRaThingsPlus,
         LoRaThingsPlus {
             alarm,
-            console,
-            gpio,
             led,
+            gpio,
+            console,
             i2c_master,
             external_spi_controller,
             sx1262_spi_controller,

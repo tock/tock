@@ -38,9 +38,9 @@ impl<P: hil::sensors::ProximityDriver<'static>> ProximityComponent<P> {
         driver_num: usize,
     ) -> ProximityComponent<P> {
         ProximityComponent {
+            sensor,
             board_kernel,
             driver_num,
-            sensor,
         }
     }
 }

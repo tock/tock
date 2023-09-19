@@ -636,10 +636,7 @@ impl Kernel {
                             Task::IPC((otherapp, ipc_type)) => {
                                 ipc.map_or_else(
                                     || {
-                                        assert!(
-                                            false,
-                                            "Kernel consistency error: IPC Task with no IPC"
-                                        );
+                                        panic!("Kernel consistency error: IPC Task with no IPC");
                                     },
                                     |ipc| {
                                         // TODO(alevy): this could error for a variety of reasons.
@@ -1408,7 +1405,7 @@ impl ProcessCheckerMachine {
             // process array changes under us, don't actually trust
             // this value.
             while proc_index < self.processes.len() && self.processes[proc_index].is_none() {
-                proc_index = proc_index + 1;
+                proc_index += 1;
                 self.process.set(proc_index);
                 self.footer.set(0);
             }
@@ -1601,7 +1598,7 @@ fn check_footer(
                 }
             }
         }
-        current_footer = current_footer + 1;
+        current_footer += 1;
     }
     FooterCheckResult::PastLastFooter
 }
@@ -1632,7 +1629,7 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
             }
             Ok(process_checker::CheckResult::Reject) => {
                 self.processes[self.process.get()].map(|p| {
-                    let _r = p.mark_credentials_fail(&self.approve_cap);
+                    p.mark_credentials_fail(&self.approve_cap);
                 });
                 self.process.set(self.process.get() + 1);
             }

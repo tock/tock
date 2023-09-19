@@ -351,9 +351,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                         // Copy the digest result into our data buffer. We must
                         // use our data buffer because it does not have a fixed
                         // size and we can use it with `SubSliceMut`.
-                        for i in 0..32 {
-                            data_buf[i] = digest_buf[i];
-                        }
+                        data_buf[..32].copy_from_slice(&digest_buf[..32]);
 
                         let mut lease_buf = SubSliceMut::new(data_buf);
                         lease_buf.slice(0..32);
