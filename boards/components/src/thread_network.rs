@@ -195,7 +195,7 @@ impl<
 
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        //crypt
+        // AES-128CCM setup
         let crypt_buf = s.7.write([0; CRYPT_SIZE]);
         let aes_ccm = s.8.write(
             capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM::new(
@@ -205,13 +205,12 @@ impl<
         );
         aes_ccm.setup(); //
 
-        // TODO: change initialization below
         let create_cap = create_capability!(NetworkCapabilityCreationCapability);
         let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));
         let udp_send = s.0.write(UDPSendStruct::new(self.udp_send_mux, udp_vis));
 
         // Can't use create_capability bc need capability to have a static lifetime
-        // so that UDP driver can use it as needed
+        // so that Thread driver can use it as needed
         struct DriverCap;
         unsafe impl capabilities::UdpDriverCapability for DriverCap {}
         static DRIVER_CAP: DriverCap = DriverCap;
@@ -225,16 +224,6 @@ impl<
 
         let send_buffer = s.4.write([0; MAX_PAYLOAD_LEN]);
         let recv_buffer = s.5.write([0; MAX_PAYLOAD_LEN]);
-
-        let a = sixlowpan::sixlowpan_state::Sixlowpan::new(
-            sixlowpan::sixlowpan_compression::Context {
-                prefix: [0; 16],
-                prefix_len: 0,
-                id: 0,
-                compress: false,
-            },
-            thread_virtual_alarm, // OK to reuse bc only used to get time, not set alarms
-        );
 
         let thread_network_driver = s.3.write(
             capsules_extra::net::thread::driver::ThreadNetworkDriver::new(
@@ -256,9 +245,6 @@ impl<
 
         udp_send.set_client(thread_network_driver);
         AES128CCM::set_client(aes_ccm, thread_network_driver);
-
-        // self.port_table
-        //     .set_user_ports(thread_network_driver, &DRIVER_CAP);
 
         let udp_driver_rcvr = s.6.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);

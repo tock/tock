@@ -14,7 +14,6 @@
 //! through each frame for transmission.
 
 use crate::net::ieee802154::{Header, MacAddress};
-use kernel::debug;
 use kernel::hil::radio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -180,7 +179,6 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
                 };
             }
         }
-        if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {}
         if addr_match {
             // debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
