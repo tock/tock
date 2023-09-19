@@ -293,12 +293,12 @@ pub mod tests {
     #[cfg(not(feature = "stm32f401"))] // Not needed for this chip model
     const PLL_FREQUENCY_MHZ: usize = 96;
 
-    #[cfg(any(
-        feature = "stm32f401",
-        feature = "stm32f412",
-        feature = "stm32f429",
-        feature = "stm32f446"
-    ))]
+    //#[cfg(any(
+        //feature = "stm32f401",
+        //feature = "stm32f412",
+        //feature = "stm32f429",
+        //feature = "stm32f446"
+    //))]
     /// Test for the mapping between the system clock frequency and flash latency
     ///
     /// It is highly recommended to run this test since everything else depends on it.
