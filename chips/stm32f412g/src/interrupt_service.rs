@@ -3,11 +3,12 @@
 // Copyright Tock Contributors 2022.
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
+use stm32f4xx::chip_specific::Stm32f412Specs;
 
 use crate::{stm32f412g_nvic, trng_registers};
 
 pub struct Stm32f412gDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, Stm32f412Specs>,
     // Once implemented, place Stm32f412g specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
 }
