@@ -154,7 +154,7 @@
 //!
 //! [^usage_note]: For the purpose of brevity, any error checking has been removed.
 
-use crate::chip_specific::ChipSpecs as ChipSpecsTrait;
+use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::clocks::pll::Pll;

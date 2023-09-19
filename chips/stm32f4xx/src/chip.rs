@@ -12,7 +12,7 @@ use kernel::platform::chip::InterruptService;
 use crate::dma;
 use crate::nvic;
 
-use crate::chip_specific::ChipSpecs as ChipSpecsTrait;
+use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 
 use core::marker::PhantomData;
 
