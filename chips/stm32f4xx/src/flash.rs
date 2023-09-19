@@ -294,10 +294,10 @@ pub mod tests {
     const PLL_FREQUENCY_MHZ: usize = 96;
 
     //#[cfg(any(
-        //feature = "stm32f401",
-        //feature = "stm32f412",
-        //feature = "stm32f429",
-        //feature = "stm32f446"
+    //feature = "stm32f401",
+    //feature = "stm32f412",
+    //feature = "stm32f429",
+    //feature = "stm32f446"
     //))]
     /// Test for the mapping between the system clock frequency and flash latency
     ///
