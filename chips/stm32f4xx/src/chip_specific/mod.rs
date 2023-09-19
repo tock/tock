@@ -16,6 +16,6 @@ pub(crate) mod flash;
 
 pub use chip_specs::stm32f401::Stm32f401Specs;
 pub use chip_specs::stm32f412::Stm32f412Specs;
-pub use chip_specs::stm32f429_specs::Stm32f429Specs;
+pub use chip_specs::stm32f429::Stm32f429Specs;
 pub use chip_specs::stm32f446::Stm32f446Specs;
 pub use chip_specs::ChipSpecs;
