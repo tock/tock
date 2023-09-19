@@ -60,7 +60,7 @@ struct FlashRegisters {
     /// Flash option control register
     optcr: ReadWrite<u32, OPTCR::Register>,
     /// Flash option control register 1
-    #[cfg(any(feature = "stm32f429",))]
+    #[cfg(feature = "stm32f429")]
     optcr1: ReadWrite<u32>,
 }
 
