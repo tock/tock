@@ -3,5 +3,5 @@
 // Copyright Tock Contributors 2022.
 
 pub mod driver;
-pub mod thread;
+pub mod thread_utils;
 pub mod tlv;

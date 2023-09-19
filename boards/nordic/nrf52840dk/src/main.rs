@@ -633,7 +633,6 @@ pub unsafe fn main() {
         udp_send_mux,
         udp_recv_mux,
         udp_port_table,
-        local_ip_ifaces,
         aes_mux,
         device_id_bottom_16,
         device_id,

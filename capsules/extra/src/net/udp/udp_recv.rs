@@ -34,7 +34,6 @@ impl<'a> MuxUdpReceiver<'a> {
     }
 
     pub fn add_client(&self, rcvr: &'a UDPReceiver<'a>) {
-        kernel::debug!("adding client");
         self.rcvr_list.push_tail(rcvr);
     }
 

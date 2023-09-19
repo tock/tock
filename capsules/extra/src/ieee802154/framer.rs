@@ -482,8 +482,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             }
                         };
 
-                        kernel::debug!("FRAME COUNTER {:?}", frame_counter);
-
                         // Compute ccm nonce
                         let nonce = get_ccm_nonce(&device_addr, frame_counter, security.level);
 

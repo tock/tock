@@ -27,7 +27,6 @@
 use capsules_core;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
-use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use capsules_extra::net::ipv6::ipv6_send::IP6SendStruct;
 use capsules_extra::net::network_capabilities::{
     AddrRange, NetworkCapability, PortRange, UdpVisibilityCapability,
@@ -111,7 +110,6 @@ pub struct ThreadNetworkComponent<
         &'static MuxUdpSender<'static, IP6SendStruct<'static, VirtualMuxAlarm<'static, A>>>,
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
     port_table: &'static UdpPortManager,
-    interface_list: &'static [IPAddr],
     aes_mux: &'static MuxAES128CCM<'static, B>,
     serial_num_bottom_16: u16,
     serial_num: [u8; 8],
@@ -132,7 +130,6 @@ impl<
         >,
         udp_recv_mux: &'static MuxUdpReceiver<'static>,
         port_table: &'static UdpPortManager,
-        interface_list: &'static [IPAddr],
         aes_mux: &'static MuxAES128CCM<'static, B>,
         serial_num_bottom_16: u16,
         serial_num: [u8; 8],
@@ -144,7 +141,6 @@ impl<
             udp_send_mux,
             udp_recv_mux,
             port_table,
-            interface_list,
             aes_mux,
             serial_num_bottom_16,
             serial_num,
@@ -247,7 +243,6 @@ impl<
                 thread_virtual_alarm,
                 self.board_kernel.create_grant(self.driver_num, &grant_cap),
                 self.serial_num,
-                self.interface_list,
                 MAX_PAYLOAD_LEN,
                 self.port_table,
                 kernel::utilities::leasable_buffer::SubSliceMut::new(send_buffer),
@@ -262,8 +257,8 @@ impl<
         udp_send.set_client(thread_network_driver);
         AES128CCM::set_client(aes_ccm, thread_network_driver);
 
-        self.port_table
-            .set_user_ports(thread_network_driver, &DRIVER_CAP);
+        // self.port_table
+        //     .set_user_ports(thread_network_driver, &DRIVER_CAP);
 
         let udp_driver_rcvr = s.6.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);
