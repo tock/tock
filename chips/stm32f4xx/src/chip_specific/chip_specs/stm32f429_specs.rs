@@ -4,14 +4,10 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
-//! Types that encompasses chip specifications
+//! STM32F429 specifications
 
-use crate::chip_specific::clock_constants::{ClockConstants, PllConstants, SystemClockConstants};
+use crate::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
 use crate::chip_specific::flash::{FlashLatency16, FlashChipSpecific};
-
-pub trait ChipSpecs: ClockConstants + FlashChipSpecific {}
-
-impl<T: ClockConstants + FlashChipSpecific> ChipSpecs for T {}
 
 pub enum Stm32f429Specs {}
 
