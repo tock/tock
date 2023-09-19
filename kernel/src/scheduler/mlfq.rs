@@ -25,10 +25,10 @@ use core::cell::Cell;
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time::{self, ConvertTicks, Ticks};
-use crate::kernel::StoppedExecutingReason;
 use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessId;
+use crate::process::StoppedExecutingReason;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 
 #[derive(Default)]
@@ -117,7 +117,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
                     let cur = queue.pop_head();
                     match cur {
                         Some(node) => {
-                            if node as *const _ == next.unwrap() as *const _ {
+                            if core::ptr::eq(node, next.unwrap()) {
                                 queue.push_head(node);
                                 // match! Put back on front
                                 return (next, idx);

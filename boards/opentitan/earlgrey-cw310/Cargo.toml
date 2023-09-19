@@ -37,8 +37,8 @@ default = ["fpga_cw310"]
 #
 #    - sim_verilator:
 #      OpenTitan SoC design simulated in Verilator.
-fpga_cw310 = ["earlgrey/config_fpga_cw310"]
-sim_verilator = ["earlgrey/config_sim_verilator"]
+fpga_cw310 = []
+sim_verilator = []
 # This is used to indicate that we should include tests that only pass on
 # hardware.
 hardware_tests = []

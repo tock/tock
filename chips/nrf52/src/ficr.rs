@@ -411,6 +411,15 @@ impl Ficr {
         }
     }
 
+    pub fn id(&self) -> [u8; 8] {
+        let lo = self.registers.deviceid0.read(DeviceId0::DEVICEID);
+        let hi = self.registers.deviceid1.read(DeviceId1::DEVICEID);
+        let mut addr = [0; 8];
+        addr[..4].copy_from_slice(&lo.to_le_bytes());
+        addr[4..].copy_from_slice(&hi.to_le_bytes());
+        addr
+    }
+
     pub fn address(&self) -> [u8; 6] {
         let lo = self
             .registers
@@ -449,26 +458,23 @@ impl Ficr {
             .deviceaddr1
             .read(DeviceAddress1::DEVICEADDRESS);
 
-        let h: [u8; 16] = [
-            '0' as u8, '1' as u8, '2' as u8, '3' as u8, '4' as u8, '5' as u8, '6' as u8, '7' as u8,
-            '8' as u8, '9' as u8, 'a' as u8, 'b' as u8, 'c' as u8, 'd' as u8, 'e' as u8, 'f' as u8,
-        ];
+        let h: [u8; 16] = *b"0123456789abcdef";
 
         buf[0] = h[((hi >> 12) & 0xf) as usize];
         buf[1] = h[((hi >> 8) & 0xf) as usize];
-        buf[2] = ':' as u8;
+        buf[2] = b':';
         buf[3] = h[((hi >> 4) & 0xf) as usize];
         buf[4] = h[((hi >> 0) & 0xf) as usize];
-        buf[5] = ':' as u8;
+        buf[5] = b':';
         buf[6] = h[((lo >> 28) & 0xf) as usize];
         buf[7] = h[((lo >> 24) & 0xf) as usize];
-        buf[8] = ':' as u8;
+        buf[8] = b':';
         buf[9] = h[((lo >> 20) & 0xf) as usize];
         buf[10] = h[((lo >> 16) & 0xf) as usize];
-        buf[11] = ':' as u8;
+        buf[11] = b':';
         buf[12] = h[((lo >> 12) & 0xf) as usize];
         buf[13] = h[((lo >> 8) & 0xf) as usize];
-        buf[14] = ':' as u8;
+        buf[14] = b':';
         buf[15] = h[((lo >> 4) & 0xf) as usize];
         buf[16] = h[((lo >> 0) & 0xf) as usize];
 

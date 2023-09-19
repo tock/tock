@@ -402,16 +402,12 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::IsPresent => {
-                let present = if status == Ok(()) && buffer[0] == 60 {
-                    true
-                } else {
-                    false
-                };
+                let present = status.is_ok() && buffer[0] == 60;
 
                 self.current_process.map(|process_id| {
                     let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if present { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(present), 0, 0))
                             .ok();
                     });
                 });
@@ -426,7 +422,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 self.current_process.map(|process_id| {
                     let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if set_power { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(set_power), 0, 0))
                             .ok();
                     });
                 });
@@ -447,10 +443,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 self.current_process.map(|process_id| {
                     let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
-                            .schedule_upcall(
-                                0,
-                                (if set_scale_and_resolution { 1 } else { 0 }, 0, 0),
-                            )
+                            .schedule_upcall(0, (usize::from(set_scale_and_resolution), 0, 0))
                             .ok();
                     });
                 });
@@ -523,15 +516,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                         upcalls
                             .schedule_upcall(
                                 0,
-                                (
-                                    if set_temperature_and_magneto_data_rate {
-                                        1
-                                    } else {
-                                        0
-                                    },
-                                    0,
-                                    0,
-                                ),
+                                (usize::from(set_temperature_and_magneto_data_rate), 0, 0),
                             )
                             .ok();
                     });
@@ -552,7 +537,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm303dlhcI2C<'_, I> {
                 self.current_process.map(|process_id| {
                     let _ = self.apps.enter(process_id, |_grant, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if set_range { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(set_range), 0, 0))
                             .ok();
                     });
                 });
@@ -685,8 +670,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
             2 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303AccelDataRate::from_usize(data1) {
-                        match self.set_power_mode(data_rate, if data2 != 0 { true } else { false })
-                        {
+                        match self.set_power_mode(data_rate, data2 != 0) {
                             Ok(()) => CommandReturn::success(),
                             Err(error) => CommandReturn::failure(error),
                         }
@@ -701,9 +685,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
             3 => {
                 if self.state.get() == State::Idle {
                     if let Some(scale) = Lsm303Scale::from_usize(data1) {
-                        match self
-                            .set_scale_and_resolution(scale, if data2 != 0 { true } else { false })
-                        {
+                        match self.set_scale_and_resolution(scale, data2 != 0) {
                             Ok(()) => CommandReturn::success(),
                             Err(error) => CommandReturn::failure(error),
                         }
@@ -718,10 +700,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for Lsm303dlhcI2C<'_, I> {
             4 => {
                 if self.state.get() == State::Idle {
                     if let Some(data_rate) = Lsm303MagnetoDataRate::from_usize(data1) {
-                        match self.set_temperature_and_magneto_data_rate(
-                            if data2 != 0 { true } else { false },
-                            data_rate,
-                        ) {
+                        match self.set_temperature_and_magneto_data_rate(data2 != 0, data_rate) {
                             Ok(()) => CommandReturn::success(),
                             Err(error) => CommandReturn::failure(error),
                         }

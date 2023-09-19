@@ -158,13 +158,11 @@ const PAGE_SIZE: usize = 4096;
 ///
 /// let pagebuffer = unsafe { static_init!(NrfPage, NrfPage::default()) };
 /// ```
-pub struct NrfPage(pub [u8; PAGE_SIZE as usize]);
+pub struct NrfPage(pub [u8; PAGE_SIZE]);
 
 impl Default for NrfPage {
     fn default() -> Self {
-        Self {
-            0: [0; PAGE_SIZE as usize],
-        }
+        Self([0; PAGE_SIZE])
     }
 }
 impl NrfPage {

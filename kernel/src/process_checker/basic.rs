@@ -142,9 +142,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
         match credentials.format() {
             TbfFooterV2CredentialsType::SHA256 => {
                 self.hash.map(|h| {
-                    for i in 0..32 {
-                        h[i] = credentials.data()[i];
-                    }
+                    h[..32].copy_from_slice(&credentials.data()[..32]);
                 });
                 self.hasher.clear_data();
                 match self.hasher.add_data(SubSlice::new(binary)) {
@@ -202,7 +200,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
+impl ClientVerify<32_usize> for AppCheckerSha256 {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
@@ -235,7 +233,7 @@ impl<'a> ClientVerify<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl<'a> ClientHash<32_usize> for AppCheckerSha256 {
+impl ClientHash<32_usize> for AppCheckerSha256 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32_usize]) {}
 }
 
@@ -245,7 +243,7 @@ impl Compress for AppCheckerSha256 {
     // Note that since these identifiers are only 31 bits, they do not
     // provide sufficient collision resistance to verify a unique identity.
     fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
-        let id: u32 = 0x8000000 as u32
+        let id: u32 = 0x8000000_u32
             | (credentials.data()[0] as u32) << 24
             | (credentials.data()[1] as u32) << 16
             | (credentials.data()[2] as u32) << 8
@@ -373,7 +371,7 @@ impl Compress for AppCheckerRsaSimulated<'_> {
         if data.len() < 4 {
             return ShortID::LocallyUnique;
         }
-        let id: u32 = 0x8000000 as u32
+        let id: u32 = 0x8000000_u32
             | (data[0] as u32) << 24
             | (data[1] as u32) << 16
             | (data[2] as u32) << 8

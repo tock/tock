@@ -539,7 +539,7 @@ impl<'a> Lpi2c<'a> {
     pub fn send_byte(&self) -> bool {
         if self.buffer.is_some() && self.tx_position.get() < self.tx_len.get() {
             self.buffer.map(|buf| {
-                let byte = buf[self.tx_position.get() as usize];
+                let byte = buf[self.tx_position.get()];
                 self.registers.mtdr.write(MTDR::DATA.val(byte as u32));
                 self.tx_position.set(self.tx_position.get() + 1);
             });
@@ -554,7 +554,7 @@ impl<'a> Lpi2c<'a> {
         let byte = self.registers.mrdr.read(MRDR::DATA) as u8;
         if self.buffer.is_some() && self.rx_position.get() < self.rx_len.get() {
             self.buffer.map(|buf| {
-                buf[self.rx_position.get() as usize] = byte;
+                buf[self.rx_position.get()] = byte;
                 self.rx_position.set(self.rx_position.get() + 1);
             });
             true
@@ -703,9 +703,9 @@ impl<'a> Lpi2c<'a> {
 
         // setting slave address
         self.registers.mier.modify(MIER::EPIE::CLEAR);
-        self.registers
-            .mtdr
-            .write(MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << 1 + 1) as u32));
+        self.registers.mtdr.write(
+            MTDR::CMD.val(100) + MTDR::DATA.val((self.slave_address.get() << (1 + 1)) as u32),
+        );
 
         self.registers.mcfgr1.modify(MCFGR1::PINCFG::CLEAR);
         self.registers

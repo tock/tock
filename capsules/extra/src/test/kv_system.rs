@@ -7,28 +7,6 @@
 //! This capsule implements the tests for KV system libraries in Tock.
 //! This is originally written to test TicKV.
 //!
-//! +-----------------------+
-//! |                       |
-//! |  Capsule using K-V    |
-//! |                       |
-//! +-----------------------+
-//!
-//!    hil::kv_store
-//!
-//! +-----------------------+
-//! |                       |
-//! |  K-V in Tock          |
-//! |                       |
-//! +-----------------------+
-//!
-//!    hil::kv_system
-//!
-//! +-----------------------+
-//! |                       |
-//! |  TicKV (this file)    |
-//! |                       |
-//! +-----------------------+
-//!
 //!    hil::flash
 //!
 //! The tests can be enabled by adding this line to the `main()`
@@ -52,10 +30,10 @@
 //! ---Finished TicKV Tests---
 //! ```
 
+use crate::tickv::{KVSystem, KVSystemClient, KeyType};
 use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::debug;
-use kernel::hil::kv_system::{self, KVSystem, KeyType};
 use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
@@ -92,7 +70,7 @@ impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
     }
 }
 
-impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::Client<T>
+impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> KVSystemClient<T>
     for KVSystemTest<'a, S, T>
 {
     fn generate_key_complete(

@@ -257,12 +257,12 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                 // set baud rate
                 match self.spi_master.set_rate(arg1 as u32) {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into()),
+                    Err(error) => CommandReturn::failure(error),
                 }
             }
             6 => {
                 // get baud rate
-                CommandReturn::success_u32(self.spi_master.get_rate() as u32)
+                CommandReturn::success_u32(self.spi_master.get_rate())
             }
             7 => {
                 // set phase
@@ -271,7 +271,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                     _ => self.spi_master.set_phase(ClockPhase::SampleTrailing),
                 } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into()),
+                    Err(error) => CommandReturn::failure(error),
                 }
             }
             8 => {
@@ -285,7 +285,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                     _ => self.spi_master.set_polarity(ClockPolarity::IdleHigh),
                 } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into()),
+                    Err(error) => CommandReturn::failure(error),
                 }
             }
             10 => {

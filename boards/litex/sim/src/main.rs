@@ -203,7 +203,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -218,7 +218,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
         self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
+        self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
         &()
@@ -539,8 +539,8 @@ pub unsafe fn main() {
         LiteXSimInterruptablePeripherals,
         LiteXSimInterruptablePeripherals {
             gpio0,
-            timer0,
             uart0,
+            timer0,
             ethmac0,
         }
     );

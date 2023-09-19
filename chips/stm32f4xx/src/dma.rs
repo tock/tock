@@ -1417,7 +1417,7 @@ impl Dma1Peripheral {
         }
     }
 
-    pub fn get_stream_idx<'a>(&self) -> usize {
+    pub fn get_stream_idx(&self) -> usize {
         usize::from(StreamId::from(*self) as u8)
     }
 }
@@ -1593,7 +1593,7 @@ impl Dma2Peripheral {
         }
     }
 
-    pub fn get_stream_idx<'a>(&self) -> usize {
+    pub fn get_stream_idx(&self) -> usize {
         usize::from(StreamId::from(*self) as u8)
     }
 }

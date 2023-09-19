@@ -55,7 +55,6 @@ pub struct AesDriver<'a, A: AES128<'a> + AES128CCM<'static> + AES128GCM<'static>
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -91,25 +90,19 @@ impl<
             self.apps
                 .enter(processid, |app, kernel_data| {
                     self.aes.enable();
-                    let ret = if let Some(op) = &app.aes_operation {
-                        match op {
-                            AesOperation::AES128Ctr(encrypt) => {
-                                self.aes.set_mode_aes128ctr(*encrypt)
-                            }
-                            AesOperation::AES128CBC(encrypt) => {
-                                self.aes.set_mode_aes128cbc(*encrypt)
-                            }
-                            AesOperation::AES128ECB(encrypt) => {
-                                self.aes.set_mode_aes128ecb(*encrypt)
-                            }
-                            AesOperation::AES128CCM(_encrypt) => Ok(()),
-                            AesOperation::AES128GCM(_encrypt) => Ok(()),
+                    match app.aes_operation {
+                        Some(AesOperation::AES128Ctr(encrypt)) => {
+                            self.aes.set_mode_aes128ctr(encrypt)?
                         }
-                    } else {
-                        Err(ErrorCode::INVAL)
-                    };
-                    if ret.is_err() {
-                        return ret;
+                        Some(AesOperation::AES128CBC(encrypt)) => {
+                            self.aes.set_mode_aes128cbc(encrypt)?
+                        }
+                        Some(AesOperation::AES128ECB(encrypt)) => {
+                            self.aes.set_mode_aes128ecb(encrypt)?
+                        }
+                        Some(AesOperation::AES128CCM(_encrypt)) => {}
+                        Some(AesOperation::AES128GCM(_encrypt)) => {}
+                        _ => return Err(ErrorCode::INVAL),
                     }
 
                     kernel_data
@@ -134,21 +127,15 @@ impl<
                                             AesOperation::AES128Ctr(_)
                                             | AesOperation::AES128CBC(_)
                                             | AesOperation::AES128ECB(_) => {
-                                                if let Err(e) = AES128::set_key(self.aes, buf) {
-                                                    return Err(e);
-                                                }
+                                                AES128::set_key(self.aes, buf)?;
                                                 Ok(())
                                             }
                                             AesOperation::AES128CCM(_) => {
-                                                if let Err(e) = AES128CCM::set_key(self.aes, buf) {
-                                                    return Err(e);
-                                                }
+                                                AES128CCM::set_key(self.aes, buf)?;
                                                 Ok(())
                                             }
                                             AesOperation::AES128GCM(_) => {
-                                                if let Err(e) = AES128GCM::set_key(self.aes, buf) {
-                                                    return Err(e);
-                                                }
+                                                AES128GCM::set_key(self.aes, buf)?;
                                                 Ok(())
                                             }
                                         }
@@ -182,25 +169,15 @@ impl<
                                             AesOperation::AES128Ctr(_)
                                             | AesOperation::AES128CBC(_)
                                             | AesOperation::AES128ECB(_) => {
-                                                if let Err(e) = AES128::set_iv(self.aes, buf) {
-                                                    return Err(e);
-                                                }
+                                                AES128::set_iv(self.aes, buf)?;
                                                 Ok(())
                                             }
                                             AesOperation::AES128CCM(_) => {
-                                                if let Err(e) =
-                                                    AES128CCM::set_nonce(self.aes, &buf[0..13])
-                                                {
-                                                    return Err(e);
-                                                }
+                                                AES128CCM::set_nonce(self.aes, &buf[0..13])?;
                                                 Ok(())
                                             }
                                             AesOperation::AES128GCM(_) => {
-                                                if let Err(e) =
-                                                    AES128GCM::set_iv(self.aes, &buf[0..13])
-                                                {
-                                                    return Err(e);
-                                                }
+                                                AES128GCM::set_iv(self.aes, &buf[0..13])?;
                                                 Ok(())
                                             }
                                         }
@@ -290,16 +267,14 @@ impl<
                                         }
                                     }
 
-                                    if let Err(e) = self.calculate_output(
+                                    self.calculate_output(
                                         op,
                                         app.aoff.get(),
                                         app.moff.get(),
                                         app.mlen.get(),
                                         app.mic_len.get(),
                                         app.confidential.get(),
-                                    ) {
-                                        return Err(e);
-                                    }
+                                    )?;
                                     Ok(())
                                 } else {
                                     Err(ErrorCode::FAIL)
@@ -575,7 +550,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -653,7 +627,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -731,7 +704,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -891,16 +863,14 @@ impl<
                                         )?;
 
                                         if let Some(op) = app.aes_operation.as_ref() {
-                                            if let Err(e) = self.calculate_output(
+                                            self.calculate_output(
                                                 op,
                                                 app.aoff.get(),
                                                 app.moff.get(),
                                                 app.mlen.get(),
                                                 app.mic_len.get(),
                                                 app.confidential.get(),
-                                            ) {
-                                                return Err(e);
-                                            }
+                                            )?;
                                             Ok(())
                                         } else {
                                             Err(ErrorCode::FAIL)

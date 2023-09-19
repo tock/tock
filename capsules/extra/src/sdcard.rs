@@ -1246,7 +1246,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         // if there is no detect pin, assume an sd card is installed
         self.detect_pin.get().map_or(true, |pin| {
             // sd card detection pin is active low
-            pin.read() == false
+            !pin.read()
         })
     }
 
@@ -1642,7 +1642,7 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
                                             // copy over write data from application
                                             // Limit to minimum length between kernel_buf,
                                             // write_buffer, and 512 (block size)
-                                            for (kernel_byte, ref write_byte) in kernel_buf
+                                            for (kernel_byte, write_byte) in kernel_buf
                                                 .iter_mut()
                                                 .zip(write_buffer.iter())
                                                 .take(512)

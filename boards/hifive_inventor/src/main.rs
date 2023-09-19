@@ -92,7 +92,7 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -109,7 +109,7 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
         self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
+        self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
         &()

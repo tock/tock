@@ -1057,9 +1057,11 @@ impl<'a> gpio::Output for GpioPin<'a> {
         } else {
             cur_value = (regs.wtsb.get() & 1 << self.pin as usize) != 0;
             if cur_value {
-                regs.wtb.set(1 << self.pin as usize - 32 | regs.wtsb.get());
+                regs.wtb
+                    .set(1 << (self.pin as usize - 32) | regs.wtsb.get());
             } else {
-                regs.wtb.set(0 << self.pin as usize - 32 | regs.wtsb.get());
+                regs.wtb
+                    .set(0 << (self.pin as usize - 32) | regs.wtsb.get());
             }
         }
 

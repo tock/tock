@@ -130,9 +130,7 @@ impl<'a> AT24C<'a> {
 
             let write_len = cmp::min(txbuffer.len() - 2, buf.0.len());
 
-            for i in 0..write_len {
-                txbuffer[i + 2] = buf.0[i];
-            }
+            txbuffer[2..(write_len + 2)].copy_from_slice(&buf.0[..write_len]);
 
             self.i2c.enable();
             self.state.set(State::Writing);
@@ -184,9 +182,7 @@ impl I2CClient for AT24C<'static> {
                 self.state.set(State::Idle);
                 self.i2c.disable();
                 if let Some(client_page) = self.client_page.take() {
-                    for i in 0..PAGE_SIZE {
-                        client_page.0[i] = buffer[i];
-                    }
+                    client_page.0[..PAGE_SIZE].copy_from_slice(&buffer[..PAGE_SIZE]);
                     self.buffer.replace(buffer);
                     self.flash_client.map(|client| {
                         if status.is_err() {

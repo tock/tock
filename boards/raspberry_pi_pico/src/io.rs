@@ -27,7 +27,7 @@ impl Writer {
         self.uart.set(uart);
     }
 
-    fn configure_uart<'a>(&self, uart: &'a Uart) {
+    fn configure_uart(&self, uart: &Uart) {
         if !uart.is_configured() {
             let parameters = Parameters {
                 baud_rate: 115200,
@@ -46,7 +46,7 @@ impl Writer {
         }
     }
 
-    fn write_to_uart<'a>(&self, uart: &'a Uart, buf: &[u8]) {
+    fn write_to_uart(&self, uart: &Uart, buf: &[u8]) {
         for &c in buf {
             uart.send_byte(c);
         }

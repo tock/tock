@@ -25,8 +25,19 @@ use kernel::{ErrorCode, ProcessId};
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// Frame is received
+    pub const FRAME_RECEIVED: usize = 0;
+    /// Frame is transmitted
+    pub const FRAME_TRANSMITTED: usize = 1;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 2;
+}
+
 /// Ids for read-only allow buffers
 mod ro_allow {
+    /// Write buffer. Contains the frame payload to be transmitted.
     pub const WRITE: usize = 0;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 1;
@@ -34,7 +45,13 @@ mod ro_allow {
 
 /// Ids for read-write allow buffers
 mod rw_allow {
+    /// Read buffer. Will contain the received frame.
     pub const READ: usize = 0;
+    /// Config buffer.
+    ///
+    /// Used to contain miscellaneous data associated with some commands because
+    /// the system call parameters / return codes are not enough to convey the
+    /// desired information.
     pub const CFG: usize = 1;
     /// The number of allow buffers the kernel stores for this grant
     pub const COUNT: u8 = 2;
@@ -43,19 +60,10 @@ mod rw_allow {
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Ieee802154 as usize;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 struct DeviceDescriptor {
     short_addr: u16,
     long_addr: [u8; 8],
-}
-
-impl Default for DeviceDescriptor {
-    fn default() -> Self {
-        DeviceDescriptor {
-            short_addr: 0,
-            long_addr: [0; 8],
-        }
-    }
 }
 
 /// The Key ID mode mapping expected by the userland driver
@@ -193,7 +201,7 @@ pub struct RadioDriver<'a> {
     /// Grant of apps that use this radio driver.
     apps: Grant<
         App,
-        UpcallCount<2>,
+        UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
@@ -218,7 +226,7 @@ impl<'a> RadioDriver<'a> {
         mac: &'a dyn device::MacDevice<'a>,
         grant: Grant<
             App,
-            UpcallCount<2>,
+            UpcallCount<{ upcall::COUNT }>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
@@ -475,7 +483,7 @@ impl DeferredCallClient for RadioDriver<'static> {
                 // Unwrap fail = missing processid
                 upcalls
                     .schedule_upcall(
-                        1,
+                        upcall::FRAME_TRANSMITTED,
                         (
                             kernel::errorcode::into_statuscode(
                                 self.saved_result.unwrap_or_panic(), // Unwrap fail = missing result
@@ -524,28 +532,6 @@ impl framer::KeyProcedure for RadioDriver<'_> {
 }
 
 impl SyscallDriver for RadioDriver<'_> {
-    /// Setup buffers to read/write from.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Read buffer. Will contain the received frame.
-    /// - `1`: Config buffer. Used to contain miscellaneous data associated with
-    ///        some commands because the system call parameters / return codes are
-    ///        not enough to convey the desired information.
-
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Write buffer. Contains the frame payload to be transmitted.
-
-    // Setup callbacks.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Setup callback for when frame is received.
-    // - `1`: Setup callback for when frame is transmitted.
-
     /// IEEE 802.15.4 MAC device control.
     ///
     /// For some of the below commands, one 32-bit argument is not enough to
@@ -879,7 +865,7 @@ impl SyscallDriver for RadioDriver<'_> {
                         |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
                             Ok(_) => self.do_next_tx_sync(processid).into(),
-                            Err(e) => CommandReturn::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e),
                         },
                     )
             }
@@ -899,7 +885,7 @@ impl device::TxClient for RadioDriver<'_> {
             let _ = self.apps.enter(processid, |_app, upcalls| {
                 upcalls
                     .schedule_upcall(
-                        1,
+                        upcall::FRAME_TRANSMITTED,
                         (
                             kernel::errorcode::into_statuscode(result),
                             acked as usize,
@@ -952,7 +938,7 @@ impl device::RxClient for RadioDriver<'_> {
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
                 kernel_data
-                    .schedule_upcall(0, (pans, dst_addr, src_addr))
+                    .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
                     .ok();
             }
         });

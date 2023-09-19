@@ -158,9 +158,7 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
                     // page or more.
 
                     // Copy data into page buffer.
-                    for i in 0..page_size {
-                        pagebuffer.as_mut()[i] = buffer[i];
-                    }
+                    pagebuffer.as_mut()[..page_size].copy_from_slice(&buffer[..page_size]);
 
                     self.buffer.replace(buffer);
                     self.address.set(address + page_size);
@@ -209,9 +207,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                     let buffer_index = self.buffer_index.get();
 
                     // Copy what we read from the page buffer to the user buffer.
-                    for i in 0..len {
-                        buffer[buffer_index + i] = pagebuffer.as_mut()[page_index + i];
-                    }
+                    buffer[buffer_index..(len + buffer_index)]
+                        .copy_from_slice(&pagebuffer.as_mut()[page_index..(len + page_index)]);
 
                     // Decide if we are done.
                     let new_len = self.remaining_length.get() - len;
@@ -253,9 +250,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                     let page_number = self.address.get() / page_size;
 
                     // Copy what we read from the page buffer to the user buffer.
-                    for i in 0..len {
-                        pagebuffer.as_mut()[page_index + i] = buffer[buffer_index + i];
-                    }
+                    pagebuffer.as_mut()[page_index..(len + page_index)]
+                        .copy_from_slice(&buffer[buffer_index..(len + buffer_index)]);
 
                     // Do the write.
                     self.buffer.replace(buffer);
@@ -289,9 +285,8 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
                 let page_number = self.address.get() / page_size;
 
                 // Copy data into page buffer.
-                for i in 0..page_size {
-                    pagebuffer.as_mut()[i] = buffer[buffer_index + i];
-                }
+                pagebuffer.as_mut()[..page_size]
+                    .copy_from_slice(&buffer[buffer_index..(page_size + buffer_index)]);
 
                 self.buffer.replace(buffer);
                 self.remaining_length.subtract(page_size);

@@ -119,6 +119,17 @@ macro_rules! static_init_test {
     }};
 }
 
+/// The only 'test_case' for flash_ctrl as directly invoked by the test runner,
+/// this calls all the other tests, preserving the order in which they must
+/// be ran.
+#[test_case]
+fn flash_ctrl_tester() {
+    flash_ctrl_read_write_page();
+    flash_ctrl_erase_page();
+    flash_ctrl_mp_basic();
+    flash_ctrl_mp_functionality();
+}
+
 // Note: the tests below need to run in a particular order, hence the a, b, c...
 // function name prefix (test runner seems to invoke them alphabetically).
 
@@ -126,8 +137,7 @@ macro_rules! static_init_test {
 ///
 /// Compare the data we wrote is stored in flash with a
 /// successive read.
-#[test_case]
-fn a_flash_ctrl_read_write_page() {
+fn flash_ctrl_read_write_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
@@ -186,8 +196,7 @@ fn a_flash_ctrl_read_write_page() {
 /// A page erased should set all bits to `1`s or all bytes in page to
 /// `0xFF`. Assert this is true after writing data to a page and erasing
 /// the page.
-#[test_case]
-fn b_flash_ctrl_erase_page() {
+fn flash_ctrl_erase_page() {
     let perf = unsafe { PERIPHERALS.unwrap() };
     let flash_ctl = &perf.flash_ctrl;
 
@@ -241,9 +250,8 @@ fn b_flash_ctrl_erase_page() {
     run_kernel_op(100);
 }
 
-#[test_case]
 /// Tests: The basic api functionality and error handling of invalid arguments.
-fn c_flash_ctrl_mp_basic() {
+fn flash_ctrl_mp_basic() {
     debug!("[FLASH_CTRL] Test memory protection api....");
 
     #[cfg(feature = "hardware_tests")]
@@ -327,10 +335,9 @@ fn c_flash_ctrl_mp_basic() {
     run_kernel_op(100);
 }
 
-#[test_case]
 /// Tests the memory protection functionality of the flash_ctrl
 /// Test: Setup memory protection -> Do bad OP/cause an MP Fault -> Expect fail/assert Err(FlashMPFault)
-fn d_flash_ctrl_mp_functionality() {
+fn flash_ctrl_mp_functionality() {
     debug!("[FLASH_CTRL] Test memory protection functionality....");
 
     #[cfg(feature = "hardware_tests")]

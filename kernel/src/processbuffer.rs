@@ -316,7 +316,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 
     fn ptr(&self) -> *const u8 {
         if self.len == 0 {
-            0x0 as *const u8
+            core::ptr::null::<u8>()
         } else {
             self.ptr
         }
@@ -358,7 +358,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 impl Default for ReadOnlyProcessBuffer {
     fn default() -> Self {
         ReadOnlyProcessBuffer {
-            ptr: 0x0 as *mut u8,
+            ptr: core::ptr::null_mut::<u8>(),
             len: 0,
             process_id: None,
         }
@@ -517,7 +517,7 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
 
     fn ptr(&self) -> *const u8 {
         if self.len == 0 {
-            0x0 as *const u8
+            core::ptr::null::<u8>()
         } else {
             self.ptr
         }
@@ -680,9 +680,7 @@ pub struct ReadableProcessSlice {
     slice: [ReadableProcessByte],
 }
 
-fn cast_byte_slice_to_process_slice<'a>(
-    byte_slice: &'a [ReadableProcessByte],
-) -> &'a ReadableProcessSlice {
+fn cast_byte_slice_to_process_slice(byte_slice: &[ReadableProcessByte]) -> &ReadableProcessSlice {
     // As ReadableProcessSlice is a transparent wrapper around its inner type,
     // [ReadableProcessByte], we can safely transmute a reference to the inner
     // type as a reference to the outer type with the same lifetime.
@@ -867,7 +865,7 @@ pub struct WriteableProcessSlice {
     slice: [Cell<u8>],
 }
 
-fn cast_cell_slice_to_process_slice<'a>(cell_slice: &'a [Cell<u8>]) -> &'a WriteableProcessSlice {
+fn cast_cell_slice_to_process_slice(cell_slice: &[Cell<u8>]) -> &WriteableProcessSlice {
     // # Safety
     //
     // As WriteableProcessSlice is a transparent wrapper around its inner type,

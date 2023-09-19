@@ -34,17 +34,12 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AirQuality as usize;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Default)]
 enum Operation {
+    #[default]
     None,
     CO2,
     TVOC,
-}
-
-impl Default for Operation {
-    fn default() -> Self {
-        Operation::None
-    }
 }
 
 #[derive(Default)]

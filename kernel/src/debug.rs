@@ -81,7 +81,7 @@ use crate::ErrorCode;
 pub trait IoWrite {
     fn write(&mut self, buf: &[u8]) -> usize;
 
-    fn write_ring_buffer<'a>(&mut self, buf: &RingBuffer<'a, u8>) -> usize {
+    fn write_ring_buffer(&mut self, buf: &RingBuffer<'_, u8>) -> usize {
         let (left, right) = buf.as_slices();
         let mut total = 0;
         if let Some(slice) = left {
@@ -582,7 +582,7 @@ pub fn debug_slice(slice: &ReadableProcessSlice) -> usize {
         let buf: [u8; 1] = [b.get(); 1];
         let count = writer.write(&buf);
         if count > 0 {
-            total = total + count;
+            total += count;
         } else {
             break;
         }

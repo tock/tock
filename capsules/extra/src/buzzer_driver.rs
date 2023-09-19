@@ -182,16 +182,8 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
     /// to the current active_app. Otherwise, a different app is trying to
     /// use the driver while it is already in use, therefore it is not valid.
     pub fn is_valid_app(&self, processid: ProcessId) -> bool {
-        self.active_app.map_or(
-            true,
-            |owning_app| {
-                if owning_app == processid {
-                    true
-                } else {
-                    false
-                }
-            },
-        )
+        self.active_app
+            .map_or(true, |owning_app| owning_app == processid)
     }
 }
 

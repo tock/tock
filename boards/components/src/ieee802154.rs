@@ -40,7 +40,7 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::radio;
+use kernel::hil::radio::{self, MAX_BUF_SIZE};
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
 // This buffer is used as an intermediate buffer for AES CCM encryption. An
@@ -103,6 +103,7 @@ macro_rules! ieee802154_component_static {
         let radio_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let radio_rx_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let crypt_buf = kernel::static_buf!([u8; components::ieee802154::CRYPT_SIZE]);
+        let radio_rx_crypt_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
 
         (
             virtual_aes,
@@ -114,6 +115,7 @@ macro_rules! ieee802154_component_static {
             radio_buf,
             radio_rx_buf,
             crypt_buf,
+            radio_rx_crypt_buf,
         )
     };};
 }
@@ -128,6 +130,7 @@ pub struct Ieee802154Component<
     aes_mux: &'static MuxAES128CCM<'static, A>,
     pan_id: capsules_extra::net::ieee802154::PanID,
     short_addr: u16,
+    long_addr: [u8; 8],
 }
 
 impl<
@@ -142,6 +145,7 @@ impl<
         aes_mux: &'static MuxAES128CCM<'static, A>,
         pan_id: capsules_extra::net::ieee802154::PanID,
         short_addr: u16,
+        long_addr: [u8; 8],
     ) -> Self {
         Self {
             board_kernel,
@@ -150,6 +154,7 @@ impl<
             aes_mux,
             pan_id,
             short_addr,
+            long_addr,
         }
     }
 }
@@ -177,6 +182,7 @@ impl<
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; CRYPT_SIZE]>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
     );
     type Output = (
         &'static capsules_extra::ieee802154::RadioDriver<'static>,
@@ -201,10 +207,14 @@ impl<
         self.radio.set_transmit_client(awake_mac);
         self.radio.set_receive_client(awake_mac, radio_rx_buf);
 
+        let radio_rx_crypt_buf = static_buffer.9.write([0; MAX_BUF_SIZE]);
+
         let mac_device = static_buffer
             .2
             .write(capsules_extra::ieee802154::framer::Framer::new(
-                awake_mac, aes_ccm,
+                awake_mac,
+                aes_ccm,
+                kernel::utilities::leasable_buffer::SubSliceMut::new(radio_rx_crypt_buf),
             ));
         AES128CCM::set_client(aes_ccm, mac_device);
         awake_mac.set_transmit_client(mac_device);
@@ -243,6 +253,7 @@ impl<
         userspace_mac.set_receive_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
+        userspace_mac.set_address_long(self.long_addr);
 
         (radio_driver, mux_mac)
     }

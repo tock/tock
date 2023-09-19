@@ -72,31 +72,6 @@ pub struct Kernel {
     checker: ProcessCheckerMachine,
 }
 
-/// Enum used to inform scheduler why a process stopped executing (aka why
-/// `do_process()` returned).
-#[derive(PartialEq, Eq)]
-pub enum StoppedExecutingReason {
-    /// The process returned because it is no longer ready to run.
-    NoWorkLeft,
-
-    /// The process faulted, and the board restart policy was configured such
-    /// that it was not restarted and there was not a kernel panic.
-    StoppedFaulted,
-
-    /// The kernel stopped the process.
-    Stopped,
-
-    /// The process was preempted because its timeslice expired.
-    TimesliceExpired,
-
-    /// The process returned because it was preempted by the kernel. This can
-    /// mean that kernel work became ready (most likely because an interrupt
-    /// fired and the kernel thread needs to execute the bottom half of the
-    /// interrupt), or because the scheduler no longer wants to execute that
-    /// process.
-    KernelPreemption,
-}
-
 /// Represents the different outcomes when trying to allocate a grant region
 enum AllocResult {
     NoAllocation,
@@ -523,7 +498,7 @@ impl Kernel {
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
         timeslice_us: Option<u32>,
-    ) -> (StoppedExecutingReason, Option<u32>) {
+    ) -> (process::StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
         // without any timeslice restrictions. Note, a chip may not provide a
         // real scheduler timer implementation even if a timeslice is requested.
@@ -542,7 +517,7 @@ impl Kernel {
 
         // Need to track why the process is no longer executing so that we can
         // inform the scheduler.
-        let mut return_reason = StoppedExecutingReason::NoWorkLeft;
+        let mut return_reason = process::StoppedExecutingReason::NoWorkLeft;
 
         // Since the timeslice counts both the process's execution time and the
         // time spent in the kernel on behalf of the process (setting it up and
@@ -558,7 +533,7 @@ impl Kernel {
             if stop_running {
                 // Process ran out of time while the kernel was executing.
                 process.debug_timeslice_expired();
-                return_reason = StoppedExecutingReason::TimesliceExpired;
+                return_reason = process::StoppedExecutingReason::TimesliceExpired;
                 break;
             }
 
@@ -569,7 +544,7 @@ impl Kernel {
                     .continue_process(process.processid(), chip)
             };
             if !continue_process {
-                return_reason = StoppedExecutingReason::KernelPreemption;
+                return_reason = process::StoppedExecutingReason::KernelPreemption;
                 break;
             }
 
@@ -577,7 +552,7 @@ impl Kernel {
             // try to run it. This case can happen if a process faults and is
             // stopped, for example.
             if !process.ready() {
-                return_reason = StoppedExecutingReason::NoWorkLeft;
+                return_reason = process::StoppedExecutingReason::NoWorkLeft;
                 break;
             }
 
@@ -620,7 +595,7 @@ impl Kernel {
                             if scheduler_timer.get_remaining_us().is_none() {
                                 // This interrupt was a timeslice expiration.
                                 process.debug_timeslice_expired();
-                                return_reason = StoppedExecutingReason::TimesliceExpired;
+                                return_reason = process::StoppedExecutingReason::TimesliceExpired;
                                 break;
                             }
                             // Go to the beginning of loop to determine whether
@@ -661,10 +636,7 @@ impl Kernel {
                             Task::IPC((otherapp, ipc_type)) => {
                                 ipc.map_or_else(
                                     || {
-                                        assert!(
-                                            false,
-                                            "Kernel consistency error: IPC Task with no IPC"
-                                        );
+                                        panic!("Kernel consistency error: IPC Task with no IPC");
                                     },
                                     |ipc| {
                                         // TODO(alevy): this could error for a variety of reasons.
@@ -729,11 +701,11 @@ impl Kernel {
                     panic!("Attempted to schedule an unrunnable process");
                 }
                 process::State::StoppedRunning => {
-                    return_reason = StoppedExecutingReason::Stopped;
+                    return_reason = process::StoppedExecutingReason::Stopped;
                     break;
                 }
                 process::State::StoppedYielded => {
-                    return_reason = StoppedExecutingReason::Stopped;
+                    return_reason = process::StoppedExecutingReason::Stopped;
                     break;
                 }
             }
@@ -744,7 +716,7 @@ impl Kernel {
         let time_executed_us = timeslice_us.map_or(None, |timeslice| {
             // Note, we cannot call `.get_remaining_us()` again if it has previously
             // returned `None`, so we _must_ check the return reason first.
-            if return_reason == StoppedExecutingReason::TimesliceExpired {
+            if return_reason == process::StoppedExecutingReason::TimesliceExpired {
                 // used the whole timeslice
                 Some(timeslice)
             } else {
@@ -1433,7 +1405,7 @@ impl ProcessCheckerMachine {
             // process array changes under us, don't actually trust
             // this value.
             while proc_index < self.processes.len() && self.processes[proc_index].is_none() {
-                proc_index = proc_index + 1;
+                proc_index += 1;
                 self.process.set(proc_index);
                 self.footer.set(0);
             }
@@ -1541,7 +1513,7 @@ fn check_footer(
     let flash_start_ptr = process.get_addresses().flash_start as *const u8;
     let flash_start = flash_start_ptr as usize;
     let flash_integrity_len = footers_position - flash_start;
-    let flash_end = process.get_addresses().flash_end as usize;
+    let flash_end = process.get_addresses().flash_end;
     let footers_len = flash_end - footers_position;
 
     if config::CONFIG.debug_process_credentials {
@@ -1626,7 +1598,7 @@ fn check_footer(
                 }
             }
         }
-        current_footer = current_footer + 1;
+        current_footer += 1;
     }
     FooterCheckResult::PastLastFooter
 }
@@ -1657,7 +1629,7 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
             }
             Ok(process_checker::CheckResult::Reject) => {
                 self.processes[self.process.get()].map(|p| {
-                    let _r = p.mark_credentials_fail(&self.approve_cap);
+                    p.mark_credentials_fail(&self.approve_cap);
                 });
                 self.process.set(self.process.get() + 1);
             }

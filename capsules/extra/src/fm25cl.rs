@@ -237,9 +237,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient for FM25CL<
                     let write_len =
                         cmp::min(write_buffer.len(), self.client_write_len.get() as usize);
 
-                    for i in 0..write_len {
-                        write_buffer[(i + 3) as usize] = buffer[i as usize];
-                    }
+                    write_buffer[3..(write_len + 3)].copy_from_slice(&buffer[..write_len]);
 
                     let _ = self
                         .spi
@@ -273,9 +271,8 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient for FM25CL<
                     self.client_buffer.take().map(move |buffer| {
                         let read_len = cmp::min(buffer.len(), len);
 
-                        for i in 0..(read_len - 3) {
-                            buffer[i] = read_buffer[i + 3];
-                        }
+                        buffer[..(read_len - 3)]
+                            .copy_from_slice(&read_buffer[3..((read_len - 3) + 3)]);
 
                         self.rxbuffer.replace(read_buffer);
 

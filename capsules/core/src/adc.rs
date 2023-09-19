@@ -389,7 +389,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
                                 self.adc
-                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -531,7 +531,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
                                 // begin sampling
                                 app.using_app_buf0.set(true);
                                 self.adc
-                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -669,7 +669,7 @@ impl<'a> AdcVirtualized<'a> {
                 match self
                     .apps
                     .enter(processid, |app, _| {
-                        if app.pending_command == true {
+                        if app.pending_command {
                             Err(ErrorCode::BUSY)
                         } else {
                             app.pending_command = true;
@@ -1009,12 +1009,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                         let skip_amt = app.app_buf_offset.get() / 2;
 
                         {
-                            let app_buf;
-                            if use0 {
-                                app_buf = &app_buf0;
-                            } else {
-                                app_buf = &app_buf1;
-                            }
+                            let app_buf = if use0 { &app_buf0 } else { &app_buf1 };
 
                             // next we should copy bytes to the app buffer
                             let _ = app_buf.mut_enter(|app_buf| {
@@ -1042,7 +1037,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                                         let mut val = sample;
                                         for byte in chunk.iter() {
                                             byte.set((val & 0xFF) as u8);
-                                            val = val >> 8;
+                                            val >>= 8;
                                         }
                                     }
                                 });

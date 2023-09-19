@@ -115,17 +115,11 @@ impl<
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
-                    let ret = if let Some(op) = &app.sha_operation {
-                        match op {
-                            ShaOperation::Sha256 => self.sha.set_mode_sha256(),
-                            ShaOperation::Sha384 => self.sha.set_mode_sha384(),
-                            ShaOperation::Sha512 => self.sha.set_mode_sha512(),
-                        }
-                    } else {
-                        Err(ErrorCode::INVAL)
-                    };
-                    if ret.is_err() {
-                        return ret;
+                    match app.sha_operation {
+                        Some(ShaOperation::Sha256) => self.sha.set_mode_sha256()?,
+                        Some(ShaOperation::Sha384) => self.sha.set_mode_sha384()?,
+                        Some(ShaOperation::Sha512) => self.sha.set_mode_sha512()?,
+                        _ => return Err(ErrorCode::INVAL),
                     }
 
                     kernel_data

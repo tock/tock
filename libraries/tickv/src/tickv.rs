@@ -33,8 +33,8 @@ pub(crate) enum KeyState {
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum RubbishState {
-    ReadRegion(usize),
-    EraseRegion(usize),
+    ReadRegion(usize, usize),
+    EraseRegion(usize, usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -215,26 +215,41 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     }
 
     // Determine the new region offset to try.
+    //
+    // `region` is the base region. This is the default region
+    // for the object, this won't change per key.
+    // `region_offset` is the current region offset are trying to use
+    // If multiple attempts are required this value will be different
+    // on each iteration. This should be the previous return value of
+    // this function, or zero on the first iteration.
+    //
+    // This function will return an offset that can be applied to
+    // region to determine a new flash region
     // Returns None if there aren't any more in range.
-    fn increment_region_offset(&self, region_offset: isize) -> Option<isize> {
+    fn increment_region_offset(&self, region: usize, region_offset: isize) -> Option<isize> {
         let mut too_big = false;
         let mut too_small = false;
+        let mut new_offset = region_offset;
+
         // Loop until we find a region we can use
-        while !too_big && !too_small {
-            let new_offset = match region_offset {
+        while !too_big || !too_small {
+            new_offset = match new_offset {
+                // If this is the first iteration, just try the next region
                 0 => 1,
-                region_offset if region_offset > 0 => -region_offset,
-                region_offset if region_offset < 0 => -region_offset + 1,
+                // If the offset is positive, return the negative value
+                new_offset if new_offset > 0 => -new_offset,
+                // If the offset is negative, convert to positive and increment by 1
+                new_offset if new_offset < 0 => -new_offset + 1,
                 _ => unreachable!(),
             };
 
             // Make sure our new offset is valid
-            if new_offset as usize > ((self.flash_size / S) - 1) {
+            if (region as isize + new_offset) > ((self.flash_size / S) - 1) as isize {
                 too_big = true;
                 continue;
             }
 
-            if new_offset < 0 {
+            if (region as isize + new_offset) < 0 {
                 too_small = true;
                 continue;
             }
@@ -349,7 +364,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     || *region_data
                         .get(offset + HASH_OFFSET + 7)
                         .ok_or((false, ErrorCode::CorruptData))?
-                        != *hash.get(0).ok_or((false, ErrorCode::CorruptData))?
+                        != *hash.first().ok_or((false, ErrorCode::CorruptData))?
                 {
                     // Increment our offset by the length and repeat the loop
                     offset += total_length as usize;
@@ -392,32 +407,27 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
         loop {
             let new_region = match self.state.get() {
-                State::None => region as isize + region_offset,
+                State::None => (region as isize + region_offset) as usize,
                 State::Init(state) => {
                     match state {
-                        InitState::AppendKeyReadRegion(reg) => reg as isize,
+                        InitState::AppendKeyReadRegion(reg) => reg,
                         _ => {
                             // Get the data from that region
-                            region as isize + region_offset
+                            (region as isize + region_offset) as usize
                         }
                     }
                 }
                 State::AppendKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
+                    KeyState::ReadRegion(reg) => reg,
                 },
-                State::GarbageCollect(RubbishState::ReadRegion(reg)) => reg as isize,
                 _ => unreachable!(),
             };
 
-            let mut region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region as usize))
-                && self.state.get()
-                    != State::Init(InitState::AppendKeyReadRegion(new_region as usize))
+            let region_data = self.read_buffer.take().unwrap();
+            if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region))
+                && self.state.get() != State::Init(InitState::AppendKeyReadRegion(new_region))
             {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
-                {
+                match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -445,9 +455,11 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     // Replace the buffer
                     self.read_buffer.replace(Some(region_data));
 
-                    match self.increment_region_offset(new_region) {
+                    region_offset = new_region as isize - region as isize;
+                    match self.increment_region_offset(region, region_offset) {
                         Some(o) => {
                             region_offset = o;
+                            self.state.set(State::None);
                         }
                         None => {
                             return Err(ErrorCode::FlashFull);
@@ -599,7 +611,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Hash the new header data
                 check_sum.update(
-                    &region_data
+                    region_data
                         .get(offset + VERSION_OFFSET..=offset + HASH_OFFSET + 7)
                         .ok_or(ErrorCode::CorruptData)?,
                 );
@@ -615,15 +627,15 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
                 // Append a Check Hash
                 let check_sum = check_sum.finalise();
-                let slice = &mut region_data
+                let slice = region_data
                     .get_mut((offset + package_length)..(offset + package_length + CHECK_SUM_LEN))
                     .ok_or(ErrorCode::ObjectTooLarge)?;
                 slice.copy_from_slice(&check_sum.to_ne_bytes());
 
                 // Write the data back to the region
                 if let Err(e) = self.controller.write(
-                    S * new_region as usize + offset,
-                    &region_data
+                    S * new_region + offset,
+                    region_data
                         .get(offset..(offset + package_length + CHECK_SUM_LEN))
                         .ok_or(ErrorCode::ObjectTooLarge)?,
                 ) {
@@ -658,31 +670,28 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         loop {
             let mut check_sum = crc32::Crc32::new();
             let new_region = match self.state.get() {
-                State::None => region as isize + region_offset,
+                State::None => (region as isize + region_offset) as usize,
                 State::Init(state) => {
                     match state {
-                        InitState::GetKeyReadRegion(reg) => reg as isize,
+                        InitState::GetKeyReadRegion(reg) => reg,
                         _ => {
                             // Get the data from that region
-                            region as isize + region_offset
+                            (region as isize + region_offset) as usize
                         }
                     }
                 }
                 State::GetKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
+                    KeyState::ReadRegion(reg) => reg,
                 },
                 _ => unreachable!(),
             };
 
             // Get the data from that region
-            let mut region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region as usize))
-                && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region as usize))
+            let region_data = self.read_buffer.take().unwrap();
+            if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region))
+                && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region))
             {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
-                {
+                match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -698,7 +707,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                 Ok((offset, total_length)) => {
                     // Add the header data to the check hash
                     check_sum.update(
-                        &region_data
+                        region_data
                             .get(offset..(HEADER_LENGTH + offset))
                             .ok_or(ErrorCode::ObjectTooLarge)?,
                     );
@@ -746,7 +755,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                             != *region_data
                                 .get(offset + total_length as usize - 3)
                                 .ok_or(ErrorCode::InvalidCheckSum)?
-                        || *check_sum.get(0).ok_or(ErrorCode::InvalidCheckSum)?
+                        || *check_sum.first().ok_or(ErrorCode::InvalidCheckSum)?
                             != *region_data
                                 .get(offset + total_length as usize - 4)
                                 .ok_or(ErrorCode::InvalidCheckSum)?
@@ -762,9 +771,11 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     self.read_buffer.replace(Some(region_data));
 
                     if cont {
-                        match self.increment_region_offset(new_region) {
+                        region_offset = new_region as isize - region as isize;
+                        match self.increment_region_offset(region, region_offset) {
                             Some(o) => {
                                 region_offset = o;
+                                self.state.set(State::None);
                             }
                             None => {
                                 return Err(e);
@@ -795,20 +806,17 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         loop {
             // Get the data from that region
             let new_region = match self.state.get() {
-                State::None => region as isize + region_offset,
+                State::None => (region as isize + region_offset) as usize,
                 State::InvalidateKey(key_state) => match key_state {
-                    KeyState::ReadRegion(reg) => reg as isize,
+                    KeyState::ReadRegion(reg) => reg,
                 },
                 _ => unreachable!(),
             };
 
             // Get the data from that region
-            let mut region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region as usize)) {
-                match self
-                    .controller
-                    .read_region(new_region as usize, 0, &mut region_data)
-                {
+            let region_data = self.read_buffer.take().unwrap();
+            if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region)) {
+                match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -829,8 +837,8 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         .ok_or(ErrorCode::CorruptData)? &= !0x80;
 
                     if let Err(e) = self.controller.write(
-                        S * new_region as usize + offset + LEN_OFFSET,
-                        &region_data
+                        S * new_region + offset + LEN_OFFSET,
+                        region_data
                             .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
                             .ok_or(ErrorCode::ObjectTooLarge)?,
                     ) {
@@ -848,9 +856,11 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     self.read_buffer.replace(Some(region_data));
 
                     if cont {
-                        match self.increment_region_offset(new_region) {
+                        region_offset = new_region as isize - region as isize;
+                        match self.increment_region_offset(region, region_offset) {
                             Some(o) => {
                                 region_offset = o;
+                                self.state.set(State::None);
                             }
                             None => {
                                 return Err(e);
@@ -864,17 +874,25 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         }
     }
 
-    fn garbage_collect_region(&self, region: usize) -> Result<usize, ErrorCode> {
+    fn garbage_collect_region(
+        &self,
+        region: usize,
+        flash_freed: usize,
+    ) -> Result<usize, ErrorCode> {
         // Get the data from that region
-        let mut region_data = self.read_buffer.take().unwrap();
-        if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region)) {
-            match self.controller.read_region(region, 0, &mut region_data) {
+        let region_data = self.read_buffer.take().unwrap();
+        if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region, flash_freed))
+        {
+            match self.controller.read_region(region, 0, region_data) {
                 Ok(()) => {}
                 Err(e) => {
                     self.read_buffer.replace(Some(region_data));
                     if let ErrorCode::ReadNotReady(reg) = e {
                         self.state
-                            .set(State::GarbageCollect(RubbishState::ReadRegion(reg)));
+                            .set(State::GarbageCollect(RubbishState::ReadRegion(
+                                reg,
+                                flash_freed,
+                            )));
                     }
                     return Err(e);
                 }
@@ -959,7 +977,10 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         if let Err(e) = self.controller.erase_region(region) {
             if let ErrorCode::EraseNotReady(reg) = e {
                 self.state
-                    .set(State::GarbageCollect(RubbishState::EraseRegion(reg)));
+                    .set(State::GarbageCollect(RubbishState::EraseRegion(
+                        reg,
+                        flash_freed + S,
+                    )));
             }
             return Err(e);
         }
@@ -977,15 +998,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         let start = match self.state.get() {
             State::None => 0,
             State::GarbageCollect(state) => match state {
-                RubbishState::ReadRegion(reg) => reg,
+                RubbishState::ReadRegion(reg, ff) => {
+                    flash_freed += ff;
+                    reg
+                }
                 // We already erased region reg, so move to the next one
-                RubbishState::EraseRegion(reg) => reg + 1,
+                RubbishState::EraseRegion(reg, ff) => {
+                    flash_freed += ff;
+                    reg + 1
+                }
             },
             _ => unreachable!(),
         };
 
         for i in start..num_region {
-            match self.garbage_collect_region(i) {
+            match self.garbage_collect_region(i, flash_freed) {
                 Ok(freed) => flash_freed += freed,
                 Err(e) => return Err(e),
             }

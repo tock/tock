@@ -354,7 +354,7 @@ impl<'a> time::Alarm<'a> for Ast<'a> {
         if !now.within_range(reference, expire) {
             // We have already passed when: just fire ASAP
             // Note this will also trigger the increment below
-            expire = Self::Ticks::from(now);
+            expire = now;
         }
 
         // Firing is too close in the future, delay it a bit

@@ -27,6 +27,17 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::AmbientLight as usize;
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// Subscribe to light intensity readings.
+    ///
+    /// The callback signature is `fn(lux: usize)`, where `lux` is the light
+    /// intensity in lux (lx).
+    pub const LIGHT_INTENSITY: usize = 0;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 1;
+}
+
 /// Per-process metadata
 #[derive(Default)]
 pub struct App {
@@ -36,13 +47,13 @@ pub struct App {
 pub struct AmbientLight<'a> {
     sensor: &'a dyn hil::sensors::AmbientLight<'a>,
     command_pending: Cell<bool>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
 impl<'a> AmbientLight<'a> {
     pub fn new(
         sensor: &'a dyn hil::sensors::AmbientLight<'a>,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AmbientLight {
         AmbientLight {
             sensor: sensor,
@@ -70,13 +81,6 @@ impl<'a> AmbientLight<'a> {
 }
 
 impl SyscallDriver for AmbientLight<'_> {
-    // Subscribe to light intensity readings
-    //
-    // ### `subscribe`
-    //
-    // - `0`: Subscribe to light intensity readings. The callback signature is
-    // `fn(lux: usize)`, where `lux` is the light intensity in lux (lx).
-
     /// Initiate light intensity readings
     ///
     /// Sensor readings are coalesced if processes request them concurrently. If
@@ -116,7 +120,9 @@ impl hil::sensors::AmbientLightClient for AmbientLight<'_> {
         self.apps.each(|_, app, upcalls| {
             if app.pending {
                 app.pending = false;
-                upcalls.schedule_upcall(0, (lux, 0, 0)).ok();
+                upcalls
+                    .schedule_upcall(upcall::LIGHT_INTENSITY, (lux, 0, 0))
+                    .ok();
             }
         });
     }
