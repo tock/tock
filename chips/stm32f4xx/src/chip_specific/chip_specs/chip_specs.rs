@@ -9,8 +9,8 @@
 //! The main use of this trait is to be passed as a bound for the type parameter for chip
 //! peripherals in crates such as `stm32f429zi`.
 
-use crate::chip_specific::clock_constants::{ClockConstants};
-use crate::chip_specific::flash::{FlashChipSpecific};
+use crate::chip_specific::clock_constants::ClockConstants;
+use crate::chip_specific::flash::FlashChipSpecific;
 
 pub trait ChipSpecs: ClockConstants + FlashChipSpecific {}
 
