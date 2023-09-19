@@ -606,7 +606,7 @@ pub mod tests {
     /// clocks::test::test_prescalers(&peripherals.stm32f4.clocks);
     /// ```
     pub fn test_prescalers<ChipSpecs: ChipSpecsTrait>(clocks: &Clocks<ChipSpecs>) {
-        // This test requires a bit of setup. A system clock running at 160MHz is configured.
+        // This test requires a bit of setup. A system clock running at HIGH_FREQUENCY is configured.
         check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
         check_and_panic!(
