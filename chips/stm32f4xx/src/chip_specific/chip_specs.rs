@@ -21,7 +21,7 @@ impl PllConstants for Stm32f429Specs {
 
 impl SystemClockConstants for Stm32f429Specs {
     const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 100;
+    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
 }
 
 impl FlashChipSpecific for Stm32f429Specs {
