@@ -104,7 +104,7 @@ impl<'a> Hsi<'a> {
         self.rcc.disable_hsi_clock();
 
         for _ in 0..10 {
-            if self.rcc.is_ready_hsi_clock() == false {
+            if !self.rcc.is_ready_hsi_clock() {
                 return Ok(());
             }
         }
@@ -176,7 +176,7 @@ pub mod tests {
         debug!("Testing HSI...");
 
         // By default, the HSI clock is enabled
-        assert_eq!(true, hsi.is_enabled());
+        assert!(hsi.is_enabled());
 
         // HSI frequency is 16MHz
         assert_eq!(Some(HSI_FREQUENCY_MHZ), hsi.get_frequency());

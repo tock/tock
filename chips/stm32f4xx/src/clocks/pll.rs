@@ -243,7 +243,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         // Wait to unlock the PLL clock
         // 10 was obtained by testing in release mode
         for _ in 0..10 {
-            if self.rcc.is_locked_pll_clock() == false {
+            if !self.rcc.is_locked_pll_clock() {
                 return Ok(());
             }
         }
@@ -582,7 +582,7 @@ pub mod tests {
         debug!("Testing PLL struct...");
         // Make sure the PLL clock is disabled
         assert_eq!(Ok(()), pll.disable());
-        assert_eq!(false, pll.is_enabled());
+        assert!(!pll.is_enabled());
 
         // Attempting to configure the PLL with either too high or too low frequency
         assert_eq!(Err(ErrorCode::INVAL), pll.set_frequency(12));
@@ -592,13 +592,13 @@ pub mod tests {
         assert_eq!(Ok(()), pll.enable());
 
         // Make sure the PLL is enabled.
-        assert_eq!(true, pll.is_enabled());
+        assert!(pll.is_enabled());
 
         // By default, the PLL clock is set to 96MHz
         assert_eq!(Some(96), pll.get_frequency());
 
         // By default, the PLL48 clock is correctly calibrated
-        assert_eq!(true, pll.is_pll48_calibrated());
+        assert!(pll.is_pll48_calibrated());
 
         // Impossible to configure the PLL clock once it is enabled.
         assert_eq!(Err(ErrorCode::FAIL), pll.set_frequency(50));
@@ -616,7 +616,7 @@ pub mod tests {
         assert_eq!(Some(25), pll.get_frequency());
 
         // Since 25 is not a multiple of 48, the PLL48 clock is not correctly calibrated
-        assert_eq!(false, pll.is_pll48_calibrated());
+        assert!(!pll.is_pll48_calibrated());
 
         // The expected PLL48 clock value in this case should be approximately 40 MHz.
         // It is actually exactly 40MHz in this particular case.
@@ -636,7 +636,7 @@ pub mod tests {
         assert_eq!(Some(144), pll.get_frequency());
 
         // PLL48 clock output should be correctly calibrated
-        assert_eq!(true, pll.is_pll48_calibrated());
+        assert!(pll.is_pll48_calibrated());
         assert_eq!(Some(48), pll.get_frequency_pll48());
 
         // Reconfigure the clock for 100MHz
@@ -647,7 +647,7 @@ pub mod tests {
 
         // In this case, the PLL48 clock is not correctly calibrated. Its frequency is
         // approximately 44MHz.
-        assert_eq!(false, pll.is_pll48_calibrated());
+        assert!(!pll.is_pll48_calibrated());
         assert_eq!(Some(44), pll.get_frequency_pll48());
 
         // Configure the clock to 72MHz = 48MHz * 1.5
@@ -657,12 +657,12 @@ pub mod tests {
         assert_eq!(Some(72), pll.get_frequency());
 
         // In this case, the PLL48 clock is correctly calibrated
-        assert_eq!(true, pll.is_pll48_calibrated());
+        assert!(pll.is_pll48_calibrated());
         assert_eq!(Some(48), pll.get_frequency_pll48());
 
         // Turn off the PLL clock
         assert_eq!(Ok(()), pll.disable());
-        assert_eq!(false, pll.is_enabled());
+        assert!(!pll.is_enabled());
 
         debug!("Finished testing PLL struct.");
     }
