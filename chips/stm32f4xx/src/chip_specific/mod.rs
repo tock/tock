@@ -15,4 +15,5 @@ pub(crate) mod clock_constants;
 pub(crate) mod flash;
 
 pub use chip_specs::stm32f429_specs::Stm32f429Specs;
+pub use chip_specs::stm32f401::Stm32f401Specs;
 pub use chip_specs::ChipSpecs;
