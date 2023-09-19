@@ -7,7 +7,7 @@
 //! STM32F401 specifications
 
 use crate::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
-use crate::chip_specific::flash::{FlashLatency16, FlashChipSpecific};
+use crate::chip_specific::flash::{FlashChipSpecific, FlashLatency16};
 
 pub enum Stm32f401Specs {}
 
