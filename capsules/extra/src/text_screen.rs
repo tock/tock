@@ -110,7 +110,7 @@ impl<'a> TextScreen<'a> {
                     app.command = command;
                     Ok(true)
                 } else {
-                    if app.pending_command == true {
+                    if app.pending_command {
                         Err(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;

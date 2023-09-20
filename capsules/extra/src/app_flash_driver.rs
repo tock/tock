@@ -134,7 +134,7 @@ impl<'a> AppFlash<'a> {
                         .unwrap_or(Err(ErrorCode::RESERVE))
                 } else {
                     // Queue this request for later.
-                    if app.pending_command == true {
+                    if app.pending_command {
                         Err(ErrorCode::NOMEM)
                     } else {
                         app.pending_command = true;

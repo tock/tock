@@ -16,10 +16,7 @@ pub struct DummyCB {
 
 impl DummyCB {
     pub fn new(spi: &'static sam4l::spi::SpiHw<'static>) -> Self {
-        Self {
-            val: 0x55 as u8,
-            spi,
-        }
+        Self { val: 0x55_u8, spi }
     }
 }
 

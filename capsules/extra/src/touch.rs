@@ -404,11 +404,7 @@ impl<'a> SyscallDriver for Touch<'a> {
                 let num_touches = if let Some(multi_touch) = self.multi_touch {
                     multi_touch.get_num_touches()
                 } else {
-                    if self.touch.is_some() {
-                        1
-                    } else {
-                        0
-                    }
+                    usize::from(self.touch.is_some())
                 };
                 CommandReturn::success_u32(num_touches as u32)
             }

@@ -5,10 +5,10 @@ System Calls
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Leon Schuermann, Johnathan Van Why, dcz <br/>
+**Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** March 9, 2022<br/>
-**Draft-Version:** 7<br/>
+**Draft-Modified:** September 8, 2023<br/>
+**Draft-Version:** 8<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -496,14 +496,17 @@ failure variant of `Failure`, with an associated error code of
 handle userspace/kernel mismatches should be able to handle `Failure` in
 addition to the expected failure variant (if different than `Failure`).
 
-4.3.1 Command Identifier 0
---------------------------------
 
-Every device driver MUST implement command number 0 as the
-"exists" command.  This command always returns `Success`. This command
-allows userspace to determine if a particular system call driver is
-installed; if it is, the command returns `Success`. If it is not, the
-kernel returns `Failure` with an error code of `NODEVICE`.
+4.3.1 Command Identifier 0
+--------------------------
+
+Command Identifier 0 provides an existence check for drivers. Command
+Identifier 0 MUST return either `Success` or `Failure` with `ENODEVICE`.
+`Success` indicates that the driver is present and the userspace process can
+issue system calls to it. If the driver is not accessible, Command Identifier 0
+returns `Failure` with an error code of `ENODEVICE`. A driver may be not
+accessible because the kernel does not have it, the process does not have the
+required permissions to use it, or other reasons.
 
 4.4 Read-Write Allow (Class ID: 3)
 ---------------------------------
@@ -804,7 +807,7 @@ Because C allows a single return value but Tock system calls can return multiple
 they do not easily map to idiomatic C. These low-level APIs are translated into standard C
 code by the userspace library. The general calling convention is that the complex return types
 are returned as structs. Since these structs are composite types larger than a single word, the
-ARM and RISCV calling conventions pass them on the stack.
+ARM and RISC-V calling conventions pass them on the stack.
 
 The system calls are implemented as inline assembly. This assembly moves arguments into the correct
 registers and invokes the system call, and on return copies the returned data into the return type
@@ -963,7 +966,14 @@ Email: pal@cs.stanford.edu
 
 Amit Levy <aalevy@cs.princeton.edu>
 
+Pat Pannuto <ppannuto@ucsd.edu>
+
 Leon Schuermann <leon@is.currently.online>
 
 Johnathan Van Why <jrvanwhy@google.com>
 ```
+
+7 References and Additional Information
+=======================================
+
+- [Design RFC for Command 0 Semantics](../rfcs/2023-08-18--CommandZeroSemantics.md).

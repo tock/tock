@@ -669,7 +669,7 @@ impl<'a> AdcVirtualized<'a> {
                 match self
                     .apps
                     .enter(processid, |app, _| {
-                        if app.pending_command == true {
+                        if app.pending_command {
                             Err(ErrorCode::BUSY)
                         } else {
                             app.pending_command = true;

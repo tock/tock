@@ -225,7 +225,7 @@ impl Hmac<'_> {
             } else {
                 Ok(())
             };
-            if self.data_progress() == false {
+            if !self.data_progress() {
                 // False means we are done
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {

@@ -32,6 +32,26 @@ WG-OpenTitan:
   - boards/opentitan/**/*
   - chips/earlgrey/**/*
   - chips/lowrisc/**/*
+  - doc/wg/opentitan/**/*
+
+WG-Network:
+  - capsules/extra/src/ble_advertising_driver.rs
+  - capsules/extra/src/can.rs
+  - capsules/extra/src/ieee802154/**/*
+  - capsules/extra/src/net/**/*
+  - capsules/extra/src/rf233.rs
+  - capsules/extra/src/rf233_const.rs
+  - chips/apollo3/src/ble.rs
+  - chips/litex/src/liteeth.rs
+  - chips/nrf52/src/ble_radio.rs
+  - chips/nrf52840/src/ieee802154_radio.rs
+  - chips/stm32f429zi/src/can_registers.rs
+  - chips/stm32f4xx/src/can.rs
+  - chips/virtio/src/devices/virtio_net.rs
+  - doc/wg/network/**/*
+  - kernel/src/hil/ble_advertising.rs
+  - kernel/src/hil/can.rs
+  - kernel/src/hil/radio.rs
 
 # add kernel label unless already covered by hil label
 kernel:

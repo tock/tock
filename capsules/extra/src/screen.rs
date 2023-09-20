@@ -143,7 +143,7 @@ impl<'a> Screen<'a> {
         match self
             .apps
             .enter(process_id, |app, _| {
-                if app.pending_command == true {
+                if app.pending_command {
                     CommandReturn::failure(ErrorCode::BUSY)
                 } else {
                     app.pending_command = true;

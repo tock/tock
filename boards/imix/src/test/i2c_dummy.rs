@@ -99,16 +99,16 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
             AccelClientState::ReadingWhoami => {
                 debug!("WHOAMI Register 0x{:x} ({:?})", buffer[0], status);
                 debug!("Activating Sensor...");
-                buffer[0] = 0x2A as u8; // CTRL_REG1
+                buffer[0] = 0x2A_u8; // CTRL_REG1
                 buffer[1] = 1; // Bit 1 sets `active`
                 dev.write(0x1e, buffer, 2).unwrap();
                 self.state.set(AccelClientState::Activating);
             }
             AccelClientState::Activating => {
                 debug!("Sensor Activated ({:?})", status);
-                buffer[0] = 0x01 as u8; // X-MSB register
-                                        // Reading 6 bytes will increment the register pointer through
-                                        // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                buffer[0] = 0x01_u8; // X-MSB register
+                                     // Reading 6 bytes will increment the register pointer through
+                                     // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
                 dev.write_read(0x1e, buffer, 1, 6).unwrap();
                 self.state.set(AccelClientState::ReadingAccelData);
             }
@@ -129,16 +129,16 @@ impl hil::i2c::I2CHwMasterClient for AccelClient {
                     status
                 );
 
-                buffer[0] = 0x01 as u8; // X-MSB register
-                                        // Reading 6 bytes will increment the register pointer through
-                                        // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
+                buffer[0] = 0x01_u8; // X-MSB register
+                                     // Reading 6 bytes will increment the register pointer through
+                                     // X-MSB, X-LSB, Y-MSB, Y-LSB, Z-MSB, Z-LSB
                 dev.write_read(0x1e, buffer, 1, 6).unwrap();
                 self.state.set(AccelClientState::ReadingAccelData);
             }
             AccelClientState::Deactivating => {
                 debug!("Sensor deactivated ({:?})", status);
                 debug!("Reading Accel's WHOAMI...");
-                buffer[0] = 0x0D as u8; // 0x0D == WHOAMI register
+                buffer[0] = 0x0D_u8; // 0x0D == WHOAMI register
                 dev.write_read(0x1e, buffer, 1, 1).unwrap();
                 self.state.set(AccelClientState::ReadingWhoami);
             }
@@ -158,7 +158,7 @@ pub fn i2c_accel_test(i2c_master: &'static dyn I2CMaster<'static>) {
 
     let buf = unsafe { &mut DATA };
     debug!("Reading Accel's WHOAMI...");
-    buf[0] = 0x0D as u8; // 0x0D == WHOAMI register
+    buf[0] = 0x0D_u8; // 0x0D == WHOAMI register
     dev.write_read(0x1e, buf, 1, 1).unwrap();
     i2c_client.state.set(AccelClientState::ReadingWhoami);
 }
@@ -194,7 +194,7 @@ impl hil::i2c::I2CHwMasterClient for LiClient {
         match self.state.get() {
             LiClientState::Enabling => {
                 debug!("Reading luminance Registers ({:?})", status);
-                buffer[0] = 0x02 as u8;
+                buffer[0] = 0x02_u8;
                 buffer[0] = 0;
                 dev.write_read(0x44, buffer, 1, 2).unwrap();
                 self.state.set(LiClientState::ReadingLI);
@@ -206,7 +206,7 @@ impl hil::i2c::I2CHwMasterClient for LiClient {
                     (intensity * 100) >> 16,
                     status
                 );
-                buffer[0] = 0x02 as u8;
+                buffer[0] = 0x02_u8;
                 dev.write_read(0x44, buffer, 1, 2).unwrap();
                 self.state.set(LiClientState::ReadingLI);
             }

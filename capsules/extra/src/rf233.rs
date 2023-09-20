@@ -1078,7 +1078,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
         // packet from being overwritten before reading it from the radio,
         // the driver needs to disable reception. This has to be done in the first
         // SPI operation.
-        if self.spi_busy.get() == false {
+        if !self.spi_busy.get() {
             if self.state.get() == InternalState::RX {
                 // We've received a complete frame; need to disable
                 // reception until we've read it out from RAM,

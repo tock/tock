@@ -21,15 +21,6 @@ CLIPPY_ARGS="
 -A clippy::restriction
 
 -A clippy::if_same_then_else
-
--D clippy::needless_return
--D clippy::unnecessary_mut_passed
--D clippy::empty_line_after_outer_attr
--D clippy::unnecessary_cast
--D clippy::default_trait_access
--D clippy::map_unwrap_or
--D clippy::wildcard_imports
--D clippy::needless_borrow
 "
 
 # Disallow all complexity lints, then re-allow each one Tock does not comply
@@ -55,14 +46,11 @@ CLIPPY_ARGS_COMPLEXITY="
 -A clippy::manual-flatten
 
 
--A clippy::bool_comparison
 -A clippy::zero_prefixed_literal
 -A clippy::needless-if
 
 
--A clippy::unnecessary_cast
 -A clippy::unnecessary_unwrap
--A clippy::needless_lifetimes
 -A clippy::explicit_auto_deref
 -A clippy::explicit_counter_loop
 -A clippy::borrow_deref_ref
@@ -114,9 +102,6 @@ CLIPPY_ARGS_STYLE="
 -A clippy::redundant_pattern_matching
 -A clippy::unusual-byte-groupings
 -A clippy::wrong-self-convention
-
-
--A clippy::needless_borrow
 "
 
 # Disallow all perf lints, then re-allow each one Tock does not comply with.
@@ -220,8 +205,6 @@ CLIPPY_ARGS_PEDANTIC="
 -A clippy::mut_mut
 -A clippy::cast_ptr_alignment
 -A clippy::used_underscore_binding
--A clippy::bool_to_int_with_if
--A clippy::inconsistent_struct_constructor
 -A clippy::checked_conversions
 "
 

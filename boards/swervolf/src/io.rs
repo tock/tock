@@ -29,7 +29,7 @@ impl IoWrite for Writer {
         for b in buf {
             // Print to a special address for simulation output
             unsafe {
-                write_volatile(0x8000_1008 as *mut u8, *b as u8);
+                write_volatile(0x8000_1008 as *mut u8, *b);
             }
         }
         buf.len()

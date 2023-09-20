@@ -327,7 +327,7 @@ impl hil::uart::Configure for Uart<'_> {
         if params.parity != hil::uart::Parity::None {
             return Err(ErrorCode::NOSUPPORT);
         }
-        if params.hw_flow_control != false {
+        if params.hw_flow_control {
             return Err(ErrorCode::NOSUPPORT);
         }
 
