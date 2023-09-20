@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 use crate::chip_specs::Stm32f429Specs;
+use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
