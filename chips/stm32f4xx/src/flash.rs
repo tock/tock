@@ -61,7 +61,7 @@ struct FlashRegisters {
     optcr: ReadWrite<u32, OPTCR::Register>,
     /// Flash option control register 1
     #[cfg(feature = "stm32f429")]
-    optcr1: ReadWrite<u32>,
+    optcr1: ReadWrite<u32, OPTCR1::Register>,
 }
 
 register_bitfields![u32,
