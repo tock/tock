@@ -170,8 +170,6 @@ use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
-use core::marker::PhantomData;
-
 /// Main struct for configuring on-board clocks.
 pub struct Clocks<'a, ChipSpecs> {
     rcc: &'a Rcc,
@@ -180,7 +178,6 @@ pub struct Clocks<'a, ChipSpecs> {
     pub hsi: Hsi<'a>,
     /// Main phase loop-lock clock
     pub pll: Pll<'a, ChipSpecs>,
-    _marker: PhantomData<ChipSpecs>,
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
@@ -191,7 +188,6 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
             flash: OptionalCell::empty(),
             hsi: Hsi::new(rcc),
             pll: Pll::new(rcc),
-            _marker: PhantomData,
         }
     }
 
