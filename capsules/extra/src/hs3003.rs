@@ -73,7 +73,7 @@ impl<'a, I: I2CDevice> Hs3003<'a, I> {
             i2c,
             temperature_client: OptionalCell::empty(),
             humidity_client: OptionalCell::empty(),
-            state: Cell::new(State::Sleep(0, 0)),
+            state: Cell::new(State::Sleep(0,0)),
             pending_temperature: Cell::new(false),
             pending_humidity: Cell::new(false),
         }
