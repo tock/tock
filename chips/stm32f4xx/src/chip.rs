@@ -14,8 +14,6 @@ use crate::nvic;
 
 use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 
-use core::marker::PhantomData;
-
 pub struct Stm32f4xx<'a, I: InterruptService + 'a> {
     mpu: cortexm4::mpu::MPU,
     userspace_kernel_boundary: cortexm4::syscall::SysCall,
@@ -37,7 +35,6 @@ pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub usart1: crate::usart::Usart<'a, dma::Dma2<'a>>,
     pub usart2: crate::usart::Usart<'a, dma::Dma1<'a>>,
     pub usart3: crate::usart::Usart<'a, dma::Dma1<'a>>,
-    _marker: PhantomData<ChipSpecs>,
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
@@ -78,7 +75,6 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
             usart1: crate::usart::Usart::new_usart1(rcc),
             usart2: crate::usart::Usart::new_usart2(rcc),
             usart3: crate::usart::Usart::new_usart3(rcc),
-            _marker: PhantomData,
         }
     }
 
