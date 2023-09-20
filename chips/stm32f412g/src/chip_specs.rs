@@ -6,8 +6,8 @@
 
 //! STM32F412 specifications
 
-use crate::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
-use crate::chip_specific::flash::{FlashChipSpecific, FlashLatency16};
+use stm32f4xx::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
+use stm32f4xx::chip_specific::flash::{FlashChipSpecific, FlashLatency16};
 
 pub enum Stm32f412Specs {}
 

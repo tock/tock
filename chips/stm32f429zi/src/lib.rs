@@ -11,7 +11,7 @@ pub use stm32f4xx::{
 };
 
 pub mod can_registers;
-/// Ethernet peripheral implementation
+pub mod chip_specs;
 pub mod ethernet;
 pub mod interrupt_service;
 pub mod stm32f429zi_nvic;

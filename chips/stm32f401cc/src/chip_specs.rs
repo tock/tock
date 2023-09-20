@@ -4,23 +4,23 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
-//! STM32F429 specifications
+//! STM32F401 specifications
 
-use crate::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
-use crate::chip_specific::flash::{FlashChipSpecific, FlashLatency16};
+use stm32f4xx::chip_specific::clock_constants::{PllConstants, SystemClockConstants};
+use stm32f4xx::chip_specific::flash::{FlashChipSpecific, FlashLatency16};
 
-pub enum Stm32f429Specs {}
+pub enum Stm32f401Specs {}
 
-impl PllConstants for Stm32f429Specs {
-    const MIN_FREQ_MHZ: usize = 13;
+impl PllConstants for Stm32f401Specs {
+    const MIN_FREQ_MHZ: usize = 24;
 }
 
-impl SystemClockConstants for Stm32f429Specs {
-    const APB1_FREQUENCY_LIMIT_MHZ: usize = 45;
-    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 168;
+impl SystemClockConstants for Stm32f401Specs {
+    const APB1_FREQUENCY_LIMIT_MHZ: usize = 42;
+    const SYS_CLOCK_FREQUENCY_LIMIT_MHZ: usize = 84;
 }
 
-impl FlashChipSpecific for Stm32f429Specs {
+impl FlashChipSpecific for Stm32f401Specs {
     type FlashLatency = FlashLatency16;
 
     fn get_number_wait_cycles_based_on_frequency(frequency_mhz: usize) -> Self::FlashLatency {

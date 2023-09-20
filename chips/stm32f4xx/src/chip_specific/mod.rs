@@ -10,12 +10,8 @@
 //! operate internally in different ways for the same feature. This module provides all the
 //! chip-specific types and traits to be used by others modules in this crate or by other crates.
 
-pub(crate) mod chip_specs;
-pub(crate) mod clock_constants;
-pub(crate) mod flash;
+pub mod chip_specs;
+pub mod clock_constants;
+pub mod flash;
 
-pub use chip_specs::stm32f401::Stm32f401Specs;
-pub use chip_specs::stm32f412::Stm32f412Specs;
-pub use chip_specs::stm32f429::Stm32f429Specs;
-pub use chip_specs::stm32f446::Stm32f446Specs;
 pub use chip_specs::ChipSpecs;
