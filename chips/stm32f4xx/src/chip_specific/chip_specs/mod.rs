@@ -12,4 +12,4 @@ pub mod stm32f412;
 pub mod stm32f429;
 pub mod stm32f446;
 
-pub use chip_specs::*;
+pub use chip_specs::ChipSpecs;
