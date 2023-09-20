@@ -444,9 +444,15 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         let device_addr = match header.src_addr {
                             Some(mac) => match mac {
                                 MacAddress::Long(val) => val,
-                                MacAddress::Short(_) => panic!("ONLY SHORT ADDR PROVIDED"),
+                                MacAddress::Short(_) => {
+                                    kernel::debug!("[15.4] DROPPED PACKET - error only short address provided on encrypted packet.");
+                                    return None
+                                },
                             },
-                            None => panic!("EMPTY SRC ADDR"),
+                            None => {
+                                kernel::debug!("[15.4] DROPPED PACKET - Malformed, no src address provided.");
+                                return None
+                            },
                         };
 
                         // Step g, h: Check frame counter
