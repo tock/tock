@@ -73,7 +73,7 @@ impl<'a, I: I2CDevice> Hs3003<'a, I> {
             i2c,
             temperature_client: OptionalCell::empty(),
             humidity_client: OptionalCell::empty(),
-            state: Cell::new(State::Sleep(0,0)),
+            state: Cell::new(State::Sleep(0, 0)),
             pending_temperature: Cell::new(false),
             pending_humidity: Cell::new(false),
         }
@@ -85,7 +85,7 @@ impl<'a, I: I2CDevice> Hs3003<'a, I> {
             .map(|buffer| {
                 self.i2c.enable();
                 match self.state.get() {
-                    State::Sleep(_,_) => {
+                    State::Sleep(_, _) => {
                         buffer[0] = I2C_ADDRESS << 1 | 0;
 
                         if let Err((_error, buffer)) = self.i2c.write(buffer, 1) {
@@ -142,7 +142,7 @@ enum State {
 impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
-            self.state.set(State::Sleep(0,0));
+            self.state.set(State::Sleep(0, 0));
             self.buffer.replace(buffer);
             self.temperature_client
                 .map(|client| client.callback(Err(i2c_err.into())));
@@ -155,7 +155,7 @@ impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
                 buffer[0] = I2C_ADDRESS << 1 | 1;
 
                 if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 4) {
-                    self.state.set(State::Sleep(0,0));
+                    self.state.set(State::Sleep(0, 0));
                     self.buffer.replace(buffer);
                     self.temperature_client
                         .map(|client| client.callback(Err(i2c_err.into())));
@@ -171,7 +171,9 @@ impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
                 let temperature_raw = ((buffer[2] as u16) << 8) | (buffer[3] as u16 >> 2);
                 // This operation follows the datasheet specification except dividing by 10. If its not done,
                 // the returned value will be in the hundreds (220 instead of 22 degrees celsius).
-                let temperature = ((((temperature_raw as f32 / ((1 << 14) - 1) as f32) * 165.0) - 40.0) / 10.0) as i32;
+                let temperature = ((((temperature_raw as f32 / ((1 << 14) - 1) as f32) * 165.0)
+                    - 40.0)
+                    / 10.0) as i32;
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
@@ -187,7 +189,7 @@ impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
 
                 self.state.set(State::Sleep(temperature, humidity));
             }
-            State::Sleep(_,_) => {} // should never happen
+            State::Sleep(_, _) => {} // should never happen
         }
     }
 }
