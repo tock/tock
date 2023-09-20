@@ -626,7 +626,6 @@ pub unsafe fn main() {
         udp_recv_mux,
         udp_port_table,
         aes_mux,
-        device_id_bottom_16,
         device_id,
         mux_alarm,
     )

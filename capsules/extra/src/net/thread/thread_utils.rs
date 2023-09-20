@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use crate::net::stream::{encode_bytes, SResult};
 use crate::net::thread::tlv::{unwrap_tlv_offset, LinkMode, MulticastResponder, Tlv};
 use crate::net::{ieee802154::MacAddress, ipv6::ip_utils::IPAddr};
@@ -60,7 +64,7 @@ pub fn generate_src_ipv6(macaddr: &[u8; 8]) -> IPAddr {
     // ------------------------------------------------------------------------------------------------
 
     let mut output: [u8; 16] = [0; 16];
-    let mut lower_bytes = macaddr.clone();
+    let mut lower_bytes = *macaddr;
 
     // The universal/local bit is the 2nd least significant bit.
     // Invert by xor first byte of MAC addr with 2
@@ -76,8 +80,8 @@ pub fn mac_from_ipv6(ipv6: IPAddr) -> [u8; 8] {
     // Helper function to generate the mac address from the mac address;
     // reversing the tranformation used/described in `generate_src_ipv6`
     let mut output: [u8; 8] = [0; 8];
-    let mut lower_bytes = ipv6.clone().0;
-    lower_bytes[8] = lower_bytes[8] ^ 2;
+    let mut lower_bytes = ipv6.0;
+    lower_bytes[8] ^= 2;
 
     encode_bytes(&mut output[..8], &lower_bytes[8..16]);
     output
@@ -218,14 +222,15 @@ pub fn form_child_id_req(
 
     // Timeout TLV //
     offset += unwrap_tlv_offset(Tlv::encode(
-        &Tlv::Timeout((10 as u32).to_be()),
+        &Tlv::Timeout((10_u32).to_be()),
         &mut output[offset..],
     ));
 
     // Version TLV //
     offset += unwrap_tlv_offset(Tlv::encode(&Tlv::Version(4), &mut output[offset..]));
 
-    output[offset..offset + 4].copy_from_slice(&mut [0x1b, 0x02, 0x00, 0x81]);
+    // TODO: hardcoded for now, but replace in future
+    output[offset..offset + 4].copy_from_slice(&[0x1b, 0x02, 0x00, 0x81]);
     offset += 4;
 
     offset += unwrap_tlv_offset(Tlv::encode(

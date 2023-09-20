@@ -149,17 +149,17 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         self.networkkey.replace(NetworkKey { mle_key, mac_key });
     }
 
-    pub fn init_thread_binding(&self) -> (UdpPortBindingRx, UdpPortBindingTx) {
+    pub fn init_thread_binding(&self) -> (UdpPortBindingTx, UdpPortBindingRx) {
         // Initialization function to bind thread on the Thread UDP port needed to send MLE
         match self.port_table.create_socket() {
             Ok(socket) => match self
                 .port_table
                 .bind(socket, THREAD_PORT_NUMBER, self.net_cap)
             {
-                Ok((udp_tx, udp_rx)) => (udp_rx, udp_tx),
-                Err(_) => panic!("failed bind to port"),
+                Ok((udp_tx, udp_rx)) => (udp_tx, udp_rx),
+                Err(sock) => panic!("failed binding of port to socket - {:?}", sock),
             },
-            Err(_) => panic!("Error in retrieving socket!"),
+            Err(return_code) => panic!("Error in retrieving socket - {:?}", return_code),
         }
     }
 
@@ -368,6 +368,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
 
         // Error check on result from encoding, failure likely means buf was not large enough
         if encode_res.is_none() {
+            kernel::debug!("[Thread] Error encoding cryptographic data into buffer");
             return Err((ErrorCode::FAIL, buf));
         }
 
@@ -389,7 +390,10 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
 
         // The sizelock is empty except when a crypto operation
         // is underway. If the sizelock is not empty, return error
-        if self.crypto_sizelock.is_none() {
+        if self.crypto_sizelock.is_some() {
+            kernel::debug!(
+                "[Thread] Error - cryptographic resources in use; crypto_sizelock occupied"
+            );
             return Err((ErrorCode::BUSY, buf));
         }
 
@@ -420,7 +424,7 @@ impl<'a, A: time::Alarm<'a>> framer::DeviceProcedure for ThreadNetworkDriver<'a,
     /// `None`.
     // TODO: This implementation only supports one key
     fn lookup_addr_long(&self, _addr: MacAddress) -> Option<[u8; 8]> {
-        Some(self.src_mac_addr.clone())
+        Some(self.src_mac_addr)
     }
 }
 

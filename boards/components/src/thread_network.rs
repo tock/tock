@@ -34,7 +34,6 @@ use capsules_extra::net::network_capabilities::{
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
-use capsules_extra::net::sixlowpan;
 use capsules_extra::net::udp::udp_port_table::UdpPortManager;
 use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
@@ -111,7 +110,6 @@ pub struct ThreadNetworkComponent<
     udp_recv_mux: &'static MuxUdpReceiver<'static>,
     port_table: &'static UdpPortManager,
     aes_mux: &'static MuxAES128CCM<'static, B>,
-    serial_num_bottom_16: u16,
     serial_num: [u8; 8],
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
@@ -131,7 +129,6 @@ impl<
         udp_recv_mux: &'static MuxUdpReceiver<'static>,
         port_table: &'static UdpPortManager,
         aes_mux: &'static MuxAES128CCM<'static, B>,
-        serial_num_bottom_16: u16,
         serial_num: [u8; 8],
         alarm_mux: &'static MuxAlarm<'static, A>,
     ) -> Self {
@@ -142,7 +139,6 @@ impl<
             udp_recv_mux,
             port_table,
             aes_mux,
-            serial_num_bottom_16,
             serial_num,
             alarm_mux,
         }
@@ -248,7 +244,7 @@ impl<
 
         let udp_driver_rcvr = s.6.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);
-        let (rx_bind, tx_bind) = thread_network_driver.init_thread_binding();
+        let (tx_bind, rx_bind) = thread_network_driver.init_thread_binding();
         udp_driver_rcvr.set_binding(rx_bind);
         udp_send.set_binding(tx_bind);
 
