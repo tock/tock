@@ -11,6 +11,7 @@ pub use stm32f4xx::{
 };
 
 pub mod can_registers;
+pub mod chip_specs;
 pub mod interrupt_service;
 pub mod stm32f429zi_nvic;
 pub mod trng_registers;

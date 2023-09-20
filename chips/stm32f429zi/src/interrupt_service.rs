@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
-use stm32f4xx::chip_specific::Stm32f429Specs;
+use crate::chip_specs::Stm32f429Specs;
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 

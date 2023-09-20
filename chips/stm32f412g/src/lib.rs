@@ -11,6 +11,7 @@ pub use stm32f4xx::{
     usart,
 };
 
+pub mod chip_specs;
 pub mod interrupt_service;
 pub mod stm32f412g_nvic;
 mod trng_registers;

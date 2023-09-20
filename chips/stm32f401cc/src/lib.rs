@@ -10,6 +10,7 @@ pub use stm32f4xx::{
     adc, chip, clocks, dbg, dma, exti, flash, gpio, nvic, rcc, spi, syscfg, tim2, usart,
 };
 
+pub mod chip_specs;
 pub mod interrupt_service;
 
 // Extracted from RM0368 Reference manual, Table 38
