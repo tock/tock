@@ -19,7 +19,6 @@ use crate::tests::run_kernel_op;
 use crate::ALARM;
 use capsules_core::test::random_alarm::TestRandomAlarm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use earlgrey::chip_config::EarlGreyConfig;
 use earlgrey::timer::RvTimer;
 use kernel::debug;
 use kernel::hil::time::Alarm;
