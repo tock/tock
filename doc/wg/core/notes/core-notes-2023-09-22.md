@@ -129,8 +129,8 @@ libtock-c newlib updates
  - Pat: Yeah.. that seems reasonable
  - Leon: It would be nice to get clarification on whether this actually solves the license problems with newlib
  - Leon: Though at-worst it's the same as-is license-wise, and is a strict usability improvement
- - Leon: ... assuming our mirrors don't go down :)
- - Brad: We can always add more!
+ - Brad: ... assuming our mirrors don't go down :)
+ - Leon: We can always add more!
  - Brad: But yeah, that's helpful
 
 Last-Minute Update
