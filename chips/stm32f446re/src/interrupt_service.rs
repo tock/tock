@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::chip_specs::Stm32f446Specs;
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
 pub struct Stm32f446reDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, Stm32f446Specs>,
     // Once implemented, place Stm32f446re specific peripherals here
 }
 
