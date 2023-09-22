@@ -10,10 +10,8 @@ impl fmt::Debug for HexBuf<'_> {
     #[allow(unused_must_use)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[");
-        let mut i: usize = 0;
-        for b in self.0 {
+        for (i, b) in self.0.iter().enumerate() {
             write!(f, "{}{:.02x}", if i > 0 { " " } else { "" }, b);
-            i += 1;
         }
         write!(f, "]")
     }
