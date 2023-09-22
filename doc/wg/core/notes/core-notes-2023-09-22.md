@@ -109,7 +109,7 @@ libtock-c newlib updates
  - Leon: Yeah, only bare metal
  - Alexandru: Could we commit something to picolib-c?
  - Leon: Yeah, probably; their build/link/etc ecosystem is just complex
- - Leon: The summary from the open PR / first experiment is that updating to picolib-c 
+ - Leon: The summary from the open PR / first experiment is that updating to picolib-c is a significant undertaking
  - Alexandru: huge problem for OxidOS
  - Braden: What does industry use
  - Alexandru: Use vendor libraries from Vector etc. There are required certifications. These libraries cost $1k+ per-project.
