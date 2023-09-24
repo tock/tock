@@ -12,3 +12,13 @@ edition.workspace = true
 cortexm4 = { path = "../../arch/cortex-m4" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
+
+[features]
+# Currently, Tock supports only these chips.
+# When a new chip is added, add its identifier here and inside
+# the chip's crate as a feature for the dependency. See
+# stm32f429zi crate for an example.
+stm32f401 = []
+stm32f412 = []
+stm32f429 = []
+stm32f446 = []

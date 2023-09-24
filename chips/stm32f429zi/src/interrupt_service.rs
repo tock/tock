@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::chip_specs::Stm32f429Specs;
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
 use crate::{can_registers, stm32f429zi_nvic, trng_registers};
 
 pub struct Stm32f429ziDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, Stm32f429Specs>,
     // Once implemented, place Stm32f429zi specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
     pub can1: stm32f4xx::can::Can<'a>,

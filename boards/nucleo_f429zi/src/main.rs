@@ -291,6 +291,7 @@ unsafe fn create_peripherals() -> (
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
+
     let syscfg = static_init!(
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(rcc)

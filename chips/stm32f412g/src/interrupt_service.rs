@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::chip_specs::Stm32f412Specs;
 use stm32f4xx::chip::Stm32f4xxDefaultPeripherals;
 
 use crate::{stm32f412g_nvic, trng_registers};
 
 pub struct Stm32f412gDefaultPeripherals<'a> {
-    pub stm32f4: Stm32f4xxDefaultPeripherals<'a>,
+    pub stm32f4: Stm32f4xxDefaultPeripherals<'a, Stm32f412Specs>,
     // Once implemented, place Stm32f412g specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
 }
