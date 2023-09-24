@@ -111,7 +111,7 @@ libtock-c newlib updates
  - Leon: Yeah, probably; their build/link/etc ecosystem is just complex
  - Leon: The summary from the open PR / first experiment is that updating to picolib-c is a significant undertaking
  - Alexandru: huge problem for OxidOS
- - Braden: What does industry use
+ - Branden: What does industry use
  - Alexandru: Use vendor libraries from Vector etc. There are required certifications. These libraries cost $1k+ per-project.
     - NXP uses redlib: https://community.nxp.com/t5/LPCXpresso-IDE-FAQs/What-are-Redlib-and-Newlib/m-p/475288
  - Branden: So even if we wrote our own, we'd have a problem
