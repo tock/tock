@@ -20,8 +20,8 @@ use kernel::hil;
 
 #[macro_export]
 macro_rules! pressure_component_static {
-    () => {{
-        kernel::static_buf!(capsules_extra::pressure::PressureSensor<'static>)
+    ($T:ty $(,)?) => {{
+        kernel::static_buf!(capsules_extra::pressure::PressureSensor<'static, $T>)
     };};
 }
 
@@ -46,8 +46,8 @@ impl<T: 'static + hil::sensors::PressureDriver<'static>> PressureComponent<T> {
 }
 
 impl<T: 'static + hil::sensors::PressureDriver<'static>> Component for PressureComponent<T> {
-    type StaticInput = &'static mut MaybeUninit<PressureSensor<'static>>;
-    type Output = &'static PressureSensor<'static>;
+    type StaticInput = &'static mut MaybeUninit<PressureSensor<'static, T>>;
+    type Output = &'static PressureSensor<'static, T>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
