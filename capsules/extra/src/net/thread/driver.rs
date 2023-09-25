@@ -670,17 +670,12 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                 // which correlates to the assembled_buf_len
                 assembled_subslice.slice(..assembled_buf_len);
 
-                let dest_ipv6;
-                match curr_state {
+                let dest_ipv6 = match curr_state {
                     // Determine destination IP depending on message type
-                    ThreadState::SendParentReq => {
-                        dest_ipv6 = MULTICAST_IPV6;
-                    }
-                    ThreadState::SendChildIdReq(dst_ipv6) => {
-                        dest_ipv6 = dst_ipv6;
-                    }
+                    ThreadState::SendParentReq => MULTICAST_IPV6,
+                    ThreadState::SendChildIdReq(dst_ipv6) => dst_ipv6,
                     _ => unreachable!(),
-                }
+                };
 
                 // we replace the state with the current state here
                 // because we cannot advance the state machine until
