@@ -57,7 +57,6 @@ use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
-use kernel::hil::sensors::PressureClient;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -70,17 +69,17 @@ pub struct App {
     subscribed: bool,
 }
 
-pub struct PressureSensor<'a> {
-    driver: &'a dyn hil::sensors::PressureDriver<'a>,
+pub struct PressureSensor<'a, T: hil::sensors::PressureDriver<'a>> {
+    driver: &'a T,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     busy: Cell<bool>,
 }
 
-impl<'a> PressureSensor<'a> {
+impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
     pub fn new(
-        driver: &'a dyn hil::sensors::PressureDriver<'a>,
+        driver: &'a T,
         apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> PressureSensor<'a> {
+    ) -> PressureSensor<'a, T> {
         PressureSensor {
             driver: driver,
             apps: apps,
@@ -91,8 +90,8 @@ impl<'a> PressureSensor<'a> {
     fn enqueue_command(&self, processid: ProcessId) -> CommandReturn {
         self.apps
             .enter(processid, |app, _| {
+                app.subscribed = true;
                 if !self.busy.get() {
-                    app.subscribed = true;
                     self.busy.set(true);
                     let res = self.driver.read_atmospheric_pressure();
                     if let Ok(err) = ErrorCode::try_from(res) {
@@ -108,7 +107,7 @@ impl<'a> PressureSensor<'a> {
     }
 }
 
-impl<'a> PressureClient for PressureSensor<'a> {
+impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for PressureSensor<'a, T> {
     fn callback(&self, pressure: Result<i32, ErrorCode>) {
         if let Ok(pressure_value) = pressure {
             for cntr in self.apps.iter() {
@@ -126,7 +125,7 @@ impl<'a> PressureClient for PressureSensor<'a> {
     }
 }
 
-impl SyscallDriver for PressureSensor<'_> {
+impl<'a, T: hil::sensors::PressureDriver<'a>> SyscallDriver for PressureSensor<'a, T> {
     fn command(
         &self,
         command_num: usize,
