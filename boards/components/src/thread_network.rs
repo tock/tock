@@ -1,28 +1,30 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2023.
 
-//! Component to initialize the userland UDP driver.
+//! Component to initialize the Thread Network.
 //!
-//! This provides one Component, UDPDriverComponent. This component initializes
-//! a userspace UDP driver that allows apps to use the UDP stack.
+//! This provides one Component, ThreadNetworkComponent. This component initializes
+//! a Thread Network controller for maintaining and managing a Thread network.
 //!
 //! Usage
 //! -----
 //! ```rust
-//!    let udp_driver = UDPDriverComponent::new(
-//!        board_kernel,
-//!        udp_send_mux,
-//!        udp_recv_mux,
-//!        udp_port_table,
-//!        local_ip_ifaces,
-//!        PAYLOAD_LEN,
-//!     )
-//!     .finalize(components::udp_driver_component_static!());
+//!        let thread_driver = components::thread_network::ThreadNetworkComponent::new(
+//!             board_kernel,
+//!             capsules_extra::net::thread::driver::DRIVER_NUM,
+//!             udp_send_mux,
+//!             udp_recv_mux,
+//!             udp_port_table,
+//!             aes_mux,
+//!             device_id,
+//!             mux_alarm,
+//!         )
+//!         .finalize(components::thread_network_component_static!(
+//!         nrf52840::rtc::Rtc,
+//!         nrf52840::aes::AesECB<'static>
+//!         ));
 //! ```
-
-// This buffer is used as an intermediate buffer for AES CCM encryption. An
-// upper bound on the required size is `3 * BLOCK_SIZE + radio::MAX_BUF_SIZE`.
 
 use capsules_core;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
@@ -52,7 +54,7 @@ pub const CRYPT_SIZE: usize = 3 * symmetric_encryption::AES128_BLOCK_SIZE + radi
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! thread_network_driver_component_static {
+macro_rules! thread_network_component_static {
     ($A:ty, $B:ty $(,)?) => {{
         use components::udp_mux::MAX_PAYLOAD_LEN;
 
@@ -199,7 +201,7 @@ impl<
                 crypt_buf,
             ),
         );
-        aes_ccm.setup(); //
+        aes_ccm.setup();
 
         let create_cap = create_capability!(NetworkCapabilityCreationCapability);
         let udp_vis = s.1.write(UdpVisibilityCapability::new(&create_cap));

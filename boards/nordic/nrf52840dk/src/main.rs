@@ -602,7 +602,7 @@ pub unsafe fn main() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        MacAddress::Short(device_id_bottom_16),
+        MacAddress::Long(device_id),
         local_ip_ifaces,
         mux_alarm,
     )
@@ -629,7 +629,7 @@ pub unsafe fn main() {
         device_id,
         mux_alarm,
     )
-    .finalize(components::thread_network_driver_component_static!(
+    .finalize(components::thread_network_component_static!(
         nrf52840::rtc::Rtc,
         nrf52840::aes::AesECB<'static>
     ));

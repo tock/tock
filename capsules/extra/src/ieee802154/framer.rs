@@ -749,7 +749,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         dst_pan: PanID,
         dst_addr: MacAddress,
         src_pan: PanID,
-        mut _src_addr: MacAddress,
+        src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
@@ -759,16 +759,19 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // address should instead be some constant defined in their
         // specification.
 
-        let src_addr_long = self.get_address_long();
-        let mut src_addr = MacAddress::Long(src_addr_long);
         let security_desc = security_needed.and_then(|(level, key_id)| {
+            // To decrypt the packet, we need the long addr.
+            // Without the long addr, we are unable to proceed
+            // and return None
+            let src_addr_long = match src_addr {
+                MacAddress::Long(addr) => addr,
+                MacAddress::Short(_) => return None,
+            };
+
             self.lookup_key(level, key_id).map(|key| {
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
-                if level != SecurityLevel::None {
-                    src_addr = MacAddress::Long(src_addr_long);
-                }
                 (
                     Security {
                         level: level,

@@ -11,7 +11,6 @@
 //! hard-coded).
 
 use crate::net::ipv6::ip_utils::IPAddr;
-use crate::net::ipv6::ip_utils::DEFAULT_DST_MAC_ADDR;
 use crate::net::network_capabilities::NetworkCapability;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;
@@ -254,7 +253,6 @@ impl<'a> UDPDriver<'a> {
                                 kernel_buffer.slice(0..payload.len());
                                 match self.sender.driver_send_to(
                                     dst_addr,
-                                    DEFAULT_DST_MAC_ADDR,
                                     dst_port,
                                     src_port,
                                     kernel_buffer,

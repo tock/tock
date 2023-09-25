@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2023.
 
 use crate::net::stream::{encode_bytes, SResult};
 use crate::net::thread::tlv::{unwrap_tlv_offset, LinkMode, MulticastResponder, Tlv};
@@ -27,7 +27,7 @@ pub enum ThreadState {
     SendParentReq,
     WaitingParentRsp,
     RecvParentRsp(IPAddr),
-    SendChildIdReq(IPAddr, MacAddress),
+    SendChildIdReq(IPAddr),
     WaitingChildRsp,
     RecvChildRsp(IPAddr),
     SEDActive(IPAddr, MacAddress),
@@ -57,6 +57,8 @@ pub enum MleCommand {
     LinkProbe = 20,
 }
 
+/// Helper function to generate a link-local IPV6 address
+/// from the device's mac address.
 pub fn generate_src_ipv6(macaddr: &[u8; 8]) -> IPAddr {
     // -----------------------------------------------------------------------------------------------
     // THREAD SPEC 5.2.2.4 (V1.3.0) -- A Thread Device MUST assign a link-local IPv6 address where the
@@ -76,6 +78,8 @@ pub fn generate_src_ipv6(macaddr: &[u8; 8]) -> IPAddr {
     IPAddr(output)
 }
 
+/// Helper function to recover the mac address from
+/// an IPV6 address.
 pub fn mac_from_ipv6(ipv6: IPAddr) -> [u8; 8] {
     // Helper function to generate the mac address from the mac address;
     // reversing the tranformation used/described in `generate_src_ipv6`
@@ -87,10 +91,10 @@ pub fn mac_from_ipv6(ipv6: IPAddr) -> [u8; 8] {
     output
 }
 
+/// Helper function to locate the challenge TLV in a received
+/// MLE packet. Return the challenge to be used as a response
+/// TLV in reply.
 fn find_challenge(buf: &[u8]) -> Result<&[u8], ErrorCode> {
-    // Helper function to locate the challenge TLV in a received
-    // MLE packet. Return the challenge to be used as a response
-    // TLV in reply.
     let mut index = 0;
     while index < buf.len() {
         let tlv_len = buf[index + 1] as usize;
@@ -103,6 +107,7 @@ fn find_challenge(buf: &[u8]) -> Result<&[u8], ErrorCode> {
     Err(ErrorCode::FAIL)
 }
 
+/// Function to encode the crypt data into a/m data
 pub fn encode_cryp_data(
     src_addr: IPAddr,
     dst_addr: IPAddr,
@@ -110,7 +115,6 @@ pub fn encode_cryp_data(
     payload: &[u8],
     output: &mut [u8],
 ) -> SResult {
-    // Function to encode the crypt data into a/m data
     // --------------AUTH DATA----------------||-- M DATA--
     // SRC IPV6 || DST IPV6 || AUX SEC HEADER ||  PAYLOAD
     let mut off = enc_consume!(output; encode_bytes, &src_addr.0);
@@ -120,13 +124,11 @@ pub fn encode_cryp_data(
     stream_done!(off)
 }
 
+/// This helper function creates a parent request. For now,
+/// this implementation hard codes all values for the parent request
 pub fn form_parent_req() -> [u8; PARENT_REQUEST_MLE_SIZE] {
-    // This helper function creates a parent request. For now,
-    // this implementation hard codes all values for the parent request
-
     // TODO: form parent request from alterable values, generate
     // challenge from random number generator
-
     let mut output = [0u8; PARENT_REQUEST_MLE_SIZE];
     let mut offset = 0;
 
@@ -164,6 +166,8 @@ pub fn form_parent_req() -> [u8; PARENT_REQUEST_MLE_SIZE] {
     output
 }
 
+/// This helper function creates a child id request. For now,
+/// this implementation hard codes many of the values
 pub fn form_child_id_req(
     recv_buf: &[u8],
     frame_count: u32,

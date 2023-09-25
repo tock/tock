@@ -1,6 +1,33 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2023.
+
+//! This file contains the structs and methods associated with the Thread
+//! networking layer. This represents a first attempt in Tock
+//! to support Thread networking. The current implementation successfully
+//! joins a Tock device as a child node to a Thread parent (tested using
+//! OpenThread). This Thread capsule is a client to the UDP Mux.
+//! The associated ThreadNetwork struct must be created in the `thread_network.rs`
+//! component. Furthermore, the `init_thread_binding(...)` method must be called
+//! to bind Thread to the proper UDP ports needed to send MLE messages (prior
+//! to initiating child join).
+//!
+//! The Userland interface is incredibly simple at this juncture. An application
+//! can begin the Thread child/parent joining by issuing a syscall
+//! that provides the MLE/MAC key.
+
+// ------------------------------------------------------------------------------
+// Current Limitations
+// ------------------------------------------------------------------------------
+// (1) A majority of the TLV fields used in the parent request/child id request
+//     are hardcoded. Future implementations need to provide options for specifying
+//     varied security policies.
+// (2) Current implementation joins the Thread network sucessfully and consistently
+//     but does not send update/heart beat messages to the parent prior to the child
+//     timing out.
+// (3) Currently no support for sending UDP messages across Thread interface. The
+//     current interface is unusable for sending data. It can only be used to
+//     join a network.
 
 use crate::ieee802154::framer::{self, get_ccm_nonce};
 use crate::net::ieee802154::{KeyId, MacAddress, Security, SecurityLevel};
@@ -145,10 +172,13 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         }
     }
 
+    /// Takes the MLE and MAC keys and replaces the networkkey
     pub fn set_networkkey(&self, mle_key: [u8; 16], mac_key: [u8; 16]) {
         self.networkkey.replace(NetworkKey { mle_key, mac_key });
     }
 
+    /// Thread initialization function to bing Thread to the default Thread MLE
+    /// ports
     pub fn init_thread_binding(&self) -> (UdpPortBindingTx, UdpPortBindingRx) {
         // Initialization function to bind thread on the Thread UDP port needed to send MLE
         match self.port_table.create_socket() {
@@ -256,10 +286,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
                         form_child_id_req(recv_buf.as_slice(), self.frame_count.get())?;
 
                     // Advance state machine
-                    self.state.replace(ThreadState::SendChildIdReq(
-                        sender_ip,
-                        MacAddress::Long(mac_from_ipv6(sender_ip)),
-                    ));
+                    self.state.replace(ThreadState::SendChildIdReq(sender_ip));
 
                     self.thread_mle_send(&output[..offset], sender_ip, src_ipv6)?;
                 } else if recv_buf[0] == MleCommand::ChildIdResponse as u8 {
@@ -498,7 +525,7 @@ impl<'a, A: time::Alarm<'a>> UDPSendClient for ThreadNetworkDriver<'a, A> {
         let next_state = match curr_state {
             ThreadState::SendUpdate(dst_ip, dst_mac) => ThreadState::SEDActive(dst_ip, dst_mac),
             ThreadState::SendUDPMsg => unimplemented!(),
-            ThreadState::SendChildIdReq(_, _) => ThreadState::WaitingChildRsp,
+            ThreadState::SendChildIdReq(_) => ThreadState::WaitingChildRsp,
             ThreadState::SendParentReq => {
                 kernel::debug!("[Thread] Completed sending parent request to multicast IP");
                 ThreadState::WaitingParentRsp
@@ -524,7 +551,7 @@ impl<'a, A: time::Alarm<'a>> time::AlarmClient for ThreadNetworkDriver<'a, A> {
             // TODO: Implement retries as defined in the thread spec (when timeouts occur)
             ThreadState::Detached => unimplemented!("[Thread ALARM] Detached"),
             ThreadState::SendParentReq => unimplemented!("[Thread ALARM] Send Parent Req"),
-            ThreadState::SendChildIdReq(_, _) => unimplemented!("[Thread ALARM] Send Child ID Req"),
+            ThreadState::SendChildIdReq(_) => unimplemented!("[Thread ALARM] Send Child ID Req"),
             ThreadState::SEDActive(_ipaddr, _mac) => {
                 // TODO: SEND HEARTBEAT to parent node
                 unimplemented!("[Thread ALARM] Send Heartbeat")
@@ -636,7 +663,7 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
         let curr_state = self.state.take().unwrap();
 
         match curr_state {
-            ThreadState::SendParentReq | ThreadState::SendChildIdReq(_, _) => {
+            ThreadState::SendParentReq | ThreadState::SendChildIdReq(_) => {
                 //TODO: Add alarm for timeouts
 
                 // To send, we need to send: security suite || aux sec header || mle payload || mic
@@ -644,16 +671,13 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                 assembled_subslice.slice(..assembled_buf_len);
 
                 let dest_ipv6;
-                let dest_mac;
                 match curr_state {
-                    // Determine destination IP/mac depending on message type
+                    // Determine destination IP depending on message type
                     ThreadState::SendParentReq => {
                         dest_ipv6 = MULTICAST_IPV6;
-                        dest_mac = MacAddress::Short(0xFFFF);
                     }
-                    ThreadState::SendChildIdReq(dst_ipv6, dst_mac) => {
+                    ThreadState::SendChildIdReq(dst_ipv6) => {
                         dest_ipv6 = dst_ipv6;
-                        dest_mac = dst_mac;
                     }
                     _ => unreachable!(),
                 }
@@ -667,7 +691,6 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                 self.sender
                     .driver_send_to(
                         dest_ipv6,
-                        dest_mac,
                         19788,
                         19788,
                         assembled_subslice,

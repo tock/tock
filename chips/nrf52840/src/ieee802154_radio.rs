@@ -932,7 +932,6 @@ impl<'a> Radio<'a> {
                         // receiving state to listen for new packets
                         self.rx_client.map(|client| {
                             start_task = true;
-
                             client.receive(
                                 rbuf,
                                 frame_len,
@@ -941,7 +940,6 @@ impl<'a> Radio<'a> {
                             );
                         });
                     }
-
                 }
             }
             RadioState::TX => {
@@ -965,7 +963,6 @@ impl<'a> Radio<'a> {
                     if self.registers.state.get() == nrf52::constants::RADIO_STATE_TXIDLE {
                         start_task = true;
                     }
-
                 }
 
                 // Handle CCA related interrupts.
@@ -1017,7 +1014,6 @@ impl<'a> Radio<'a> {
                         let tbuf = self.tx_buf.take().unwrap();
                         client.send_done(tbuf, false, result);
                     });
-
                     rx_init = true;
                 }
             }
@@ -1044,7 +1040,6 @@ impl<'a> Radio<'a> {
 
                     // Reset radio to proper receiving state
                     rx_init = true;
-
 
                     // Notify receive client of packet. The client.receive(...) function has been moved
                     // here to optimize the time taken to send an ACK. If the receive function was called in the
@@ -1076,7 +1071,6 @@ impl<'a> Radio<'a> {
         // to race conditions and strange edge cases. Namely, if a task_start or rx_en is set while interrupts are disabled,
         // the event_end interrupt can be "missed" and the interrupt handler will not be called. If the event is missed, the state
         // machine is unable to progress and the driver enters a deadlock
-
         self.enable_interrupts();
         if rx_init {
             self.rx();
