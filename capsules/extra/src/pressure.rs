@@ -56,8 +56,8 @@
 use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::sensors::PressureClient;
 use kernel::hil;
+use kernel::hil::sensors::PressureClient;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -77,14 +77,14 @@ pub struct PressureSensor<'a> {
 }
 
 impl<'a> PressureSensor<'a> {
-    pub fn new (
+    pub fn new(
         driver: &'a dyn hil::sensors::PressureDriver<'a>,
         apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> PressureSensor<'a> {
         PressureSensor {
             driver: driver,
             apps: apps,
-            busy: Cell::new(false)
+            busy: Cell::new(false),
         }
     }
 
@@ -116,7 +116,9 @@ impl<'a> PressureClient for PressureSensor<'a> {
                     if app.subscribed {
                         self.busy.set(false);
                         app.subscribed = false;
-                        upcalls.schedule_upcall(0, (pressure_value as usize , 0, 0)).ok();
+                        upcalls
+                            .schedule_upcall(0, (pressure_value as usize, 0, 0))
+                            .ok();
                     }
                 })
             }
