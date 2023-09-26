@@ -34,6 +34,7 @@ fn trivial_assertion() {
     run_kernel_op(10000);
 }
 
+mod csrng;
 mod environmental_sensors;
 mod multi_alarm;
 mod spi_controller;
