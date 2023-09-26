@@ -22,3 +22,15 @@ capsules-system = { path = "../../../capsules/system" }
 
 [lints]
 workspace = true
+
+[features]
+default = []
+
+# This feature enables support for the ATECC508A Cryptographic Co-Processor
+# Breakout. If you connect one of these
+# (https://www.sparkfun.com/products/15573) via the I2C Qwiic connector you
+# should enable this feature.
+#
+# NOTE: That the first time this is used it will lock the device, which
+# can not be undone.
+atecc508a = []

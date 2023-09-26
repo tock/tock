@@ -34,6 +34,11 @@ fn trivial_assertion() {
     run_kernel_op(10000);
 }
 
+#[cfg(feature = "atecc508a")]
+mod atecc508a;
+#[cfg(feature = "atecc508a")]
+mod csrng;
+
 mod environmental_sensors;
 mod multi_alarm;
 mod spi_controller;

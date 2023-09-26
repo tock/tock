@@ -14,7 +14,7 @@
 //! and <https://cdn.sparkfun.com/assets/4/4/f/7/e/expLoRaBLE_Thing_Plus_schematic.pdf>
 //! for details on the pin break outs
 //!
-//! ION0: Qwiic I2C
+//! IOM0: Qwiic I2C
 //! IOM1: Not connected
 //! IOM2: Broken out SPI
 //! IOM3: Semtech SX1262
@@ -59,6 +59,15 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+#[cfg(feature = "atecc508a")]
+use {
+    capsules_core::virtualizers::virtual_i2c::MuxI2C,
+    components::atecc508a::Atecc508aComponent,
+    kernel::hil::entropy::Entropy32,
+    kernel::hil::gpio::{Configure, Output},
+    kernel::hil::rng::Rng,
+};
+
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -82,7 +91,6 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
 // Test access to the peripherals
-#[cfg(test)]
 static mut PERIPHERALS: Option<&'static Apollo3DefaultPeripherals> = None;
 // Test access to board
 #[cfg(test)]
@@ -103,6 +111,8 @@ static mut BME280: Option<
     >,
 > = None;
 static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
+#[cfg(feature = "atecc508a")]
+static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -157,6 +167,15 @@ struct LoRaThingsPlus {
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
+    rng: Option<
+        &'static capsules_core::rng::RngDriver<
+            'static,
+            capsules_core::rng::Entropy32ToRandom<
+                'static,
+                capsules_extra::atecc508a::Atecc508a<'static>,
+            >,
+        >,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
@@ -183,6 +202,67 @@ struct LoRaThingsPlus {
     >,
 }
 
+#[cfg(feature = "atecc508a")]
+fn atecc508a_wakeup() {
+    let peripherals = (unsafe { PERIPHERALS }).unwrap();
+
+    peripherals.gpio_port[6].make_output();
+    peripherals.gpio_port[6].clear();
+
+    // The ATECC508A requires the SDA line to be low for at least 60us
+    // to wake up.
+    for _i in 0..700 {
+        cortexm4::support::nop();
+    }
+
+    // Enable SDA and SCL for I2C (exposed via Qwiic)
+    let _ = &peripherals
+        .gpio_port
+        .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
+}
+
+#[cfg(feature = "atecc508a")]
+unsafe fn setup_atecc508a(
+    board_kernel: &'static kernel::Kernel,
+    memory_allocation_cap: &dyn capabilities::MemoryAllocationCapability,
+    mux_i2c: &'static MuxI2C<'static, apollo3::iom::Iom<'static>>,
+) -> &'static capsules_core::rng::RngDriver<
+    'static,
+    capsules_core::rng::Entropy32ToRandom<'static, capsules_extra::atecc508a::Atecc508a<'static>>,
+> {
+    let atecc508a = Atecc508aComponent::new(mux_i2c, 0x60, atecc508a_wakeup).finalize(
+        components::atecc508a_component_static!(apollo3::iom::Iom<'static>),
+    );
+    ATECC508A = Some(atecc508a);
+
+    // Convert hardware RNG to the Random interface.
+    let entropy_to_random = static_init!(
+        capsules_core::rng::Entropy32ToRandom<
+            'static,
+            capsules_extra::atecc508a::Atecc508a<'static>,
+        >,
+        capsules_core::rng::Entropy32ToRandom::new(atecc508a)
+    );
+    atecc508a.set_client(entropy_to_random);
+    // Setup RNG for userspace
+    let rng_local = static_init!(
+        capsules_core::rng::RngDriver<
+            'static,
+            capsules_core::rng::Entropy32ToRandom<
+                'static,
+                capsules_extra::atecc508a::Atecc508a<'static>,
+            >,
+        >,
+        capsules_core::rng::RngDriver::new(
+            entropy_to_random,
+            board_kernel.create_grant(capsules_core::rng::DRIVER_NUM, memory_allocation_cap)
+        )
+    );
+    entropy_to_random.set_client(rng_local);
+
+    rng_local
+}
+
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for LoRaThingsPlus {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -203,6 +283,13 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules_core::rng::DRIVER_NUM => {
+                if let Some(rng) = self.rng {
+                    f(Some(rng))
+                } else {
+                    f(None)
+                }
+            }
             _ => f(None),
         }
     }
@@ -247,9 +334,9 @@ unsafe fn setup() -> (
     &'static kernel::Kernel,
     &'static LoRaThingsPlus,
     &'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
-    &'static Apollo3DefaultPeripherals,
 ) {
     let peripherals = static_init!(Apollo3DefaultPeripherals, Apollo3DefaultPeripherals::new());
+    PERIPHERALS = Some(peripherals);
 
     // No need to statically allocate mcu/pwr/clk_ctrl because they are only used in main!
     let mcu_ctrl = apollo3::mcuctrl::McuCtrl::new();
@@ -276,10 +363,6 @@ unsafe fn setup() -> (
     peripherals
         .gpio_port
         .enable_uart(&peripherals.gpio_port[48], &peripherals.gpio_port[49]);
-    // Enable SDA and SCL for I2C (exposed via Qwiic)
-    peripherals
-        .gpio_port
-        .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
     // Enable Main SPI
     peripherals.gpio_port.enable_spi(
         &peripherals.gpio_port[27],
@@ -354,6 +437,11 @@ unsafe fn setup() -> (
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // Enable SDA and SCL for I2C (exposed via Qwiic)
+    peripherals
+        .gpio_port
+        .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
+
     // Init the I2C device attached via Qwiic
     let i2c_master_buffer = static_init!(
         [u8; capsules_core::i2c_master::BUFFER_LENGTH],
@@ -405,6 +493,15 @@ unsafe fn setup() -> (
     )
     .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
+
+    #[cfg(feature = "atecc508a")]
+    let rng = Some(setup_atecc508a(
+        board_kernel,
+        &memory_allocation_cap,
+        mux_i2c,
+    ));
+    #[cfg(not(feature = "atecc508a"))]
+    let rng = None;
 
     // Init the broken out SPI controller
     let external_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom2).finalize(
@@ -637,6 +734,7 @@ unsafe fn setup() -> (
             temperature,
             humidity,
             air_quality,
+            rng,
             scheduler,
             systick,
             kv_driver,
@@ -669,7 +767,7 @@ unsafe fn setup() -> (
         debug!("{:?}", err);
     });
 
-    (board_kernel, artemis_nano, chip, peripherals)
+    (board_kernel, artemis_nano, chip)
 }
 
 /// Main function.
@@ -685,7 +783,7 @@ pub unsafe fn main() {
 
     #[cfg(not(test))]
     {
-        let (board_kernel, sf_lora_thing_plus_board, chip, _peripherals) = setup();
+        let (board_kernel, sf_lora_thing_plus_board, chip) = setup();
 
         let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
@@ -704,11 +802,10 @@ use kernel::platform::watchdog::WatchDog;
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Fn()]) {
     unsafe {
-        let (board_kernel, sf_lora_thing_plus_board, _chip, peripherals) = setup();
+        let (board_kernel, sf_lora_thing_plus_board, _chip) = setup();
 
         BOARD = Some(board_kernel);
         PLATFORM = Some(&sf_lora_thing_plus_board);
-        PERIPHERALS = Some(peripherals);
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         PLATFORM.map(|p| {
