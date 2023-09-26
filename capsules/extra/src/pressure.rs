@@ -92,15 +92,15 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
             .enter(processid, |app, _| {
                 app.subscribed = true;
                 if !self.busy.get() {
-                    self.busy.set(true);
                     let res = self.driver.read_atmospheric_pressure();
                     if let Ok(err) = ErrorCode::try_from(res) {
                         CommandReturn::failure(err)
                     } else {
+                        self.busy.set(true);
                         CommandReturn::success()
                     }
                 } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
+                    CommandReturn::success()
                 }
             })
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
@@ -109,11 +109,11 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
 
 impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for PressureSensor<'a, T> {
     fn callback(&self, pressure: Result<i32, ErrorCode>) {
+        self.busy.set(false);
         if let Ok(pressure_value) = pressure {
             for cntr in self.apps.iter() {
                 cntr.enter(|app, upcalls| {
                     if app.subscribed {
-                        self.busy.set(false);
                         app.subscribed = false;
                         upcalls
                             .schedule_upcall(0, (pressure_value as usize, 0, 0))
