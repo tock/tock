@@ -3,8 +3,7 @@
 // Copyright 2023 OxidOS Automotive SRL
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
-#![deny(missing_docs)]
-#![deny(dead_code)]
+
 //! Receive descriptor for Ethernet DMA
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};

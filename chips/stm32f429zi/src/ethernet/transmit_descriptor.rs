@@ -4,9 +4,6 @@
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
-#![deny(missing_docs)]
-#![deny(dead_code)]
-
 //! Transmit descriptor for Ethernet DMA
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};

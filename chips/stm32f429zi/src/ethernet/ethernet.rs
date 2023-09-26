@@ -3,9 +3,7 @@
 // Copyright 2023 OxidOS Automotive SRL
 //
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
-#![deny(missing_docs)]
-#![deny(dead_code)]
-#![deny(unused_imports)]
+
 //! Ethernet firmware for STM32F429ZI
 //!
 //! # Usage
