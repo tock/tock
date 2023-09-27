@@ -14,6 +14,8 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -41,6 +43,13 @@ const GPIO_D7: Pin = Pin::P1_03;
 
 const UART_TX_PIN: Pin = Pin::P0_24;
 const UART_RX_PIN: Pin = Pin::P0_22;
+
+/// I2C pins for all of the sensors.
+const I2C_SDA_PIN: Pin = Pin::P0_27;
+const I2C_SCL_PIN: Pin = Pin::P0_26;
+
+/// GPIO pin that controls VCC for the I2C bus and sensors.
+const I2C_PWR: Pin = Pin::P0_07;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -83,6 +92,8 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -99,6 +110,8 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
+            capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             _ => f(None),
         }
     }
@@ -276,6 +289,45 @@ pub unsafe fn start() -> (
         .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
+    // SENSORS
+    //--------------------------------------------------------------------------
+
+    // Enable the power supply for the I2C bus and attached sensors.
+    let _ = &nrf52840_peripherals.gpio_port[I2C_PWR].make_output();
+    let _ = &nrf52840_peripherals.gpio_port[I2C_PWR].set();
+
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
+    .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
+    base_peripherals.twi1.configure(
+        nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
+    );
+
+    let sht4x = components::sht4x::SHT4xComponent::new(
+        mux_i2c,
+        capsules_extra::sht4x::BASE_ADDR,
+        mux_alarm,
+    )
+    .finalize(components::sht4x_component_static!(
+        nrf52::rtc::Rtc<'static>,
+        nrf52840::i2c::TWI
+    ));
+
+    let temperature = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        sht4x,
+    )
+    .finalize(components::temperature_component_static!());
+
+    let humidity = components::humidity::HumidityComponent::new(
+        board_kernel,
+        capsules_extra::humidity::DRIVER_NUM,
+        sht4x,
+    )
+    .finalize(components::humidity_component_static!());
+
+    //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
 
@@ -329,6 +381,8 @@ pub unsafe fn start() -> (
         ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        temperature: temperature,
+        humidity: humidity,
     };
 
     let chip = static_init!(
