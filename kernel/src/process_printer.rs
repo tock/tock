@@ -216,7 +216,7 @@ impl ProcessPrinter for ProcessPrinterText {
             match (addresses.sram_heap_start, addresses.sram_stack_top) {
                 (Some(sram_heap_start), Some(sram_stack_top)) => {
                     let sram_data_size = sram_heap_start - sram_stack_top;
-                    let sram_data_allocated = sram_data_size as usize;
+                    let sram_data_allocated = sram_data_size;
 
                     let _ = bww.write_fmt(format_args!(
                         "\

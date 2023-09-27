@@ -568,7 +568,7 @@ impl hil::uart::Configure for Usart<'_> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
-            || params.hw_flow_control != false
+            || params.hw_flow_control
             || params.width != hil::uart::Width::Eight
         {
             panic!(
@@ -581,7 +581,7 @@ impl hil::uart::Configure for Usart<'_> {
         self.registers.cr1.modify(CR1::M1::CLEAR);
 
         // Set the stop bit length - 00: 1 Stop bits
-        self.registers.cr2.modify(CR2::STOP.val(0b00 as u32));
+        self.registers.cr2.modify(CR2::STOP.val(0b00_u32));
 
         // Set no parity
         self.registers.cr1.modify(CR1::PCE::CLEAR);
@@ -591,8 +591,8 @@ impl hil::uart::Configure for Usart<'_> {
         // to Table 159 of reference manual, the value for BRR is 69.444 (0x45)
         // DIV_Fraction = 0x5
         // DIV_Mantissa = 0x4
-        self.registers.brr.modify(BRR::DIV_Fraction.val(0x5 as u32));
-        self.registers.brr.modify(BRR::DIV_Mantissa.val(0x4 as u32));
+        self.registers.brr.modify(BRR::DIV_Fraction.val(0x5_u32));
+        self.registers.brr.modify(BRR::DIV_Mantissa.val(0x4_u32));
 
         // Enable transmit block
         self.registers.cr1.modify(CR1::TE::SET);

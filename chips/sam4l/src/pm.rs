@@ -1109,32 +1109,32 @@ pub fn deep_sleep_ready() -> bool {
 
 impl ClockInterface for Clock {
     fn is_enabled(&self) -> bool {
-        match self {
-            &Clock::HSB(v) => get_clock!(HSB_MASK_OFFSET: hsbmask & (1 << (v as u32))),
-            &Clock::PBA(v) => get_clock!(PBA_MASK_OFFSET: pbamask & (1 << (v as u32))),
-            &Clock::PBB(v) => get_clock!(PBB_MASK_OFFSET: pbbmask & (1 << (v as u32))),
-            &Clock::PBC(v) => get_clock!(PBC_MASK_OFFSET: pbcmask & (1 << (v as u32))),
-            &Clock::PBD(v) => get_clock!(PBD_MASK_OFFSET: pbdmask & (1 << (v as u32))),
+        match *self {
+            Clock::HSB(v) => get_clock!(HSB_MASK_OFFSET: hsbmask & (1 << (v as u32))),
+            Clock::PBA(v) => get_clock!(PBA_MASK_OFFSET: pbamask & (1 << (v as u32))),
+            Clock::PBB(v) => get_clock!(PBB_MASK_OFFSET: pbbmask & (1 << (v as u32))),
+            Clock::PBC(v) => get_clock!(PBC_MASK_OFFSET: pbcmask & (1 << (v as u32))),
+            Clock::PBD(v) => get_clock!(PBD_MASK_OFFSET: pbdmask & (1 << (v as u32))),
         }
     }
 
     fn enable(&self) {
-        match self {
-            &Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask | 1 << (v as u32)),
-            &Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask | 1 << (v as u32)),
-            &Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask | 1 << (v as u32)),
-            &Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask | 1 << (v as u32)),
-            &Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask | 1 << (v as u32)),
+        match *self {
+            Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask | 1 << (v as u32)),
+            Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask | 1 << (v as u32)),
+            Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask | 1 << (v as u32)),
+            Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask | 1 << (v as u32)),
+            Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask | 1 << (v as u32)),
         }
     }
 
     fn disable(&self) {
-        match self {
-            &Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask & !(1 << (v as u32))),
-            &Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask & !(1 << (v as u32))),
-            &Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask & !(1 << (v as u32))),
-            &Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask & !(1 << (v as u32))),
-            &Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask & !(1 << (v as u32))),
+        match *self {
+            Clock::HSB(v) => mask_clock!(HSB_MASK_OFFSET: hsbmask & !(1 << (v as u32))),
+            Clock::PBA(v) => mask_clock!(PBA_MASK_OFFSET: pbamask & !(1 << (v as u32))),
+            Clock::PBB(v) => mask_clock!(PBB_MASK_OFFSET: pbbmask & !(1 << (v as u32))),
+            Clock::PBC(v) => mask_clock!(PBC_MASK_OFFSET: pbcmask & !(1 << (v as u32))),
+            Clock::PBD(v) => mask_clock!(PBD_MASK_OFFSET: pbdmask & !(1 << (v as u32))),
         }
     }
 }

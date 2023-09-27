@@ -324,7 +324,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                 if let Some(parameters) = cmd.parameters {
                     for parameter in parameters.iter() {
                         buffer[len] = *parameter;
-                        len = len + 1;
+                        len += 1;
                     }
                 }
             },
@@ -493,16 +493,16 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                                 SendCommand::Nop => {
                                     self.do_next_op();
                                 }
-                                SendCommand::Default(ref cmd) => {
+                                SendCommand::Default(cmd) => {
                                     self.send_command_with_default_parameters(cmd);
                                 }
-                                SendCommand::Position(ref cmd, position, len) => {
+                                SendCommand::Position(cmd, position, len) => {
                                     self.send_command(cmd, position, len, 1);
                                 }
-                                SendCommand::Repeat(ref cmd, position, len, repeat) => {
+                                SendCommand::Repeat(cmd, position, len, repeat) => {
                                     self.send_command(cmd, position, len, repeat);
                                 }
-                                SendCommand::Slice(ref cmd, len) => {
+                                SendCommand::Slice(cmd, len) => {
                                     self.send_command_slice(cmd, len);
                                 }
                             };
@@ -588,7 +588,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             }
             Status::Init => {
                 self.status.set(Status::Idle);
-                let _ = self.send_sequence(&self.screen.init_sequence);
+                let _ = self.send_sequence(self.screen.init_sequence);
             }
             Status::Error(error) => {
                 if self.setup_command.get() {

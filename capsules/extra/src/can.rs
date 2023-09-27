@@ -113,18 +113,10 @@ pub struct CanCapsule<'a, Can: can::Can> {
     peripheral_state: OptionalCell<can::State>,
 }
 
+#[derive(Default)]
 pub struct App {
     receive_index: usize,
     lost_messages: u32,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        App {
-            receive_index: 0,
-            lost_messages: 0,
-        }
-    }
 }
 
 impl<'a, Can: can::Can> CanCapsule<'a, Can> {
@@ -318,7 +310,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
                                         Ok(_) => CommandReturn::success(),
                                         Err((err, _)) => CommandReturn::failure(err),
                                     },
-                                    Err(err) => CommandReturn::failure(err.into()),
+                                    Err(err) => CommandReturn::failure(err),
                                 }
                             })
                             .unwrap_or_else(|err| err.into())
@@ -488,16 +480,14 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                                     .copy_from_slice(&(contor + 1).to_le_bytes());
                                                 if app_data.receive_index + len > user_buffer.len()
                                                 {
-                                                    app_data.lost_messages =
-                                                        app_data.lost_messages + 1;
+                                                    app_data.lost_messages += 1;
                                                     Err(ErrorCode::SIZE)
                                                 } else {
                                                     let r = user_buffer[app_data.receive_index
                                                         ..app_data.receive_index + len]
                                                         .copy_from_slice_or_err(&buffer[0..len]);
                                                     if r.is_ok() {
-                                                        app_data.receive_index =
-                                                            app_data.receive_index + len;
+                                                        app_data.receive_index += len;
                                                     }
                                                     r
                                                 }
@@ -518,7 +508,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                 up_calls::UPCALL_MESSAGE_RECEIVED,
                                 (
                                     0,
-                                    shared_len as usize,
+                                    shared_len,
                                     match id {
                                         can::Id::Standard(u16) => u16 as usize,
                                         can::Id::Extended(u32) => u32 as usize,

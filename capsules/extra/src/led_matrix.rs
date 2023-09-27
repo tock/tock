@@ -198,7 +198,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
     fn on_index(&self, led_index: usize) -> Result<(), ErrorCode> {
         if led_index < self.rows.len() * self.cols.len() {
             self.buffer
-                .map(|bits| bits[led_index / 8] = bits[led_index / 8] | (1 << (led_index % 8)));
+                .map(|bits| bits[led_index / 8] |= 1 << (led_index % 8));
             Ok(())
         } else {
             Err(ErrorCode::INVAL)
@@ -212,7 +212,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
     fn off_index(&self, led_index: usize) -> Result<(), ErrorCode> {
         if led_index < self.rows.len() * self.cols.len() {
             self.buffer
-                .map(|bits| bits[led_index / 8] = bits[led_index / 8] & !(1 << led_index % 8));
+                .map(|bits| bits[led_index / 8] &= !(1 << (led_index % 8)));
             Ok(())
         } else {
             Err(ErrorCode::INVAL)
@@ -226,7 +226,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
     fn toggle_index(&self, led_index: usize) -> Result<(), ErrorCode> {
         if led_index < self.rows.len() * self.cols.len() {
             self.buffer
-                .map(|bits| bits[led_index / 8] = bits[led_index / 8] ^ (1 << (led_index % 8)));
+                .map(|bits| bits[led_index / 8] ^= 1 << (led_index % 8));
             Ok(())
         } else {
             Err(ErrorCode::INVAL)
@@ -266,7 +266,7 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixLed<'a, L, A> {
         if col >= matrix.cols_len() || row >= matrix.rows_len() {
             panic!("LED at position ({}, {}) does not exist", col, row);
         }
-        LedMatrixLed { matrix, col, row }
+        LedMatrixLed { matrix, row, col }
     }
 }
 
@@ -286,9 +286,6 @@ impl<'a, L: Pin, A: Alarm<'a>> Led for LedMatrixLed<'a, L, A> {
     }
 
     fn read(&self) -> bool {
-        match self.matrix.read(self.col, self.row) {
-            Ok(v) => v,
-            Err(_) => false,
-        }
+        self.matrix.read(self.col, self.row).unwrap_or(false)
     }
 }

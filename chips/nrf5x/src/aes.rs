@@ -277,7 +277,7 @@ impl<'a> AesECB<'a> {
 
                                     // Copy into static mut DMA buffer
                                     unsafe {
-                                        ECB_DATA[ecb_idx] = ECB_DATA[ecb_idx] ^ output[i + start];
+                                        ECB_DATA[ecb_idx] ^= output[i + start];
                                     }
                                 }
                             });
@@ -287,7 +287,7 @@ impl<'a> AesECB<'a> {
                                 let ecb_idx = i + PLAINTEXT_START;
                                 // Copy into static mut DMA buffer
                                 unsafe {
-                                    ECB_DATA[ecb_idx] = ECB_DATA[ecb_idx] ^ input[i + start];
+                                    ECB_DATA[ecb_idx] ^= input[i + start];
                                 }
                             }
                         },
@@ -473,9 +473,7 @@ impl<'a> kernel::hil::symmetric_encryption::AES128<'a> for AesECB<'a> {
     }
 
     // not needed by NRF5x
-    fn start_message(&self) {
-        ()
-    }
+    fn start_message(&self) {}
 
     fn crypt(
         &self,

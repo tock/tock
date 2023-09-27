@@ -225,7 +225,7 @@ impl Hmac<'_> {
             } else {
                 Ok(())
             };
-            if self.data_progress() == false {
+            if !self.data_progress() {
                 // False means we are done
                 self.client.map(move |client| {
                     self.data.take().map(|buf| match buf {
@@ -316,7 +316,7 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
     fn clear_data(&self) {
         let regs = self.registers;
         regs.cmd.modify(CMD::START::CLEAR);
-        regs.wipe_secret.set(1 as u32);
+        regs.wipe_secret.set(1_u32);
         self.cancelled.set(true);
     }
 
@@ -405,13 +405,11 @@ impl hil::digest::HmacSha256 for Hmac<'_> {
             let mut k = 0;
 
             for i in 0..(key.len() % 4) {
-                k = k
-                    | ((*key.get(key_idx * 4 + 1).ok_or(ErrorCode::INVAL)? as u32)
-                        << (8 * (3 - i)));
+                k |= (*key.get(key_idx * 4 + 1).ok_or(ErrorCode::INVAL)? as u32) << (8 * (3 - i));
             }
 
             regs.key.get(key_idx).ok_or(ErrorCode::INVAL)?.set(k);
-            key_idx = key_idx + 1;
+            key_idx += 1;
         }
 
         for i in key_idx..8 {

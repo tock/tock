@@ -113,7 +113,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     }
 
     fn configure_interrupt(&self, pin_num: u32, config: usize) -> CommandReturn {
-        let pins = self.pins.as_ref();
+        let pins = self.pins;
         let index = pin_num as usize;
         if let Some(pin) = pins[index] {
             match config {
@@ -143,7 +143,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
 impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
     fn fired(&self, pin_num: u32) {
         // read the value of the pin
-        let pins = self.pins.as_ref();
+        let pins = self.pins;
         if let Some(pin) = pins[pin_num as usize] {
             let pin_state = pin.read();
 
@@ -195,7 +195,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
         data2: usize,
         _: ProcessId,
     ) -> CommandReturn {
-        let pins = self.pins.as_ref();
+        let pins = self.pins;
         let pin_index = data1;
         match command_num {
             // number of pins

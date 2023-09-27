@@ -136,10 +136,10 @@ impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
     ///     ],
     /// ];
     ///
-    /// match EXAMPLEREG::TESTFIELD.read_as_enum(0x9C) {
-    ///     Some(EXAMPLEREG::TESTFIELD::Value::Bar) => "The value is 3!",
-    ///     _ => panic!("boo!"),
-    /// };
+    /// assert_eq!(
+    ///     EXAMPLEREG::TESTFIELD.read_as_enum::<EXAMPLEREG::TESTFIELD::Value>(0x9C).unwrap(),
+    ///     EXAMPLEREG::TESTFIELD::Value::Bar
+    /// );
     /// ```
     pub fn read_as_enum<E: TryFromValue<T, EnumType = E>>(self, val: T) -> Option<E> {
         E::try_from_value(self.read(val))
@@ -401,7 +401,7 @@ macro_rules! register_bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
-            #[derive(Copy, Clone, Eq, PartialEq)]
+            #[derive(Copy, Clone, Debug, Eq, PartialEq)]
             #[repr($valtype)] // so that values larger than isize::MAX can be stored
             $(#[$outer])*
             pub enum Value {

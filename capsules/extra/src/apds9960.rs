@@ -173,7 +173,7 @@ impl<'a, I: i2c::I2CDevice> APDS9960<'a, I> {
                 }
 
                 buffer[0] = Registers::PROXPULSEREG as u8;
-                buffer[1] = (length << 6 | count) as u8;
+                buffer[1] = length << 6 | count;
 
                 match self.i2c.write(buffer, 2) {
                     Ok(()) => {
@@ -203,7 +203,7 @@ impl<'a, I: i2c::I2CDevice> APDS9960<'a, I> {
                 }
 
                 buffer[0] = Registers::CONTROLREG1 as u8;
-                buffer[1] = (ldrive << 6) as u8;
+                buffer[1] = ldrive << 6;
 
                 match self.i2c.write(buffer, 2) {
                     Ok(()) => {
@@ -412,7 +412,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for APDS9960<'_, I> {
                 // Deactivate the device
 
                 buffer[0] = Registers::ENABLE as u8;
-                buffer[1] = 0 as u8;
+                buffer[1] = 0_u8;
 
                 match self.i2c.write(buffer, 2) {
                     Ok(()) => {
@@ -433,7 +433,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for APDS9960<'_, I> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
-                self.prox_callback.map(|cb| cb.callback(prox_data as u8));
+                self.prox_callback.map(|cb| cb.callback(prox_data));
             }
             State::TakeMeasurement1 => {
                 // Read status reg
@@ -510,7 +510,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for APDS9960<'_, I> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
-                self.prox_callback.map(|cb| cb.callback(prox_data as u8));
+                self.prox_callback.map(|cb| cb.callback(prox_data));
             }
 
             State::SetPulse => {

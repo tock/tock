@@ -270,7 +270,7 @@ impl<'a> SpiHost<'a> {
                         if self.rx_offset.get() >= self.rx_len.get() {
                             break;
                         }
-                        val8 = ((val32 & shift_mask) >> i * 8) as u8;
+                        val8 = ((val32 & shift_mask) >> (i * 8)) as u8;
                         if let Some(ptr) = rx_buf.get_mut(self.rx_offset.get()) {
                             *ptr = val8;
                         } else {
@@ -278,7 +278,7 @@ impl<'a> SpiHost<'a> {
                             break;
                         }
                         self.rx_offset.set(self.rx_offset.get() + 1);
-                        shift_mask = shift_mask << 8;
+                        shift_mask <<= 8;
                     }
                 }
                 //Save buffer!
@@ -360,16 +360,15 @@ impl<'a> SpiHost<'a> {
     /// Currently only Bi-Directional transactions are supported
     fn start_transceive(&self) {
         let regs = self.registers;
-        //8-bits that describe command transfer len (cannot exceed 255)
-        let num_transfer_bytes: u32;
         //TXQD holds number of 32bit words
         let txfifo_num_bytes = regs.status.read(status::TXQD) * 4;
 
-        if txfifo_num_bytes > u8::MAX as u32 {
-            num_transfer_bytes = u8::MAX as u32;
+        //8-bits that describe command transfer len (cannot exceed 255)
+        let num_transfer_bytes: u32 = if txfifo_num_bytes > u8::MAX as u32 {
+            u8::MAX as u32
         } else {
-            num_transfer_bytes = txfifo_num_bytes;
-        }
+            txfifo_num_bytes
+        };
 
         //Flush all data in TXFIFO and assert CSAAT for all
         // but the last transfer segment.
@@ -632,7 +631,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
 
         rx_buf.map(|rx_buf_t| {
             self.rx_len
-                .set(cmp::min(self.tx_len.get() as usize, rx_buf_t.len()) as usize);
+                .set(cmp::min(self.tx_len.get(), rx_buf_t.len()) as usize);
             self.rx_buf.replace(rx_buf_t);
         });
 

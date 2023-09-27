@@ -233,7 +233,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
                     _ => self.spi_slave.set_phase(ClockPhase::SampleTrailing),
                 } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into()),
+                    Err(error) => CommandReturn::failure(error),
                 }
             }
             4 => {
@@ -247,7 +247,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
                     _ => self.spi_slave.set_polarity(ClockPolarity::IdleHigh),
                 } {
                     Ok(()) => CommandReturn::success(),
-                    Err(error) => CommandReturn::failure(error.into()),
+                    Err(error) => CommandReturn::failure(error),
                 }
             }
             6 => {

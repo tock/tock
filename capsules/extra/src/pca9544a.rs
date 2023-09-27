@@ -64,6 +64,15 @@ enum ControlField {
     SelectedChannels,
 }
 
+/// IDs for subscribed upcalls.
+mod upcall {
+    /// Triggered when a channel is finished being selected or when the current
+    /// channel setup is returned.
+    pub const CHANNEL_DONE: usize = 0;
+    /// Number of upcalls.
+    pub const COUNT: u8 = 1;
+}
+
 #[derive(Default)]
 pub struct App {}
 
@@ -71,7 +80,7 @@ pub struct PCA9544A<'a, I: i2c::I2CDevice> {
     i2c: &'a I,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
     owning_process: OptionalCell<ProcessId>,
 }
 
@@ -79,7 +88,7 @@ impl<'a, I: i2c::I2CDevice> PCA9544A<'a, I> {
     pub fn new(
         i2c: &'a I,
         buffer: &'static mut [u8],
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         Self {
             i2c,
@@ -156,7 +165,10 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (field as usize + 1, ret as usize, 0))
+                            .schedule_upcall(
+                                upcall::CHANNEL_DONE,
+                                (field as usize + 1, ret as usize, 0),
+                            )
                             .ok();
                     });
                 });
@@ -168,7 +180,9 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
             State::Done => {
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(pid, |_app, upcalls| {
-                        upcalls.schedule_upcall(0, (0, 0, 0)).ok();
+                        upcalls
+                            .schedule_upcall(upcall::CHANNEL_DONE, (0, 0, 0))
+                            .ok();
                     });
                 });
 
@@ -182,13 +196,6 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for PCA9544A<'_, I> {
 }
 
 impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
-    // Setup callback for event done.
-    //
-    // ### `subscribe_num`
-    //
-    // - `0`: Upcall is triggered when a channel is finished being selected
-    //   or when the current channel setup is returned.
-
     /// Control the I2C selector.
     ///
     /// ### `command_num`
@@ -228,16 +235,16 @@ impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
             0 => CommandReturn::success(),
 
             // Select channels.
-            1 => self.select_channels(data as u8).into(),
+            1 => self.select_channels(data as u8),
 
             // Disable all channels.
-            2 => self.select_channels(0).into(),
+            2 => self.select_channels(0),
 
             // Read the current interrupt fired mask.
-            3 => self.read_interrupts().into(),
+            3 => self.read_interrupts(),
 
             // Read the current selected channels.
-            4 => self.read_selected_channels().into(),
+            4 => self.read_selected_channels(),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

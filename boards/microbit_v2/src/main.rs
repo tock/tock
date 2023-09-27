@@ -181,7 +181,7 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -329,7 +329,7 @@ unsafe fn start() -> (
         .finalize(components::pwm_mux_component_static!(nrf52833::pwm::Pwm));
 
     let virtual_pwm_buzzer = components::pwm::PwmPinUserComponent::new(
-        &mux_pwm,
+        mux_pwm,
         nrf52833::pinmux::Pinmux::new(SPEAKER_PIN as u32),
     )
     .finalize(components::pwm_pin_user_component_static!(
@@ -385,7 +385,7 @@ unsafe fn start() -> (
     virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
 
     let virtual_pwm_driver = components::pwm::PwmPinUserComponent::new(
-        &mux_pwm,
+        mux_pwm,
         nrf52833::pinmux::Pinmux::new(GPIO_P8 as u32),
     )
     .finalize(components::pwm_pin_user_component_static!(
@@ -501,19 +501,19 @@ unsafe fn start() -> (
             .finalize(components::adc_syscall_component_helper!(
                 // ADC Ring 0 (P0)
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput0)
                 )
                 .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
                 // ADC Ring 1 (P1)
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput1)
                 )
                 .finalize(components::adc_component_static!(nrf52833::adc::Adc)),
                 // ADC Ring 2 (P2)
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52833::adc::AdcChannelSetup::new(nrf52833::adc::AdcChannel::AnalogInput2)
                 )
                 .finalize(components::adc_component_static!(nrf52833::adc::Adc))

@@ -126,7 +126,7 @@ impl<'a> Sha256Software<'a> {
                     b[i] = 0;
                 }
             });
-            buffered_length = buffered_length - 64;
+            buffered_length -= 64;
         }
         if buffered_length < 64 {
             self.data_buffer.map(|b| {
@@ -140,7 +140,7 @@ impl<'a> Sha256Software<'a> {
             // Append the 1
             b.get_mut(buffered_length).map(|d| *d = 0x80);
             //b[buffered_length] = 0x80;
-            buffered_length = buffered_length + 1;
+            buffered_length += 1;
             // The length is 56 because of the 8 bytes appended.
             // Since a block is 64 bytes, this means the last block
             // must have at most 56 bytes including the appended 1, or

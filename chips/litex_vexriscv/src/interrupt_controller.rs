@@ -5,7 +5,6 @@
 //! VexRiscv-specific interrupt controller implementation
 
 use core::cell::Cell;
-use core::mem::size_of;
 
 /// Rust wrapper around the raw CSR-based VexRiscv interrupt
 /// controller
@@ -46,7 +45,7 @@ impl VexRiscvInterruptController {
     /// having a higher priority.
     pub fn next_saved(&self) -> Option<usize> {
         let saved_interrupts: usize = self.saved_interrupts.get();
-        let interrupt_bits = size_of::<usize>() * 8;
+        let interrupt_bits = usize::BITS as usize;
 
         // If there are no interrupts pending (saved_interrupts == 0),
         // usize::trailing_zeros will return usize::BITS, in which

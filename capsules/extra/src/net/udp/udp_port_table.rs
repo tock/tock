@@ -185,7 +185,7 @@ impl UdpPortManager {
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
                         None => {
-                            result = Ok(UdpSocket::new(i, &self));
+                            result = Ok(UdpSocket::new(i, self));
                             table[i] = Some(SocketBindingEntry::Unbound);
                             break;
                         }
@@ -297,6 +297,6 @@ impl UdpPortManager {
             table[idx] = Some(SocketBindingEntry::Unbound);
         });
         // Search the list and return the appropriate socket
-        Ok(UdpSocket::new(idx, &self))
+        Ok(UdpSocket::new(idx, self))
     }
 }

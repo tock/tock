@@ -59,12 +59,12 @@ fn crc8(data: &[u8]) -> u8 {
     let mut crc = 0xff;
 
     for x in 0..data.len() {
-        crc ^= data[x as usize] as u8;
+        crc ^= data[x];
         for _i in 0..8 {
             if (crc & 0x80) != 0 {
                 crc = crc << 1 ^ polynomial;
             } else {
-                crc = crc << 1;
+                crc <<= 1;
             }
         }
     }
@@ -97,7 +97,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT3x<'a, A, I> {
     }
 
     fn read_humidity(&self) -> Result<(), ErrorCode> {
-        if self.read_hum.get() == true {
+        if self.read_hum.get() {
             Err(ErrorCode::BUSY)
         } else {
             if self.state.get() == State::Idle {
@@ -111,7 +111,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT3x<'a, A, I> {
     }
 
     fn read_temperature(&self) -> Result<(), ErrorCode> {
-        if self.read_temp.get() == true {
+        if self.read_temp.get() {
             Err(ErrorCode::BUSY)
         } else {
             if self.state.get() == State::Idle {
@@ -172,12 +172,12 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SHT3x<'a, A, I> {
 
                 match state {
                     State::ReadData => {
-                        if self.read_temp.get() == true {
+                        if self.read_temp.get() {
                             self.read_temp.set(false);
                             if crc8(&buffer[0..2]) == buffer[2] {
                                 let mut stemp = buffer[0] as u32;
-                                stemp = stemp << 8;
-                                stemp = stemp | buffer[1] as u32;
+                                stemp <<= 8;
+                                stemp |= buffer[1] as u32;
                                 let stemp = ((4375 * stemp) >> 14) as i32 - 4500;
                                 self.temperature_client.map(|cb| cb.callback(Ok(stemp)));
                             } else {
@@ -185,12 +185,12 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SHT3x<'a, A, I> {
                                     .map(|cb| cb.callback(Err(ErrorCode::FAIL)));
                             }
                         }
-                        if self.read_hum.get() == true {
+                        if self.read_hum.get() {
                             self.read_hum.set(false);
                             if crc8(&buffer[3..5]) == buffer[5] {
                                 let mut shum = buffer[3] as u32;
-                                shum = shum << 8;
-                                shum = shum | buffer[4] as u32;
+                                shum <<= 8;
+                                shum |= buffer[4] as u32;
                                 shum = (625 * shum) >> 12;
                                 self.humidity_client.map(|cb| cb.callback(shum as usize));
                             } else {
@@ -211,12 +211,12 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SHT3x<'a, A, I> {
             Err(i2c_err) => {
                 self.buffer.replace(buffer);
                 self.i2c.disable();
-                if self.read_temp.get() == true {
+                if self.read_temp.get() {
                     self.read_temp.set(false);
                     self.temperature_client
                         .map(|cb| cb.callback(Err(i2c_err.into())));
                 }
-                if self.read_hum.get() == true {
+                if self.read_hum.get() {
                     self.read_hum.set(false);
                     self.humidity_client.map(|cb| cb.callback(usize::MAX));
                 }

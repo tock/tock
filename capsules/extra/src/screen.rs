@@ -143,7 +143,7 @@ impl<'a> Screen<'a> {
         match self
             .apps
             .enter(process_id, |app, _| {
-                if app.pending_command == true {
+                if app.pending_command {
                     CommandReturn::failure(ErrorCode::BUSY)
                 } else {
                     app.pending_command = true;
@@ -329,91 +329,87 @@ impl<'a> Screen<'a> {
     }
 
     fn fill_next_buffer_for_write(&self, buffer: &mut [u8]) -> usize {
-        self.current_process.map_or_else(
-            || 0,
-            |process_id| {
-                self.apps
-                    .enter(process_id, |app, kernel_data| {
-                        let position = app.write_position;
-                        let mut len = app.write_len;
-                        if position < len {
-                            let buffer_size = buffer.len();
-                            let chunk_number = position / buffer_size;
-                            let initial_pos = chunk_number * buffer_size;
-                            let mut pos = initial_pos;
-                            match app.command {
-                                ScreenCommand::Write(_) => {
-                                    let res = kernel_data
-                                        .get_readonly_processbuffer(ro_allow::SHARED)
-                                        .and_then(|shared| {
-                                            shared.enter(|s| {
-                                                let mut chunks = s.chunks(buffer_size);
-                                                if let Some(chunk) = chunks.nth(chunk_number) {
-                                                    for (i, byte) in chunk.iter().enumerate() {
-                                                        if pos < len {
-                                                            buffer[i] = byte.get();
-                                                            pos = pos + 1
-                                                        } else {
-                                                            break;
-                                                        }
-                                                    }
-                                                    app.write_len - initial_pos
-                                                } else {
-                                                    // stop writing
-                                                    0
-                                                }
-                                            })
-                                        })
-                                        .unwrap_or(0);
-                                    if res > 0 {
-                                        app.write_position = pos;
-                                    }
-                                    res
-                                }
-                                ScreenCommand::Fill => {
-                                    // TODO bytes per pixel
-                                    len = len - position;
-                                    let bytes_per_pixel = pixels_in_bytes(
-                                        1,
-                                        self.pixel_format.get().get_bits_per_pixel(),
-                                    );
-                                    let mut write_len = buffer_size / bytes_per_pixel;
-                                    if write_len > len {
-                                        write_len = len
-                                    };
-                                    app.write_position =
-                                        app.write_position + write_len * bytes_per_pixel;
-                                    kernel_data
-                                        .get_readonly_processbuffer(ro_allow::SHARED)
-                                        .and_then(|shared| {
-                                            shared.enter(|data| {
-                                                let mut bytes = data.iter();
-                                                // bytes per pixel
-                                                for i in 0..bytes_per_pixel {
-                                                    if let Some(byte) = bytes.next() {
+        self.current_process.map_or(0, |process_id| {
+            self.apps
+                .enter(process_id, |app, kernel_data| {
+                    let position = app.write_position;
+                    let mut len = app.write_len;
+                    if position < len {
+                        let buffer_size = buffer.len();
+                        let chunk_number = position / buffer_size;
+                        let initial_pos = chunk_number * buffer_size;
+                        let mut pos = initial_pos;
+                        match app.command {
+                            ScreenCommand::Write(_) => {
+                                let res = kernel_data
+                                    .get_readonly_processbuffer(ro_allow::SHARED)
+                                    .and_then(|shared| {
+                                        shared.enter(|s| {
+                                            let mut chunks = s.chunks(buffer_size);
+                                            if let Some(chunk) = chunks.nth(chunk_number) {
+                                                for (i, byte) in chunk.iter().enumerate() {
+                                                    if pos < len {
                                                         buffer[i] = byte.get();
+                                                        pos += 1
+                                                    } else {
+                                                        break;
                                                     }
                                                 }
-                                                for i in 1..write_len {
-                                                    // bytes per pixel
-                                                    for j in 0..bytes_per_pixel {
-                                                        buffer[bytes_per_pixel * i + j] = buffer[j]
-                                                    }
-                                                }
-                                                write_len * bytes_per_pixel
-                                            })
+                                                app.write_len - initial_pos
+                                            } else {
+                                                // stop writing
+                                                0
+                                            }
                                         })
-                                        .unwrap_or(0)
+                                    })
+                                    .unwrap_or(0);
+                                if res > 0 {
+                                    app.write_position = pos;
                                 }
-                                _ => 0,
+                                res
                             }
-                        } else {
-                            0
+                            ScreenCommand::Fill => {
+                                // TODO bytes per pixel
+                                len -= position;
+                                let bytes_per_pixel = pixels_in_bytes(
+                                    1,
+                                    self.pixel_format.get().get_bits_per_pixel(),
+                                );
+                                let mut write_len = buffer_size / bytes_per_pixel;
+                                if write_len > len {
+                                    write_len = len
+                                };
+                                app.write_position += write_len * bytes_per_pixel;
+                                kernel_data
+                                    .get_readonly_processbuffer(ro_allow::SHARED)
+                                    .and_then(|shared| {
+                                        shared.enter(|data| {
+                                            let mut bytes = data.iter();
+                                            // bytes per pixel
+                                            for i in 0..bytes_per_pixel {
+                                                if let Some(byte) = bytes.next() {
+                                                    buffer[i] = byte.get();
+                                                }
+                                            }
+                                            for i in 1..write_len {
+                                                // bytes per pixel
+                                                for j in 0..bytes_per_pixel {
+                                                    buffer[bytes_per_pixel * i + j] = buffer[j]
+                                                }
+                                            }
+                                            write_len * bytes_per_pixel
+                                        })
+                                    })
+                                    .unwrap_or(0)
+                            }
+                            _ => 0,
                         }
-                    })
-                    .unwrap_or_else(|_| 0)
-            },
-        )
+                    } else {
+                        0
+                    }
+                })
+                .unwrap_or(0)
+        })
     }
 }
 

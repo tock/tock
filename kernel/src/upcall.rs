@@ -167,7 +167,8 @@ impl Upcall {
                 self.process_id,
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,
-                self.fn_ptr.map_or(0x0 as *mut (), |fp| fp.as_ptr()) as usize,
+                self.fn_ptr
+                    .map_or(core::ptr::null_mut::<()>(), |fp| fp.as_ptr()) as usize,
                 r0,
                 r1,
                 r2,
@@ -189,7 +190,7 @@ impl Upcall {
     pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
         match self.fn_ptr {
             Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata),
-            None => SyscallReturn::SubscribeSuccess(0 as *const (), self.appdata),
+            None => SyscallReturn::SubscribeSuccess(core::ptr::null::<()>(), self.appdata),
         }
     }
 
@@ -205,7 +206,7 @@ impl Upcall {
     pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
         match self.fn_ptr {
             Some(fp) => SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata),
-            None => SyscallReturn::SubscribeFailure(err, 0 as *const (), self.appdata),
+            None => SyscallReturn::SubscribeFailure(err, core::ptr::null::<()>(), self.appdata),
         }
     }
 }

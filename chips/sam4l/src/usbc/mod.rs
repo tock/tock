@@ -302,8 +302,9 @@ pub struct DeviceState {
     pub endpoint_states: [EndpointState; N_ENDPOINTS],
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum EndpointState {
+    #[default]
     Disabled,
     Ctrl(CtrlState),
     BulkIn(BulkInState),
@@ -331,12 +332,6 @@ pub enum BulkInState {
 pub enum BulkOutState {
     Init,
     Delay,
-}
-
-impl Default for EndpointState {
-    fn default() -> Self {
-        EndpointState::Disabled
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

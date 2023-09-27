@@ -157,7 +157,7 @@ impl rng::Client for RngDriver<'_> {
             // Check if done switched to false. If it did, then that app
             // didn't get enough random, so there's no way there is more for
             // other apps.
-            if done == false {
+            if !done {
                 break;
             }
         }
@@ -344,7 +344,7 @@ impl entropy::Client8 for Entropy8To32<'_> {
                             let current = self.bytes.get();
                             let bits = val as u32;
                             let result = current | (bits << (8 * count));
-                            count = count + 1;
+                            count += 1;
                             self.count.set(count);
                             self.bytes.set(result)
                         }

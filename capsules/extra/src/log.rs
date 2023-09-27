@@ -377,9 +377,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
                 // Copy data into client buffer.
                 let data = self.get_bytes(entry_id, entry_length, pagebuffer);
-                for i in 0..entry_length {
-                    buffer[i] = data[i];
-                }
+                buffer[..entry_length].copy_from_slice(&data[..entry_length]);
 
                 // Update read entry ID and return number of bytes read.
                 self.read_entry_id.set(entry_id + entry_length);
@@ -391,10 +389,8 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// Writes an entry header at the given position within a page. Must write at most
     /// ENTRY_HEADER_SIZE bytes.
     fn write_entry_header(&self, length: usize, pos: usize, pagebuffer: &mut F::Page) {
-        let mut offset = 0;
-        for byte in &length.to_ne_bytes() {
+        for (offset, byte) in length.to_ne_bytes().iter().enumerate() {
             pagebuffer.as_mut()[pos + offset] = *byte;
-            offset += 1;
         }
     }
 
@@ -415,9 +411,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         page_offset += ENTRY_HEADER_SIZE;
 
         // Copy data to pagebuffer.
-        for offset in 0..length {
-            pagebuffer.as_mut()[page_offset + offset] = buffer[offset];
-        }
+        pagebuffer.as_mut()[page_offset..(length + page_offset)].copy_from_slice(&buffer[..length]);
 
         // Increment append offset by number of bytes appended.
         let append_entry_id = append_entry_id + length + ENTRY_HEADER_SIZE;
@@ -494,9 +488,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
         // Write page header to pagebuffer.
         let id_bytes = append_entry_id.to_ne_bytes();
-        for index in 0..id_bytes.len() {
-            pagebuffer.as_mut()[index] = id_bytes[index];
-        }
+        pagebuffer.as_mut()[..id_bytes.len()].copy_from_slice(&id_bytes[..]);
 
         // Note: this is the only place where the append entry ID can cross page boundaries.
         self.append_entry_id.set(append_entry_id + PAGE_HEADER_SIZE);

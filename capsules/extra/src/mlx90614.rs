@@ -126,16 +126,12 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
                 self.buffer.replace(buffer);
             }
             State::IsPresent => {
-                let present = if status == Ok(()) && buffer[0] == 60 {
-                    true
-                } else {
-                    false
-                };
+                let present = status.is_ok() && buffer[0] == 60;
 
                 self.owning_process.map(|pid| {
                     let _ = self.apps.enter(pid, |_app, upcalls| {
                         upcalls
-                            .schedule_upcall(0, (if present { 1 } else { 0 }, 0, 0))
+                            .schedule_upcall(0, (usize::from(present), 0, 0))
                             .ok();
                     });
                 });

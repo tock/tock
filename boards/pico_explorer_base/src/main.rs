@@ -26,7 +26,6 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
-use rp2040;
 
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -80,7 +79,20 @@ pub struct PicoExplorerBase {
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-
+    buzzer_driver: &'static capsules_extra::buzzer_driver::Buzzer<
+        'static,
+        capsules_extra::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                rp2040::timer::RPTimer<'static>,
+            >,
+            capsules_core::virtualizers::virtual_pwm::PwmPinUser<
+                'static,
+                rp2040::pwm::Pwm<'static>,
+            >,
+        >,
+    >,
     button: &'static capsules_core::button::Button<'static, RPGpioPin<'static>>,
     screen: &'static capsules_extra::screen::Screen<'static>,
 
@@ -101,10 +113,9 @@ impl SyscallDriverLookup for PicoExplorerBase {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
-
+            capsules_extra::buzzer_driver::DRIVER_NUM => f(Some(self.buzzer_driver)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
-
             _ => f(None),
         }
     }
@@ -121,7 +132,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -281,7 +292,7 @@ pub unsafe fn main() {
         true,
     );
 
-    init_clocks(&peripherals);
+    init_clocks(peripherals);
 
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
@@ -389,27 +400,34 @@ pub unsafe fn main() {
             // Used for serial communication. Comment them in if you don't use serial.
             // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
             // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
-            2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
-            3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
-            4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
-            5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
-            6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
-            7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
-            20 => &peripherals.pins.get_pin(RPGpio::GPIO20),
-            21 => &peripherals.pins.get_pin(RPGpio::GPIO21),
-            22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
-            23 => &peripherals.pins.get_pin(RPGpio::GPIO23),
-            24 => &peripherals.pins.get_pin(RPGpio::GPIO24),
+            // Used for Buzzer.
+            // 2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
+            3 => peripherals.pins.get_pin(RPGpio::GPIO3),
+            4 => peripherals.pins.get_pin(RPGpio::GPIO4),
+            5 => peripherals.pins.get_pin(RPGpio::GPIO5),
+            6 => peripherals.pins.get_pin(RPGpio::GPIO6),
+            7 => peripherals.pins.get_pin(RPGpio::GPIO7),
+            20 => peripherals.pins.get_pin(RPGpio::GPIO20),
+            21 => peripherals.pins.get_pin(RPGpio::GPIO21),
+            22 => peripherals.pins.get_pin(RPGpio::GPIO22),
+            23 => peripherals.pins.get_pin(RPGpio::GPIO23),
+            24 => peripherals.pins.get_pin(RPGpio::GPIO24),
         ),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
     let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
-        LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO25))
+        LedHigh::new(peripherals.pins.get_pin(RPGpio::GPIO25))
     ));
 
     peripherals.adc.init();
+
+    // Set PWM function for Buzzer.
+    let _ = &peripherals
+        .pins
+        .get_pin(RPGpio::GPIO2)
+        .set_function(GpioFunction::PWM);
 
     let adc_mux = components::adc::AdcMuxComponent::new(&peripherals.adc)
         .finalize(components::adc_mux_component_static!(Adc));
@@ -446,7 +464,7 @@ pub unsafe fn main() {
 
     let bus = components::bus::SpiMasterBusComponent::new(
         mux_spi,
-        &peripherals.pins.get_pin(RPGpio::GPIO17),
+        peripherals.pins.get_pin(RPGpio::GPIO17),
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
@@ -480,22 +498,22 @@ pub unsafe fn main() {
         components::button_component_helper!(
             RPGpioPin,
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO12),
+                peripherals.pins.get_pin(RPGpio::GPIO12),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // A
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO13),
+                peripherals.pins.get_pin(RPGpio::GPIO13),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // B
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO14),
+                peripherals.pins.get_pin(RPGpio::GPIO14),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // X
             (
-                &peripherals.pins.get_pin(RPGpio::GPIO15),
+                peripherals.pins.get_pin(RPGpio::GPIO15),
                 kernel::hil::gpio::ActivationMode::ActiveLow,
                 kernel::hil::gpio::FloatingState::PullUp
             ), // Y
@@ -511,13 +529,13 @@ pub unsafe fn main() {
     )
     .finalize(components::screen_component_static!(57600));
 
-    let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
+    let adc_channel_0 = components::adc::AdcComponent::new(adc_mux, Channel::Channel0)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
+    let adc_channel_1 = components::adc::AdcComponent::new(adc_mux, Channel::Channel1)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
+    let adc_channel_2 = components::adc::AdcComponent::new(adc_mux, Channel::Channel2)
         .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
@@ -527,10 +545,10 @@ pub unsafe fn main() {
                 adc_channel_1,
                 adc_channel_2,
             ));
+
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
-
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -545,6 +563,71 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    //--------------------------------------------------------------------------
+    // BUZZER
+    //--------------------------------------------------------------------------
+    use kernel::hil::buzzer::Buzzer;
+    use kernel::hil::time::Alarm;
+
+    let mux_pwm = components::pwm::PwmMuxComponent::new(&peripherals.pwm)
+        .finalize(components::pwm_mux_component_static!(rp2040::pwm::Pwm));
+
+    let virtual_pwm_buzzer =
+        components::pwm::PwmPinUserComponent::new(mux_pwm, rp2040::gpio::RPGpio::GPIO2)
+            .finalize(components::pwm_pin_user_component_static!(rp2040::pwm::Pwm));
+
+    let virtual_alarm_buzzer = static_init!(
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            rp2040::timer::RPTimer,
+        >,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    );
+
+    virtual_alarm_buzzer.setup();
+
+    let pwm_buzzer = static_init!(
+        capsules_extra::buzzer_pwm::PwmBuzzer<
+            'static,
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                rp2040::timer::RPTimer,
+            >,
+            capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, rp2040::pwm::Pwm>,
+        >,
+        capsules_extra::buzzer_pwm::PwmBuzzer::new(
+            virtual_pwm_buzzer,
+            virtual_alarm_buzzer,
+            capsules_extra::buzzer_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
+        )
+    );
+
+    let buzzer_driver = static_init!(
+        capsules_extra::buzzer_driver::Buzzer<
+            'static,
+            capsules_extra::buzzer_pwm::PwmBuzzer<
+                'static,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                    'static,
+                    rp2040::timer::RPTimer,
+                >,
+                capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, rp2040::pwm::Pwm>,
+            >,
+        >,
+        capsules_extra::buzzer_driver::Buzzer::new(
+            pwm_buzzer,
+            capsules_extra::buzzer_driver::DEFAULT_MAX_BUZZ_TIME_MS,
+            board_kernel.create_grant(
+                capsules_extra::buzzer_driver::DRIVER_NUM,
+                &memory_allocation_capability
+            )
+        )
+    );
+
+    pwm_buzzer.set_client(buzzer_driver);
+
+    virtual_alarm_buzzer.set_alarm_client(pwm_buzzer);
+
     let pico_explorer_base = PicoExplorerBase {
         ipc: kernel::ipc::IPC::new(
             board_kernel,
@@ -557,10 +640,9 @@ pub unsafe fn main() {
         console,
         adc: adc_syscall,
         temperature: temp,
-
+        buzzer_driver,
         button,
         screen,
-
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),
     };

@@ -218,7 +218,7 @@ impl<'a> Aes<'a> {
     }
 
     fn set_mode(&self, encrypting: bool, mode: ConfidentialityMode) {
-        let encrypt = if encrypting { 1 } else { 0 };
+        let encrypt = u32::from(encrypting);
         let dma = 0;
         self.registers.mode.write(
             Mode::ENCRYPT.val(encrypt)

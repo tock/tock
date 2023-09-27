@@ -277,7 +277,7 @@ impl Crccu<'_> {
             client: OptionalCell::empty(),
             state: Cell::new(State::Invalid),
             algorithm: OptionalCell::empty(),
-            current_full_buffer: Cell::new((0 as *mut u8, 0)),
+            current_full_buffer: Cell::new((core::ptr::null_mut::<u8>(), 0)),
             compute_requested: Cell::new(false),
             descriptor: Descriptor::new(),
             deferred_call: DeferredCall::new(),

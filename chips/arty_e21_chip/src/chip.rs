@@ -232,6 +232,6 @@ pub extern "C" fn disable_interrupt_trap_handler(mcause: u32) {
     // bits.
     let interrupt_index = mcause & 0xFF;
     unsafe {
-        rv32i::clic::disable_interrupt(interrupt_index as u32);
+        rv32i::clic::disable_interrupt(interrupt_index);
     }
 }

@@ -419,7 +419,7 @@ impl<'a> Iom<'_> {
                 let data_idx = i * 4;
 
                 if regs.fifoptr.read(FIFOPTR::FIFO0REM) <= 4 {
-                    self.write_index.set(data_pushed as usize);
+                    self.write_index.set(data_pushed);
                     break;
                 }
 
@@ -437,22 +437,22 @@ impl<'a> Iom<'_> {
             if len < 4 || data_pushed > (len - 4) {
                 // Check if we have any left over data
                 if len % 4 == 1 {
-                    let d = buf[len as usize - 1] as u32;
+                    let d = buf[len - 1] as u32;
 
                     regs.fifopush.set(d);
                 } else if len % 4 == 2 {
-                    let mut d = (buf[len as usize - 1] as u32) << 8;
-                    d |= (buf[len as usize - 2] as u32) << 0;
+                    let mut d = (buf[len - 1] as u32) << 8;
+                    d |= (buf[len - 2] as u32) << 0;
 
                     regs.fifopush.set(d);
                 } else if len % 4 == 3 {
-                    let mut d = (buf[len as usize - 1] as u32) << 16;
-                    d |= (buf[len as usize - 2] as u32) << 8;
-                    d |= (buf[len as usize - 3] as u32) << 0;
+                    let mut d = (buf[len - 1] as u32) << 16;
+                    d |= (buf[len - 2] as u32) << 8;
+                    d |= (buf[len - 3] as u32) << 0;
 
                     regs.fifopush.set(d);
                 }
-                self.write_index.set(len as usize);
+                self.write_index.set(len);
             }
         });
     }
@@ -472,7 +472,7 @@ impl<'a> Iom<'_> {
                 let data_idx = i * 4;
 
                 if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
-                    self.read_index.set(data_popped as usize);
+                    self.read_index.set(data_popped);
                     break;
                 }
 
@@ -505,7 +505,7 @@ impl<'a> Iom<'_> {
                     buf[len - 2] = d[1];
                     buf[len - 1] = d[2];
                 }
-                self.read_index.set(len as usize);
+                self.read_index.set(len);
             }
         });
     }
@@ -644,7 +644,7 @@ impl<'a> Iom<'_> {
                                 + CMD::CMDSEL.val(1)
                                 + CMD::CONT::CLEAR
                                 + CMD::CMD::WRITE
-                                + CMD::OFFSETCNT.val(0 as u32)
+                                + CMD::OFFSETCNT.val(0_u32)
                                 + CMD::OFFSETLO.val(0),
                         );
 
@@ -735,8 +735,8 @@ impl<'a> Iom<'_> {
         } else {
             // Save all the data and offsets we still need to send
             self.buffer.replace(data);
-            self.write_len.set(write_len as usize);
-            self.read_len.set(read_len as usize);
+            self.write_len.set(write_len);
+            self.read_len.set(read_len);
             self.write_index.set(0);
             self.read_index.set(0);
             // Clear and enable interrupts
@@ -785,7 +785,7 @@ impl<'a> Iom<'_> {
 
         // Save all the data and offsets we still need to send
         self.buffer.replace(data);
-        self.write_len.set(len as usize);
+        self.write_len.set(len);
         self.read_len.set(0);
         self.write_index.set(0);
 
@@ -839,7 +839,7 @@ impl<'a> Iom<'_> {
 
         // Save all the data and offsets we still need to send
         self.buffer.replace(buffer);
-        self.read_len.set(len as usize);
+        self.read_len.set(len);
         self.write_len.set(0);
         self.read_index.set(0);
 
@@ -908,7 +908,7 @@ impl<'a> hil::i2c::I2CMaster<'a> for Iom<'a> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
         }
-        if data.len() < write_len as usize {
+        if data.len() < write_len {
             return Err((hil::i2c::Error::Overrun, data));
         }
         self.i2c_tx_rx(addr, data, write_len, read_len)
@@ -923,7 +923,7 @@ impl<'a> hil::i2c::I2CMaster<'a> for Iom<'a> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, data));
         }
-        if data.len() < len as usize {
+        if data.len() < len {
             return Err((hil::i2c::Error::Overrun, data));
         }
         self.i2c_tx(addr, data, len)
@@ -938,7 +938,7 @@ impl<'a> hil::i2c::I2CMaster<'a> for Iom<'a> {
         if self.op.get() != Operation::I2C {
             return Err((hil::i2c::Error::Busy, buffer));
         }
-        if buffer.len() < len as usize {
+        if buffer.len() < len {
             return Err((hil::i2c::Error::Overrun, buffer));
         }
         self.i2c_rx(addr, buffer, len)
@@ -1109,7 +1109,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
                 + CMD::CMDSEL.val(1)
                 + CMD::CONT::CLEAR
                 + CMD::CMD::WRITE
-                + CMD::OFFSETCNT.val(0 as u32)
+                + CMD::OFFSETCNT.val(0_u32)
                 + CMD::OFFSETLO.val(0),
         );
 
@@ -1148,8 +1148,8 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         // Save all the data and offsets we still need to send
         self.buffer.replace(write_buffer);
-        self.write_len.set(write_len as usize);
-        self.read_len.set(read_len as usize);
+        self.write_len.set(write_len);
+        self.read_len.set(read_len);
         self.op.set(Operation::SPI);
 
         // Enable interrupts
@@ -1181,7 +1181,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
                 + CMD::CMDSEL.val(1)
                 + CMD::CONT::CLEAR
                 + CMD::CMD::WRITE
-                + CMD::OFFSETCNT.val(0 as u32)
+                + CMD::OFFSETCNT.val(0_u32)
                 + CMD::OFFSETLO.val(0),
         );
 
@@ -1215,7 +1215,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
                 + CMD::CMDSEL.val(1)
                 + CMD::CONT::CLEAR
                 + CMD::CMD::READ
-                + CMD::OFFSETCNT.val(0 as u32)
+                + CMD::OFFSETCNT.val(0_u32)
                 + CMD::OFFSETLO.val(0),
         );
 
@@ -1254,7 +1254,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
                 + CMD::CMDSEL.val(1)
                 + CMD::CONT::CLEAR
                 + CMD::CMD::WRITE
-                + CMD::OFFSETCNT.val(0 as u32)
+                + CMD::OFFSETCNT.val(0_u32)
                 + CMD::OFFSETLO.val(0),
         );
 
@@ -1288,13 +1288,10 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         let div: u32 = 48000000 / rate; // TODO: Change to `48000000_u32.div_ceil(rate)` when api out of nightly
         let n = div.trailing_zeros().max(6);
 
-        let div3 = if (rate < (48000000 / 16384))
-            || ((rate >= (48000000 / 3)) && (rate <= ((48000000 / 2) - 1)))
-        {
-            1
-        } else {
-            0
-        };
+        let div3 = u32::from(
+            (rate < (48000000 / 16384))
+                || ((rate >= (48000000 / 3)) && (rate <= ((48000000 / 2) - 1))),
+        );
         let denom = (1 << n) * (1 + (div3 * 2));
         let tot_per = if div % denom > 0 {
             (div / denom) + 1
@@ -1308,11 +1305,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             return Err(ErrorCode::NOSUPPORT);
         }
 
-        let diven = if (rate >= (48000000 / 4)) || ((1 << (fsel - 1)) == div) {
-            1
-        } else {
-            0
-        };
+        let diven = u32::from((rate >= (48000000 / 4)) || ((1 << (fsel - 1)) == div));
         let low_per = if self.spi_phase.get() == ClockPhase::SampleLeading {
             (tot_per - 1) / 2
         } else {

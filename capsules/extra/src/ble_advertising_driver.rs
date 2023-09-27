@@ -450,7 +450,7 @@ where
                             let _ = app.send_advertisement(
                                 processid,
                                 kernel_data,
-                                &self,
+                                self,
                                 RadioChannel::AdvertisingChannel37,
                             );
                         }
@@ -568,7 +568,7 @@ where
                         let _ = app.send_advertisement(
                             processid,
                             kernel_data,
-                            &self,
+                            self,
                             RadioChannel::AdvertisingChannel38,
                         );
                     }
@@ -580,7 +580,7 @@ where
                         let _ = app.send_advertisement(
                             processid,
                             kernel_data,
-                            &self,
+                            self,
                             RadioChannel::AdvertisingChannel39,
                         );
                     }
@@ -642,7 +642,7 @@ where
                                 self.reset_active_alarm();
                                 CommandReturn::success()
                             }
-                            Err(e) => CommandReturn::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e),
                         },
                     )
             }
@@ -710,14 +710,13 @@ where
                                 self.reset_active_alarm();
                                 CommandReturn::success()
                             }
-                            Err(e) => CommandReturn::failure(e.into()),
+                            Err(e) => CommandReturn::failure(e),
                         },
                     )
             }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
-        .into()
     }
 
     fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {

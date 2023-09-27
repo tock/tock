@@ -120,7 +120,7 @@ impl<
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
                 .enter(processid, |app, kernel_data| {
-                    let ret = kernel_data
+                    kernel_data
                         .get_readonly_processbuffer(ro_allow::KEY)
                         .and_then(|key| {
                             key.enter(|k| {
@@ -146,10 +146,7 @@ impl<
                                 }
                             })
                         })
-                        .unwrap_or(Err(ErrorCode::RESERVE));
-                    if ret.is_err() {
-                        return ret;
-                    }
+                        .unwrap_or(Err(ErrorCode::RESERVE))?;
 
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::DATA)

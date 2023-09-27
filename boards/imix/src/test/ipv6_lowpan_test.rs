@@ -64,11 +64,11 @@ pub const DST_MAC_ADDR: MacAddress = MacAddress::Short(57326);
 pub const IP6_HDR_SIZE: usize = 40;
 pub const UDP_HDR_SIZE: usize = 8;
 pub const PAYLOAD_LEN: usize = 200;
-pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
+pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0_u8; radio::MAX_BUF_SIZE];
 
 /* 6LoWPAN Constants */
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
-static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
+static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -417,7 +417,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
                 Some(ref ip6_packet) => {
                     match self
                         .sixlowpan_tx
-                        .next_fragment(&ip6_packet, tx_buf, self.radio)
+                        .next_fragment(ip6_packet, tx_buf, self.radio)
                     {
                         Ok((is_done, frame)) => {
                             //TODO: Fix ordering so that debug output does not indicate extra frame sent
@@ -471,9 +471,9 @@ impl<'a, A: time::Alarm<'a>> TxClient for LowpanTest<'a, A> {
             let mut i = 0;
             while i < 4000000 {
                 ARRAY[i % 100] = (i % 100) as u8;
-                i = i + 1;
+                i += 1;
                 if i % 1000000 == 0 {
-                    i = i + 2;
+                    i += 2;
                 }
             }
         }
@@ -788,7 +788,7 @@ fn ipv6_prepare_packet(tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {
                             ip6_header.dst_addr.0[0] = 0xff;
                             ip6_header.dst_addr.0[1] = DST_ADDR.0[1];
                             ip6_header.dst_addr.0[2] = DST_ADDR.0[2];
-                            ip6_header.dst_addr.0[3] = 64 as u8;
+                            ip6_header.dst_addr.0[3] = 64_u8;
                             ip6_header.dst_addr.0[4..12].copy_from_slice(&MLP);
                             ip6_header.dst_addr.0[12..16].copy_from_slice(&DST_ADDR.0[12..16]);
                         }

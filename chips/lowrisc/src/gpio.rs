@@ -105,7 +105,7 @@ impl<'a> GpioPin<'a> {
         upper: &ReadWrite<u32, mask_half::Register>,
     ) {
         let shift = field.shift;
-        let bit = if val { 1u32 } else { 0u32 };
+        let bit = u32::from(val);
         if shift < 16 {
             lower.write(mask_half::data.val(bit << shift) + mask_half::mask.val(1u32 << shift));
         } else {

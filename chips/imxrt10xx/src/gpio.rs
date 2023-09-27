@@ -650,7 +650,7 @@ impl<'a> Pin<'a> {
     }
 
     fn set_edge_sensitive(&self, sensitive: hil::gpio::InterruptEdge) {
-        use hil::gpio::InterruptEdge::*;
+        use hil::gpio::InterruptEdge::{EitherEdge, FallingEdge, RisingEdge};
         const RISING_EDGE_SENSITIVE: u32 = 0b10;
         const FALLING_EDGE_SENSITIVE: u32 = 0b11;
 

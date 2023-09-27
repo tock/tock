@@ -178,7 +178,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for LoRa
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -236,22 +236,22 @@ unsafe fn setup() -> (
     // Enable PinCfg
     let _ = &peripherals
         .gpio_port
-        .enable_uart(&&peripherals.gpio_port[48], &&peripherals.gpio_port[49]);
+        .enable_uart(&peripherals.gpio_port[48], &peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C (exposed via Qwiic)
     let _ = &peripherals
         .gpio_port
-        .enable_i2c(&&peripherals.gpio_port[6], &&peripherals.gpio_port[5]);
+        .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
     // Enable Main SPI
     let _ = &peripherals.gpio_port.enable_spi(
-        &&peripherals.gpio_port[27],
-        &&peripherals.gpio_port[28],
-        &&peripherals.gpio_port[25],
+        &peripherals.gpio_port[27],
+        &peripherals.gpio_port[28],
+        &peripherals.gpio_port[25],
     );
     // Enable SPI for SX1262
     let _ = &peripherals.gpio_port.enable_spi(
-        &&peripherals.gpio_port[42],
-        &&peripherals.gpio_port[38],
-        &&peripherals.gpio_port[43],
+        &peripherals.gpio_port[42],
+        &peripherals.gpio_port[38],
+        &peripherals.gpio_port[43],
     );
     // Enable the radio pins
     let _ = &peripherals.gpio_port.enable_sx1262_radio_pins();
@@ -287,11 +287,11 @@ unsafe fn setup() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
-            0 => &&peripherals.gpio_port[13],  // A0
-            1 => &&peripherals.gpio_port[12],  // A1
-            2 => &&peripherals.gpio_port[32],  // A2
-            3 => &&peripherals.gpio_port[35],  // A3
-            4 => &&peripherals.gpio_port[34],  // A4
+            0 => &peripherals.gpio_port[13],  // A0
+            1 => &peripherals.gpio_port[12],  // A1
+            2 => &peripherals.gpio_port[32],  // A2
+            3 => &peripherals.gpio_port[35],  // A3
+            4 => &peripherals.gpio_port[34],  // A4
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
@@ -406,11 +406,11 @@ unsafe fn setup() -> (
         LORA_GPIO_DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
-            0 => &&peripherals.gpio_port[36], // H6 - SX1262 Slave Select
-            1 => &&peripherals.gpio_port[39], // J8 - SX1262 Radio Busy Indicator
-            2 => &&peripherals.gpio_port[40], // J9 - SX1262 Multipurpose digital I/O (DIO1)
-            3 => &&peripherals.gpio_port[47], // H9 - SX1262 Multipurpose digital I/O (DIO3)
-            4 => &&peripherals.gpio_port[44], // J7 - SX1262 Reset
+            0 => &peripherals.gpio_port[36], // H6 - SX1262 Slave Select
+            1 => &peripherals.gpio_port[39], // J8 - SX1262 Radio Busy Indicator
+            2 => &peripherals.gpio_port[40], // J9 - SX1262 Multipurpose digital I/O (DIO1)
+            3 => &peripherals.gpio_port[47], // H9 - SX1262 Multipurpose digital I/O (DIO3)
+            4 => &peripherals.gpio_port[44], // J7 - SX1262 Reset
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
@@ -460,9 +460,9 @@ unsafe fn setup() -> (
         LoRaThingsPlus,
         LoRaThingsPlus {
             alarm,
-            console,
-            gpio,
             led,
+            gpio,
+            console,
             i2c_master,
             external_spi_controller,
             sx1262_spi_controller,

@@ -46,25 +46,25 @@ const VALID_COMMANDS_STR: &[u8] =
     b"help status list stop start fault boot terminate process kernel reset panic console-start console-stop\r\n";
 
 /// Escape character for ANSI escape sequences.
-const ESC: u8 = '\x1B' as u8;
+const ESC: u8 = b'\x1B';
 
 /// End of line character.
-const EOL: u8 = '\x00' as u8;
+const EOL: u8 = b'\x00';
 
 /// Backspace ANSI character
-const BS: u8 = '\x08' as u8;
+const BS: u8 = b'\x08';
 
 /// Delete ANSI character
-const DEL: u8 = '\x7F' as u8;
+const DEL: u8 = b'\x7F';
 
 /// Space ANSI character
-const SPACE: u8 = '\x20' as u8;
+const SPACE: u8 = b'\x20';
 
 /// Carriage return ANSI character
-const CR: u8 = '\x0D' as u8;
+const CR: u8 = b'\x0D';
 
 /// Newline ANSI character
-const NLINE: u8 = '\x0A' as u8;
+const NLINE: u8 = b'\x0A';
 
 /// Upper limit for ASCII characters
 const ASCII_LIMIT: u8 = 128;
@@ -72,8 +72,9 @@ const ASCII_LIMIT: u8 = 128;
 /// States used for state machine to allow printing large strings asynchronously
 /// across multiple calls. This reduces the size of the buffer needed to print
 /// each section of the debug message.
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Default)]
 enum WriterState {
+    #[default]
     Empty,
     KernelStart,
     KernelBss,
@@ -89,12 +90,6 @@ enum WriterState {
         index: isize,
         total: isize,
     },
-}
-
-impl Default for WriterState {
-    fn default() -> Self {
-        WriterState::Empty
-    }
 }
 
 /// Key that can be part from an escape sequence.
@@ -147,9 +142,17 @@ enum EscState {
 
 impl EscState {
     fn next_state(self, data: u8) -> Self {
-        use self::{EscKey::*, EscState::*};
+        use self::{
+            EscKey::{Delete, Down, End, Home, Left, Right, Up},
+            EscState::{
+                Bracket, Bracket3, Bypass, Complete, Started, Unrecognized, UnrecognizedDone,
+            },
+        };
         match (self, data) {
             (Bypass, ESC) | (UnrecognizedDone, ESC) | (Complete(_), ESC) => Started,
+            // This is a short-circuit.
+            // ASCII DEL and ANSI Escape Sequence "Delete" should be treated the same way.
+            (Bypass, DEL) | (UnrecognizedDone, DEL) | (Complete(_), DEL) => Complete(Delete),
             (Bypass, _) | (UnrecognizedDone, _) | (Complete(_), _) => Bypass,
             (Started, b'[') => Bracket,
             (Bracket, b'A') => Complete(Up),
@@ -287,7 +290,7 @@ impl Command {
             .position(|a| *a == EOL)
             .unwrap_or(COMMAND_BUF_LEN);
 
-        (&mut self.buf).copy_from_slice(buf);
+        (self.buf).copy_from_slice(buf);
     }
 
     fn insert_byte(&mut self, byte: u8, pos: usize) {
@@ -297,7 +300,7 @@ impl Command {
 
         if let Some(buf_byte) = self.buf.get_mut(pos) {
             *buf_byte = byte;
-            self.len = self.len + 1;
+            self.len += 1;
         }
     }
 
@@ -308,7 +311,7 @@ impl Command {
 
         if let Some(buf_byte) = self.buf.get_mut(self.len - 1) {
             *buf_byte = EOL;
-            self.len = self.len - 1;
+            self.len -= 1;
         }
     }
 
@@ -431,7 +434,7 @@ impl ConsoleWriter {
 impl fmt::Write for ConsoleWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let curr = (s).as_bytes().len();
-        self.buf[self.size..self.size + curr].copy_from_slice(&(s).as_bytes()[..]);
+        self.buf[self.size..self.size + curr].copy_from_slice((s).as_bytes());
         self.size += curr;
         Ok(())
     }
@@ -790,7 +793,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                         if COMMAND_HISTORY_LEN > 1 {
                             if clean_str.len() > 0 {
                                 self.command_history.map(|ht| {
-                                    ht.make_space(&command);
+                                    ht.make_space(command);
                                 });
                             }
                         }
@@ -1082,7 +1085,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             self.queue_buffer.map(|buf| {
                 let size = self.queue_size.get();
                 let len = cmp::min(bytes.len(), buf.len() - size);
-                (&mut buf[size..size + len]).copy_from_slice(&bytes[..len]);
+                (buf[size..size + len]).copy_from_slice(&bytes[..len]);
                 self.queue_size.set(size + len);
             });
             Err(ErrorCode::BUSY)
@@ -1091,7 +1094,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             self.tx_buffer.take().map(|buffer| {
                 let len = cmp::min(bytes.len(), buffer.len());
                 // Copy elements of `bytes` into `buffer`
-                (&mut buffer[..len]).copy_from_slice(&bytes[..len]);
+                (buffer[..len]).copy_from_slice(&bytes[..len]);
                 let _ = self.uart.transmit_buffer(buffer, len);
             });
             Ok(())
@@ -1119,7 +1122,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     let txlen = cmp::min(qlen, txbuf.len());
 
                     // Copy elements of the queue into the TX buffer.
-                    (&mut txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                    (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
 
                     // TODO: If the queue needs to print over multiple TX
                     // buffers, we need to shift the remaining contents of the
@@ -1211,9 +1214,9 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                         let previous_byte = self.previous_byte.get();
                         self.previous_byte.set(read_buf[0]);
-                        let index = self.command_index.get() as usize;
+                        let index = self.command_index.get();
 
-                        let cursor = self.cursor.get() as usize;
+                        let cursor = self.cursor.get();
 
                         if let EscState::Complete(key) = esc_state {
                             match key {
@@ -1224,7 +1227,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         } else {
                                             ht.prev_cmd_idx()
                                         } {
-                                            ht.change_cmd_from(&command);
+                                            ht.change_cmd_from(command);
 
                                             let next_command_len = ht.cmds[next_index].len;
 
@@ -1275,13 +1278,20 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 }
                                 EscKey::Delete if cursor < index => {
                                     // Move the bytes one position to left
-                                    for i in cursor..index {
+                                    for i in cursor..(index - 1) {
                                         command[i] = command[i + 1];
                                         let _ = self.write_byte(command[i]);
                                     }
+                                    // We don't want to write the EOL byte, but we want to copy it to the left
+                                    command[index - 1] = command[index];
 
-                                    // Remove the EOL character at the end of the command
-                                    let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                    // Now that we copied all bytes to the left, we are left over with
+                                    // a dublicate "ghost" character of the last byte,
+                                    // In case we deleted the first character, this doesn't do anything as
+                                    // the dublicate is not there.
+                                    // |abcdef -> bcdef
+                                    // abc|def -> abceff -> abcef
+                                    let _ = self.write_bytes(&[SPACE, BS]);
 
                                     // Move the cursor to last position
                                     for _ in cursor..(index - 1) {
@@ -1321,7 +1331,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     });
                                 }
                             }
-                        } else if read_buf[0] == BS || read_buf[0] == DEL {
+                        } else if read_buf[0] == BS {
                             if cursor > 0 {
                                 // Backspace, echo and remove the byte
                                 // preceding the cursor
@@ -1329,13 +1339,20 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 let _ = self.write_bytes(&[BS, SPACE, BS]);
 
                                 // Move the bytes one position to left
-                                for i in (cursor - 1)..index {
+                                for i in (cursor - 1)..(index - 1) {
                                     command[i] = command[i + 1];
                                     let _ = self.write_byte(command[i]);
                                 }
+                                // We don't want to write the EOL byte, but we want to copy it to the left
+                                command[index - 1] = command[index];
 
-                                // Remove the EOL character at the end of the command
-                                let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                // Now that we copied all bytes to the left, we are left over with
+                                // a dublicate "ghost" character of the last byte,
+                                // In case we deleted the last character, this doesn't do anything as
+                                // the dublicate is not there.
+                                // abcdef| -> abcdef
+                                // abcd|ef -> abceff -> abcef
+                                let _ = self.write_bytes(&[SPACE, BS]);
 
                                 // Move the cursor to last position
                                 for _ in cursor..index {
@@ -1391,7 +1408,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         // Copy the last command into the unfinished command
 
                                         ht.cmds[0].clear();
-                                        ht.write_to_first(&command);
+                                        ht.write_to_first(command);
                                         ht.cmd_is_modified = false;
                                     } else {
                                         ht.cmds[0].insert_byte(read_buf[0], cursor);

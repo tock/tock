@@ -109,7 +109,7 @@ impl IoWrite for Writer {
                         n.clear_pending();
                         n.enable();
                     }
-                    if DUMMY.fired.get() == true {
+                    if DUMMY.fired.get() {
                         // buffer finished transmitting, return so we can output additional
                         // messages when requested by the panic handler.
                         break;

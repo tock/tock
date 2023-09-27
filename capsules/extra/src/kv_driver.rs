@@ -42,7 +42,7 @@
 
 use capsules_core::driver;
 /// Syscall driver number.
-pub const DRIVER_NUM: usize = driver::NUM::KVSystem as usize;
+pub const DRIVER_NUM: usize = driver::NUM::Kv as usize;
 
 use core::cmp;
 use kernel::errorcode;
@@ -349,7 +349,7 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
                         upcalls
                             .schedule_upcall(
                                 upcalls::VALUE,
-                                (errorcode::into_statuscode(ret.into()), value_len, 0),
+                                (errorcode::into_statuscode(ret), value_len, 0),
                             )
                             .ok();
                     }

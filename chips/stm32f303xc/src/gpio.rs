@@ -496,7 +496,7 @@ impl PinId {
     pub fn get_pin_number(&self) -> u8 {
         let mut pin_num = *self as u8;
 
-        pin_num = pin_num & 0b00001111;
+        pin_num &= 0b00001111;
         pin_num
     }
 
@@ -831,9 +831,9 @@ impl<'a> Pin<'a> {
     }
 
     pub unsafe fn enable_interrupt(&'static self) {
-        let exti_line_id = LineId::from_u8(self.pinid.get_pin_number() as u8).unwrap();
+        let exti_line_id = LineId::from_u8(self.pinid.get_pin_number()).unwrap();
 
-        self.exti.associate_line_gpiopin(exti_line_id, &self);
+        self.exti.associate_line_gpiopin(exti_line_id, self);
     }
 
     pub fn set_exti_lineid(&self, lineid: exti::LineId) {
@@ -1118,7 +1118,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
         unsafe {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
-                    let l = lineid.clone();
+                    let l = lineid;
 
                     // disable the interrupt
                     self.exti.mask_interrupt(l);
@@ -1149,7 +1149,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
         unsafe {
             atomic(|| {
                 self.exti_lineid.map(|lineid| {
-                    let l = lineid.clone();
+                    let l = lineid;
                     self.exti.mask_interrupt(l);
                     self.exti.clear_pending(l);
                 });

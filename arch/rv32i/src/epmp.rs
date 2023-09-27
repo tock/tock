@@ -229,7 +229,7 @@ impl PartialEq<mpu::Region> for PMPRegion {
 impl fmt::Display for PMPRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn bit_str<'a>(reg: &PMPRegion, bit: u8, on_str: &'a str, off_str: &'a str) -> &'a str {
-            match reg.cfg.value & bit as u8 {
+            match reg.cfg.value & bit {
                 0 => off_str,
                 _ => on_str,
             }
@@ -368,11 +368,7 @@ impl PMPRegion {
 
         // PMP addresses are not inclusive on the high end, that is
         //     pmpaddr[i-i] <= y < pmpaddr[i]
-        if region_start < (other_end - 4) && other_start < (region_end - 4) {
-            true
-        } else {
-            false
-        }
+        region_start < (other_end - 4) && other_start < (region_end - 4)
     }
 }
 
@@ -438,7 +434,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<(), MAX_AVAILABLE_RE
         if csr::CSR.mseccfg.is_set(csr::mseccfg::mseccfg::mmwp) {
             *(regions.last_mut().unwrap()) = Some(PMPRegion {
                 // Set the size to zero so we don't get overlap errors latter
-                location: (0x00000000 as *const u8, 0x00000000),
+                location: (core::ptr::null::<u8>(), 0x00000000),
                 cfg: pmpcfg::l::CLEAR
                     + pmpcfg::r::SET
                     + pmpcfg::w::SET
@@ -448,7 +444,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> PMPConfig<(), MAX_AVAILABLE_RE
 
             *(regions.first_mut().unwrap()) = Some(PMPRegion {
                 // Set the size to zero so we don't get overlap errors latter
-                location: (0x00000000 as *const u8, 0x00000000),
+                location: (core::ptr::null::<u8>(), 0x00000000),
                 cfg: pmpcfg::l::CLEAR
                     + pmpcfg::r::SET
                     + pmpcfg::w::SET
@@ -612,9 +608,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
 
         let region = PMPRegion::new_app(start as *const u8, size, permissions);
 
-        if region.is_none() {
-            return None;
-        }
+        region?;
 
         config.regions[region_num] = region;
         config.is_dirty.set(true);
@@ -706,9 +700,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
             permissions,
         );
 
-        if region.is_none() {
-            return None;
-        }
+        region?;
 
         config.regions[region_num] = region;
 
@@ -746,7 +738,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         // Get size of updated region
         let region_size = app_memory_break - region_start as usize;
 
-        let region = PMPRegion::new_app(region_start as *const u8, region_size, permissions);
+        let region = PMPRegion::new_app(region_start, region_size, permissions);
 
         if region.is_none() {
             return Err(());
@@ -962,9 +954,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
 
         let region = PMPRegion::new_kernel(start as *const u8, size, permissions);
 
-        if region.is_none() {
-            return None;
-        }
+        region?;
 
         config.regions[region_num] = region;
 
@@ -982,13 +972,13 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::KernelM
             // regions to allow all
             if let Some(last) = config.regions.last_mut() {
                 if let Some(last_region) = last {
-                    last_region.location = (0x0000_0000 as *const u8, 0xFFFF_FFFF);
+                    last_region.location = (core::ptr::null::<u8>(), 0xFFFF_FFFF);
                 }
             }
 
             if let Some(first) = config.regions.first_mut() {
                 if let Some(first_region) = first {
-                    first_region.location = (0x0000_0000 as *const u8, 0xFFFF_FFFF);
+                    first_region.location = (core::ptr::null::<u8>(), 0xFFFF_FFFF);
                 }
             }
         }

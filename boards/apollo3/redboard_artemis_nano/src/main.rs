@@ -140,7 +140,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -197,16 +197,16 @@ unsafe fn setup() -> (
     // Enable PinCfg
     let _ = &peripherals
         .gpio_port
-        .enable_uart(&&peripherals.gpio_port[48], &&peripherals.gpio_port[49]);
+        .enable_uart(&peripherals.gpio_port[48], &peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C2 (exposed via Qwiic)
     let _ = &peripherals
         .gpio_port
-        .enable_i2c(&&peripherals.gpio_port[25], &&peripherals.gpio_port[27]);
+        .enable_i2c(&peripherals.gpio_port[25], &peripherals.gpio_port[27]);
     // Enable Main SPI
     let _ = &peripherals.gpio_port.enable_spi(
-        &&peripherals.gpio_port[5],
-        &&peripherals.gpio_port[7],
-        &&peripherals.gpio_port[6],
+        &peripherals.gpio_port[5],
+        &peripherals.gpio_port[7],
+        &peripherals.gpio_port[6],
     );
 
     // Configure kernel debug gpios as early as possible
@@ -244,11 +244,11 @@ unsafe fn setup() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
-            0 => &&peripherals.gpio_port[13],  // A0
-            1 => &&peripherals.gpio_port[33],  // A1
-            2 => &&peripherals.gpio_port[11],  // A2
-            3 => &&peripherals.gpio_port[29],  // A3
-            5 => &&peripherals.gpio_port[31]  // A5
+            0 => &peripherals.gpio_port[13],  // A0
+            1 => &peripherals.gpio_port[33],  // A1
+            2 => &peripherals.gpio_port[11],  // A2
+            3 => &peripherals.gpio_port[29],  // A3
+            5 => &peripherals.gpio_port[31]  // A5
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
@@ -383,9 +383,9 @@ unsafe fn setup() -> (
         RedboardArtemisNano,
         RedboardArtemisNano {
             alarm,
-            console,
-            gpio,
             led,
+            gpio,
+            console,
             i2c_master,
             spi_controller,
             ble_radio,

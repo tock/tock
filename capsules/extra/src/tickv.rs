@@ -472,6 +472,12 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                             );
                         });
                     }
+                    Err(tickv::error_codes::ErrorCode::ReadNotReady(_)) => {
+                        // Need to do another flash read.
+                        //
+                        // `self.operation` will still be `GetKey`, so this will automatically
+                        // be retried by the primary state machine.
+                    }
                     Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) | Ok(_) => {}
                     Err(e) => {
                         let get_tock_err = match e {
@@ -755,7 +761,10 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> KVSystem<'a>
         match self.operation.get() {
             Operation::None => {
                 self.operation.set(Operation::GarbageCollect);
-                self.tickv.garbage_collect().or(Err(ErrorCode::FAIL))
+                self.tickv
+                    .garbage_collect()
+                    .and(Ok(()))
+                    .or(Err(ErrorCode::FAIL))
             }
             Operation::Init => {
                 // The init process is still occurring.

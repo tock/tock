@@ -552,9 +552,7 @@ impl<'a> SpiMaster<'a> for Spi<'a> {
 
     fn read_write_byte(&self, val: u8) -> Result<u8, ErrorCode> {
         if !self.is_busy() {
-            if let Err(error) = self.write_byte(val) {
-                return Err(error);
-            }
+            self.write_byte(val)?;
 
             while !self.registers.sspsr.is_set(SSPSR::RNE) {}
 
