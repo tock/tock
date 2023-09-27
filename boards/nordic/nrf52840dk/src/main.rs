@@ -158,7 +158,6 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
 
-
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<

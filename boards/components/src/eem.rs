@@ -34,17 +34,12 @@ use kernel::hil;
 macro_rules! cdc_eem_component_static {
     ($U:ty $(,)?) => {{
         (kernel::static_buf!(
-            capsules_extra::usb::eem::CdcEem<
-                'static,
-                $U,
-            >
+            capsules_extra::usb::eem::CdcEem<'static, $U>
         ),)
     };};
 }
 
-pub struct CdcEemComponent<
-    U: 'static + hil::usb::UsbController<'static>,
-> {
+pub struct CdcEemComponent<U: 'static + hil::usb::UsbController<'static>> {
     usb: &'static U,
     max_ctrl_packet_size: u8,
     vendor_id: u16,
@@ -52,9 +47,7 @@ pub struct CdcEemComponent<
     strings: &'static [&'static str; 3],
 }
 
-impl<U: 'static + hil::usb::UsbController<'static>>
-    CdcEemComponent<U>
-{
+impl<U: 'static + hil::usb::UsbController<'static>> CdcEemComponent<U> {
     pub fn new(
         usb: &'static U,
         max_ctrl_packet_size: u8,
@@ -72,16 +65,9 @@ impl<U: 'static + hil::usb::UsbController<'static>>
     }
 }
 
-impl<U: 'static + hil::usb::UsbController<'static>> Component
-    for CdcEemComponent<U>
-{
-    type StaticInput = (
-        &'static mut MaybeUninit<
-            capsules_extra::usb::eem::CdcEem<'static, U>,
-        >,
-    );
-    type Output =
-        &'static capsules_extra::usb::eem::CdcEem<'static, U>;
+impl<U: 'static + hil::usb::UsbController<'static>> Component for CdcEemComponent<U> {
+    type StaticInput = (&'static mut MaybeUninit<capsules_extra::usb::eem::CdcEem<'static, U>>,);
+    type Output = &'static capsules_extra::usb::eem::CdcEem<'static, U>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let cdc = s.0.write(capsules_extra::usb::eem::CdcEem::new(

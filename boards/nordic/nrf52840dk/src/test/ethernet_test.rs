@@ -8,9 +8,20 @@
 //! discovery, can respond to ICMP pings, and has UDP and TCP echo servers (both
 //! on port 11).
 
-use kernel::{hil::{ethernet::{EthernetAdapter, EthernetAdapterClient}, usb::Client}, utilities::cells::TakeCell, static_init, component::Component};
+use kernel::{
+    component::Component,
+    hil::{
+        ethernet::{EthernetAdapter, EthernetAdapterClient},
+        usb::Client,
+    },
+    static_init,
+    utilities::cells::TakeCell,
+};
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use zerocopy::{FromBytes, AsBytes, Unaligned, byteorder::network_endian::U16, LayoutVerified, network_endian::U32};
+use zerocopy::{
+    byteorder::network_endian::U16, network_endian::U32, AsBytes, FromBytes, LayoutVerified,
+    Unaligned,
+};
 
 fn checksum<const N: usize>(payload: [&[u8]; N]) -> u16 {
     let mut sum: u32 = 0;
@@ -51,8 +62,8 @@ struct IpV4Header {
     ttl: u8,
     protocol: u8,
     checksum: U16,
-    source: [u8;4],
-    destination: [u8;4],
+    source: [u8; 4],
+    destination: [u8; 4],
 }
 
 #[repr(C)]
@@ -63,7 +74,6 @@ struct IcmpV4Header {
     checksum: U16,
     rest: [u8; 4],
 }
-
 
 #[repr(C)]
 #[derive(Debug, FromBytes, AsBytes, Unaligned)]
@@ -112,7 +122,12 @@ pub(crate) struct NetworkTest {
 }
 
 impl NetworkTest {
-    pub fn new(adapter: &'static dyn EthernetAdapter<'static>, buffer: &'static mut [u8; 1522], my_ipv4_addr: [u8; 4], my_mac_addr: [u8; 6]) -> NetworkTest {
+    pub fn new(
+        adapter: &'static dyn EthernetAdapter<'static>,
+        buffer: &'static mut [u8; 1522],
+        my_ipv4_addr: [u8; 4],
+        my_mac_addr: [u8; 6],
+    ) -> NetworkTest {
         NetworkTest {
             adapter,
             buffer: TakeCell::new(buffer),
@@ -122,17 +137,23 @@ impl NetworkTest {
     }
 
     fn handle_arp(&self, eth_header: &EthernetHeader, eth_body: &[u8]) {
-        let arp: LayoutVerified<&[u8], Arp> = LayoutVerified::new_unaligned_from_prefix(eth_body).unwrap().0;
+        let arp: LayoutVerified<&[u8], Arp> = LayoutVerified::new_unaligned_from_prefix(eth_body)
+            .unwrap()
+            .0;
 
         self.buffer.take().and_then(|buffer| {
             let len = {
-                let (mut eth_header_resp, eth_response_body): (LayoutVerified<&mut [u8], EthernetHeader>, _) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
+                let (mut eth_header_resp, eth_response_body): (
+                    LayoutVerified<&mut [u8], EthernetHeader>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
                 *eth_header_resp = EthernetHeader {
                     dst_mac: eth_header.src_mac,
                     src_mac: self.my_mac_addr,
                     ethertype: eth_header.ethertype,
                 };
-                let (mut arp_response, _): (LayoutVerified<&mut [u8], Arp>, _) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
+                let (mut arp_response, _): (LayoutVerified<&mut [u8], Arp>, _) =
+                    LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
                 *arp_response = Arp {
                     hw_type: arp.hw_type,
                     protocol_type: arp.protocol_type,
@@ -155,31 +176,49 @@ impl NetworkTest {
     }
 
     fn handle_ipv4(&self, eth_header: &EthernetHeader, eth_body: &[u8]) {
-        let (ip, ip_body): (LayoutVerified<&[u8], IpV4Header>, &[u8]) = LayoutVerified::new_unaligned_from_prefix(eth_body).unwrap();
+        let (ip, ip_body): (LayoutVerified<&[u8], IpV4Header>, &[u8]) =
+            LayoutVerified::new_unaligned_from_prefix(eth_body).unwrap();
 
         match ip.protocol {
             0x01 => {
                 // ICMP
                 self.handle_icmpv4(eth_header, &ip, ip_body);
-            },
+            }
             0x06 => {
                 // TCP
                 self.handle_tcpv4(eth_header, &ip, ip_body);
-            },
+            }
             0x11 => {
                 // UDP
                 self.handle_udpv4(eth_header, &ip, ip_body);
-            },
-            a => kernel::debug!("Unknown IPv4 packet {:#x}", a)
+            }
+            a => kernel::debug!("Unknown IPv4 packet {:#x}", a),
         }
     }
 
-    fn send_icmpv4(&self, dst_mac_address: [u8; 6], dest_ip_address: [u8; 4], icmp_type: u8, icmp_code: u8, icmp_rest: [u8; 4], body: &[u8]) -> Option<usize> {
+    fn send_icmpv4(
+        &self,
+        dst_mac_address: [u8; 6],
+        dest_ip_address: [u8; 4],
+        icmp_type: u8,
+        icmp_code: u8,
+        icmp_rest: [u8; 4],
+        body: &[u8],
+    ) -> Option<usize> {
         self.buffer.take().and_then(|buffer| {
             let len = {
-                let (mut eth_header_resp, eth_response_body): (LayoutVerified<&mut [u8], EthernetHeader>, _) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
-                let (mut ip_response, ip_response_body): (LayoutVerified<&mut [u8], IpV4Header>, _) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
-                let (mut icmp_response, icmp_response_body): (LayoutVerified<&mut [u8], IcmpV4Header>, _) = LayoutVerified::new_unaligned_from_prefix(ip_response_body)?;
+                let (mut eth_header_resp, eth_response_body): (
+                    LayoutVerified<&mut [u8], EthernetHeader>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
+                let (mut ip_response, ip_response_body): (
+                    LayoutVerified<&mut [u8], IpV4Header>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
+                let (mut icmp_response, icmp_response_body): (
+                    LayoutVerified<&mut [u8], IcmpV4Header>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(ip_response_body)?;
 
                 *icmp_response = IcmpV4Header {
                     icmp_type,
@@ -190,12 +229,14 @@ impl NetworkTest {
                 let icmp_response_body = &mut icmp_response_body[..body.len()];
                 icmp_response_body.copy_from_slice(body);
 
-                icmp_response.checksum = checksum([icmp_response.bytes(), icmp_response_body]).into();
+                icmp_response.checksum =
+                    checksum([icmp_response.bytes(), icmp_response_body]).into();
 
                 *ip_response = IpV4Header {
                     version_ihl: (4 << 4) | 5,
                     dsp_ecn: 0,
-                    total_len: (20u16 + icmp_response.bytes().len() as u16 + body.len() as u16).into(),
+                    total_len: (20u16 + icmp_response.bytes().len() as u16 + body.len() as u16)
+                        .into(),
                     ident: 0.into(),
                     flags_fragment: 0.into(),
                     ttl: 20,
@@ -212,7 +253,10 @@ impl NetworkTest {
                     ethertype: 0x800u16.into(),
                 };
 
-                eth_header_resp.bytes().len() + ip_response.bytes().len() + icmp_response.bytes().len() + body.len()
+                eth_header_resp.bytes().len()
+                    + ip_response.bytes().len()
+                    + icmp_response.bytes().len()
+                    + body.len()
             };
             if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
@@ -223,25 +267,49 @@ impl NetworkTest {
     }
 
     fn handle_icmpv4(&self, eth_header: &EthernetHeader, ip_header: &IpV4Header, ip_body: &[u8]) {
-        let (icmp, icmp_body): (LayoutVerified<&[u8], IcmpV4Header>, _) = LayoutVerified::new_unaligned_from_prefix(ip_body).unwrap();
+        let (icmp, icmp_body): (LayoutVerified<&[u8], IcmpV4Header>, _) =
+            LayoutVerified::new_unaligned_from_prefix(ip_body).unwrap();
         let body_size: u16 = ip_header.total_len.get() + 20 + 8;
         let icmp_body = &icmp_body[..core::cmp::min(body_size as usize, icmp_body.len())];
 
         match (icmp.icmp_type, icmp.icmp_code) {
             (8, 0) => {
                 //echo request
-                self.send_icmpv4(eth_header.src_mac, ip_header.source, 0, 0, icmp.rest, icmp_body);
-            },
+                self.send_icmpv4(
+                    eth_header.src_mac,
+                    ip_header.source,
+                    0,
+                    0,
+                    icmp.rest,
+                    icmp_body,
+                );
+            }
             _ => {}
         }
     }
 
-    fn send_udpv4(&self, dst_mac_address: [u8; 6], dest_ip_address: [u8; 4], source_port: u16, dest_port: u16, body: &[u8]) -> Option<usize> {
+    fn send_udpv4(
+        &self,
+        dst_mac_address: [u8; 6],
+        dest_ip_address: [u8; 4],
+        source_port: u16,
+        dest_port: u16,
+        body: &[u8],
+    ) -> Option<usize> {
         self.buffer.take().and_then(|buffer| {
             let len = {
-                let (mut eth_header_resp, eth_response_body): (LayoutVerified<&mut [u8], EthernetHeader>, _) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
-                let (mut ip_response, ip_response_body): (LayoutVerified<&mut [u8], IpV4Header>, _) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
-                let (mut udp_response, udp_response_body): (LayoutVerified<&mut [u8], UDPHeader>, _) = LayoutVerified::new_unaligned_from_prefix(ip_response_body)?;
+                let (mut eth_header_resp, eth_response_body): (
+                    LayoutVerified<&mut [u8], EthernetHeader>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
+                let (mut ip_response, ip_response_body): (
+                    LayoutVerified<&mut [u8], IpV4Header>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
+                let (mut udp_response, udp_response_body): (
+                    LayoutVerified<&mut [u8], UDPHeader>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(ip_response_body)?;
 
                 *udp_response = UDPHeader {
                     source_port: source_port.into(),
@@ -257,7 +325,10 @@ impl NetworkTest {
                 *ip_response = IpV4Header {
                     version_ihl: (4 << 4) | 5,
                     dsp_ecn: 0,
-                    total_len: (20u16 + udp_response.bytes().len() as u16 + udp_response_body.len() as u16).into(),
+                    total_len: (20u16
+                        + udp_response.bytes().len() as u16
+                        + udp_response_body.len() as u16)
+                        .into(),
                     ident: 0.into(),
                     flags_fragment: 0.into(),
                     ttl: 20,
@@ -274,7 +345,10 @@ impl NetworkTest {
                     ethertype: 0x800u16.into(),
                 };
 
-                eth_header_resp.bytes().len() + ip_response.bytes().len() + udp_response.bytes().len() + udp_response_body.len()
+                eth_header_resp.bytes().len()
+                    + ip_response.bytes().len()
+                    + udp_response.bytes().len()
+                    + udp_response_body.len()
             };
             if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
@@ -285,23 +359,51 @@ impl NetworkTest {
     }
 
     fn handle_udpv4(&self, eth_header: &EthernetHeader, ip_header: &IpV4Header, ip_body: &[u8]) {
-        let (udp_header, udp_body): (LayoutVerified<&[u8], UDPHeader>, _) = LayoutVerified::new_unaligned_from_prefix(ip_body).unwrap();
-        let udp_body = &udp_body[..core::cmp::min(udp_body.len(), udp_header.length.get() as usize - 8)];
+        let (udp_header, udp_body): (LayoutVerified<&[u8], UDPHeader>, _) =
+            LayoutVerified::new_unaligned_from_prefix(ip_body).unwrap();
+        let udp_body =
+            &udp_body[..core::cmp::min(udp_body.len(), udp_header.length.get() as usize - 8)];
         match udp_header.destination_port.get() {
             11 => {
                 // Echo server
-                self.send_udpv4(eth_header.src_mac, ip_header.source, 11, udp_header.source_port.into(), udp_body);
-            },
+                self.send_udpv4(
+                    eth_header.src_mac,
+                    ip_header.source,
+                    11,
+                    udp_header.source_port.into(),
+                    udp_body,
+                );
+            }
             _ => {}
         }
     }
 
-    fn send_tcpv4(&self, dst_mac_address: [u8; 6], dest_ip_address: [u8; 4], source_port: u16, dest_port: u16, body: &[u8], seq_number: u32, ack_number: Option<u32>, flags: u8, options: &[u8]) -> Option<usize> {
+    fn send_tcpv4(
+        &self,
+        dst_mac_address: [u8; 6],
+        dest_ip_address: [u8; 4],
+        source_port: u16,
+        dest_port: u16,
+        body: &[u8],
+        seq_number: u32,
+        ack_number: Option<u32>,
+        flags: u8,
+        options: &[u8],
+    ) -> Option<usize> {
         self.buffer.take().and_then(|buffer| {
             let len = {
-                let (mut eth_header_resp, eth_response_body): (LayoutVerified<&mut [u8], EthernetHeader>, _) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
-                let (mut ip_response, ip_response_body): (LayoutVerified<&mut [u8], IpV4Header>, _) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
-                let (mut tcp_response, tcp_response_body): (LayoutVerified<&mut [u8], TCPHeader>, _) = LayoutVerified::new_unaligned_from_prefix(ip_response_body)?;
+                let (mut eth_header_resp, eth_response_body): (
+                    LayoutVerified<&mut [u8], EthernetHeader>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(&mut *buffer)?;
+                let (mut ip_response, ip_response_body): (
+                    LayoutVerified<&mut [u8], IpV4Header>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(eth_response_body)?;
+                let (mut tcp_response, tcp_response_body): (
+                    LayoutVerified<&mut [u8], TCPHeader>,
+                    _,
+                ) = LayoutVerified::new_unaligned_from_prefix(ip_response_body)?;
                 let tcp_response_body = &mut tcp_response_body[..(options.len() + body.len())];
 
                 *tcp_response = TCPHeader {
@@ -317,18 +419,31 @@ impl NetworkTest {
                 };
 
                 {
-                    let (options_response, body_response) = tcp_response_body.split_at_mut(options.len());
+                    let (options_response, body_response) =
+                        tcp_response_body.split_at_mut(options.len());
                     options_response.copy_from_slice(options);
                     body_response.copy_from_slice(body);
                 }
 
                 let tcp_length: U16 = (20 + (options.len() + body.len()) as u16).into();
-                tcp_response.checksum = checksum([&self.my_ipv4_addr, &dest_ip_address, &[0], &[0x06], tcp_length.as_ref(), tcp_response.bytes(), tcp_response_body]).into();
+                tcp_response.checksum = checksum([
+                    &self.my_ipv4_addr,
+                    &dest_ip_address,
+                    &[0],
+                    &[0x06],
+                    tcp_length.as_ref(),
+                    tcp_response.bytes(),
+                    tcp_response_body,
+                ])
+                .into();
 
                 *ip_response = IpV4Header {
                     version_ihl: (4 << 4) | 5,
                     dsp_ecn: 0,
-                    total_len: (20u16 + tcp_response.bytes().len() as u16 + tcp_response_body.len() as u16).into(),
+                    total_len: (20u16
+                        + tcp_response.bytes().len() as u16
+                        + tcp_response_body.len() as u16)
+                        .into(),
                     ident: 0.into(),
                     flags_fragment: 0.into(),
                     ttl: 20,
@@ -345,7 +460,10 @@ impl NetworkTest {
                     ethertype: 0x800u16.into(),
                 };
 
-                eth_header_resp.bytes().len() + ip_response.bytes().len() + tcp_response.bytes().len() + tcp_response_body.len()
+                eth_header_resp.bytes().len()
+                    + ip_response.bytes().len()
+                    + tcp_response.bytes().len()
+                    + tcp_response_body.len()
             };
             if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
@@ -356,24 +474,59 @@ impl NetworkTest {
     }
 
     fn handle_tcpv4(&self, eth_header: &EthernetHeader, ip_header: &IpV4Header, ip_body: &[u8]) {
-        let (tcp_header, tcp_body): (LayoutVerified<&[u8], TCPHeader>, _) = LayoutVerified::new_unaligned_from_prefix(ip_body).unwrap();
+        let (tcp_header, tcp_body): (LayoutVerified<&[u8], TCPHeader>, _) =
+            LayoutVerified::new_unaligned_from_prefix(ip_body).unwrap();
         let data_offset = (tcp_header.data_offset >> 4) * 4 - 20;
-        let (_options, body) = tcp_body.split_at(core::cmp::min(data_offset as usize, tcp_body.len()));
+        let (_options, body) =
+            tcp_body.split_at(core::cmp::min(data_offset as usize, tcp_body.len()));
         match tcp_header.destination_port.get() {
             11 => {
-                if tcp_header.flags & 0b10 != 0 { // SYN
-                    self.send_tcpv4(eth_header.src_mac, ip_header.source, 11, tcp_header.source_port.get(), &[], 22, Some(tcp_header.sequence_number.get() + 1), 0b10, &[]);
-                } else if tcp_header.flags & 0b10000 != 0 { // ACK
-                    if tcp_header.flags & 0b1 != 0 { // FIN
-                        self.send_tcpv4(eth_header.src_mac, ip_header.source, 11, tcp_header.source_port.get(), &[], tcp_header.ack_number.get(), Some(tcp_header.sequence_number.get() + 1), 0b1, &[]);
-
-                    } else if tcp_header.flags & 0b1000 != 0 { // PSH
+                if tcp_header.flags & 0b10 != 0 {
+                    // SYN
+                    self.send_tcpv4(
+                        eth_header.src_mac,
+                        ip_header.source,
+                        11,
+                        tcp_header.source_port.get(),
+                        &[],
+                        22,
+                        Some(tcp_header.sequence_number.get() + 1),
+                        0b10,
+                        &[],
+                    );
+                } else if tcp_header.flags & 0b10000 != 0 {
+                    // ACK
+                    if tcp_header.flags & 0b1 != 0 {
+                        // FIN
+                        self.send_tcpv4(
+                            eth_header.src_mac,
+                            ip_header.source,
+                            11,
+                            tcp_header.source_port.get(),
+                            &[],
+                            tcp_header.ack_number.get(),
+                            Some(tcp_header.sequence_number.get() + 1),
+                            0b1,
+                            &[],
+                        );
+                    } else if tcp_header.flags & 0b1000 != 0 {
+                        // PSH
                         kernel::debug!("TCP out: {}", core::str::from_utf8(body).unwrap());
                         let response_body = &[];
-                        self.send_tcpv4(eth_header.src_mac, ip_header.source, 11, tcp_header.source_port.get(), response_body, tcp_header.ack_number.get() + response_body.len() as u32, Some(tcp_header.sequence_number.get() + body.len() as u32), 0, &[]);
+                        self.send_tcpv4(
+                            eth_header.src_mac,
+                            ip_header.source,
+                            11,
+                            tcp_header.source_port.get(),
+                            response_body,
+                            tcp_header.ack_number.get() + response_body.len() as u32,
+                            Some(tcp_header.sequence_number.get() + body.len() as u32),
+                            0,
+                            &[],
+                        );
                     }
                 }
-            },
+            }
             _ => {}
         }
     }
@@ -395,17 +548,18 @@ impl EthernetAdapterClient for NetworkTest {
         if frame.len() < 12 {
             kernel::debug!("frame: {:#x?}", frame);
         } else {
-            let (eth_header, eth_body): (LayoutVerified<&[u8], EthernetHeader>, _) = LayoutVerified::new_unaligned_from_prefix(frame).unwrap();
+            let (eth_header, eth_body): (LayoutVerified<&[u8], EthernetHeader>, _) =
+                LayoutVerified::new_unaligned_from_prefix(frame).unwrap();
             match eth_header.ethertype.get() {
                 0x0806 => {
                     //ARP
                     self.handle_arp(&eth_header, eth_body);
-                },
+                }
                 0x0800 => {
                     // IPv4
                     self.handle_ipv4(&eth_header, eth_body);
-                },
-                a => kernel::debug!("Unknown {:#x}", a)
+                }
+                a => kernel::debug!("Unknown {:#x}", a),
             }
         }
     }
@@ -415,7 +569,7 @@ impl EthernetAdapterClient for NetworkTest {
 ///
 /// It self-assigns the device an IP address of `192.168.1.50` and uses the
 /// `SRC_ADDR` MAC address.
-pub(crate) unsafe fn setup(nrf_peripherals: &'static Nrf52840DefaultPeripherals<'static> ) {
+pub(crate) unsafe fn setup(nrf_peripherals: &'static Nrf52840DefaultPeripherals<'static>) {
     // Create the strings we include in the USB descriptor. We use the hardcoded
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
@@ -424,9 +578,9 @@ pub(crate) unsafe fn setup(nrf_peripherals: &'static Nrf52840DefaultPeripherals<
     let strings = static_init!(
         [&str; 3],
         [
-            "Tock",           // Manufacturer
-            "NRF52840DK Eth", // Product
-            serial_number_string,   // Serial number
+            "Tock",               // Manufacturer
+            "NRF52840DK Eth",     // Product
+            serial_number_string, // Serial number
         ]
     );
 
@@ -437,13 +591,13 @@ pub(crate) unsafe fn setup(nrf_peripherals: &'static Nrf52840DefaultPeripherals<
         0x005a,
         strings,
     )
-    .finalize(components::cdc_eem_component_static!(
-        nrf52840::usbd::Usbd,
-    ));
+    .finalize(components::cdc_eem_component_static!(nrf52840::usbd::Usbd,));
 
     let ping_buffer = static_init!([u8; 1522], [0; 1522]);
-    let ping_client = static_init!(NetworkTest,
-        NetworkTest::new(eem, ping_buffer, [192, 168, 1, 50], SRC_ADDR));
+    let ping_client = static_init!(
+        NetworkTest,
+        NetworkTest::new(eem, ping_buffer, [192, 168, 1, 50], SRC_ADDR)
+    );
     eem.set_client(ping_client);
     eem.enable();
     eem.attach();

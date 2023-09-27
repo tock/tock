@@ -67,7 +67,7 @@ enum RxState {
         /// Offset into the ethernet frame in bytes
         usize,
         /// Total frame length in bytes
-        usize
+        usize,
     ),
 }
 
@@ -113,46 +113,34 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcEem<'a, U> {
         product_id: u16,
         strings: &'static [&'static str; 3],
     ) -> Self {
-        let interfaces: &mut [InterfaceDescriptor] = &mut [
-            InterfaceDescriptor {
-                interface_number: 0,
-                interface_class: 0x02,    // CDC communication
-                interface_subclass: subclass::EEM,
-                interface_protocol: protocol::EEM,
-                ..InterfaceDescriptor::default()
-            },
-        ];
+        let interfaces: &mut [InterfaceDescriptor] = &mut [InterfaceDescriptor {
+            interface_number: 0,
+            interface_class: 0x02, // CDC communication
+            interface_subclass: subclass::EEM,
+            interface_protocol: protocol::EEM,
+            ..InterfaceDescriptor::default()
+        }];
 
-        let cdc_descriptors: &mut [CdcInterfaceDescriptor] = &mut [
-            CdcInterfaceDescriptor {
-                subtype: descriptors::CdcInterfaceDescriptorSubType::Header,
-                field1: 0x10, // CDC
-                field2: 0x11, // CDC
-            },
-        ];
+        let cdc_descriptors: &mut [CdcInterfaceDescriptor] = &mut [CdcInterfaceDescriptor {
+            subtype: descriptors::CdcInterfaceDescriptorSubType::Header,
+            field1: 0x10, // CDC
+            field2: 0x11, // CDC
+        }];
 
-        let endpoints: &[&[EndpointDescriptor]] = &[
-            &[
-                EndpointDescriptor {
-                    endpoint_address: EndpointAddress::new_const(
-                        2,
-                        TransferDirection::DeviceToHost,
-                    ),
-                    transfer_type: TransferType::Bulk,
-                    max_packet_size: 64,
-                    interval: 0,
-                },
-                EndpointDescriptor {
-                    endpoint_address: EndpointAddress::new_const(
-                        3,
-                        TransferDirection::HostToDevice,
-                    ),
-                    transfer_type: TransferType::Bulk,
-                    max_packet_size: 64,
-                    interval: 0,
-                },
-            ],
-        ];
+        let endpoints: &[&[EndpointDescriptor]] = &[&[
+            EndpointDescriptor {
+                endpoint_address: EndpointAddress::new_const(2, TransferDirection::DeviceToHost),
+                transfer_type: TransferType::Bulk,
+                max_packet_size: 64,
+                interval: 0,
+            },
+            EndpointDescriptor {
+                endpoint_address: EndpointAddress::new_const(3, TransferDirection::HostToDevice),
+                transfer_type: TransferType::Bulk,
+                max_packet_size: 64,
+                interval: 0,
+            },
+        ]];
 
         let (device_descriptor_buffer, other_descriptor_buffer) =
             descriptors::create_descriptor_buffers(
@@ -186,7 +174,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcEem<'a, U> {
                 strings,
             ),
             buffers: Default::default(),
-            rx_buffer: MapCell::new([0;1522]),
+            rx_buffer: MapCell::new([0; 1522]),
             rx_state: Cell::new(RxState::Idle),
 
             tx_buffer: TakeCell::empty(),
@@ -249,24 +237,29 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcEem<'a, U> {
 
                             self.rx_state.set(RxState::Reading(eth_payload.len(), len));
                         }
-                    },
+                    }
                     RxState::Reading(cursor, len) => {
                         if cursor == len {
-                            let len_without_mac = core::cmp::min(len.saturating_sub(4), rx_buffer.len());
+                            let len_without_mac =
+                                core::cmp::min(len.saturating_sub(4), rx_buffer.len());
                             self.rx_state.set(RxState::Idle);
-                            self.client.map(|client| client.rx_packet(&rx_buffer[..len_without_mac], None));
+                            self.client.map(|client| {
+                                client.rx_packet(&rx_buffer[..len_without_mac], None)
+                            });
                         } else if current_packet.is_empty() {
                             break;
                         } else {
-
                             let until = core::cmp::min(len - cursor, current_packet.len());
                             let eth_payload;
                             (eth_payload, current_packet) = current_packet.split_at(until);
-                            for (rb, eth) in rx_buffer.iter_mut().skip(cursor).zip(eth_payload.iter()) {
+                            for (rb, eth) in
+                                rx_buffer.iter_mut().skip(cursor).zip(eth_payload.iter())
+                            {
                                 *rb = eth.get();
                             }
 
-                            self.rx_state.set(RxState::Reading(cursor + eth_payload.len(), len));
+                            self.rx_state
+                                .set(RxState::Reading(cursor + eth_payload.len(), len));
                         }
                     }
                 }
@@ -275,9 +268,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcEem<'a, U> {
     }
 }
 
-impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
-    for CdcEem<'a, U>
-{
+impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcEem<'a, U> {
     fn enable(&'a self) {
         // Set up the default control endpoint
         self.client_ctrl.enable();
@@ -292,7 +283,6 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
             .endpoint_set_out_buffer(ENDPOINT_OUT_NUM, self.buffer(ENDPOINT_OUT_NUM));
         self.controller()
             .endpoint_out_enable(TransferType::Bulk, ENDPOINT_OUT_NUM);
-
     }
 
     fn attach(&'a self) {
@@ -361,11 +351,20 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
                             let to_send = cmp::min(packet.len() as u16, remaining + 2);
 
                             // Copy from the TX buffer to the outgoing USB packet.
-                            for (p, b) in packet.iter().take(to_send.into()).skip(2).zip(tx_buf.iter()) {
+                            for (p, b) in packet
+                                .iter()
+                                .take(to_send.into())
+                                .skip(2)
+                                .zip(tx_buf.iter())
+                            {
                                 p.set(*b);
                             }
 
-                            for (p, b) in packet.iter().skip(remaining as usize - 2).zip(DEADBEEF.iter()) {
+                            for (p, b) in packet
+                                .iter()
+                                .skip(remaining as usize - 2)
+                                .zip(DEADBEEF.iter())
+                            {
                                 p.set(*b);
                             }
 
@@ -377,7 +376,6 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
 
                             // Return that we have data to send.
                             hil::usb::InResult::Packet(to_send.into())
-
                         } else if remaining > 0 {
                             // We do, so we go ahead and send those.
 
@@ -389,11 +387,18 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
                             let to_send = cmp::min(packet.len() as u16, remaining);
 
                             // Copy from the TX buffer to the outgoing USB packet.
-                            for (p, b) in packet.iter().zip(tx_buf.iter().chain(DEADBEEF[..].iter()).skip(offset.into())) {
+                            for (p, b) in packet
+                                .iter()
+                                .zip(tx_buf.iter().chain(DEADBEEF[..].iter()).skip(offset.into()))
+                            {
                                 p.set(*b);
                             }
 
-                            for (p, b) in packet.iter().skip(remaining as usize - 4).zip(DEADBEEF.iter()) {
+                            for (p, b) in packet
+                                .iter()
+                                .skip(remaining as usize - 4)
+                                .zip(DEADBEEF.iter())
+                            {
                                 p.set(*b);
                             }
 
@@ -411,7 +416,13 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
 
                             // Signal the callback and pass back the TX buffer.
                             self.client.map(move |client| {
-                                client.tx_done(Ok(()), tx_buf, self.tx_len.get(), self.tx_identifier.get(), None);
+                                client.tx_done(
+                                    Ok(()),
+                                    tx_buf,
+                                    self.tx_len.get(),
+                                    self.tx_identifier.get(),
+                                    None,
+                                );
                             });
 
                             // Return that we have nothing else to do to the USB
@@ -462,9 +473,15 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a>
                 // ok to signal the callback.
 
                 // Signal the callback and pass back the TX buffer.
-                self.client.map(|client|
-                    client.tx_done(Ok(()), tx_buf, self.tx_len.get(), self.tx_identifier.get(), None)
-                );
+                self.client.map(|client| {
+                    client.tx_done(
+                        Ok(()),
+                        tx_buf,
+                        self.tx_len.get(),
+                        self.tx_identifier.get(),
+                        None,
+                    )
+                });
             }
         });
     }
