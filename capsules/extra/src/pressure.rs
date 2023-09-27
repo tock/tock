@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2023.
 
 //! Provides userspace with access to barometer sensors.
 //!
@@ -116,7 +116,7 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for P
                     if app.subscribed {
                         app.subscribed = false;
                         upcalls
-                            .schedule_upcall(0, (pressure_value as usize, 0, 0))
+                            .schedule_upcall(0, (0, pressure_value as usize, 0))
                             .ok();
                     }
                 })
