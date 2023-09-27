@@ -85,6 +85,7 @@ pub mod sht4x;
 pub mod si7021;
 pub mod sip_hash;
 pub mod sound_pressure;
+pub mod ssd1306;
 pub mod st77xx;
 pub mod symmetric_encryption;
 pub mod temperature;
