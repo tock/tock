@@ -26,6 +26,7 @@ use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
 use stm32f429zi::rcc::{APBPrescaler, SysClockSource};
 use stm32f429zi::syscfg::EthernetInterface;
+use stm32f429zi::chip_specs::Stm32f429Specs;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -331,7 +332,7 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
     });
 }
 
-fn setup_clocks_for_ethernet(clocks: &stm32f429zi::clocks::Clocks) {
+fn setup_clocks_for_ethernet(clocks: &stm32f429zi::clocks::Clocks<Stm32f429Specs>) {
     assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
     assert_eq!(Ok(()), clocks.pll.enable());
     assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
