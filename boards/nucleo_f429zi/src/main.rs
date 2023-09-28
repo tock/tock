@@ -22,11 +22,11 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
 use stm32f429zi::rcc::{APBPrescaler, SysClockSource};
 use stm32f429zi::syscfg::EthernetInterface;
-use stm32f429zi::chip_specs::Stm32f429Specs;
 
 /// Support routines for debugging I/O.
 pub mod io;
