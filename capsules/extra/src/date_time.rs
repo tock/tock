@@ -45,7 +45,7 @@ use kernel::utilities::cells::OptionalCell;
 
 pub const DRIVER_NUM: usize = NUM::DateTime as usize;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DateTimeCommand {
     ReadDateTime,
     SetDateTime(u32, u32),
@@ -234,7 +234,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         processid: ProcessId,
     ) -> CommandReturn {
         let grant_enter_res = self.apps.enter(processid, |app, _| {
-            if app.task.is_none() {
+            if !(app.task == None) {
                 CommandReturn::failure(ErrorCode::BUSY)
             } else{
                 app.task = Some(command);
