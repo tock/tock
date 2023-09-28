@@ -1,3 +1,12 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright 2023 OxidOS Automotive SRL
+//
+// Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
+
+//! Module containing different types used by the Ethernet module
+// Parts of this module will eventually be moved to the kernel's HIL
+
 use core::fmt;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
