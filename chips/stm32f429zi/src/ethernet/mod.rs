@@ -7,5 +7,6 @@
 pub mod ethernet;
 mod receive_descriptor;
 mod transmit_descriptor;
+pub mod utils;
 
 pub use ethernet::Ethernet;
