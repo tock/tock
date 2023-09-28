@@ -7,7 +7,6 @@ use core::panic::PanicInfo;
 use core::str;
 use kernel::debug;
 use kernel::debug::IoWrite;
-use rv32i;
 
 use crate::{PANIC_REFERENCES, PROCESSES};
 

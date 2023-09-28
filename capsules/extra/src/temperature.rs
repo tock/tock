@@ -22,19 +22,18 @@
 //!
 //! ### `command` System Call
 //!
-//! The `command` system call support one argument `cmd` which is used to specify the specific
-//! operation, currently the following cmd's are supported:
+//! The `command` system call support one argument `cmd` which is used to
+//! specify the specific operation, currently the following cmd's are supported:
 //!
-//! * `0`: check whether the driver exist
+//! * `0`: check whether the driver exists
 //! * `1`: read the temperature
 //!
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
 //! * `Ok(())`:    The operation has been successful.
-//! * `BUSY`:      The driver is busy.
-//! * `ENOSUPPORT`: Invalid `cmd`.
-//! * `NOMEM`:     No sufficient memory available.
+//! * `NOSUPPORT`: Invalid `cmd`.
+//! * `NOMEM`:     Insufficient memory available.
 //! * `INVAL`:     Invalid address of the buffer or other error.
 //!
 //! Usage
@@ -57,7 +56,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
@@ -94,17 +92,21 @@ impl<'a> TemperatureSensor<'a> {
     fn enqueue_command(&self, processid: ProcessId) -> CommandReturn {
         self.apps
             .enter(processid, |app, _| {
+                // Unconditionally mark this client as subscribed so it will get
+                // a callback when we get the temperature reading.
+                app.subscribed = true;
+
+                // If we do not already have an ongoing read, start one now.
                 if !self.busy.get() {
-                    app.subscribed = true;
                     self.busy.set(true);
-                    let rcode = self.driver.read_temperature();
-                    let eres = ErrorCode::try_from(rcode);
-                    match eres {
-                        Ok(ecode) => CommandReturn::failure(ecode),
-                        _ => CommandReturn::success(),
+                    match self.driver.read_temperature() {
+                        Ok(()) => CommandReturn::success(),
+                        Err(e) => CommandReturn::failure(e),
                     }
                 } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
+                    // Just return success and we will get the upcall when the
+                    // temperature read is ready.
+                    CommandReturn::success()
                 }
             })
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
@@ -113,12 +115,16 @@ impl<'a> TemperatureSensor<'a> {
 
 impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     fn callback(&self, temp_val: Result<i32, ErrorCode>) {
+        // We completed the operation so we clear the busy flag in case we get
+        // another measurement request.
+        self.busy.set(false);
+
+        // Return the temperature reading to any waiting client.
         if let Ok(temp_val) = temp_val {
             // TODO: forward error conditions
             for cntr in self.apps.iter() {
                 cntr.enter(|app, upcalls| {
                     if app.subscribed {
-                        self.busy.set(false);
                         app.subscribed = false;
                         upcalls.schedule_upcall(0, (temp_val as usize, 0, 0)).ok();
                     }

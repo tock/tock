@@ -66,9 +66,19 @@ You can then use GDB to debug the board
 
 ## Using LoRa with the board
 
-There is a work in progress port of a userspace LoRa library. This is based on
-the Semtech library. You can find the code for this at:
-https://github.com/alistair23/LoRaMac-node
+Tock itself does not support LoRa, instead we run a LoRa application in
+userspace and use the LoRa specific GPIO and SPI syscalls to control the
+radio.
+
+### LoRaMac-node
+
+LoRaMac-node is written by Semtech the maker of LoRa. It's a commonly used
+example implementation. The LoRaMac-node implementation has been tested and
+is capable of sending and recieving between two boards running Tock.
+
+Unfortunately it appears to be unsupported. There is currently a pull request
+open to add support to running on Tock:
+https://github.com/Lora-net/LoRaMac-node/pull/1390
 
 You can build the application by running the following in the `LoRaMac-node`
 directory:
@@ -99,5 +109,31 @@ $ elf2tab -n ping-pong --stack 2048 --app-heap 1024 --kernel-heap 1024 --kernel-
 Then in the Tock repo you can flash the app with:
 
 ```shell
-$ make flash; APP=LoRaMac-node/build/src/apps/ping-pong//ping-pong.tbf make flash-app
+$ make flash; APP=LoRaMac-node/build/src/apps/ping-pong/ping-pong.tbf make flash-app
+```
+
+### RadioLib
+
+RadioLib is a Universal wireless communication library for embedded devices.
+
+RadioLib includes support for the Semtech SX1262 LoRa module and a range of
+other protocols. See the
+[RadioLib README](https://github.com/jgromes/RadioLib#supported-protocols-and-digital-modes)
+for more details.
+
+RadioLib has upstream Tock support, which can be found here:
+https://github.com/jgromes/RadioLib/tree/master/examples/NonArduino/Tock
+
+The RadioLib example can be built with:
+
+```shell
+$ git clone https://github.com/jgromes/RadioLib.git
+$ cd RadioLib/examples/NonArduino/Tock/
+$ ./build.sh
+```
+
+Then in the Tock repo you can flash the kernel and app with:
+
+```shell
+$ make flash; APP=RadioLib/examples/NonArduino/Tock/build/tock-sx1261.tbf make flash-app
 ```

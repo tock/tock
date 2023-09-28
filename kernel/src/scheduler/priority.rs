@@ -15,9 +15,10 @@
 //! for an interrupt to occur, which will cause the process to stop running.
 
 use crate::deferred_call::DeferredCall;
-use crate::kernel::{Kernel, StoppedExecutingReason};
+use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
+use crate::process::StoppedExecutingReason;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::utilities::cells::OptionalCell;
 

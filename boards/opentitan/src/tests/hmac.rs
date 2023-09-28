@@ -10,8 +10,8 @@ use kernel::hil::digest::DigestData;
 use kernel::hil::digest::{self, Digest, DigestVerify, HmacSha256};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
-use kernel::utilities::leasable_buffer::LeasableBuffer;
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSlice;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{debug, ErrorCode};
 
 static KEY: [u8; 32] = [0xA1; 32];
@@ -42,11 +42,7 @@ impl<'a> HmacTestCallback {
 }
 
 impl<'a> digest::ClientData<32> for HmacTestCallback {
-    fn add_mut_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) {
+    fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.add_mut_data_done.set(true);
         // Check that all of the data was accepted and the active slice is length 0
         assert_eq!(data.len(), 0);
@@ -55,7 +51,7 @@ impl<'a> digest::ClientData<32> for HmacTestCallback {
         assert_eq!(result, Ok(()));
     }
 
-    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: LeasableBuffer<'static, u8>) {
+    fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
 }
@@ -101,7 +97,7 @@ fn hmac_check_load_binary() {
     let hmac = &perf.hmac;
 
     let callback = unsafe { static_init_test_cb!() };
-    let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
+    let _buf = SubSliceMut::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac load binary... ");
     run_kernel_op(100);
@@ -128,7 +124,7 @@ fn hmac_check_verify() {
 
     let callback = unsafe { static_init_test_cb!() };
 
-    let _buf = LeasableMutableBuffer::new(callback.input_buffer.take().unwrap());
+    let _buf = SubSliceMut::new(callback.input_buffer.take().unwrap());
 
     debug!("check hmac check verify... ");
     run_kernel_op(100);

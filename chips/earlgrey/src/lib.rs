@@ -8,6 +8,9 @@
 #![no_std]
 #![crate_name = "earlgrey"]
 #![crate_type = "rlib"]
+// `registers/rv_plic_regs` has many register definitions in `register_structs()!`
+// and requires a deeper recursion limit than the default to fully expand.
+#![recursion_limit = "256"]
 
 pub mod chip_config;
 mod interrupts;
@@ -23,6 +26,7 @@ pub mod i2c;
 pub mod otbn;
 pub mod plic;
 pub mod pwrmgr;
+pub mod registers;
 pub mod spi_host;
 pub mod timer;
 pub mod uart;

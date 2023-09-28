@@ -48,16 +48,6 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
@@ -78,11 +68,11 @@ struct Hail {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
-            sam4l::spi::SpiHw,
+            sam4l::spi::SpiHw<'static>,
         >,
     >,
     nrf51822: &'static capsules_extra::nrf51822_serialization::Nrf51822Serialization<'static>,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedLow<'static, sam4l::gpio::GPIOPin<'static>>,
@@ -141,7 +131,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Hail {
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -231,22 +221,15 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals(
-    pm: &'static sam4l::pm::PowerManager,
-) -> &'static Sam4lDefaultPeripherals {
-    static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
-}
-
-/// Board's main function.
-///
-/// This is called from the reset handler after memory initialization is
-/// complete.
-#[no_mangle]
-pub unsafe fn main() {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Hail,
+    &'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+) {
     sam4l::init();
 
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
-    let peripherals = create_peripherals(pm);
+    let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
 
     pm.setup_system_clock(
         sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
@@ -271,7 +254,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Configure kernel debug gpios as early as possible
@@ -314,7 +296,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
@@ -335,11 +317,12 @@ pub unsafe fn main() {
     .finalize(components::nrf51822_component_static!());
 
     let sensors_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c1, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(sam4l::i2c::I2CHw));
 
     // SI7021 Temperature / Humidity Sensor, address: 0x40
-    let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40)
-        .finalize(components::si7021_component_static!(sam4l::ast::Ast));
+    let si7021 = components::si7021::SI7021Component::new(sensors_i2c, mux_alarm, 0x40).finalize(
+        components::si7021_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw),
+    );
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -354,8 +337,9 @@ pub unsafe fn main() {
     .finalize(components::humidity_component_static!());
 
     // Configure the ISL29035, device address 0x44
-    let isl29035 = components::isl29035::Isl29035Component::new(sensors_i2c, mux_alarm)
-        .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
+    let isl29035 = components::isl29035::Isl29035Component::new(sensors_i2c, mux_alarm).finalize(
+        components::isl29035_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw),
+    );
     let ambient_light = components::isl29035::AmbientLightComponent::new(
         board_kernel,
         capsules_extra::ambient_light::DRIVER_NUM,
@@ -374,7 +358,7 @@ pub unsafe fn main() {
     // FXOS8700CQ accelerometer, device address 0x1e
     let fxos8700 =
         components::fxos8700::Fxos8700Component::new(sensors_i2c, 0x1e, &peripherals.pa[9])
-            .finalize(components::fxos8700_component_static!());
+            .finalize(components::fxos8700_component_static!(sam4l::i2c::I2CHw));
 
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
@@ -568,5 +552,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&hail, chip, Some(&hail.ipc), &main_loop_capability);
+    (board_kernel, hail, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

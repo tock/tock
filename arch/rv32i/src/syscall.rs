@@ -205,7 +205,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // process is executing then `state.pc` is invalid/useless, but the
         // application must ignore it anyway since there is nothing logically
         // for it to return to. So this doesn't hurt anything.
-        state.regs[R_RA] = state.pc as u32;
+        state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
         state.pc = callback.pc as u32;

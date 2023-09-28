@@ -261,7 +261,7 @@ impl<'a, S> Gpt<'a, S> {
         while self.registers.cr.is_set(CR::SWR) {}
 
         // Clear the GPT status register
-        self.registers.sr.set(31 as u32);
+        self.registers.sr.set(31_u32);
 
         // Enable free run mode
         self.registers.cr.modify(CR::FRR::SET);
@@ -286,11 +286,11 @@ impl<'a, S> Gpt<'a, S> {
                 // We will use the ipg_clk_highfreq provided by perclk_clk_root,
                 // which runs at 24.75 MHz. Before calling set_alarm, we assume clock
                 // to GPT1 has been enabled.
-                self.registers.cr.modify(CR::CLKSRC.val(0x2 as u32));
+                self.registers.cr.modify(CR::CLKSRC.val(0x2_u32));
 
                 // We do not prescale the value for the moment. We will do so
                 // after we will set the ARM_PLL1 CLK accordingly.
-                self.registers.pr.modify(PR::PRESCALER.val(0 as u32));
+                self.registers.pr.modify(PR::PRESCALER.val(0_u32));
 
                 self.set_frequency(IMXRT1050_IPG_CLOCK_HZ / divider as u32);
             }

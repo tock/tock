@@ -101,12 +101,12 @@ impl IPAddr {
     pub fn set_prefix(&mut self, prefix: &[u8], prefix_len: u8) {
         let full_bytes = (prefix_len / 8) as usize;
         let remaining = (prefix_len & 0x7) as usize;
-        let bytes = full_bytes + (if remaining != 0 { 1 } else { 0 });
+        let bytes = full_bytes + usize::from(remaining != 0);
         assert!(bytes <= prefix.len() && bytes <= 16);
 
         self.0[0..full_bytes].copy_from_slice(&prefix[0..full_bytes]);
         if remaining != 0 {
-            let mask = (0xff as u8) << (8 - remaining);
+            let mask = 0xff_u8 << (8 - remaining);
             self.0[full_bytes] &= !mask;
             self.0[full_bytes] |= mask & prefix[full_bytes];
         }
@@ -180,7 +180,7 @@ pub fn compute_udp_checksum(
 
     //Finally, flip all bits
     sum = !sum;
-    sum = sum & 65535; //Remove upper 16 bits (which should be FFFF after flip)
+    sum &= 65535; //Remove upper 16 bits (which should be FFFF after flip)
     sum as u16 //Return result as u16 in host byte order */
 }
 
@@ -223,7 +223,7 @@ pub fn compute_icmp_checksum(
     }
 
     sum = !sum;
-    sum = sum & 0xffff;
+    sum &= 0xffff;
 
     sum as u16
 }

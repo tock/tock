@@ -26,8 +26,9 @@ pub use riscv::csr;
 
 extern "C" {
     // Where the end of the stack region is (and hence where the stack should
-    // start).
+    // start), and the start of the stack region.
     static _estack: usize;
+    static _sstack: usize;
 
     // Boundaries of the .bss section.
     static mut _szero: usize;
@@ -41,6 +42,7 @@ extern "C" {
     static mut _erelocate: usize;
 
     // The global pointer, value set in the linker script
+    #[link_name = "__global_pointer$"]
     static __global_pointer: usize;
 }
 
@@ -72,20 +74,26 @@ pub extern "C" fn _start() {
             // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
             // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
             //
-            lui  gp, %hi({gp}$)     // Set the global pointer.
-            addi gp, gp, %lo({gp}$) // Value set in linker script.
+            // Disable linker relaxation for code that sets up GP so that this doesn't
+            // get turned into `mv gp, gp`.
+            .option push
+            .option norelax
+
+            la gp, {gp}                 // Set the global pointer from linker script.
+
+            // Re-enable linker relaxations.
+            .option pop
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.
-            lui  sp, %hi({estack})     // Set the initial stack pointer.
-            addi sp, sp, %lo({estack}) // Value from the linker script.
+            la sp, {estack}             // Set the initial stack pointer.
 
             // Set s0 (the frame pointer) to the start of the stack.
-            add  s0, sp, zero
+            add  s0, sp, zero           // s0 = sp
 
             // Initialize mscratch to 0 so that we know that we are currently
             // in the kernel. This is used for the check in the trap handler.
-            csrw 0x340, zero  // CSR=0x340=mscratch
+            csrw 0x340, zero            // CSR=0x340=mscratch
 
             // INITIALIZE MEMORY
 
@@ -165,9 +173,9 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
             csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
                 + csr::utvec::utvec::mode::CLEAR,
         ),
-        PermissionMode::Reserved => (
+        PermissionMode::Reserved => {
             // TODO some sort of error handling?
-            ),
+        }
     }
 }
 
@@ -243,8 +251,7 @@ pub extern "C" fn _start_trap() {
 
             // Load the address of the bottom of the stack (`_sstack`) into our
             // newly freed-up t0 register.
-            lui  t0, %hi(_sstack)               // t0 = _sstack
-            addi t0, t0, %lo(_sstack)
+            la t0, {sstack}                     // t0 = _sstack
 
             // Compare the kernel stack pointer to the bottom of the stack. If
             // the stack pointer is above the bottom of the stack, then continue
@@ -256,8 +263,7 @@ pub extern "C" fn _start_trap() {
             // valid stack to run the panic code. We do this by just starting
             // over with the kernel stack and placing the stack pointer at the
             // top of the original stack.
-            lui  sp, %hi(_estack)               // sp = _estack
-            addi sp, sp, %lo(_estack)
+            la sp, {estack}                     // sp = _estack
 
 
         100: // _from_kernel_continue
@@ -426,6 +432,8 @@ pub extern "C" fn _start_trap() {
             // switching code.
             mret
         ",
+            estack = sym _estack,
+            sstack = sym _sstack,
             options(noreturn)
         );
     }

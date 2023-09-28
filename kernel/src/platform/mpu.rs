@@ -4,7 +4,6 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
-use crate::process::ProcessId;
 use core::cmp;
 use core::fmt::{self, Display};
 
@@ -57,8 +56,7 @@ impl Region {
 /// Null type for the default type of the `MpuConfig` type in an implementation
 /// of the `MPU` trait. This custom type allows us to implement `Display` with
 /// an empty implementation to meet the constraint on `type MpuConfig`.
-#[derive(Default)]
-pub struct MpuConfigDefault {}
+pub struct MpuConfigDefault;
 
 impl Display for MpuConfigDefault {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -92,7 +90,7 @@ pub trait MPU {
     /// It is `Default` so we can create empty state when the process is
     /// created, and `Display` so that the `panic!()` output can display the
     /// current state to help with debugging.
-    type MpuConfig: Default + Display;
+    type MpuConfig: Display;
 
     /// Clears the MPU.
     ///
@@ -100,13 +98,13 @@ pub trait MPU {
     /// MPU where possible.
     /// On some hardware it is impossible to reset the MPU after it has
     /// been locked, in this case this function wont change those regions.
-    fn clear_mpu(&self) {}
+    fn clear_mpu(&self);
 
     /// Enables the MPU for userspace apps.
     ///
     /// This function must enable the permission restrictions on the various
     /// regions protected by the MPU.
-    fn enable_app_mpu(&self) {}
+    fn enable_app_mpu(&self);
 
     /// Disables the MPU for userspace apps.
     ///
@@ -116,12 +114,27 @@ pub trait MPU {
     /// platforms the MPU rules apply to privileged code as well, and therefore
     /// some of the MPU configuration must be disabled for the kernel to effectively
     /// manage processes.
-    fn disable_app_mpu(&self) {}
+    fn disable_app_mpu(&self);
 
     /// Returns the maximum number of regions supported by the MPU.
-    fn number_total_regions(&self) -> usize {
-        0
-    }
+    fn number_total_regions(&self) -> usize;
+
+    /// Creates a new empty MPU configuration.
+    ///
+    /// The returned configuration must not have any userspace-accessible
+    /// regions pre-allocated.
+    ///
+    /// The underlying implementation may only be able to allocate a finite
+    /// number of MPU configurations. It may return `None` if this resource is
+    /// exhausted.
+    fn new_config(&self) -> Option<Self::MpuConfig>;
+
+    /// Resets an MPU configuration.
+    ///
+    /// This method resets an MPU configuration to its initial state, as
+    /// returned by [`MPU::new_config`]. After invoking this operation, it must
+    /// not have any userspace-acessible regions pre-allocated.
+    fn reset_config(&self, config: &mut Self::MpuConfig);
 
     /// Allocates a new MPU region.
     ///
@@ -143,7 +156,6 @@ pub trait MPU {
     ///
     /// Returns the start and size of the allocated MPU region. If it is
     /// infeasible to allocate the MPU region, returns None.
-    #[allow(unused_variables)]
     fn allocate_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -151,13 +163,7 @@ pub trait MPU {
         min_region_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<Region> {
-        if min_region_size > unallocated_memory_size {
-            None
-        } else {
-            Some(Region::new(unallocated_memory_start, min_region_size))
-        }
-    }
+    ) -> Option<Region>;
 
     /// Removes an MPU region within app-owned memory.
     ///
@@ -174,10 +180,7 @@ pub trait MPU {
     /// # Return Value
     ///
     /// Returns an error if the specified region is not exactly mapped to the process as specified
-    #[allow(unused_variables)]
-    fn remove_memory_region(&self, region: Region, config: &mut Self::MpuConfig) -> Result<(), ()> {
-        Ok(())
-    }
+    fn remove_memory_region(&self, region: Region, config: &mut Self::MpuConfig) -> Result<(), ()>;
 
     /// Chooses the location for a process's memory, and allocates an MPU region
     /// covering the app-owned part.
@@ -217,7 +220,6 @@ pub trait MPU {
     /// chosen for the process. If it is infeasible to find a memory block or
     /// allocate the MPU region, or if the function has already been called,
     /// returns None. If None is returned no changes are made.
-    #[allow(unused_variables)]
     fn allocate_app_memory_region(
         &self,
         unallocated_memory_start: *const u8,
@@ -227,17 +229,7 @@ pub trait MPU {
         initial_kernel_memory_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
-        let memory_size = cmp::max(
-            min_memory_size,
-            initial_app_memory_size + initial_kernel_memory_size,
-        );
-        if memory_size > unallocated_memory_size {
-            None
-        } else {
-            Some((unallocated_memory_start, memory_size))
-        }
-    }
+    ) -> Option<(*const u8, usize)>;
 
     /// Updates the MPU region for app-owned memory.
     ///
@@ -257,20 +249,13 @@ pub trait MPU {
     /// Returns an error if it is infeasible to update the MPU region, or if it
     /// was never created. If an error is returned no changes are made to the
     /// configuration.
-    #[allow(unused_variables)]
     fn update_app_memory_region(
         &self,
         app_memory_break: *const u8,
         kernel_memory_break: *const u8,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
-        if (app_memory_break as usize) > (kernel_memory_break as usize) {
-            Err(())
-        } else {
-            Ok(())
-        }
-    }
+    ) -> Result<(), ()>;
 
     /// Configures the MPU with the provided region configuration.
     ///
@@ -281,14 +266,88 @@ pub trait MPU {
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
-    /// - `processid`: ProcessId of the process that the MPU is configured for
-    #[allow(unused_variables)]
-    fn configure_mpu(&self, config: &Self::MpuConfig, processid: &ProcessId) {}
+    fn configure_mpu(&self, config: &Self::MpuConfig);
 }
 
 /// Implement default MPU trait for unit.
 impl MPU for () {
     type MpuConfig = MpuConfigDefault;
+
+    fn clear_mpu(&self) {}
+
+    fn enable_app_mpu(&self) {}
+
+    fn disable_app_mpu(&self) {}
+
+    fn number_total_regions(&self) -> usize {
+        0
+    }
+
+    fn new_config(&self) -> Option<MpuConfigDefault> {
+        Some(MpuConfigDefault)
+    }
+
+    fn reset_config(&self, _config: &mut Self::MpuConfig) {}
+
+    fn allocate_region(
+        &self,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_region_size: usize,
+        _permissions: Permissions,
+        _config: &mut Self::MpuConfig,
+    ) -> Option<Region> {
+        if min_region_size > unallocated_memory_size {
+            None
+        } else {
+            Some(Region::new(unallocated_memory_start, min_region_size))
+        }
+    }
+
+    fn remove_memory_region(
+        &self,
+        _region: Region,
+        _config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        Ok(())
+    }
+
+    fn allocate_app_memory_region(
+        &self,
+        unallocated_memory_start: *const u8,
+        unallocated_memory_size: usize,
+        min_memory_size: usize,
+        initial_app_memory_size: usize,
+        initial_kernel_memory_size: usize,
+        _permissions: Permissions,
+        _config: &mut Self::MpuConfig,
+    ) -> Option<(*const u8, usize)> {
+        let memory_size = cmp::max(
+            min_memory_size,
+            initial_app_memory_size + initial_kernel_memory_size,
+        );
+        if memory_size > unallocated_memory_size {
+            None
+        } else {
+            Some((unallocated_memory_start, memory_size))
+        }
+    }
+
+    fn update_app_memory_region(
+        &self,
+        app_memory_break: *const u8,
+        kernel_memory_break: *const u8,
+        _permissions: Permissions,
+        _config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        if (app_memory_break as usize) > (kernel_memory_break as usize) {
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn configure_mpu(&self, _config: &Self::MpuConfig) {}
 }
 
 /// The generic trait that particular kernel level memory protection unit
@@ -308,7 +367,14 @@ pub trait KernelMPU {
     /// It is `Default` so we can create empty state when the kernel is
     /// created, and `Display` so that the `panic!()` output can display the
     /// current state to help with debugging.
-    type KernelMpuConfig: Default + Display;
+    type KernelMpuConfig: Display;
+
+    /// Creates a new kernel MPU configuration.
+    ///
+    /// The underlying implementation may only be able to allocate a finite
+    /// number of MPU configurations. It may return `None` if this resource is
+    /// exhausted.
+    fn new_kernel_config(&self) -> Option<Self::KernelMpuConfig>;
 
     /// Mark a region of memory that the Tock kernel owns.
     ///

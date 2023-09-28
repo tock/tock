@@ -48,6 +48,6 @@ impl SerialNum {
             .rev()
             .take(8)
             .enumerate()
-            .fold(0u64, |sum, (i, &val)| sum + ((val as u64) << i * 8))
+            .fold(0u64, |sum, (i, &val)| sum + ((val as u64) << (i * 8)))
     }
 }

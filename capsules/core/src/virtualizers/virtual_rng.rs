@@ -121,7 +121,7 @@ impl<'a> VirtualRngMasterDevice<'a> {
 impl<'a> PartialEq<VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a> {
     fn eq(&self, other: &VirtualRngMasterDevice<'a>) -> bool {
         // Check whether two rng devices point to the same device
-        self as *const VirtualRngMasterDevice<'a> == other as *const VirtualRngMasterDevice<'a>
+        core::ptr::eq(self, other)
     }
 }
 
@@ -142,7 +142,7 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
             },
             |current_node| {
                 // Find if current device is the one in flight or not
-                if *current_node == self {
+                if current_node == self {
                     self.mux.rng.cancel()
                 } else {
                     Ok(())
@@ -152,7 +152,7 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
     }
 
     fn set_client(&'a self, client: &'a dyn Client) {
-        self.mux.devices.push_head(&self);
+        self.mux.devices.push_head(self);
 
         // Set client to handle callbacks for current device
         self.client.set(client);

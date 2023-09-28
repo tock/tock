@@ -5,6 +5,7 @@
 //! Wrapper type for safe pointers to static memory.
 
 use core::ops::Deref;
+use core::ptr::NonNull;
 
 /// A pointer to statically allocated mutable data such as memory mapped I/O
 /// registers.
@@ -14,9 +15,14 @@ use core::ops::Deref;
 /// given a raw address and acts similarly to `extern` definitions, except
 /// `StaticRef` is subject to module and crate boundaries, while `extern`
 /// definitions can be imported anywhere.
+///
+/// Because this defers the actual dereference, this can be put in a `const`,
+/// whereas `const I32_REF: &'static i32 = unsafe { &*(0x1000 as *const i32) };`
+/// will always fail to compile since `0x1000` doesn't have an allocation at
+/// compile time, even if it's known to be a valid MMIO address.
 #[derive(Debug)]
 pub struct StaticRef<T> {
-    ptr: *const T,
+    ptr: NonNull<T>,
 }
 
 impl<T> StaticRef<T> {
@@ -24,16 +30,19 @@ impl<T> StaticRef<T> {
     ///
     /// ## Safety
     ///
-    /// Callers must pass in a reference to statically allocated memory which
-    /// does not overlap with other values.
+    /// - `ptr` must be aligned, non-null, and dereferencable as `T`.
+    /// - `*ptr` must be valid for the program duration.
     pub const unsafe fn new(ptr: *const T) -> StaticRef<T> {
-        StaticRef { ptr: ptr }
+        // SAFETY: `ptr` is non-null as promised by the caller.
+        StaticRef {
+            ptr: NonNull::new_unchecked(ptr.cast_mut()),
+        }
     }
 }
 
 impl<T> Clone for StaticRef<T> {
     fn clone(&self) -> Self {
-        StaticRef { ptr: self.ptr }
+        *self
     }
 }
 
@@ -42,6 +51,8 @@ impl<T> Copy for StaticRef<T> {}
 impl<T> Deref for StaticRef<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        unsafe { &*self.ptr }
+        // SAFETY: `ptr` is aligned and dereferencable for the program
+        // duration as promised by the caller of `StaticRef::new`.
+        unsafe { self.ptr.as_ref() }
     }
 }

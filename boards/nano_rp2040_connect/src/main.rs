@@ -27,7 +27,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init, Kernel};
-use rp2040;
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -48,16 +47,6 @@ mod flash_bootloader;
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
-
-// Function for the process console to reboot the Nano RP2040 Connect.
-fn reset_function() -> ! {
-    unsafe {
-        cortexm0p::scb::reset();
-    }
-    loop {
-        cortexm0p::support::nop();
-    }
-}
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -90,7 +79,13 @@ pub struct NanoRP2040Connect {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    lsm6dsoxtr: &'static capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<'static>,
+    lsm6dsoxtr: &'static capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<
+            'static,
+            rp2040::i2c::I2c<'static, 'static>,
+        >,
+    >,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
@@ -127,7 +122,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -287,7 +282,7 @@ pub unsafe fn main() {
         true,
     );
 
-    init_clocks(&peripherals);
+    init_clocks(peripherals);
 
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
@@ -390,46 +385,46 @@ pub unsafe fn main() {
         components::gpio_component_helper!(
             RPGpioPin,
             // Used for serial communication. Comment them in if you don't use serial.
-            // 0 => &peripherals.pins.get_pin(RPGpio::GPIO0),
-            // 1 => &peripherals.pins.get_pin(RPGpio::GPIO1),
-            2 => &peripherals.pins.get_pin(RPGpio::GPIO2),
-            3 => &peripherals.pins.get_pin(RPGpio::GPIO3),
-            // 4 => &peripherals.pins.get_pin(RPGpio::GPIO4),
-            5 => &peripherals.pins.get_pin(RPGpio::GPIO5),
-            // 6 => &peripherals.pins.get_pin(RPGpio::GPIO6),
-            // 7 => &peripherals.pins.get_pin(RPGpio::GPIO7),
-            8 => &peripherals.pins.get_pin(RPGpio::GPIO8),
-            9 => &peripherals.pins.get_pin(RPGpio::GPIO9),
-            10 => &peripherals.pins.get_pin(RPGpio::GPIO10),
-            11 => &peripherals.pins.get_pin(RPGpio::GPIO11),
-            // 12 => &peripherals.pins.get_pin(RPGpio::GPIO12),
-            // 13 => &peripherals.pins.get_pin(RPGpio::GPIO13),
-            14 => &peripherals.pins.get_pin(RPGpio::GPIO14),
-            15 => &peripherals.pins.get_pin(RPGpio::GPIO15),
-            16 => &peripherals.pins.get_pin(RPGpio::GPIO16),
-            17 => &peripherals.pins.get_pin(RPGpio::GPIO17),
-            18 => &peripherals.pins.get_pin(RPGpio::GPIO18),
-            19 => &peripherals.pins.get_pin(RPGpio::GPIO19),
-            20 => &peripherals.pins.get_pin(RPGpio::GPIO20),
-            21 => &peripherals.pins.get_pin(RPGpio::GPIO21),
-            22 => &peripherals.pins.get_pin(RPGpio::GPIO22),
-            23 => &peripherals.pins.get_pin(RPGpio::GPIO23),
-            24 => &peripherals.pins.get_pin(RPGpio::GPIO24),
+            // 0 => peripherals.pins.get_pin(RPGpio::GPIO0),
+            // 1 => peripherals.pins.get_pin(RPGpio::GPIO1),
+            2 => peripherals.pins.get_pin(RPGpio::GPIO2),
+            3 => peripherals.pins.get_pin(RPGpio::GPIO3),
+            // 4 => peripherals.pins.get_pin(RPGpio::GPIO4),
+            5 => peripherals.pins.get_pin(RPGpio::GPIO5),
+            // 6 => peripherals.pins.get_pin(RPGpio::GPIO6),
+            // 7 => peripherals.pins.get_pin(RPGpio::GPIO7),
+            8 => peripherals.pins.get_pin(RPGpio::GPIO8),
+            9 => peripherals.pins.get_pin(RPGpio::GPIO9),
+            10 => peripherals.pins.get_pin(RPGpio::GPIO10),
+            11 => peripherals.pins.get_pin(RPGpio::GPIO11),
+            // 12 => peripherals.pins.get_pin(RPGpio::GPIO12),
+            // 13 => peripherals.pins.get_pin(RPGpio::GPIO13),
+            14 => peripherals.pins.get_pin(RPGpio::GPIO14),
+            15 => peripherals.pins.get_pin(RPGpio::GPIO15),
+            16 => peripherals.pins.get_pin(RPGpio::GPIO16),
+            17 => peripherals.pins.get_pin(RPGpio::GPIO17),
+            18 => peripherals.pins.get_pin(RPGpio::GPIO18),
+            19 => peripherals.pins.get_pin(RPGpio::GPIO19),
+            20 => peripherals.pins.get_pin(RPGpio::GPIO20),
+            21 => peripherals.pins.get_pin(RPGpio::GPIO21),
+            22 => peripherals.pins.get_pin(RPGpio::GPIO22),
+            23 => peripherals.pins.get_pin(RPGpio::GPIO23),
+            24 => peripherals.pins.get_pin(RPGpio::GPIO24),
             // LED pin
-            // 25 => &peripherals.pins.get_pin(RPGpio::GPIO25),
+            // 25 => peripherals.pins.get_pin(RPGpio::GPIO25),
 
             // Uncomment to use these as GPIO pins instead of ADC pins
-            // 26 => &peripherals.pins.get_pin(RPGpio::GPIO26),
-            // 27 => &peripherals.pins.get_pin(RPGpio::GPIO27),
-            // 28 => &peripherals.pins.get_pin(RPGpio::GPIO28),
-            // 29 => &peripherals.pins.get_pin(RPGpio::GPIO29)
+            // 26 => peripherals.pins.get_pin(RPGpio::GPIO26),
+            // 27 => peripherals.pins.get_pin(RPGpio::GPIO27),
+            // 28 => peripherals.pins.get_pin(RPGpio::GPIO28),
+            // 29 => peripherals.pins.get_pin(RPGpio::GPIO29)
         ),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
 
     let led = LedsComponent::new().finalize(components::led_component_static!(
         LedHigh<'static, RPGpioPin<'static>>,
-        LedHigh::new(&peripherals.pins.get_pin(RPGpio::GPIO6))
+        LedHigh::new(peripherals.pins.get_pin(RPGpio::GPIO6))
     ));
 
     peripherals.adc.init();
@@ -453,8 +448,9 @@ pub unsafe fn main() {
     let gpio_scl = peripherals.pins.get_pin(RPGpio::GPIO13);
     gpio_sda.set_function(GpioFunction::I2C);
     gpio_scl.set_function(GpioFunction::I2C);
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None)
-        .finalize(components::i2c_mux_component_static!());
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None).finalize(
+        components::i2c_mux_component_static!(rp2040::i2c::I2c<'static, 'static>),
+    );
 
     let lsm6dsoxtr = components::lsm6dsox::Lsm6dsoxtrI2CComponent::new(
         mux_i2c,
@@ -462,7 +458,9 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::lsm6dsoxtr::DRIVER_NUM,
     )
-    .finalize(components::lsm6ds_i2c_component_static!());
+    .finalize(components::lsm6ds_i2c_component_static!(
+        rp2040::i2c::I2c<'static, 'static>
+    ));
 
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
@@ -505,16 +503,16 @@ pub unsafe fn main() {
 
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
-    let adc_channel_0 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel0)
+    let adc_channel_0 = components::adc::AdcComponent::new(adc_mux, Channel::Channel0)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_1 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel1)
+    let adc_channel_1 = components::adc::AdcComponent::new(adc_mux, Channel::Channel1)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_2 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel2)
+    let adc_channel_2 = components::adc::AdcComponent::new(adc_mux, Channel::Channel2)
         .finalize(components::adc_component_static!(Adc));
 
-    let adc_channel_3 = components::adc::AdcComponent::new(&adc_mux, Channel::Channel3)
+    let adc_channel_3 = components::adc::AdcComponent::new(adc_mux, Channel::Channel3)
         .finalize(components::adc_component_static!(Adc));
 
     let adc_syscall =
@@ -536,7 +534,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset_function),
+        Some(cortexm0p::support::reset),
     )
     .finalize(components::process_console_component_static!(RPTimer));
     let _ = process_console.start();

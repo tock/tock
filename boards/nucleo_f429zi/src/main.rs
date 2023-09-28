@@ -49,16 +49,6 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF429ZI {
@@ -129,7 +119,7 @@ impl
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -627,23 +617,23 @@ pub unsafe fn main() {
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel3)
+        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel3)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_1 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel10)
+        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel10)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_2 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel13)
+        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel13)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_3 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel9)
+        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel9)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_channel_4 =
-        components::adc::AdcComponent::new(&adc_mux, stm32f429zi::adc::Channel::Channel12)
+        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel12)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_syscall =
@@ -726,7 +716,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         stm32f429zi::tim2::Tim2

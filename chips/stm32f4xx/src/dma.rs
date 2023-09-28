@@ -807,7 +807,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
 
         self.client.map(|client| {
             self.peripheral.map(|pid| {
-                client.transfer_done(*pid);
+                client.transfer_done(pid);
             });
         });
     }
@@ -1417,7 +1417,7 @@ impl Dma1Peripheral {
         }
     }
 
-    pub fn get_stream_idx<'a>(&self) -> usize {
+    pub fn get_stream_idx(&self) -> usize {
         usize::from(StreamId::from(*self) as u8)
     }
 }
@@ -1593,7 +1593,7 @@ impl Dma2Peripheral {
         }
     }
 
-    pub fn get_stream_idx<'a>(&self) -> usize {
+    pub fn get_stream_idx(&self) -> usize {
         usize::from(StreamId::from(*self) as u8)
     }
 }

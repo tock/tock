@@ -328,7 +328,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()) as *mut SavedAllowRo;
         let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0.into()) as *mut SavedAllowRw;
 
-        counters_ptr.write(counter.into());
+        counters_ptr.write(counter);
         write_default_array(upcalls_array, upcalls_num_val.0.into());
         write_default_array(allow_ro_array, allow_ro_num_val.0.into());
         write_default_array(allow_rw_array, allow_rw_num_val.0.into());

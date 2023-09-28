@@ -16,19 +16,17 @@
 
 use crate::hil::symmetric_encryption::AES128_BLOCK_SIZE;
 use crate::otbn::OtbnComponent;
+use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_core::virtualizers::virtual_hmac::VirtualMuxHmac;
-use capsules_core::virtualizers::virtual_sha::VirtualMuxSha;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
+use earlgrey::chip_config::EarlGreyConfig;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::digest::Digest;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
-use kernel::hil::kv_system::KVSystem;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -47,6 +45,36 @@ mod otbn;
 #[cfg(test)]
 mod tests;
 
+/// The `earlgrey` chip crate supports multiple targets with slightly different
+/// configurations, which are encoded through implementations of the
+/// `earlgrey::chip_config::EarlGreyConfig` trait. This type provides different
+/// implementations of the `EarlGreyConfig` trait, depending on Cargo's
+/// conditional compilation feature flags. If no feature is selected,
+/// compilation will error.
+pub enum ChipConfig {}
+
+#[cfg(feature = "fpga_cw310")]
+impl EarlGreyConfig for ChipConfig {
+    const NAME: &'static str = "fpga_cw310";
+
+    // Clock frequencies as of https://github.com/lowRISC/opentitan/pull/19368
+    const CPU_FREQ: u32 = 10_000_000;
+    const PERIPHERAL_FREQ: u32 = 2_500_000;
+    const AON_TIMER_FREQ: u32 = 250_000;
+    const UART_BAUDRATE: u32 = 115200;
+}
+
+#[cfg(feature = "sim_verilator")]
+impl EarlGreyConfig for ChipConfig {
+    const NAME: &'static str = "sim_verilator";
+
+    // Clock frequencies as of https://github.com/lowRISC/opentitan/pull/19368
+    const CPU_FREQ: u32 = 500_000;
+    const PERIPHERAL_FREQ: u32 = 125_000;
+    const AON_TIMER_FREQ: u32 = 125_000;
+    const UART_BAUDRATE: u32 = 7200;
+}
+
 const NUM_PROCS: usize = 4;
 
 //
@@ -56,7 +84,7 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; 4] = [None
 
 // Test access to the peripherals
 #[cfg(test)]
-static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals> = None;
+static mut PERIPHERALS: Option<&'static EarlGreyDefaultPeripherals<ChipConfig>> = None;
 // Test access to board
 #[cfg(test)]
 static mut BOARD: Option<&'static kernel::Kernel> = None;
@@ -67,21 +95,28 @@ static mut PLATFORM: Option<&'static EarlGrey> = None;
 #[cfg(test)]
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
-static mut ALARM: Option<&'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static>>> = None;
+static mut ALARM: Option<
+    &'static MuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
+> = None;
 // Test access to TicKV
 static mut TICKV: Option<
-    &capsules_extra::tickv::TicKVStore<
+    &capsules_extra::tickv::TicKVSystem<
         'static,
         capsules_core::virtualizers::virtual_flash::FlashUser<
             'static,
             lowrisc::flash_ctrl::FlashCtrl<'static>,
         >,
         capsules_extra::sip_hash::SipHasher24<'static>,
+        2048,
     >,
 > = None;
-// Test access to AES CCM
-static mut AES: Option<&virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>> =
-    None;
+// Test access to AES
+static mut AES: Option<
+    &aes_gcm::Aes128Gcm<
+        'static,
+        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+    >,
+> = None;
 // Test access to SipHash
 static mut SIPHASH: Option<&capsules_extra::sip_hash::SipHasher24<'static>> = None;
 // Test access to RSA
@@ -91,7 +126,9 @@ static mut RSA_HARDWARE: Option<&lowrisc::rsa::OtbnRsa<'static>> = None;
 #[cfg(test)]
 static mut SHA256SOFT: Option<&capsules_extra::sha256::Sha256Software<'static>> = None;
 
-static mut CHIP: Option<&'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals>> = None;
+static mut CHIP: Option<
+    &'static earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals<ChipConfig>, ChipConfig>,
+> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
@@ -100,7 +137,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -114,34 +151,9 @@ struct EarlGrey {
     console: &'static capsules_core::console::Console<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>,
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
     >,
-    hmac: &'static capsules_extra::hmac::HmacDriver<
-        'static,
-        VirtualMuxHmac<
-            'static,
-            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<
-                'static,
-                lowrisc::hmac::Hmac<'static>,
-                32,
-            >,
-            32,
-        >,
-        32,
-    >,
-    sha: &'static capsules_extra::sha::ShaDriver<
-        'static,
-        VirtualMuxSha<
-            'static,
-            capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<
-                'static,
-                lowrisc::hmac::Hmac<'static>,
-                32,
-            >,
-            32,
-        >,
-        32,
-    >,
+    hmac: &'static capsules_extra::hmac::HmacDriver<'static, lowrisc::hmac::Hmac<'static>, 32>,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
@@ -152,30 +164,44 @@ struct EarlGrey {
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
             'static,
-            lowrisc::spi_host::SpiHost,
+            lowrisc::spi_host::SpiHost<'static>,
         >,
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
     aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
         'static,
-        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
-    >,
-    kv_driver: &'static capsules_extra::kv_driver::KVSystemDriver<
-        'static,
-        capsules_extra::tickv::TicKVStore<
+        aes_gcm::Aes128Gcm<
             'static,
-            capsules_core::virtualizers::virtual_flash::FlashUser<
-                'static,
-                lowrisc::flash_ctrl::FlashCtrl<'static>,
-            >,
-            capsules_extra::sip_hash::SipHasher24<'static>,
+            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
-        [u8; 8],
+    >,
+    kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
+        'static,
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            'static,
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                'static,
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    'static,
+                    capsules_extra::tickv::TicKVSystem<
+                        'static,
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            'static,
+                            lowrisc::flash_ctrl::FlashCtrl<'static>,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    [u8; 8],
+                >,
+            >,
+        >,
     >,
     syscall_filter: &'static TbfHeaderFilterDefaultAllow,
     scheduler: &'static PrioritySched,
-    scheduler_timer:
-        &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
+    scheduler_timer: &'static VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
+    >,
     watchdog: &'static lowrisc::aon_timer::AonTimer,
 }
 
@@ -188,7 +214,6 @@ impl SyscallDriverLookup for EarlGrey {
         match driver_num {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
-            capsules_extra::sha::DRIVER_NUM => f(Some(self.sha)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
@@ -203,24 +228,31 @@ impl SyscallDriverLookup for EarlGrey {
     }
 }
 
-impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>>
-    for EarlGrey
+impl
+    KernelResources<
+        earlgrey::chip::EarlGrey<
+            'static,
+            EarlGreyDefaultPeripherals<'static, ChipConfig>,
+            ChipConfig,
+        >,
+    > for EarlGrey
 {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
     type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
-    type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>;
+    type SchedulerTimer = VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
+    >;
     type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
-        &self.syscall_filter
+        self.syscall_filter
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
@@ -232,10 +264,10 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
         self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        &self.scheduler_timer
+        self.scheduler_timer
     }
     fn watchdog(&self) -> &Self::WatchDog {
-        &self.watchdog
+        self.watchdog
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
@@ -245,8 +277,12 @@ impl KernelResources<earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripheral
 unsafe fn setup() -> (
     &'static kernel::Kernel,
     &'static EarlGrey,
-    &'static earlgrey::chip::EarlGrey<'static, EarlGreyDefaultPeripherals<'static>>,
-    &'static EarlGreyDefaultPeripherals<'static>,
+    &'static earlgrey::chip::EarlGrey<
+        'static,
+        EarlGreyDefaultPeripherals<'static, ChipConfig>,
+        ChipConfig,
+    >,
+    &'static EarlGreyDefaultPeripherals<'static, ChipConfig>,
 ) {
     // Ibex-specific handler
     earlgrey::chip::configure_trap_handler();
@@ -258,7 +294,7 @@ unsafe fn setup() -> (
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
     let peripherals = static_init!(
-        EarlGreyDefaultPeripherals,
+        EarlGreyDefaultPeripherals<ChipConfig>,
         EarlGreyDefaultPeripherals::new()
     );
     peripherals.init();
@@ -271,11 +307,9 @@ unsafe fn setup() -> (
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(
-        &peripherals.uart0,
-        earlgrey::uart::UART0_BAUDRATE,
-    )
-    .finalize(components::uart_mux_component_static!());
+    let uart_mux =
+        components::console::UartMuxComponent::new(&peripherals.uart0, ChipConfig::UART_BAUDRATE)
+            .finalize(components::uart_mux_component_static!());
 
     // LEDs
     // Start with half on and half off
@@ -308,13 +342,16 @@ unsafe fn setup() -> (
     )
     .finalize(components::gpio_component_static!(earlgrey::gpio::GpioPin));
 
-    let hardware_alarm = static_init!(earlgrey::timer::RvTimer, earlgrey::timer::RvTimer::new());
+    let hardware_alarm = static_init!(
+        earlgrey::timer::RvTimer<ChipConfig>,
+        earlgrey::timer::RvTimer::new()
+    );
     hardware_alarm.setup();
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
     let mux_alarm = static_init!(
-        MuxAlarm<'static, earlgrey::timer::RvTimer>,
+        MuxAlarm<'static, earlgrey::timer::RvTimer<ChipConfig>>,
         MuxAlarm::new(hardware_alarm)
     );
     hil::time::Alarm::set_alarm_client(hardware_alarm, mux_alarm);
@@ -323,13 +360,13 @@ unsafe fn setup() -> (
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<ChipConfig>>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
     let scheduler_timer_virtual_alarm = static_init!(
-        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
+        VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<ChipConfig>>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     scheduler_timer_virtual_alarm.setup();
@@ -337,7 +374,7 @@ unsafe fn setup() -> (
     let alarm = static_init!(
         capsules_core::alarm::AlarmDriver<
             'static,
-            VirtualMuxAlarm<'static, earlgrey::timer::RvTimer>,
+            VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<ChipConfig>>,
         >,
         capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
@@ -347,14 +384,14 @@ unsafe fn setup() -> (
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
     let scheduler_timer = static_init!(
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static>>>,
+        VirtualSchedulerTimer<
+            VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
+        >,
         VirtualSchedulerTimer::new(scheduler_timer_virtual_alarm)
     );
 
     let chip = static_init!(
-        earlgrey::chip::EarlGrey<
-            EarlGreyDefaultPeripherals,
-        >,
+        earlgrey::chip::EarlGrey<EarlGreyDefaultPeripherals<ChipConfig>, ChipConfig>,
         earlgrey::chip::EarlGrey::new(peripherals, hardware_alarm)
     );
     CHIP = Some(chip);
@@ -385,50 +422,22 @@ unsafe fn setup() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let mux_digest = components::digest::DigestMuxComponent::new(&peripherals.hmac).finalize(
-        components::digest_mux_component_static!(lowrisc::hmac::Hmac, 32),
-    );
-
-    let digest = components::digest::DigestComponent::new(&mux_digest).finalize(
-        components::digest_component_static!(lowrisc::hmac::Hmac, 32,),
-    );
-
-    peripherals.hmac.set_client(digest);
-
-    let mux_hmac = components::hmac::HmacMuxComponent::new(digest).finalize(
-        components::hmac_mux_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
-    );
-
     let hmac = components::hmac::HmacComponent::new(
         board_kernel,
         capsules_extra::hmac::DRIVER_NUM,
-        &mux_hmac,
+        &peripherals.hmac,
     )
-    .finalize(components::hmac_component_static!(
-        capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>,
-        32,
-    ));
+    .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
 
-    digest.set_hmac_client(hmac);
-
-    let mux_sha = components::sha::ShaMuxComponent::new(digest).finalize(
-        components::sha_mux_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32),
+    let i2c_master_buffer = static_init!(
+        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master::BUFFER_LENGTH]
     );
-
-    let sha = components::sha::ShaComponent::new(
-        board_kernel,
-        capsules_extra::sha::DRIVER_NUM,
-        &mux_sha,
-    )
-    .finalize(components::sha_component_static!(capsules_core::virtualizers::virtual_digest::VirtualMuxDigest<lowrisc::hmac::Hmac, 32>, 32));
-
-    digest.set_sha_client(sha);
-
     let i2c_master = static_init!(
         capsules_core::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
         capsules_core::i2c_master::I2CMasterDriver::new(
             &peripherals.i2c0,
-            &mut capsules_core::i2c_master::BUF,
+            i2c_master_buffer,
             board_kernel.create_grant(
                 capsules_core::i2c_master::DRIVER_NUM,
                 &memory_allocation_cap
@@ -525,7 +534,7 @@ unsafe fn setup() -> (
     // TicKV
     let tickv = components::tickv::TicKVComponent::new(
         sip_hash,
-        &mux_flash,                                    // Flash controller
+        mux_flash,                                     // Flash controller
         lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK - 1, // Region offset (End of Bank0/Use Bank1)
         // Region Size
         lowrisc::flash_ctrl::FLASH_PAGES_PER_BANK * lowrisc::flash_ctrl::PAGE_SIZE,
@@ -534,54 +543,101 @@ unsafe fn setup() -> (
     )
     .finalize(components::tickv_component_static!(
         lowrisc::flash_ctrl::FlashCtrl,
-        capsules_extra::sip_hash::SipHasher24
+        capsules_extra::sip_hash::SipHasher24,
+        2048
     ));
     hil::flash::HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
     sip_hash.set_client(tickv);
     TICKV = Some(tickv);
 
-    let mux_kv = components::kv_system::KVStoreMuxComponent::new(tickv).finalize(
-        components::kv_store_mux_component_static!(
-            capsules_extra::tickv::TicKVStore<
+    let kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+        components::tickv_kv_store_component_static!(
+            capsules_extra::tickv::TicKVSystem<
                 capsules_core::virtualizers::virtual_flash::FlashUser<
                     lowrisc::flash_ctrl::FlashCtrl,
                 >,
                 capsules_extra::sip_hash::SipHasher24<'static>,
+                2048,
             >,
             capsules_extra::tickv::TicKVKeyType,
         ),
     );
 
-    let kv_store = components::kv_system::KVStoreComponent::new(mux_kv).finalize(
-        components::kv_store_component_static!(
-            capsules_extra::tickv::TicKVStore<
-                capsules_core::virtualizers::virtual_flash::FlashUser<
-                    lowrisc::flash_ctrl::FlashCtrl,
+    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(kv_store).finalize(
+        components::kv_store_permissions_component_static!(
+            capsules_extra::tickv_kv_store::TicKVKVStore<
+                capsules_extra::tickv::TicKVSystem<
+                    capsules_core::virtualizers::virtual_flash::FlashUser<
+                        lowrisc::flash_ctrl::FlashCtrl,
+                    >,
+                    capsules_extra::sip_hash::SipHasher24<'static>,
+                    2048,
                 >,
-                capsules_extra::sip_hash::SipHasher24<'static>,
-            >,
-            capsules_extra::tickv::TicKVKeyType,
+                capsules_extra::tickv::TicKVKeyType,
+            >
         ),
     );
-    tickv.set_client(kv_store);
 
-    let kv_driver = components::kv_system::KVDriverComponent::new(
-        kv_store,
+    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+        components::kv_permissions_mux_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ),
+    );
+
+    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+        components::virtual_kv_permissions_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ),
+    );
+
+    let kv_driver = components::kv::KVDriverComponent::new(
+        virtual_kv_driver,
         board_kernel,
         capsules_extra::kv_driver::DRIVER_NUM,
     )
     .finalize(components::kv_driver_component_static!(
-        capsules_extra::tickv::TicKVStore<
-            capsules_core::virtualizers::virtual_flash::FlashUser<lowrisc::flash_ctrl::FlashCtrl>,
-            capsules_extra::sip_hash::SipHasher24<'static>,
-        >,
-        capsules_extra::tickv::TicKVKeyType,
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            lowrisc::flash_ctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        2048,
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >,
+        >
     ));
 
     let mux_otbn = crate::otbn::AccelMuxComponent::new(&peripherals.otbn)
         .finalize(otbn_mux_component_static!());
 
-    let otbn = OtbnComponent::new(&mux_otbn).finalize(crate::otbn_component_static!());
+    let otbn = OtbnComponent::new(mux_otbn).finalize(crate::otbn_component_static!());
 
     let otbn_rsa_internal_buf = static_init!([u8; 512], [0; 512]);
 
@@ -632,9 +688,6 @@ unsafe fn setup() -> (
 
     const CRYPT_SIZE: usize = 7 * AES128_BLOCK_SIZE;
 
-    let aes_source_buffer = static_init!([u8; 16], [0; 16]);
-    let aes_dest_buffer = static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
-
     let ccm_mux = static_init!(
         virtual_aes_ccm::MuxAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         virtual_aes_ccm::MuxAES128CCM::new(&peripherals.aes)
@@ -642,31 +695,33 @@ unsafe fn setup() -> (
     kernel::deferred_call::DeferredCallClient::register(ccm_mux);
     peripherals.aes.set_client(ccm_mux);
 
-    let crypt_buf1 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
-    let ccm_client1 = static_init!(
-        virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
-        virtual_aes_ccm::VirtualAES128CCM::new(ccm_mux, crypt_buf1)
+    let ccm_client = components::aes::AesVirtualComponent::new(ccm_mux).finalize(
+        components::aes_virtual_component_static!(earlgrey::aes::Aes<'static>),
     );
-    ccm_client1.setup();
-    // ccm_mux.set_client(ccm_client1);
 
-    let aes = static_init!(
-        capsules_extra::symmetric_encryption::aes::AesDriver<
+    let crypt_buf2 = static_init!([u8; CRYPT_SIZE], [0x00; CRYPT_SIZE]);
+    let gcm_client = static_init!(
+        aes_gcm::Aes128Gcm<
             'static,
             virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
         >,
-        capsules_extra::symmetric_encryption::aes::AesDriver::new(
-            ccm_client1,
-            aes_source_buffer,
-            aes_dest_buffer,
-            board_kernel.create_grant(
-                capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
-                &memory_allocation_cap
-            )
-        )
+        aes_gcm::Aes128Gcm::new(ccm_client, crypt_buf2)
     );
+    ccm_client.set_client(gcm_client);
 
-    AES = Some(ccm_client1);
+    let aes = components::aes::AesDriverComponent::new(
+        board_kernel,
+        capsules_extra::symmetric_encryption::aes::DRIVER_NUM,
+        gcm_client,
+    )
+    .finalize(components::aes_driver_component_static!(
+        aes_gcm::Aes128Gcm<
+            'static,
+            virtual_aes_ccm::VirtualAES128CCM<'static, earlgrey::aes::Aes<'static>>,
+        >,
+    ));
+
+    AES = Some(gcm_client);
 
     #[cfg(test)]
     {
@@ -678,8 +733,8 @@ unsafe fn setup() -> (
         SHA256SOFT = Some(sha_soft);
     }
 
-    hil::symmetric_encryption::AES128CCM::set_client(ccm_client1, aes);
-    hil::symmetric_encryption::AES128::set_client(ccm_client1, aes);
+    hil::symmetric_encryption::AES128GCM::set_client(gcm_client, aes);
+    hil::symmetric_encryption::AES128::set_client(gcm_client, ccm_client);
 
     // These symbols are defined in the linker script.
     extern "C" {
@@ -726,7 +781,6 @@ unsafe fn setup() -> (
             console,
             alarm,
             hmac,
-            sha,
             rng,
             lldb: lldb,
             i2c_master,

@@ -286,7 +286,7 @@ pub const FLASH_MP_MAX_CFGS: usize = 8;
 pub const FLASH_PROG_WINDOW_SIZE: usize = 16;
 pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
 
-pub struct LowRiscPage(pub [u8; PAGE_SIZE as usize]);
+pub struct LowRiscPage(pub [u8; PAGE_SIZE]);
 
 /// Defines region permissions for flash memory protection.
 /// To be used when requesting the flash controller to set
@@ -310,9 +310,7 @@ pub struct FlashMPConfig {
 
 impl Default for LowRiscPage {
     fn default() -> Self {
-        Self {
-            0: [0; PAGE_SIZE as usize],
-        }
+        Self([0; PAGE_SIZE])
     }
 }
 
@@ -579,7 +577,7 @@ impl<'a> FlashCtrl<'a> {
                     CONTROL::OP::PROG
                         + CONTROL::PARTITION_SEL::DATA
                         + CONTROL::INFO_SEL::CLEAR
-                        + CONTROL::NUM.val(transaction_word_len as u32 - 1)
+                        + CONTROL::NUM.val(transaction_word_len - 1)
                         + CONTROL::START::CLEAR,
                 );
 
@@ -1102,16 +1100,12 @@ impl hil::flash::Flash for FlashCtrl<'_> {
 
         if !self.data_configured.get() {
             // If we aren't configured yet, configure now
-            if let Err(e) = self.configure_data_partition(self.region_num) {
-                return Err(e);
-            }
+            self.configure_data_partition(self.region_num)?;
         }
 
         if !self.info_configured.get() {
             // If we aren't configured yet, configure now
-            if let Err(e) = self.configure_info_partition(FlashBank::BANK1, self.region_num) {
-                return Err(e);
-            }
+            self.configure_info_partition(FlashBank::BANK1, self.region_num)?;
         }
 
         // Check control status before we commit

@@ -333,7 +333,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.enqueue_task(Task::FunctionCall(FunctionCall {
             source: FunctionCallSource::Kernel,
             pc: init_fn,
-            argument0: app_start as usize,
+            argument0: app_start,
             argument1: self.memory_start as usize,
             argument2: self.memory_len,
             argument3: self.app_break.get() as usize,
@@ -470,7 +470,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // because this state means the process is ready to run and
         // will be started in a future core scheduler loop; terminate
         // allows the kernel to prevent this before it starts running.
-        if self.is_running() == false
+        if !self.is_running()
             && self.get_state() != State::Faulted
             && self.get_state() != State::CredentialsApproved
         {
@@ -515,23 +515,18 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
-        let (read_count, read_storage_ids) = self
-            .header
-            .get_persistent_acl_read_ids()
-            .unwrap_or((0, [0; 8]));
+        let (read_count, read_ids) = self.header.get_storage_read_ids().unwrap_or((0, [0; 8]));
 
-        let (access_count, access_storage_ids) = self
-            .header
-            .get_persistent_acl_access_ids()
-            .unwrap_or((0, [0; 8]));
+        let (modify_count, modify_ids) =
+            self.header.get_storage_modify_ids().unwrap_or((0, [0; 8]));
 
-        let write_id = self.header.get_persistent_acl_write_id();
+        let write_id = self.header.get_storage_write_id();
 
         Some(storage_permissions::StoragePermissions::new(
             read_count,
-            read_storage_ids,
-            access_count,
-            access_storage_ids,
+            read_ids,
+            modify_count,
+            modify_ids,
             write_id,
         ))
     }
@@ -566,7 +561,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn setup_mpu(&self) {
         self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(&config, &self.processid());
+            self.chip.mpu().configure_mpu(config);
         });
     }
 
@@ -576,23 +571,19 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<mpu::Region> {
-        self.mpu_config.and_then(|mut config| {
+        self.mpu_config.and_then(|config| {
             let new_region = self.chip.mpu().allocate_region(
                 unallocated_memory_start,
                 unallocated_memory_size,
                 min_region_size,
                 mpu::Permissions::ReadWriteOnly,
-                &mut config,
-            );
-
-            if new_region.is_none() {
-                return None;
-            }
+                config,
+            )?;
 
             for region in self.mpu_regions.iter() {
                 if region.get().is_none() {
-                    region.set(new_region);
-                    return new_region;
+                    region.set(Some(new_region));
+                    return Some(new_region);
                 }
             }
 
@@ -602,7 +593,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
-        self.mpu_config.map_or(Err(ErrorCode::INVAL), |mut config| {
+        self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
             // Find the existing mpu region that we are removing; it needs to match exactly.
             if let Some(internal_region) = self
                 .mpu_regions
@@ -611,7 +602,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             {
                 self.chip
                     .mpu()
-                    .remove_memory_region(region, &mut config)
+                    .remove_memory_region(region, config)
                     .or(Err(ErrorCode::FAIL))?;
 
                 // Remove this region from the tracking cache of mpu_regions
@@ -639,26 +630,25 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             return Err(Error::InactiveApp);
         }
 
-        self.mpu_config
-            .map_or(Err(Error::KernelError), |mut config| {
-                if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
-                    Err(Error::AddressOutOfBounds)
-                } else if new_break > self.kernel_memory_break.get() {
-                    Err(Error::OutOfMemory)
-                } else if let Err(_) = self.chip.mpu().update_app_memory_region(
-                    new_break,
-                    self.kernel_memory_break.get(),
-                    mpu::Permissions::ReadWriteOnly,
-                    &mut config,
-                ) {
-                    Err(Error::OutOfMemory)
-                } else {
-                    let old_break = self.app_break.get();
-                    self.app_break.set(new_break);
-                    self.chip.mpu().configure_mpu(&config, &self.processid());
-                    Ok(old_break)
-                }
-            })
+        self.mpu_config.map_or(Err(Error::KernelError), |config| {
+            if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
+                Err(Error::AddressOutOfBounds)
+            } else if new_break > self.kernel_memory_break.get() {
+                Err(Error::OutOfMemory)
+            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+                new_break,
+                self.kernel_memory_break.get(),
+                mpu::Permissions::ReadWriteOnly,
+                config,
+            ) {
+                Err(Error::OutOfMemory)
+            } else {
+                let old_break = self.app_break.get();
+                self.app_break.set(new_break);
+                self.chip.mpu().configure_mpu(config);
+                Ok(old_break)
+            }
+        })
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -689,7 +679,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             //
             // ### Safety
             //
-            // We specific a zero-length buffer, so the implementation of
+            // We specify a zero-length buffer, so the implementation of
             // `ReadWriteProcessBuffer` will handle any safety issues.
             // Therefore, we can encapsulate the unsafe.
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
@@ -697,7 +687,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // TODO: Check for buffer aliasing here
 
             // Valid buffer, we need to adjust the app's watermark
-            // note: in_app_owned_memory ensures this offset does not wrap
+            // note: `in_app_owned_memory` ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
             let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
             self.allow_high_water_mark.set(new_water_mark);
@@ -714,7 +704,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // sure that we're pointing towards userspace memory (verified using
             // `in_app_owned_memory`) and respect alignment and other
             // constraints of the Rust references created by
-            // ReadWriteProcessBuffer.
+            // `ReadWriteProcessBuffer`.
             //
             // ### Safety
             //
@@ -755,7 +745,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             //
             // ### Safety
             //
-            // We specific a zero-length buffer, so the implementation of
+            // We specify a zero-length buffer, so the implementation of
             // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
             // we can encapsulate the unsafe.
             Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
@@ -785,7 +775,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // sure that we're pointing towards userspace memory (verified using
             // `in_app_owned_memory` or `in_app_flash_memory`) and respect
             // alignment and other constraints of the Rust references created by
-            // ReadWriteProcessBuffer.
+            // `ReadWriteProcessBuffer`.
             //
             // ### Safety
             //
@@ -852,7 +842,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
 
         // Verify that there is not already a grant allocated with the same
-        // driver_num.
+        // `driver_num`.
         let exists = self.grant_pointers.map_or(false, |grant_pointers| {
             // Check our list of grant pointers if the driver number is used.
             grant_pointers.iter().any(|grant_entry| {
@@ -861,8 +851,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 (!grant_entry.grant_ptr.is_null()) && grant_entry.driver_num == driver_num
             })
         });
-        // If we find a match, then the driver_num must already be used and the
-        // grant allocation fails.
+        // If we find a match, then the `driver_num` must already be used and
+        // the grant allocation fails.
         if exists {
             return false;
         }
@@ -879,7 +869,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     .map_or(false, |grant_entry| {
                         // Actually set the driver num and grant pointer.
                         grant_entry.driver_num = driver_num;
-                        grant_entry.grant_ptr = grant_ptr.as_ptr() as *mut u8;
+                        grant_entry.grant_ptr = grant_ptr.as_ptr();
 
                         // If all of this worked, return true.
                         true
@@ -916,7 +906,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn enter_grant(&self, grant_num: usize) -> Result<NonNull<u8>, Error> {
-        // Do not try to access the grant region of inactive process.
+        // Do not try to access the grant region of an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
         }
@@ -959,7 +949,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         identifier: ProcessCustomGrantIdentifier,
     ) -> Result<*mut u8, Error> {
-        // Do not try to access the grant region of inactive process.
+        // Do not try to access the grant region of an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
         }
@@ -1003,9 +993,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
 
         self.grant_pointers.map(|grant_pointers| {
-            // Filter our list of grant pointers into just the non null ones,
-            // and count those. A grant is allocated if its grant pointer is non
-            // null.
+            // Filter our list of grant pointers into just the non-null ones,
+            // and count those. A grant is allocated if its grant pointer is
+            // non-null.
             grant_pointers
                 .iter()
                 .filter(|grant_entry| !grant_entry.grant_ptr.is_null())
@@ -1018,7 +1008,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             .map_or(Err(Error::KernelError), |grant_pointers| {
                 // Filter our list of grant pointers into just the non null
                 // ones, and count those. A grant is allocated if its grant
-                // pointer is non null.
+                // pointer is non-null.
                 match grant_pointers.iter().position(|grant_entry| {
                     // Only consider allocated grants.
                     (!grant_entry.grant_ptr.is_null()) && grant_entry.driver_num == driver_num
@@ -1033,7 +1023,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         let ptr = upcall_fn.as_ptr() as *const u8;
         let size = mem::size_of::<*const u8>();
 
-        // It is ok if this function is in memory or flash.
+        // It is okay if this function is in memory or flash.
         self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
     }
 
@@ -1042,7 +1032,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn get_completion_code(&self) -> Option<Option<u32>> {
-        self.completion_code.extract()
+        self.completion_code.get()
     }
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
@@ -1353,7 +1343,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
     {
         // Get a slice for just the app header.
-        let header_flash = match app_flash.get(0..header_length as usize) {
+        let header_flash = match app_flash.get(0..header_length) {
             Some(h) => h,
             None => return Err((ProcessLoadError::NotEnoughFlash, remaining_memory)),
         };
@@ -1467,8 +1457,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // Otherwise, actually load the app.
         let process_ram_requested_size = tbf_header.get_minimum_app_ram_size() as usize;
+
         // Initialize MPU region configuration.
-        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        let mut mpu_config = match chip.mpu().new_config() {
+            Some(mpu_config) => mpu_config,
+            None => return Err((ProcessLoadError::MpuConfigurationError, remaining_memory)),
+        };
 
         // Allocate MPU region for flash.
         if chip
@@ -1505,8 +1499,17 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Initial size of the kernel-owned part of process memory can be
         // calculated directly based on the initial size of all kernel-owned
         // data structures.
-        let initial_kernel_memory_size =
-            grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
+        //
+        // We require our kernel memory break (located at the end of the
+        // MPU-returned allocated memory region) to be word-aligned. However, we
+        // don't have any explicit alignment constraints from the MPU. To ensure
+        // that the below kernel-owned data structures still fit into the
+        // kernel-owned memory even with padding for alignment, add an extra
+        // `sizeof(usize)` bytes.
+        let initial_kernel_memory_size = grant_ptrs_offset
+            + Self::CALLBACKS_OFFSET
+            + Self::PROCESS_STRUCT_OFFSET
+            + core::mem::size_of::<usize>();
 
         // By default we start with the initial size of process-accessible
         // memory set to 0. This maximizes the flexibility that processes have
@@ -1586,10 +1589,18 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             remaining_memory
         };
 
-        // Determine where process memory will go and allocate MPU region for
-        // app-owned memory.
-        let (app_memory_start, app_memory_size) = match chip.mpu().allocate_app_memory_region(
-            remaining_memory.as_ptr() as *const u8,
+        // Determine where process memory will go and allocate an MPU region.
+        //
+        // `[allocation_start, allocation_size)` will cover both
+        //
+        // - the app-owned `min_process_memory_size`-long part of memory (at
+        //   some offset within `remaining_memory`), as well as
+        //
+        // - the kernel-owned allocation growing downward starting at the end
+        //   of this allocation, `initial_kernel_memory_size` bytes long.
+        //
+        let (allocation_start, allocation_size) = match chip.mpu().allocate_app_memory_region(
+            remaining_memory.as_ptr(),
             remaining_memory.len(),
             min_total_memory_size,
             min_process_memory_size,
@@ -1613,11 +1624,14 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         };
 
-        // Get a slice for the memory dedicated to the process. This can fail if
-        // the MPU returns a region of memory that is not inside of the
-        // `remaining_memory` slice passed to `create()` to allocate the
-        // process's memory out of.
-        let memory_start_offset = app_memory_start as usize - remaining_memory.as_ptr() as usize;
+        // Determine the offset of the app-owned part of the above memory
+        // allocation. An MPU may not place it at the very start of
+        // `remaining_memory` for internal alignment constraints. This can only
+        // overflow if the MPU implementation is incorrect; a compliant
+        // implementation must return a memory allocation within the
+        // `remaining_memory` slice.
+        let app_memory_start_offset =
+            allocation_start as usize - remaining_memory.as_ptr() as usize;
 
         // Check if the memory region is valid for the process. If a process
         // included a fixed address for the start of RAM in its TBF header (this
@@ -1625,7 +1639,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // need a fixed address) then we check that we used the same address
         // when we allocated it in RAM.
         if let Some(fixed_memory_start) = tbf_header.get_fixed_address_ram() {
-            let actual_address = remaining_memory.as_ptr() as u32 + memory_start_offset as u32;
+            let actual_address = remaining_memory.as_ptr() as u32 + app_memory_start_offset as u32;
             let expected_address = fixed_memory_start;
             if actual_address != expected_address {
                 return Err((
@@ -1638,39 +1652,102 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }
         }
 
-        // First split the remaining memory into a slice that contains the
-        // process memory and a slice that will not be used by this process.
-        let (app_memory_oversize, unused_memory) =
-            remaining_memory.split_at_mut(memory_start_offset + app_memory_size);
-        // Then since the process's memory need not start at the beginning of
-        // the remaining slice given to create(), get a smaller slice as needed;
-        // since the split is at memory_start_offset + app_memory_size, we know this
-        // will succeed. But doing so more cleanly would be good. -pal
-        let app_memory = &mut app_memory_oversize[memory_start_offset..];
+        // With our MPU allocation, we can begin to divide up the
+        // `remaining_memory` slice into individual regions for the process and
+        // kernel, as follows:
+        //
+        //
+        //  +-----------------------------------------------------------------
+        //  | remaining_memory
+        //  +----------------------------------------------------+------------
+        //  v                                                    v
+        //  +----------------------------------------------------+
+        //  | allocated_padded_memory                            |
+        //  +--+-------------------------------------------------+
+        //     v                                                 v
+        //     +-------------------------------------------------+
+        //     | allocated_memory                                |
+        //     +-------------------------------------------------+
+        //     v                                                 v
+        //     +-----------------------+-------------------------+
+        //     | app_accessible_memory | allocated_kernel_memory |
+        //     +-----------------------+-------------------+-----+
+        //                                                 v
+        //                               kernel memory break
+        //                                                  \---+/
+        //                                                      v
+        //                                        optional padding
+        //
+        //
+        // First split the `remaining_memory` into two slices:
+        //
+        // - `allocated_padded_memory`: the allocated memory region, containing
+        //
+        //   1. optional padding at the start of the memory region of
+        //      `app_memory_start_offset` bytes,
+        //
+        //   2. the app accessible memory region of `min_process_memory_size`,
+        //
+        //   3. optional unallocated memory, and
+        //
+        //   4. kernel-reserved memory, growing downward starting at
+        //      `app_memory_padding`.
+        //
+        // - `unused_memory`: the rest of the `remaining_memory`, not assigned
+        //   to this app.
+        //
+        let (allocated_padded_memory, unused_memory) =
+            remaining_memory.split_at_mut(app_memory_start_offset + allocation_size);
 
-        // Set the initial process-accessible memory to the amount specified by
-        // the context switch implementation.
-        let initial_app_brk = app_memory.as_ptr().add(min_process_memory_size);
+        // Now, slice off the (optional) padding at the start:
+        let (_padding, allocated_memory) =
+            allocated_padded_memory.split_at_mut(app_memory_start_offset);
+
+        // We continue to sub-slice the `allocated_memory` into
+        // process-accessible and kernel-owned memory. Prior to that, store the
+        // start and length ofthe overall allocation:
+        let allocated_memory_start = allocated_memory.as_ptr();
+        let allocated_memory_len = allocated_memory.len();
+
+        // Slice off the process-accessible memory:
+        let (app_accessible_memory, allocated_kernel_memory) =
+            allocated_memory.split_at_mut(min_process_memory_size);
+
+        // Set the initial process-accessible memory:
+        let initial_app_brk = app_accessible_memory
+            .as_ptr()
+            .add(app_accessible_memory.len());
 
         // Set the initial allow high water mark to the start of process memory
         // since no `allow` calls have been made yet.
-        let initial_allow_high_water_mark = app_memory.as_ptr();
+        let initial_allow_high_water_mark = app_accessible_memory.as_ptr();
 
         // Set up initial grant region.
-        let mut kernel_memory_break = app_memory.as_mut_ptr().add(app_memory.len());
+        //
+        // `kernel_memory_break` is set to the end of kernel-accessible memory
+        // and grows downward.
+        //
+        // We require the `kernel_memory_break` to be aligned to a
+        // word-boundary, as we rely on this during offset calculations to
+        // kernel-accessed structs (e.g. the grant pointer table) below. As it
+        // moves downward in the address space, we can't use the `align_offset`
+        // convenience functions.
+        //
+        // Calling `wrapping_sub` is safe here, as we've factored in an optional
+        // padding of at most `sizeof(usize)` bytes in the calculation of
+        // `initial_kernel_memory_size` above.
+        let mut kernel_memory_break = allocated_kernel_memory
+            .as_ptr()
+            .add(allocated_kernel_memory.len());
 
-        // Now that we know we have the space we can setup the grant
-        // pointers.
+        kernel_memory_break = kernel_memory_break
+            .wrapping_sub(kernel_memory_break as usize % core::mem::size_of::<usize>());
+
+        // Now that we know we have the space we can setup the grant pointers.
         kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
 
-        // This is safe today, as MPU constraints ensure that `memory_start`
-        // will always be aligned on at least a word boundary, and that
-        // memory_size will be aligned on at least a word boundary, and
-        // `grant_ptrs_offset` is a multiple of the word size. Thus,
-        // `kernel_memory_break` must be word aligned. While this is unlikely to
-        // change, it should be more proactively enforced.
-        //
-        // TODO: https://github.com/tock/tock/issues/1739
+        // This is safe, `kernel_memory_break` is aligned to a word-boundary,
+        // and `grant_ptrs_offset` is a multiple of the word size.
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
         let grant_pointers = slice::from_raw_parts_mut(
@@ -1707,7 +1784,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Create the Process struct in the app grant region.
         // Note that this requires every field be explicitly initialized, as
         // we are just transforming a pointer into a structure.
-        let mut process: &mut ProcessStandard<C> =
+        let process: &mut ProcessStandard<C> =
             &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C>);
 
         // Ask the kernel for a unique identifier for this process that is being
@@ -1726,8 +1803,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory_start = app_memory.as_ptr();
-        process.memory_len = app_memory.len();
+        process.memory_start = allocated_memory_start;
+        process.memory_len = allocated_memory_len;
         process.header = tbf_header;
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.app_break = Cell::new(initial_app_brk);
@@ -1780,7 +1857,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // TODO: https://github.com/tock/tock/issues/1739
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
-                app_memory_start,
+                app_accessible_memory.as_ptr(),
                 initial_app_brk,
                 stored_state,
             )
@@ -1808,7 +1885,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     }
 
     /// Reset the process, resetting all of its state and
-    /// re-initializing it so it can start runnning.  Assumes the
+    /// re-initializing it so it can start running.  Assumes the
     /// process is not running but is still in flash and still has its
     /// memory region allocated to it. This does not start the
     /// process, as that requires the kernel to check that its
@@ -1839,7 +1916,14 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // both create() and reset(), but process load debugging complicates
         // this. We just want to create new config with only flash and memory
         // regions.
-        let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
+        //
+        // We must have a previous MPU configuration stored, fault the
+        // process if this invariant is violated. We avoid allocating
+        // a new MPU configuration, as this may eventually exhaust the
+        // number of available MPU configurations.
+        let mut mpu_config = self.mpu_config.take().ok_or(ErrorCode::FAIL)?;
+        self.chip.mpu().reset_config(&mut mpu_config);
+
         // Allocate MPU region for flash.
         let app_mpu_flash = self.chip.mpu().allocate_region(
             self.flash.as_ptr(),
@@ -1911,7 +1995,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // process's memory region.
         self.allow_high_water_mark.set(app_mpu_mem_start);
 
-        // Drop the old config and use the clean one
+        // Store the adjusted MPU configuration:
         self.mpu_config.replace(mpu_config);
 
         // Handle any architecture-specific requirements for a process when it
@@ -1991,7 +2075,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
-        self.mpu_config.and_then(|mut config| {
+        self.mpu_config.and_then(|config| {
             // First, compute the candidate new pointer. Note that at this point
             // we have not yet checked whether there is space for this
             // allocation or that it meets alignment requirements.
@@ -2021,7 +2105,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 self.app_break.get(),
                 new_break,
                 mpu::Permissions::ReadWriteOnly,
-                &mut config,
+                config,
             ) {
                 None
             } else {
@@ -2058,8 +2142,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         }
     }
 
-    /// Use a ProcessCustomGrantIdentifier to find the address of the custom
-    /// grant.
+    /// Use a `ProcessCustomGrantIdentifier` to find the address of the
+    /// custom grant.
     ///
     /// This reverses `create_custom_grant_identifier()`.
     fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifier) -> usize {

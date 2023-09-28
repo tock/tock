@@ -25,16 +25,15 @@
 //! The `command` system call support one argument `cmd` which is used to specify the specific
 //! operation, currently the following cmd's are supported:
 //!
-//! * `0`: check whether the driver exist
+//! * `0`: check whether the driver exists
 //! * `1`: read humidity
 //!
 //!
 //! The possible return from the 'command' system call indicates the following:
 //!
 //! * `Ok(())`:    The operation has been successful.
-//! * `BUSY`:      The driver is busy.
-//! * `ENOSUPPORT`: Invalid `cmd`.
-//! * `NOMEM`:     No sufficient memory available.
+//! * `NOSUPPORT`: Invalid `cmd`.
+//! * `NOMEM`:     Insufficient memory available.
 //! * `INVAL`:     Invalid address of the buffer or other error.
 //!
 //! Usage
@@ -100,12 +99,13 @@ impl<'a> HumiditySensor<'a> {
     ) -> CommandReturn {
         self.apps
             .enter(processid, |app, _| {
+                app.subscribed = true;
+
                 if !self.busy.get() {
-                    app.subscribed = true;
                     self.busy.set(true);
                     self.call_driver(command, arg1)
                 } else {
-                    CommandReturn::failure(ErrorCode::BUSY)
+                    CommandReturn::success()
                 }
             })
             .unwrap_or_else(|err| CommandReturn::failure(err.into()))
@@ -120,13 +120,14 @@ impl<'a> HumiditySensor<'a> {
 }
 
 impl hil::sensors::HumidityClient for HumiditySensor<'_> {
-    fn callback(&self, tmp_val: usize) {
+    fn callback(&self, humidity_val: usize) {
+        self.busy.set(false);
+
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
                 if app.subscribed {
-                    self.busy.set(false);
                     app.subscribed = false;
-                    upcalls.schedule_upcall(0, (tmp_val, 0, 0)).ok();
+                    upcalls.schedule_upcall(0, (humidity_val, 0, 0)).ok();
                 }
             });
         }

@@ -47,6 +47,7 @@ members = [
     "boards/qemu_rv32_virt",
     "boards/swervolf",
     "boards/weact_f401ccu6/",
+    "capsules/aes_gcm",
     "capsules/core",
     "capsules/extra",
     "chips/apollo3",
@@ -88,6 +89,7 @@ members = [
     "libraries/tickv",
 ]
 exclude = ["tools/"]
+resolver = "2"
 
 [workspace.package]
 version = "0.1.0"

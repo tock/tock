@@ -46,7 +46,7 @@ pub const DST_ADDR: IPAddr = IPAddr([
 
 /* 6LoWPAN Constants */
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8;
-static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16];
+static DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16];
 static mut RX_STATE_BUF: [u8; 1280] = [0x0; 1280];
 const DST_MAC_ADDR: MacAddress = MacAddress::Short(0x802);
 const SRC_MAC_ADDR: MacAddress = MacAddress::Short(0xf00f);
@@ -56,7 +56,7 @@ pub const TEST_LOOP: bool = false;
 
 static mut ICMP_PAYLOAD: [u8; 10] = [0; 10];
 
-pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0 as u8; radio::MAX_BUF_SIZE];
+pub static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0_u8; radio::MAX_BUF_SIZE];
 
 //Use a global variable option, initialize as None, then actually initialize in initialize all
 

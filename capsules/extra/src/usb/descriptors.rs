@@ -701,7 +701,7 @@ impl Descriptor for EndpointDescriptor {
         // The below implicitly sets Synchronization Type to "No Synchronization" and
         // Usage Type to "Data endpoint"
         buf[3].set(self.transfer_type as u8);
-        put_u16(&buf[4..6], self.max_packet_size & 0x7ff as u16);
+        put_u16(&buf[4..6], self.max_packet_size & 0x7ff_u16);
         buf[6].set(self.interval);
         len
     }
@@ -949,7 +949,7 @@ fn get_u32(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
 }
 
 /// Write a `u16` to a buffer for transmission on the bus
-fn put_u16<'a>(buf: &'a [Cell<u8>], n: u16) {
+fn put_u16(buf: &[Cell<u8>], n: u16) {
     buf[0].set((n & 0xff) as u8);
     buf[1].set((n >> 8) as u8);
 }

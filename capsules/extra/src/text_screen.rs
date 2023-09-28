@@ -110,7 +110,7 @@ impl<'a> TextScreen<'a> {
                     app.command = command;
                     Ok(true)
                 } else {
-                    if app.pending_command == true {
+                    if app.pending_command {
                         Err(ErrorCode::BUSY)
                     } else {
                         app.pending_command = true;
@@ -148,7 +148,7 @@ impl<'a> TextScreen<'a> {
         let mut run_next = false;
         let res = self.current_app.map_or(Err(ErrorCode::FAIL), |app| {
             self.apps
-                .enter(*app, |app, kernel_data| match app.command {
+                .enter(app, |app, kernel_data| match app.command {
                     TextScreenCommand::GetResolution => {
                         let (x, y) = self.text_screen.get_size();
                         app.pending_command = false;

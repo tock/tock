@@ -234,13 +234,11 @@ const KEY2: u32 = 0xCDEF89AB;
 ///
 /// let pagebuffer = unsafe { static_init!(StmF303Page, StmF303Page::default()) };
 /// ```
-pub struct StmF303Page(pub [u8; PAGE_SIZE as usize]);
+pub struct StmF303Page(pub [u8; PAGE_SIZE]);
 
 impl Default for StmF303Page {
     fn default() -> Self {
-        Self {
-            0: [0; PAGE_SIZE as usize],
-        }
+        Self([0; PAGE_SIZE])
     }
 }
 

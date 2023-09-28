@@ -23,7 +23,7 @@ struct BaudFraction {
 
 #[rustfmt::skip]
 // Table out of the datasheet to correct the baudrate
-const BAUD_FRACTIONS: &'static [BaudFraction; 36] = &[
+const BAUD_FRACTIONS: &[BaudFraction; 36] = &[
     BaudFraction { frac: 0.0000, reg_val: 0x00 },
     BaudFraction { frac: 0.0529, reg_val: 0x01 },
     BaudFraction { frac: 0.0715, reg_val: 0x02 },
@@ -257,7 +257,7 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             Err((ErrorCode::BUSY, tx_buffer))
         } else {
             self.tx_busy.set(true);
-            let tx_reg = &self.registers.txbuf as *const ReadWrite<u16> as *const ();
+            let tx_reg = (&self.registers.txbuf as *const ReadWrite<u16>).cast::<()>();
             self.tx_dma
                 .map(move |dma| dma.transfer_mem_to_periph(tx_reg, tx_buffer, tx_len));
             Ok(())
@@ -305,7 +305,7 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
             Err((ErrorCode::BUSY, rx_buffer))
         } else {
             self.rx_busy.set(true);
-            let rx_reg = &self.registers.rxbuf as *const ReadOnly<u16> as *const ();
+            let rx_reg = (&self.registers.rxbuf as *const ReadOnly<u16>).cast::<()>();
             self.rx_dma
                 .map(move |dma| dma.transfer_periph_to_mem(rx_reg, rx_buffer, rx_len));
             Ok(())

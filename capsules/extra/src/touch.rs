@@ -85,7 +85,7 @@ pub struct Touch<'a> {
     /// 90 deg (clockwise), 180 deg (upside-down), 270 deg(clockwise).
     /// The touch gets the rotation from the screen and
     /// updates the touch (x, y) position
-    screen: Option<&'a dyn hil::screen::Screen>,
+    screen: Option<&'a dyn hil::screen::Screen<'a>>,
     apps: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     screen_rotation_offset: Cell<ScreenRotation>,
 }
@@ -94,7 +94,7 @@ impl<'a> Touch<'a> {
     pub fn new(
         touch: Option<&'a dyn hil::touch::Touch<'a>>,
         multi_touch: Option<&'a dyn hil::touch::MultiTouch<'a>>,
-        screen: Option<&'a dyn hil::screen::Screen>,
+        screen: Option<&'a dyn hil::screen::Screen<'a>>,
         grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> Touch<'a> {
         Touch {
@@ -113,7 +113,7 @@ impl<'a> Touch<'a> {
     fn touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app, _| if app.touch_enable { true } else { false }) {
+            if app.enter(|app, _| app.touch_enable) {
                 enabled = true;
                 break;
             }
@@ -145,7 +145,7 @@ impl<'a> Touch<'a> {
     fn multi_touch_enable(&self) -> Result<(), ErrorCode> {
         let mut enabled = false;
         for app in self.apps.iter() {
-            if app.enter(|app, _| if app.multi_touch_enable { true } else { false }) {
+            if app.enter(|app, _| app.multi_touch_enable) {
                 enabled = true;
                 break;
             }
@@ -177,7 +177,7 @@ impl<'a> Touch<'a> {
                 }
                 ScreenRotation::Rotated270 => {
                     mem::swap(&mut width, &mut height);
-                    (width as u16 - touch_event.y as u16, touch_event.x)
+                    (width as u16 - touch_event.y, touch_event.x)
                 }
                 _ => (touch_event.x, touch_event.y),
             };
@@ -255,7 +255,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                     };
 
                                     for event_index in 0..num {
-                                        let mut event = touch_events[event_index].clone();
+                                        let mut event = touch_events[event_index];
                                         self.update_rotation(&mut event);
                                         let event_status = touch_status_to_number(&event.status);
                                         // debug!(
@@ -304,7 +304,7 @@ impl<'a> hil::touch::MultiTouchClient for Touch<'a> {
                                 .ok();
                         }
                     } else {
-                        app.dropped_events = app.dropped_events + 1;
+                        app.dropped_events += 1;
                     }
                 });
             }
@@ -404,11 +404,7 @@ impl<'a> SyscallDriver for Touch<'a> {
                 let num_touches = if let Some(multi_touch) = self.multi_touch {
                     multi_touch.get_num_touches()
                 } else {
-                    if self.touch.is_some() {
-                        1
-                    } else {
-                        0
-                    }
+                    usize::from(self.touch.is_some())
                 };
                 CommandReturn::success_u32(num_touches as u32)
             }

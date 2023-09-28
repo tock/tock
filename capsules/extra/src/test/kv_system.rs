@@ -7,28 +7,6 @@
 //! This capsule implements the tests for KV system libraries in Tock.
 //! This is originally written to test TicKV.
 //!
-//! +-----------------------+
-//! |                       |
-//! |  Capsule using K-V    |
-//! |                       |
-//! +-----------------------+
-//!
-//!    hil::kv_store
-//!
-//! +-----------------------+
-//! |                       |
-//! |  K-V in Tock          |
-//! |                       |
-//! +-----------------------+
-//!
-//!    hil::kv_system
-//!
-//! +-----------------------+
-//! |                       |
-//! |  TicKV (this file)    |
-//! |                       |
-//! +-----------------------+
-//!
 //!    hil::flash
 //!
 //! The tests can be enabled by adding this line to the `main()`
@@ -52,11 +30,12 @@
 //! ---Finished TicKV Tests---
 //! ```
 
+use crate::tickv::{KVSystem, KVSystemClient, KeyType};
 use core::cell::Cell;
 use core::marker::PhantomData;
 use kernel::debug;
-use kernel::hil::kv_system::{self, KVSystem, KeyType};
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{MapCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -68,7 +47,7 @@ enum CurrentState {
 pub struct KVSystemTest<'a, S: KVSystem<'static>, T: KeyType> {
     kv_system: &'a S,
     phantom: PhantomData<&'a T>,
-    value: TakeCell<'static, [u8]>,
+    value: MapCell<SubSliceMut<'static, u8>>,
     ret_buffer: TakeCell<'static, [u8]>,
     state: Cell<CurrentState>,
 }
@@ -76,7 +55,7 @@ pub struct KVSystemTest<'a, S: KVSystem<'static>, T: KeyType> {
 impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
     pub fn new(
         kv_system: &'a S,
-        value: &'static mut [u8],
+        value: SubSliceMut<'static, u8>,
         static_buf: &'static mut [u8; 4],
     ) -> KVSystemTest<'a, S, T> {
         debug!("---Starting TicKV Tests---");
@@ -84,20 +63,20 @@ impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
         Self {
             kv_system: kv_system,
             phantom: PhantomData,
-            value: TakeCell::new(value),
+            value: MapCell::new(value),
             ret_buffer: TakeCell::new(static_buf),
             state: Cell::new(CurrentState::Normal),
         }
     }
 }
 
-impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::Client<T>
+impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> KVSystemClient<T>
     for KVSystemTest<'a, S, T>
 {
     fn generate_key_complete(
         &self,
         result: Result<(), ErrorCode>,
-        _unhashed_key: &'static mut [u8],
+        _unhashed_key: SubSliceMut<'static, u8>,
         key_buf: &'static mut T,
     ) {
         match result {
@@ -118,14 +97,14 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        value: &'static mut [u8],
+        value: SubSliceMut<'static, u8>,
     ) {
         match result {
             Ok(()) => {
                 debug!("Key: {:?} with value {:?} was added", key, value);
                 debug!("Now retrieving the key");
                 self.kv_system
-                    .get_value(key, self.ret_buffer.take().unwrap())
+                    .get_value(key, SubSliceMut::new(self.ret_buffer.take().unwrap()))
                     .unwrap();
             }
             Err(e) => {
@@ -138,12 +117,12 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
         &self,
         result: Result<(), ErrorCode>,
         key: &'static mut T,
-        ret_buf: &'static mut [u8],
+        ret_buf: SubSliceMut<'static, u8>,
     ) {
         match result {
             Ok(()) => {
                 debug!("Key: {:?} with value {:?} was retrieved", key, ret_buf);
-                self.ret_buffer.replace(ret_buf);
+                self.ret_buffer.replace(ret_buf.take());
                 self.kv_system.invalidate_key(key).unwrap();
             }
             Err(e) => {
@@ -169,7 +148,7 @@ impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> kv_system::
                 debug!("Try to read removed key: {:?}", key);
                 self.state.set(CurrentState::ExpectGetValueFail);
                 self.kv_system
-                    .get_value(key, self.ret_buffer.take().unwrap())
+                    .get_value(key, SubSliceMut::new(self.ret_buffer.take().unwrap()))
                     .unwrap();
             }
             Err(e) => {

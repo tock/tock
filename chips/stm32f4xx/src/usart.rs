@@ -528,7 +528,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
-            || params.hw_flow_control != false
+            || params.hw_flow_control
             || params.width != hil::uart::Width::Eight
         {
             panic!(
@@ -540,7 +540,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
         self.registers.cr1.modify(CR1::M::CLEAR);
 
         // Set the stop bit length - 00: 1 Stop bits
-        self.registers.cr2.modify(CR2::STOP.val(0b00 as u32));
+        self.registers.cr2.modify(CR2::STOP.val(0b00_u32));
 
         // Set no parity
         self.registers.cr1.modify(CR1::PCE::CLEAR);
@@ -550,8 +550,8 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
         // to Table 149 of reference manual, the value for BRR is 8.6875
         // DIV_Fraction = 0.6875 * 16 = 11 = 0xB
         // DIV_Mantissa = 8 = 0x8
-        self.registers.brr.modify(BRR::DIV_Fraction.val(0xB as u32));
-        self.registers.brr.modify(BRR::DIV_Mantissa.val(0x8 as u32));
+        self.registers.brr.modify(BRR::DIV_Fraction.val(0xB_u32));
+        self.registers.brr.modify(BRR::DIV_Mantissa.val(0x8_u32));
 
         // Enable transmit block
         self.registers.cr1.modify(CR1::TE::SET);

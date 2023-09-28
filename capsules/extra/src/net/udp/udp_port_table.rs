@@ -185,7 +185,7 @@ impl UdpPortManager {
                 for i in 0..MAX_NUM_BOUND_PORTS {
                     match table[i] {
                         None => {
-                            result = Ok(UdpSocket::new(i, &self));
+                            result = Ok(UdpSocket::new(i, self));
                             table[i] = Some(SocketBindingEntry::Unbound);
                             break;
                         }
@@ -200,7 +200,7 @@ impl UdpPortManager {
     /// The slot in the table is only freed if the socket that is dropped is
     /// unbound. If the slot is bound, the socket is being dropped after a call to
     /// bind(), and the slot in the table should remain reserved.
-    fn destroy_socket(&self, socket: &mut UdpSocket) {
+    fn destroy_socket(&self, socket: &UdpSocket) {
         self.port_array.map(|table| match table[socket.idx] {
             Some(entry) => {
                 if entry == SocketBindingEntry::Unbound {
@@ -297,6 +297,6 @@ impl UdpPortManager {
             table[idx] = Some(SocketBindingEntry::Unbound);
         });
         // Search the list and return the appropriate socket
-        Ok(UdpSocket::new(idx, &self))
+        Ok(UdpSocket::new(idx, self))
     }
 }

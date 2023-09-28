@@ -63,7 +63,7 @@ pub struct LiteXUartRegisters<R: LiteXSoCRegisterConfiguration> {
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXUartRegisters<R> {
     /// Create an event manager instance for the UART events
-    fn ev<'a>(&'a self) -> LiteXUartEV<'a, R> {
+    fn ev(&self) -> LiteXUartEV<'_, R> {
         LiteXUartEV::<R>::new(&self.ev_status, &self.ev_pending, &self.ev_enable)
     }
 }
@@ -268,7 +268,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXUart<'a, R> {
         if progress < len {
             // If we haven't transmitted all data, we _must_ have
             // reached the fifo-limit
-            assert!(fifo_full == true);
+            assert!(fifo_full);
 
             // Place all information and buffers back for the next
             // call to `resume_tx`, triggered by an interrupt.
@@ -305,7 +305,7 @@ impl<R: LiteXSoCRegisterConfiguration> uart::Configure for LiteXUart<'_, R> {
             if params.width != uart::Width::Eight
                 || params.parity != uart::Parity::None
                 || params.stop_bits != uart::StopBits::One
-                || params.hw_flow_control == true
+                || params.hw_flow_control
             {
                 Err(ErrorCode::NOSUPPORT)
             } else if params.baud_rate == 0 || params.baud_rate > system_clock {

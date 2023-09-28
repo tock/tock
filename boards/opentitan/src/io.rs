@@ -5,6 +5,7 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
+use earlgrey::chip_config::EarlGreyConfig;
 use kernel::debug;
 use kernel::debug::IoWrite;
 
@@ -29,7 +30,7 @@ impl IoWrite for Writer {
         // during panic.
         earlgrey::uart::Uart::new(
             earlgrey::uart::UART0_BASE,
-            earlgrey::chip_config::CONFIG.peripheral_freq,
+            crate::ChipConfig::PERIPHERAL_FREQ,
         )
         .transmit_sync(buf);
         buf.len()

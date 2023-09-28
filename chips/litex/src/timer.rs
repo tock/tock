@@ -80,7 +80,7 @@ pub struct LiteXTimerRegisters<R: LiteXSoCRegisterConfiguration> {
 }
 
 impl<R: LiteXSoCRegisterConfiguration> LiteXTimerRegisters<R> {
-    fn ev<'a>(&'a self) -> LiteXTimerEV<'a, R> {
+    fn ev(&self) -> LiteXTimerEV<'_, R> {
         LiteXTimerEV::<R>::new(&self.ev_status, &self.ev_pending, &self.ev_enable)
     }
 }
@@ -366,7 +366,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
             uptime,
             timer,
             alarm_client: OptionalCell::empty(),
-            reference_time: Cell::new((0 as u32).into()),
+            reference_time: Cell::new((0_u32).into()),
             alarm_time: OptionalCell::empty(),
         }
     }
@@ -408,7 +408,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
             } else {
                 // Trigger an interrupt one tick from now, which will
                 // call this function again
-                self.timer.oneshot((1 as u32).into());
+                self.timer.oneshot((1_u32).into());
             }
         } else {
             // It's not yet time to call the client, set the timer
@@ -464,7 +464,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
 
     fn get_alarm(&self) -> Self::Ticks {
         // Undefined at boot, so 0
-        self.alarm_time.unwrap_or((0 as u32).into())
+        self.alarm_time.unwrap_or((0_u32).into())
     }
 
     fn is_armed(&self) -> bool {
@@ -479,7 +479,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        (1 as u32).into()
+        (1_u32).into()
     }
 }
 

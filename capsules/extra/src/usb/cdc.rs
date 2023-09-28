@@ -35,7 +35,7 @@ const ENDPOINT_IN_NUM: usize = 2;
 /// us.
 const ENDPOINT_OUT_NUM: usize = 3;
 
-static LANGUAGES: &'static [u16; 1] = &[
+static LANGUAGES: &[u16; 1] = &[
     0x0409, // English (United States)
 ];
 /// Platform-specific packet length for the `SAM4L` USB hardware.

@@ -45,7 +45,7 @@ impl<'a, T: Timer<'a>> TestRandomTimer<'a, T> {
 
         let counter = self.counter.get();
         if counter == 0 {
-            let mut us: u32 = ((iv * 745939) % 115843) as u32;
+            let mut us: u32 = (iv * 745939) % 115843;
             if us % 11 == 0 {
                 // Try delays of zero in 1 of 11 cases
                 us = 0;

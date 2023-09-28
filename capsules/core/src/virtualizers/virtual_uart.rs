@@ -118,9 +118,7 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
                         || state == UartDeviceReceiveState::Aborting
                     {
                         // debug!("Have {} bytes, copying in bytes {}-{}, {} remain", rx_len, position, position + len, remaining);
-                        for i in 0..len {
-                            rxbuf[position + i] = buffer[i];
-                        }
+                        rxbuf[position..(len + position)].copy_from_slice(&buffer[..len]);
                     }
                     device.rx_position.set(position + len);
                     device.rx_buffer.replace(rxbuf);
@@ -217,19 +215,20 @@ impl<'a> MuxUart<'a> {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
-                    node.operation.map(move |op| match op {
-                        Operation::Transmit { len } => {
-                            let _ = self.uart.transmit_buffer(buf, *len).map_err(
-                                move |(ecode, buf)| {
-                                    node.tx_client.map(move |client| {
-                                        node.transmitting.set(false);
-                                        client.transmitted_buffer(buf, 0, Err(ecode));
-                                    });
-                                },
-                            );
-                        }
+                    node.operation.take().map(move |op| match op {
+                        Operation::Transmit { len } => match self.uart.transmit_buffer(buf, len) {
+                            Ok(()) => {
+                                self.inflight.set(node);
+                            }
+                            Err((ecode, buf)) => {
+                                node.tx_client.map(move |client| {
+                                    node.transmitting.set(false);
+                                    client.transmitted_buffer(buf, 0, Err(ecode));
+                                });
+                            }
+                        },
                         Operation::TransmitWord { word } => {
-                            let rcode = self.uart.transmit_word(*word);
+                            let rcode = self.uart.transmit_word(word);
                             if rcode != Ok(()) {
                                 node.tx_client.map(|client| {
                                     node.transmitting.set(false);
@@ -239,8 +238,6 @@ impl<'a> MuxUart<'a> {
                         }
                     });
                 });
-                node.operation.clear();
-                self.inflight.set(node);
             });
         }
     }

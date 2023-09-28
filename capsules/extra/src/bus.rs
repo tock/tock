@@ -113,7 +113,7 @@ enum BusStatus {
 
 /*********** SPI ************/
 
-pub struct SpiMasterBus<'a, S: SpiMasterDevice> {
+pub struct SpiMasterBus<'a, S: SpiMasterDevice<'a>> {
     spi: &'a S,
     read_write_buffer: OptionalCell<&'static mut [u8]>,
     bus_width: Cell<usize>,
@@ -122,7 +122,7 @@ pub struct SpiMasterBus<'a, S: SpiMasterDevice> {
     status: Cell<BusStatus>,
 }
 
-impl<'a, S: SpiMasterDevice> SpiMasterBus<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> SpiMasterBus<'a, S> {
     pub fn new(spi: &'a S, addr_buffer: &'static mut [u8]) -> SpiMasterBus<'a, S> {
         SpiMasterBus {
             spi,
@@ -148,7 +148,7 @@ impl<'a, S: SpiMasterDevice> SpiMasterBus<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> Bus<'a> for SpiMasterBus<'a, S> {
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
         match addr_width {
             BusWidth::Bits8 => self
@@ -231,7 +231,7 @@ impl<'a, S: SpiMasterDevice> Bus<'a> for SpiMasterBus<'a, S> {
     }
 }
 
-impl<'a, S: SpiMasterDevice> SpiMasterClient for SpiMasterBus<'a, S> {
+impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for SpiMasterBus<'a, S> {
     fn read_write_done(
         &self,
         write_buffer: &'static mut [u8],

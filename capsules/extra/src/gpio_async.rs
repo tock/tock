@@ -76,7 +76,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     }
 
     fn configure_input_pin(&self, port: usize, pin: usize, config: usize) -> Result<(), ErrorCode> {
-        let ports = self.ports.as_ref();
+        let ports = self.ports;
         let mode = match config {
             0 => hil::gpio::FloatingState::PullNone,
             1 => hil::gpio::FloatingState::PullUp,
@@ -87,7 +87,7 @@ impl<'a, Port: hil::gpio_async::Port> GPIOAsync<'a, Port> {
     }
 
     fn configure_interrupt(&self, port: usize, pin: usize, config: usize) -> Result<(), ErrorCode> {
-        let ports = self.ports.as_ref();
+        let ports = self.ports;
         let mode = match config {
             0 => hil::gpio::InterruptEdge::EitherEdge,
             1 => hil::gpio::InterruptEdge::RisingEdge,
@@ -109,7 +109,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
     fn done(&self, value: usize) {
         // alert currently configuring app
         self.configuring_process.map(|pid| {
-            let _ = self.grants.enter(*pid, |_app, upcalls| {
+            let _ = self.grants.enter(pid, |_app, upcalls| {
                 upcalls.schedule_upcall(0, (0, value, 0)).ok();
             });
         });
@@ -167,7 +167,7 @@ impl<Port: hil::gpio_async::Port> SyscallDriver for GPIOAsync<'_, Port> {
     ) -> CommandReturn {
         let port = data & 0xFFFF;
         let other = (data >> 16) & 0xFFFF;
-        let ports = self.ports.as_ref();
+        let ports = self.ports;
 
         // Special case command 0; everything else results in a process-owned,
         // split-phase call.

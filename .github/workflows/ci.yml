@@ -11,9 +11,11 @@ env:
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
 on:
-  push:
-    branches-ignore: [ staging.tmp, trying.tmp ] # Run CI for all branches except bors tmp branches
+  push: # Run CI for all branches except GitHub merge queue tmp branches
+    branches-ignore:
+    - "gh-readonly-queue/**"
   pull_request: # Run CI for PRs on any branch
+  merge_group: # Run CI for the GitHub merge queue
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml
@@ -30,11 +32,8 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
-      - uses: actions/setup-node@v1
-        with:
-          components: rustfmt
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
       - name: ci-job-format
         run:  make ci-job-format
       - name: ci-markdown-toc
@@ -49,10 +48,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1 # pulls version from rust-toolchain file
-        with:
-          components: clippy
+      - uses: actions/checkout@v3
       - name: ci-job-clippy
         run:  make ci-job-clippy
 
@@ -63,8 +59,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
 
       - name: ci-job-syntax
         run: make ci-job-syntax
@@ -76,7 +71,7 @@ jobs:
       - name: ci-job-collect-artifacts
         run: make ci-job-collect-artifacts
       - name: upload-build-artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
           path: tools/ci-artifacts
@@ -100,8 +95,7 @@ jobs:
         run: |
           brew install zeromq
         if: matrix.os == 'macos-latest'
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
       - name: ci-job-libraries
         run: make ci-job-libraries
       - name: ci-job-archs
@@ -124,7 +118,6 @@ jobs:
         continue-on-error: true
         run: |
           sudo apt install meson
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
       - name: ci-job-qemu
         run: make ci-job-qemu

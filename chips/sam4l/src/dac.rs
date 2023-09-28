@@ -134,11 +134,6 @@ impl Dac {
         }
     }
 
-    // Not currently using interrupt.
-    pub fn handle_interrupt(&self) {}
-}
-
-impl hil::dac::DacChannel for Dac {
     fn initialize(&self) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
             self.enabled.set(true);
@@ -165,20 +160,25 @@ impl hil::dac::DacChannel for Dac {
         Ok(())
     }
 
+    // Not currently using interrupt.
+    pub fn handle_interrupt(&self) {}
+}
+
+impl hil::dac::DacChannel for Dac {
     fn set_value(&self, value: usize) -> Result<(), ErrorCode> {
         if !self.enabled.get() {
-            Err(ErrorCode::OFF)
-        } else {
-            // Check if ready to write to CDR
-            if !self.registers.isr.is_set(InterruptStatus::TXRDY) {
-                return Err(ErrorCode::BUSY);
-            }
-
-            // Write to CDR
-            self.registers
-                .cdr
-                .write(ConversionData::DATA.val(value as u32));
-            Ok(())
+            self.initialize()?;
         }
+
+        // Check if ready to write to CDR
+        if !self.registers.isr.is_set(InterruptStatus::TXRDY) {
+            return Err(ErrorCode::BUSY);
+        }
+
+        // Write to CDR
+        self.registers
+            .cdr
+            .write(ConversionData::DATA.val(value as u32));
+        Ok(())
     }
 }

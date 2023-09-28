@@ -62,8 +62,7 @@ pub struct SysTick {
 }
 
 const BASE_ADDR: *const SystickRegisters = 0xE000E010 as *const SystickRegisters;
-const SYSTICK_BASE: StaticRef<SystickRegisters> =
-    unsafe { StaticRef::new(BASE_ADDR as *const SystickRegisters) };
+const SYSTICK_BASE: StaticRef<SystickRegisters> = unsafe { StaticRef::new(BASE_ADDR) };
 
 impl SysTick {
     /// Initialize the `SysTick` with default values

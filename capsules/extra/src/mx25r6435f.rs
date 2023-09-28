@@ -67,8 +67,8 @@ pub const TX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
 pub const RX_BUF_LEN: usize = PAGE_SIZE as usize + 4;
 
 const SPI_SPEED: u32 = 8000000;
-const SECTOR_SIZE: u32 = 4096;
-const PAGE_SIZE: u32 = 256;
+pub const SECTOR_SIZE: u32 = 4096;
+pub const PAGE_SIZE: u32 = 256;
 
 /// This is a wrapper around a u8 array that is sized to a single page for the
 /// MX25R6435F. The page size is 4k because that is the smallest size that can
@@ -85,9 +85,7 @@ pub struct Mx25r6435fSector(pub [u8; SECTOR_SIZE as usize]);
 
 impl Mx25r6435fSector {
     pub const fn new() -> Self {
-        Self {
-            0: [0; SECTOR_SIZE as usize],
-        }
+        Self([0; SECTOR_SIZE as usize])
     }
 }
 
@@ -177,7 +175,7 @@ enum State {
 
 pub struct MX25R6435F<
     'a,
-    S: hil::spi::SpiMasterDevice + 'a,
+    S: hil::spi::SpiMasterDevice<'a> + 'a,
     P: hil::gpio::Pin + 'a,
     A: hil::time::Alarm<'a> + 'a,
 > {
@@ -194,7 +192,7 @@ pub struct MX25R6435F<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > MX25R6435F<'a, S, P, A>
@@ -364,7 +362,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > hil::spi::SpiMasterClient for MX25R6435F<'a, S, P, A>
@@ -581,7 +579,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > hil::time::AlarmClient for MX25R6435F<'a, S, P, A>
@@ -602,7 +600,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
         C: hil::flash::Client<Self>,
@@ -615,7 +613,7 @@ impl<
 
 impl<
         'a,
-        S: hil::spi::SpiMasterDevice + 'a,
+        S: hil::spi::SpiMasterDevice<'a> + 'a,
         P: hil::gpio::Pin + 'a,
         A: hil::time::Alarm<'a> + 'a,
     > hil::flash::Flash for MX25R6435F<'a, S, P, A>

@@ -19,17 +19,17 @@ pub enum AnalogLightSensorType {
     LightDependentResistor,
 }
 
-pub struct AnalogLightSensor<'a, A: hil::adc::Adc> {
+pub struct AnalogLightSensor<'a, A: hil::adc::Adc<'a>> {
     adc: &'a A,
-    channel: &'a <A as hil::adc::Adc>::Channel,
+    channel: &'a <A as hil::adc::Adc<'a>>::Channel,
     sensor_type: AnalogLightSensorType,
     client: OptionalCell<&'a dyn hil::sensors::AmbientLightClient>,
 }
 
-impl<'a, A: hil::adc::Adc> AnalogLightSensor<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> AnalogLightSensor<'a, A> {
     pub fn new(
         adc: &'a A,
-        channel: &'a <A as hil::adc::Adc>::Channel,
+        channel: &'a <A as kernel::hil::adc::Adc<'a>>::Channel,
         sensor_type: AnalogLightSensorType,
     ) -> AnalogLightSensor<'a, A> {
         AnalogLightSensor {
@@ -42,7 +42,7 @@ impl<'a, A: hil::adc::Adc> AnalogLightSensor<'a, A> {
 }
 
 /// Callbacks from the ADC driver
-impl<A: hil::adc::Adc> hil::adc::Client for AnalogLightSensor<'_, A> {
+impl<'a, A: hil::adc::Adc<'a>> hil::adc::Client for AnalogLightSensor<'a, A> {
     fn sample_ready(&self, sample: u16) {
         // TODO: calculate the actual light reading.
         let measurement: usize = match self.sensor_type {
@@ -55,7 +55,7 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogLightSensor<'_, A> {
     }
 }
 
-impl<'a, A: hil::adc::Adc> hil::sensors::AmbientLight<'a> for AnalogLightSensor<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> hil::sensors::AmbientLight<'a> for AnalogLightSensor<'a, A> {
     fn set_client(&self, client: &'a dyn hil::sensors::AmbientLightClient) {
         self.client.set(client);
     }
@@ -71,17 +71,17 @@ pub enum AnalogTemperatureSensorType {
     MicrochipMcp9700,
 }
 
-pub struct AnalogTemperatureSensor<'a, A: hil::adc::Adc> {
+pub struct AnalogTemperatureSensor<'a, A: hil::adc::Adc<'a>> {
     adc: &'a A,
-    channel: &'a <A as hil::adc::Adc>::Channel,
+    channel: &'a <A as hil::adc::Adc<'a>>::Channel,
     sensor_type: AnalogTemperatureSensorType,
     client: OptionalCell<&'a dyn hil::sensors::TemperatureClient>,
 }
 
-impl<'a, A: hil::adc::Adc> AnalogTemperatureSensor<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> AnalogTemperatureSensor<'a, A> {
     pub fn new(
         adc: &'a A,
-        channel: &'a <A as hil::adc::Adc>::Channel,
+        channel: &'a <A as kernel::hil::adc::Adc<'a>>::Channel,
         sensor_type: AnalogLightSensorType,
     ) -> AnalogLightSensor<'a, A> {
         AnalogLightSensor {
@@ -94,7 +94,7 @@ impl<'a, A: hil::adc::Adc> AnalogTemperatureSensor<'a, A> {
 }
 
 /// Callbacks from the ADC driver
-impl<A: hil::adc::Adc> hil::adc::Client for AnalogTemperatureSensor<'_, A> {
+impl<'a, A: hil::adc::Adc<'a>> hil::adc::Client for AnalogTemperatureSensor<'a, A> {
     fn sample_ready(&self, sample: u16) {
         // TODO: calculate the actual temperature reading.
         let measurement = match self.sensor_type {
@@ -114,7 +114,9 @@ impl<A: hil::adc::Adc> hil::adc::Client for AnalogTemperatureSensor<'_, A> {
     }
 }
 
-impl<'a, A: hil::adc::Adc> hil::sensors::TemperatureDriver<'a> for AnalogTemperatureSensor<'a, A> {
+impl<'a, A: hil::adc::Adc<'a>> hil::sensors::TemperatureDriver<'a>
+    for AnalogTemperatureSensor<'a, A>
+{
     fn set_client(&self, client: &'a dyn hil::sensors::TemperatureClient) {
         self.client.set(client);
     }

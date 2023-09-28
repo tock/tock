@@ -269,7 +269,7 @@ impl<'a> Spi<'a> {
 
         if self.registers.sr.is_set(SR::RXNE) {
             while self.registers.sr.read(SR::FRLVL) > 0 {
-                let byte = self.registers.dr.read(DR::DR) as u8;
+                let byte = self.registers.dr.read(DR::DR);
                 if self.rx_buffer.is_some() && self.rx_position.get() < self.len.get() {
                     self.rx_buffer.map(|buf| {
                         buf[self.rx_position.get()] = byte;
@@ -415,10 +415,10 @@ impl<'a> Spi<'a> {
     }
 }
 
-impl<'a> spi::SpiMaster for Spi<'a> {
+impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     type ChipSelect = &'a crate::gpio::Pin<'a>;
 
-    fn set_client(&self, client: &'static dyn SpiMasterClient) {
+    fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);
     }
 
@@ -426,23 +426,18 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         // enable error interrupt (used only for debugging)
         // self.registers.cr2.modify(CR2::ERRIE::SET);
 
-        self.registers.cr2.modify(
-            // Set 8 bit mode
-            CR2::DS.val (0b0111)+
-            // Set FIFO level at 1/4
-            CR2::FRXTH::SET,
-        );
+        // Set 8 bit mode
+        // Set FIFO level at 1/4
+        self.registers
+            .cr2
+            .modify(CR2::DS.val(0b0111) + CR2::FRXTH::SET);
 
+        // 2 line unidirectional mode
+        // Select as master
+        // Software slave management
+        // Enable
         self.registers.cr1.modify(
-            // 2 line unidirectional mode
-            CR1::BIDIMODE::CLEAR +
-            // Select as master
-            CR1::MSTR::SET +
-            // Software slave management
-            CR1::SSM::SET +
-            CR1::SSI::SET +
-            // Enable
-            CR1::SPE::SET,
+            CR1::BIDIMODE::CLEAR + CR1::MSTR::SET + CR1::SSM::SET + CR1::SSI::SET + CR1::SPE::SET,
         );
         Ok(())
     }
@@ -468,7 +463,7 @@ impl<'a> spi::SpiMaster for Spi<'a> {
         self.write_byte(val)?;
         // loop till RXNE becomes 1
         while !self.registers.sr.is_set(SR::RXNE) {}
-        Ok(self.registers.dr.read(DR::DR) as u8)
+        Ok(self.registers.dr.read(DR::DR))
     }
 
     fn read_write_bytes(

@@ -110,20 +110,20 @@ enum State {
     Done,      // Final state for take_measurement() state sequence
 }
 
-pub struct APDS9960<'a> {
-    i2c: &'a dyn i2c::I2CDevice,
+pub struct APDS9960<'a, I: i2c::I2CDevice> {
+    i2c: &'a I,
     interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
     prox_callback: OptionalCell<&'a dyn kernel::hil::sensors::ProximityClient>,
     state: Cell<State>,
     buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> APDS9960<'a> {
+impl<'a, I: i2c::I2CDevice> APDS9960<'a, I> {
     pub fn new(
-        i2c: &'a dyn i2c::I2CDevice,
+        i2c: &'a I,
         interrupt_pin: &'a dyn gpio::InterruptPin<'a>,
         buffer: &'static mut [u8],
-    ) -> APDS9960<'a> {
+    ) -> APDS9960<'a, I> {
         // setup and return struct
         APDS9960 {
             i2c: i2c,
@@ -173,7 +173,7 @@ impl<'a> APDS9960<'a> {
                 }
 
                 buffer[0] = Registers::PROXPULSEREG as u8;
-                buffer[1] = (length << 6 | count) as u8;
+                buffer[1] = length << 6 | count;
 
                 match self.i2c.write(buffer, 2) {
                     Ok(()) => {
@@ -203,7 +203,7 @@ impl<'a> APDS9960<'a> {
                 }
 
                 buffer[0] = Registers::CONTROLREG1 as u8;
-                buffer[1] = (ldrive << 6) as u8;
+                buffer[1] = ldrive << 6;
 
                 match self.i2c.write(buffer, 2) {
                     Ok(()) => {
@@ -295,7 +295,7 @@ impl<'a> APDS9960<'a> {
     }
 }
 
-impl i2c::I2CClient for APDS9960<'_> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for APDS9960<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::ReadId => {
@@ -412,7 +412,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 // Deactivate the device
 
                 buffer[0] = Registers::ENABLE as u8;
-                buffer[1] = 0 as u8;
+                buffer[1] = 0_u8;
 
                 match self.i2c.write(buffer, 2) {
                     Ok(()) => {
@@ -433,7 +433,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
-                self.prox_callback.map(|cb| cb.callback(prox_data as u8));
+                self.prox_callback.map(|cb| cb.callback(prox_data));
             }
             State::TakeMeasurement1 => {
                 // Read status reg
@@ -510,7 +510,7 @@ impl i2c::I2CClient for APDS9960<'_> {
                 self.i2c.disable();
                 self.state.set(State::Idle);
 
-                self.prox_callback.map(|cb| cb.callback(prox_data as u8));
+                self.prox_callback.map(|cb| cb.callback(prox_data));
             }
 
             State::SetPulse => {
@@ -532,7 +532,7 @@ impl i2c::I2CClient for APDS9960<'_> {
 }
 
 /// Interrupt Service Routine
-impl gpio::Client for APDS9960<'_> {
+impl<I: i2c::I2CDevice> gpio::Client for APDS9960<'_, I> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             // Read value in PDATA reg
@@ -554,7 +554,7 @@ impl gpio::Client for APDS9960<'_> {
 }
 
 /// Proximity Driver Trait Implementation
-impl<'a> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a> {
+impl<'a, I: i2c::I2CDevice> kernel::hil::sensors::ProximityDriver<'a> for APDS9960<'a, I> {
     fn read_proximity(&self) -> Result<(), ErrorCode> {
         self.take_measurement()
     }

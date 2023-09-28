@@ -8,13 +8,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-[features]
-# Compiling this crate requires enabling one of these features, otherwise
-# the default will be chosen.
-config_fpga_cw310 = ["config_disable_default"]
-config_sim_verilator = ["config_disable_default"]
-config_disable_default = []
-
 [dependencies]
 lowrisc = { path = "../lowrisc" }
 rv32i = { path = "../../arch/rv32i" }

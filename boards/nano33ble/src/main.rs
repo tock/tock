@@ -71,7 +71,7 @@ const PAN_ID: u16 = 0xABCD;
 const DST_MAC_ADDR: capsules_extra::net::ieee802154::MacAddress =
     capsules_extra::net::ieee802154::MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -112,16 +112,6 @@ fn baud_rate_reset_bootloader_enter() {
         // 0x90 is the magic value the bootloader expects
         NRF52_POWER.unwrap().set_gpregret(0x90);
         cortexm4::scb::reset();
-    }
-}
-
-// Function for the process console to use to reboot the board.
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
     }
 }
 
@@ -207,7 +197,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -236,22 +226,23 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+) {
+    nrf52840::init();
+
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
+    );
+
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new()
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
     );
-
-    nrf52840_peripherals
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52840::init();
-
-    let nrf52840_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
@@ -271,7 +262,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
@@ -386,7 +376,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52::rtc::Rtc<'static>
@@ -427,49 +417,49 @@ pub unsafe fn main() {
             .finalize(components::adc_syscall_component_helper!(
                 // A0
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A1
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput3)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A2
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A3
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A4
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A5
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput0)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A6
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A7
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
@@ -480,7 +470,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
-        .finalize(components::i2c_mux_component_static!());
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
     base_peripherals.twi0.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
@@ -494,7 +484,7 @@ pub unsafe fn main() {
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!());
+    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -503,7 +493,7 @@ pub unsafe fn main() {
     .finalize(components::proximity_component_static!());
 
     let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
-        .finalize(components::hts221_component_static!());
+        .finalize(components::hts221_component_static!(nrf52840::i2c::TWI));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -539,16 +529,16 @@ pub unsafe fn main() {
             nrf52840::aes::AesECB
         ));
 
-    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
-    let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
-    let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
-        &base_peripherals.ieee802154_radio,
+        &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
-        serial_num_bottom_16,
+        device_id_bottom_16,
+        device_id,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -568,7 +558,7 @@ pub unsafe fn main() {
                 0x1e, 0x1f,
             ]),
             IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
-                serial_num_bottom_16
+                device_id_bottom_16
             )),
         ]
     );
@@ -578,7 +568,7 @@ pub unsafe fn main() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        src_mac_from_serial_num,
+        MacAddress::Short(device_id_bottom_16),
         local_ip_ifaces,
         mux_alarm,
     )
@@ -693,5 +683,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

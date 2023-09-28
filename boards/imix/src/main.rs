@@ -44,7 +44,6 @@ use sam4l::chip::Sam4lDefaultPeripherals;
 
 use capsules_extra::sha256::Sha256Software;
 
-use components;
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleOrderedComponent, UartMuxComponent};
 use components::crc::CrcComponent;
@@ -92,7 +91,7 @@ const NUM_PROCS: usize = 4;
 const RADIO_CHANNEL: u8 = 26;
 const DST_MAC_ADDR: MacAddress = MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
-const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0 as u8; 16]; //Context for 6LoWPAN Compression
+const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
@@ -108,16 +107,6 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
-
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
 
 struct Imix {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
@@ -138,7 +127,7 @@ struct Imix {
     temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         LedHigh<'static, sam4l::gpio::GPIOPin<'static>>,
@@ -152,7 +141,7 @@ struct Imix {
     >,
     spi: &'static capsules_core::spi_controller::Spi<
         'static,
-        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>,
+        VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
@@ -229,7 +218,7 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -416,7 +405,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast
@@ -447,12 +436,16 @@ pub unsafe fn main() {
     .finalize(components::nrf51822_component_static!());
 
     // # I2C and I2C Sensors
-    let mux_i2c = static_init!(MuxI2C<'static>, MuxI2C::new(&peripherals.i2c2, None));
+    let mux_i2c = static_init!(
+        MuxI2C<'static, sam4l::i2c::I2CHw<'static>>,
+        MuxI2C::new(&peripherals.i2c2, None)
+    );
     kernel::deferred_call::DeferredCallClient::register(mux_i2c);
     peripherals.i2c2.set_master_client(mux_i2c);
 
-    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm)
-        .finalize(components::isl29035_component_static!(sam4l::ast::Ast));
+    let isl29035 = Isl29035Component::new(mux_i2c, mux_alarm).finalize(
+        components::isl29035_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw<'static>),
+    );
     let ambient_light = AmbientLightComponent::new(
         board_kernel,
         capsules_extra::ambient_light::DRIVER_NUM,
@@ -460,8 +453,9 @@ pub unsafe fn main() {
     )
     .finalize(components::ambient_light_component_static!());
 
-    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40)
-        .finalize(components::si7021_component_static!(sam4l::ast::Ast));
+    let si7021 = SI7021Component::new(mux_i2c, mux_alarm, 0x40).finalize(
+        components::si7021_component_static!(sam4l::ast::Ast, sam4l::i2c::I2CHw<'static>),
+    );
     let temp = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
@@ -476,7 +470,9 @@ pub unsafe fn main() {
     .finalize(components::humidity_component_static!());
 
     let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
-        .finalize(components::fxos8700_component_static!());
+        .finalize(components::fxos8700_component_static!(
+            sam4l::i2c::I2CHw<'static>
+        ));
 
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
@@ -485,8 +481,9 @@ pub unsafe fn main() {
     .finalize(components::ninedof_component_static!(fxos8700));
 
     // SPI MUX, SPI syscall driver and RF233 radio
-    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi)
-        .finalize(components::spi_mux_component_static!(sam4l::spi::SpiHw));
+    let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi).finalize(
+        components::spi_mux_component_static!(sam4l::spi::SpiHw<'static>),
+    );
 
     let spi_syscalls = SpiSyscallComponent::new(
         board_kernel,
@@ -494,9 +491,12 @@ pub unsafe fn main() {
         2,
         capsules_core::spi_controller::DRIVER_NUM,
     )
-    .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));
-    let rf233_spi = SpiComponent::new(mux_spi, 3)
-        .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
+    .finalize(components::spi_syscall_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
+    let rf233_spi = SpiComponent::new(mux_spi, 3).finalize(components::spi_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
     let rf233 = components::rf233::RF233Component::new(
         rf233_spi,
         &peripherals.pa[09], // reset
@@ -505,7 +505,9 @@ pub unsafe fn main() {
         &peripherals.pa[08],
         RADIO_CHANNEL,
     )
-    .finalize(components::rf233_component_static!(sam4l::spi::SpiHw));
+    .finalize(components::rf233_component_static!(
+        sam4l::spi::SpiHw<'static>
+    ));
 
     // Setup ADC
     let adc_channels = static_init!(
@@ -610,11 +612,12 @@ pub unsafe fn main() {
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
     // of the serial number of the sam4l for this device.  In the
-    // future, we could generate the MAC address by hashing the full
+    // future, we could generate the DEFAULT_EXT_SRC_MAC address by hashing the full
     // 120-bit serial number
     let serial_num: sam4l::serial_num::SerialNum = sam4l::serial_num::SerialNum::new();
     let serial_num_bottom_16 = (serial_num.get_lower_64() & 0x0000_0000_0000_ffff) as u16;
     let src_mac_from_serial_num: MacAddress = MacAddress::Short(serial_num_bottom_16);
+    const DEFAULT_EXT_SRC_MAC: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77];
 
     let aes_mux = static_init!(
         MuxAES128CCM<'static, sam4l::aes::Aes>,
@@ -632,9 +635,13 @@ pub unsafe fn main() {
         aes_mux,
         PAN_ID,
         serial_num_bottom_16,
+        DEFAULT_EXT_SRC_MAC,
     )
     .finalize(components::ieee802154_component_static!(
-        capsules_extra::rf233::RF233<'static, VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw>>,
+        capsules_extra::rf233::RF233<
+            'static,
+            VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
+        >,
         sam4l::aes::Aes<'static>
     ));
 

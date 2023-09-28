@@ -558,7 +558,7 @@ impl<'a> Can<'a> {
             false => self.registers.can_mcr.modify(CAN_MCR::NART::SET),
         }
 
-        if let Some(operating_mode_settings) = self.operating_mode.extract() {
+        if let Some(operating_mode_settings) = self.operating_mode.get() {
             match operating_mode_settings {
                 can::OperationMode::Loopback => self.registers.can_btr.modify(CAN_BTR::LBKM::SET),
                 can::OperationMode::Monitoring => self.registers.can_btr.modify(CAN_BTR::SILM::SET),
@@ -568,7 +568,7 @@ impl<'a> Can<'a> {
         }
 
         // set bit timing mode
-        if let Some(bit_timing_settings) = self.bit_timing.extract() {
+        if let Some(bit_timing_settings) = self.bit_timing.get() {
             self.registers
                 .can_btr
                 .modify(CAN_BTR::TS1.val(bit_timing_settings.segment1 as u32));
@@ -577,10 +577,10 @@ impl<'a> Can<'a> {
                 .modify(CAN_BTR::TS2.val(bit_timing_settings.segment2 as u32));
             self.registers
                 .can_btr
-                .modify(CAN_BTR::SJW.val(bit_timing_settings.sync_jump_width as u32));
+                .modify(CAN_BTR::SJW.val(bit_timing_settings.sync_jump_width));
             self.registers
                 .can_btr
-                .modify(CAN_BTR::BRP.val(bit_timing_settings.baud_rate_prescaler as u32));
+                .modify(CAN_BTR::BRP.val(bit_timing_settings.baud_rate_prescaler));
         } else {
             self.enter_sleep_mode();
             return Err(kernel::ErrorCode::INVAL);
@@ -888,9 +888,7 @@ impl<'a> Can<'a> {
             | (self.registers.can_rx_mailbox[0].can_rdlr.get() as u64);
         let rx_buf = recv.to_le_bytes();
         self.rx_buffer.map(|rx| {
-            for i in 0..8 {
-                rx[i] = rx_buf[i];
-            }
+            rx[..8].copy_from_slice(&rx_buf[..8]);
         });
 
         (message_id, message_length, rx_buf)
@@ -1131,7 +1129,7 @@ impl ClockInterface for CanClock<'_> {
     }
 }
 
-impl<'a> can::Configure for Can<'_> {
+impl can::Configure for Can<'_> {
     const MIN_BIT_TIMINGS: can::BitTiming = can::BitTiming {
         segment1: BitSegment1::CanBtrTs1Min as u8,
         segment2: BitSegment2::CanBtrTs2Min as u8,
@@ -1180,7 +1178,7 @@ impl<'a> can::Configure for Can<'_> {
     }
 
     fn get_bit_timing(&self) -> Result<can::BitTiming, kernel::ErrorCode> {
-        if let Some(bit_timing) = self.bit_timing.extract() {
+        if let Some(bit_timing) = self.bit_timing.get() {
             Ok(bit_timing)
         } else {
             Err(kernel::ErrorCode::INVAL)
@@ -1188,7 +1186,7 @@ impl<'a> can::Configure for Can<'_> {
     }
 
     fn get_operation_mode(&self) -> Result<can::OperationMode, kernel::ErrorCode> {
-        if let Some(operation_mode) = self.operating_mode.extract() {
+        if let Some(operation_mode) = self.operating_mode.get() {
             Ok(operation_mode)
         } else {
             Err(kernel::ErrorCode::INVAL)
@@ -1232,7 +1230,7 @@ impl<'a> can::Configure for Can<'_> {
     }
 }
 
-impl<'a> can::Controller for Can<'_> {
+impl can::Controller for Can<'_> {
     fn set_client(&self, client: Option<&'static dyn can::ControllerClient>) {
         if let Some(client) = client {
             self.controller_client.replace(client);
@@ -1294,7 +1292,7 @@ impl<'a> can::Controller for Can<'_> {
     }
 }
 
-impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+impl can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     fn set_client(
         &self,
         client: Option<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
@@ -1333,7 +1331,7 @@ impl<'a> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     }
 }
 
-impl<'a> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+impl can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     fn set_client(
         &self,
         client: Option<&'static dyn can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,

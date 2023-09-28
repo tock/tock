@@ -78,7 +78,7 @@ use crate::net::stream::{encode_bytes, encode_u16, encode_u8};
 use crate::net::tcp::TCPHeader;
 use crate::net::udp::UDPHeader;
 
-use kernel::utilities::leasable_buffer::LeasableMutableBuffer;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub const UDP_HDR_LEN: usize = 8;
@@ -273,7 +273,7 @@ impl IP6Header {
                 udp_header.copy_from_slice(&buf[..UDP_HDR_LEN]);
                 let checksum = match UDPHeader::decode(&udp_header).done() {
                     Some((_offset, hdr)) => u16::from_be(compute_udp_checksum(
-                        &self,
+                        self,
                         &hdr,
                         buf.len() as u16,
                         &buf[UDP_HDR_LEN..],
@@ -292,7 +292,7 @@ impl IP6Header {
                 let checksum = match ICMP6Header::decode(&icmp_header).done() {
                     Some((_offset, mut hdr)) => {
                         hdr.set_len(buf.len() as u16);
-                        u16::from_be(compute_icmp_checksum(&self, &hdr, &buf[ICMP_HDR_LEN..]))
+                        u16::from_be(compute_icmp_checksum(self, &hdr, &buf[ICMP_HDR_LEN..]))
                     }
                     None => 0xffff, //Will be dropped, as ones comp -0 checksum is invalid
                 };
@@ -356,7 +356,7 @@ impl<'a> IPPayload<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &LeasableMutableBuffer<'static, u8>,
+        payload: &SubSliceMut<'static, u8>,
     ) -> (u8, u16) {
         for i in 0..payload.len() {
             self.payload[i] = payload[i];
@@ -382,7 +382,7 @@ impl<'a> IPPayload<'a> {
     ///
     /// # Arguments
     ///
-    /// `buf` - LeasableMutableBuffer to write the serialized `IPPayload` to
+    /// `buf` - SubSliceMut to write the serialized `IPPayload` to
     /// `offset` - Current offset into the buffer
     ///
     /// # Return Value
@@ -475,14 +475,14 @@ impl<'a> IP6Packet<'a> {
             TransportHeader::UDP(ref mut udp_header) => {
                 let cksum = compute_udp_checksum(
                     &self.header,
-                    &udp_header,
+                    udp_header,
                     udp_header.get_len(),
                     self.payload.payload,
                 );
                 udp_header.set_cksum(cksum);
             }
             TransportHeader::ICMP(ref mut icmp_header) => {
-                let cksum = compute_icmp_checksum(&self.header, &icmp_header, self.payload.payload);
+                let cksum = compute_icmp_checksum(&self.header, icmp_header, self.payload.payload);
                 icmp_header.set_cksum(cksum);
             }
             _ => {
@@ -508,7 +508,7 @@ impl<'a> IP6Packet<'a> {
     pub fn set_payload(
         &mut self,
         transport_header: TransportHeader,
-        payload: &LeasableMutableBuffer<'static, u8>,
+        payload: &SubSliceMut<'static, u8>,
     ) {
         let (next_header, payload_len) = self.payload.set_payload(transport_header, payload);
         self.header.set_next_header(next_header);

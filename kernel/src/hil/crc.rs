@@ -4,7 +4,7 @@
 
 //! Interface for CRC computation.
 
-use crate::utilities::leasable_buffer::LeasableMutableBuffer;
+use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
 /// Client for CRC algorithm implementations
@@ -15,7 +15,7 @@ pub trait Client {
     /// Called when the current data chunk has been processed by the
     /// CRC engine. Further data may be supplied when this callback is
     /// received.
-    fn input_done(&self, result: Result<(), ErrorCode>, buffer: LeasableMutableBuffer<'static, u8>);
+    fn input_done(&self, result: Result<(), ErrorCode>, buffer: SubSliceMut<'static, u8>);
 
     /// Called when the CRC computation is finished.
     fn crc_done(&self, result: Result<CrcOutput, ErrorCode>);
@@ -107,13 +107,13 @@ pub trait Crc<'a> {
     /// [`Client::input_done`] is called.
     ///
     /// The implementation may only read a part of the passed
-    /// [`LeasableMutableBuffer`]. It will return the bytes read and will
-    /// resize the returned [`LeasableMutableBuffer`] appropriately prior to
+    /// [`SubSliceMut`]. It will return the bytes read and will
+    /// resize the returned [`SubSliceMut`] appropriately prior to
     /// passing it back through [`Client::input_done`].
     fn input(
         &self,
-        data: LeasableMutableBuffer<'static, u8>,
-    ) -> Result<(), (ErrorCode, LeasableMutableBuffer<'static, u8>)>;
+        data: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)>;
 
     /// Request calculation of the CRC.
     ///

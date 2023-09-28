@@ -40,12 +40,12 @@ macro_rules! fm25cl_component_static {
     };};
 }
 
-pub struct Fm25clComponent<S: 'static + spi::SpiMaster> {
+pub struct Fm25clComponent<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
 }
 
-impl<S: 'static + spi::SpiMaster> Fm25clComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Fm25clComponent<S> {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
@@ -57,7 +57,7 @@ impl<S: 'static + spi::SpiMaster> Fm25clComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster> Component for Fm25clComponent<S> {
+impl<S: 'static + spi::SpiMaster<'static>> Component for Fm25clComponent<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<FM25CL<'static, VirtualSpiMasterDevice<'static, S>>>,

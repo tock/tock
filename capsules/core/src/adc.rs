@@ -72,7 +72,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 /// Virtualized, and can be use by multiple applications at the same time;
 /// requests are queued. Does not support continuous or high-speed sampling.
 pub struct AdcVirtualized<'a> {
-    drivers: &'a [&'a dyn hil::adc::AdcChannel],
+    drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
     apps: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     current_process: OptionalCell<ProcessId>,
 }
@@ -81,10 +81,10 @@ pub struct AdcVirtualized<'a> {
 /// Not currently virtualized: does not share the ADC with other capsules
 /// and only one application can use it at a time. Supports continuous and
 /// high speed sampling.
-pub struct AdcDedicated<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> {
+pub struct AdcDedicated<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> {
     // ADC driver
     adc: &'a A,
-    channels: &'a [<A as hil::adc::Adc>::Channel],
+    channels: &'a [<A as hil::adc::Adc<'a>>::Channel],
 
     // ADC state
     active: Cell<bool>,
@@ -155,7 +155,7 @@ impl Default for AppSys {
 /// swap. In testing, it seems to keep up fine.
 pub const BUF_LEN: usize = 128;
 
-impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
+impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> {
     /// Create a new `Adc` application interface.
     ///
     /// - `adc` - ADC driver to provide application access to
@@ -165,7 +165,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
     pub fn new(
         adc: &'a A,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
-        channels: &'a [<A as hil::adc::Adc>::Channel],
+        channels: &'a [<A as hil::adc::Adc<'a>>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
         adc_buf3: &'static mut [u16; 128],
@@ -336,7 +336,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let mut app_buf_length = 0;
         let exists = self.processid.map_or(false, |id| {
             self.apps
-                .enter(*id, |_, kernel_data| {
+                .enter(id, |_, kernel_data| {
                     app_buf_length = kernel_data
                         .get_readwrite_processbuffer(0)
                         .map(|b| b.len())
@@ -361,7 +361,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         self.mode.set(AdcMode::SingleBuffer);
         let ret = self.processid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(id, |app, _| {
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
@@ -389,7 +389,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 app.samples_remaining.set(request_len - len1 - len2);
                                 app.samples_outstanding.set(len1 + len2);
                                 self.adc
-                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -418,7 +418,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.mode.set(AdcMode::NoMode);
             self.processid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(id, |app, _| {
                         app.samples_remaining.set(0);
                         app.samples_outstanding.set(0);
                     })
@@ -459,7 +459,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         let mut next_app_buf_length = 0;
         let exists = self.processid.map_or(false, |id| {
             self.apps
-                .enter(*id, |_, kernel_data| {
+                .enter(id, |_, kernel_data| {
                     app_buf_length = kernel_data
                         .get_readwrite_processbuffer(0)
                         .map(|b| b.len())
@@ -489,7 +489,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
 
         let ret = self.processid.map_or(Err(ErrorCode::NOMEM), |id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(id, |app, _| {
                     app.app_buf_offset.set(0);
                     self.channel.set(channel);
                     // start a continuous sample
@@ -531,7 +531,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
                                 // begin sampling
                                 app.using_app_buf0.set(true);
                                 self.adc
-                                    .sample_highspeed(&chan, frequency, buf1, len1, buf2, len2)
+                                    .sample_highspeed(chan, frequency, buf1, len1, buf2, len2)
                                     .map_or_else(
                                         |(ecode, buf1, buf2)| {
                                             // store buffers again
@@ -559,7 +559,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
             self.mode.set(AdcMode::NoMode);
             self.processid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(id, |app, _| {
                         app.samples_remaining.set(0);
                         app.samples_outstanding.set(0);
                     })
@@ -588,7 +588,7 @@ impl<'a, A: hil::adc::Adc + hil::adc::AdcHighSpeed> AdcDedicated<'a, A> {
         // clean up state
         self.processid.map_or(Err(ErrorCode::FAIL), |id| {
             self.apps
-                .enter(*id, |app, _| {
+                .enter(id, |app, _| {
                     self.active.set(false);
                     self.mode.set(AdcMode::NoMode);
                     app.app_buf_offset.set(0);
@@ -639,7 +639,7 @@ impl<'a> AdcVirtualized<'a> {
     ///
     /// - `drivers` - Virtual ADC drivers to provide application access to
     pub fn new(
-        drivers: &'a [&'a dyn hil::adc::AdcChannel],
+        drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
         grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
@@ -669,7 +669,7 @@ impl<'a> AdcVirtualized<'a> {
                 match self
                     .apps
                     .enter(processid, |app, _| {
-                        if app.pending_command == true {
+                        if app.pending_command {
                             Err(ErrorCode::BUSY)
                         } else {
                             app.pending_command = true;
@@ -730,7 +730,9 @@ impl<'a> AdcVirtualized<'a> {
 }
 
 /// Callbacks from the ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicated<'_, A> {
+impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::Client
+    for AdcDedicated<'a, A>
+{
     /// Single sample operation complete.
     ///
     /// Collects the sample and provides a callback to the application.
@@ -747,7 +749,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
 
             self.processid.map(|id| {
                 self.apps
-                    .enter(*id, |_app, upcalls| {
+                    .enter(id, |_app, upcalls| {
                         calledback = true;
                         upcalls
                             .schedule_upcall(
@@ -774,7 +776,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
             // perform callback
             self.processid.map(|id| {
                 self.apps
-                    .enter(*id, |_app, upcalls| {
+                    .enter(id, |_app, upcalls| {
                         calledback = true;
                         upcalls
                             .schedule_upcall(
@@ -810,7 +812,9 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::Client for AdcDedicate
 }
 
 /// Callbacks from the High Speed ADC driver
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for AdcDedicated<'_, A> {
+impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedClient
+    for AdcDedicated<'a, A>
+{
     /// Internal buffer has filled from a buffered sampling operation.
     /// Copies data over to application buffer, determines if more data is
     /// needed, and performs a callback to the application if ready. If
@@ -837,7 +841,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             // we did expect a buffer. Determine the current application state
             self.processid.map(|id| {
                 self.apps
-                    .enter(*id, |app, kernel_data| {
+                    .enter(id, |app, kernel_data| {
                         // Get both buffers, this shouldn't ever fail since the grant was created
                         // with enough space. The buffer still may be empty though
                         let app_buf0 = match kernel_data.get_readwrite_processbuffer(0) {
@@ -1005,12 +1009,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                         let skip_amt = app.app_buf_offset.get() / 2;
 
                         {
-                            let app_buf;
-                            if use0 {
-                                app_buf = &app_buf0;
-                            } else {
-                                app_buf = &app_buf1;
-                            }
+                            let app_buf = if use0 { &app_buf0 } else { &app_buf1 };
 
                             // next we should copy bytes to the app buffer
                             let _ = app_buf.mut_enter(|app_buf| {
@@ -1038,7 +1037,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
                                         let mut val = sample;
                                         for byte in chunk.iter() {
                                             byte.set((val & 0xFF) as u8);
-                                            val = val >> 8;
+                                            val >>= 8;
                                         }
                                     }
                                 });
@@ -1112,7 +1111,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
             self.mode.set(AdcMode::NoMode);
             self.processid.map(|id| {
                 self.apps
-                    .enter(*id, |app, _| {
+                    .enter(id, |app, _| {
                         app.app_buf_offset.set(0);
                     })
                     .map_err(|err| {
@@ -1142,7 +1141,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> hil::adc::HighSpeedClient for Ad
 }
 
 /// Implementations of application syscalls
-impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'_, A> {
+impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> SyscallDriver for AdcDedicated<'a, A> {
     /// Method for the application to command or query this driver.
     ///
     /// - `command_num` - which command call this is
@@ -1167,7 +1166,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'
             // we need to verify that that application still exists, and remove
             // it as owner if not.
             if self.active.get() {
-                owning_app == &processid
+                owning_app == processid
             } else {
                 // Check the app still exists.
                 //
@@ -1177,7 +1176,7 @@ impl<A: hil::adc::Adc + hil::adc::AdcHighSpeed> SyscallDriver for AdcDedicated<'
                 // longer exists and we return `true` to signify the
                 // "or_nonexistant" case.
                 self.apps
-                    .enter(*owning_app, |_, _| owning_app == &processid)
+                    .enter(owning_app, |_, _| owning_app == processid)
                     .unwrap_or(true)
             }
         });

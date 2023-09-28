@@ -138,16 +138,6 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
-// Function for the process console to use to reboot the board
-fn reset() -> ! {
-    unsafe {
-        cortexm4::scb::reset();
-    }
-    loop {
-        cortexm4::support::nop();
-    }
-}
-
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -235,7 +225,7 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type ContextSwitchCallback = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        &self
+        self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
         &()
@@ -265,10 +255,14 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
 /// these static_inits is wasted.
 #[inline(never)]
 unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
+    );
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(
         Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new()
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     nrf52840_peripherals
@@ -542,43 +536,43 @@ pub unsafe fn main() {
             .finalize(components::adc_syscall_component_helper!(
                 // A0
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A1
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A2
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A3
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput3)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A4
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A5
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
                 // A6
                 components::adc::AdcComponent::new(
-                    &adc_mux,
+                    adc_mux,
                     nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput0)
                 )
                 .finalize(components::adc_component_static!(nrf52840::adc::Adc)),
@@ -589,7 +583,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let sensors_i2c_bus = static_init!(
-        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static>,
+        capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
         capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(sensors_i2c_bus);
@@ -604,7 +598,7 @@ pub unsafe fn main() {
         0x39,
         &nrf52840_peripherals.gpio_port[APDS9960_PIN],
     )
-    .finalize(components::apds9960_component_static!());
+    .finalize(components::apds9960_component_static!(nrf52840::i2c::TWI));
     let proximity = components::proximity::ProximityComponent::new(
         apds9960,
         board_kernel,
@@ -618,7 +612,8 @@ pub unsafe fn main() {
         mux_alarm,
     )
     .finalize(components::sht3x_component_static!(
-        nrf52::rtc::Rtc<'static>
+        nrf52::rtc::Rtc<'static>,
+        nrf52840::i2c::TWI
     ));
 
     let temperature = components::temperature::TemperatureComponent::new(
@@ -711,17 +706,18 @@ pub unsafe fn main() {
     kernel::deferred_call::DeferredCallClient::register(aes_mux);
     base_peripherals.ecb.set_client(aes_mux);
 
-    let serial_num = nrf52840::ficr::FICR_INSTANCE.address();
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
 
-    let serial_num_bottom_16 = u16::from_le_bytes([serial_num[0], serial_num[1]]);
+    let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let (ieee802154_radio, _mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
-        &base_peripherals.ieee802154_radio,
+        &nrf52840_peripherals.ieee802154_radio,
         aes_mux,
         PAN_ID,
-        serial_num_bottom_16,
+        device_id_bottom_16,
+        device_id,
     )
     .finalize(components::ieee802154_component_static!(
         nrf52840::ieee802154_radio::Radio,
@@ -737,7 +733,7 @@ pub unsafe fn main() {
         uart_mux,
         mux_alarm,
         process_printer,
-        Some(reset),
+        Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
         nrf52840::rtc::Rtc

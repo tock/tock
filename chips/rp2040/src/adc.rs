@@ -141,14 +141,14 @@ enum ADCStatus {
     OneSample,
 }
 
-pub struct Adc {
+pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     status: Cell<ADCStatus>,
     channel: Cell<Channel>,
-    client: OptionalCell<&'static dyn hil::adc::Client>,
+    client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
-impl Adc {
+impl<'a> Adc<'a> {
     pub const fn new() -> Self {
         Self {
             registers: ADC_BASE,
@@ -192,7 +192,7 @@ impl Adc {
     }
 }
 
-impl hil::adc::Adc for Adc {
+impl<'a> hil::adc::Adc<'a> for Adc<'a> {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
@@ -205,7 +205,7 @@ impl hil::adc::Adc for Adc {
             self.registers.cs.modify(CS::AINSEL.val(*channel as u32));
             self.registers
                 .fcs
-                .modify(FCS::THRESH.val(1 as u32) + FCS::EN::SET);
+                .modify(FCS::THRESH.val(1_u32) + FCS::EN::SET);
             self.enable_interrupt();
             self.registers.cs.modify(CS::START_ONCE::SET);
             Ok(())
@@ -234,7 +234,7 @@ impl hil::adc::Adc for Adc {
         Some(3300)
     }
 
-    fn set_client(&self, client: &'static dyn hil::adc::Client) {
+    fn set_client(&self, client: &'a dyn hil::adc::Client) {
         self.client.set(client);
     }
 }

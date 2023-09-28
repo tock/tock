@@ -1,3 +1,7 @@
+/* Licensed under the Apache License, Version 2.0 or the MIT License. */
+/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/* Copyright Tock Contributors 2023.                                  */
+
 /*
  * Teensy 4 Linker Script
  *
@@ -57,7 +61,7 @@ SECTIONS
     _boot_data = .;
     LONG(ORIGIN(rom));          /* Start of image */
     /* Size of the program image (assuming that we also need the boot section) */
-    LONG((_etext-_stext) + (_erelocate-_srelocate) + SIZEOF(.boot));
+    LONG((_etext - _stext) + (_erelocate - _srelocate) + SIZEOF(.boot));
     LONG(0x00000000);           /* Plugin flag (unused) */
     /* End of iMXRT10xx magic
      *

@@ -1,3 +1,7 @@
+/* Licensed under the Apache License, Version 2.0 or the MIT License. */
+/* SPDX-License-Identifier: Apache-2.0 OR MIT                         */
+/* Copyright Tock Contributors 2023.                                  */
+
 /* Memory layout for the STM32F412G
  * rom = 1MB (LENGTH = 0x01000000)
  * kernel = 256KB

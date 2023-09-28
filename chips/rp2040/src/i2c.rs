@@ -241,13 +241,13 @@ enum State {
     WaitingForStop,
 }
 
-pub struct I2c<'a> {
+pub struct I2c<'a, 'c> {
     instance_num: u8,
     registers: StaticRef<I2cRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
     resets: OptionalCell<&'a resets::Resets>,
 
-    client: OptionalCell<&'static dyn hil::i2c::I2CHwMasterClient>,
+    client: OptionalCell<&'c dyn hil::i2c::I2CHwMasterClient>,
     buf: TakeCell<'static, [u8]>,
 
     state: Cell<State>,
@@ -259,7 +259,7 @@ pub struct I2c<'a> {
     abort_reason: OptionalCell<LocalRegisterCopy<u32, IC_TX_ABRT_SOURCE::Register>>,
 }
 
-impl<'a> I2c<'a> {
+impl<'a, 'c> I2c<'a, 'c> {
     fn new(instance_num: u8) -> Self {
         Self {
             instance_num,
@@ -343,18 +343,17 @@ impl<'a> I2c<'a> {
         // internally provide a hold time of at least 300ns for the SDA signal to
         // bridge the undefined region of the falling edge of SCL. A smaller hold
         // time of 120ns is used for fast mode plus.
-        let sda_tx_hold_count;
-        if baudrate < 1000000 {
+        let sda_tx_hold_count = if baudrate < 1000000 {
             // sda_tx_hold_count = freq_in [cycles/s] * 300ns * (1s / 1e9ns)
             // Reduce 300/1e9 to 3/1e7 to avoid numbers that don't fit in uint.
             // Add 1 to avoid division truncation.
-            sda_tx_hold_count = ((freq_in * 3) / 10000000) + 1;
+            ((freq_in * 3) / 10000000) + 1
         } else {
             // sda_tx_hold_count = freq_in [cycles/s] * 120ns * (1s / 1e9ns)
             // Reduce 120/1e9 to 3/25e6 to avoid numbers that don't fit in uint.
             // Add 1 to avoid division truncation.
-            sda_tx_hold_count = ((freq_in * 3) / 25000000) + 1;
-        }
+            ((freq_in * 3) / 25000000) + 1
+        };
         assert!(sda_tx_hold_count <= lcnt - 2);
 
         self.registers.ic_enable.modify(IC_ENABLE::ENABLE::CLEAR);
@@ -689,8 +688,8 @@ impl<'a> I2c<'a> {
     }
 }
 
-impl<'a> hil::i2c::I2CMaster for I2c<'a> {
-    fn set_master_client(&self, client: &'static dyn hil::i2c::I2CHwMasterClient) {
+impl<'a, 'c> hil::i2c::I2CMaster<'c> for I2c<'a, 'c> {
+    fn set_master_client(&self, client: &'c dyn hil::i2c::I2CHwMasterClient) {
         self.client.set(client);
     }
 

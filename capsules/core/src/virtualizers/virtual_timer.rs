@@ -62,7 +62,7 @@ impl<'a, A: Alarm<'a>> VirtualTimer<'a, A> {
     /// Call this method immediately after new() to link this to the mux, otherwise timers won't
     /// fire
     pub fn setup(&'a self) {
-        self.mux.timers.push_head(&self);
+        self.mux.timers.push_head(self);
     }
 
     // Start a new timer, configuring its mode and adjusting the underlying alarm if needed.

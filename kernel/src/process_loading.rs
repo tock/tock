@@ -44,6 +44,11 @@ pub enum ProcessLoadError {
     /// also be caused by a bad MPU implementation.
     MpuInvalidFlashLength,
 
+    /// The MPU configuration failed for some other, unspecified reason. This
+    /// could be of an internal resource exhaustion, or a mismatch between the
+    /// (current) MPU constraints and process requirements.
+    MpuConfigurationError,
+
     /// A process specified a fixed memory address that it needs its memory
     /// range to start at, and the kernel did not or could not give the process
     /// a memory region starting at that address.
@@ -109,7 +114,7 @@ impl fmt::Debug for ProcessLoadError {
             }
 
             ProcessLoadError::TbfHeaderParseFailure(tbf_parse_error) => {
-                write!(f, "Error parsing TBF header\n")?;
+                writeln!(f, "Error parsing TBF header")?;
                 write!(f, "{:?}", tbf_parse_error)
             }
 
@@ -123,6 +128,10 @@ impl fmt::Debug for ProcessLoadError {
 
             ProcessLoadError::MpuInvalidFlashLength => {
                 write!(f, "App flash length not supported by MPU")
+            }
+
+            ProcessLoadError::MpuConfigurationError => {
+                write!(f, "Configuring the MPU failed")
             }
 
             ProcessLoadError::MemoryAddressMismatch {
@@ -172,6 +181,15 @@ impl fmt::Debug for ProcessLoadError {
 /// footers in the TBF for cryptographic credentials for binary
 /// integrity, passing them to the checker to decide whether the
 /// process has sufficient credentials to run.
+///
+/// This function is made `pub` so that board files can use it, but loading
+/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
+/// we require the `ProcessManagementCapability` to call this function.
+// Mark inline always to reduce code size. Since this is only called in one
+// place (a board's main.rs), by inlining the load_*processes() functions, the
+// compiler can elide many checks which reduces code size appreciably. Note,
+// however, these functions require a rather large stack frame, which may be an
+// issue for boards small kernel stacks.
 #[inline(always)]
 pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     kernel: &'static Kernel,
@@ -181,7 +199,7 @@ pub fn load_and_check_processes<KR: KernelResources<C>, C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability_management: &dyn ProcessManagementCapability,
+    _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError>
 where
     <KR as KernelResources<C>>::CredentialsCheckingPolicy: 'static,
@@ -193,7 +211,6 @@ where
         app_memory,
         &mut procs,
         fault_policy,
-        capability_management,
     )?;
     let _res = check_processes(kernel_resources, kernel.get_checker());
     Ok(())
@@ -207,6 +224,15 @@ where
 /// credentials can call this method instead of `load_and_check_processes`
 /// because it results in a smaller kernel, as it does not invoke
 /// the credential checking state machine.
+///
+/// This function is made `pub` so that board files can use it, but loading
+/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
+/// we require the `ProcessManagementCapability` to call this function.
+// Mark inline always to reduce code size. Since this is only called in one
+// place (a board's main.rs), by inlining the load_*processes() functions, the
+// compiler can elide many checks which reduces code size appreciably. Note,
+// however, these functions require a rather large stack frame, which may be an
+// issue for boards small kernel stacks.
 #[inline(always)]
 pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
@@ -215,7 +241,7 @@ pub fn load_processes<C: Chip>(
     app_memory: &'static mut [u8],
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability_management: &dyn ProcessManagementCapability,
+    _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     load_processes_from_flash(
         kernel,
@@ -224,7 +250,6 @@ pub fn load_processes<C: Chip>(
         app_memory,
         &mut procs,
         fault_policy,
-        capability_management,
     )?;
 
     if config::CONFIG.debug_process_credentials {
@@ -262,10 +287,6 @@ pub fn load_processes<C: Chip>(
 /// How process faults are handled by the
 /// kernel must be provided and is assigned to every created process.
 ///
-/// This function is made `pub` so that board files can use it, but loading
-/// processes from slices of flash an memory is fundamentally unsafe. Therefore,
-/// we require the `ProcessManagementCapability` to call this function.
-///
 /// Returns `Ok(())` if process discovery went as expected. Returns a
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
@@ -277,7 +298,6 @@ fn load_processes_from_flash<C: Chip>(
     app_memory: &'static mut [u8],
     procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
-    capability: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
@@ -302,7 +322,6 @@ fn load_processes_from_flash<C: Chip>(
             remaining_memory,
             index,
             fault_policy,
-            capability,
         );
         match load_result {
             Ok((new_flash, new_mem, proc)) => {
@@ -313,7 +332,7 @@ fn load_processes_from_flash<C: Chip>(
                         proc.map(|p| debug!("Loaded process {}", p.get_process_name()));
                     }
                     procs[index] = proc;
-                    index = index + 1;
+                    index += 1;
                 } else {
                     if config::CONFIG.debug_load_processes {
                         debug!("No process loaded.");
@@ -340,7 +359,7 @@ fn load_processes_from_flash<C: Chip>(
 /// by enqueueing a stack frame to run the initialization function as
 /// indicated in the TBF header.
 #[inline(always)]
-fn check_processes<'a, KR: KernelResources<C>, C: Chip>(
+fn check_processes<KR: KernelResources<C>, C: Chip>(
     kernel_resources: &KR,
     machine: &'static ProcessCheckerMachine,
 ) -> Result<(), ProcessLoadError> {
@@ -364,7 +383,6 @@ fn load_process<C: Chip>(
     app_memory: &'static mut [u8],
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
-    _capability: &dyn ProcessManagementCapability,
 ) -> Result<
     (
         &'static [u8],
@@ -471,8 +489,8 @@ fn load_process<C: Chip>(
                     index,
                     entry_flash.as_ptr() as usize,
                     entry_flash.as_ptr() as usize + entry_flash.len() - 1,
-                    process.get_addresses().sram_start as usize,
-                    process.get_addresses().sram_end as usize - 1,
+                    process.get_addresses().sram_start ,
+                    process.get_addresses().sram_end  - 1,
                     process.get_process_name()
                 );
             }

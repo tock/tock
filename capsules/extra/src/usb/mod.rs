@@ -5,6 +5,8 @@
 pub mod cdc;
 pub mod ctap;
 pub mod descriptors;
+pub mod eem;
+pub mod keyboard_hid;
 pub mod usb_user;
 pub mod usbc_client;
 pub mod usbc_client_ctrl;

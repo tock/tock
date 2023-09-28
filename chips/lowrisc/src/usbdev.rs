@@ -706,7 +706,7 @@ impl<'a> Usb<'a> {
 
         self.client.map(|client| {
             self.copy_from_hw(ep, buf_id, size as usize);
-            let result = client.packet_out(self.get_transfer_type(ep), ep as usize, size);
+            let result = client.packet_out(self.get_transfer_type(ep), ep, size);
             match self.descriptors[ep].state.get() {
                 EndpointState::Disabled => unimplemented!(),
                 EndpointState::Ctrl(_state) => unimplemented!(),
@@ -776,27 +776,27 @@ impl<'a> Usb<'a> {
                     EndpointState::Interrupt(packet_size, state) => match state {
                         InterruptState::Init => {}
                         InterruptState::In(send_size) => {
-                            let buf = self.registers.configin[ep as usize].read(CONFIGIN::BUFFER);
+                            let buf = self.registers.configin[ep].read(CONFIGIN::BUFFER);
                             self.free_buffer(buf as usize);
 
                             self.client.map(|client| {
-                                match client.packet_in(TransferType::Interrupt, ep as usize) {
+                                match client.packet_in(TransferType::Interrupt, ep) {
                                     hil::usb::InResult::Packet(size) => {
                                         if size == 0 {
                                             panic!("Empty ctrl packet?");
                                         }
 
-                                        self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
+                                        self.copy_slice_out_to_hw(ep, buf as usize, size);
 
                                         if send_size == size {
-                                            self.descriptors[ep as usize].state.set(
+                                            self.descriptors[ep].state.set(
                                                 EndpointState::Interrupt(
                                                     packet_size,
                                                     InterruptState::Init,
                                                 ),
                                             );
                                         } else {
-                                            self.descriptors[ep as usize].state.set(
+                                            self.descriptors[ep].state.set(
                                                 EndpointState::Interrupt(
                                                     packet_size,
                                                     InterruptState::In(send_size - size),
@@ -822,7 +822,7 @@ impl<'a> Usb<'a> {
 
                 // We are handling this case, clear it
                 self.registers.in_sent.set(1 << ep);
-                in_sent = in_sent & !(1 << ep);
+                in_sent &= !(1 << ep);
 
                 let buf = self.registers.configin[ep as usize].read(CONFIGIN::BUFFER);
 
@@ -948,7 +948,7 @@ impl<'a> Usb<'a> {
                     }
 
                     self.bufs.set(bufs);
-                    match self.descriptors[ep as usize].state.get() {
+                    match self.descriptors[ep].state.get() {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
                         EndpointState::Bulk(_in_state, _out_state) => {
@@ -968,7 +968,7 @@ impl<'a> Usb<'a> {
 
                 hil::usb::InResult::Delay => {
                     // No packet to send now. Wait for a resume call from the client.
-                    match self.descriptors[ep as usize].state.get() {
+                    match self.descriptors[ep].state.get() {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
                         EndpointState::Bulk(_in_state, _out_state) => {
@@ -983,7 +983,7 @@ impl<'a> Usb<'a> {
 
                 hil::usb::InResult::Error => {
                     self.in_stall(ep);
-                    match self.descriptors[ep as usize].state.get() {
+                    match self.descriptors[ep].state.get() {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
                         EndpointState::Bulk(_in_state, _out_state) => {

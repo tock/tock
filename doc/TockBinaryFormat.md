@@ -15,7 +15,7 @@
     + [`3` Package Name](#3-package-name)
     + [`5` Fixed Addresses](#5-fixed-addresses)
     + [`6` Permissions](#6-permissions)
-    + [`7` Persistent ACL](#7-persistent-acl)
+    + [`7` Storage Permissions](#7-storage-permissions)
     + [`8` Kernel Version](#8-kernel-version)
     + [`9` Program](#9-program)
     + [`128` Credentials Footer](#128-credentials-footer)
@@ -41,7 +41,8 @@ Tock App Binary:
 Start of app -> +-------------------+---
               ^ | TBF Header        | ^
               | +-------------------+ | Protected region
-              | | Optional padding  | V
+              | | (Optional)        | |
+              | | protected trailer | V
  Covered by   | +-------------------+---
  integrity    | | Userspace Binary  |
               | |                   |
@@ -151,9 +152,9 @@ struct TbfHeaderTlv {
 // use Main Headers, while newer (>= 2.1) kernels use Program Headers.
 struct TbfHeaderMain {
     base: TbfHeaderTlv,
-    init_fn_offset: u32,     // The function to call to start the application
-    protected_size: u32,     // The number of bytes the application cannot write
-    minimum_ram_size: u32,   // How much RAM the application is requesting
+    init_fn_offset: u32,         // The function to call to start the application
+    protected_trailer_size: u32, // The number of app-immutable bytes after the header
+    minimum_ram_size: u32,       // How much RAM the application is requesting
 }
 
 // A Program Header specifies the end of the application binary within the 
@@ -162,7 +163,7 @@ struct TbfHeaderMain {
 // can be installed.
 pub struct TbfHeaderV2Program {
     init_fn_offset: u32,
-    protected_size: u32,
+    protected_trailer_size: u32,
     minimum_ram_size: u32,
     binary_end_offset: u32,
     version: u32,
@@ -206,14 +207,14 @@ struct TbfHeaderV2Permissions {
     perms: [TbfHeaderDriverPermission],
 }
 
-// A list of persistent access permissions
-struct TbfHeaderV2PersistentAcl {
+// A list of storage permissions for accessing persistent storage
+struct TbfHeaderV2StoragePermissions {
     base: TbfHeaderTlv,
     write_id: u32,
     read_length: u16,
     read_ids: [u32],
-    access_length: u16,
-    access_ids: [u32],
+    modify_length: u16,
+    modify_ids: [u32],
 }
 
 // Kernel Version
@@ -320,16 +321,19 @@ The `Main` element has three 32-bit fields:
 +-------------+-------------+---------------------------+
 | Type (1)    | Length (12) | init_offset               |
 +-------------+-------------+---------------------------+
-| protected_size            | min_ram_size              |
+| protected_trailer_size    | min_ram_size              |
 +---------------------------+---------------------------+
 ```
 
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
     execute (typically the `_start` symbol).
-  * `protected_size` the size of the protected region in bytes. Processes do not
-    have write access to the protected region. TBF headers are contained in the
-    protected region.
+  * `protected_trailer_size` the size of the protected region _after_ the TBF
+    headers. Processes do not have write access to the protected region. TBF
+    headers are contained in the protected region, but are not counted towards
+    `protected_trailer_size`. The protected region thus starts at the first byte
+    of the TBF base header, and is `header_size + protected_trailer_size` bytes
+    in size.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
 
@@ -450,51 +454,52 @@ included, so long as no `offset` is repeated for a single driver. When
 multiple `offset`s and `allowed_commands`s are used they are ORed together,
 so that they all apply.
 
-#### `7` Persistent ACL
+#### `7` Storage Permissions
 
-The `Persistent ACL` section is used to identify what access the app has to
+The `Storage Permissions` section is used to identify what access the app has to
 persistent storage.
 
-The data is stored in the `TbfHeaderV2PersistentAcl` field, which includes a
-`write_id`, a number of `read_id`s, and a number of `access_id`s.
+The data is stored in the `TbfHeaderV2StoragePermissions` field, which includes
+a `write_id`, a number of `read_id`s, and a number of `modify_id`s.
 
 ```
 0             2             4             6             8
-+-------------+---------------------------+-------------+
++-------------+-------------+---------------------------+
 | Type (7)    | Length      | write_id                  |
-+-------------+-------------+-------------+-------------+
++-------------+-------------+---------------------------+
 | # Read IDs  | read_ids (4 bytes each)                 |
 +-------------+------------------------------------...--+
-| # Access IDs| access_ids (4 bytes each)               |
+| # Modify IDs| modify_ids (4 bytes each)               |
 +--------------------------------------------------...--+
 ```
 
-`write_id` indicates the id that all new persistent data is written with. All
-new data created will be stored with permissions from the `write_id` field. For
-existing data see the `access_ids` section below. `write_id` does not need to be
-unique, that is multiple apps can have the same id. A `write_id` of `0x00`
-indicates that the app can not perform write operations.
+- `write_id` indicates the id that all new persistent data is written with. All
+  new data created will be stored with permissions from the `write_id` field.
+  For existing data see the `modify_ids` section below. `write_id` does not need
+  to be unique, that is multiple apps can have the same id. A `write_id` of
+  `0x00` indicates that the app can not perform write operations.
+- `read_ids` list all of the ids that this app has permission to read. The
+  `read_length` specifies the length of the `read_ids` in elements (not bytes).
+  `read_length` can be `0` indicating that there are no `read_ids`.
+- `modify_ids` list all of the ids that this app has permission to modify or
+  remove. `modify_ids` are different from `write_id` in that `write_id` applies
+  to new data while `modify_ids` allows modification of existing data. The
+  `modify_length` specifies the length of the `modify_ids` in elements (not
+  bytes). `modify_length` can be `0` indicating that there are no `modify_ids`
+  and the app cannot modify existing stored data (even data that it itself
+  wrote).
 
-`read_ids` list all of the ids that this app has permission to read. The
-`read_length` specifies the length of the `read_ids` in elements (not bytes).
-`read_length` can be `0` indicating that there are no `read_ids`.
-
-`access_ids` list all of the ids that this app has permission to write.
-`access_ids` are different to `write_id` in that `write_id` applies to new data
-while `access_ids` allows modification of existing data. The `access_length`
-specifies the length of the `access_ids` in elements (not bytes).
-`access_length` can be `0` indicating that there are no `access_ids`.
-
-For example an app has a `write_id` of `1`, `read_ids` of `2, 3` and
-`access_ids` of `3, 4`. If the app was to write new data, it would be stored
+For example, consider an app that has a `write_id` of `1`, `read_ids` of `2, 3`
+and `modify_ids` of `3, 4`. If the app was to write new data, it would be stored
 with id `1`. The app is able to read data stored with id `2` or `3`, note that
-it can not read the data that it writes. The app is also able to overwrite
+it cannot read the data that it writes. The app is also able to overwrite
 existing data that was stored with id `3` or `4`.
 
-An example of when `access_ids` would be useful is on a system where each app
+An example of when `modify_ids` would be useful is on a system where each app
 logs errors in its own write_region. An error-reporting app reports these errors
 over the network, and once the reported errors are acked erases them from the
-log. In this case `access_ids` allow an app to erase multiple different regions.
+log. In this case, `modify_ids` allow an app to erase multiple different
+regions.
 
 #### `8` Kernel Version
 
@@ -533,7 +538,7 @@ the end of the TBF object can contain footers.
 +-------------+-------------+---------------------------+
 | Type (9)    | Length (20) | init_offset               |
 +-------------+-------------+---------------------------+
-| protected_size            | min_ram_size              |
+| protected_trailer_size    | min_ram_size              |
 +---------------------------+---------------------------+
 | binary_end_offset         | version                   |
 +---------------------------+---------------------------+
@@ -541,17 +546,20 @@ the end of the TBF object can contain footers.
 
   * `init_offset` the offset in bytes from the beginning of binary payload
     (i.e. the actual application binary) that contains the first instruction to
-   	execute (typically the `_start` symbol).
-  * `protected_size` the size of the protected region in bytes. Processes do not
-    have write access to the protected region. TBF headers are contained in the
-    protected region.
+    execute (typically the `_start` symbol).
+  * `protected_trailer_size` the size of the protected region _after_ the TBF
+    headers. Processes do not have write access to the protected region. TBF
+    headers are contained in the protected region, but are not counted towards
+    `protected_trailer_size`. The protected region thus starts at the first byte
+    of the TBF base header, and is `header_size + protected_trailer_size` bytes
+    in size.
   * `minimum_ram_size` the minimum amount of memory, in bytes, the process
     needs.
   * `binary_end_offset` specifies the offset from the beginning of the TBF
     Object at which the Userspace Binary ends and optional footers begin.
   * `version` specifies a version number for the application implemented by
     the Userspace Binary. This allows a kernel to distinguish different 
-	versions of a given application.
+    versions of a given application.
 
 If a Program header is not present, `binary_end_offset` can be
 considered to be `total_size` of the Base Header and `version` is 0.

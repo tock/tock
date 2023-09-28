@@ -30,7 +30,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
         pwm_pins: &'a [&'a dyn hil::pwm::PwmPin; NUM_PINS],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Pwm<'a, NUM_PINS> {
-        assert!(NUM_PINS <= (u16::MAX as usize));
+        assert!(u16::try_from(NUM_PINS).is_ok());
         const EMPTY: OptionalCell<ProcessId> = OptionalCell::empty();
         Pwm {
             pwm_pins: pwm_pins,
@@ -44,7 +44,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
         self.active_process[pin].map_or(true, |id| {
             // If the app is empty, that means that there is no app currently using this pin,
             // therefore the pin could be usable by the new app
-            if id == &processid {
+            if id == processid {
                 // The same app is trying to access the pin it has access to, valid
                 true
             } else {
