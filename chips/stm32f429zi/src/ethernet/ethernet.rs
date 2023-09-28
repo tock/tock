@@ -14,12 +14,12 @@
 
 use core::cell::Cell;
 
-use cortexm4::support::nop;
-use kernel::hil::ethernet::EthernetAdapter;
-use kernel::hil::ethernet::EthernetAdapterClient;
 use crate::ethernet::utils::EthernetSpeed;
 use crate::ethernet::utils::MacAddress;
 use crate::ethernet::utils::OperationMode;
+use cortexm4::support::nop;
+use kernel::hil::ethernet::EthernetAdapter;
+use kernel::hil::ethernet::EthernetAdapterClient;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{NumericCellExt, OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -1897,7 +1897,10 @@ pub mod tests {
     fn test_mac_default_values(ethernet: &Ethernet) {
         assert_eq!(EthernetSpeed::Speed100Mbs, ethernet.get_ethernet_speed());
         assert_eq!(false, ethernet.internal_is_loopback_mode_enabled());
-        assert_eq!(OperationMode::FullDuplex, ethernet.internal_get_operation_mode());
+        assert_eq!(
+            OperationMode::FullDuplex,
+            ethernet.internal_get_operation_mode()
+        );
         assert_eq!(false, ethernet.is_mac_transmiter_enabled());
         assert_eq!(false, ethernet.is_mac_receiver_enabled());
         assert_eq!(false, ethernet.is_address_filter_enabled());
@@ -2073,9 +2076,15 @@ pub mod tests {
         assert_eq!(false, ethernet.internal_is_loopback_mode_enabled());
 
         ethernet.internal_set_operation_mode(OperationMode::FullDuplex);
-        assert_eq!(OperationMode::FullDuplex, ethernet.internal_get_operation_mode());
+        assert_eq!(
+            OperationMode::FullDuplex,
+            ethernet.internal_get_operation_mode()
+        );
         ethernet.internal_set_operation_mode(OperationMode::HalfDuplex);
-        assert_eq!(OperationMode::HalfDuplex, ethernet.internal_get_operation_mode());
+        assert_eq!(
+            OperationMode::HalfDuplex,
+            ethernet.internal_get_operation_mode()
+        );
 
         ethernet.enable_address_filter();
         assert_eq!(true, ethernet.is_address_filter_enabled());

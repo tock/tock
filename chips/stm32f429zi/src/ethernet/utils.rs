@@ -128,4 +128,3 @@ mod tests {
         assert_eq!(false, mac_address.is_unicast());
     }
 }
-
