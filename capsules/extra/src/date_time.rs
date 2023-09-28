@@ -35,30 +35,150 @@
 //!                 -previous 3 store the day_of_the_week
 
 use capsules_core::driver::NUM;
-use core::cell::Cell;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::date_time;
 
 use kernel::errorcode::into_statuscode;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
+use kernel::utilities::cells::OptionalCell;
 
 pub const DRIVER_NUM: usize = NUM::DateTime as usize;
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum DateTimeCommand {
     ReadDateTime,
-    SetDateTime,
+    SetDateTime(u32, u32),
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default)]
 pub struct AppData {
-    subscribed: bool,
+    task: Option<DateTimeCommand>,
 }
 
 pub struct DateTimeCapsule<'a, DateTime: date_time::DateTime<'a>> {
     date_time: &'a DateTime,
     apps: Grant<AppData, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    in_progress: Cell<bool>,
+    in_progress: OptionalCell<ProcessId>,
+}
+
+fn month_as_u32(month: date_time::Month) -> u32 {
+    match month {
+        date_time::Month::January => 1,
+        date_time::Month::February => 2,
+        date_time::Month::March => 3,
+        date_time::Month::April => 4,
+        date_time::Month::May => 5,
+        date_time::Month::June => 6,
+        date_time::Month::July => 7,
+        date_time::Month::August => 8,
+        date_time::Month::September => 9,
+        date_time::Month::October => 10,
+        date_time::Month::November => 11,
+        date_time::Month::December => 12,
+    }
+}
+
+fn u32_as_month(month_num: u32) -> Result<date_time::Month, ErrorCode> {
+    match month_num {
+        1 => Ok(date_time::Month::January),
+        2 => Ok(date_time::Month::February),
+        3 => Ok(date_time::Month::March),
+        4 => Ok(date_time::Month::April),
+        5 => Ok(date_time::Month::May),
+        6 => Ok(date_time::Month::June),
+        7 => Ok(date_time::Month::July),
+        8 => Ok(date_time::Month::August),
+        9 => Ok(date_time::Month::September),
+        10 => Ok(date_time::Month::October),
+        11 => Ok(date_time::Month::November),
+        12 => Ok(date_time::Month::December),
+        _ => Err(ErrorCode::INVAL),
+    }
+}
+
+fn dotw_as_u32(dotw: date_time::DayOfWeek) -> u32 {
+    match dotw {
+        date_time::DayOfWeek::Sunday => 0,
+        date_time::DayOfWeek::Monday => 1,
+        date_time::DayOfWeek::Tuesday => 2,
+        date_time::DayOfWeek::Wednesday => 3,
+        date_time::DayOfWeek::Thursday => 4,
+        date_time::DayOfWeek::Friday => 5,
+        date_time::DayOfWeek::Saturday => 6,
+    }
+}
+
+fn u32_as_dotw(dotw_num: u32) -> Result<date_time::DayOfWeek, ErrorCode> {
+    match dotw_num {
+        0 => Ok(date_time::DayOfWeek::Sunday),
+        1 => Ok(date_time::DayOfWeek::Monday),
+        2 => Ok(date_time::DayOfWeek::Tuesday),
+        3 => Ok(date_time::DayOfWeek::Wednesday),
+        4 => Ok(date_time::DayOfWeek::Thursday),
+        5 => Ok(date_time::DayOfWeek::Friday),
+        6 => Ok(date_time::DayOfWeek::Saturday),
+        _ => Err(ErrorCode::INVAL),
+    }
+}
+
+/// Transforms two u32 numbers into a DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds)
+/// Check file documentation for details on how the u32 tuple stores data
+fn date_from_u32_tuple(
+    date: u32,
+    time: u32,
+) -> Result<date_time::DateTimeValues, ErrorCode> {
+    let month_num = date % (1 << 9) / (1 << 5);
+    let month_name = u32_as_month(month_num)?;
+
+    let dotw_num = time % (1 << 20) / (1 << 17);
+    let dotw_name = u32_as_dotw(dotw_num)?;
+
+    let date_result = date_time::DateTimeValues {
+        year: (date % (1 << 21) / (1 << 9)) as u16,
+        month: month_name,
+        day: (date % (1 << 5)) as u8,
+
+        day_of_week: dotw_name,
+        hour: (time % (1 << 17) / (1 << 12)) as u8,
+        minute: (time % (1 << 12) / (1 << 6)) as u8,
+        seconds: (time % (1 << 6)) as u8,
+    };
+
+    if !(date_result.day <= 31) {
+        return Err(ErrorCode::INVAL);
+    }
+    if !(date_result.hour <= 24) {
+        return Err(ErrorCode::INVAL);
+    }
+    if !(date_result.minute <= 60) {
+        return Err(ErrorCode::INVAL);
+    }
+    if !(date_result.seconds <= 60) {
+        return Err(ErrorCode::INVAL);
+    }
+
+    Ok(date_result)
+}
+
+/// Transforms DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds) into two u32 numbers
+/// Check file documentation for details on how the u32 numbers stores data
+/// The two u32 numbers are returned as a tuple
+fn date_as_u32_tuple(
+    set_date: date_time::DateTimeValues,
+) -> Result<(u32, u32), ErrorCode> {
+    let month = month_as_u32(set_date.month);
+    let dotw = dotw_as_u32(set_date.day_of_week);
+
+    let date = set_date.year as u32 * (1 << 9) as u32
+        + month as u32 * (1 << 5) as u32
+        + set_date.day as u32;
+    let time = dotw as u32 * (1 << 17) as u32
+        + set_date.hour as u32 * (1 << 12) as u32
+        + set_date.minute as u32 * (1 << 6) as u32
+        + set_date.seconds as u32;
+
+    Ok((date as u32, time as u32))
 }
 
 impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
@@ -69,150 +189,29 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         DateTimeCapsule {
             date_time,
             apps: grant,
-            in_progress: Cell::new(false),
+            in_progress: OptionalCell::empty(),
         }
     }
 
-    fn month_as_u32(&self, month: date_time::Month) -> u32 {
-        match month {
-            date_time::Month::January => 1,
-            date_time::Month::February => 2,
-            date_time::Month::March => 3,
-            date_time::Month::April => 4,
-            date_time::Month::May => 5,
-            date_time::Month::June => 6,
-            date_time::Month::July => 7,
-            date_time::Month::August => 8,
-            date_time::Month::September => 9,
-            date_time::Month::October => 10,
-            date_time::Month::November => 11,
-            date_time::Month::December => 12,
-        }
-    }
-
-    fn u32_as_month(&self, month_num: u32) -> Result<date_time::Month, ErrorCode> {
-        match month_num {
-            1 => Ok(date_time::Month::January),
-            2 => Ok(date_time::Month::February),
-            3 => Ok(date_time::Month::March),
-            4 => Ok(date_time::Month::April),
-            5 => Ok(date_time::Month::May),
-            6 => Ok(date_time::Month::June),
-            7 => Ok(date_time::Month::July),
-            8 => Ok(date_time::Month::August),
-            9 => Ok(date_time::Month::September),
-            10 => Ok(date_time::Month::October),
-            11 => Ok(date_time::Month::November),
-            12 => Ok(date_time::Month::December),
-            _ => Err(ErrorCode::INVAL),
-        }
-    }
-
-    fn dotw_as_u32(&self, dotw: date_time::DayOfWeek) -> u32 {
-        match dotw {
-            date_time::DayOfWeek::Sunday => 0,
-            date_time::DayOfWeek::Monday => 1,
-            date_time::DayOfWeek::Tuesday => 2,
-            date_time::DayOfWeek::Wednesday => 3,
-            date_time::DayOfWeek::Thursday => 4,
-            date_time::DayOfWeek::Friday => 5,
-            date_time::DayOfWeek::Saturday => 6,
-        }
-    }
-
-    fn u32_as_dotw(&self, dotw_num: u32) -> Result<date_time::DayOfWeek, ErrorCode> {
-        match dotw_num {
-            0 => Ok(date_time::DayOfWeek::Sunday),
-            1 => Ok(date_time::DayOfWeek::Monday),
-            2 => Ok(date_time::DayOfWeek::Tuesday),
-            3 => Ok(date_time::DayOfWeek::Wednesday),
-            4 => Ok(date_time::DayOfWeek::Thursday),
-            5 => Ok(date_time::DayOfWeek::Friday),
-            6 => Ok(date_time::DayOfWeek::Saturday),
-            _ => Err(ErrorCode::INVAL),
-        }
-    }
-
-    /// Transforms two u32 numbers into a DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds)
-    /// Check file documentation for details on how the u32 tuple stores data
-    fn date_from_u32_tuple(
-        &self,
-        date: u32,
-        time: u32,
-    ) -> Result<date_time::DateTimeValues, ErrorCode> {
-        let month_num = date % (1 << 9) / (1 << 5);
-        let month_name = self.u32_as_month(month_num)?;
-
-        let dotw_num = time % (1 << 20) / (1 << 17);
-        let dotw_name = self.u32_as_dotw(dotw_num)?;
-
-        let date_result = date_time::DateTimeValues {
-            year: (date % (1 << 21) / (1 << 9)) as u16,
-            month: month_name,
-            day: (date % (1 << 5)) as u8,
-
-            day_of_week: dotw_name,
-            hour: (time % (1 << 17) / (1 << 12)) as u8,
-            minute: (time % (1 << 12) / (1 << 6)) as u8,
-            seconds: (time % (1 << 6)) as u8,
-        };
-
-        if !(date_result.day <= 31) {
-            return Err(ErrorCode::INVAL);
-        }
-        if !(date_result.hour <= 24) {
-            return Err(ErrorCode::INVAL);
-        }
-        if !(date_result.minute <= 60) {
-            return Err(ErrorCode::INVAL);
-        }
-        if !(date_result.seconds <= 60) {
-            return Err(ErrorCode::INVAL);
-        }
-
-        Ok(date_result)
-    }
-
-    /// Transforms DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds) into two u32 numbers
-    /// Check file documentation for details on how the u32 numbers stores data
-    /// The two u32 numbers are returned as a tuple
-    fn date_as_u32_tuple(
-        &self,
-        set_date: date_time::DateTimeValues,
-    ) -> Result<(u32, u32), ErrorCode> {
-        let month = self.month_as_u32(set_date.month);
-        let dotw = self.dotw_as_u32(set_date.day_of_week);
-
-        let date = set_date.year as u32 * (1 << 9) as u32
-            + month as u32 * (1 << 5) as u32
-            + set_date.day as u32;
-        let time = dotw as u32 * (1 << 17) as u32
-            + set_date.hour as u32 * (1 << 12) as u32
-            + set_date.minute as u32 * (1 << 6) as u32
-            + set_date.seconds as u32;
-
-        Ok((date as u32, time as u32))
-    }
-
-    fn call_driver(&self, command: DateTimeCommand, r2: usize, r3: usize) -> CommandReturn {
+    fn call_driver(&self, command: DateTimeCommand, processid: ProcessId) -> Result<(), ErrorCode> {
         match command {
             DateTimeCommand::ReadDateTime => {
                 let date_result = self.date_time.get_date_time();
                 match date_result {
                     Result::Ok(()) => {
-                        self.in_progress.set(true);
-                        CommandReturn::success()
+                        self.in_progress.set(processid);
+                        Ok(())
                     }
-                    Result::Err(e) => CommandReturn::failure(e),
+                    Result::Err(e) => Err(e),
                 }
             }
-            DateTimeCommand::SetDateTime => {
+            DateTimeCommand::SetDateTime(r2, r3) => {
                 let date;
 
-                match self.date_from_u32_tuple(r2 as u32, r3 as u32) {
+                match date_from_u32_tuple(r2 as u32, r3 as u32) {
                     Result::Ok(d) => date = d,
                     Result::Err(e) => {
-                        return CommandReturn::failure(e);
+                        return Err(e);
                     }
                 };
 
@@ -220,10 +219,10 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
 
                 match get_date_result {
                     Result::Ok(()) => {
-                        self.in_progress.set(true);
-                        CommandReturn::success()
+                        self.in_progress.set(processid);
+                        Ok(())
                     }
-                    Result::Err(e) => CommandReturn::failure(e),
+                    Result::Err(e) => Err(e),
                 }
             }
         }
@@ -232,34 +231,52 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
     fn enqueue_command(
         &self,
         command: DateTimeCommand,
-        year_month_dotm: u32,
-        dotw_hour_min_sec: u32,
-        appid: ProcessId,
+        processid: ProcessId,
     ) -> CommandReturn {
-        if !self.in_progress.get() {
-            let grant_enter_res = self.apps.enter(appid, |app, _| {
-                app.subscribed = true;
-            });
+        let grant_enter_res = self.apps.enter(processid, |app, _| {
+            if app.task.is_none() {
+                CommandReturn::failure(ErrorCode::BUSY)
+            } else{
+                app.task = Some(command);
+                CommandReturn::success()
+            }
+        });
+
+        // If no command is currently run, run the current command
+        if self.in_progress.is_none() {
             match grant_enter_res {
-                Ok(()) => self
-                    .call_driver(
-                        command,
-                        year_month_dotm as usize,
-                        dotw_hour_min_sec as usize,
-                    )
-                    .into(),
+                Ok(_) => match self.call_driver(command, processid){
+                    Ok(_) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e),
+                },
                 Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
             }
+        
         } else {
-            let grant_enter_res = self.apps.enter(appid, |app, _| {
-                app.subscribed = true;
-            });
-
             match grant_enter_res {
-                Ok(()) => CommandReturn::success(),
+                Ok(_) => CommandReturn::success(),
                 Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
             }
         }
+    }
+
+    fn queue_next_command(&self){
+        self.apps.iter().find_map(|grant| {
+            let processid = grant.processid();
+            grant.enter(|app, kernel| {
+                app.task.map_or(None, |command|{
+                    let command_return = self.call_driver(command, processid);
+                    match command_return{
+                        Ok(_) => Some(()),
+                        Err(e) => {
+                            let upcall_status = into_statuscode(Err(e));
+                            kernel.schedule_upcall(0, (upcall_status, 0, 0)).ok();
+                            None
+                        },
+                    }
+                })
+            })
+        });
     }
 }
 
@@ -267,19 +284,19 @@ impl<'a, DateTime: date_time::DateTime<'a>> date_time::DateTimeClient
     for DateTimeCapsule<'a, DateTime>
 {
     fn get_date_time_done(&self, datetime: Result<date_time::DateTimeValues, ErrorCode>) {
-        self.in_progress.set(false);
+        self.in_progress.clear();
         let mut upcall_status: usize = into_statuscode(Ok(()));
         let mut upcall_r1: usize = 0;
         let mut upcall_r2: usize = 0;
 
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
-                if app.subscribed {
-                    app.subscribed = false;
+                if app.task == Some(DateTimeCommand::ReadDateTime) {
+                    app.task = None;
                     match datetime {
                         Result::Ok(date) => {
                             let (year_month_dotm, dotw_hour_min_sec) =
-                                match self.date_as_u32_tuple(date) {
+                                match date_as_u32_tuple(date) {
                                     Result::Ok(t) => t,
                                     Result::Err(e) => {
                                         upcall_status = into_statuscode(Result::Err(e));
@@ -301,22 +318,22 @@ impl<'a, DateTime: date_time::DateTime<'a>> date_time::DateTimeClient
                 }
             });
         }
+
+        self.queue_next_command();
     }
 
     fn set_date_time_done(&self, result: Result<(), ErrorCode>) {
-        self.in_progress.set(false);
+        // in_progress.take() also sets the OptionalCell to None
+        let processid = self.in_progress.take().unwrap();
+        let _enter_grant = self.apps.enter(processid, |app, upcalls| {
+            app.task = None;
 
-        for cntr in self.apps.iter() {
-            cntr.enter(|app, upcalls| {
-                if app.subscribed {
-                    app.subscribed = false;
+            upcalls
+                .schedule_upcall(0, (into_statuscode(result) as usize, 0, 0))
+                .ok();
+        });
 
-                    upcalls
-                        .schedule_upcall(0, (into_statuscode(result) as usize, 0, 0))
-                        .ok();
-                }
-            });
-        }
+        self.queue_next_command();
     }
 }
 
@@ -332,14 +349,10 @@ impl<'a, DateTime: date_time::DateTime<'a>> SyscallDriver for DateTimeCapsule<'a
             0 => CommandReturn::success(),
             1 => self.enqueue_command(
                 DateTimeCommand::ReadDateTime,
-                r2 as u32,
-                r3 as u32,
                 process_id,
             ),
             2 => self.enqueue_command(
-                DateTimeCommand::SetDateTime,
-                r2 as u32,
-                r3 as u32,
+                DateTimeCommand::SetDateTime(r2 as u32, r3 as u32),
                 process_id,
             ),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
