@@ -9,11 +9,10 @@ use crate::ErrorCode;
 
 /// Ethernet adapter client public interface
 pub trait EthernetAdapterClient {
-    /// Notify the adapter client when the transmission is done.
+    /// Transmit callback
     ///
     /// Arguments:
     ///
-    // TODO: shouldn't the name of this be transmit_result
     /// 1. err: the result of the transmission
     /// 2. packet_buffer: the raw frame that has been transmitted
     /// 3. len: the length of the raw frame
@@ -29,7 +28,7 @@ pub trait EthernetAdapterClient {
         timestamp: Option<u64>,
     );
 
-    /// Notify the adapter client when a packet has been received
+    /// Receive callback
     fn rx_packet(&self, packet: &[u8], timestamp: Option<u64>);
 }
 
