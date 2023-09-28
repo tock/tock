@@ -40,8 +40,8 @@ use kernel::hil::date_time;
 
 use kernel::errorcode::into_statuscode;
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::{ErrorCode, ProcessId};
 use kernel::utilities::cells::OptionalCell;
+use kernel::{ErrorCode, ProcessId};
 
 pub const DRIVER_NUM: usize = NUM::DateTime as usize;
 
@@ -124,10 +124,7 @@ fn u32_as_dotw(dotw_num: u32) -> Result<date_time::DayOfWeek, ErrorCode> {
 
 /// Transforms two u32 numbers into a DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds)
 /// Check file documentation for details on how the u32 tuple stores data
-fn date_from_u32_tuple(
-    date: u32,
-    time: u32,
-) -> Result<date_time::DateTimeValues, ErrorCode> {
+fn date_from_u32_tuple(date: u32, time: u32) -> Result<date_time::DateTimeValues, ErrorCode> {
     let month_num = date % (1 << 9) / (1 << 5);
     let month_name = u32_as_month(month_num)?;
 
@@ -164,9 +161,7 @@ fn date_from_u32_tuple(
 /// Transforms DateTimeValues structure (year, month, dotm, dotw, hour, minute, seconds) into two u32 numbers
 /// Check file documentation for details on how the u32 numbers stores data
 /// The two u32 numbers are returned as a tuple
-fn date_as_u32_tuple(
-    set_date: date_time::DateTimeValues,
-) -> Result<(u32, u32), ErrorCode> {
+fn date_as_u32_tuple(set_date: date_time::DateTimeValues) -> Result<(u32, u32), ErrorCode> {
     let month = month_as_u32(set_date.month);
     let dotw = dotw_as_u32(set_date.day_of_week);
 
@@ -228,15 +223,11 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         }
     }
 
-    fn enqueue_command(
-        &self,
-        command: DateTimeCommand,
-        processid: ProcessId,
-    ) -> CommandReturn {
+    fn enqueue_command(&self, command: DateTimeCommand, processid: ProcessId) -> CommandReturn {
         let grant_enter_res = self.apps.enter(processid, |app, _| {
             if !(app.task == None) {
                 CommandReturn::failure(ErrorCode::BUSY)
-            } else{
+            } else {
                 app.task = Some(command);
                 CommandReturn::success()
             }
@@ -245,13 +236,12 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         // If no command is currently run, run the current command
         if self.in_progress.is_none() {
             match grant_enter_res {
-                Ok(_) => match self.call_driver(command, processid){
+                Ok(_) => match self.call_driver(command, processid) {
                     Ok(_) => CommandReturn::success(),
                     Err(e) => CommandReturn::failure(e),
                 },
                 Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
             }
-        
         } else {
             match grant_enter_res {
                 Ok(_) => CommandReturn::success(),
@@ -260,19 +250,19 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         }
     }
 
-    fn queue_next_command(&self){
+    fn queue_next_command(&self) {
         self.apps.iter().find_map(|grant| {
             let processid = grant.processid();
             grant.enter(|app, kernel| {
-                app.task.map_or(None, |command|{
+                app.task.map_or(None, |command| {
                     let command_return = self.call_driver(command, processid);
-                    match command_return{
+                    match command_return {
                         Ok(_) => Some(()),
                         Err(e) => {
                             let upcall_status = into_statuscode(Err(e));
                             kernel.schedule_upcall(0, (upcall_status, 0, 0)).ok();
                             None
-                        },
+                        }
                     }
                 })
             })
@@ -295,14 +285,14 @@ impl<'a, DateTime: date_time::DateTime<'a>> date_time::DateTimeClient
                     app.task = None;
                     match datetime {
                         Result::Ok(date) => {
-                            let (year_month_dotm, dotw_hour_min_sec) =
-                                match date_as_u32_tuple(date) {
-                                    Result::Ok(t) => t,
-                                    Result::Err(e) => {
-                                        upcall_status = into_statuscode(Result::Err(e));
-                                        (0, 0)
-                                    }
-                                };
+                            let (year_month_dotm, dotw_hour_min_sec) = match date_as_u32_tuple(date)
+                            {
+                                Result::Ok(t) => t,
+                                Result::Err(e) => {
+                                    upcall_status = into_statuscode(Result::Err(e));
+                                    (0, 0)
+                                }
+                            };
 
                             upcall_r1 = year_month_dotm as usize;
                             upcall_r2 = dotw_hour_min_sec as usize;
@@ -347,10 +337,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> SyscallDriver for DateTimeCapsule<'a
     ) -> CommandReturn {
         match command_number {
             0 => CommandReturn::success(),
-            1 => self.enqueue_command(
-                DateTimeCommand::ReadDateTime,
-                process_id,
-            ),
+            1 => self.enqueue_command(DateTimeCommand::ReadDateTime, process_id),
             2 => self.enqueue_command(
                 DateTimeCommand::SetDateTime(r2 as u32, r3 as u32),
                 process_id,
