@@ -2,6 +2,34 @@
 
 ## master
 
+## v0.9
+
+There is a small breaking change, described below, which addresses semantic
+confusion around `matches_any()`. The interface has changed, so this should
+result in compile-time awareness rather than any silent behavioral changes.
+
+### **Breaking Changes**
+
+https://github.com/tock/tock/pull/3336
+480ee65139f1e51c149236a1b3e47cd61832ac80
+Rename matches_any() to any_matching_bits_set(), implement matches_any()
+
+> The current implementation of matches_any() does not implement the
+> functionality the name implies. This commit renames the existing
+> implementation to a name which better describes its functionality,
+> and introduces a new matches_any() function (with a different interface)
+> that actually correctly implements the functionality suggested by the
+> name. This commit also adds several tests to the tock-registers test
+> suite to verify the new version works as expected, and removes a feature
+> gate on a feature that no longer exists for the crate which was
+> preventing some of the tock-registers teste suite from being run as part
+> of `cargo test`.
+
+### Other changes:
+
+ - #3687: derive `Debug` on `Value`
+ - #3582: Update rust-toolchain to nightly of 2023-07-30
+
 ## v0.8.1
 
 A point release to allow multiple invocations of `register_fields!` in
