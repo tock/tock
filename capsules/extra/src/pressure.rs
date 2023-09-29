@@ -115,8 +115,8 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for P
                 if app.subscribed {
                     app.subscribed = false;
                     let result = match pressure {
-                        Ok(pressure_value) => (pressure_value as usize, 0, 0),
-                        Err(error) => (error as usize, 0, 0)
+                        Ok(pressure_value) => (kernel::errorcode::into_statuscode(Ok(())), pressure_value as usize, 0),
+                        Err(err) => (kernel::errorcode::into_statuscode(Err(err)), 0, 0)
                     };
                     upcalls
                         .schedule_upcall(0, result)
