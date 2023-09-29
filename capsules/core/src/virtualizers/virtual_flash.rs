@@ -47,14 +47,22 @@ pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
 }
 
 impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, result: Result<(), hil::flash::Error>) {
+    fn read_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.inflight.take().map(move |user| {
             user.read_complete(pagebuffer, result);
         });
         self.do_next_op();
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, result: Result<(), hil::flash::Error>) {
+    fn write_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.inflight.take().map(move |user| {
             user.write_complete(pagebuffer, result);
         });
@@ -165,13 +173,21 @@ impl<'a, F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClien
 }
 
 impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, result: Result<(), hil::flash::Error>) {
+    fn read_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.client.map(move |client| {
             client.read_complete(pagebuffer, result);
         });
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, result: Result<(), hil::flash::Error>) {
+    fn write_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.client.map(move |client| {
             client.write_complete(pagebuffer, result);
         });
