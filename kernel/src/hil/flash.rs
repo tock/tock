@@ -99,9 +99,6 @@ use crate::ErrorCode;
 /// Flash errors returned in the callbacks.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Error {
-    /// Success.
-    CommandComplete,
-
     /// An error occurred during the flash operation.
     FlashError,
 
@@ -141,11 +138,11 @@ pub trait Flash {
 /// Implement `Client` to receive callbacks from `Flash`.
 pub trait Client<F: Flash> {
     /// Flash read complete.
-    fn read_complete(&self, read_buffer: &'static mut F::Page, error: Error);
+    fn read_complete(&self, read_buffer: &'static mut F::Page, result: Result<(), Error>);
 
     /// Flash write complete.
-    fn write_complete(&self, write_buffer: &'static mut F::Page, error: Error);
+    fn write_complete(&self, write_buffer: &'static mut F::Page, result: Result<(), Error>);
 
     /// Flash erase complete.
-    fn erase_complete(&self, error: Error);
+    fn erase_complete(&self, result: Result<(), Error>);
 }
