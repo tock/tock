@@ -250,20 +250,20 @@ impl Nvmc {
             FlashState::Read => {
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.read_complete(buffer, hil::flash::Error::CommandComplete);
+                        client.read_complete(buffer, Ok(()));
                     });
                 });
             }
             FlashState::Write => {
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                        client.write_complete(buffer, Ok(()));
                     });
                 });
             }
             FlashState::Erase => {
                 self.client.map(|client| {
-                    client.erase_complete(hil::flash::Error::CommandComplete);
+                    client.erase_complete(Ok());
                 });
             }
             _ => {}
