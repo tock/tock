@@ -13,8 +13,12 @@
 //! to initiating child join).
 //!
 //! The Userland interface is incredibly simple at this juncture. An application
-//! can begin the Thread child/parent joining by issuing a syscall
-//! that provides the MLE/MAC key.
+//! can begin the Thread child/parent joining by issuing a syscall command
+//! with the MLE/MAC key as an argument. Only one userspace application can use/join
+//! the Thread network. Once a userspace application has joined the Thread network,
+//! the Thread network is considered locked. After the Thread network
+//! is "locked", other userspace applications attempting to join the network
+//! will return a failure. This is temporary and will eventually be replaced.
 
 // ------------------------------------------------------------------------------
 // Current Limitations
@@ -139,6 +143,13 @@ pub struct ThreadNetworkDriver<'a, A: time::Alarm<'a>> {
     crypto_sizelock: MapCell<usize>,
 }
 
+// Note: For now, we initialize the Thread state as empty.
+// We replace the Thread state when the first userspace
+// application calls the Thread capsule to initiate a Thread network.
+// This serves to "lock" the Thread capsule to only one application.
+// For now, Tock only supports one application using the Thread network.
+// After the network is "locked" to one application, other userspace
+// applications requesting to join a Thread network will fail.
 impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
     pub fn new(
         sender: &'a dyn UDPSender<'a>,
@@ -163,7 +174,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
             port_table: port_table,
             send_buffer: MapCell::new(send_buffer),
             recv_buffer: MapCell::new(recv_buffer),
-            state: MapCell::new(ThreadState::Detached),
+            state: MapCell::empty(),
             driver_send_cap: driver_send_cap,
             net_cap: net_cap,
             frame_count: Cell::new(5),
@@ -477,6 +488,13 @@ impl<'a, A: time::Alarm<'a>> SyscallDriver for ThreadNetworkDriver<'a, A> {
                         .get_readonly_processbuffer(ro_allow::WRITE)
                         .and_then(|ro_buf| {
                             ro_buf.enter(|src_key| {
+                                // check Thread state, if thread state is not empty,
+                                // another userspace application has control of the Thread
+                                // network and other requesting applications should fail.
+                                if self.state.is_some() {
+                                    return CommandReturn::failure(ErrorCode::BUSY);
+                                }
+
                                 // src key consists of the mle and mac keys; Thread
                                 // hash is performed in userland and 32 byte hash is
                                 // passed to thread capsule and entered as mac/mle key
@@ -489,6 +507,9 @@ impl<'a, A: time::Alarm<'a>> SyscallDriver for ThreadNetworkDriver<'a, A> {
                                 src_key[..16].copy_to_slice(&mut mle_key);
                                 src_key[16..32].copy_to_slice(&mut mac_key);
                                 self.set_networkkey(mle_key, mac_key);
+
+                                // Thread state begins as detached if sucessfully joined
+                                self.state.replace(ThreadState::Detached);
                                 CommandReturn::success()
                             })
                         })
