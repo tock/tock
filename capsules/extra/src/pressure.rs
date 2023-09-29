@@ -110,17 +110,19 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
 impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for PressureSensor<'a, T> {
     fn callback(&self, pressure: Result<i32, ErrorCode>) {
         self.busy.set(false);
-        if let Ok(pressure_value) = pressure {
-            for cntr in self.apps.iter() {
-                cntr.enter(|app, upcalls| {
-                    if app.subscribed {
-                        app.subscribed = false;
-                        upcalls
-                            .schedule_upcall(0, (0, pressure_value as usize, 0))
-                            .ok();
-                    }
-                })
-            }
+        for cntr in self.apps.iter() {
+            cntr.enter(|app, upcalls| {
+                if app.subscribed {
+                    app.subscribed = false;
+                    let result = match pressure {
+                        Ok(pressure_value) => (pressure_value as usize, 0, 0),
+                        Err(error) => (error as usize, 0, 0)
+                    };
+                    upcalls
+                        .schedule_upcall(0, result)
+                        .ok();
+                }
+            })
         }
     }
 }
