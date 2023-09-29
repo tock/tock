@@ -54,8 +54,6 @@ use kernel::hil::sensors::{HumidityClient, HumidityDriver, TemperatureClient, Te
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
-const I2C_ADDRESS: u8 = 0x44;
-
 pub struct Hs3003<'a, I: I2CDevice> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
@@ -86,8 +84,6 @@ impl<'a, I: I2CDevice> Hs3003<'a, I> {
                 self.i2c.enable();
                 match self.state.get() {
                     State::Sleep => {
-                        buffer[0] = I2C_ADDRESS << 1 | 0;
-
                         if let Err((_error, buffer)) = self.i2c.write(buffer, 1) {
                             self.buffer.replace(buffer);
                             self.i2c.disable();
@@ -152,9 +148,7 @@ impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
 
         match self.state.get() {
             State::InitiateReading => {
-                buffer[0] = I2C_ADDRESS << 1 | 1;
-
-                if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 4) {
+                if let Err((i2c_err, buffer)) = self.i2c.read(buffer, 4) {
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.temperature_client
