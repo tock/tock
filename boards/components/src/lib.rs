@@ -46,6 +46,7 @@ pub mod led;
 pub mod led_matrix;
 pub mod lldb;
 pub mod lpm013m126;
+pub mod lps22hb;
 pub mod lps25hb;
 pub mod lsm303agr;
 pub mod lsm303dlhc;
