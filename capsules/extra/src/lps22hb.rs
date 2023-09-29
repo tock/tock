@@ -41,7 +41,6 @@ use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{PressureClient, PressureDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
-use kernel::debug;
 
 /// Register values
 
@@ -139,8 +138,6 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Lps22hb<'a, I> {
 #[derive(Clone, Copy, PartialEq)]
 pub enum State {
     Idle,
-    ReadStatusInit,
-    ReadStatus,
     ReadMeasurementInit,
     ReadMeasurement,
     GotMeasurement,
@@ -158,30 +155,7 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
         }
 
         match self.state.get() {
-            State::ReadStatusInit => {
-                buffer[0] = Registers::StatusReg as u8;
-
-                if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 1) {
-                    self.state.set(State::Idle);
-                    self.buffer.replace(buffer);
-                    self.pressure_client
-                        .map(|client| client.callback(Err(i2c_err.into())));
-                } else {
-                    self.state.set(State::ReadStatus);
-                }
-            }
-            State::ReadStatus => {
-                if let Err((i2c_err, buffer)) = self.i2c_bus.read(buffer, 1) {
-                    self.state.set(State::Idle);
-                    self.buffer.replace(buffer);
-                    self.pressure_client
-                        .map(|client| client.callback(Err(i2c_err.into())));
-                } else {
-                    self.state.set(State::ReadMeasurementInit);
-                }
-            }
             State::ReadMeasurementInit => {
-                debug!("{}", buffer[0]);
                 buffer[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
 
                 if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 1) {
