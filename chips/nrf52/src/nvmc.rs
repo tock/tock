@@ -263,7 +263,7 @@ impl Nvmc {
             }
             FlashState::Erase => {
                 self.client.map(|client| {
-                    client.erase_complete(Ok());
+                    client.erase_complete(Ok(()));
                 });
             }
             _ => {}
