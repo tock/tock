@@ -53,7 +53,10 @@ impl<'a, CFG: EarlGreyConfig> EarlGreyDefaultPeripherals<'a, CFG> {
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CFG::PERIPHERAL_FREQ),
             otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE),
             gpio_port: crate::gpio::Port::new(),
-            i2c0: lowrisc::i2c::I2c::new(crate::i2c::I2C0_BASE, (1 / CFG::CPU_FREQ) * 1000 * 1000),
+            i2c0: lowrisc::i2c::I2c::new(
+                crate::i2c::I2C0_BASE,
+                (10_u32.pow(9)) / CFG::PERIPHERAL_FREQ,
+            ),
             spi_host0: lowrisc::spi_host::SpiHost::new(
                 crate::spi_host::SPIHOST0_BASE,
                 CFG::CPU_FREQ,

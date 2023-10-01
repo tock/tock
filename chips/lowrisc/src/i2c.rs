@@ -85,6 +85,7 @@ impl<'a> hil::i2c::I2CMasterSlave<'a> for I2c<'a> {}
 
 impl<'a> I2c<'_> {
     pub fn new(base: StaticRef<I2cRegisters>, clock_period_nanos: u32) -> I2c<'a> {
+        assert_ne!(clock_period_nanos, 0);
         I2c {
             registers: base,
             clock_period_nanos,
