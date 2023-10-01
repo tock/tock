@@ -27,6 +27,7 @@ use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
+use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -158,8 +159,10 @@ struct EarlGrey {
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    i2c_master:
-        &'static capsules_core::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+        'static,
+        lowrisc::i2c::I2c<'static>,
+    >,
     spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
@@ -218,7 +221,7 @@ impl SyscallDriverLookup for EarlGrey {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c_master)),
+            capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::symmetric_encryption::aes::DRIVER_NUM => f(Some(self.aes)),
@@ -433,19 +436,33 @@ unsafe fn setup() -> (
         [u8; capsules_core::i2c_master::BUFFER_LENGTH],
         [0; capsules_core::i2c_master::BUFFER_LENGTH]
     );
-    let i2c_master = static_init!(
-        capsules_core::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
-        capsules_core::i2c_master::I2CMasterDriver::new(
+    let i2c_slave_buffer1 = static_init!(
+        [u8; capsules_core::i2c_master_slave_driver::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master_slave_driver::BUFFER_LENGTH]
+    );
+    let i2c_slave_buffer2 = static_init!(
+        [u8; capsules_core::i2c_master_slave_driver::BUFFER_LENGTH],
+        [0; capsules_core::i2c_master_slave_driver::BUFFER_LENGTH]
+    );
+    let i2c_master_slave = static_init!(
+        capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
+            'static,
+            lowrisc::i2c::I2c<'static>,
+        >,
+        capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver::new(
             &peripherals.i2c0,
             i2c_master_buffer,
+            i2c_slave_buffer1,
+            i2c_slave_buffer2,
             board_kernel.create_grant(
-                capsules_core::i2c_master::DRIVER_NUM,
+                capsules_core::i2c_master_slave_driver::DRIVER_NUM,
                 &memory_allocation_cap
             )
         )
     );
 
-    peripherals.i2c0.set_master_client(i2c_master);
+    peripherals.i2c0.set_master_client(i2c_master_slave);
+    peripherals.i2c0.set_slave_client(i2c_master_slave);
 
     //SPI
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi_host0).finalize(
@@ -783,7 +800,7 @@ unsafe fn setup() -> (
             hmac,
             rng,
             lldb: lldb,
-            i2c_master,
+            i2c_master_slave,
             spi_controller,
             aes,
             kv_driver,

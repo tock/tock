@@ -81,6 +81,8 @@ pub struct I2c<'a> {
     slave_pending_ops: Cell<I2CSlavePendingOps>,
 }
 
+impl<'a> hil::i2c::I2CMasterSlave<'a> for I2c<'a> {}
+
 impl<'a> I2c<'_> {
     pub fn new(base: StaticRef<I2cRegisters>, clock_period_nanos: u32) -> I2c<'a> {
         I2c {
@@ -772,7 +774,7 @@ pub fn div_up(a: u32, b: u32) -> u32 {
     assert_ne!(b, 0);
     (a + (b - 1)) / b
 }
-impl<'a> hil::i2c::I2CMasterSlave<'a> for I2c<'a> {}
+
 impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
     fn set_master_client(&self, master_client: &'a dyn i2c::I2CHwMasterClient) {
         self.master_client.set(master_client);
