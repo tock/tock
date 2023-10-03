@@ -69,7 +69,7 @@ impl<'a> RoundRobinSched<'a> {
 
 impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
     fn next(&self, chip: &C) -> SchedulingDecision {
-        if unsafe {self.should_kernel_do_work(chip)} {
+        if self.should_kernel_do_work(chip) {
             return SchedulingDecision::KernelWork;
         }
 

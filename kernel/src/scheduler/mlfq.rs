@@ -136,7 +136,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
     fn next(&self, chip: &C) -> SchedulingDecision {
-        if unsafe {self.should_kernel_do_work(chip)} {
+        if self.should_kernel_do_work(chip) {
             return SchedulingDecision::KernelWork;
         }
 

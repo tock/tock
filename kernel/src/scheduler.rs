@@ -35,7 +35,7 @@ pub trait Scheduler<C: Chip> {
     /// processes to handle kernel tasks. Most schedulers will use this default
     /// implementation, which always prioritizes kernel work, but schedulers
     /// that wish to defer interrupt handling may reimplement it.
-    unsafe fn should_kernel_do_work(&self, chip: &C) -> bool {
+    fn should_kernel_do_work(&self, chip: &C) -> bool {
         chip.has_pending_interrupts() || DeferredCall::has_tasks()
     }
 
