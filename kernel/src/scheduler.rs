@@ -27,7 +27,7 @@ pub trait Scheduler<C: Chip> {
     /// process. If the timeslice is `None`, the process will be run
     /// cooperatively (i.e. without preemption). Otherwise the process will run
     /// with a timeslice set to the specified length.
-    fn next(&self) -> SchedulingDecision;
+    fn next(&self, chip: &C) -> SchedulingDecision;
 
     /// Inform the scheduler of why the last process stopped executing, and how
     /// long it executed for. Notably, `execution_time_us` will be `None`
@@ -88,6 +88,9 @@ pub trait Scheduler<C: Chip> {
 /// `scheduler.next()`.
 #[derive(Copy, Clone)]
 pub enum SchedulingDecision {
+    /// Tell the kernel to do work, such as interrupts or deferred calls
+    KernelWork,
+
     /// Tell the kernel to run the specified process with the passed timeslice.
     /// If `None` is passed as a timeslice, the process will be run
     /// cooperatively.
