@@ -38,7 +38,11 @@ impl PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    fn next(&self) -> SchedulingDecision {
+    fn next(&self, chip: &C) -> SchedulingDecision {
+        if unsafe {self.do_kernel_work_now(chip)} {
+            return SchedulingDecision::KernelWork;
+        }
+
         // Iterates in-order through the process array, always running the
         // first process it finds that is ready to run. This enforces the
         // priorities of all processes.

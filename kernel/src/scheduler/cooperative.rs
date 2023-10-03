@@ -56,7 +56,11 @@ impl<'a> CooperativeSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
-    fn next(&self) -> SchedulingDecision {
+    fn next(&self, chip: &C) -> SchedulingDecision {
+        if unsafe {self.do_kernel_work_now(chip)} {
+            return SchedulingDecision::KernelWork;
+        }
+
         let mut first_head = None;
         let mut next = None;
 

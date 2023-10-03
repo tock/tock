@@ -135,7 +135,11 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 }
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
-    fn next(&self) -> SchedulingDecision {
+    fn next(&self, chip: &C) -> SchedulingDecision {
+        if unsafe {self.do_kernel_work_now(chip)} {
+            return SchedulingDecision::KernelWork;
+        }
+
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();
         let last_reset_check = self.last_reset_check.get();
