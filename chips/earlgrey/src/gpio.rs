@@ -6,19 +6,18 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::registers::top_earlgrey::{
-    TOP_EARLGREY_GPIO_BASE_ADDR, TOP_EARLGREY_PINMUX_AON_BASE_ADDR,
-};
+use crate::registers::top_earlgrey::{GPIO_BASE_ADDR, PINMUX_AON_BASE_ADDR};
+
 use kernel::utilities::StaticRef;
 use lowrisc::gpio::GpioRegisters;
 pub use lowrisc::gpio::{pins, GpioPin};
 use lowrisc::padctrl::PadCtrlRegisters;
 
 pub const PADCTRL_BASE: StaticRef<PadCtrlRegisters> =
-    unsafe { StaticRef::new(TOP_EARLGREY_PINMUX_AON_BASE_ADDR as *const PadCtrlRegisters) };
+    unsafe { StaticRef::new(PINMUX_AON_BASE_ADDR as *const PadCtrlRegisters) };
 
 pub const GPIO0_BASE: StaticRef<GpioRegisters> =
-    unsafe { StaticRef::new(TOP_EARLGREY_GPIO_BASE_ADDR as *const GpioRegisters) };
+    unsafe { StaticRef::new(GPIO_BASE_ADDR as *const GpioRegisters) };
 
 pub struct Port<'a> {
     pins: [GpioPin<'a>; 32],

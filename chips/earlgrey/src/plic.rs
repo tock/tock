@@ -4,7 +4,7 @@
 
 //! Platform Level Interrupt Control peripheral driver.
 
-use crate::registers::top_earlgrey::TOP_EARLGREY_RV_PLIC_BASE_ADDR;
+use crate::registers::top_earlgrey::RV_PLIC_BASE_ADDR;
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::LocalRegisterCopy;
@@ -12,7 +12,7 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::StaticRef;
 
 pub const PLIC_BASE: StaticRef<PlicRegisters> =
-    unsafe { StaticRef::new(TOP_EARLGREY_RV_PLIC_BASE_ADDR as *const PlicRegisters) };
+    unsafe { StaticRef::new(RV_PLIC_BASE_ADDR as *const PlicRegisters) };
 
 pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
 

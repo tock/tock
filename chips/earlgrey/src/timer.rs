@@ -5,7 +5,7 @@
 //! Timer driver.
 
 use crate::chip_config::EarlGreyConfig;
-use crate::registers::top_earlgrey::TOP_EARLGREY_RV_TIMER_BASE_ADDR;
+use crate::registers::top_earlgrey::RV_TIMER_BASE_ADDR;
 use core::marker::PhantomData;
 use kernel::hil::time::{self, Ticks64};
 use kernel::utilities::cells::OptionalCell;
@@ -165,4 +165,4 @@ impl<'a, CFG: EarlGreyConfig> time::Alarm<'a> for RvTimer<'a, CFG> {
 }
 
 const TIMER_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(TOP_EARLGREY_RV_TIMER_BASE_ADDR as *const TimerRegisters) };
+    unsafe { StaticRef::new(RV_TIMER_BASE_ADDR as *const TimerRegisters) };
