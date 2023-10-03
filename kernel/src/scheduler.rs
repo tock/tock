@@ -31,27 +31,6 @@ pub trait Scheduler<C: Chip> {
     /// if the the scheduler requested this process be run cooperatively.
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>);
 
-    /// Tell the scheduler to execute kernel work such as interrupt bottom
-    /// halves and dynamic deferred calls. Most schedulers will use this default
-    /// implementation, but schedulers which at times wish to defer interrupt
-    /// handling will reimplement it.
-    ///
-    /// Providing this interface allows schedulers to fully manage how the main
-    /// kernel loop executes. For example, a more advanced scheduler that
-    /// attempts to help processes meet their deadlines may need to defer bottom
-    /// half interrupt handling or to selectively service certain interrupts.
-    /// Or, a power aware scheduler may want to selectively choose what work to
-    /// complete at any time to meet power requirements.
-    ///
-    /// Custom implementations of this function must be very careful, however,
-    /// as this function is called in the core kernel loop.
-    unsafe fn execute_kernel_work(&self, chip: &C) {
-        chip.service_pending_interrupts();
-        while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
-            DeferredCall::service_next_pending();
-        }
-    }
-
     /// Ask the scheduler whether to take a break from executing userspace
     /// processes to handle kernel tasks. Most schedulers will use this default
     /// implementation, which always prioritizes kernel work, but schedulers
