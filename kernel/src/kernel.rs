@@ -361,6 +361,13 @@ impl Kernel {
         }
     }
 
+    fn execute_kernel_work<C: Chip>(&self, chip: &C) {
+        chip.service_pending_interrupts();
+        while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
+            DeferredCall::service_next_pending();
+        }
+    }
+
     /// Perform one iteration of the core Tock kernel loop.
     ///
     /// This function is responsible for three main operations:
@@ -390,51 +397,44 @@ impl Kernel {
 
         resources.watchdog().tickle();
         unsafe {
-            // Ask the scheduler if we should do tasks inside of the kernel,
-            // such as handle interrupts. A scheduler may want to prioritize
-            // processes instead, or there may be no kernel work to do.
-            match scheduler.do_kernel_work_now(chip) {
-                true => {
-                    // Execute kernel work. This includes handling
-                    // interrupts and is how code in the chips/ and capsules
-                    // crates is able to execute.
-                    scheduler.execute_kernel_work(chip);
+            // Ask the scheduler for the next decision
+            match scheduler.next(chip) {
+                // There is kernel work to do right now
+                SchedulingDecision::KernelWork => self.execute_kernel_work(chip),
+
+                // A process should be run
+                SchedulingDecision::RunProcess((processid, timeslice_us)) => {
+                    self.process_map_or((), processid, |process| {
+                        let (reason, time_executed) =
+                            self.do_process(resources, chip, process, ipc, timeslice_us);
+                        scheduler.result(reason, time_executed);
+                    });
                 }
-                false => {
-                    // No kernel work ready, so ask scheduler for a process.
-                    match scheduler.next() {
-                        SchedulingDecision::RunProcess((processid, timeslice_us)) => {
-                            self.process_map_or((), processid, |process| {
-                                let (reason, time_executed) =
-                                    self.do_process(resources, chip, process, ipc, timeslice_us);
-                                scheduler.result(reason, time_executed);
-                            });
-                        }
-                        SchedulingDecision::TrySleep => {
-                            // For testing, it may be helpful to
-                            // disable sleeping the chip in case
-                            // the running test does not generate
-                            // any interrupts.
-                            if !no_sleep {
-                                chip.atomic(|| {
-                                    // Cannot sleep if interrupts are pending,
-                                    // as on most platforms unhandled interrupts
-                                    // will wake the device. Also, if the only
-                                    // pending interrupt occurred after the
-                                    // scheduler decided to put the chip to
-                                    // sleep, but before this atomic section
-                                    // starts, the interrupt will not be
-                                    // serviced and the chip will never wake
-                                    // from sleep.
-                                    if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
-                                    {
-                                        resources.watchdog().suspend();
-                                        chip.sleep();
-                                        resources.watchdog().resume();
-                                    }
-                                });
+
+                // Put the kernel in low power mode
+                SchedulingDecision::TrySleep => {
+                    // For testing, it may be helpful to
+                    // disable sleeping the chip in case
+                    // the running test does not generate
+                    // any interrupts.
+                    if !no_sleep {
+                        chip.atomic(|| {
+                            // Cannot sleep if interrupts are pending,
+                            // as on most platforms unhandled interrupts
+                            // will wake the device. Also, if the only
+                            // pending interrupt occurred after the
+                            // scheduler decided to put the chip to
+                            // sleep, but before this atomic section
+                            // starts, the interrupt will not be
+                            // serviced and the chip will never wake
+                            // from sleep.
+                            if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
+                            {
+                                resources.watchdog().suspend();
+                                chip.sleep();
+                                resources.watchdog().resume();
                             }
-                        }
+                        });
                     }
                 }
             }
