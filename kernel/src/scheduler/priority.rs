@@ -39,7 +39,7 @@ impl PrioritySched {
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
     fn next(&self, chip: &C) -> SchedulingDecision {
-        if unsafe {self.do_kernel_work_now(chip)} {
+        if unsafe {self.should_kernel_do_work(chip)} {
             return SchedulingDecision::KernelWork;
         }
 
