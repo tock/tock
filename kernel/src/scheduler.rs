@@ -16,17 +16,14 @@ use crate::process::StoppedExecutingReason;
 
 /// Trait which any scheduler must implement.
 pub trait Scheduler<C: Chip> {
-    /// Decide which process to run next.
+    /// Decide the next kernel operation.
     ///
-    /// The scheduler must decide whether to run a process, and if so, which
-    /// one. If the scheduler chooses not to run a process, it can request that
-    /// the chip enter sleep mode.
+    /// The scheduler must decide if the kernel:
     ///
-    /// If the scheduler selects a process to run it must provide its `ProcessId`
-    /// and an optional timeslice length in microseconds to provide to that
-    /// process. If the timeslice is `None`, the process will be run
-    /// cooperatively (i.e. without preemption). Otherwise the process will run
-    /// with a timeslice set to the specified length.
+    /// * has to do work
+    /// * run a process. An identifier for the process and its assigned time slice in microseconds
+    /// must be provided. If no time slice is specified, the process will run cooperatively.
+    /// * try to enter in sleep mode
     fn next(&self, chip: &C) -> SchedulingDecision;
 
     /// Inform the scheduler of why the last process stopped executing, and how
