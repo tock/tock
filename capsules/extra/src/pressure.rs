@@ -107,7 +107,9 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
     }
 }
 
-impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for PressureSensor<'a, T> {
+impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient
+    for PressureSensor<'a, T>
+{
     fn callback(&self, pressure: Result<i32, ErrorCode>) {
         self.busy.set(false);
         for cntr in self.apps.iter() {
@@ -115,12 +117,14 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient for P
                 if app.subscribed {
                     app.subscribed = false;
                     let result = match pressure {
-                        Ok(pressure_value) => (kernel::errorcode::into_statuscode(Ok(())), pressure_value as usize, 0),
-                        Err(err) => (kernel::errorcode::into_statuscode(Err(err)), 0, 0)
+                        Ok(pressure_value) => (
+                            kernel::errorcode::into_statuscode(Ok(())),
+                            pressure_value as usize,
+                            0,
+                        ),
+                        Err(err) => (kernel::errorcode::into_statuscode(Err(err)), 0, 0),
                     };
-                    upcalls
-                        .schedule_upcall(0, result)
-                        .ok();
+                    upcalls.schedule_upcall(0, result).ok();
                 }
             })
         }
