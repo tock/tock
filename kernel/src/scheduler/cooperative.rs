@@ -17,9 +17,9 @@
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::platform::chip::Chip;
-use crate::process::Process;
+use crate::process::{Process, ProcessId};
 use crate::process::StoppedExecutingReason;
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::scheduler::{InternalScheduler, Scheduler};
 
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {
@@ -55,12 +55,8 @@ impl<'a> CooperativeSched<'a> {
     }
 }
 
-impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
-    fn next(&self, chip: &C) -> SchedulingDecision {
-        if self.should_kernel_do_work(chip) {
-            return SchedulingDecision::KernelWork;
-        }
-
+impl<'a, C: Chip> InternalScheduler<C> for CooperativeSched<'a> {
+    fn next_process(&self) -> Option<(ProcessId, Option<u32>)> {
         let mut first_head = None;
         let mut next = None;
 
@@ -73,7 +69,7 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
                 Some(first_head) => {
                     // We make a full iteration and nothing was ready. Try to sleep instead
                     if core::ptr::eq(first_head, node) {
-                        return SchedulingDecision::TrySleep;
+                        return None;
                     }
                 }
             }
@@ -93,9 +89,11 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
 
         // next will not be None, because if we make a full iteration and nothing
         // is ready we return early
-        SchedulingDecision::RunProcess((next.unwrap(), None))
+        Some((next.unwrap(), None))
     }
+}
 
+impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
     fn result(&self, result: StoppedExecutingReason, _: Option<u32>) {
         let reschedule = match result {
             StoppedExecutingReason::KernelPreemption => true,

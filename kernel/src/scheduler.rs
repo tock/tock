@@ -14,8 +14,24 @@ use crate::platform::chip::Chip;
 use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
 
+// A set of internal methods used by the scheduler. This trait helps reducing code duplication
+pub trait InternalScheduler<C: Chip> {
+    // Ask the scheduler whether to take a break from executing userspace
+    // processes to handle kernel tasks. Most schedulers will use this default
+    // implementation, which always prioritizes kernel work, but schedulers
+    // that wish to defer interrupt handling may reimplement it.
+    fn should_kernel_do_work(&self, chip: &C) -> bool {
+        chip.has_pending_interrupts() || DeferredCall::has_tasks()
+    }
+    
+    // Determine the next process to run. If no suitable process is found, return None. If a
+    // suitable process is found, return its identifier and its assigned time slice in
+    // microseconds. If no time slice is assigned, the process is meant to run cooperatively.
+    fn next_process(&self) -> Option<(ProcessId, Option<u32>)>;
+}
+
 /// Trait which any scheduler must implement.
-pub trait Scheduler<C: Chip> {
+pub trait Scheduler<C: Chip>: InternalScheduler<C> {
     /// Decide the next kernel operation.
     ///
     /// The scheduler must decide if the kernel:
@@ -24,20 +40,27 @@ pub trait Scheduler<C: Chip> {
     /// * run a process. An identifier for the process and its assigned time slice in microseconds
     /// must be provided. If no time slice is specified, the process will run cooperatively.
     /// * try to enter in sleep mode
-    fn next(&self, chip: &C) -> SchedulingDecision;
+    ///
+    /// The default implementation:
+    ///
+    /// 1. Checks if there is any kernel work and tells the kernel to execute it.
+    /// 2. If no kernel work is available, indicate the kernel to run a process.
+    /// 3. If no suitable process can be run, tell the kernel to enter sleep mode.
+    fn next(&self, chip: &C) -> SchedulingDecision {
+        if self.should_kernel_do_work(chip) {
+            return SchedulingDecision::KernelWork;
+        }
+
+        match self.next_process() {
+            Some((process_id, timeslice)) => SchedulingDecision::RunProcess((process_id, timeslice)),
+            None => SchedulingDecision::TrySleep
+        }
+    }
 
     /// Inform the scheduler of why the last process stopped executing, and how
     /// long it executed for. Notably, `execution_time_us` will be `None`
     /// if the the scheduler requested this process be run cooperatively.
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>);
-
-    /// Ask the scheduler whether to take a break from executing userspace
-    /// processes to handle kernel tasks. Most schedulers will use this default
-    /// implementation, which always prioritizes kernel work, but schedulers
-    /// that wish to defer interrupt handling may reimplement it.
-    fn should_kernel_do_work(&self, chip: &C) -> bool {
-        chip.has_pending_interrupts() || DeferredCall::has_tasks()
-    }
 
     /// Ask the scheduler whether to continue trying to execute a process.
     ///

@@ -29,7 +29,7 @@ use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::scheduler::{InternalScheduler, Scheduler};
 
 #[derive(Default)]
 struct MfProcState {
@@ -134,12 +134,8 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 }
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
-    fn next(&self, chip: &C) -> SchedulingDecision {
-        if self.should_kernel_do_work(chip) {
-            return SchedulingDecision::KernelWork;
-        }
-
+impl<'a, A: 'static + time::Alarm<'static>, C: Chip> InternalScheduler<C> for MLFQSched<'a, A> {
+    fn next_process(&self) -> Option<(ProcessId, Option<u32>)> {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();
         let last_reset_check = self.last_reset_check.get();
@@ -155,17 +151,20 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         self.last_reset_check.set(now);
         let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
         if node_ref_opt.is_none() {
-            return SchedulingDecision::TrySleep;
+            return None;
         }
+
         let node_ref = node_ref_opt.unwrap();
         let timeslice = self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
         let next = node_ref.proc.unwrap().processid();
         self.last_queue_idx.set(queue_idx);
         self.last_timeslice.set(timeslice);
 
-        SchedulingDecision::RunProcess((next, Some(timeslice)))
+        Some((next, Some(timeslice)))
     }
+}
 
+impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail as we never run cooperatively
         let queue_idx = self.last_queue_idx.get();

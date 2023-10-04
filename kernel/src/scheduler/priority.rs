@@ -19,7 +19,7 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::scheduler::{InternalScheduler, Scheduler};
 use crate::utilities::cells::OptionalCell;
 
 /// Priority scheduler based on the order of processes in the `PROCESSES` array.
@@ -37,12 +37,8 @@ impl PrioritySched {
     }
 }
 
-impl<C: Chip> Scheduler<C> for PrioritySched {
-    fn next(&self, chip: &C) -> SchedulingDecision {
-        if self.should_kernel_do_work(chip) {
-            return SchedulingDecision::KernelWork;
-        }
-
+impl<C: Chip> InternalScheduler<C> for PrioritySched {
+    fn next_process(&self) -> Option<(ProcessId, Option<u32>)> {
         // Iterates in-order through the process array, always running the
         // first process it finds that is ready to run. This enforces the
         // priorities of all processes.
@@ -53,11 +49,13 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
             .map_or(None, |proc| Some(proc.processid()));
         self.running.insert(next);
 
-        next.map_or(SchedulingDecision::TrySleep, |next| {
-            SchedulingDecision::RunProcess((next, None))
+        next.map_or(None, |next| {
+            Some((next, None))
         })
     }
+}
 
+impl<C: Chip> Scheduler<C> for PrioritySched {
     unsafe fn continue_process(&self, _: ProcessId, chip: &C) -> bool {
         // In addition to checking for interrupts, also checks if any higher
         // priority processes have become ready. This check is necessary because
