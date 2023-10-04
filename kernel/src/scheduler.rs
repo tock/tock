@@ -78,7 +78,7 @@ pub trait Scheduler<C: Chip>: InternalScheduler<C> {
     /// returns `false`, then `do_process` will exit with a `KernelPreemption`.
     ///
     /// `id` is the identifier of the currently active process.
-    unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
+    fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
         !(chip.has_pending_interrupts() || DeferredCall::has_tasks())
     }
 }

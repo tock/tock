@@ -56,7 +56,7 @@ impl<C: Chip> InternalScheduler<C> for PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    unsafe fn continue_process(&self, _: ProcessId, chip: &C) -> bool {
+    fn continue_process(&self, _: ProcessId, chip: &C) -> bool {
         // In addition to checking for interrupts, also checks if any higher
         // priority processes have become ready. This check is necessary because
         // a system call by this process could make another process ready, if
