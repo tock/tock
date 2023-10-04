@@ -24,11 +24,11 @@ pub trait Scheduler<C: Chip> {
         chip.has_pending_interrupts()
     }
 
-    /// Determine if the kernel should handle deferred calls
+    /// Determine if the kernel should handle a deferred call
     ///
     /// The default implementation always returns true if there are any pending deferred calls.
     /// Custom schedulers may wish to reimplement this method to defer deferred calls.
-    fn should_kernel_handle_deferred_calls(&self) -> bool {
+    fn should_kernel_handle_deferred_call(&self) -> bool {
         DeferredCall::has_tasks()
     }
 
