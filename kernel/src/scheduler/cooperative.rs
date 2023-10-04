@@ -19,7 +19,7 @@ use crate::collections::list::{List, ListLink, ListNode};
 use crate::platform::chip::Chip;
 use crate::process::{Process, ProcessId};
 use crate::process::StoppedExecutingReason;
-use crate::scheduler::{InternalScheduler, Scheduler};
+use crate::scheduler::Scheduler;
 
 /// A node in the linked list the scheduler uses to track processes
 pub struct CoopProcessNode<'a> {
@@ -55,7 +55,7 @@ impl<'a> CooperativeSched<'a> {
     }
 }
 
-impl<'a, C: Chip> InternalScheduler<C> for CooperativeSched<'a> {
+impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
     fn next_process(&self) -> Option<(ProcessId, Option<u32>)> {
         let mut first_head = None;
         let mut next = None;
@@ -91,9 +91,7 @@ impl<'a, C: Chip> InternalScheduler<C> for CooperativeSched<'a> {
         // is ready we return early
         Some((next.unwrap(), None))
     }
-}
 
-impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
     fn result(&self, result: StoppedExecutingReason, _: Option<u32>) {
         let reschedule = match result {
             StoppedExecutingReason::KernelPreemption => true,

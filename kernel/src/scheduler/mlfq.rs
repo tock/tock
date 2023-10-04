@@ -29,7 +29,7 @@ use crate::platform::chip::Chip;
 use crate::process::Process;
 use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
-use crate::scheduler::{InternalScheduler, Scheduler};
+use crate::scheduler::Scheduler;
 
 #[derive(Default)]
 struct MfProcState {
@@ -134,7 +134,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 }
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> InternalScheduler<C> for MLFQSched<'a, A> {
+impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
     fn next_process(&self) -> Option<(ProcessId, Option<u32>)> {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();
@@ -162,9 +162,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> InternalScheduler<C> for ML
 
         Some((next, Some(timeslice)))
     }
-}
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail as we never run cooperatively
         let queue_idx = self.last_queue_idx.get();

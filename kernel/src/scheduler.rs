@@ -14,24 +14,21 @@ use crate::platform::chip::Chip;
 use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
 
-// A set of internal methods used by the scheduler. This trait helps reducing code duplication
-pub trait InternalScheduler<C: Chip> {
-    // Ask the scheduler whether to take a break from executing userspace
-    // processes to handle kernel tasks. Most schedulers will use this default
-    // implementation, which always prioritizes kernel work, but schedulers
-    // that wish to defer interrupt handling may reimplement it.
+/// Trait which any scheduler must implement.
+pub trait Scheduler<C: Chip> {
+    /// Ask the scheduler whether to take a break from executing userspace
+    /// processes to handle kernel tasks. Most schedulers will use this default
+    /// implementation, which always prioritizes kernel work, but schedulers
+    /// that wish to defer interrupt handling may reimplement it.
     fn should_kernel_do_work(&self, chip: &C) -> bool {
         chip.has_pending_interrupts() || DeferredCall::has_tasks()
     }
     
-    // Determine the next process to run. If no suitable process is found, return None. If a
-    // suitable process is found, return its identifier and its assigned time slice in
-    // microseconds. If no time slice is assigned, the process is meant to run cooperatively.
+    /// Determine the next process to run. If no suitable process is found, return None. If a
+    /// suitable process is found, return its identifier and its assigned time slice in
+    /// microseconds. If no time slice is assigned, the process is meant to run cooperatively.
     fn next_process(&self) -> Option<(ProcessId, Option<u32>)>;
-}
 
-/// Trait which any scheduler must implement.
-pub trait Scheduler<C: Chip>: InternalScheduler<C> {
     /// Decide the next kernel operation.
     ///
     /// The scheduler must decide if the kernel:

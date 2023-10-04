@@ -24,7 +24,7 @@ use crate::collections::list::{List, ListLink, ListNode};
 use crate::platform::chip::Chip;
 use crate::process::{Process, ProcessId};
 use crate::process::StoppedExecutingReason;
-use crate::scheduler::{InternalScheduler, Scheduler};
+use crate::scheduler::Scheduler;
 
 /// A node in the linked list the scheduler uses to track processes
 /// Each node holds a pointer to a slot in the processes array
@@ -67,7 +67,7 @@ impl<'a> RoundRobinSched<'a> {
     }
 }
 
-impl<'a, C: Chip> InternalScheduler<C> for RoundRobinSched<'a> {
+impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
     fn next_process(&self) -> Option<(ProcessId, Option<u32>)> {
         let mut first_head = None;
         let mut next = None;
@@ -112,9 +112,6 @@ impl<'a, C: Chip> InternalScheduler<C> for RoundRobinSched<'a> {
         Some((next.unwrap(), Some(timeslice)))
     }
 
-}
-
-impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail
         let reschedule = match result {
