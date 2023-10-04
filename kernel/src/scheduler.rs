@@ -16,12 +16,36 @@ use crate::process::StoppedExecutingReason;
 
 /// Trait which any scheduler must implement.
 pub trait Scheduler<C: Chip> {
+    /// Determine if the kernel should handle interrupts
+    ///
+    /// The default implementation always returns true if there are any pending interrupts
+    /// Custom schedulers may wish to reimplement this method to defer interrupt handling.
+    fn should_kernel_handle_interrupts(&self, chip: &C) -> bool {
+        chip.has_pending_interrupts()
+    }
+
+    /// Determine if the kernel should handle interrupts
+    ///
+    /// The default implementation always returns true if there are any pending deferred calls.
+    /// Custom schedulers may wish to reimplement this method to defer deferred calls.
+    fn should_kernel_handle_deferred_calls(&self) -> bool {
+        DeferredCall::has_tasks()
+    }
+
     /// Ask the scheduler whether to take a break from executing userspace
     /// processes to handle kernel tasks. Most schedulers will use this default
     /// implementation, which always prioritizes kernel work, but schedulers
     /// that wish to defer interrupt handling may reimplement it.
-    fn should_kernel_do_work(&self, chip: &C) -> bool {
-        chip.has_pending_interrupts() || DeferredCall::has_tasks()
+    fn should_kernel_do_work(&self, chip: &C) -> Option<KernelWorkType> {
+        if self.should_kernel_handle_interrupts(chip) {
+            return Some(KernelWorkType::Interrupts);
+        }
+
+        if self.should_kernel_handle_deferred_calls() {
+            return Some(KernelWorkType::DeferredCalls);
+        }
+
+        return None
     }
     
     /// Determine the next process to run. If no suitable process is found, return None. If a
@@ -44,13 +68,12 @@ pub trait Scheduler<C: Chip> {
     /// 2. If no kernel work is available, indicate the kernel to run a process.
     /// 3. If no suitable process can be run, tell the kernel to enter sleep mode.
     fn next(&self, chip: &C) -> SchedulingDecision {
-        if self.should_kernel_do_work(chip) {
-            return SchedulingDecision::KernelWork;
-        }
-
-        match self.next_process() {
-            Some((process_id, timeslice)) => SchedulingDecision::RunProcess((process_id, timeslice)),
-            None => SchedulingDecision::TrySleep
+        match self.should_kernel_do_work(chip) {
+            Some(kernel_work_type) => SchedulingDecision::KernelWork(kernel_work_type),
+            None => match self.next_process() {
+                Some((process_id, timeslice)) => SchedulingDecision::RunProcess((process_id, timeslice)),
+                None => SchedulingDecision::TrySleep
+            }
         }
     }
 
@@ -80,12 +103,19 @@ pub trait Scheduler<C: Chip> {
     }
 }
 
+/// Enum representing the possible work the kernel has to do
+#[derive(Clone, Copy)]
+pub enum KernelWorkType {
+    Interrupts,
+    DeferredCalls,
+}
+
 /// Enum representing the actions the scheduler can request in each call to
 /// `scheduler.next()`.
 #[derive(Copy, Clone)]
 pub enum SchedulingDecision {
     /// Tell the kernel to do work, such as interrupts or deferred calls
-    KernelWork,
+    KernelWork(KernelWorkType),
 
     /// Tell the kernel to run the specified process with the passed timeslice.
     /// If `None` is passed as a timeslice, the process will be run

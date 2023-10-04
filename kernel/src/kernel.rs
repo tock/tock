@@ -31,7 +31,7 @@ use crate::platform::watchdog::WatchDog;
 use crate::process::{self, Process, ProcessId, ShortID, Task};
 use crate::process_checker::{self, CredentialsCheckingPolicy};
 use crate::process_loading::ProcessLoadError;
-use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::scheduler::{KernelWorkType, Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
@@ -361,10 +361,20 @@ impl Kernel {
         }
     }
 
-    fn execute_kernel_work<C: Chip>(&self, chip: &C) {
+    fn service_interrupts<C: Chip>(&self, chip: &C) {
         chip.service_pending_interrupts();
+    }
+
+    fn service_deferred_calls<C: Chip>(&self, chip: &C) {
         while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
             DeferredCall::service_next_pending();
+        }
+    }
+
+    fn execute_kernel_work<C: Chip>(&self, chip: &C, kernel_work: KernelWorkType) {
+        match kernel_work {
+            KernelWorkType::Interrupts => self.service_interrupts(chip),
+            KernelWorkType::DeferredCalls => self.service_deferred_calls(chip),
         }
     }
 
@@ -397,9 +407,10 @@ impl Kernel {
         resources.watchdog().tickle();
 
         // Ask the scheduler what should do next
-        match scheduler.next(chip) {
+        let scheduler_decision = scheduler.next(chip);
+        match scheduler_decision {
             // There is kernel work to do right now
-            SchedulingDecision::KernelWork => self.execute_kernel_work(chip),
+            SchedulingDecision::KernelWork(kernel_work) => self.execute_kernel_work(chip, kernel_work),
 
             // A process should be run
             SchedulingDecision::RunProcess((processid, timeslice_us)) => {
