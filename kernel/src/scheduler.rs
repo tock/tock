@@ -18,7 +18,7 @@ use crate::process::StoppedExecutingReason;
 pub trait Scheduler<C: Chip> {
     /// Determine if the kernel should handle interrupts
     ///
-    /// The default implementation always returns true if there are any pending interrupts
+    /// The default implementation always returns true if there are any pending interrupts.
     /// Custom schedulers may wish to reimplement this method to defer interrupt handling.
     fn should_kernel_handle_interrupts(&self, chip: &C) -> bool {
         chip.has_pending_interrupts()
