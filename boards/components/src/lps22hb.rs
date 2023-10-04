@@ -33,10 +33,7 @@ pub struct Lps22hbComponent<I: 'static + i2c::I2CMaster<'static>> {
 }
 
 impl<I: 'static + i2c::I2CMaster<'static>> Lps22hbComponent<I> {
-    pub fn new(
-        i2c_mux: &'static MuxI2C<'static, I>,
-        i2c_address: u8,
-    ) -> Self {
+    pub fn new(i2c_mux: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Lps22hbComponent {
             i2c_mux,
             i2c_address,
@@ -57,8 +54,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Lps22hbComponent<I> {
 
         let buffer = s.2.write([0; 4]);
 
-        let lps22hb =
-            s.1.write(Lps22hb::new(lps22hb_i2c, buffer));
+        let lps22hb = s.1.write(Lps22hb::new(lps22hb_i2c, buffer));
         lps22hb_i2c.set_client(lps22hb);
 
         lps22hb

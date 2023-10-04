@@ -7,10 +7,10 @@
 //!
 //! <https://www.st.com/resource/en/datasheet/lps22hb.pdf>
 //!
-//! > The LPS22HB is an ultra-compact piezoresistive absolute 
-//! > pressure sensor which functions as a digital output barometer. 
-//! > The device comprises a sensing element and an IC interface 
-//! > which communicates through I2C or SPI from the sensing element 
+//! > The LPS22HB is an ultra-compact piezoresistive absolute
+//! > pressure sensor which functions as a digital output barometer.
+//! > The device comprises a sensing element and an IC interface
+//! > which communicates through I2C or SPI from the sensing element
 //! > to the application.
 //!
 //! Driver Semantics
@@ -72,7 +72,7 @@ enum Registers {
     PressOutH = 0x2A,
     TempOutL = 0x2B,
     TempOutH = 0x2C,
-    LpfpRes = 0x33
+    LpfpRes = 0x33,
 }
 
 pub struct Lps22hb<'a, I: I2CDevice> {
@@ -80,20 +80,17 @@ pub struct Lps22hb<'a, I: I2CDevice> {
     i2c_bus: &'a I,
     pressure_client: OptionalCell<&'a dyn PressureClient>,
     pending_pressure: Cell<bool>,
-    state: Cell<State>
+    state: Cell<State>,
 }
 
 impl<'a, I: I2CDevice> Lps22hb<'a, I> {
-    pub fn new(
-        i2c_bus: &'a I,
-        buffer: &'static mut [u8],
-    ) -> Lps22hb<'a, I> {
-        Lps22hb { 
-            buffer: TakeCell::new(buffer), 
+    pub fn new(i2c_bus: &'a I, buffer: &'static mut [u8]) -> Lps22hb<'a, I> {
+        Lps22hb {
+            buffer: TakeCell::new(buffer),
             i2c_bus: i2c_bus,
-            pressure_client: OptionalCell::empty(), 
-            pending_pressure: Cell::new(false), 
-            state: Cell::new(State::Idle)
+            pressure_client: OptionalCell::empty(),
+            pending_pressure: Cell::new(false),
+            state: Cell::new(State::Idle),
         }
     }
 
@@ -116,7 +113,8 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
                     }
                     _ => {}
                 }
-            }).ok_or(ErrorCode::FAIL)
+            })
+            .ok_or(ErrorCode::FAIL)
     }
 }
 
@@ -178,7 +176,8 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
                 }
             }
             State::GotMeasurement => {
-                let pressure_raw = ((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32);
+                let pressure_raw =
+                    ((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32);
                 let pressure = (pressure_raw / 4096) as i32;
 
                 buffer[0] = Registers::CtrlReg1 as u8;
