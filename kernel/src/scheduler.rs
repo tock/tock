@@ -42,7 +42,7 @@ pub trait Scheduler<C: Chip> {
             return Some(KernelWorkType::Interrupts);
         }
 
-        if self.should_kernel_handle_deferred_calls() {
+        if self.should_kernel_handle_deferred_call() {
             return Some(KernelWorkType::DeferredCalls);
         }
 
