@@ -51,9 +51,11 @@ impl<'a> Uart<'a> {
         }
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+        const NCO_BITS: u32 = u32::count_ones(CTRL::NCO.mask);
         let regs = self.registers;
-        let uart_ctrl_nco = ((baud_rate as u64) << 20) / self.clock_frequency as u64;
+
+        let uart_ctrl_nco = ((baud_rate as u64) << (NCO_BITS + 4)) / self.clock_frequency as u64;
 
         regs.ctrl
             .write(CTRL::NCO.val((uart_ctrl_nco & 0xffff) as u32));
@@ -61,6 +63,8 @@ impl<'a> Uart<'a> {
 
         regs.fifo_ctrl
             .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
+
+        Ok(())
     }
 
     fn enable_tx_interrupt(&self) {
