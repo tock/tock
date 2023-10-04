@@ -150,9 +150,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         }
         self.last_reset_check.set(now);
         let (node_ref_opt, queue_idx) = self.get_next_ready_process_node();
-        if node_ref_opt.is_none() {
-            return None;
-        }
+        node_ref_opt?;
 
         let node_ref = node_ref_opt.unwrap();
         let timeslice = self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
