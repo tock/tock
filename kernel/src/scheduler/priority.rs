@@ -49,9 +49,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
             .map_or(None, |proc| Some(proc.processid()));
         self.running.insert(next);
 
-        next.map_or(None, |next| {
-            Some((next, None))
-        })
+        next.map_or(None, |next| Some((next, None)))
     }
 
     fn continue_process(&self, _: ProcessId, chip: &C) -> bool {

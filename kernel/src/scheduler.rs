@@ -46,9 +46,9 @@ pub trait Scheduler<C: Chip> {
             return Some(KernelWorkType::DeferredCalls);
         }
 
-        return None
+        None
     }
-    
+
     /// Determine the next process to run. If no suitable process is found, return None. If a
     /// suitable process is found, return its identifier and its assigned time slice in
     /// microseconds. If no time slice is assigned, the process is meant to run cooperatively.
@@ -61,7 +61,7 @@ pub trait Scheduler<C: Chip> {
     /// * has to do work
     /// * run a process. An identifier for the process and its assigned time slice in microseconds
     /// must be provided. If no time slice is specified, the process will run cooperatively.
-    /// * try to enter in sleep mode
+    /// * try to enter sleep mode
     ///
     /// The default implementation:
     ///
@@ -72,9 +72,11 @@ pub trait Scheduler<C: Chip> {
         match self.should_kernel_do_work(chip) {
             Some(kernel_work_type) => SchedulingDecision::KernelWork(kernel_work_type),
             None => match self.next_process() {
-                Some((process_id, timeslice)) => SchedulingDecision::RunProcess((process_id, timeslice)),
-                None => SchedulingDecision::TrySleep
-            }
+                Some((process_id, timeslice)) => {
+                    SchedulingDecision::RunProcess((process_id, timeslice))
+                }
+                None => SchedulingDecision::TrySleep,
+            },
         }
     }
 

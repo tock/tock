@@ -410,7 +410,9 @@ impl Kernel {
         let scheduler_decision = scheduler.next(chip);
         match scheduler_decision {
             // There is kernel work to do right now
-            SchedulingDecision::KernelWork(kernel_work) => self.execute_kernel_work(chip, kernel_work),
+            SchedulingDecision::KernelWork(kernel_work) => {
+                self.execute_kernel_work(chip, kernel_work)
+            }
 
             // A process should be run
             SchedulingDecision::RunProcess((processid, timeslice_us)) => {
@@ -439,8 +441,7 @@ impl Kernel {
                             // starts, the interrupt will not be
                             // serviced and the chip will never wake
                             // from sleep.
-                            if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
-                            {
+                            if !chip.has_pending_interrupts() && !DeferredCall::has_tasks() {
                                 resources.watchdog().suspend();
                                 chip.sleep();
                                 resources.watchdog().resume();
@@ -549,8 +550,9 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process =
-                resources.scheduler().continue_process(process.processid(), chip);
+            let continue_process = resources
+                .scheduler()
+                .continue_process(process.processid(), chip);
             if !continue_process {
                 return_reason = process::StoppedExecutingReason::KernelPreemption;
                 break;

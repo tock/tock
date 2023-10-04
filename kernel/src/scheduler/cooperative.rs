@@ -17,8 +17,8 @@
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::platform::chip::Chip;
-use crate::process::{Process, ProcessId};
 use crate::process::StoppedExecutingReason;
+use crate::process::{Process, ProcessId};
 use crate::scheduler::Scheduler;
 
 /// A node in the linked list the scheduler uses to track processes
