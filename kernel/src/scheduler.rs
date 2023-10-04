@@ -24,7 +24,7 @@ pub trait Scheduler<C: Chip> {
         chip.has_pending_interrupts()
     }
 
-    /// Determine if the kernel should handle interrupts
+    /// Determine if the kernel should handle deferred calls
     ///
     /// The default implementation always returns true if there are any pending deferred calls.
     /// Custom schedulers may wish to reimplement this method to defer deferred calls.
