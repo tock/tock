@@ -116,7 +116,7 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
                     }
                     _ => {}
                 }
-            }).ok_or(ErrorCode::BUSY)
+            }).ok_or(ErrorCode::FAIL)
     }
 }
 
@@ -130,7 +130,7 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Lps22hb<'a, I> {
             self.pending_pressure.set(true);
             self.start_measurement()
         } else {
-            Ok(())
+            Err(ErrorCode::BUSY)
         }
     }
 }
