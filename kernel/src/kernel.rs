@@ -394,30 +394,30 @@ impl Kernel {
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
         let scheduler = resources.scheduler();
-
         resources.watchdog().tickle();
-        unsafe {
-            // Ask the scheduler for the next decision
-            match scheduler.next(chip) {
-                // There is kernel work to do right now
-                SchedulingDecision::KernelWork => self.execute_kernel_work(chip),
 
-                // A process should be run
-                SchedulingDecision::RunProcess((processid, timeslice_us)) => {
-                    self.process_map_or((), processid, |process| {
-                        let (reason, time_executed) =
-                            self.do_process(resources, chip, process, ipc, timeslice_us);
-                        scheduler.result(reason, time_executed);
-                    });
-                }
+        // Ask the scheduler what should do next
+        match scheduler.next(chip) {
+            // There is kernel work to do right now
+            SchedulingDecision::KernelWork => self.execute_kernel_work(chip),
 
-                // Put the kernel in low power mode
-                SchedulingDecision::TrySleep => {
-                    // For testing, it may be helpful to
-                    // disable sleeping the chip in case
-                    // the running test does not generate
-                    // any interrupts.
-                    if !no_sleep {
+            // A process should be run
+            SchedulingDecision::RunProcess((processid, timeslice_us)) => {
+                self.process_map_or((), processid, |process| {
+                    let (reason, time_executed) =
+                        self.do_process(resources, chip, process, ipc, timeslice_us);
+                    scheduler.result(reason, time_executed);
+                });
+            }
+
+            // Put the kernel in low power mode
+            SchedulingDecision::TrySleep => {
+                // For testing, it may be helpful to
+                // disable sleeping the chip in case
+                // the running test does not generate
+                // any interrupts.
+                if !no_sleep {
+                    unsafe {
                         chip.atomic(|| {
                             // Cannot sleep if interrupts are pending,
                             // as on most platforms unhandled interrupts
@@ -538,11 +538,8 @@ impl Kernel {
             }
 
             // Check if the scheduler wishes to continue running this process.
-            let continue_process = unsafe {
-                resources
-                    .scheduler()
-                    .continue_process(process.processid(), chip)
-            };
+            let continue_process =
+                resources.scheduler().continue_process(process.processid(), chip);
             if !continue_process {
                 return_reason = process::StoppedExecutingReason::KernelPreemption;
                 break;
