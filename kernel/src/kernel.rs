@@ -365,16 +365,14 @@ impl Kernel {
         chip.service_pending_interrupts();
     }
 
-    fn service_deferred_calls<C: Chip>(&self, chip: &C) {
-        while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
-            DeferredCall::service_next_pending();
-        }
+    fn service_deferred_call(&self) {
+        DeferredCall::service_next_pending();
     }
 
     fn execute_kernel_work<C: Chip>(&self, chip: &C, kernel_work: KernelWorkType) {
         match kernel_work {
             KernelWorkType::Interrupts => self.service_interrupts(chip),
-            KernelWorkType::DeferredCalls => self.service_deferred_calls(chip),
+            KernelWorkType::DeferredCalls => self.service_deferred_call(),
         }
     }
 
