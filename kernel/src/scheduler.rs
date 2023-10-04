@@ -33,9 +33,10 @@ pub trait Scheduler<C: Chip> {
     }
 
     /// Ask the scheduler whether to take a break from executing userspace
-    /// processes to handle kernel tasks. Most schedulers will use this default
-    /// implementation, which always prioritizes kernel work, but schedulers
-    /// that wish to defer interrupt handling may reimplement it.
+    /// processes to handle kernel tasks.
+    ///
+    /// The default implementation prioritises interrupts over deferred calls. Custom scheduler
+    /// may reimplement this method to prioritise deferred calls over interrupts.
     fn should_kernel_do_work(&self, chip: &C) -> Option<KernelWorkType> {
         if self.should_kernel_handle_interrupts(chip) {
             return Some(KernelWorkType::Interrupts);
