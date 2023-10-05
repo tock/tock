@@ -27,10 +27,10 @@
 //! ```rust
 //! # use kernel::static_init;
 //!
-//! let bmm170_i2c = static_init!(
+//! let bmm150_i2c = static_init!(
 //!     capsules::virtual_i2c::I2CDevice,
 //!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x10));
-//! let bmm170 = static_init!(
+//! let bmm150 = static_init!(
 //!     capsules::bmm150::BMM150<'static>,
 //!     capsules::bmm150::BMM150::new(bmm150_i2c,
 //!         &mut capsules::BMM150::BUFFER));
