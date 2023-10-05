@@ -32,3 +32,19 @@ impl FlashChipSpecific for Stm32f412Specs {
         }
     }
 }
+
+/// STM32F412 Clock module
+pub mod clocks {
+    use crate::chip_specs::Stm32f412Specs;
+
+    /// STM32F412 Clocks
+    pub type Clocks<'a> = stm32f4xx::clocks::Clocks<'a, Stm32f412Specs>;
+}
+
+/// STM32F412 Flash module
+pub mod flash {
+    use crate::chip_specs::Stm32f412Specs;
+
+    /// STM32F412 Flash
+    pub type Flash = stm32f4xx::flash::Flash<Stm32f412Specs>;
+}
