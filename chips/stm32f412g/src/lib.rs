@@ -7,8 +7,7 @@
 use cortexm4::{CortexM4, CortexMVariant};
 
 pub use stm32f4xx::{
-    adc, chip, dbg, dma, exti, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, trng,
-    usart,
+    adc, chip, dbg, dma, exti, fsmc, gpio, i2c, nvic, rcc, spi, syscfg, tim2, trng, usart,
 };
 
 pub mod chip_specs;
