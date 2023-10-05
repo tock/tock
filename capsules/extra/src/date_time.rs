@@ -166,14 +166,14 @@ fn date_as_u32_tuple(set_date: date_time::DateTimeValues) -> Result<(u32, u32), 
     let dotw = dotw_as_u32(set_date.day_of_week);
 
     let date = set_date.year as u32 * (1 << 9) as u32
-        + month as u32 * (1 << 5) as u32
+        + month * (1 << 5) as u32
         + set_date.day as u32;
-    let time = dotw as u32 * (1 << 17) as u32
+    let time = dotw  * (1 << 17) as u32
         + set_date.hour as u32 * (1 << 12) as u32
         + set_date.minute as u32 * (1 << 6) as u32
         + set_date.seconds as u32;
 
-    Ok((date as u32, time as u32))
+    Ok((date, time))
 }
 
 impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
@@ -201,10 +201,8 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
                 }
             }
             DateTimeCommand::SetDateTime(r2, r3) => {
-                let date;
-
-                match date_from_u32_tuple(r2 as u32, r3 as u32) {
-                    Result::Ok(d) => date = d,
+                let date = match date_from_u32_tuple(r2, r3) {
+                    Result::Ok(d) => d,
                     Result::Err(e) => {
                         return Err(e);
                     }
@@ -225,7 +223,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
 
     fn enqueue_command(&self, command: DateTimeCommand, processid: ProcessId) -> CommandReturn {
         let grant_enter_res = self.apps.enter(processid, |app, _| {
-            if !(app.task == None) {
+            if !(app.task.is_none()) {
                 CommandReturn::failure(ErrorCode::BUSY)
             } else {
                 app.task = Some(command);
@@ -319,7 +317,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> date_time::DateTimeClient
             app.task = None;
 
             upcalls
-                .schedule_upcall(0, (into_statuscode(result) as usize, 0, 0))
+                .schedule_upcall(0, (into_statuscode(result), 0, 0))
                 .ok();
         });
 
