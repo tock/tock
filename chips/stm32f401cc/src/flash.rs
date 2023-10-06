@@ -3,3 +3,8 @@
 // Copyright Tock Contributors 2023.
 
 //! STM32F401 Flash
+
+use crate::chip_specs::Stm32f401Specs;
+
+/// STM32F401 Flash
+pub type Flash = stm32f4xx::flash::Flash<Stm32f401Specs>;
