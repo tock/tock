@@ -9,10 +9,9 @@ use cortexm4::{unhandled_interrupt, CortexM4, CortexMVariant};
 pub use stm32f4xx::{adc, chip, dbg, dma, exti, gpio, nvic, rcc, spi, syscfg, tim2, usart};
 
 pub mod chip_specs;
+pub mod clocks;
+pub mod flash;
 pub mod interrupt_service;
-
-pub use chip_specs::clocks;
-pub use chip_specs::flash;
 
 // Extracted from RM0368 Reference manual, Table 38
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".irqs")]
