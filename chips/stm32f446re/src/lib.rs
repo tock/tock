@@ -7,11 +7,10 @@
 pub use stm32f4xx::{adc, chip, dbg, dma, exti, gpio, nvic, rcc, spi, syscfg, tim2, usart};
 
 pub mod chip_specs;
+pub mod clocks;
+pub mod flash;
 pub mod interrupt_service;
 pub mod stm32f446re_nvic;
-
-pub use chip_specs::clocks;
-pub use chip_specs::flash;
 
 use cortexm4::{unhandled_interrupt, CortexM4, CortexMVariant};
 
