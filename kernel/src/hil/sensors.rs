@@ -215,7 +215,7 @@ pub trait SoundPressureClient {
 /// A Basic interface for a barometer sensor.
 pub trait PressureDriver<'a> {
     /// Used to initialize a atmospheric pressure reading
-    /// 
+    ///
     /// This function might return the following errors:
     /// - `BUSY`: Indicates that the hardware is busy with an existing
     ///           operation or initialisation/calibration.
