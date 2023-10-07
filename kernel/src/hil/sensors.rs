@@ -231,5 +231,5 @@ pub trait PressureClient {
     /// Called when a atmospheric pressure reading has completed.
     ///
     /// Returns the value in hPa.
-    fn callback(&self, pressure: Result<i32, ErrorCode>);
+    fn callback(&self, pressure: Result<u32, ErrorCode>);
 }

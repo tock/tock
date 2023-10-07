@@ -110,7 +110,7 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
 impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient
     for PressureSensor<'a, T>
 {
-    fn callback(&self, pressure: Result<i32, ErrorCode>) {
+    fn callback(&self, pressure: Result<u32, ErrorCode>) {
         self.busy.set(false);
         for cntr in self.apps.iter() {
             cntr.enter(|app, upcalls| {
