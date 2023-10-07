@@ -178,7 +178,7 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
             State::GotMeasurement => {
                 let pressure_raw =
                     ((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32);
-                let pressure = (pressure_raw / 4096) as i32;
+                let pressure = (pressure_raw / 4096);
 
                 buffer[0] = Registers::CtrlReg1 as u8;
                 buffer[1] = CTRL_REG1_POWER_OFF;
