@@ -132,7 +132,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
     ///
     /// - allow_num 0: Provides a buffer to transmit
 
-    /// - 0: check if present
+    /// - 0: driver existence check
     /// - 1: read/write buffers
     ///   - read and write buffers optional
     ///   - fails if arg1 (bytes to write) >
@@ -170,7 +170,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
         process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned unconditionally.
+            // Handle unconditional driver existence check.
             return CommandReturn::success();
         }
 

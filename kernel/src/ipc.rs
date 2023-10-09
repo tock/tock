@@ -115,7 +115,7 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check, always returns Ok(())
+    /// - `0`: Driver existence check, always returns Ok(())
     /// - `1`: Perform discovery on the package name passed to `allow_readonly`. Returns the
     ///        service descriptor if the service is found, otherwise returns an error.
     /// - `2`: Notify a service previously discovered to have the service descriptor in

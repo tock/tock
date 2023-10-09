@@ -200,7 +200,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for PCA9544A<'_, I> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Choose which channels are active.
     /// - `2`: Disable all channels.
     /// - `3`: Read the list of fired interrupts.

@@ -140,6 +140,7 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
 }
 
 impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
+    // 0: driver existence check
     // 2: read/write buffers
     //   - requires write buffer registered with allow
     //   - read buffer optional
@@ -184,7 +185,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
         process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned unconditionally.
+            // Handle unconditional driver existence check.
             return CommandReturn::success();
         }
 

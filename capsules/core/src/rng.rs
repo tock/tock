@@ -180,7 +180,7 @@ impl<'a> SyscallDriver for RngDriver<'a> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // Check if exists
+            // Driver existence check
             0 => CommandReturn::success(),
 
             // Ask for a given number of random bytes

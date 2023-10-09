@@ -449,11 +449,8 @@ impl<'a> SyscallDriver for Screen<'a> {
         process_id: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 =>
-            // This driver exists.
-            {
-                CommandReturn::success()
-            }
+            // Driver existence check
+            0 => CommandReturn::success(),
             // Does it have the screen setup
             1 => CommandReturn::success_u32(self.screen_setup.is_some() as u32),
             // Set power

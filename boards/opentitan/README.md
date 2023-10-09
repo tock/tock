@@ -3,7 +3,7 @@ OpenTitan RISC-V Board
 
 - https://opentitan.org/
 
-OpenTitan is the first open source project building a transparent,
+OpenTitan is an open source project building a transparent,
 high-quality reference design and integration guidelines for
 silicon root of trust (RoT) chips.
 
@@ -28,23 +28,27 @@ or simulator built from that version of the OpenTitan codebase.
 Programming
 -----------
 
-The latest supported version (commit SHA) of OpenTitan is specified in the [OPENTITAN_SUPPORTED_SHA](https://github.com/tock/tock/blob/master/boards/opentitan/earlgrey-cw310/Makefile) make variable found:
->  boards/opentitan/earlgrey-cw310/Makefile
+The latest supported version (commit SHA) of OpenTitan is specified in the
+[OPENTITAN_SUPPORTED_SHA](https://github.com/tock/tock/blob/master/boards/opentitan/earlgrey-cw310/Makefile)
+make variable found in `boards/opentitan/earlgrey-cw310/Makefile`
 
 In *general* it is recommended that users start with the commit specified by `OPENTITAN_SUPPORTED_SHA` as newer
 versions **have not been** tested.
 
 > Note: when building, you can pass in `SKIP_OT_VERSION_CHECK=yes` to skip the trivial OpenTitan version check, this maybe useful when developing or testing across multiple versions of OpenTitan.
 
-Unfortunately the OpenTitan documentation is out of sync with the Tock setup.
-For instructions that match the OpenTitan version Tock supports you will need
-to read the
-[raw docs via git](https://github.com/lowRISC/opentitan/tree/d072ac505f82152678d6e04be95c72b728a347b8/doc/ug).
-
 Setup
 -----
 
 ### Setup OpenTitan
+
+You can follow the steps at https://opentitan.org/book/doc/getting_started/index.html
+for a guide to setup the OpenTitan repo.
+
+There are more details for setting up dependencies available at
+https://opentitan.org/book/doc/getting_started/unofficial/index.html
+
+The quick steps for setting up the OpenTitan repo are
 
 ```shell
 git clone https://github.com/lowRISC/opentitan.git
@@ -53,22 +57,6 @@ cd opentitan
 # Use the OpenTitan_SHA currently supported by Tock
 git checkout <OpenTitan_SHA>
 pip3 install --user -r python-requirements.txt
-```
-Make sure to follow [OpenTitan getting started instructions](https://docs.opentitan.org/doc/getting_started/) to setup required dependencies/toolchains.
-
-### **Fedora dependencies quick install**
-
-Note: the OpenTitan documentation provides an easy installation for packages for Ubuntu based distributions. This is an equivalent command to install the (mostly) same packages for Fedora users.
-
-```shell
-sudo dnf install autoconf bison make automake gcc gcc-c++ kernel-devel \
-         clang-tools-extra clang cmake curl \
-         doxygen flex g++ git golang lcov elfutils-libelf \
-         libftdi libftdi-devel ncurses-compat-libs openssl-devel \
-         systemd-devel libusb redhat-lsb-core \
-         make ninja-build perl pkgconf python3 python3-pip python3-setuptools \
-         python3-urllib3 python3-wheel srecord tree xsltproc zlib-devel xz clang-tools-extra \
-         clang11-libs clang-devel elfutils-libelf-devel
 ```
 
 ChipWhisper CW310
@@ -100,7 +88,7 @@ Then you need to flash the bitstream with:
 
 
 ```shell
-./bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 fpga load-bitstream lowrisc_systems_chip_earlgrey_cw310_0.1.bit
+./bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 fpga load-bitstream lowrisc_systems_chip_earlgrey_cw310_0.1.bit.orig
 ```
 
 After which you should see some output in the serial window.

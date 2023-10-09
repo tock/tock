@@ -38,7 +38,7 @@ impl SyscallDriver for Dac<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Initialize and enable the DAC.
     /// - `2`: Set the output to `data1`, a scaled output value.
     fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {

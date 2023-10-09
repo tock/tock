@@ -25,7 +25,7 @@
 //! The `command` system call support one argument `cmd` which is used to specify the specific
 //! operation, currently the following cmd's are supported:
 //!
-//! * `0`: check whether the driver exists
+//! * `0`: driver existence check
 //! * `1`: read humidity
 //!
 //!
@@ -143,7 +143,7 @@ impl SyscallDriver for HumiditySensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exist!!
+            // driver existence check
             0 => CommandReturn::success(),
 
             // single humidity measurement

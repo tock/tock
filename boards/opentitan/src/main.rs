@@ -57,9 +57,9 @@ pub enum ChipConfig {}
 impl EarlGreyConfig for ChipConfig {
     const NAME: &'static str = "fpga_cw310";
 
-    // Clock frequencies as of https://github.com/lowRISC/opentitan/pull/19368
-    const CPU_FREQ: u32 = 10_000_000;
-    const PERIPHERAL_FREQ: u32 = 2_500_000;
+    // Clock frequencies as of https://github.com/lowRISC/opentitan/pull/19479
+    const CPU_FREQ: u32 = 24_000_000;
+    const PERIPHERAL_FREQ: u32 = 6_000_000;
     const AON_TIMER_FREQ: u32 = 250_000;
     const UART_BAUDRATE: u32 = 115200;
 }
