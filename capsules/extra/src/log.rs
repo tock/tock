@@ -791,8 +791,8 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
     /// If in the middle of a write operation, reset pagebuffer and finish write. If syncing, make
     /// successful client callback.
     fn write_complete(&self, pagebuffer: &'static mut F::Page, result: Result<(), flash::Error>) {
-        match result {
-            Ok(()) => {
+        match result.is_ok() {
+            true => {
                 match self.state.get() {
                     State::Append => {
                         // Reset pagebuffer and finish writing on the new page.
@@ -824,21 +824,25 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     _ => unreachable!(),
                 }
             }
-            Err(_) => {
-                // Make client callback with FAIL return code.
-                self.pagebuffer.replace(pagebuffer);
-                match self.state.get() {
-                    State::Append => {
-                        self.length.set(0);
-                        self.records_lost.set(false);
-                        self.error.set(Err(ErrorCode::FAIL));
-                        self.client_callback();
+            false => {
+                match result.unwrap_err() {
+                    flash::Error::FlashError | flash::Error::FlashMemoryProtectionError => {
+                        // Make client callback with FAIL return code.
+                        self.pagebuffer.replace(pagebuffer);
+                        match self.state.get() {
+                            State::Append => {
+                                self.length.set(0);
+                                self.records_lost.set(false);
+                                self.error.set(Err(ErrorCode::FAIL));
+                                self.client_callback();
+                            }
+                            State::Sync => {
+                                self.error.set(Err(ErrorCode::FAIL));
+                                self.client_callback();
+                            }
+                            _ => unreachable!(),
+                        }
                     }
-                    State::Sync => {
-                        self.error.set(Err(ErrorCode::FAIL));
-                        self.client_callback();
-                    }
-                    _ => unreachable!(),
                 }
             }
         }
@@ -847,8 +851,8 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
     /// Erase next page if log erase complete, else make client callback. Fails with BUSY if flash
     /// is busy and erase cannot be completed.
     fn erase_complete(&self, result: Result<(), flash::Error>) {
-        match result {
-            Ok(()) => {
+        match result.is_ok() {
+            true => {
                 let oldest_entry_id = self.oldest_entry_id.get();
                 if oldest_entry_id >= self.append_entry_id.get() - self.page_size {
                     // Erased all pages. Reset state and callback client.
@@ -872,10 +876,12 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     }
                 }
             }
-            Err(_) => {
-                self.error.set(Err(ErrorCode::FAIL));
-                self.client_callback();
-            }
+            false => match result.unwrap_err() {
+                flash::Error::FlashError | flash::Error::FlashMemoryProtectionError => {
+                    self.error.set(Err(ErrorCode::FAIL));
+                    self.client_callback();
+                }
+            },
         }
     }
 }
