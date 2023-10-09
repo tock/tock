@@ -126,25 +126,23 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT4x<'a, A, I> {
     }
 
     fn read_temp_hum(&self) -> Result<(), ErrorCode> {
-        self.buffer.take().map_or(Err(ErrorCode::NOMEM),
-            |buffer| {
-                self.state.set(State::Read);
-                self.i2c.enable();
+        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+            self.state.set(State::Read);
+            self.i2c.enable();
 
-                buffer[0] = Registers::MEASHIGHREP as u8;
+            buffer[0] = Registers::MEASHIGHREP as u8;
 
-                let _res = self.i2c.write(buffer, 1);
-                match _res {
-                    Ok(_) => Ok(()),
-                    Err((error, data)) => {
-                        self.buffer.replace(data);
-                        self.state.set(State::Idle);
-                        self.i2c.disable();
-                        Err(error.into())
-                    }
+            let _res = self.i2c.write(buffer, 1);
+            match _res {
+                Ok(_) => Ok(()),
+                Err((error, data)) => {
+                    self.buffer.replace(data);
+                    self.state.set(State::Idle);
+                    self.i2c.disable();
+                    Err(error.into())
                 }
-            },
-        )
+            }
+        })
     }
 }
 
@@ -154,11 +152,9 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> time::AlarmClient for SHT4x<'a, A, I> 
         match state {
             State::Read => {
                 self.state.set(State::ReadData);
-                self.buffer.take().map(
-                    |buffer| {
-                        let _res = self.i2c.read(buffer, 6);
-                    },
-                );
+                self.buffer.take().map(|buffer| {
+                    let _res = self.i2c.read(buffer, 6);
+                });
             }
             _ => {
                 // This should never happen
@@ -176,47 +172,47 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for SHT4x<'a, A, I> {
 
                 match state {
                     State::ReadData => {
-                    let read_temp_res = if self.read_temp.get() {
-                        self.read_temp.set(false);
-                        if crc8(&buffer[0..2]) == buffer[2] {
-                            let mut stemp = buffer[0] as u32;
-                            stemp <<= 8;
-                            stemp |= buffer[1] as u32;
-                            let stemp = ((4375 * stemp) >> 14) as i32 - 4500;
-                            Some(Ok(stemp))
+                        let read_temp_res = if self.read_temp.get() {
+                            self.read_temp.set(false);
+                            if crc8(&buffer[0..2]) == buffer[2] {
+                                let mut stemp = buffer[0] as u32;
+                                stemp <<= 8;
+                                stemp |= buffer[1] as u32;
+                                let stemp = ((4375 * stemp) >> 14) as i32 - 4500;
+                                Some(Ok(stemp))
+                            } else {
+                                Some(Err(ErrorCode::FAIL))
+                            }
                         } else {
-                            Some(Err(ErrorCode::FAIL))
-                        }
-                    } else {
-                        None
-                    };
+                            None
+                        };
 
-                    let read_hum_res = if self.read_hum.get() {
-                        self.read_hum.set(false);
-                        if crc8(&buffer[3..5]) == buffer[5] {
-                            let mut shum = buffer[3] as u32;
-                            shum <<= 8;
-                            shum |= buffer[4] as u32;
-                            shum = (625 * shum) >> 12;
-                            Some(shum as usize)
+                        let read_hum_res = if self.read_hum.get() {
+                            self.read_hum.set(false);
+                            if crc8(&buffer[3..5]) == buffer[5] {
+                                let mut shum = buffer[3] as u32;
+                                shum <<= 8;
+                                shum |= buffer[4] as u32;
+                                shum = (625 * shum) >> 12;
+                                Some(shum as usize)
+                            } else {
+                                Some(usize::MAX)
+                            }
                         } else {
-                            Some(usize::MAX)
-                        }
-                    } else {
-                        None
-                    };
+                            None
+                        };
 
-                    self.buffer.replace(buffer);
-                    self.state.set(State::Idle);
+                        self.buffer.replace(buffer);
+                        self.state.set(State::Idle);
 
-                    read_temp_res.map(|res| {
-                        self.temperature_client.map(|cb| cb.callback(res));
-                    });
-                    
-                    read_hum_res.map(|res| {
-                        self.humidity_client.map(|cb| cb.callback(res));
-                    });
-                }
+                        read_temp_res.map(|res| {
+                            self.temperature_client.map(|cb| cb.callback(res));
+                        });
+
+                        read_hum_res.map(|res| {
+                            self.humidity_client.map(|cb| cb.callback(res));
+                        });
+                    }
                     State::Read => {
                         self.buffer.replace(buffer);
                         let interval = self.alarm.ticks_from_ms(20);
