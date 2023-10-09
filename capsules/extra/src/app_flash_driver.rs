@@ -213,7 +213,7 @@ impl SyscallDriver for AppFlash<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
     fn command(
         &self,

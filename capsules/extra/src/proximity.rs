@@ -23,7 +23,7 @@
 //! The `command` system call support one argument `cmd` which is used to specify the specific
 //! operation, currently the following cmd's are supported:
 //!
-//! * `0`: check whether the driver exist
+//! * `0`: driver existence check
 //! * `1`: read proximity
 //! * `2`: read proximity on interrupt
 //!
@@ -296,7 +296,7 @@ impl SyscallDriver for ProximitySensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exist!!
+            // Driver existence check
             0 => CommandReturn::success(),
 
             // Instantaneous proximity measurement

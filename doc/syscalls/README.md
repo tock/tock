@@ -52,6 +52,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 |   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator       |
 |   | 0x00008       | [Low-Level Debug](00008_low_level_debug.md) | Low-level debugging tools  |
 |   | 0x00009       | [ROS](00009_ros.md)         | Read Only State, access system information |
+|   | 0x00010       | [PWM](00010_pwm.md)         | Control PWM pins                           |
 
 ### Kernel
 

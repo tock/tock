@@ -1590,7 +1590,7 @@ impl<'a, A: hil::time::Alarm<'a>> SyscallDriver for SDCardDriver<'a, A> {
         process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned unconditionally.
+            // Handle unconditional driver existence check.
             return CommandReturn::success();
         }
 

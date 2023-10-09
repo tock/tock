@@ -544,7 +544,7 @@ impl SyscallDriver for RadioDriver<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Return radio status. Ok(())/OFF = on/off.
     /// - `2`: Set short MAC address.
     /// - `3`: Set long MAC address.

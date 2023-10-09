@@ -284,8 +284,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver
         process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned
-            // unconditionally
+            // Handle unconditional driver existence check.
             return CommandReturn::success();
         }
         // Check if this non-virtualized driver is already in use by

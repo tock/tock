@@ -337,7 +337,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.

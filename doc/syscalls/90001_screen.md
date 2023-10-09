@@ -29,7 +29,7 @@ may return OFF when power is not enabled (see screen HIL for details).
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) if it exists, otherwise NODEVICE
+    **Returns**: Success if it exists, otherwise NODEVICE
 
   * ### Command number: `1`
 

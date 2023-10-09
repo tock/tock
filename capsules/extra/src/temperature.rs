@@ -143,7 +143,7 @@ impl SyscallDriver for TemperatureSensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exists!!
+            // driver existence check
             0 => CommandReturn::success(),
 
             // read temperature

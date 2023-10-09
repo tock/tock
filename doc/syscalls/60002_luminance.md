@@ -19,7 +19,7 @@ from a sensor. Luminance is reported in lux (lx).
 
     **Argument 2**: unused
 
-    **Returns**: Ok(()) if it exists, otherwise NODEVICE
+    **Returns**: Success if it exists, otherwise NODEVICE
 
   * ### Command number: `1`
 
