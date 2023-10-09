@@ -211,3 +211,25 @@ pub trait SoundPressureClient {
     /// Signals the sound pressure in dB
     fn callback(&self, ret: Result<(), ErrorCode>, sound_pressure: u8);
 }
+
+/// A Basic interface for a barometer sensor.
+pub trait PressureDriver<'a> {
+    /// Used to initialize a atmospheric pressure reading
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `FAIL`: Failed to correctly communicate over communication protocol.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_atmospheric_pressure(&self) -> Result<(), ErrorCode>;
+
+    /// Set the client
+    fn set_client(&self, client: &'a dyn PressureClient);
+}
+
+pub trait PressureClient {
+    /// Called when a atmospheric pressure reading has completed.
+    ///
+    /// Returns the value in hPa.
+    fn callback(&self, pressure: Result<u32, ErrorCode>);
+}
