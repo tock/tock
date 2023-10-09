@@ -42,6 +42,10 @@ use kernel::hil::sensors::{PressureClient, PressureDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
+/// Syscall driver number.
+use capsules_core::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Pressure as usize;
+
 /// Register values
 
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
