@@ -404,7 +404,7 @@ impl<
                             self.rxbuffer.replace(read_buffer);
 
                             self.client.map(move |client| {
-                                client.read_complete(sector, hil::flash::Error::CommandComplete);
+                                client.read_complete(sector, Ok(()));
                             });
                         } else {
                             let address =
@@ -480,7 +480,7 @@ impl<
                 self.state.set(State::Idle);
                 self.txbuffer.replace(write_buffer);
                 self.client.map(|client| {
-                    client.erase_complete(hil::flash::Error::CommandComplete);
+                    client.erase_complete(Ok(()));
                 });
             }
             State::WriteSectorWriteEnable {
@@ -495,7 +495,7 @@ impl<
                     self.txbuffer.replace(write_buffer);
                     self.client.map(|client| {
                         self.client_sector.take().map(|sector| {
-                            client.write_complete(sector, hil::flash::Error::CommandComplete);
+                            client.write_complete(sector, Ok(()));
                         });
                     });
                 } else {
