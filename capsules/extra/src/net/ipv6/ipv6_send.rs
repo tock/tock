@@ -160,6 +160,7 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
             dst_mac_addr = self.dst_mac_addr;
         }
 
+        // TODO: add error handling here
         let _ = self
             .sixlowpan
             .init(self.src_mac_addr, dst_mac_addr, self.radio.get_pan(), None);
