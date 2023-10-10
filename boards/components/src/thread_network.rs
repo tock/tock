@@ -36,6 +36,7 @@ use capsules_extra::net::network_capabilities::{
 use kernel::hil::symmetric_encryption::{self, AES128Ctr, AES128, AES128CBC, AES128CCM, AES128ECB};
 
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
+use capsules_extra::net::thread::thread_utils::THREAD_PORT_NUMBER;
 use capsules_extra::net::udp::udp_port_table::UdpPortManager;
 use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
@@ -246,9 +247,28 @@ impl<
 
         let udp_driver_rcvr = s.6.write(UDPReceiver::new());
         udp_driver_rcvr.set_client(thread_network_driver);
-        let (tx_bind, rx_bind) = thread_network_driver.init_thread_binding();
-        udp_driver_rcvr.set_binding(rx_bind);
-        udp_send.set_binding(tx_bind);
+
+        // TODO: Thread requires port 19788 for sending/receiving MLE messages.
+        // The below implementation binds Thread to the required port and updates
+        // the UDP receiving/sending objects. There is a chance that creating a socket
+        // fails due to the max number of sockets being exceeded or the requested port
+        // is already bound. In either case, the current implementation silently fails
+        // and will not be able to create a Thread network. This does not seem ideal
+        // and should be addressed in the future.
+        self.port_table
+            .create_socket()
+            .map(|socket| {
+                self.port_table
+                    .bind(socket, THREAD_PORT_NUMBER, net_cap)
+                    .map_or_else(
+                        |_| (),
+                        |(tx_bind, rx_bind)| {
+                            udp_driver_rcvr.set_binding(rx_bind);
+                            udp_send.set_binding(tx_bind);
+                        },
+                    )
+            })
+            .unwrap_or_default();
 
         self.udp_recv_mux.add_client(udp_driver_rcvr);
 

@@ -8,9 +8,7 @@
 //! joins a Tock device as a child node to a Thread parent (tested using
 //! OpenThread). This Thread capsule is a client to the UDP Mux.
 //! The associated ThreadNetwork struct must be created in the `thread_network.rs`
-//! component. Furthermore, the `init_thread_binding(...)` method must be called
-//! to bind Thread to the proper UDP ports needed to send MLE messages (prior
-//! to initiating child join).
+//! component.
 //!
 //! The Userland interface is incredibly simple at this juncture. An application
 //! can begin the Thread child/parent joining by issuing a syscall command
@@ -42,12 +40,11 @@ use crate::net::ieee802154;
 use crate::net::thread::thread_utils::generate_src_ipv6;
 use crate::net::thread::thread_utils::ThreadState;
 use crate::net::thread::thread_utils::MULTICAST_IPV6;
+use crate::net::thread::thread_utils::THREAD_PORT_NUMBER;
 use crate::net::thread::thread_utils::{
     encode_cryp_data, form_child_id_req, form_parent_req, mac_from_ipv6, MleCommand, NetworkKey,
     AUTH_DATA_LEN, AUX_SEC_HEADER_LENGTH, IPV6_LEN, SECURITY_SUITE_LEN,
 };
-use crate::net::udp::udp_port_table::UdpPortBindingRx;
-use crate::net::udp::udp_port_table::UdpPortBindingTx;
 use crate::net::udp::udp_port_table::UdpPortManager;
 use crate::net::udp::udp_recv::UDPRecvClient;
 use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
@@ -69,7 +66,6 @@ use kernel::{ErrorCode, ProcessId};
 
 const SECURITY_SUITE_ENCRYP: u8 = 0;
 pub const DRIVER_NUM: usize = driver::NUM::Thread as usize;
-const THREAD_PORT_NUMBER: u16 = 19788;
 
 /// Ids for read-only allow buffers
 mod ro_allow {
@@ -188,24 +184,9 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         self.networkkey.replace(NetworkKey { mle_key, mac_key });
     }
 
-    /// Thread initialization function to bing Thread to the default Thread MLE
-    /// ports
-    pub fn init_thread_binding(&self) -> (UdpPortBindingTx, UdpPortBindingRx) {
-        // Initialization function to bind thread on the Thread UDP port needed to send MLE
-        match self.port_table.create_socket() {
-            Ok(socket) => match self
-                .port_table
-                .bind(socket, THREAD_PORT_NUMBER, self.net_cap)
-            {
-                Ok((udp_tx, udp_rx)) => (udp_tx, udp_rx),
-                Err(sock) => panic!("failed binding of port to socket - {:?}", sock),
-            },
-            Err(return_code) => panic!("Error in retrieving socket - {:?}", return_code),
-        }
-    }
-
     fn send_parent_req(&self) {
-        kernel::debug!("[Thread] Sending parent request...");
+        // UNCOMMENT TO DEBUG THREAD //
+        // kernel::debug!("[Thread] Sending parent request...");
 
         // Panicking on unwrap indicates the state was taken without replacement
         // (unreachable with proper state machine implementation)
@@ -289,8 +270,11 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
             .map_or(Err(ErrorCode::NOMEM), |mut recv_buf| {
                 if recv_buf[0] == MleCommand::ParentResponse as u8 {
                     // Received Parent Response -> form Child ID Request
-                    kernel::debug!("[Thread] Received Parent Response.");
-                    kernel::debug!("[Thread] Sending Child ID Request...");
+
+                    // UNCOMMENT TO DEBUG THREAD //
+                    // kernel::debug!("[Thread] Received Parent Response.");
+                    // kernel::debug!("[Thread] Sending Child ID Request...");
+
                     let src_ipv6 = generate_src_ipv6(&self.src_mac_addr);
 
                     let (output, offset) =
@@ -548,7 +532,8 @@ impl<'a, A: time::Alarm<'a>> UDPSendClient for ThreadNetworkDriver<'a, A> {
             ThreadState::SendUDPMsg => unimplemented!(),
             ThreadState::SendChildIdReq(_) => ThreadState::WaitingChildRsp,
             ThreadState::SendParentReq => {
-                kernel::debug!("[Thread] Completed sending parent request to multicast IP");
+                // UNCOMMENT TO DEBUG THREAD //
+                // kernel::debug!("[Thread] Completed sending parent request to multicast IP");
                 ThreadState::WaitingParentRsp
             }
             _ => panic!("Thread state machine diverged"),
@@ -707,8 +692,8 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                 self.sender
                     .driver_send_to(
                         dest_ipv6,
-                        19788,
-                        19788,
+                        THREAD_PORT_NUMBER,
+                        THREAD_PORT_NUMBER,
                         assembled_subslice,
                         self.driver_send_cap,
                         self.net_cap,

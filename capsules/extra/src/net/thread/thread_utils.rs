@@ -5,6 +5,7 @@
 use crate::net::stream::{encode_bytes, SResult};
 use crate::net::thread::tlv::{unwrap_tlv_offset, LinkMode, MulticastResponder, Tlv};
 use crate::net::{ieee802154::MacAddress, ipv6::ip_utils::IPAddr};
+pub const THREAD_PORT_NUMBER: u16 = 19788;
 
 use kernel::ErrorCode;
 

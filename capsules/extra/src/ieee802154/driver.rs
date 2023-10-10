@@ -220,7 +220,10 @@ pub struct RadioDriver<'a> {
     /// Used to save result for passing a callback from a deferred call.
     saved_result: OptionalCell<Result<(), ErrorCode>>,
 
+    /// Used to allow Thread to specify a key procedure for 15.4 to use for link layer encryption
     backup_key_procedure: OptionalCell<&'a dyn framer::KeyProcedure>,
+
+    /// Used to allow Thread to specify the 15.4 device procedure as used in nonce generation
     backup_device_procedure: OptionalCell<&'a dyn framer::DeviceProcedure>,
 }
 
@@ -518,22 +521,26 @@ impl framer::DeviceProcedure for RadioDriver<'_> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
-        let res = self.neighbors.and_then(|neighbors| {
-            neighbors[..self.num_neighbors.get()]
-                .iter()
-                .find(|neighbor| match addr {
-                    MacAddress::Short(addr) => addr == neighbor.short_addr,
-                    MacAddress::Long(addr) => addr == neighbor.long_addr,
-                })
-                .map(|neighbor| neighbor.long_addr)
-        });
-        if res.is_none() {
-            self.backup_device_procedure
-                .unwrap_or_panic()
-                .lookup_addr_long(addr)
-        } else {
-            res
-        }
+        self.neighbors
+            .and_then(|neighbors| {
+                neighbors[..self.num_neighbors.get()]
+                    .iter()
+                    .find(|neighbor| match addr {
+                        MacAddress::Short(addr) => addr == neighbor.short_addr,
+                        MacAddress::Long(addr) => addr == neighbor.long_addr,
+                    })
+                    .map(|neighbor| neighbor.long_addr)
+            })
+            .map_or_else(
+                // This serves the same purpose as the KeyProcedure lookup (see comment).
+                // This is kept as a remnant of 15.4, but should potentially be removed moving forward
+                // as Thread does not have a use to add a Device procedure.
+                || {
+                    self.backup_device_procedure
+                        .and_then(|procedure| procedure.lookup_addr_long(addr))
+                },
+                |res| Some(res),
+            )
     }
 }
 
@@ -542,20 +549,27 @@ impl framer::KeyProcedure for RadioDriver<'_> {
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
-        let res = self.keys.and_then(|keys| {
-            keys[..self.num_keys.get()]
-                .iter()
-                .find(|key| key.level == level && key.key_id == key_id)
-                .map(|key| key.key)
-        });
-
-        if res.is_none() {
-            self.backup_key_procedure
-                .unwrap_or_panic()
-                .lookup_key(SecurityLevel::EncMic32, KeyId::Index(2))
-        } else {
-            res
-        }
+        self.keys
+            .and_then(|keys| {
+                keys[..self.num_keys.get()]
+                    .iter()
+                    .find(|key| key.level == level && key.key_id == key_id)
+                    .map(|key| key.key)
+            })
+            .map_or_else(
+                // Thread needs to add a MAC key to the 15.4 network keys so that the 15.4 framer
+                // can decrypt incoming Thread 15.4 frames. The backup_device_procedure was added
+                // so that if the lookup procedure failed to find a key here, it would check a
+                // "backup" procedure (Thread in this case). This is somewhat clunky and removing
+                // the network keys being stored in the 15.4 driver is a longer term TODO.
+                || {
+                    self.backup_key_procedure.and_then(|procedure| {
+                        // TODO: security_level / keyID are hardcoded for now
+                        procedure.lookup_key(SecurityLevel::EncMic32, KeyId::Index(2))
+                    })
+                },
+                |res| Some(res),
+            )
     }
 }
 
