@@ -165,10 +165,9 @@ fn date_as_u32_tuple(set_date: date_time::DateTimeValues) -> Result<(u32, u32), 
     let month = month_as_u32(set_date.month);
     let dotw = dotw_as_u32(set_date.day_of_week);
 
-    let date = set_date.year as u32 * (1 << 9) as u32
-        + month * (1 << 5) as u32
-        + set_date.day as u32;
-    let time = dotw  * (1 << 17) as u32
+    let date =
+        set_date.year as u32 * (1 << 9) as u32 + month * (1 << 5) as u32 + set_date.day as u32;
+    let time = dotw * (1 << 17) as u32
         + set_date.hour as u32 * (1 << 12) as u32
         + set_date.minute as u32 * (1 << 6) as u32
         + set_date.seconds as u32;

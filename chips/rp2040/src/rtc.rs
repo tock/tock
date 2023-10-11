@@ -314,16 +314,12 @@ impl<'a> Rtc<'a> {
         self.registers
             .setup_0
             .modify(SETUP_0::YEAR.val(datetime.year as u32));
-        self.registers
-            .setup_0
-            .modify(SETUP_0::MONTH.val(month_val as u32));
+        self.registers.setup_0.modify(SETUP_0::MONTH.val(month_val));
         self.registers
             .setup_0
             .modify(SETUP_0::DAY.val(datetime.day as u32));
 
-        self.registers
-            .setup_1
-            .modify(SETUP_1::DOTW.val(day_val as u32));
+        self.registers.setup_1.modify(SETUP_1::DOTW.val(day_val));
         self.registers
             .setup_1
             .modify(SETUP_1::HOUR.val(datetime.hour as u32));
@@ -374,7 +370,7 @@ impl<'a> Rtc<'a> {
             .clocks
             .map_or(46875, |clocks| clocks.get_frequency(clocks::Clock::Rtc));
 
-        rtc_freq = rtc_freq - 1;
+        rtc_freq -= rtc_freq;
 
         self.registers
             .clkdiv_m1
@@ -389,12 +385,12 @@ impl<'a> date_time::DateTime<'a> for Rtc<'a> {
         match self.deferred_call_task.take() {
             Some(DeferredCallTask::Set) => {
                 self.deferred_call_task.insert(Some(DeferredCallTask::Set));
-                return Err(ErrorCode::BUSY)
-            },
+                return Err(ErrorCode::BUSY);
+            }
             Some(DeferredCallTask::Get) => {
                 self.deferred_call_task.insert(Some(DeferredCallTask::Get));
-                return Err(ErrorCode::ALREADY)
-            },
+                return Err(ErrorCode::ALREADY);
+            }
             _ => (),
         }
 
@@ -436,12 +432,12 @@ impl<'a> date_time::DateTime<'a> for Rtc<'a> {
         match self.deferred_call_task.take() {
             Some(DeferredCallTask::Set) => {
                 self.deferred_call_task.insert(Some(DeferredCallTask::Set));
-                return Err(ErrorCode::ALREADY)
-            },
+                return Err(ErrorCode::ALREADY);
+            }
             Some(DeferredCallTask::Get) => {
                 self.deferred_call_task.insert(Some(DeferredCallTask::Get));
-                return Err(ErrorCode::BUSY)
-            },
+                return Err(ErrorCode::BUSY);
+            }
             _ => (),
         }
 

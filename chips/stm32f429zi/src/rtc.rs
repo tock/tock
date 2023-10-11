@@ -605,9 +605,15 @@ impl<'a> Rtc<'a> {
 
 impl<'a> date_time::DateTime<'a> for Rtc<'a> {
     fn get_date_time(&self) -> Result<(), ErrorCode> {
-        match self.deferred_call_task.extract() {
-            Some(DeferredCallTask::Set) => return Err(ErrorCode::BUSY),
-            Some(DeferredCallTask::Get) => return Err(ErrorCode::ALREADY),
+        match self.deferred_call_task.take() {
+            Some(DeferredCallTask::Set) => {
+                self.deferred_call_task.insert(Some(DeferredCallTask::Set));
+                return Err(ErrorCode::BUSY);
+            }
+            Some(DeferredCallTask::Get) => {
+                self.deferred_call_task.insert(Some(DeferredCallTask::Get));
+                return Err(ErrorCode::ALREADY);
+            }
             _ => (),
         }
 
@@ -643,9 +649,15 @@ impl<'a> date_time::DateTime<'a> for Rtc<'a> {
     }
 
     fn set_date_time(&self, date_time: date_time::DateTimeValues) -> Result<(), ErrorCode> {
-        match self.deferred_call_task.extract() {
-            Some(DeferredCallTask::Set) => return Err(ErrorCode::ALREADY),
-            Some(DeferredCallTask::Get) => return Err(ErrorCode::BUSY),
+        match self.deferred_call_task.take() {
+            Some(DeferredCallTask::Set) => {
+                self.deferred_call_task.insert(Some(DeferredCallTask::Set));
+                return Err(ErrorCode::ALREADY);
+            }
+            Some(DeferredCallTask::Get) => {
+                self.deferred_call_task.insert(Some(DeferredCallTask::Get));
+                return Err(ErrorCode::BUSY);
+            }
             _ => (),
         }
 
