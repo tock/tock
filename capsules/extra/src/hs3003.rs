@@ -148,7 +148,7 @@ impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
 
         match self.state.get() {
             State::InitiateReading => {
-                if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 4) {
+                if let Err((i2c_err, buffer)) = self.i2c.read(buffer, 4) {
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.temperature_client
