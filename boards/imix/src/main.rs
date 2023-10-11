@@ -88,7 +88,7 @@ const NUM_PROCS: usize = 4;
 // have those devices talk to each other without having to modify the kernel flashed
 // onto each device. This makes MAC address configuration a good target for capabilities -
 // only allow one app per board to have control of MAC address configuration?
-const RADIO_CHANNEL: u8 = 26;
+const RADIO_CHANNEL: radio::RadioChannel = radio::RadioChannel::DataChannel26;
 const DST_MAC_ADDR: MacAddress = MacAddress::Short(49138);
 const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compression
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression

@@ -217,7 +217,7 @@ pub struct RF233<'a, S: spi::SpiMasterDevice<'a>> {
     addr_long: Cell<[u8; 8]>,
     pan: Cell<u16>,
     tx_power: Cell<i8>,
-    channel: Cell<u8>,
+    channel: Cell<radio::RadioChannel>,
     spi_rx: TakeCell<'static, [u8]>,
     spi_tx: TakeCell<'static, [u8]>,
     spi_buf: TakeCell<'static, [u8]>,
@@ -488,7 +488,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::START_CTRL1_SET => {
-                let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
+                let val = self.channel.get().get_channel_index() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(
                     RF233Register::PHY_CC_CCA,
                     val,
@@ -1004,7 +1004,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::CONFIG_POWER_SET => {
-                let val = self.channel.get() | PHY_CC_CCA_MODE_CS_OR_ED;
+                let val = self.channel.get().get_channel_index() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(
                     RF233Register::PHY_CC_CCA,
                     val,
@@ -1034,7 +1034,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
         reset: &'a dyn gpio::Pin,
         sleep: &'a dyn gpio::Pin,
         irq: &'a dyn gpio::InterruptPin<'a>,
-        channel: u8,
+        channel: radio::RadioChannel,
     ) -> RF233<'a, S> {
         RF233 {
             spi: spi,
@@ -1283,13 +1283,8 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioConfig<'a> for RF233<'a, S> {
         }
     }
 
-    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
-        if chan >= 11 && chan <= 26 {
-            self.channel.set(chan);
-            Ok(())
-        } else {
-            Err(ErrorCode::INVAL)
-        }
+    fn set_channel(&self, chan: radio::RadioChannel) {
+        self.channel.set(chan);
     }
 
     fn get_address(&self) -> u16 {
@@ -1310,7 +1305,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioConfig<'a> for RF233<'a, S> {
     }
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
-        self.channel.get()
+        self.channel.get().get_channel_index()
     }
 
     fn config_commit(&self) {
