@@ -25,7 +25,7 @@
 //! The `command` system call support one argument `cmd` which is used to specify the specific
 //! operation, currently the following cmd's are supported:
 //!
-//! * `0`: driver existence check
+//! * `0`: check whether the driver exists
 //! * `1`: read humidity
 //!
 //!

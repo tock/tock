@@ -414,7 +414,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
     for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
+    fn read_complete(&self, pagebuffer: &'static mut F::Page, _result: Result<(), flash::Error>) {
         self.tickv.set_read_buffer(pagebuffer.as_mut());
         self.tickv
             .tickv
@@ -559,7 +559,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
         }
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
+    fn write_complete(&self, pagebuffer: &'static mut F::Page, _result: Result<(), flash::Error>) {
         self.tickv
             .tickv
             .controller
@@ -590,7 +590,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
         }
     }
 
-    fn erase_complete(&self, _error: flash::Error) {
+    fn erase_complete(&self, _result: Result<(), flash::Error>) {
         let (ret, tickv_buf, tickv_buf_len) = self.tickv.continue_operation();
 
         // If we got the buffer back from TicKV then store it.

@@ -47,23 +47,31 @@ pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
 }
 
 impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+    fn read_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.inflight.take().map(move |user| {
-            user.read_complete(pagebuffer, error);
+            user.read_complete(pagebuffer, result);
         });
         self.do_next_op();
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+    fn write_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.inflight.take().map(move |user| {
-            user.write_complete(pagebuffer, error);
+            user.write_complete(pagebuffer, result);
         });
         self.do_next_op();
     }
 
-    fn erase_complete(&self, error: hil::flash::Error) {
+    fn erase_complete(&self, result: Result<(), hil::flash::Error>) {
         self.inflight.take().map(move |user| {
-            user.erase_complete(error);
+            user.erase_complete(result);
         });
         self.do_next_op();
     }
@@ -165,21 +173,29 @@ impl<'a, F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClien
 }
 
 impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+    fn read_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.client.map(move |client| {
-            client.read_complete(pagebuffer, error);
+            client.read_complete(pagebuffer, result);
         });
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, error: hil::flash::Error) {
+    fn write_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        result: Result<(), hil::flash::Error>,
+    ) {
         self.client.map(move |client| {
-            client.write_complete(pagebuffer, error);
+            client.write_complete(pagebuffer, result);
         });
     }
 
-    fn erase_complete(&self, error: hil::flash::Error) {
+    fn erase_complete(&self, result: Result<(), hil::flash::Error>) {
         self.client.map(move |client| {
-            client.erase_complete(error);
+            client.erase_complete(result);
         });
     }
 }

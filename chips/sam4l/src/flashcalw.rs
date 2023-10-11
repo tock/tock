@@ -497,18 +497,18 @@ impl FLASHCALW {
             self.client.map(|client| match attempted_operation {
                 FlashState::Read => {
                     self.buffer.take().map(|buffer| {
-                        client.read_complete(buffer, hil::flash::Error::FlashError);
+                        client.read_complete(buffer, Err(hil::flash::Error::FlashError));
                     });
                 }
                 FlashState::WriteUnlocking { .. }
                 | FlashState::WriteErasing { .. }
                 | FlashState::WriteWriting => {
                     self.buffer.take().map(|buffer| {
-                        client.write_complete(buffer, hil::flash::Error::FlashError);
+                        client.write_complete(buffer, Err(hil::flash::Error::FlashError));
                     });
                 }
                 FlashState::EraseUnlocking { .. } | FlashState::EraseErasing => {
-                    client.erase_complete(hil::flash::Error::FlashError);
+                    client.erase_complete(Err(hil::flash::Error::FlashError));
                 }
                 _ => {}
             });
@@ -521,7 +521,7 @@ impl FLASHCALW {
 
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.read_complete(buffer, hil::flash::Error::CommandComplete);
+                        client.read_complete(buffer, Ok(()));
                     });
                 });
             }
@@ -549,7 +549,7 @@ impl FLASHCALW {
 
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                        client.write_complete(buffer, Ok(()));
                     });
                 });
             }
@@ -564,7 +564,7 @@ impl FLASHCALW {
                 self.current_state.set(FlashState::Ready);
 
                 self.client.map(|client| {
-                    client.erase_complete(hil::flash::Error::CommandComplete);
+                    client.erase_complete(Ok(()));
                 });
             }
             _ => {
