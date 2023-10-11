@@ -43,6 +43,28 @@ use kernel::hil::sensors::{NineDof, NineDofClient};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
+#[allow(dead_code)]
+enum Registers {
+    ChipID = 0x40,
+    DATAxLsb = 0x42,
+    DATAxMsb = 0x43,
+    DATAyLsb = 0x44,
+    DATAyMsb = 0x45,
+    DATAzLsb = 0x46,
+    DATAzMsb = 0x47,
+    RHALLlsb = 0x48,
+    RHALLmsb = 0x49,
+    INTST = 0x4A,
+    CTRL1 = 0x4B,
+    CTRL2 = 0x4C,
+    CTRL3 = 0x4D,
+    CTRL4 = 0x4E,
+    LoThres = 0x4F,
+    HiThres = 0x50,
+    REPXY = 0x51,
+    REPZ = 0x52,
+}
+
 pub struct BMM150<'a, I: i2c::I2CDevice> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
@@ -51,6 +73,159 @@ pub struct BMM150<'a, I: i2c::I2CDevice> {
     pending_data: Cell<bool>,
 }
 
+impl<'a, I: i2c::I2CDevice> BMM150<'a, I> {
+    pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> BMM150<'a, I> {
+        BMM150 { 
+            buffer: TakeCell::new(buffer), 
+            i2c: i2c, 
+            ninedof_client: OptionalCell::empty(),
+            state: Cell::new(State::Suspend), 
+            pending_data: Cell::new(false),
+        }
+    }
+
+    pub fn initialize(&self) -> Result<(), ErrorCode> {
+        self.buffer
+        .take()
+        .map(|buffer| {
+            self.i2c.enable();
+            match self.state.get() {
+                State::Suspend => {
+                    buffer[0] = Registers::CTRL1 as u8;
+                    buffer[1] = 0x1 as u8;
+
+                    if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                    } else {
+                        self.state.set(State::Sleep);
+                    }
+                }
+                _ => {}
+            }
+        })
+        .ok_or(ErrorCode::FAIL)
+    }
+
+    pub fn start_measurement(&self) -> Result<(), ErrorCode> {
+        self.buffer
+        .take()
+        .map(|buffer| {
+            self.i2c.enable();
+            match self.state.get() {
+                State::Sleep => {
+                    buffer[0] = Registers::CTRL2 as u8;
+                    buffer[1] = 0x28 as u8;
+
+                    if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                    } else {
+                        self.state.set(State::InitializeReading);
+                    }
+                }
+                _ => {}
+            }
+        })
+        .ok_or(ErrorCode::FAIL)
+    }
+}
+
+impl<'a, I: i2c::I2CDevice> NineDof<'a> for BMM150<'a, I> {
+    fn set_client(&self, client: &'a dyn NineDofClient) {
+        self.ninedof_client.set(client);
+    }
+
+    fn read_magnetometer(&self) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Suspend => {
+                self.initialize()
+            }
+            _ => {
+                if !self.pending_data.get() {
+                    self.pending_data.set(true);
+                    self.start_measurement()
+                } else {
+                    Err(ErrorCode::BUSY)
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 enum State {
-    
+    Suspend,
+    Sleep,
+    InitializeReading,
+    ReadMeasurement,
+    Read,
+    Done(i16, i16, i16),
+}
+
+impl<'a, I: i2c::I2CDevice> I2CClient for BMM150<'a, I> {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
+        if let Err(i2c_err) = status {
+            self.state.set(State::Suspend);
+            self.buffer.replace(buffer);
+            self.ninedof_client
+                .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+            return;
+        }
+
+        match self.state.get() {
+            State::InitializeReading => {
+                buffer[0] = Registers::DATAxLsb as u8;
+
+                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.ninedof_client
+                        .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+                } else {
+                    self.state.set(State::ReadMeasurement);
+                }
+            }
+            State::ReadMeasurement => {
+                if let Err((i2c_err, buffer)) = self.i2c.read(buffer, 8) {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.ninedof_client
+                        .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+                } else {
+                    self.state.set(State::Read);
+                }
+            }
+            State::Read => {
+                let x_axis = ((buffer[1] as i16) << 5) | buffer[0] as i16;
+                let y_axis = ((buffer[3] as i16) << 5) | buffer[2] as i16;
+                let z_axis = ((buffer[5] as i16) << 7) | buffer[4] as i16;
+
+                buffer[0] = Registers::CTRL2 as u8;
+                buffer[1] = 0x2E as u8;
+                
+                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.ninedof_client
+                        .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+                } else {
+                    self.state.set(State::Done(x_axis, y_axis, z_axis));
+                }
+            }
+            State::Done(x, y, z) => {
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+                if self.pending_data.get() {
+                    self.pending_data.set(false);
+                    self.ninedof_client
+                        .map(|client| client.callback(x as usize, y as usize, z as usize));
+                }
+
+                self.state.set(State::Sleep);
+            }
+            State::Sleep => {} // should never happen
+            State::Suspend => {} // should never happen
+        }
+    }
 }
