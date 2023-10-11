@@ -77,6 +77,7 @@ pub mod seven_segment;
 pub mod sha;
 pub mod sha256;
 pub mod sht3x;
+pub mod sht4x;
 pub mod si7021;
 pub mod sip_hash;
 pub mod sound_pressure;
