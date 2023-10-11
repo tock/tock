@@ -69,6 +69,10 @@ struct NucleoF429ZI {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
+    date_time: &'static capsules_extra::date_time::DateTimeCapsule<
+        'static,
+        stm32f429zi::rtc::Rtc<'static>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -88,6 +92,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -262,6 +267,7 @@ unsafe fn setup_peripherals(
     tim2: &stm32f429zi::tim2::Tim2,
     trng: &stm32f429zi::trng::Trng,
     can1: &'static stm32f429zi::can::Can,
+    rtc: &'static stm32f429zi::rtc::Rtc,
 ) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
@@ -276,6 +282,9 @@ unsafe fn setup_peripherals(
 
     // CAN
     can1.enable_clock();
+
+    // RTC
+    rtc.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -321,7 +330,12 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2, &peripherals.trng, &peripherals.can1);
+    setup_peripherals(
+        &base_peripherals.tim2,
+        &peripherals.trng,
+        &peripherals.can1,
+        &peripherals.rtc,
+    );
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -584,6 +598,21 @@ pub unsafe fn main() {
         stm32f429zi::can::Can<'static>
     ));
 
+    // RTC DATE TIME
+    match peripherals.rtc.rtc_init() {
+        Err(e) => debug!("{:?}", e),
+        _ => (),
+    };
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        &peripherals.rtc,
+    )
+    .finalize(components::date_time_component_static!(
+        stm32f429zi::rtc::Rtc<'static>
+    ));
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -618,6 +647,7 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         can: can,
+        date_time,
     };
 
     // // Optional kernel tests

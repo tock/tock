@@ -735,6 +735,12 @@ pub struct Rcc {
     registers: StaticRef<RccRegisters>,
 }
 
+pub enum RtcClockSource {
+    LSI,
+    LSE,
+    HSERTC,
+}
+
 impl Rcc {
     pub fn new() -> Self {
         let rcc = Self {
@@ -1263,6 +1269,60 @@ impl Rcc {
     fn disable_can1_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::CAN1EN::CLEAR);
     }
+
+    // RTC clock
+    fn source_into_u32(source: RtcClockSource) -> u32 {
+        match source {
+            RtcClockSource::LSE => 1,
+            RtcClockSource::LSI => 2,
+            RtcClockSource::HSERTC => 3,
+        }
+    }
+
+    fn enable_lsi_clock(&self) {
+        self.registers.csr.modify(CSR::LSION::SET);
+    }
+
+    fn is_enabled_pwr_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::PWREN)
+    }
+
+    fn enable_pwr_clock(&self) {
+        // Enable the power interface clock
+        self.registers.apb1enr.modify(APB1ENR::PWREN::SET);
+    }
+
+    fn disable_pwr_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::PWREN::CLEAR);
+    }
+
+    fn is_enabled_rtc_clock(&self) -> bool {
+        self.registers.bdcr.is_set(BDCR::RTCEN)
+    }
+
+    fn enable_rtc_clock(&self, source: RtcClockSource) {
+        // Enable LSI
+        self.enable_lsi_clock();
+        let mut counter = 1_000;
+        while counter > 0 && !self.registers.csr.is_set(CSR::LSION) {
+            counter -= 1;
+        }
+        if counter == 0 {
+            panic!("Unable to activate lsi clock");
+        }
+
+        // Select RTC clock source
+        let source_num = Rcc::source_into_u32(source);
+        self.registers.bdcr.modify(BDCR::RTCSEL.val(source_num));
+
+        // Enable RTC clock
+        self.registers.bdcr.modify(BDCR::RTCEN::SET);
+    }
+
+    fn disable_rtc_clock(&self) {
+        self.registers.bdcr.modify(BDCR::RTCEN.val(1));
+        self.registers.bdcr.modify(BDCR::RTCSEL.val(0));
+    }
 }
 
 // NOTE: HSE is not yet supported as source clock.
@@ -1393,6 +1453,8 @@ pub enum PeripheralClockType {
     AHB3(HCLK3),
     APB1(PCLK1),
     APB2(PCLK2),
+    RTC,
+    PWR,
 }
 
 /// Peripherals clocked by HCLK1
@@ -1482,6 +1544,8 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK2::ADC1 => self.rcc.is_enabled_adc1_clock(),
                 PCLK2::SYSCFG => self.rcc.is_enabled_syscfg_clock(),
             },
+            PeripheralClockType::RTC => self.rcc.is_enabled_rtc_clock(),
+            PeripheralClockType::PWR => self.rcc.is_enabled_pwr_clock(),
         }
     }
 
@@ -1561,6 +1625,8 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                     self.rcc.enable_syscfg_clock();
                 }
             },
+            PeripheralClockType::RTC => self.rcc.enable_rtc_clock(RtcClockSource::LSI),
+            PeripheralClockType::PWR => self.rcc.enable_pwr_clock(),
         }
     }
 
@@ -1640,6 +1706,8 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                     self.rcc.disable_syscfg_clock();
                 }
             },
+            PeripheralClockType::RTC => self.rcc.disable_rtc_clock(),
+            PeripheralClockType::PWR => self.rcc.disable_pwr_clock(),
         }
     }
 }
