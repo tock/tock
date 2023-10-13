@@ -8,6 +8,7 @@ use core::fmt;
 use core::fmt::Write;
 use core::ptr::NonNull;
 use core::str;
+use core::num::NonZeroU32;
 
 use crate::capabilities;
 use crate::errorcode::ErrorCode;
@@ -272,6 +273,15 @@ pub enum StoppedExecutingReason {
     KernelPreemption,
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub struct BinaryVersion(NonZeroU32);
+
+impl BinaryVersion {
+    pub fn new(value: NonZeroU32) -> Self {
+        Self(value)
+    }
+}
+
 /// This trait represents a generic process that the Tock scheduler can
 /// schedule.
 pub trait Process {
@@ -283,9 +293,8 @@ pub trait Process {
     fn short_app_id(&self) -> ShortID;
 
     /// Returns the version number of the binary in this process, as specified
-    /// in a TBF Program Header; if the Userspace Binary only has a TBF Main
-    /// Header, returns 0.
-    fn binary_version(&self) -> u32;
+    /// in a TBF Program Header; if the binary has no version assigned, return [None]
+    fn binary_version(&self) -> Option<BinaryVersion>;
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
