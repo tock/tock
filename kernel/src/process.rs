@@ -612,7 +612,7 @@ pub trait Process {
         driver_num: usize,
         size: usize,
         align: usize,
-    ) -> bool;
+    ) -> Result<(), ()>;
 
     /// Check if a given grant for this process has been allocated.
     ///
