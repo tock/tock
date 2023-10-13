@@ -610,7 +610,7 @@ pub trait Process {
     /// app_brk, as MPU alignment and size constraints may result in the MPU
     /// enforced region differing from the app_brk.
     ///
-    /// This will return `false` and fail if:
+    /// This will return `Err(())` and fail if:
     /// - The process is inactive, or
     /// - There is not enough available memory to do the allocation, or
     /// - The grant_num is invalid, or
@@ -634,7 +634,7 @@ pub trait Process {
     /// are not recorded in the grant pointer array, but are useful for capsules
     /// which need additional process-specific dynamically allocated memory.
     ///
-    /// If successful, return a Some() with an identifier that can be used with
+    /// If successful, return a Ok() with an identifier that can be used with
     /// `enter_custom_grant()` to get access to the memory and the pointer to
     /// the memory which must be used to initialize the memory.
     fn allocate_custom_grant(
