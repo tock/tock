@@ -632,7 +632,7 @@ pub trait Process {
         &self,
         size: usize,
         align: usize,
-    ) -> Option<(ProcessCustomGrantIdentifier, NonNull<u8>)>;
+    ) -> Result<(ProcessCustomGrantIdentifier, NonNull<u8>), ()>;
 
     /// Enter the grant based on `grant_num` for this process.
     ///

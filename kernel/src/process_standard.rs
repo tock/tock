@@ -885,10 +885,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         size: usize,
         align: usize,
-    ) -> Option<(ProcessCustomGrantIdentifier, NonNull<u8>)> {
+    ) -> Result<(ProcessCustomGrantIdentifier, NonNull<u8>), ()> {
         // Do not modify an inactive process.
         if !self.is_running() {
-            return None;
+            return Err(());
         }
 
         // Use the shared grant allocator function to actually allocate memory.
@@ -898,10 +898,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // this custom grant in the future.
             let identifier = self.create_custom_grant_identifier(ptr);
 
-            Some((identifier, ptr))
+            Ok((identifier, ptr))
         } else {
             // Could not allocate memory for the custom grant.
-            None
+            Err(())
         }
     }
 
