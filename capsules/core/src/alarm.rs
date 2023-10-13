@@ -159,7 +159,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Return the clock frequency in Hz.
     /// - `2`: Read the the current clock value
     /// - `3`: Stop the alarm if it is outstanding

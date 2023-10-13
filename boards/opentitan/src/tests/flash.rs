@@ -60,37 +60,37 @@ impl<'a> FlashCtlCallBack {
 }
 
 impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashCtlCallBack {
-    fn read_complete(&self, page: &'static mut F::Page, error: hil::flash::Error) {
+    fn read_complete(&self, page: &'static mut F::Page, result: Result<(), hil::flash::Error>) {
         if self.read_pending.get() {
-            if error == hil::flash::Error::FlashMemoryProtectionError {
+            if result.is_err() {
+                let error = result.unwrap_err();
+                assert_eq!(error, hil::flash::Error::FlashMemoryProtectionError);
                 self.mp_fault_detect.set(true);
-            } else {
-                assert_eq!(error, hil::flash::Error::CommandComplete);
             }
             self.read_out_buf.replace(page.as_mut());
             self.read_pending.set(false);
         }
     }
 
-    fn write_complete(&self, page: &'static mut F::Page, error: hil::flash::Error) {
+    fn write_complete(&self, page: &'static mut F::Page, result: Result<(), hil::flash::Error>) {
         if self.write_pending.get() {
-            if error == hil::flash::Error::FlashMemoryProtectionError {
+            if result.is_err() {
+                let error = result.unwrap_err();
+                assert_eq!(error, hil::flash::Error::FlashMemoryProtectionError);
                 self.mp_fault_detect.set(true);
-            } else {
-                assert_eq!(error, hil::flash::Error::CommandComplete);
             }
             self.write_out_buf.replace(page.as_mut());
             self.write_pending.set(false);
         }
     }
 
-    fn erase_complete(&self, error: hil::flash::Error) {
+    fn erase_complete(&self, result: Result<(), hil::flash::Error>) {
         // Caller may check by a successive page read to assert the erased
         // page is composed of 0xFF (all erased bits should be 1)
-        if error == hil::flash::Error::FlashMemoryProtectionError {
+        if result.is_err() {
+            let error = result.unwrap_err();
+            assert_eq!(error, hil::flash::Error::FlashMemoryProtectionError);
             self.mp_fault_detect.set(true);
-        } else {
-            assert_eq!(error, hil::flash::Error::CommandComplete);
         }
     }
 }

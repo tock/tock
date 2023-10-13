@@ -542,7 +542,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for LTC294XDriver<'_, I> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Get status of the chip.
     /// - `2`: Configure settings of the chip.
     /// - `3`: Reset accumulated charge measurement to zero.

@@ -143,7 +143,7 @@ impl SyscallDriver for HumiditySensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exist!!
+            // driver existence check
             0 => CommandReturn::success(),
 
             // single humidity measurement

@@ -7,11 +7,13 @@
 pub mod adc;
 pub mod chip;
 pub mod clocks;
+mod deferred_calls;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
 pub mod pwm;
 pub mod resets;
+pub mod rtc;
 pub mod spi;
 pub mod sysinfo;
 pub mod test;

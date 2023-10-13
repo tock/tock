@@ -411,7 +411,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {

@@ -17,6 +17,7 @@ use core::arch::asm;
 
 use capsules_core::i2c_master::I2CMasterDriver;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use components::date_time_component_static;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
@@ -85,6 +86,8 @@ pub struct RaspberryPiPico {
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static, 'static>>,
 
+    date_time:
+        &'static capsules_extra::date_time::DateTimeCapsule<'static, rp2040::rtc::Rtc<'static>>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm0p::systick::SysTick,
 }
@@ -103,6 +106,7 @@ impl SyscallDriverLookup for RaspberryPiPico {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::i2c_master::DRIVER_NUM => f(Some(self.i2c)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -440,6 +444,22 @@ pub unsafe fn main() {
         rp2040::adc::Adc
     ));
 
+    // RTC DATE TIME
+
+    match peripherals.rtc.rtc_init() {
+        Ok(_) => {}
+        Err(e) => {
+            debug!("error starting rtc {:?}", e);
+        }
+    };
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        &peripherals.rtc,
+    )
+    .finalize(date_time_component_static!(rp2040::rtc::Rtc<'static>));
+
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let grant_temperature =
         board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
@@ -529,6 +549,7 @@ pub unsafe fn main() {
         adc: adc_syscall,
         temperature: temp,
         i2c,
+        date_time,
 
         scheduler,
         systick: cortexm0p::systick::SysTick::new_with_calibration(125_000_000),

@@ -17,6 +17,7 @@ use rv32i::syscall::SysCall;
 
 use crate::intc::{Intc, IntcRegisters};
 use crate::interrupts;
+use crate::rng;
 use crate::sysreg;
 use crate::timg;
 
@@ -39,6 +40,7 @@ pub struct Esp32C3DefaultPeripherals<'a> {
     pub gpio: esp32::gpio::Port<'a>,
     pub rtc_cntl: esp32::rtc_cntl::RtcCntl,
     pub sysreg: sysreg::SysReg,
+    pub rng: rng::Rng<'a>,
 }
 
 impl<'a> Esp32C3DefaultPeripherals<'a> {
@@ -50,25 +52,25 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
             gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
             sysreg: sysreg::SysReg::new(),
+            rng: rng::Rng::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
 
 impl<'a> InterruptService for Esp32C3DefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::IRQ_UART0 => {
-                self.uart0.handle_interrupt();
-            }
-            interrupts::IRQ_TIMER1 => {
-                self.timg0.handle_interrupt();
-            }
-            interrupts::IRQ_TIMER2 => {
-                self.timg1.handle_interrupt();
-            }
-            interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => {
-                self.gpio.handle_interrupt();
-            }
+            interrupts::IRQ_UART0 => self.uart0.handle_interrupt(),
+
+            interrupts::IRQ_TIMER1 => self.timg0.handle_interrupt(),
+            interrupts::IRQ_TIMER2 => self.timg1.handle_interrupt(),
+
+            interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => self.gpio.handle_interrupt(),
+
             _ => return false,
         }
         true

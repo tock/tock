@@ -66,13 +66,14 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Return number of PWM pins if this driver is included on the platform.
+    /// - `0`: Driver existence check.
     /// - `1`: Start the PWM pin output. First 16 bits of `data1` are used for the duty cycle, as a
     ///     percentage with 2 decimals, and the last 16 bits of `data1` are used for the PWM channel
     ///     to be controlled. `data2` is used for the frequency in hertz. For the duty cycle, 100% is
     ///     the max duty cycle for this pin.
     /// - `2`: Stop the PWM output.
     /// - `3`: Return the maximum possible frequency for this pin.
+    /// - `4`: Return number of PWM pins if this driver is included on the platform.
     fn command(
         &self,
         command_num: usize,
@@ -81,8 +82,8 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // Return number of usable PWM pins.
-            0 => CommandReturn::success_u32(NUM_PINS as u32),
+            // Check existence.
+            0 => CommandReturn::success(),
 
             // Start the pwm output.
 
@@ -151,6 +152,9 @@ impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
                     CommandReturn::success_u32(self.pwm_pins[pin].get_maximum_frequency_hz() as u32)
                 }
             }
+
+            // Return number of usable PWM pins.
+            4 => CommandReturn::success_u32(NUM_PINS as u32),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
