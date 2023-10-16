@@ -36,6 +36,19 @@ pub struct UartParams {
     pub baud_rate: u32,
 }
 
+/// Compute a / b, rounding such that the result is within 2.5% error of the floating point result.
+fn div_round_bounded(a: u64, b: u64) -> Result<u64, ErrorCode> {
+    let q = a / b;
+
+    if 39 * a <= 40 * b * q {
+        Ok(q)
+    } else if 40 * b * (q + 1) <= 41 * a {
+        Ok(q + 1)
+    } else {
+        Err(ErrorCode::INVAL)
+    }
+}
+
 impl<'a> Uart<'a> {
     pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
@@ -53,9 +66,11 @@ impl<'a> Uart<'a> {
 
     fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
         const NCO_BITS: u32 = u32::count_ones(CTRL::NCO.mask);
-        let regs = self.registers;
 
-        let uart_ctrl_nco = ((baud_rate as u64) << (NCO_BITS + 4)) / self.clock_frequency as u64;
+        let regs = self.registers;
+        let baud_adj = (baud_rate as u64) << (NCO_BITS + 4);
+        let freq_clk = self.clock_frequency as u64;
+        let uart_ctrl_nco = div_round_bounded(baud_adj, freq_clk)?;
 
         regs.ctrl
             .write(CTRL::NCO.val((uart_ctrl_nco & 0xffff) as u32));
@@ -169,6 +184,34 @@ impl<'a> Uart<'a> {
                     client.received_buffer(rx_buf, len, return_code, uart::Error::None);
                 });
             });
+        } else if intrs.is_set(INTR::TX_WATERMARK) {
+            // TODO: Additional logic or notification related to the watermark.
+        } else if intrs.is_set(INTR::RX_OVERFLOW) {
+            // Buffer has overflowed; notify the client or handle as needed.
+            self.rx_client.map(|client| {
+                client.error(uart::Error::OverrunError);
+            });
+        } else if intrs.is_set(INTR::RX_FRAME_ERR) {
+            // There was a framing error during reception.
+            self.rx_client.map(|client| {
+                client.error(uart::Error::FramingError);
+            });
+        } else if intrs.is_set(INTR::RX_BREAK_ERR) {
+            // A break condition was detected.
+            // TODO: Handle as required, perhaps reset or notify client.
+            self.rx_client.map(|client| {
+                client.error(uart::Error::BreakError);
+            });
+        } else if intrs.is_set(INTR::RX_TIMEOUT) {
+            // RX has timed out.
+            self.rx_client.map(|client| {
+                client.error(uart::Error::TimeoutError);
+            });
+        } else if intrs.is_set(INTR::RX_PARITY_ERR) {
+            // Parity error in the received data.
+            self.rx_client.map(|client| {
+                client.error(uart::Error::ParityError);
+            });
         }
     }
 
@@ -260,5 +303,31 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::div_round_bounded;
+    use kernel::ErrorCode;
+
+    #[test]
+    fn test_bounded_division() {
+        const TEST_VECTORS: [(u64, u64, Result<u64, ErrorCode>); 10] = [
+            (100, 4, Ok(25)),
+            (41, 40, Ok(1)),
+            (83, 40, Err(ErrorCode::INVAL)),
+            (105, 40, Err(ErrorCode::INVAL)),
+            (120, 40, Ok(3)),
+            (121, 40, Ok(3)),
+            (158, 40, Ok(4)),
+            (159, 40, Ok(4)),
+            (10, 3, Err(ErrorCode::INVAL)),
+            (120_795_955_200, 6_000_000, Ok(20132)),
+        ];
+        for (a, b, expected) in &TEST_VECTORS {
+            assert_eq!(div_round_bounded(*a, *b), *expected);
+        }
     }
 }
