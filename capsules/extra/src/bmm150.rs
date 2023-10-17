@@ -3,24 +3,24 @@
 // Copyright Tock Contributors 2023.
 
 //! SyscallDriver for the Bosch BMM150 geomagnetic sensor.
-//! 
+//!
 //! <https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmm150-ds001.pdf>
-//! 
-//! > The BMM150 is a standalone geomagnetic sensor for consumer 
-//! > market applications. It allows measurements of the magnetic 
+//!
+//! > The BMM150 is a standalone geomagnetic sensor for consumer
+//! > market applications. It allows measurements of the magnetic
 //! > field in three perpendicular axes. Based on Bosch’s proprietary
-//! > FlipCore technology, performance and features of BMM150 are 
-//! > carefully tuned and perfectly match the demanding requirements of 
-//! > all 3-axis mobile applications such as electronic compass, navigation 
+//! > FlipCore technology, performance and features of BMM150 are
+//! > carefully tuned and perfectly match the demanding requirements of
+//! > all 3-axis mobile applications such as electronic compass, navigation
 //! > or augmented reality.
-//! 
+//!
 //! //! Driver Semantics
 //! ----------------
 //!
-//! This driver exposes the BMM150's functionality via the [NineDof] and 
-//! [NineDofClient] HIL interfaces. If gyroscope or accelerometer data is 
+//! This driver exposes the BMM150's functionality via the [NineDof] and
+//! [NineDofClient] HIL interfaces. If gyroscope or accelerometer data is
 //! requested, the driver will return a ErrorCode.
-//! 
+//!
 //! //! Usage
 //! -----
 //!
@@ -75,63 +75,63 @@ pub struct BMM150<'a, I: I2CDevice> {
 
 impl<'a, I: I2CDevice> BMM150<'a, I> {
     pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> BMM150<'a, I> {
-        BMM150 { 
-            buffer: TakeCell::new(buffer), 
-            i2c: i2c, 
+        BMM150 {
+            buffer: TakeCell::new(buffer),
+            i2c: i2c,
             ninedof_client: OptionalCell::empty(),
-            state: Cell::new(State::Suspend), 
+            state: Cell::new(State::Suspend),
             pending_data: Cell::new(false),
         }
     }
 
     pub fn initialize(&self) -> Result<(), ErrorCode> {
         self.buffer
-        .take()
-        .map(|buffer| {
-            self.i2c.enable();
-            match self.state.get() {
-                State::Suspend => {
-                    buffer[0] = Registers::CTRL1 as u8;
-                    buffer[1] = 0x1 as u8;
+            .take()
+            .map(|buffer| {
+                self.i2c.enable();
+                match self.state.get() {
+                    State::Suspend => {
+                        buffer[0] = Registers::CTRL1 as u8;
+                        buffer[1] = 0x1 as u8;
 
-                    if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
-                        self.buffer.replace(buffer);
-                        self.i2c.disable();
-                        self.ninedof_client
-                            .map(|client| client.callback(error as usize, 0, 0));
-                    } else {
-                        self.state.set(State::Sleep);
+                        if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
+                            self.buffer.replace(buffer);
+                            self.i2c.disable();
+                            self.ninedof_client
+                                .map(|client| client.callback(error as usize, 0, 0));
+                        } else {
+                            self.state.set(State::Sleep);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            }
-        })
-        .ok_or(ErrorCode::FAIL)
+            })
+            .ok_or(ErrorCode::FAIL)
     }
 
     pub fn start_measurement(&self) -> Result<(), ErrorCode> {
         self.buffer
-        .take()
-        .map(|buffer| {
-            self.i2c.enable();
-            match self.state.get() {
-                State::Sleep => {
-                    buffer[0] = Registers::CTRL2 as u8;
-                    buffer[1] = 0x3A as u8;
+            .take()
+            .map(|buffer| {
+                self.i2c.enable();
+                match self.state.get() {
+                    State::Sleep => {
+                        buffer[0] = Registers::CTRL2 as u8;
+                        buffer[1] = 0x3A as u8;
 
-                    if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
-                        self.buffer.replace(buffer);
-                        self.i2c.disable();
-                        self.ninedof_client
-                            .map(|client| client.callback(error as usize, 0, 0));
-                    } else {
-                        self.state.set(State::InitializeReading);
+                        if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
+                            self.buffer.replace(buffer);
+                            self.i2c.disable();
+                            self.ninedof_client
+                                .map(|client| client.callback(error as usize, 0, 0));
+                        } else {
+                            self.state.set(State::InitializeReading);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            }
-        })
-        .ok_or(ErrorCode::FAIL)
+            })
+            .ok_or(ErrorCode::FAIL)
     }
 }
 
@@ -209,8 +209,9 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
                 self.i2c.disable();
                 if self.pending_data.get() {
                     self.pending_data.set(false);
-                    self.ninedof_client
-                        .map(|client| client.callback(x_axis as usize, y_axis as usize, z_axis as usize));
+                    self.ninedof_client.map(|client| {
+                        client.callback(x_axis as usize, y_axis as usize, z_axis as usize)
+                    });
                 }
 
                 self.state.set(State::Sleep);
@@ -220,8 +221,7 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
                 self.i2c.disable();
                 if self.pending_data.get() {
                     self.pending_data.set(false);
-                    self.ninedof_client
-                        .map(|client| client.callback(0, 0, 0));
+                    self.ninedof_client.map(|client| client.callback(0, 0, 0));
                 }
             }
             State::Suspend => {} // should never happen

@@ -511,8 +511,11 @@ pub unsafe fn start() -> (
 
     let bmm150 = components::bmm150::BMM150Component::new(sensors_i2c_bus, 0x10)
         .finalize(components::bmm150_component_static!(nrf52840::i2c::TWI));
-    let magnet = components::ninedof::NineDofComponent::new(board_kernel, capsules_extra::ninedof::DRIVER_NUM)
-        .finalize(components::ninedof_component_static!(bmm150));
+    let magnet = components::ninedof::NineDofComponent::new(
+        board_kernel,
+        capsules_extra::ninedof::DRIVER_NUM,
+    )
+    .finalize(components::ninedof_component_static!(bmm150));
 
     //--------------------------------------------------------------------------
     // WIRELESS
