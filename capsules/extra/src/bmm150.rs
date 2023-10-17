@@ -65,7 +65,7 @@ enum Registers {
     REPZ = 0x52,
 }
 
-pub struct BMM150<'a, I: i2c::I2CDevice> {
+pub struct BMM150<'a, I: I2CDevice> {
     buffer: TakeCell<'static, [u8]>,
     i2c: &'a I,
     ninedof_client: OptionalCell<&'a dyn NineDofClient>,
@@ -73,7 +73,7 @@ pub struct BMM150<'a, I: i2c::I2CDevice> {
     pending_data: Cell<bool>,
 }
 
-impl<'a, I: i2c::I2CDevice> BMM150<'a, I> {
+impl<'a, I: I2CDevice> BMM150<'a, I> {
     pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> BMM150<'a, I> {
         BMM150 { 
             buffer: TakeCell::new(buffer), 
@@ -94,9 +94,11 @@ impl<'a, I: i2c::I2CDevice> BMM150<'a, I> {
                     buffer[0] = Registers::CTRL1 as u8;
                     buffer[1] = 0x1 as u8;
 
-                    if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                    if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
                         self.buffer.replace(buffer);
                         self.i2c.disable();
+                        self.ninedof_client
+                            .map(|client| client.callback(error as usize, 0, 0));
                     } else {
                         self.state.set(State::Sleep);
                     }
@@ -115,11 +117,13 @@ impl<'a, I: i2c::I2CDevice> BMM150<'a, I> {
             match self.state.get() {
                 State::Sleep => {
                     buffer[0] = Registers::CTRL2 as u8;
-                    buffer[1] = 0x28 as u8;
+                    buffer[1] = 0x3A as u8;
 
-                    if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
+                    if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
                         self.buffer.replace(buffer);
                         self.i2c.disable();
+                        self.ninedof_client
+                            .map(|client| client.callback(error as usize, 0, 0));
                     } else {
                         self.state.set(State::InitializeReading);
                     }
@@ -131,7 +135,7 @@ impl<'a, I: i2c::I2CDevice> BMM150<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> NineDof<'a> for BMM150<'a, I> {
+impl<'a, I: I2CDevice> NineDof<'a> for BMM150<'a, I> {
     fn set_client(&self, client: &'a dyn NineDofClient) {
         self.ninedof_client.set(client);
     }
@@ -139,6 +143,7 @@ impl<'a, I: i2c::I2CDevice> NineDof<'a> for BMM150<'a, I> {
     fn read_magnetometer(&self) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Suspend => {
+                self.pending_data.set(true);
                 self.initialize()
             }
             _ => {
@@ -160,16 +165,15 @@ enum State {
     InitializeReading,
     ReadMeasurement,
     Read,
-    Done(i16, i16, i16),
 }
 
-impl<'a, I: i2c::I2CDevice> I2CClient for BMM150<'a, I> {
+impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
-            self.state.set(State::Suspend);
+            self.state.set(State::Sleep);
             self.buffer.replace(buffer);
             self.ninedof_client
-                .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+                .map(|client| client.callback(i2c_err as usize, 0, 0));
             return;
         }
 
@@ -181,7 +185,7 @@ impl<'a, I: i2c::I2CDevice> I2CClient for BMM150<'a, I> {
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.ninedof_client
-                        .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+                        .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
                     self.state.set(State::ReadMeasurement);
                 }
@@ -191,7 +195,7 @@ impl<'a, I: i2c::I2CDevice> I2CClient for BMM150<'a, I> {
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.ninedof_client
-                        .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
+                        .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
                     self.state.set(State::Read);
                 }
@@ -201,30 +205,25 @@ impl<'a, I: i2c::I2CDevice> I2CClient for BMM150<'a, I> {
                 let y_axis = ((buffer[3] as i16) << 5) | buffer[2] as i16;
                 let z_axis = ((buffer[5] as i16) << 7) | buffer[4] as i16;
 
-                buffer[0] = Registers::CTRL2 as u8;
-                buffer[1] = 0x2E as u8;
-                
-                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
-                    self.state.set(State::Sleep);
-                    self.buffer.replace(buffer);
-                    self.ninedof_client
-                        .map(|client| client.callback(Err(i2c_err.into()) as usize, 0, 0));
-                } else {
-                    self.state.set(State::Done(x_axis, y_axis, z_axis));
-                }
-            }
-            State::Done(x, y, z) => {
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 if self.pending_data.get() {
                     self.pending_data.set(false);
                     self.ninedof_client
-                        .map(|client| client.callback(x as usize, y as usize, z as usize));
+                        .map(|client| client.callback(x_axis as usize, y_axis as usize, z_axis as usize));
                 }
 
                 self.state.set(State::Sleep);
             }
-            State::Sleep => {} // should never happen
+            State::Sleep => {
+                self.buffer.replace(buffer);
+                self.i2c.disable();
+                if self.pending_data.get() {
+                    self.pending_data.set(false);
+                    self.ninedof_client
+                        .map(|client| client.callback(0, 0, 0));
+                }
+            }
             State::Suspend => {} // should never happen
         }
     }
