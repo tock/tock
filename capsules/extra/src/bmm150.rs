@@ -92,7 +92,7 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
                 match self.state.get() {
                     State::Suspend => {
                         buffer[0] = Registers::CTRL1 as u8;
-                        buffer[1] = 0x1 as u8;
+                        buffer[1] = 0x1_u8;
 
                         if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
                             self.buffer.replace(buffer);
@@ -117,7 +117,7 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
                 match self.state.get() {
                     State::Sleep => {
                         buffer[0] = Registers::CTRL2 as u8;
-                        buffer[1] = 0x3A as u8;
+                        buffer[1] = 0x3A_u8;
 
                         if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
                             self.buffer.replace(buffer);
