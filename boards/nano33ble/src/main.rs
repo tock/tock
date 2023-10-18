@@ -139,7 +139,6 @@ pub struct Platform {
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
-    magnet: &'static capsules_extra::ninedof::NineDof<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
@@ -171,7 +170,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::proximity::DRIVER_NUM => f(Some(self.proximity)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.magnet)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
@@ -494,28 +492,20 @@ pub unsafe fn start() -> (
     )
     .finalize(components::proximity_component_static!());
 
-    let hs3003 = components::hs3003::Hs3003Component::new(sensors_i2c_bus, 0x44)
-        .finalize(components::hs3003_component_static!(nrf52840::i2c::TWI));
+    let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
+        .finalize(components::hts221_component_static!(nrf52840::i2c::TWI));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
-        hs3003,
+        hts221,
     )
     .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
-        hs3003,
+        hts221,
     )
     .finalize(components::humidity_component_static!());
-
-    let bmm150 = components::bmm150::BMM150Component::new(sensors_i2c_bus, 0x10)
-        .finalize(components::bmm150_component_static!(nrf52840::i2c::TWI));
-    let magnet = components::ninedof::NineDofComponent::new(
-        board_kernel,
-        capsules_extra::ninedof::DRIVER_NUM,
-    )
-    .finalize(components::ninedof_component_static!(bmm150));
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -614,7 +604,6 @@ pub unsafe fn start() -> (
         proximity,
         temperature,
         humidity,
-        magnet,
         adc: adc_syscall,
         led,
         gpio,
