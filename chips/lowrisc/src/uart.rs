@@ -36,6 +36,7 @@ pub struct Uart<'a> {
 #[derive(Copy, Clone)]
 pub struct UartParams {
     pub baud_rate: u32,
+    pub parity: uart::Parity,
 }
 
 /// Compute a / b, rounding such that the result is within 2.5% error of the floating point result.
@@ -313,6 +314,18 @@ impl hil::uart::Configure for Uart<'_> {
         let regs = self.registers;
         // We can set the baud rate.
         self.set_baud_rate(params.baud_rate)?;
+
+        match params.parity {
+            uart::Parity::Even => regs
+                .ctrl
+                .modify(CTRL::PARITY_EN::SET + CTRL::PARITY_ODD::CLEAR),
+            uart::Parity::Odd => regs
+                .ctrl
+                .modify(CTRL::PARITY_EN::SET + CTRL::PARITY_ODD::SET),
+            uart::Parity::None => regs
+                .ctrl
+                .modify(CTRL::PARITY_EN::CLEAR + CTRL::PARITY_ODD::CLEAR),
+        }
 
         regs.fifo_ctrl
             .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
