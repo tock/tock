@@ -382,6 +382,41 @@ mod store_flast_ctrl {
     }
 
     #[test]
+    fn test_append_and_delete_zeroize() {
+        let mut read_buf: [u8; 1024] = [0; 1024];
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        tickv.initialise(hash).unwrap();
+
+        let value: [u8; 32] = [0x23; 32];
+        let mut buf: [u8; 32] = [0; 32];
+
+        println!("Add Key ONE");
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
+
+        println!("Get key ONE");
+        tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
+
+        println!("Zeroize Key ONE");
+        tickv.zeroize_key(get_hashed_key(b"ONE")).unwrap();
+
+        println!("Get non-existant key ONE");
+        assert_eq!(
+            tickv.get_key(get_hashed_key(b"ONE"), &mut buf),
+            Err(ErrorCode::KeyNotFound)
+        );
+
+        println!("Try to zeroize Key ONE Again");
+        assert_eq!(
+            tickv.zeroize_key(get_hashed_key(b"ONE")),
+            Err(ErrorCode::KeyNotFound)
+        );
+    }
+
+    #[test]
     fn test_garbage_collect() {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let mut hash_function = DefaultHasher::new();
@@ -405,6 +440,44 @@ mod store_flast_ctrl {
 
         println!("Delete Key ONE");
         tickv.invalidate_key(get_hashed_key(b"ONE")).unwrap();
+
+        println!("Garbage collect flash with deleted key");
+        assert_eq!(tickv.garbage_collect(), Ok(1024));
+
+        println!("Get non-existant key ONE");
+        assert_eq!(
+            tickv.get_key(get_hashed_key(b"ONE"), &mut buf),
+            Err(ErrorCode::KeyNotFound)
+        );
+
+        println!("Add Key ONE");
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
+    }
+
+    #[test]
+    fn test_garbage_collect_zeroize() {
+        let mut read_buf: [u8; 1024] = [0; 1024];
+        let mut hash_function = DefaultHasher::new();
+        MAIN_KEY.hash(&mut hash_function);
+        let hash = hash_function.finish();
+
+        let tickv = TicKV::<FlashCtrl, 1024>::new(FlashCtrl::new(), &mut read_buf, 0x10000);
+        tickv.initialise(hash).unwrap();
+
+        let value: [u8; 32] = [0x23; 32];
+        let mut buf: [u8; 32] = [0; 32];
+
+        println!("Garbage collect empty flash");
+        assert_eq!(tickv.garbage_collect(), Ok(0));
+
+        println!("Add Key ONE");
+        tickv.append_key(get_hashed_key(b"ONE"), &value).unwrap();
+
+        println!("Garbage collect flash with valid key");
+        assert_eq!(tickv.garbage_collect(), Ok(0));
+
+        println!("Delete Key ONE");
+        tickv.zeroize_key(get_hashed_key(b"ONE")).unwrap();
 
         println!("Garbage collect flash with deleted key");
         assert_eq!(tickv.garbage_collect(), Ok(1024));

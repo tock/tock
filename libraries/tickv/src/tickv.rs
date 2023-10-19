@@ -51,6 +51,8 @@ pub(crate) enum State {
     GetKey(KeyState),
     /// Invalidating a key
     InvalidateKey(KeyState),
+    /// Zeroizing a key
+    ZeroizeKey(KeyState),
     /// Running garbage collection
     GarbageCollect(RubbishState),
 }
@@ -835,6 +837,98 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     *region_data
                         .get_mut(offset + LEN_OFFSET)
                         .ok_or(ErrorCode::CorruptData)? &= !0x80;
+
+                    if let Err(e) = self.controller.write(
+                        S * new_region + offset + LEN_OFFSET,
+                        region_data
+                            .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
+                            .ok_or(ErrorCode::ObjectTooLarge)?,
+                    ) {
+                        self.read_buffer.replace(Some(region_data));
+                        match e {
+                            ErrorCode::WriteNotReady(_) => return Ok(SuccessCode::Queued),
+                            _ => return Err(e),
+                        }
+                    }
+
+                    self.read_buffer.replace(Some(region_data));
+                    return Ok(SuccessCode::Written);
+                }
+                Err((cont, e)) => {
+                    self.read_buffer.replace(Some(region_data));
+
+                    if cont {
+                        region_offset = new_region as isize - region as isize;
+                        match self.increment_region_offset(region, region_offset) {
+                            Some(o) => {
+                                region_offset = o;
+                                self.state.set(State::None);
+                            }
+                            None => {
+                                return Err(e);
+                            }
+                        }
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Zeroizes the key in flash storage
+    ///
+    /// `hash`: A hashed key.
+    ///
+    /// On success nothing will be returned.
+    /// On error a `ErrorCode` will be returned.
+    ///
+    /// If a power loss occurs before success is returned the data is
+    /// assumed to be lost.
+    /// Changes valid bit in addition to zeroizing the entry
+    pub fn zeroize_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
+        let region = self.get_region(hash);
+
+        let mut region_offset: isize = 0;
+
+        loop {
+            // Get the data from that region
+            let new_region = match self.state.get() {
+                State::None => (region as isize + region_offset) as usize,
+                State::ZeroizeKey(key_state) => match key_state {
+                    KeyState::ReadRegion(reg) => reg,
+                },
+                _ => unreachable!(),
+            };
+
+            // Get the data from that region
+            let region_data = self.read_buffer.take().unwrap();
+            if self.state.get() != State::ZeroizeKey(KeyState::ReadRegion(new_region)) {
+                match self.controller.read_region(new_region, 0, region_data) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        self.read_buffer.replace(Some(region_data));
+                        if let ErrorCode::ReadNotReady(reg) = e {
+                            self.state.set(State::ZeroizeKey(KeyState::ReadRegion(reg)));
+                        }
+                        return Err(e);
+                    }
+                };
+            }
+
+            match self.find_key_offset(hash, region_data) {
+                Ok((offset, data_len)) => {
+                    // We found a key, let's delete it
+                    *region_data
+                        .get_mut(offset + LEN_OFFSET)
+                        .ok_or(ErrorCode::CorruptData)? &= !0x80;
+
+                    // Replace Value with 0s
+                    for i in HEADER_LENGTH..data_len as usize {
+                        *region_data
+                            .get_mut(offset + i)
+                            .ok_or(ErrorCode::RegionFull)? = 0;
+                    }
 
                     if let Err(e) = self.controller.write(
                         S * new_region + offset + LEN_OFFSET,
