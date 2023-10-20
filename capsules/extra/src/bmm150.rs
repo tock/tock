@@ -201,9 +201,9 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
                 }
             }
             State::Read => {
-                let x_axis = ((buffer[1] as i16) << 5) | buffer[0] as i16;
-                let y_axis = ((buffer[3] as i16) << 5) | buffer[2] as i16;
-                let z_axis = ((buffer[5] as i16) << 7) | buffer[4] as i16;
+                let x_axis = ((buffer[1] as i16) << 5) | ((buffer[0] as i16) >> 3);
+                let y_axis = ((buffer[3] as i16) << 5) | ((buffer[2] as i16) >> 3);
+                let z_axis = ((buffer[5] as i16) << 7) | ((buffer[4] as i16) >> 1);
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
