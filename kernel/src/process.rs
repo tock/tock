@@ -273,10 +273,12 @@ pub enum StoppedExecutingReason {
     KernelPreemption,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+/// The version of a binary.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct BinaryVersion(NonZeroU32);
 
 impl BinaryVersion {
+    /// Creates a new binary version.
     pub fn new(value: NonZeroU32) -> Self {
         Self(value)
     }
