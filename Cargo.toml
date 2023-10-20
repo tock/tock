@@ -48,6 +48,7 @@ members = [
     "boards/stm32f429idiscovery",
     "boards/teensy40",
     "boards/nano33ble",
+    "boards/nano33ble_rev2",
     "boards/qemu_rv32_virt",
     "boards/swervolf",
     "boards/weact_f401ccu6/",
