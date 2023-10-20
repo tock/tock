@@ -48,8 +48,11 @@ use kernel::hil::led;
 #[panic_handler]
 pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
-        earlgrey::gpio::GPIO0_BASE,
-        earlgrey::gpio::PADCTRL_BASE,
+        earlgrey::gpio::GPIO_BASE,
+        earlgrey::pinmux::PadConfig::Output(
+            earlgrey::registers::top_earlgrey::MuxedPads::Ioa0,
+            earlgrey::registers::top_earlgrey::PinmuxOutsel::GpioGpio0,
+        ),
         earlgrey::gpio::pins::pin7,
     );
     first_led_pin.make_output();

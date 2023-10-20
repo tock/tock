@@ -144,10 +144,13 @@ pub static mut STACK_MEMORY: [u8; 0x1400] = [0; 0x1400];
 struct EarlGrey {
     led: &'static capsules_core::led::LedDriver<
         'static,
-        LedHigh<'static, earlgrey::gpio::GpioPin<'static>>,
+        LedHigh<'static, earlgrey::gpio::GpioPin<'static, earlgrey::pinmux::PadConfig>>,
         8,
     >,
-    gpio: &'static capsules_core::gpio::GPIO<'static, earlgrey::gpio::GpioPin<'static>>,
+    gpio: &'static capsules_core::gpio::GPIO<
+        'static,
+        earlgrey::gpio::GpioPin<'static, earlgrey::pinmux::PadConfig>,
+    >,
     console: &'static capsules_core::console::Console<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -314,7 +317,7 @@ unsafe fn setup() -> (
     // LEDs
     // Start with half on and half off
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedHigh<'static, earlgrey::gpio::GpioPin>,
+        LedHigh<'static, earlgrey::gpio::GpioPin<earlgrey::pinmux::PadConfig>>,
         LedHigh::new(&peripherals.gpio_port[8]),
         LedHigh::new(&peripherals.gpio_port[9]),
         LedHigh::new(&peripherals.gpio_port[10]),
@@ -329,7 +332,7 @@ unsafe fn setup() -> (
         board_kernel,
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
-            earlgrey::gpio::GpioPin,
+            earlgrey::gpio::GpioPin<earlgrey::pinmux::PadConfig>,
             0 => &peripherals.gpio_port[0],
             1 => &peripherals.gpio_port[1],
             2 => &peripherals.gpio_port[2],
@@ -340,7 +343,9 @@ unsafe fn setup() -> (
             7 => &peripherals.gpio_port[15]
         ),
     )
-    .finalize(components::gpio_component_static!(earlgrey::gpio::GpioPin));
+    .finalize(components::gpio_component_static!(
+        earlgrey::gpio::GpioPin<earlgrey::pinmux::PadConfig>
+    ));
 
     let hardware_alarm = static_init!(
         earlgrey::timer::RvTimer<ChipConfig>,
