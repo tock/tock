@@ -6,9 +6,9 @@
 
 use core::fmt;
 use core::fmt::Write;
+use core::num::NonZeroU32;
 use core::ptr::NonNull;
 use core::str;
-use core::num::NonZeroU32;
 
 use crate::capabilities;
 use crate::errorcode::ErrorCode;

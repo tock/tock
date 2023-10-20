@@ -10,9 +10,9 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt::Write;
+use core::num::NonZeroU32;
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
-use core::num::NonZeroU32;
 
 use crate::capabilities;
 use crate::collections::queue::Queue;
@@ -23,10 +23,10 @@ use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
+use crate::process::BinaryVersion;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortID};
-use crate::process::BinaryVersion;
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -253,7 +253,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             0 => None,
             // Safety: because of the previous arm, version != 0, so the call to
             // NonZeroU32::new_unchecked() is safe
-            version => Some(BinaryVersion::new(unsafe {NonZeroU32::new_unchecked(version)})),
+            version => Some(BinaryVersion::new(unsafe {
+                NonZeroU32::new_unchecked(version)
+            })),
         }
     }
 
