@@ -1039,7 +1039,10 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                     );
 
                     // Allocate grant, the memory is still uninitialized though.
-                    if !process.allocate_grant(grant_num, driver_num, alloc_size, alloc_align) {
+                    if process
+                        .allocate_grant(grant_num, driver_num, alloc_size, alloc_align)
+                        .is_err()
+                    {
                         return Err(Error::OutOfMemory);
                     }
 
