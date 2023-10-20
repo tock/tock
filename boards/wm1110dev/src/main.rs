@@ -20,6 +20,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::hil::spi::SpiMaster;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -48,8 +49,22 @@ const UART_RX_PIN: Pin = Pin::P0_22;
 const I2C_SDA_PIN: Pin = Pin::P0_27;
 const I2C_SCL_PIN: Pin = Pin::P0_26;
 
+// Pins for communicating with LR1110
+const SPI_CS_PIN: Pin = Pin::P1_12; // DIO1
+const SPI_SCK_PIN: Pin = Pin::P1_13; // DIO2
+const SPI_MOSI_PIN: Pin = Pin::P1_14; // DIO3
+const SPI_MISO_PIN: Pin = Pin::P1_15; // DIO4
+const RADIO_BUSY_PIN: Pin = Pin::P1_11; // DIO0
+const RADIO_RESET_PIN: Pin = Pin::P1_10; // NRESET
+
+const LR_DIO7: Pin = Pin::P1_08;
+const LR_DIO9: Pin = Pin::P0_11;
+
 /// GPIO pin that controls VCC for the I2C bus and sensors.
 const I2C_PWR: Pin = Pin::P0_07;
+
+const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
+const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
 
 /// UART Writer for panic!()s.
 pub mod io;
@@ -94,6 +109,14 @@ pub struct Platform {
     >,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    lr1110_gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
+    spi_controller: &'static capsules_core::spi_controller::Spi<
+        'static,
+        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+            'static,
+            nrf52840::spi::SPIM<'static>,
+        >,
+    >,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -109,6 +132,8 @@ impl SyscallDriverLookup for Platform {
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            LORA_SPI_DRIVER_NUM => f(Some(self.spi_controller)),
+            LORA_GPIO_DRIVER_NUM => f(Some(self.lr1110_gpio)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
@@ -328,6 +353,57 @@ pub unsafe fn start() -> (
     .finalize(components::humidity_component_static!());
 
     //--------------------------------------------------------------------------
+    // LoRa
+    //--------------------------------------------------------------------------
+
+    // let _ = &nrf52840_peripherals.gpio_port.enable_spi(
+    //     &nrf52840_peripherals.gpio_port[SPI_SCK_PIN],
+    //     &nrf52840_peripherals.gpio_port[SPI_MOSI_PIN],
+    //     &nrf52840_peripherals.gpio_port[SPI_MISO_PIN],
+    // );
+    // Enable the radio pins
+    //let _ = &nrf52840_peripherals.gpio_port.enable_sx1262_radio_pins();
+
+    let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
+        .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+    
+    // // Create the SPI system call capsule.
+    let spi_controller = components::spi::SpiSyscallComponent::new(
+        board_kernel,
+        mux_spi,
+        &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+        LORA_SPI_DRIVER_NUM,
+    )
+    .finalize(components::spi_syscall_component_static!(
+        nrf52840::spi::SPIM
+    ));
+
+    base_peripherals.spim0.configure(
+        nrf52840::pinmux::Pinmux::new(SPI_MOSI_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(SPI_MISO_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(SPI_SCK_PIN as u32),
+    );
+
+    base_peripherals
+        .spim0
+        .specify_chip_select(&nrf52840_peripherals.gpio_port[SPI_CS_PIN])
+        .unwrap();
+
+    let lr1110_gpio = components::gpio::GpioComponent::new(
+        board_kernel,
+        LORA_GPIO_DRIVER_NUM,
+        components::gpio_component_helper!(
+            nrf52840::gpio::GPIOPin,
+            0 => &nrf52840_peripherals.gpio_port[SPI_CS_PIN], // H6 - SX1262 Slave Select
+            1 => &nrf52840_peripherals.gpio_port[RADIO_BUSY_PIN], // J8 - SX1262 Radio Busy Indicator
+            //2 => &nrf52840_peripherals.gpio_port[LR_DIO7], // J9 - SX1262 Multipurpose digital I/O (DIO1)
+            //3 => &nrf52840_peripherals.gpio_port[LR_DIO9], // H9 - SX1262 Multipurpose digital I/O (DIO3)
+            2 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN], // J7 - SX1262 Reset
+        ),
+    )
+    .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
+
+    //--------------------------------------------------------------------------
     // Process Console
     //--------------------------------------------------------------------------
 
@@ -383,6 +459,8 @@ pub unsafe fn start() -> (
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
         temperature: temperature,
         humidity: humidity,
+        spi_controller,
+        lr1110_gpio,
     };
 
     let chip = static_init!(
