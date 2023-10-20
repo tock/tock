@@ -56,6 +56,13 @@ macro_rules! mx25r6435f_component_static {
     };};
 }
 
+pub type Mx25r6435fComponentType<S, P, A> = capsules_extra::mx25r6435f::MX25R6435F<
+    'static,
+    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, S>,
+    P,
+    VirtualMuxAlarm<'static, A>,
+>;
+
 pub struct Mx25r6435fComponent<
     S: 'static + hil::spi::SpiMaster<'static>,
     P: 'static + hil::gpio::Pin,

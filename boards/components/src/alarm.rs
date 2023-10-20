@@ -57,6 +57,11 @@ macro_rules! alarm_component_static {
     };};
 }
 
+pub type AlarmDriverComponentType<A> = capsules_core::alarm::AlarmDriver<
+    'static,
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, A>,
+>;
+
 pub struct AlarmMuxComponent<A: 'static + time::Alarm<'static>> {
     alarm: &'static A,
 }

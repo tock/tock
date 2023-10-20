@@ -16,6 +16,8 @@ macro_rules! siphasher24_component_static {
     };};
 }
 
+pub type Siphasher24ComponentType = capsules_extra::sip_hash::SipHasher24<'static>;
+
 pub struct Siphasher24Component {}
 
 impl Siphasher24Component {
