@@ -24,6 +24,7 @@ pub mod gpio;
 pub mod hmac;
 pub mod i2c;
 pub mod otbn;
+pub mod pinmux;
 pub mod plic;
 pub mod pwrmgr;
 pub mod registers;
