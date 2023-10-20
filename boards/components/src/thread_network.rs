@@ -251,10 +251,10 @@ impl<
         // TODO: Thread requires port 19788 for sending/receiving MLE messages.
         // The below implementation binds Thread to the required port and updates
         // the UDP receiving/sending objects. There is a chance that creating a socket
-        // fails due to the max number of sockets being exceeded or the requested port
-        // is already bound. In either case, the current implementation silently fails
-        // and will not be able to create a Thread network. This does not seem ideal
-        // and should be addressed in the future.
+        // fails due to the max number of sockets being exceeded or failing to bind
+        // the requested port. In either case, the current implementation panics here
+        // as it is impossible to create a Thread network without port 19788 (used for MLE).
+        // Future implementations may wish to change this behavior.
         self.port_table
             .create_socket()
             .map(|socket| {
@@ -268,7 +268,7 @@ impl<
                         },
                     )
             })
-            .unwrap_or_default();
+            .unwrap();
 
         self.udp_recv_mux.add_client(udp_driver_rcvr);
 
