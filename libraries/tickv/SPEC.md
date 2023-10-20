@@ -175,6 +175,16 @@ If all the objects in a region are no longer valid then that region will be
 erased when `garbage_collect()` is called. Note that even if the flash is
 full `garbage_collect()` will not be called automatically.
 
+### Zeroizing keys
+
+This function leverages the ability in flash to change a `1` to a `0` to
+remove the data in flash. Calling `zeroize_key()` will mark the will mark the 
+`valid` boolean for that object as `false` (0), and will also change all other
+values outside of the header to a 0, including the checksum.
+
+As this data is marked as invalid, `garbage_collect()` will function as normal
+removing both zeroized keys as well as invalid keys.
+
 ### Initialisation
 
 When setting up a block of flash for the first time the entire size of flash
@@ -395,6 +405,42 @@ flash will be the `valid` flag. The object header for ONE will now look like:
 |||||    0x00|00000000|    0x34|    0xed|    0xa1|    0x00|    0x78|    0x88|    0x61|    0x93|    0xbb|
 --------------------------------------------------------------------------------------------------------
               ^
+```
+
+No changes will happen in flash until key TWO has also been invalidated.
+At which point `garbage_collect()` can erase the region.
+
+### Zeroizing a key
+
+When the key ONE is zeroized with `zeroize_key()`, the only change in
+the header will be the `valid` flag. The rest of the object will become
+zeros. The object ONE will now look like:
+
+```
+0x400                                                                                              0x42C
+--------------------------------------------------------------------------------------------------------
+||||| version|len/flag|   len  |                              hashed_key                               |
+|||||        |        |        |        |        |        |        |        |        |        |        |
+|||||    0x00|00000000|    0x34|    0xed|    0xa1|    0x00|    0x78|    0x88|    0x61|    0x93|    0xbb|
+-------------------------------------------------------------------------------------------------------|
+```
+
+```
+0x42C                                                                                              0x52C
+--------------------------------------------------------------------------------------------------------
+|||||                                               value                                              |
+|||||                                                                                                  |
+|||||00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+-------------------------------------------------------------------------------------------------------|
+```
+
+```
+0x52C                                   0x53C
+-----------------------------------------
+|||||              checksum             |
+|||||        |        |        |        |
+|||||    0x00|    0x00|    0x00|    0x00|
+----------------------------------------|
 ```
 
 No changes will happen in flash until key TWO has also been invalidated.
