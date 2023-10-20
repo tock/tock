@@ -6,7 +6,7 @@
 
 TOCK_ARCH=cortex-m4
 TARGET=thumbv7em-none-eabi
-PLATFORM=nano33ble
+PLATFORM=nano33ble_rev2
 
 include ../Makefile.common
 

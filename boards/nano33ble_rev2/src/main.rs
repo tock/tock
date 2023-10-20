@@ -137,10 +137,9 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    // pressure: &'static capsules_extra::pressure::PressureSensor<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<
+    pressure: &'static capsules_extra::pressure::PressureSensor<
         'static,
-        capsules_extra::hs3003::Hs3003<
+        capsules_extra::lps22hb::Lps22hb<
             'static,
             capsules_core::virtualizers::virtual_i2c::I2CDevice<
                 'static,
@@ -148,6 +147,7 @@ pub struct Platform {
             >,
         >,
     >,
+    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     magnet: &'static capsules_extra::ninedof::NineDof<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
@@ -179,7 +179,7 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_extra::proximity::DRIVER_NUM => f(Some(self.proximity)),
-            // capsules_core::pressure::DRIVER_NUM => f(Some(self.pressure)),
+            capsules_extra::pressure::DRIVER_NUM => f(Some(self.pressure)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_extra::ninedof::DRIVER_NUM => f(Some(self.magnet)),
@@ -505,14 +505,19 @@ pub unsafe fn start() -> (
     )
     .finalize(components::proximity_component_static!());
 
-    // let lps22hb = components::lps22hb::Lps22hbComponent::new(sensors_i2c_bus, 0x5C)
-    //     .finalize(components::lps22hb_component_static!(nrf52840::i2c::TWI));
-    // let pressure = components::pressure::PressureComponent::new(
-    //     board_kernel,
-    //     capsules_extra::pressure::DRIVER_NUM,
-    //     lps22hb,
-    // )
-    // .finalize(components::pressure_component_static!(nrf52840::i2c::TWI));
+    let lps22hb = components::lps22hb::Lps22hbComponent::new(sensors_i2c_bus, 0x5C)
+        .finalize(components::lps22hb_component_static!(nrf52840::i2c::TWI));
+    let pressure = components::pressure::PressureComponent::new(
+        board_kernel,
+        capsules_extra::pressure::DRIVER_NUM,
+        lps22hb,
+    )
+    .finalize(components::pressure_component_static!(
+        capsules_extra::lps22hb::Lps22hb<
+            'static,
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
+        >
+    ));
 
     let hs3003 = components::hs3003::Hs3003Component::new(sensors_i2c_bus, 0x44)
         .finalize(components::hs3003_component_static!(nrf52840::i2c::TWI));
@@ -521,12 +526,7 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         hs3003,
     )
-    .finalize(components::temperature_component_static!(
-        capsules_extra::hs3003::Hs3003<
-            'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI>,
-        >
-    ));
+    .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
@@ -637,7 +637,7 @@ pub unsafe fn start() -> (
         console,
         pconsole,
         proximity,
-        // pressure,
+        pressure,
         temperature,
         humidity,
         magnet,
