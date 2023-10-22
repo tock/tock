@@ -21,6 +21,7 @@ pub mod app_flash_driver;
 pub mod at24c_eeprom;
 pub mod ble_advertising_driver;
 pub mod bme280;
+pub mod bmi270;
 pub mod bmp280;
 pub mod bus;
 pub mod buzzer_driver;
