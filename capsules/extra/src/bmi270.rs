@@ -186,6 +186,28 @@ impl<'a, I: I2CDevice> BMI270<'a, I> {
             })
             .ok_or(ErrorCode::FAIL)
     }
+
+    pub fn start_measurement(&self) -> Result<(), ErrorCode> {
+        self.buffer
+            .take()
+            .map(|buffer| {
+                self.i2c.enable();
+                match self.state.get() {
+                    State::Idle => {
+                        buffer[0] = Registers::Data8 as u8;
+
+                        if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 12) {
+                            self.state.set(State::Sleep);
+                            self.buffer.replace(buffer);
+                        } else {
+                            self.state.set(State::Done);
+                        }
+                    }
+                    _ => {}
+                }
+            })
+            .ok_or(ErrorCode::FAIL)
+    }
 }
 
 impl<'a, I: I2CDevice> NineDof<'a> for BMI270<'a, I> {
@@ -194,11 +216,43 @@ impl<'a, I: I2CDevice> NineDof<'a> for BMI270<'a, I> {
     }
 
     fn read_accelerometer(&self) -> Result<(), ErrorCode> {
-        
+        if !self.pending_accel.get() {
+            self.pending_accel.set(true);
+            if self.pending_gyro.get() {
+                Err(ErrorCode::BUSY)
+            } else {
+                match self.state.get() {
+                    State::Sleep => {
+                        self.initialize()
+                    }
+                    _ => {
+                        self.start_measurement()
+                    }
+                }
+            }
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
     fn read_gyroscope(&self) -> Result<(), ErrorCode> {
-        
+        if !self.pending_gyro.get() {
+            self.pending_gyro.set(true);
+            if self.pending_accel.get() {
+                Err(ErrorCode::BUSY)
+            } else {
+                match self.state.get() {
+                    State::Sleep => {
+                        self.initialize()
+                    }
+                    _ => {
+                        self.start_measurement()
+                    }
+                }
+            }
+        } else {
+            Err(ErrorCode::BUSY)
+        }
     }
 
 }
@@ -8975,11 +9029,13 @@ impl<'a, I: I2CDevice> I2CClient for BMI270<'a, I> {
                     self.pending_accel.set(false);
                     self.ninedof_client.map(|client| {
                         client.callback(accel_x as usize, accel_y as usize, accel_z as usize)
+                    });
                 }
                 if self.pending_gyro.get() {
                     self.pending_gyro.set(false);
                     self.ninedof_client.map(|client| {
                         client.callback(gyro_x as usize, gyro_y as usize, gyro_z as usize)
+                    });
                 }
 
                 self.state.set(State::Idle);
