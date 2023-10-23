@@ -26,6 +26,7 @@ use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::{IP6Header, IP6Packet, TransportHeader};
 use crate::net::network_capabilities::{IpVisibilityCapability, NetworkCapability};
 use crate::net::sixlowpan::sixlowpan_state::TxState;
+use crate::net::thread::thread_utils::{mac_from_ipv6, MULTICAST_IPV6};
 
 use core::cell::Cell;
 
@@ -141,12 +142,29 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
         if !net_cap.remote_addr_valid(dst, self.ip_vis) {
             return Err(ErrorCode::FAIL);
         }
-        let _ = self.sixlowpan.init(
-            self.src_mac_addr,
-            self.dst_mac_addr,
-            self.radio.get_pan(),
-            None,
-        );
+
+        // This logic is used to update the dst mac address
+        // the given packet should be sent to. This complies
+        // with the manner in which Thread addresses packets,
+        // but may conflict with some other or future protocol
+        // that sits above and uses IPV6
+        let dst_mac_addr;
+        if dst == MULTICAST_IPV6 {
+            // use short multicast ipv6 for dst mac address
+            dst_mac_addr = MacAddress::Short(0xFFFF)
+        } else if dst.0[0..8] == [0xfe, 0x80, 0, 0, 0, 0, 0, 0] {
+            // ipv6 address is of form fe80::MAC; use mac_from_ipv6
+            // helper function to determine ipv6 to send to
+            dst_mac_addr = MacAddress::Long(mac_from_ipv6(dst))
+        } else {
+            dst_mac_addr = self.dst_mac_addr;
+        }
+
+        // TODO: add error handling here
+        let _ = self
+            .sixlowpan
+            .init(self.src_mac_addr, dst_mac_addr, self.radio.get_pan(), None);
+
         self.init_packet(dst, transport_header, payload);
         let ret = self.send_next_fragment();
         ret

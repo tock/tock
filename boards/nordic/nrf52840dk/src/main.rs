@@ -213,6 +213,10 @@ pub struct Platform {
     >,
     alarm: &'static AlarmDriver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<
+        'static,
+        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    >,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
         nrf52840::i2c::TWI<'static>,
@@ -250,6 +254,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
@@ -574,10 +579,7 @@ pub unsafe fn main() {
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
         [
-            IPAddr([
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
-                0x0e, 0x0f,
-            ]),
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
             IPAddr([
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
                 0x1e, 0x1f,
@@ -593,7 +595,7 @@ pub unsafe fn main() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        MacAddress::Short(device_id_bottom_16),
+        MacAddress::Long(device_id),
         local_ip_ifaces,
         mux_alarm,
     )
@@ -609,6 +611,24 @@ pub unsafe fn main() {
         local_ip_ifaces,
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+
+    let thread_driver = components::thread_network::ThreadNetworkComponent::new(
+        board_kernel,
+        capsules_extra::net::thread::driver::DRIVER_NUM,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        aes_mux,
+        device_id,
+        mux_alarm,
+    )
+    .finalize(components::thread_network_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::aes::AesECB<'static>
+    ));
+
+    ieee802154_radio.set_key_procedure(thread_driver);
+    ieee802154_radio.set_device_procedure(thread_driver);
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
@@ -879,6 +899,7 @@ pub unsafe fn main() {
         temp,
         alarm,
         analog_comparator,
+        thread_driver,
         udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,

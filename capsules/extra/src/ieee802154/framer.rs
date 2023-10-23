@@ -223,7 +223,8 @@ impl FrameInfo {
     }
 }
 
-fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
+/// Generate a 15.4 CCM nonce from the device address, frame counter, and SecurityLevel
+pub fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
     let mut nonce = [0u8; 13];
     let encode_ccm_nonce = |buf: &mut [u8]| {
         let off = enc_consume!(buf; encode_bytes, device_addr.as_ref());
@@ -378,15 +379,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
     }
 
-    /// Look up the extended address of a device using the IEEE 802.15.4
-    /// DeviceDescriptor lookup prodecure implemented elsewhere.
-    fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<[u8; 8]> {
-        src_addr.and_then(|addr| {
-            self.device_procedure
-                .and_then(|device_procedure| device_procedure.lookup_addr_long(addr))
-        })
-    }
-
     /// IEEE 802.15.4-2015, 9.2.1, outgoing frame security procedure
     /// Performs the first checks in the security procedure. The rest of the
     /// steps are performed as part of the transmission pipeline.
@@ -450,11 +442,18 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // specifies `KeyIdMode::Source4Index`, the source
                         // address used for the nonce is actually a constant
                         // defined in their spec
-                        let device_addr = match self.lookup_addr_long(header.src_addr) {
-                            Some(addr) => addr,
+                        let device_addr = match header.src_addr {
+                            Some(mac) => match mac {
+                                MacAddress::Long(val) => val,
+                                MacAddress::Short(_) => {
+                                    kernel::debug!("[15.4] DROPPED PACKET - error only short address provided on encrypted packet.");
+                                    return None
+                                },
+                            },
                             None => {
-                                return None;
-                            }
+                                kernel::debug!("[15.4] DROPPED PACKET - Malformed, no src address provided.");
+                                return None
+                            },
                         };
 
                         // Step g, h: Check frame counter
@@ -751,7 +750,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         dst_pan: PanID,
         dst_addr: MacAddress,
         src_pan: PanID,
-        mut src_addr: MacAddress,
+        src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
@@ -761,15 +760,19 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // address should instead be some constant defined in their
         // specification.
 
-        let src_addr_long = self.get_address_long();
         let security_desc = security_needed.and_then(|(level, key_id)| {
+            // To decrypt the packet, we need the long addr.
+            // Without the long addr, we are unable to proceed
+            // and return None
+            let src_addr_long = match src_addr {
+                MacAddress::Long(addr) => addr,
+                MacAddress::Short(_) => return None,
+            };
+
             self.lookup_key(level, key_id).map(|key| {
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
-                if level != SecurityLevel::None {
-                    src_addr = MacAddress::Long(src_addr_long);
-                }
                 (
                     Security {
                         level: level,
