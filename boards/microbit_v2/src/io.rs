@@ -11,6 +11,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use nrf52833::gpio::{self, Pin};
+use nrf52833::uart::{Uarte, UARTE0_BASE};
 
 use kernel::hil::gpio::{Configure, Input, Output};
 
@@ -42,7 +43,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = nrf52833::uart::Uarte::new();
+        let uart = Uarte::new(UARTE0_BASE);
 
         use kernel::hil::uart::Configure;
 

@@ -10,6 +10,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use nrf52832::gpio::Pin;
+use nrf52832::uart::{Uarte, UARTE0_BASE};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -33,7 +34,7 @@ impl IoWrite for Writer {
         // Here, we create a second instance of the Uarte struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
-        let uart = nrf52832::uart::Uarte::new();
+        let uart = Uarte::new(UARTE0_BASE);
         if !self.initialized {
             self.initialized = true;
             let _ = uart.configure(uart::Parameters {
