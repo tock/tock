@@ -21,6 +21,7 @@ use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::hil::spi::SpiMaster;
+use kernel::hil::spi::{ClockPhase, ClockPolarity};
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -364,6 +365,7 @@ pub unsafe fn start() -> (
     // Enable the radio pins
     //let _ = &nrf52840_peripherals.gpio_port.enable_sx1262_radio_pins();
 
+    
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
         .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
     
@@ -383,11 +385,14 @@ pub unsafe fn start() -> (
         nrf52840::pinmux::Pinmux::new(SPI_MISO_PIN as u32),
         nrf52840::pinmux::Pinmux::new(SPI_SCK_PIN as u32),
     );
-
+ 
     base_peripherals
         .spim0
         .specify_chip_select(&nrf52840_peripherals.gpio_port[SPI_CS_PIN])
         .unwrap();
+    base_peripherals.spim0.set_rate(10000000).ok();
+    base_peripherals.spim0.set_polarity(ClockPolarity::IdleLow).ok();
+    base_peripherals.spim0.set_phase(ClockPhase::SampleLeading).ok();
 
     let lr1110_gpio = components::gpio::GpioComponent::new(
         board_kernel,
@@ -396,9 +401,9 @@ pub unsafe fn start() -> (
             nrf52840::gpio::GPIOPin,
             0 => &nrf52840_peripherals.gpio_port[SPI_CS_PIN], // H6 - SX1262 Slave Select
             1 => &nrf52840_peripherals.gpio_port[RADIO_BUSY_PIN], // J8 - SX1262 Radio Busy Indicator
-            //2 => &nrf52840_peripherals.gpio_port[LR_DIO7], // J9 - SX1262 Multipurpose digital I/O (DIO1)
-            //3 => &nrf52840_peripherals.gpio_port[LR_DIO9], // H9 - SX1262 Multipurpose digital I/O (DIO3)
-            2 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN], // J7 - SX1262 Reset
+            //2 => &nrf52840_peripherals.gpio_port[Pin::P1_08], // J9 - SX1262 Multipurpose digital I/O (DIO1)
+            //3 => &nrf52840_peripherals.gpio_port[Pin::P1_04], // H9 - SX1262 Multipurpose digital I/O (DIO3)
+            4 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN], // J7 - SX1262 Reset
         ),
     )
     .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));

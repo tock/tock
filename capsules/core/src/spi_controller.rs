@@ -100,6 +100,7 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
     // Assumes checks for busy/etc. already done
     // Updates app.index to be index + length of op
     fn do_next_read_write(&self, app: &mut App, kernel_data: &GrantKernelData) {
+        kernel::debug!("enter do_next_read_write");
         let write_len = self.kernel_write.map_or(0, |kwbuf| {
             let mut start = app.index;
             let tmp_len = kernel_data
@@ -109,9 +110,11 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
                         let len = cmp::min(app.len - start, self.kernel_len.get());
                         let end = cmp::min(start + len, src.len());
                         start = cmp::min(start, end);
-
+                        
+                        // write buffer goes into kernel: 128 0 0 0 0 0
                         for (i, c) in src[start..end].iter().enumerate() {
                             kwbuf[i] = c.get();
+                            kernel::debug!("kwbuf byte {} in do_next_read_write {}", i, kwbuf[i]);
                         }
                         end - start
                     })
@@ -125,11 +128,16 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
             .get_readwrite_processbuffer(rw_allow::READ)
             .map_or(0, |read| read.len());
 
+        kernel::debug!("read length {}", rlen);
+        kernel::debug!("write length {}", write_len);
+
         // TODO verify SPI return value
         let _ = if rlen == 0 {
+            kernel::debug!("write only");
             self.spi_master
                 .read_write_bytes(self.kernel_write.take().unwrap(), None, write_len)
         } else {
+            kernel::debug!("write and read");
             self.spi_master.read_write_bytes(
                 self.kernel_write.take().unwrap(),
                 self.kernel_read.take(),
@@ -228,6 +236,8 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                         let len = if rlen == 0 { wlen } else { wlen.min(rlen) };
 
                         if len >= arg1 && arg1 > 0 {
+                            kernel::debug!("call command 2");
+                            kernel::debug!("app.len / arg1 {}", arg1);
                             app.len = arg1;
                             app.index = 0;
                             self.busy.set(true);
@@ -254,6 +264,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             5 => {
+                kernel::debug!("command number 5 called");
                 // set baud rate
                 match self.spi_master.set_rate(arg1 as u32) {
                     Ok(()) => CommandReturn::success(),
@@ -309,6 +320,10 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
         length: usize,
         _status: Result<(), ErrorCode>,
     ) {
+        kernel::debug!("callback: read_write_done");
+        //kernel::debug!("writebuf {:?}", writebuf); // [128, 0, 0, ...]
+        //kernel::debug!("readbuf {:?}", readbuf); // [255, 255, 0, 0, ...]
+        kernel::debug!("_status {:?}", _status);
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(process_id, move |app, kernel_data| {
                 let rbuf = readbuf.map(|src| {
@@ -351,12 +366,14 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                 self.kernel_write.replace(writebuf);
 
                 if app.index == app.len {
+                    kernel::debug!("schedule_upcall");
                     self.busy.set(false);
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
                     kernel_data.schedule_upcall(0, (len, 0, 0)).ok();
                 } else {
+                    kernel::debug!("not upcall, keep looping");
                     self.do_next_read_write(app, kernel_data);
                 }
             });

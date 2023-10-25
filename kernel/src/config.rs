@@ -88,7 +88,7 @@ pub(crate) struct Config {
 /// kernel where we permit `#[cfg(x)]` to be used to configure code based on
 /// Cargo features.
 pub(crate) const CONFIG: Config = Config {
-    trace_syscalls: cfg!(feature = "trace_syscalls"),
+    trace_syscalls: true,
     debug_load_processes: cfg!(feature = "debug_load_processes"),
     debug_panics: !cfg!(feature = "no_debug_panics"),
     debug_process_credentials: cfg!(feature = "debug_process_credentials"),

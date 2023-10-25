@@ -354,12 +354,32 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     fn read_write_bytes(
         &self,
         tx_buf: &'static mut [u8],
-        rx_buf: Option<&'static mut [u8]>,
+        mut rx_buf: Option<&'static mut [u8]>,
         len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        kernel::debug!("in chips/nrf52/src");
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
         debug_assert!(self.rx_buf.is_none());
+
+        // 128 0 0 0 0 0 ......
+        // kernel::debug!("tx_buf contents in spi.rs driver:");
+        // for &byte in tx_buf.iter() {
+        //     kernel::debug!("{}", byte);
+        // }
+
+        // 255 255 0 0 0 0 0 ......
+        // if let Some(ref rbuf) = rx_buf {
+        //     kernel::debug!("rx_buf contents in spi.rs driver:");
+        //     for &byte in rbuf.iter() {
+        //         kernel::debug!("{}", byte);
+        //     }
+        // }
+
+        if let Some(rbuf) = &mut rx_buf {
+            rbuf[0] = 0xEE;
+            rbuf[1] = 0xF1;
+        }
 
         // Clear (set to low) chip-select
         if self.chip_select.is_none() {
@@ -370,6 +390,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
         // Setup transmit data registers
         let tx_len: u32 = cmp::min(len, tx_buf.len()) as u32;
         self.registers.txd_ptr.set(tx_buf.as_ptr());
+
         self.registers.txd_maxcnt.write(MAXCNT::MAXCNT.val(tx_len));
         self.tx_buf.replace(tx_buf);
 
