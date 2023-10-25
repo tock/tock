@@ -25,11 +25,11 @@ const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
 
 static mut BYTE: u8 = 0;
 
-const UARTE_BASE: StaticRef<UarteRegisters> =
+pub const UARTE0_BASE: StaticRef<UarteRegisters> =
     unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
 
 #[repr(C)]
-struct UarteRegisters {
+pub struct UarteRegisters {
     task_startrx: WriteOnly<u32, Task::Register>,
     task_stoprx: WriteOnly<u32, Task::Register>,
     task_starttx: WriteOnly<u32, Task::Register>,
@@ -184,9 +184,9 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub fn new() -> Uarte<'a> {
+    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
         Uarte {
-            registers: UARTE_BASE,
+            registers: regs,
             tx_client: OptionalCell::empty(),
             tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
