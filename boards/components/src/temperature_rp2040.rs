@@ -26,6 +26,9 @@ macro_rules! temperature_rp2040_adc_component_static {
     };};
 }
 
+pub type TemperatureRp2040ComponentType<A> =
+    capsules_extra::temperature_rp2040::TemperatureRp2040<'static, A>;
+
 pub struct TemperatureRp2040Component<A: 'static + adc::Adc<'static>> {
     adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,

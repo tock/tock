@@ -56,6 +56,8 @@ macro_rules! bmp280_component_static {
     };};
 }
 
+pub type Bmp280ComponentType<A, I> = capsules_extra::bmp280::Bmp280<'static, A, I>;
+
 pub struct Bmp280Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,

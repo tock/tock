@@ -181,6 +181,10 @@ type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVK
 type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
 type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
+// Temperature
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -205,10 +209,7 @@ pub struct Platform {
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<
-        'static,
-        nrf52840::temperature::Temp<'static>,
-    >,
+    temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,

@@ -45,6 +45,11 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f412g::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F412GDiscovery {
@@ -64,16 +69,7 @@ struct STM32F412GDiscovery {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     touch: &'static capsules_extra::touch::Touch<'static>,
     screen: &'static capsules_extra::screen::Screen<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<
-        'static,
-        capsules_extra::temperature_stm::TemperatureSTM<
-            'static,
-            capsules_core::virtualizers::virtual_adc::AdcDevice<
-                'static,
-                stm32f412g::adc::Adc<'static>,
-            >,
-        >,
-    >,
+    temperature: &'static TemperatureDriver,
     rng: &'static capsules_core::rng::RngDriver<'static>,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -696,10 +692,7 @@ pub unsafe fn main() {
         temp_sensor,
     )
     .finalize(components::temperature_component_static!(
-        capsules_extra::temperature_stm::TemperatureSTM<
-            'static,
-            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f412g::adc::Adc>,
-        >
+        TemperatureSTMSensor
     ));
 
     let adc_channel_0 =

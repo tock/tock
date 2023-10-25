@@ -25,6 +25,8 @@ macro_rules! temperature_component_static {
     };};
 }
 
+pub type TemperatureComponentType<T> = capsules_extra::temperature::TemperatureSensor<'static, T>;
+
 pub struct TemperatureComponent<T: 'static + hil::sensors::TemperatureDriver<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

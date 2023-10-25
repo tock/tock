@@ -54,6 +54,14 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1700] = [0; 0x1700];
 
+type L3GD20Sensor = components::l3gd20::L3gd20ComponentType<
+    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+        'static,
+        stm32f303xc::spi::Spi<'static>,
+    >,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<L3GD20Sensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F3Discovery {
@@ -81,16 +89,7 @@ struct STM32F3Discovery {
             stm32f303xc::i2c::I2C<'static>,
         >,
     >,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<
-        'static,
-        capsules_extra::l3gd20::L3gd20Spi<
-            'static,
-            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-                'static,
-                stm32f303xc::spi::Spi<'static>,
-            >,
-        >,
-    >,
+    temp: &'static TemperatureDriver,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
@@ -675,15 +674,7 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         l3gd20,
     )
-    .finalize(components::temperature_component_static!(
-        capsules_extra::l3gd20::L3gd20Spi<
-            'static,
-            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-                'static,
-                stm32f303xc::spi::Spi,
-            >,
-        >
-    ));
+    .finalize(components::temperature_component_static!(L3GD20Sensor));
 
     // LSM303DLHC
 

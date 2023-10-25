@@ -67,6 +67,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
+type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
+
 /// Supported drivers by the platform
 pub struct PicoExplorerBase {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
@@ -78,13 +83,7 @@ pub struct PicoExplorerBase {
     gpio: &'static capsules_core::gpio::GPIO<'static, RPGpioPin<'static>>,
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<
-        'static,
-        capsules_extra::temperature_rp2040::TemperatureRp2040<
-            'static,
-            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
-        >,
-    >,
+    temperature: &'static TemperatureDriver,
     buzzer_driver: &'static capsules_extra::buzzer_driver::Buzzer<
         'static,
         capsules_extra::buzzer_pwm::PwmBuzzer<
@@ -454,10 +453,7 @@ pub unsafe fn main() {
         temp_sensor,
     )
     .finalize(components::temperature_component_static!(
-        capsules_extra::temperature_rp2040::TemperatureRp2040<
-            'static,
-            capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc>,
-        >
+        TemperatureRp2040Sensor
     ));
 
     //set CLK, MOSI and CS pins in SPI mode

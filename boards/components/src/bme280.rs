@@ -47,6 +47,8 @@ macro_rules! bme280_component_static {
     };};
 }
 
+pub type Bme280ComponentType<I> = capsules_extra::bme280::Bme280<'static, I>;
+
 pub struct Bme280Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,

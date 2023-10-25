@@ -26,6 +26,9 @@ macro_rules! temperature_stm_adc_component_static {
     };};
 }
 
+pub type TemperatureSTMComponentType<A> =
+    capsules_extra::temperature_stm::TemperatureSTM<'static, A>;
+
 pub struct TemperatureSTMComponent<A: 'static + adc::Adc<'static>> {
     adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
     adc_channel: A::Channel,

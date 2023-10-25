@@ -105,6 +105,11 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
 
+type BME280Sensor = components::bme280::Bme280ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LoRaThingsPlus {
@@ -141,16 +146,7 @@ struct LoRaThingsPlus {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<
-        'static,
-        capsules_extra::bme280::Bme280<
-            'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<
-                'static,
-                apollo3::iom::Iom<'static>,
-            >,
-        >,
-    >,
+    temperature: &'static TemperatureDriver,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
@@ -361,12 +357,7 @@ unsafe fn setup() -> (
         capsules_extra::temperature::DRIVER_NUM,
         bme280,
     )
-    .finalize(components::temperature_component_static!(
-        capsules_extra::bme280::Bme280<
-            'static,
-            capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom>,
-        >
-    ));
+    .finalize(components::temperature_component_static!(BME280Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,

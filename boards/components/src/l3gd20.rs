@@ -43,6 +43,8 @@ macro_rules! l3gd20_component_static {
     };};
 }
 
+pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;
+
 pub struct L3gd20Component<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
