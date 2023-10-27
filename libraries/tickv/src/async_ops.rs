@@ -288,8 +288,8 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
     ///
     /// If a power loss occurs before success is returned the data is
     /// assumed to be lost.
-    pub fn zeroize_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
-        match self.tickv.zeroize_key(hash) {
+    pub fn zeroise_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
+        match self.tickv.zeroise_key(hash) {
             Ok(_code) => Err(ErrorCode::WriteFail),
             Err(_e) => {
                 self.key.replace(Some(hash));
@@ -358,7 +358,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
                 }
             }
             State::InvalidateKey(_) => (self.tickv.invalidate_key(self.key.get().unwrap()), 0),
-            State::ZeroizeKey(_) => (self.tickv.zeroize_key(self.key.get().unwrap()), 0),
+            State::ZeroiseKey(_) => (self.tickv.zeroise_key(self.key.get().unwrap()), 0),
             State::GarbageCollect(_) => match self.tickv.garbage_collect() {
                 Ok(bytes_freed) => (Ok(SuccessCode::Complete), bytes_freed),
                 Err(e) => (Err(e), 0),

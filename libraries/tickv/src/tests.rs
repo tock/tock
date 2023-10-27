@@ -65,6 +65,40 @@ fn check_region_one(buf: &[u8]) {
     assert_eq!(buf[46], 0x07);
 }
 
+fn check_region_one_zeroed(buf: &[u8]) {
+    // Check the version
+    assert_eq!(buf[VERSION_OFFSET], VERSION);
+
+    // Check the length
+    // The valid bit should be 0
+    assert_eq!(buf[LEN_OFFSET], 0x00);
+    assert_eq!(buf[LEN_OFFSET + 1], 47);
+
+    // Check the hash
+    assert_eq!(buf[HASH_OFFSET + 0], 0x81);
+    assert_eq!(buf[HASH_OFFSET + 1], 0x13);
+    assert_eq!(buf[HASH_OFFSET + 2], 0x7e);
+    assert_eq!(buf[HASH_OFFSET + 3], 0x95);
+    assert_eq!(buf[HASH_OFFSET + 4], 0x9e);
+    assert_eq!(buf[HASH_OFFSET + 5], 0x93);
+    assert_eq!(buf[HASH_OFFSET + 6], 0xaa);
+    assert_eq!(buf[HASH_OFFSET + 7], 0x3d);
+
+    // Check the value
+    assert_eq!(buf[HASH_OFFSET + 8], 0x00);
+    assert_eq!(buf[28], 0x00);
+    assert_eq!(buf[42], 0x00);
+
+    // Check the check hash
+    assert_eq!(buf[43], 0x00);
+    assert_eq!(buf[44], 0x00);
+    assert_eq!(buf[45], 0x00);
+    assert_eq!(buf[46], 0x00);
+
+    // Make sure we don't overwrite valid data
+    assert_eq!(buf.len(), 47);
+}
+
 fn check_region_two(buf: &[u8]) {
     // Check the version
     assert_eq!(buf[VERSION_OFFSET], VERSION);
@@ -265,6 +299,9 @@ mod store_flast_ctrl {
                 } else if self.run.get() == 2 {
                     println!("Writing key TWO: {:#x?}", buf);
                     check_region_two(buf);
+                } else if self.run.get() == 99 {
+                    println!("Checking the data is zeroed: {:#x?}", buf);
+                    check_region_one_zeroed(buf);
                 }
             }
 
@@ -382,7 +419,7 @@ mod store_flast_ctrl {
     }
 
     #[test]
-    fn test_append_and_delete_zeroize() {
+    fn test_append_and_delete_zeroise() {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let mut hash_function = DefaultHasher::new();
         MAIN_KEY.hash(&mut hash_function);
@@ -400,8 +437,11 @@ mod store_flast_ctrl {
         println!("Get key ONE");
         tickv.get_key(get_hashed_key(b"ONE"), &mut buf).unwrap();
 
-        println!("Zeroize Key ONE");
-        tickv.zeroize_key(get_hashed_key(b"ONE")).unwrap();
+        // Set an invalid value here to skip checking the key
+        tickv.controller.run.set(99);
+
+        println!("Zeroise Key ONE");
+        tickv.zeroise_key(get_hashed_key(b"ONE")).unwrap();
 
         println!("Get non-existant key ONE");
         assert_eq!(
@@ -409,9 +449,9 @@ mod store_flast_ctrl {
             Err(ErrorCode::KeyNotFound)
         );
 
-        println!("Try to zeroize Key ONE Again");
+        println!("Try to zeroise Key ONE Again");
         assert_eq!(
-            tickv.zeroize_key(get_hashed_key(b"ONE")),
+            tickv.zeroise_key(get_hashed_key(b"ONE")),
             Err(ErrorCode::KeyNotFound)
         );
     }
@@ -455,7 +495,7 @@ mod store_flast_ctrl {
     }
 
     #[test]
-    fn test_garbage_collect_zeroize() {
+    fn test_garbage_collect_zeroise() {
         let mut read_buf: [u8; 1024] = [0; 1024];
         let mut hash_function = DefaultHasher::new();
         MAIN_KEY.hash(&mut hash_function);
@@ -476,8 +516,11 @@ mod store_flast_ctrl {
         println!("Garbage collect flash with valid key");
         assert_eq!(tickv.garbage_collect(), Ok(0));
 
-        println!("Delete Key ONE");
-        tickv.zeroize_key(get_hashed_key(b"ONE")).unwrap();
+        // Set an invalid value here to skip checking the key
+        tickv.controller.run.set(99);
+
+        println!("Zeroise Key ONE");
+        tickv.zeroise_key(get_hashed_key(b"ONE")).unwrap();
 
         println!("Garbage collect flash with deleted key");
         assert_eq!(tickv.garbage_collect(), Ok(1024));
