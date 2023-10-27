@@ -12,6 +12,7 @@ pub struct Stm32f429ziDefaultPeripherals<'a> {
     // Once implemented, place Stm32f429zi specific peripherals here
     pub trng: stm32f4xx::trng::Trng<'a>,
     pub can1: stm32f4xx::can::Can<'a>,
+    pub ethernet: crate::ethernet::Ethernet<'a>,
 }
 
 impl<'a> Stm32f429ziDefaultPeripherals<'a> {
@@ -25,6 +26,7 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
             stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
             trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
             can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
+            ethernet: crate::ethernet::Ethernet::new(rcc),
         }
     }
     // Necessary for setting up circular dependencies and registering deferred calls
@@ -55,6 +57,10 @@ impl<'a> kernel::platform::chip::InterruptService for Stm32f429ziDefaultPeripher
             }
             stm32f4xx::nvic::CAN1_SCE => {
                 self.can1.handle_error_status_interrupt();
+                true
+            }
+            stm32f429zi_nvic::ETH => {
+                self.ethernet.handle_interrupt();
                 true
             }
             _ => self.stm32f4.service_interrupt(interrupt),

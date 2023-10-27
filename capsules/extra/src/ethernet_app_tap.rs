@@ -213,7 +213,7 @@ pub const DRIVER_NUM: usize = capsules_core::driver::NUM::EthernetTAP as usize;
 
 /// Maximum size of a packet which can be transmitted over the underlying
 /// [`EthernetAdapter`] device. Currently hard-coded to `1522` bytes.
-pub const MAX_MTU: usize = 1522;
+pub const MAX_MTU: usize = 1524;
 
 mod upcall {
     pub const _DRIVER_RELEASED: usize = 0;
@@ -404,9 +404,10 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
     fn acknowledge_rx_packet(&self, process_id: ProcessId) -> Result<(), ErrorCode> {
         self.apps
             .enter(process_id, |grant, _| {
-                if grant.rx_packet_pending.is_none() {
-                    return Err(ErrorCode::ALREADY);
-                }
+                // TODO: Is this really needed?
+                //if grant.rx_packet_pending.is_none() {
+                //return Err(ErrorCode::ALREADY);
+                //}
 
                 grant.rx_packet_pending = None;
 
@@ -684,7 +685,7 @@ impl<'a, E: EthernetAdapter<'a>> EthernetAdapterClient for TapDriver<'a, E> {
                         // TODO: avoid creating this on the stack
                         let mut pbuf: [u8; MAX_MTU] = [0; MAX_MTU];
 
-                        if packet.len() < pbuf.len() && !ring_buffer.is_full() {
+                        if packet.len() <= pbuf.len() && !ring_buffer.is_full() {
                             pbuf[0..(packet.len())].copy_from_slice(packet);
 
                             ring_buffer.enqueue((
@@ -822,6 +823,16 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                        CommandReturn::failure(ErrorCode::RESERVE)
                    }
              }
+
+            10 => {
+                self.rx_packets.map(|ring_buffer| {
+                    if ring_buffer.has_elements() {
+                        CommandReturn::success()
+                    } else {
+                        CommandReturn::failure(ErrorCode::FAIL)
+                    }
+                }).unwrap()
+            }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

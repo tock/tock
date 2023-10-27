@@ -16,13 +16,17 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
+use stm32f429zi::rcc::{APBPrescaler, SysClockSource};
+use stm32f429zi::syscfg::EthernetInterface;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -44,7 +48,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -69,6 +73,10 @@ struct NucleoF429ZI {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
+    tap_ethernet: &'static capsules_extra::ethernet_app_tap::TapDriver<
+        'static,
+        stm32f429zi::ethernet::Ethernet<'static>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -88,6 +96,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::ethernet_app_tap::DRIVER_NUM => f(Some(self.tap_ethernet)),
             _ => f(None),
         }
     }
@@ -278,6 +287,70 @@ unsafe fn setup_peripherals(
     can1.enable_clock();
 }
 
+// Helper function to setup Ethernet pins
+fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
+    // RMII_REF_CLK
+    gpio_ports.get_pin(PinId::PA01).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_RX_DV
+    gpio_ports.get_pin(PinId::PA07).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_RX_D0
+    gpio_ports.get_pin(PinId::PC04).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_RX_D1
+    gpio_ports.get_pin(PinId::PC05).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_TX_EN
+    gpio_ports.get_pin(PinId::PG11).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_TX_D0
+    gpio_ports.get_pin(PinId::PG13).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+
+    // RMII_TX_D1
+    gpio_ports.get_pin(PinId::PB13).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF11);
+    });
+}
+
+fn setup_clocks_for_ethernet(clocks: &stm32f429zi::clocks::Clocks<Stm32f429Specs>) {
+    assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
+    assert_eq!(Ok(()), clocks.pll.enable());
+    assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
+    assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
+}
+
+// Helper function to initialize and start the ethernet peripheral
+fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
+    setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
+    setup_clocks_for_ethernet(&peripherals.stm32f4.clocks);
+    let ethernet = &peripherals.ethernet;
+    assert_eq!(Ok(()), ethernet.init());
+    // TODO: Remove these calls once Transmit and Receive HILs are implemented
+    assert_eq!(Ok(()), ethernet.enable_transmitter());
+    assert_eq!(Ok(()), ethernet.enable_receiver());
+    assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
+}
+
 /// Statically initialize the core peripherals for the chip.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -296,6 +369,8 @@ unsafe fn create_peripherals() -> (
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(rcc)
     );
+    syscfg.enable_clock();
+    syscfg.configure_ethernet_interface_mode(EthernetInterface::RMII);
     let exti = static_init!(
         stm32f429zi::exti::Exti,
         stm32f429zi::exti::Exti::new(syscfg)
@@ -303,10 +378,20 @@ unsafe fn create_peripherals() -> (
     let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
     let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
 
+    let receive_buffer = static_init!(
+        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+    );
+
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
+
+    peripherals
+        .ethernet
+        .set_received_packet_buffer(receive_buffer);
+
     (peripherals, syscfg, dma1)
 }
 
@@ -584,6 +669,48 @@ pub unsafe fn main() {
         stm32f429zi::can::Can<'static>
     ));
 
+    // Create transmit buffer for tap Ethernet
+    let tap_transmit_buffer = static_init!(
+        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+    );
+
+    // Create receive buffers for tap Ethernet
+    let tap_receive_buffers = static_init!(
+        [(
+            [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+            u16,
+            Option<u64>,
+            bool
+        ); 4],
+        [(
+            [0; capsules_extra::ethernet_app_tap::MAX_MTU],
+            0,
+            None,
+            false
+        ); 4]
+    );
+
+    // Create tap ethernet
+    let tap_ethernet = static_init!(
+        capsules_extra::ethernet_app_tap::TapDriver<
+            'static,
+            stm32f429zi::ethernet::Ethernet<'static>,
+        >,
+        capsules_extra::ethernet_app_tap::TapDriver::new(
+            &peripherals.ethernet,
+            board_kernel.create_grant(
+                capsules_extra::ethernet_app_tap::DRIVER_NUM,
+                &memory_allocation_capability
+            ),
+            tap_transmit_buffer,
+            tap_receive_buffers,
+        )
+    );
+
+    // Set client for the Ethernet firmware
+    peripherals.ethernet.set_client(tap_ethernet);
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -618,12 +745,18 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         can: can,
+        tap_ethernet,
     };
 
     // // Optional kernel tests
     // //
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
+
+    // This function changes clocks. The baud rate for the board is
+    // 180000 now. Also, this must be done late in the process to not impact the initialization of
+    // other peripherals.
+    setup_ethernet(&peripherals);
 
     debug!("Initialization complete. Entering main loop");
 

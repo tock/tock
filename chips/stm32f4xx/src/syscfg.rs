@@ -119,6 +119,11 @@ enum_from_primitive! {
     }
 }
 
+pub enum EthernetInterface {
+    MII = 0b0,
+    RMII = 0b1,
+}
+
 pub struct Syscfg<'a> {
     registers: StaticRef<SyscfgRegisters>,
     clock: SyscfgClock<'a>,
@@ -222,6 +227,13 @@ impl<'a> Syscfg<'a> {
                 .exticr4
                 .modify(EXTICR4::EXTI15.val(exticrid as u32)),
             _ => {}
+        }
+    }
+
+    pub fn configure_ethernet_interface_mode(&self, ethernet_interface: EthernetInterface) {
+        match ethernet_interface {
+            EthernetInterface::MII => self.registers.pmc.modify(PMC::MII_RMII_SEL::CLEAR),
+            EthernetInterface::RMII => self.registers.pmc.modify(PMC::MII_RMII_SEL::SET),
         }
     }
 
