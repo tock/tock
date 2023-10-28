@@ -70,7 +70,6 @@ pub struct BMM150<'a, I: I2CDevice> {
     i2c: &'a I,
     ninedof_client: OptionalCell<&'a dyn NineDofClient>,
     state: Cell<State>,
-    pending_data: Cell<bool>,
 }
 
 impl<'a, I: I2CDevice> BMM150<'a, I> {
@@ -80,7 +79,6 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
             i2c: i2c,
             ninedof_client: OptionalCell::empty(),
             state: Cell::new(State::Suspend),
-            pending_data: Cell::new(false),
         }
     }
 
@@ -100,7 +98,7 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
                             self.ninedof_client
                                 .map(|client| client.callback(error as usize, 0, 0));
                         } else {
-                            self.state.set(State::Sleep);
+                            self.state.set(State::PowerOn);
                         }
                     }
                     _ => {}
@@ -143,17 +141,12 @@ impl<'a, I: I2CDevice> NineDof<'a> for BMM150<'a, I> {
     fn read_magnetometer(&self) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Suspend => {
-                self.pending_data.set(true);
                 self.initialize()
             }
-            _ => {
-                if !self.pending_data.get() {
-                    self.pending_data.set(true);
-                    self.start_measurement()
-                } else {
-                    Err(ErrorCode::BUSY)
-                }
+            State::Sleep => {
+                self.start_measurement()
             }
+            _ => {Err(ErrorCode::BUSY)}
         }
     }
 }
@@ -162,6 +155,7 @@ impl<'a, I: I2CDevice> NineDof<'a> for BMM150<'a, I> {
 enum State {
     Suspend,
     Sleep,
+    PowerOn,
     InitializeReading,
     ReadMeasurement,
     Read,
@@ -178,6 +172,19 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
         }
 
         match self.state.get() {
+            State::PowerOn => {
+                buffer[0] = Registers::CTRL2 as u8;
+                buffer[1] = 0x3A_u8;
+
+                if let Err((error, buffer)) = self.i2c.write(buffer, 2) {
+                    self.buffer.replace(buffer);
+                    self.i2c.disable();
+                    self.ninedof_client
+                        .map(|client| client.callback(error as usize, 0, 0));
+                } else {
+                    self.state.set(State::InitializeReading);
+                }
+            }
             State::InitializeReading => {
                 buffer[0] = Registers::DATAxLsb as u8;
 
@@ -207,23 +214,13 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
-                if self.pending_data.get() {
-                    self.pending_data.set(false);
-                    self.ninedof_client.map(|client| {
-                        client.callback(x_axis as usize, y_axis as usize, z_axis as usize)
-                    });
-                }
+                self.ninedof_client.map(|client| {
+                    client.callback(x_axis as usize, y_axis as usize, z_axis as usize)
+                });
 
                 self.state.set(State::Sleep);
             }
-            State::Sleep => {
-                self.buffer.replace(buffer);
-                self.i2c.disable();
-                if self.pending_data.get() {
-                    self.pending_data.set(false);
-                    self.ninedof_client.map(|client| client.callback(0, 0, 0));
-                }
-            }
+            State::Sleep => {} // should never happen
             State::Suspend => {} // should never happen
         }
     }
