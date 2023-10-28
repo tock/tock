@@ -46,6 +46,7 @@ use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{NineDofClient, NineDof};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
+use kernel::debug;
 
 /// Syscall driver number
 use capsules_core::driver;
@@ -194,13 +195,16 @@ impl<'a, I: I2CDevice> BMI270<'a, I> {
                 self.i2c.enable();
                 match self.state.get() {
                     State::Idle => {
-                        buffer[0] = Registers::Data8 as u8;
+                        buffer[0] = Registers::PwrCtrl as u8;
+                        buffer[1] = 0x0E_u8;
 
-                        if let Err((_i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 12) {
+                        if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                             self.state.set(State::Sleep);
                             self.buffer.replace(buffer);
+                            self.ninedof_client
+                                    .map(|client| client.callback(i2c_err as usize, 0, 0));
                         } else {
-                            self.state.set(State::Done);
+                            self.state.set(State::ConfAccel);
                         }
                     }
                     _ => {}
@@ -737,21 +741,23 @@ impl<'a, I: I2CDevice> I2CClient for BMI270<'a, I> {
                 buffer[0] = Registers::InitData as u8;
 
                 for i in 1..8192 {
-                    buffer[i] = config_file[i - 1];
+                    let _value = config_file[i - 1];
+                    buffer[i] = 0;
                 }
 
                 if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 8193) {
+                    debug!("Failed Config File Upload");
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.ninedof_client
                             .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
+                    debug!("Changed State to InitDone");
                     self.state.set(State::InitDone);
                 }
-
-                self.state.set(State::Sleep);
             }
             State::InitDone => {
+                debug!("Entered InitDone State");
                 buffer[0] = Registers::InitCtrl as u8;
                 buffer[1] = 0x01_u8;
 
