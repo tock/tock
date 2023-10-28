@@ -137,7 +137,6 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
@@ -169,7 +168,6 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_extra::proximity::DRIVER_NUM => f(Some(self.proximity)),
-            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
@@ -494,28 +492,20 @@ pub unsafe fn start() -> (
     )
     .finalize(components::proximity_component_static!());
 
-    let hs3003 = components::hs3003::Hs3003Component::new(sensors_i2c_bus, 0x44)
-        .finalize(components::hs3003_component_static!(nrf52840::i2c::TWI));
+    let hts221 = components::hts221::Hts221Component::new(sensors_i2c_bus, 0x5f)
+        .finalize(components::hts221_component_static!(nrf52840::i2c::TWI));
     let temperature = components::temperature::TemperatureComponent::new(
         board_kernel,
         capsules_extra::temperature::DRIVER_NUM,
-        hs3003,
+        hts221,
     )
     .finalize(components::temperature_component_static!());
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
-        hs3003,
+        hts221,
     )
     .finalize(components::humidity_component_static!());
-
-    let bmi270 = components::bmi270::BMI270Component::new(sensors_i2c_bus, 0x68)
-        .finalize(components::bmi270_component_static!(nrf52840::i2c::TWI));
-    let ninedof = components::ninedof::NineDofComponent::new(
-        board_kernel,
-        capsules_extra::temperature::DRIVER_NUM,
-    )
-    .finalize(components::ninedof_component_static!(bmi270));
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -612,7 +602,6 @@ pub unsafe fn start() -> (
         console,
         pconsole,
         proximity,
-        ninedof,
         temperature,
         humidity,
         adc: adc_syscall,
