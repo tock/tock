@@ -91,7 +91,7 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
                     State::Suspend => {
                         buffer[0] = Registers::CTRL1 as u8;
                         buffer[1] = 0x1_u8;
-    
+
                         if let Err((_error, buffer)) = self.i2c.write(buffer, 2) {
                             self.buffer.replace(buffer);
                             self.i2c.disable();
@@ -190,12 +190,14 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
-                self.ninedof_client.map(|client| client.callback(x_axis as usize, y_axis as usize, z_axis as usize));
-                
+                self.ninedof_client.map(|client| {
+                    client.callback(x_axis as usize, y_axis as usize, z_axis as usize)
+                });
+
                 self.state.set(State::Sleep);
             }
-            State::Sleep => {} // should never happen
+            State::Sleep => {}   // should never happen
             State::Suspend => {} // should never happen
         }
     }
-} 
+}
