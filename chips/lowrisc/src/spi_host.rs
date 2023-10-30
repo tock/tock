@@ -630,8 +630,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         //Hold rx_buf for later
 
         rx_buf.map(|rx_buf_t| {
-            self.rx_len
-                .set(cmp::min(self.tx_len.get(), rx_buf_t.len()) as usize);
+            self.rx_len.set(cmp::min(self.tx_len.get(), rx_buf_t.len()));
             self.rx_buf.replace(rx_buf_t);
         });
 
