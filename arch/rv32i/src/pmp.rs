@@ -96,6 +96,112 @@ impl From<mpu::Permissions> for TORUserPMPCFG {
     }
 }
 
+/// A RISC-V PMP memory region specification, configured in NAPOT mode.
+///
+/// This type checks that the supplied `start` and `size` values meet the RISC-V
+/// NAPOT requirements, namely that
+///
+/// - the region is a power of two bytes in size
+/// - the region's start address is aligned to the region size
+/// - the region is at least 8 bytes long
+///
+/// By accepting this type, PMP implementations can rely on these requirements
+/// to be verified. Furthermore, they can use the
+/// [`NAPOTRegionSpec::napot_addr`] convenience method to retrieve an `pmpaddrX`
+/// CSR value encoding this region's address and length.
+#[derive(Copy, Clone, Debug)]
+pub struct NAPOTRegionSpec {
+    start: *const u8,
+    size: usize,
+}
+
+impl NAPOTRegionSpec {
+    /// Construct a new [`NAPOTRegionSpec`]
+    ///
+    /// This method accepts a `start` address and a region length. It returns
+    /// `Some(region)` when all constraints specified in the
+    /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
+    pub fn new(start: *const u8, size: usize) -> Option<Self> {
+        if !size.is_power_of_two() || (start as usize) % size != 0 || size < 8 {
+            None
+        } else {
+            Some(NAPOTRegionSpec { start, size })
+        }
+    }
+
+    /// Retrieve the start address of this [`NAPOTRegionSpec`].
+    pub fn start(&self) -> *const u8 {
+        self.start
+    }
+
+    /// Retrieve the size of this [`NAPOTRegionSpec`].
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    /// Retrieve the end address of this [`NAPOTRegionSpec`].
+    pub fn end(&self) -> *const u8 {
+        unsafe { self.start.add(self.size) }
+    }
+
+    /// Retrieve a `pmpaddrX`-CSR compatible representation of this
+    /// [`NAPOTRegionSpec`]'s address and length. For this value to be valid in
+    /// a `CSR` register, the `pmpcfgX` octet's `A` (address mode) value
+    /// belonging to this `pmpaddrX`-CSR must be set to `NAPOT` (0b11).
+    pub fn napot_addr(&self) -> usize {
+        ((self.start as usize) + (self.size - 1).overflowing_shr(1).0)
+            .overflowing_shr(2)
+            .0
+    }
+}
+
+/// A RISC-V PMP memory region specification, configured in TOR mode.
+///
+/// This type checks that the supplied `start` and `end` addresses meet the
+/// RISC-V TOR requirements, namely that
+///
+/// - the region's start address is aligned to a 4-byte boundary
+/// - the region's end address is aligned to a 4-byte boundary
+/// - the region is at least 4 bytes long
+///
+/// By accepting this type, PMP implementations can rely on these requirements
+/// to be verified.
+#[derive(Copy, Clone, Debug)]
+pub struct TORRegionSpec {
+    start: *const u8,
+    end: *const u8,
+}
+
+impl TORRegionSpec {
+    /// Construct a new [`TORRegionSpec`]
+    ///
+    /// This method accepts a `start` and `end` address. It returns
+    /// `Some(region)` when all constraints specified in the [`TORRegionSpec`]'s
+    /// documentation are satisfied, otherwise `None`.
+    pub fn new(start: *const u8, end: *const u8) -> Option<Self> {
+        if (start as usize) % 4 != 0
+            || (end as usize) % 4 != 0
+            || (end as usize)
+                .checked_sub(start as usize)
+                .map_or(true, |size| size < 4)
+        {
+            None
+        } else {
+            Some(TORRegionSpec { start, end })
+        }
+    }
+
+    /// Retrieve the start address of this [`TORRegionSpec`].
+    pub fn start(&self) -> *const u8 {
+        self.start
+    }
+
+    /// Retrieve the end address of this [`TORRegionSpec`].
+    pub fn end(&self) -> *const u8 {
+        self.end
+    }
+}
+
 /// Helper method to check if a [`PMPUserMPUConfig`] region overlaps with a
 /// region specified by `other_start` and `other_size`.
 ///
@@ -1211,6 +1317,373 @@ pub mod simple {
     }
 
     impl<const AVAILABLE_ENTRIES: usize> fmt::Display for SimplePMP<AVAILABLE_ENTRIES> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, " PMP hardware configuration -- entries: \r\n")?;
+            unsafe { super::format_pmp_entries::<AVAILABLE_ENTRIES>(f) }
+        }
+    }
+}
+
+pub mod kernel_protection {
+    use super::{pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG};
+    use crate::csr;
+    use core::fmt;
+    use kernel::utilities::registers::{FieldValue, LocalRegisterCopy};
+
+    // ---------- Kernel memory-protection PMP memory region wrapper types -----
+    //
+    // These types exist primarily to avoid argument confusion in the
+    // [`KernelProtectionPMP`] constructor, which accepts the addresses of these
+    // memory regions as arguments. They further encode whether a region must
+    // adhere to the `NAPOT` or `TOR` addressing mode constraints:
+
+    /// The flash memory region address range.
+    ///
+    /// Configured in the PMP as a `NAPOT` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct FlashRegion(pub NAPOTRegionSpec);
+
+    /// The RAM region address range.
+    ///
+    /// Configured in the PMP as a `NAPOT` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct RAMRegion(pub NAPOTRegionSpec);
+
+    /// The MMIO region address range.
+    ///
+    /// Configured in the PMP as a `NAPOT` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct MMIORegion(pub NAPOTRegionSpec);
+
+    /// The PMP region specification for the kernel `.text` section.
+    ///
+    /// This is to be made accessible to machine-mode as read-execute.
+    /// Configured in the PMP as a `TOR` region.
+    #[derive(Copy, Clone, Debug)]
+    pub struct KernelTextRegion(pub TORRegionSpec);
+
+    /// A RISC-V PMP implementation which supports machine-mode (kernel) memory
+    /// protection, with a fixed number of "kernel regions" (such as `.text`,
+    /// flash, RAM and MMIO).
+    ///
+    /// This implementation will configure the PMP in the following way:
+    ///
+    ///   ```text
+    ///   |-------+-----------------------------------------+-------+---+-------|
+    ///   | ENTRY | REGION / ADDR                           | MODE  | L | PERMS |
+    ///   |-------+-----------------------------------------+-------+---+-------|
+    ///   |     0 | /                                     \ | OFF   |   |       |
+    ///   |     1 | \ Userspace TOR region #0             / | TOR   |   | ????? |
+    ///   |       |                                         |       |   |       |
+    ///   |     2 | /                                     \ | OFF   |   |       |
+    ///   |     3 | \ Userspace TOR region #1             / | TOR   |   | ????? |
+    ///   |       |                                         |       |   |       |
+    ///   | 4 ... | /                                     \ |       |   |       |
+    ///   | n - 8 | \ Userspace TOR region #x             / |       |   |       |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 7 | "Deny-all" user-mode rule (all memory)  | NAPOT |   | ----- |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 6 | --------------------------------------- | OFF   | X | ----- |
+    ///   | n - 5 | Kernel .text section                    | TOR   | X | R/X   |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 4 | FLASH (spanning kernel & apps)          | NAPOT | X | R     |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 3 | RAM (spanning kernel & apps)            | NAPOT | X | R/W   |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 2 | MMIO                                    | NAPOT | X | R/W   |
+    ///   |       |                                         |       |   |       |
+    ///   | n - 1 | "Deny-all" machine-mode    (all memory) | NAPOT | X | ----- |
+    ///   |-------+-----------------------------------------+-------+---+-------|
+    ///   ```
+    ///
+    /// This implementation does not use any `mseccfg` protection bits (ePMP
+    /// functionality). To protect machine-mode (kernel) memory regions, regions
+    /// must be marked as locked. However, locked regions apply to both user-
+    /// and machine-mode. Thus, region `n - 7` serves as a "deny-all" user-mode
+    /// rule, which prohibits all accesses not explicitly allowed through rules
+    /// `< n - 7`. Kernel memory is made accessible underneath this "deny-all"
+    /// region, which does not apply to machine-mode.
+    ///
+    /// This PMP implementation supports the [`TORUserPMP`] interface with
+    /// `MPU_REGIONS <= ((AVAILABLE_ENTRIES - 7) / 2)`, to leave sufficient
+    /// space for the "deny-all" and kernel regions. This constraint is enforced
+    /// through the [`KernelProtectionPMP::CONST_ASSERT_CHECK`] associated
+    /// constant, which MUST be evaluated by the consumer of the [`TORUserPMP`]
+    /// trait (usually the [`PMPUserMPU`](super::PMPUserMPU) implementation).
+    pub struct KernelProtectionPMP<const AVAILABLE_ENTRIES: usize>;
+
+    impl<const AVAILABLE_ENTRIES: usize> KernelProtectionPMP<AVAILABLE_ENTRIES> {
+        pub unsafe fn new(
+            flash: FlashRegion,
+            ram: RAMRegion,
+            mmio: MMIORegion,
+            kernel_text: KernelTextRegion,
+        ) -> Result<Self, ()> {
+            for i in 0..AVAILABLE_ENTRIES {
+                // Read the entry's CSR:
+                let pmpcfg_csr = csr::CSR.pmpconfig_get(i / 4);
+
+                // Extract the entry's pmpcfg octet:
+                let pmpcfg: LocalRegisterCopy<u8, pmpcfg_octet::Register> = LocalRegisterCopy::new(
+                    pmpcfg_csr.overflowing_shr(((i % 4) * 8) as u32).0 as u8,
+                );
+
+                // As outlined above, we never touch a locked region. Thus, bail
+                // out if it's locked:
+                if pmpcfg.is_set(pmpcfg_octet::l) {
+                    return Err(());
+                }
+
+                // Now that it's not locked, we can be sure that regardless of
+                // any ePMP bits, this region is either ignored or entirely
+                // denied for machine-mode access. Hence, we can change it in
+                // arbitrary ways without breaking our own memory access. Try to
+                // flip the R/W/X bits:
+                csr::CSR.pmpconfig_set(i / 4, pmpcfg_csr ^ (7 << ((i % 4) * 8)));
+
+                // Check if the CSR changed:
+                if pmpcfg_csr == csr::CSR.pmpconfig_get(i / 4) {
+                    // Didn't change! This means that this region is not backed
+                    // by HW. Return an error as `AVAILABLE_ENTRIES` is
+                    // incorrect:
+                    return Err(());
+                }
+
+                // Finally, turn the region off:
+                csr::CSR.pmpconfig_set(i / 4, pmpcfg_csr & !(0x18 << ((i % 4) * 8)));
+            }
+
+            // -----------------------------------------------------------------
+            // Hardware PMP is verified to be in a compatible mode & state, and
+            // has at least `AVAILABLE_ENTRIES` entries.
+            // -----------------------------------------------------------------
+
+            // Now we need to set up the various kernel memory protection
+            // regions, and the deny-all userspace region (n - 8), never
+            // modified.
+
+            // Helper to modify an arbitrary PMP entry. Because we don't know
+            // AVAILABLE_ENTRIES in advance, there's no good way to
+            // optimize this further.
+            fn write_pmpaddr_pmpcfg(i: usize, pmpcfg: u8, pmpaddr: usize) {
+                csr::CSR.pmpaddr_set(i, pmpaddr);
+                csr::CSR.pmpconfig_modify(
+                    i / 4,
+                    FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
+                        0x000000FF_usize,
+                        (i % 4) * 8,
+                        u32::from_be_bytes([0, 0, 0, pmpcfg]) as usize,
+                    ),
+                );
+            }
+
+            // Set the kernel `.text`, flash, RAM and MMIO regions, in no
+            // particular order, with the exception of `.text` and flash:
+            // `.text` must precede flash, as otherwise we'd be revoking execute
+            // permissions temporarily. Given that we can currently execute
+            // code, this should not have any impact on our accessible memory,
+            // assuming that the provided regions are not otherwise aliased.
+
+            // MMIO at n - 2:
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 2,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::SET
+                    + pmpcfg_octet::w::SET
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                mmio.0.napot_addr(),
+            );
+
+            // RAM at n - 3:
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 3,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::SET
+                    + pmpcfg_octet::w::SET
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                ram.0.napot_addr(),
+            );
+
+            // `.text` at n - 6 and n - 5 (TOR region):
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 6,
+                (pmpcfg_octet::a::OFF
+                    + pmpcfg_octet::r::CLEAR
+                    + pmpcfg_octet::w::CLEAR
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                (kernel_text.0.start() as usize) >> 2,
+            );
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 5,
+                (pmpcfg_octet::a::TOR
+                    + pmpcfg_octet::r::SET
+                    + pmpcfg_octet::w::CLEAR
+                    + pmpcfg_octet::x::SET
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                (kernel_text.0.end() as usize) >> 2,
+            );
+
+            // flash at n - 4:
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 4,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::SET
+                    + pmpcfg_octet::w::CLEAR
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                flash.0.napot_addr(),
+            );
+
+            // Now that the kernel has explicit region definitions for any
+            // memory that it needs to have access to, we can deny other memory
+            // accesses in our very last rule (n - 1):
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 1,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::CLEAR
+                    + pmpcfg_octet::w::CLEAR
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::SET)
+                    .into(),
+                // the entire address space:
+                0x7FFFFFFF,
+            );
+
+            // Finally, we configure the non-locked user-mode deny all
+            // rule. This must never be removed, or otherwise usermode will be
+            // able to access all locked regions (which are supposed to be
+            // exclusively accessible to kernel-mode):
+            write_pmpaddr_pmpcfg(
+                AVAILABLE_ENTRIES - 7,
+                (pmpcfg_octet::a::NAPOT
+                    + pmpcfg_octet::r::CLEAR
+                    + pmpcfg_octet::w::CLEAR
+                    + pmpcfg_octet::x::CLEAR
+                    + pmpcfg_octet::l::CLEAR)
+                    .into(),
+                // the entire address space:
+                0x7FFFFFFF,
+            );
+
+            // Setup complete
+            Ok(KernelProtectionPMP)
+        }
+    }
+
+    impl<const AVAILABLE_ENTRIES: usize, const MPU_REGIONS: usize> TORUserPMP<MPU_REGIONS>
+        for KernelProtectionPMP<AVAILABLE_ENTRIES>
+    {
+        /// Ensure that the MPU_REGIONS (starting at entry, and occupying two
+        /// entries per region) don't overflow the available entires, excluding
+        /// the 7 entires used for implementing the kernel memory protection.
+        const CONST_ASSERT_CHECK: () = assert!(MPU_REGIONS <= ((AVAILABLE_ENTRIES - 7) / 2));
+
+        fn available_regions(&self) -> usize {
+            // Always assume to have `MPU_REGIONS` usable TOR regions. We don't
+            // support locking additional regions at runtime.
+            MPU_REGIONS
+        }
+
+        // This implementation is specific for 32-bit systems. We use
+        // `u32::from_be_bytes` and then cast to usize, as it manages to compile
+        // on 64-bit systems as well. However, this implementation will not work
+        // on RV64I systems, due to the changed pmpcfgX CSR layout.
+        fn configure_pmp(
+            &self,
+            regions: &[(TORUserPMPCFG, *const u8, *const u8); MPU_REGIONS],
+        ) -> Result<(), ()> {
+            // Could use `iter_array_chunks` once that's stable.
+            let mut regions_iter = regions.iter();
+            let mut i = 0;
+
+            while let Some(even_region) = regions_iter.next() {
+                let odd_region_opt = regions_iter.next();
+
+                if let Some(odd_region) = odd_region_opt {
+                    // We can configure two regions at once which, given that we
+                    // start at index 0 (an even offset), translates to a single
+                    // CSR write for the pmpcfgX register:
+                    csr::CSR.pmpconfig_set(
+                        i / 2,
+                        u32::from_be_bytes([
+                            odd_region.0.get(),
+                            TORUserPMPCFG::OFF.get(),
+                            even_region.0.get(),
+                            TORUserPMPCFG::OFF.get(),
+                        ]) as usize,
+                    );
+
+                    // Now, set the addresses of the respective regions, if they
+                    // are enabled, respectively:
+                    if even_region.0 != TORUserPMPCFG::OFF {
+                        csr::CSR
+                            .pmpaddr_set(i * 2 + 0, (even_region.1 as usize).overflowing_shr(2).0);
+                        csr::CSR
+                            .pmpaddr_set(i * 2 + 1, (even_region.2 as usize).overflowing_shr(2).0);
+                    }
+
+                    if odd_region.0 != TORUserPMPCFG::OFF {
+                        csr::CSR
+                            .pmpaddr_set(i * 2 + 2, (odd_region.1 as usize).overflowing_shr(2).0);
+                        csr::CSR
+                            .pmpaddr_set(i * 2 + 3, (odd_region.2 as usize).overflowing_shr(2).0);
+                    }
+
+                    i += 2;
+                } else {
+                    // Modify the first two pmpcfgX octets for this region:
+                    csr::CSR.pmpconfig_modify(
+                        i / 2,
+                        FieldValue::<usize, csr::pmpconfig::pmpcfg::Register>::new(
+                            0x0000FFFF,
+                            0,
+                            u32::from_be_bytes([
+                                0,
+                                0,
+                                even_region.0.get(),
+                                TORUserPMPCFG::OFF.get(),
+                            ]) as usize,
+                        ),
+                    );
+
+                    // Set the addresses if the region is enabled:
+                    if even_region.0 != TORUserPMPCFG::OFF {
+                        csr::CSR
+                            .pmpaddr_set(i * 2 + 0, (even_region.1 as usize).overflowing_shr(2).0);
+                        csr::CSR
+                            .pmpaddr_set(i * 2 + 1, (even_region.2 as usize).overflowing_shr(2).0);
+                    }
+
+                    i += 1;
+                }
+            }
+
+            Ok(())
+        }
+
+        fn enable_user_pmp(&self) -> Result<(), ()> {
+            // No-op. User-mode regions are never enforced in machine-mode, and
+            // thus can be configured direct and may stay enabled in
+            // machine-mode.
+            Ok(())
+        }
+
+        fn disable_user_pmp(&self) {
+            // No-op. User-mode regions are never enforced in machine-mode, and
+            // thus can be configured direct and may stay enabled in
+            // machine-mode.
+        }
+    }
+
+    impl<const AVAILABLE_ENTRIES: usize> fmt::Display for KernelProtectionPMP<AVAILABLE_ENTRIES> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, " PMP hardware configuration -- entries: \r\n")?;
             unsafe { super::format_pmp_entries::<AVAILABLE_ENTRIES>(f) }

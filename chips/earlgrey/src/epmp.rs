@@ -12,125 +12,20 @@ use core::marker::PhantomData;
 use kernel::platform::mpu;
 use kernel::utilities::registers::FieldValue;
 use rv32i::csr;
-use rv32i::pmp::{format_pmp_entries, pmpcfg_octet, TORUserPMP, TORUserPMPCFG};
+use rv32i::pmp::{
+    format_pmp_entries, pmpcfg_octet, NAPOTRegionSpec, TORRegionSpec, TORUserPMP, TORUserPMPCFG,
+};
 
 // ---------- EarlGrey ePMP implementation named constants ---------------------
 //
 // The ePMP implementation (in part) relies on these constant values. Simply
 // changing them here may break the implementation below.
+const PMP_ENTRIES: usize = 16;
 const PMP_ENTRIES_OVER_TWO: usize = 8;
 const TOR_USER_REGIONS_DEBUG_ENABLE: usize = 4;
 const TOR_USER_REGIONS_DEBUG_DISABLE: usize = 5;
 const TOR_USER_ENTRIES_OFFSET_DEBUG_ENABLE: usize = 0;
 const TOR_USER_ENTRIES_OFFSET_DEBUG_DISABLE: usize = 2;
-
-// ---------- RISC-V PMP region specification wrapper types --------------------
-
-/// A RISC-V PMP memory region specification, configured in NAPOT mode.
-///
-/// This type checks that the supplied `start` and `size` values meet the RISC-V
-/// NAPOT requirements, namely that
-///
-/// - the region is a power of two bytes in size
-/// - the region's start address is aligned to the region size
-/// - the region is at least 8 bytes long
-///
-/// By accepting this type, PMP implementations can rely on these requirements
-/// to be verified. Furthermore, they can use the
-/// [`NAPOTRegionSpec::napot_addr`] convenience method to retrieve an `pmpaddrX`
-/// CSR value encoding this region's address and length.
-#[derive(Copy, Clone, Debug)]
-pub struct NAPOTRegionSpec {
-    start: *const u8,
-    size: usize,
-}
-
-impl NAPOTRegionSpec {
-    /// Construct a new [`NAPOTRegionSpec`]
-    ///
-    /// This method accepts a `start` address and a region length. It returns
-    /// `Some(region)` when all constraints specified in the
-    /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
-    pub fn new(start: *const u8, size: usize) -> Option<Self> {
-        if !size.is_power_of_two() || (start as usize) % size != 0 || size < 8 {
-            None
-        } else {
-            Some(NAPOTRegionSpec { start, size })
-        }
-    }
-
-    /// Retrieve the start address of this [`NAPOTRegionSpec`].
-    pub fn start(&self) -> *const u8 {
-        self.start
-    }
-
-    /// Retrieve the size of this [`NAPOTRegionSpec`].
-    pub fn size(&self) -> usize {
-        self.size
-    }
-
-    /// Retrieve the end address of this [`NAPOTRegionSpec`].
-    pub fn end(&self) -> *const u8 {
-        unsafe { self.start.add(self.size) }
-    }
-
-    /// Retrieve a `pmpaddrX`-CSR compatible representation of this
-    /// [`NAPOTRegionSpec`]'s address and length. For this value to be valid in
-    /// a `CSR` register, the `pmpcfgX` octet's `A` (address mode) value
-    /// belonging to this `pmpaddrX`-CSR must be set to `NAPOT` (0b11).
-    pub fn napot_addr(&self) -> usize {
-        ((self.start as usize) + (self.size - 1).overflowing_shr(1).0)
-            .overflowing_shr(2)
-            .0
-    }
-}
-
-/// A RISC-V PMP memory region specification, configured in TOR mode.
-///
-/// This type checks that the supplied `start` and `end` addresses meet the
-/// RISC-V TOR requirements, namely that
-///
-/// - the region's start address is aligned to a 4-byte boundary
-/// - the region's end address is aligned to a 4-byte boundary
-/// - the region is at least 4 bytes long
-///
-/// By accepting this type, PMP implementations can rely on these requirements
-/// to be verified.
-#[derive(Copy, Clone, Debug)]
-pub struct TORRegionSpec {
-    start: *const u8,
-    end: *const u8,
-}
-
-impl TORRegionSpec {
-    /// Construct a new [`TORRegionSpec`]
-    ///
-    /// This method accepts a `start` and `end` address. It returns
-    /// `Some(region)` when all constraints specified in the [`TORRegionSpec`]'s
-    /// documentation are satisfied, otherwise `None`.
-    pub fn new(start: *const u8, end: *const u8) -> Option<Self> {
-        if (start as usize) % 4 != 0
-            || (end as usize) % 4 != 0
-            || (end as usize)
-                .checked_sub(start as usize)
-                .map_or(true, |size| size < 4)
-        {
-            None
-        } else {
-            Some(TORRegionSpec { start, end })
-        }
-    }
-
-    /// Retrieve the start address of this [`TORRegionSpec`].
-    pub fn start(&self) -> *const u8 {
-        self.start
-    }
-
-    /// Retrieve the end address of this [`TORRegionSpec`].
-    pub fn end(&self) -> *const u8 {
-        self.end
-    }
-}
 
 // ---------- EarlGrey ePMP memory region wrapper types ------------------------
 //

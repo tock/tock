@@ -334,28 +334,28 @@ unsafe fn setup() -> (
     // protection.
     let earlgrey_epmp = earlgrey::epmp::EarlGreyEPMP::new_debug(
         earlgrey::epmp::FlashRegion(
-            earlgrey::epmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::new(
                 &_sflash as *const u8,                                           // start
                 &_eflash as *const u8 as usize - &_sflash as *const u8 as usize, // size
             )
             .unwrap(),
         ),
         earlgrey::epmp::RAMRegion(
-            earlgrey::epmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::new(
                 &_ssram as *const u8,                                          // start
                 &_esram as *const u8 as usize - &_ssram as *const u8 as usize, // size
             )
             .unwrap(),
         ),
         earlgrey::epmp::MMIORegion(
-            earlgrey::epmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::new(
                 0x40000000 as *const u8, // start
                 0x10000000,              // size
             )
             .unwrap(),
         ),
         earlgrey::epmp::KernelTextRegion(
-            earlgrey::epmp::TORRegionSpec::new(
+            rv32i::pmp::TORRegionSpec::new(
                 &_stext as *const u8, // start
                 &_etext as *const u8, // end
             )
@@ -366,7 +366,7 @@ unsafe fn setup() -> (
         // parameter `EPMPDebugConfig` to `EPMPDebugDisable`, in which case
         // this expects to be passed a unit (`()`) type.
         earlgrey::epmp::RVDMRegion(
-            earlgrey::epmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::new(
                 0x00010000 as *const u8, // start
                 0x00001000,              // size
             )
