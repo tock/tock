@@ -448,7 +448,7 @@ impl<const MAX_AVAILABLE_REGIONS_OVER_TWO: usize> kernel::platform::mpu::MPU
         let mut region_size = cmp::max(
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
-        ) as usize;
+        );
 
         // Region size always has to align to 4 bytes
         if region_size % 4 != 0 {
