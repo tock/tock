@@ -24,10 +24,8 @@ let
   tockloader = import (pkgs.fetchFromGitHub {
     owner = "tock";
     repo = "tockloader";
-    # TODO: change to tag once there is a Tockloader release with
-    # `default.nix` included.
-    rev = "6f37412d5608d9bb48510c98a929cc3f96f8cc8f";
-    sha256 = "sha256-0WobupjSqJ36+nME9YO9wcEx4X6jE+edSn4PNM+aDUo=";
+    rev = "v1.11.0";
+    sha256 = "sha256-bPEfpfOZOjOiazqRgn1cnqe4ohLPvocuENKoZx/Qw80=";
   }) { inherit pkgs withUnfreePkgs; };
 
   rust_overlay = import "${pkgs.fetchFromGitHub {
