@@ -43,6 +43,8 @@ impl<'a> SpiMasterClient for SpiHostCallback {
         tx_len: usize,
         rc: Result<(), ErrorCode>,
     ) {
+        debug!("Transfer Complete");
+
         //Transfer Complete
         assert_eq!(rc, Ok(()));
         assert_eq!(tx_len, self.tx_len.get());
@@ -58,6 +60,8 @@ impl<'a> SpiMasterClient for SpiHostCallback {
                 panic!("RX Buffer Lost");
             }
         }
+
+        debug!("{} == {}", self.tx_len.get(), tx_len);
 
         if self.tx_len.get() == tx_len {
             self.transfer_done.set(true);
