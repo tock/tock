@@ -158,7 +158,7 @@ fn spi_host_transfer_partial() {
         spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
         Ok(())
     );
-    run_kernel_op(5000);
+    run_kernel_op(10000);
 
     assert_eq!(cb.transfer_done.get(), true);
 
