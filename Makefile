@@ -514,12 +514,13 @@ ci-job-cargo-test-build:
 
 ### ci-runner-github-qemu jobs:
 
-QEMU_COMMIT_HASH=cab35c73be9d579db105ef73fa8a60728a890098
+QEMU_COMMIT_HASH=c8cbfde9d5758cac4739cd01007b07a119aa3362
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
+	@rm -rf tools/qemu
 	@printf "Building QEMU, this could take a few minutes\n\n"
-	@git clone https://github.com/qemu/qemu ./tools/qemu 2>/dev/null || echo "qemu already cloned, checking out"
+	@git clone https://github.com/alistair23/qemu ./tools/qemu 2>/dev/null || echo "qemu already cloned, checking out"
 	@cd tools/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
 	@# Build qemu
 	@$(MAKE) -C "tools/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
