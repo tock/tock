@@ -154,7 +154,11 @@ pub struct BMI270<'a, I: I2CDevice> {
 }
 
 impl<'a, I: I2CDevice> BMI270<'a, I> {
-    pub fn new(i2c_bus: &'a I, buffer: &'static mut [u8], config_file: &'static mut [u8]) -> BMI270<'a, I> {
+    pub fn new(
+        i2c_bus: &'a I,
+        buffer: &'static mut [u8],
+        config_file: &'static mut [u8],
+    ) -> BMI270<'a, I> {
         BMI270 {
             buffer: TakeCell::new(buffer),
             config_file: TakeCell::new(config_file),
@@ -277,9 +281,7 @@ impl<'a, I: I2CDevice> I2CClient for BMI270<'a, I> {
                 }
             }
             State::InitWriteConfig => {
-                self.config_file
-                .take()
-                .map(|config_file| {
+                self.config_file.take().map(|config_file| {
                     if let Err((i2c_err, buffer)) = self.i2c.write(config_file, 8193) {
                         self.state.set(State::Sleep);
                         self.buffer.replace(buffer);
