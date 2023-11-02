@@ -188,13 +188,12 @@ impl<'a, I: I2CDevice> I2CClient for BMM150<'a, I> {
                 let y_axis = ((buffer[3] as i16) << 5) | ((buffer[2] as i16) >> 3);
                 let z_axis = ((buffer[5] as i16) << 7) | ((buffer[4] as i16) >> 1);
 
+                self.state.set(State::Sleep);
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.ninedof_client.map(|client| {
                     client.callback(x_axis as usize, y_axis as usize, z_axis as usize)
                 });
-
-                self.state.set(State::Sleep);
             }
             State::Sleep => {}   // should never happen
             State::Suspend => {} // should never happen
