@@ -7,68 +7,78 @@
 //! Usage
 //! -----
 //! ```rust
-//! let bmi270 = BMI270Component::new(mux_i2c, 0x68).finalize(
-//!     components::bmi270_component_static!(nrf5240::i2c::TWI));
+//! let bmi270 = BMI270Component::new(mux_i2c, 0x68, mux_alarm).finalize(
+//!     components::bmi270_component_static!(nrf52840::rtc::Rtc<'static>, nrf52840::i2c::TWI));
+//! bmi270.begin_reset();
 //! let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
 //!     .finalize(components::ninedof_component_static!(bmi270));
 //! ```
 
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::bmi270::BMI270;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::i2c;
+use kernel::hil::time::Alarm;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! bmi270_component_static {
-    ($I:ty $(,)?) => {{
+    ($A:ty $(,)?, $I:ty) => {{
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
+        let alarm = kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
         let buffer = kernel::static_buf!([u8; 12]);
         let config_file = kernel::static_buf!([u8; 8193]);
         let bmi270 = kernel::static_buf!(
             capsules_extra::bmi270::BMI270<
                 'static,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
                 capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>,
             >
         );
 
-        (i2c_device, buffer, config_file, bmi270)
+        (i2c_device, alarm, buffer, config_file, bmi270)
     };};
 }
 
-pub struct BMI270Component<I: 'static + i2c::I2CMaster<'static>> {
+pub struct BMI270Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
+    alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<I: 'static + i2c::I2CMaster<'static>> BMI270Component<I> {
-    pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> BMI270Component<A, I> {
+    pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8, alarm: &'static MuxAlarm<'static, A>) -> Self {
         BMI270Component {
             i2c_mux: i2c,
             i2c_address: i2c_address,
+            alarm_mux: alarm,
         }
     }
 }
 
-impl<I: 'static + i2c::I2CMaster<'static>> Component for BMI270Component<I> {
+impl<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> Component for BMI270Component<A, I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
+        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<[u8; 12]>,
         &'static mut MaybeUninit<[u8; 8193]>,
-        &'static mut MaybeUninit<BMI270<'static, I2CDevice<'static, I>>>,
+        &'static mut MaybeUninit<BMI270<'static, VirtualMuxAlarm<'static, A>, I2CDevice<'static, I>>>,
     );
-    type Output = &'static BMI270<'static, I2CDevice<'static, I>>;
+    type Output = &'static BMI270<'static, VirtualMuxAlarm<'static, A>, I2CDevice<'static, I>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let bmi270_i2c = static_buffer
             .0
             .write(I2CDevice::new(self.i2c_mux, self.i2c_address));
-        let buffer = static_buffer.1.write([0; 12]);
+        let bmi270_alarm = static_buffer.1.write(VirtualMuxAlarm::new(self.alarm_mux));
+        bmi270_alarm.setup();
+        let buffer = static_buffer.2.write([0; 12]);
         // Config file that is required to be uploaded to the sensor before making readings
         // https://github.com/BoschSensortec/BMI270-Sensor-API/blob/master/bmi270.c #d270cde
-        let config_file = static_buffer.2.write([
+        let config_file = static_buffer.3.write([
             0x5e, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0x80,
             0x2e, 0x91, 0x03, 0x80, 0x2e, 0xbc, 0xb0, 0x80, 0x2e, 0xa3, 0x03, 0xc8, 0x2e, 0x00,
             0x2e, 0x80, 0x2e, 0x00, 0xb0, 0x50, 0x30, 0x21, 0x2e, 0x59, 0xf5, 0x10, 0x30, 0x21,
@@ -657,10 +667,11 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for BMI270Component<I> {
             0x2e, 0x00, 0xc1,
         ]);
         let bmi270 = static_buffer
-            .3
-            .write(BMI270::new(bmi270_i2c, buffer, config_file));
+            .4
+            .write(BMI270::new(bmi270_i2c, bmi270_alarm, buffer, config_file));
 
         bmi270_i2c.set_client(bmi270);
+        bmi270_alarm.set_alarm_client(bmi270);
         bmi270
     }
 }
