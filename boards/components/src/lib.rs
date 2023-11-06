@@ -14,6 +14,7 @@ pub mod apds9960;
 pub mod app_flash_driver;
 pub mod ble;
 pub mod bme280;
+pub mod bmm150;
 pub mod bmp280;
 pub mod bus;
 pub mod button;
