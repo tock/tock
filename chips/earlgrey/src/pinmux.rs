@@ -233,10 +233,19 @@ impl SelectInput for PinmuxPeripheralIn {
     }
 }
 
-// diagram bellow help with interpreting meaning of input/output in enum bellow
+// Enum below represent connection betwen pad and peripherals
+// Diagram bellow help with interpreting meaning of input/output in enum bellow
 // <https://opentitan.org/book/hw/ip/pinmux/doc/theory_of_operation.html#muxing-matrix>
+// According to OpenTitan documentations uninitialized pinmux I/O selector are set to default
+// values. With are respectively
+// output selector - PinmuxOutsel::ConstantHighZ
+// input selector - PinmuxInsel::ConstantZero
+// <https://opentitan.org/book/hw/ip/pinmux/doc/registers.html#mio_outsel>
+// <https://opentitan.org/book/hw/ip/pinmux/doc/registers.html#mio_periph_insel>
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum PadConfig {
+    // Internal Output and input not conected to any pad
+    Unconnected,
     // Allow to pass signal from pad to peripheral
     // [PAD]------>[PeripherapInput]
     Input(MuxedPads, PinmuxPeripheralIn),
@@ -253,14 +262,11 @@ impl PadConfig {
     /// Connect Pad to internal peripheral I/O using pinmux multiplexers
     pub fn connect(&self) {
         match *self {
+            PadConfig::Unconnected => {}
             PadConfig::Input(pad, peripheral_in) => {
                 peripheral_in.connect_input(PinmuxInsel::from(pad));
-                // default out selector is 0x2 (Hi-Z)
-                // pad.connect_output(peripheral_out);
             }
             PadConfig::Output(pad, peripheral_out) => {
-                // default input selector is 0x0 (Zero)
-                // peripheral_in.connect_input(PinmuxInsel::from(pad));
                 pad.connect_output(peripheral_out);
             }
             PadConfig::InOut(pad, peripheral_in, peripheral_out) => {
@@ -273,6 +279,7 @@ impl PadConfig {
     /// Disconnect pad from internal input and connect to always Low signal
     pub fn disconnect_input(&self) {
         match *self {
+            PadConfig::Unconnected => {}
             PadConfig::Input(_pad, peripheral_in) => peripheral_in.connect_low(),
             PadConfig::Output(_pad, _peripheral_out) => {}
             PadConfig::InOut(_pad, peripheral_in, _peripheral_out) => {
@@ -284,6 +291,7 @@ impl PadConfig {
     // Disconnect pad from internal output and connect to Hi-Z
     pub fn disconnect_output(&self) {
         match *self {
+            PadConfig::Unconnected => {}
             PadConfig::Input(_pad, _peripheral_in) => {}
             PadConfig::Output(pad, _peripheral_out) => pad.connect_high_z(),
             PadConfig::InOut(pad, _peripheral_in, _peripheral_out) => {
@@ -296,6 +304,7 @@ impl PadConfig {
     /// and connect to internal Hi-Z/Low signal
     pub fn disconnect(&self) {
         match *self {
+            PadConfig::Unconnected => {}
             PadConfig::Input(_pad, peripheral_in) => {
                 peripheral_in.connect_low();
             }
@@ -311,18 +320,20 @@ impl PadConfig {
 
     /// Return copy of `enum` representing MIO pad
     /// associated with this connection
-    pub fn get_pad(&self) -> Pad {
-        Pad::Mio(match *self {
-            PadConfig::Input(pad, _) => pad,
-            PadConfig::Output(pad, _) => pad,
-            PadConfig::InOut(pad, _, _) => pad,
-        })
+    pub fn get_pad(&self) -> Option<Pad> {
+        match *self {
+            PadConfig::Unconnected => None,
+            PadConfig::Input(pad, _) => Some(Pad::Mio(pad)),
+            PadConfig::Output(pad, _) => Some(Pad::Mio(pad)),
+            PadConfig::InOut(pad, _, _) => Some(Pad::Mio(pad)),
+        }
     }
 }
 
 impl From<PadConfig> for Configuration {
     fn from(pad: PadConfig) -> Configuration {
         match pad {
+            PadConfig::Unconnected => Configuration::Other,
             PadConfig::Input(_pad, peripheral_in) => match peripheral_in.get_selector() {
                 PinmuxInsel::ConstantZero => Configuration::LowPower,
                 PinmuxInsel::ConstantOne => Configuration::Function,
@@ -388,10 +399,16 @@ impl Configure for PadConfig {
     }
 
     fn set_floating_state(&self, state: FloatingState) {
-        self.get_pad().set_floating_state(state);
+        if let Some(pad) = self.get_pad() {
+            pad.set_floating_state(state);
+        }
     }
 
     fn floating_state(&self) -> FloatingState {
-        self.get_pad().floating_state()
+        if let Some(pad) = self.get_pad() {
+            pad.floating_state()
+        } else {
+            FloatingState::PullNone
+        }
     }
 }

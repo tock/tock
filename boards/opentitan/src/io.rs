@@ -50,8 +50,8 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
     let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
         earlgrey::gpio::GPIO_BASE,
         earlgrey::pinmux::PadConfig::Output(
-            earlgrey::registers::top_earlgrey::MuxedPads::Ioa0,
-            earlgrey::registers::top_earlgrey::PinmuxOutsel::GpioGpio0,
+            earlgrey::registers::top_earlgrey::MuxedPads::Ioa6,
+            earlgrey::registers::top_earlgrey::PinmuxOutsel::GpioGpio7,
         ),
         earlgrey::gpio::pins::pin7,
     );
