@@ -25,6 +25,7 @@ Required:
 
 * Segger JLink 
 * USB Cable for power & Debugging
+* FDTI/Serial UART converter (Optional for debugging/Console)
 
 Ensure JLink is connected and the Particle Boron is powered using either mUSB cable or a Li-Po battery. 
 
@@ -58,15 +59,30 @@ A reset on the baord can be performed by the **_RESET** push button, to reboot t
 
 ## Console output
 
-Console is interfaced using `USB cdc_acm`, so additional hardware is not required. Once the kernel is flashed, simply open up a serial port
+Console is interfaced with UART. On the left side of the Particle Boron, you can see the marked UART RX/TX pins. Connect a serial converter to the appropriate pins (`UART1_RX->CONVERTER_TX` & `UART1_TX->CONVERTER_RX`), see the figure above for the pin-out.
+
+If you are on a linux machine, it's a good idea to monitor the kernel message buffer with `dmesg -w` when plugging the serial converter in. This can quickly tell us which USB device to open.
 
 ```bash
-$ screen /dev/ttyACM0 115200 
+$ dmesg -w
+
+[26244.142183] usb 3-4: new full-speed USB device number 50 using xhci_hcd
+[26244.295996] usb 3-4: New USB device found, idVendor=0403, idProduct=6001, bcdDevice= 6.00
+[26244.296001] usb 3-4: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[26244.296004] usb 3-4: Product: FT232R USB UART
+[26244.296006] usb 3-4: Manufacturer: FTDI
+[26244.296007] usb 3-4: SerialNumber: A50285BI
+[26244.302027] ftdi_sio 3-4:1.0: FTDI USB Serial Device converter detected
+[26244.302055] usb 3-4: Detected FT232R
+[26244.309214] usb 3-4: FTDI USB Serial Device converter now attached to ttyUSB0
+```
+Based on the last kernel message, we are mapped to `ttyUSB0`, now, we can access the console with:
+```bash
+$ screen /dev/ttyUSB0 115200
 .
-.
-.
-> tock$ help
-> Valid commands are: help status list stop start fault process kernel
+..
+Particle Boron: Initialization complete. Entering main loop
+tock$
 ```
 
 OR

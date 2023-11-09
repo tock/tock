@@ -22,7 +22,6 @@ use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
-use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -42,11 +41,11 @@ const LED2_B_PIN: Pin = Pin::P0_15;
 const BUTTON_PIN: Pin = Pin::P0_11;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-// UART Pins
+// UART Pins (CTS/RTS Unused)
 const _UART_RTS: Option<Pin> = Some(Pin::P0_30);
-const _UART_TXD: Pin = Pin::P0_06;
 const _UART_CTS: Option<Pin> = Some(Pin::P0_31);
-const _UART_RXD: Pin = Pin::P0_08;
+const UART_TXD: Pin = Pin::P0_06;
+const UART_RXD: Pin = Pin::P0_08;
 
 // SPI pins not currently in use, but left here for convenience
 const _SPI_MOSI: Pin = Pin::P1_13;
@@ -66,12 +65,9 @@ const DEFAULT_EXT_SRC_MAC: [u8; 8] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 
 /// UART Writer
 pub mod io;
 
-// How should the kernel respond when a process faults. For this board we choose
-// to stop the app and print a notice, but not immediately panic. This allows
-// users to debug their apps, but avoids issues with using the USB/CDC stack
-// synchronously for panic! too early after the board boots.
-const FAULT_RESPONSE: kernel::process::StopWithDebugFaultPolicy =
-    kernel::process::StopWithDebugFaultPolicy {};
+// State for loading and holding applications.
+// How should the kernel respond when a process faults.
+const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -83,13 +79,6 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
-static mut CDC_REF_FOR_PANIC: Option<
-    &'static capsules_extra::usb::cdc::CdcAcm<
-        'static,
-        nrf52::usbd::Usbd,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc>,
-    >,
-> = None;
 static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -217,9 +206,15 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
     nrf52840_peripherals
 }
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+pub unsafe fn start_particle_boron() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+) {
     nrf52840::init();
 
     let nrf52840_peripherals = create_peripherals();
@@ -242,7 +237,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     //--------------------------------------------------------------------------
@@ -254,6 +248,8 @@ pub unsafe fn main() {
     // `debug_gpio!(0, toggle)` macro. We configure these early so that the
     // macro is available during most of the setup code and kernel execution.
     kernel::debug::assign_gpios(Some(&gpio_port[LED2_R_PIN]), None, None);
+
+    let uart_channel = UartChannel::Pins(UartPins::new(None, UART_TXD, None, UART_RXD));
 
     //--------------------------------------------------------------------------
     // GPIO
@@ -369,37 +365,14 @@ pub unsafe fn main() {
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
-    // Setup the CDC-ACM over USB driver that we will use for UART.
-    // We use the Arduino Vendor ID and Product ID since the device is the same.
-
-    // Create the strings we include in the USB descriptor. We use the hardcoded
-    // DEVICEADDR register on the nRF52 to set the serial number.
-    let serial_number_buf = static_init!([u8; 17], [0; 17]);
-    let serial_number_string: &'static str =
-        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
-    let strings = static_init!(
-        [&str; 3],
-        [
-            "Particle",           // Manufacturer
-            "Boron - TockOS",     // Product
-            serial_number_string, // Serial number
-        ]
-    );
-
-    let cdc = components::cdc::CdcAcmComponent::new(
-        &nrf52840_peripherals.usbd,
-        capsules_extra::usb::cdc::MAX_CTRL_PACKET_SIZE_NRF52840,
-        0x0101, // Custom
-        0x0202, // Custom
-        strings,
+    let uart_channel = nrf52_components::UartChannelComponent::new(
+        uart_channel,
         mux_alarm,
-        None,
+        &base_peripherals.uarte0,
     )
-    .finalize(components::cdc_acm_component_static!(
-        nrf52::usbd::Usbd,
-        nrf52::rtc::Rtc
+    .finalize(nrf52_components::uart_channel_component_static!(
+        nrf52840::rtc::Rtc
     ));
-    CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Process Printer for displaying process information.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -407,7 +380,7 @@ pub unsafe fn main() {
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
@@ -418,7 +391,7 @@ pub unsafe fn main() {
         Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
-        nrf52::rtc::Rtc<'static>
+        nrf52840::rtc::Rtc<'static>
     ));
 
     // Setup the console.
@@ -606,10 +579,6 @@ pub unsafe fn main() {
     );
     CHIP = Some(chip);
 
-    // Configure the USB stack to enable a serial port over CDC-ACM.
-    cdc.enable();
-    cdc.attach();
-
     debug!("Particle Boron: Initialization complete. Entering main loop\r");
     let _ = platform.pconsole.start();
 
@@ -649,5 +618,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start_particle_boron();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
