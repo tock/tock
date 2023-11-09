@@ -15,7 +15,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::StaticRef;
 
 use crate::registers::uart_regs::UartRegisters;
-use crate::registers::uart_regs::{CTRL, FIFO_CTRL, INTR, STATUS, WDATA};
+use crate::registers::uart_regs::{CTRL, FIFO_CTRL, INTR, STATUS, TIMEOUT_CTRL, WDATA};
 
 pub struct Uart<'a> {
     registers: StaticRef<UartRegisters>,
@@ -29,11 +29,27 @@ pub struct Uart<'a> {
 
     rx_buffer: TakeCell<'static, [u8]>,
     rx_len: Cell<usize>,
+    rx_index: Cell<usize>,
+    rx_timeout: Cell<u8>,
 }
 
 #[derive(Copy, Clone)]
 pub struct UartParams {
     pub baud_rate: u32,
+    pub parity: uart::Parity,
+}
+
+/// Compute a / b, rounding such that the result is within 2.5% error of the floating point result.
+fn div_round_bounded(a: u64, b: u64) -> Result<u64, ErrorCode> {
+    let q = a / b;
+
+    if 39 * a <= 40 * b * q {
+        Ok(q)
+    } else if 40 * b * (q + 1) <= 41 * a {
+        Ok(q + 1)
+    } else {
+        Err(ErrorCode::INVAL)
+    }
 }
 
 impl<'a> Uart<'a> {
@@ -48,12 +64,18 @@ impl<'a> Uart<'a> {
             tx_index: Cell::new(0),
             rx_buffer: TakeCell::empty(),
             rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
+            rx_timeout: Cell::new(0),
         }
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+        const NCO_BITS: u32 = u32::count_ones(CTRL::NCO.mask);
+
         let regs = self.registers;
-        let uart_ctrl_nco = ((baud_rate as u64) << 20) / self.clock_frequency as u64;
+        let baud_adj = (baud_rate as u64) << (NCO_BITS + 4);
+        let freq_clk = self.clock_frequency as u64;
+        let uart_ctrl_nco = div_round_bounded(baud_adj, freq_clk)?;
 
         regs.ctrl
             .write(CTRL::NCO.val((uart_ctrl_nco & 0xffff) as u32));
@@ -61,6 +83,8 @@ impl<'a> Uart<'a> {
 
         regs.fifo_ctrl
             .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
+
+        Ok(())
     }
 
     fn enable_tx_interrupt(&self) {
@@ -95,6 +119,33 @@ impl<'a> Uart<'a> {
         regs.intr_state.write(INTR::RX_WATERMARK::SET);
     }
 
+    fn enable_rx_timeout(&self, interbyte_timeout: u8) {
+        let regs = self.registers;
+
+        // Program the timeout value
+        regs.timeout_ctrl
+            .write(TIMEOUT_CTRL::VAL.val(interbyte_timeout as u32));
+
+        // Enable RX timeout feature
+        regs.timeout_ctrl.write(TIMEOUT_CTRL::EN::SET);
+
+        // Enable RX timeout interrupt
+        regs.intr_enable.write(INTR::RX_TIMEOUT::SET);
+    }
+
+    fn disable_rx_timeout(&self) {
+        let regs = self.registers;
+
+        // Disable RX timeout feature
+        regs.timeout_ctrl.modify(TIMEOUT_CTRL::EN::CLEAR);
+
+        // Disable RX timeout interrupt
+        regs.intr_enable.modify(INTR::RX_TIMEOUT::CLEAR);
+
+        // Clear the interrupt bit (by writing 1), if it happens to be set
+        regs.intr_state.write(INTR::RX_TIMEOUT::SET);
+    }
+
     fn tx_progress(&self) {
         let regs = self.registers;
         let idx = self.tx_index.get();
@@ -124,6 +175,41 @@ impl<'a> Uart<'a> {
         }
     }
 
+    fn consume_rx(&self) {
+        let regs = self.registers;
+
+        self.rx_client.map(|client| {
+            self.rx_buffer.take().map(|rx_buf| {
+                let mut len = 0;
+                let mut return_code = Ok(());
+
+                for i in self.rx_index.get()..self.rx_len.get() {
+                    rx_buf[i] = regs.rdata.get() as u8;
+                    len = i + 1;
+
+                    if regs.status.is_set(STATUS::RXEMPTY) {
+                        /* RX is empty */
+
+                        // If this was kicked off by `receive_automatic()` then we can reenable
+                        // interupts and wait for either the rest of the data or for the timeout.
+                        let rx_timeout = self.rx_timeout.get();
+                        if rx_timeout > 0 {
+                            self.rx_index.set(i);
+                            self.enable_rx_timeout(rx_timeout);
+                            self.enable_rx_interrupt();
+                            return;
+                        } else {
+                            return_code = Err(ErrorCode::SIZE);
+                            break;
+                        }
+                    }
+                }
+
+                client.received_buffer(rx_buf, len, return_code, uart::Error::None);
+            });
+        });
+    }
+
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let intrs = regs.intr_state.extract();
@@ -145,24 +231,70 @@ impl<'a> Uart<'a> {
             }
         } else if intrs.is_set(INTR::RX_WATERMARK) {
             self.disable_rx_interrupt();
+            self.consume_rx();
+        } else if intrs.is_set(INTR::RX_TIMEOUT) {
+            self.disable_rx_interrupt();
+            self.disable_rx_timeout();
 
+            // On timeout return whatever is in the buffer to the client.
             self.rx_client.map(|client| {
                 self.rx_buffer.take().map(|rx_buf| {
-                    let mut len = 0;
-                    let mut return_code = Ok(());
-
-                    for i in 0..self.rx_len.get() {
-                        if regs.status.is_set(STATUS::RXEMPTY) {
-                            /* RX is empty */
-                            return_code = Err(ErrorCode::SIZE);
-                            break;
-                        }
-
-                        rx_buf[i] = regs.rdata.get() as u8;
-                        len = i + 1;
-                    }
-
-                    client.received_buffer(rx_buf, len, return_code, uart::Error::None);
+                    client.received_buffer(
+                        rx_buf,
+                        self.rx_index.get() + 1,
+                        Err(kernel::ErrorCode::SIZE),
+                        uart::Error::None,
+                    );
+                })
+            });
+        } else if intrs.is_set(INTR::TX_WATERMARK) {
+            // TODO: Additional logic or notification related to the watermark.
+        } else if intrs.is_set(INTR::RX_OVERFLOW) {
+            self.disable_rx_interrupt();
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    client.received_buffer(
+                        rx_buf,
+                        self.rx_index.get(),
+                        Err(kernel::ErrorCode::FAIL),
+                        uart::Error::OverrunError,
+                    );
+                });
+            });
+        } else if intrs.is_set(INTR::RX_FRAME_ERR) {
+            self.disable_rx_interrupt();
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    client.received_buffer(
+                        rx_buf,
+                        self.rx_index.get(),
+                        Err(kernel::ErrorCode::FAIL),
+                        uart::Error::FramingError,
+                    );
+                });
+            });
+        } else if intrs.is_set(INTR::RX_BREAK_ERR) {
+            self.disable_rx_interrupt();
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    client.received_buffer(
+                        rx_buf,
+                        self.rx_index.get(),
+                        Err(kernel::ErrorCode::FAIL),
+                        uart::Error::BreakError,
+                    );
+                });
+            });
+        } else if intrs.is_set(INTR::RX_PARITY_ERR) {
+            self.disable_rx_interrupt();
+            self.rx_client.map(|client| {
+                self.rx_buffer.take().map(|rx_buf| {
+                    client.received_buffer(
+                        rx_buf,
+                        self.rx_index.get(),
+                        Err(kernel::ErrorCode::FAIL),
+                        uart::Error::ParityError,
+                    );
                 });
             });
         }
@@ -181,7 +313,19 @@ impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         let regs = self.registers;
         // We can set the baud rate.
-        self.set_baud_rate(params.baud_rate);
+        self.set_baud_rate(params.baud_rate)?;
+
+        match params.parity {
+            uart::Parity::Even => regs
+                .ctrl
+                .modify(CTRL::PARITY_EN::SET + CTRL::PARITY_ODD::CLEAR),
+            uart::Parity::Odd => regs
+                .ctrl
+                .modify(CTRL::PARITY_EN::SET + CTRL::PARITY_ODD::SET),
+            uart::Parity::None => regs
+                .ctrl
+                .modify(CTRL::PARITY_EN::CLEAR + CTRL::PARITY_ODD::CLEAR),
+        }
 
         regs.fifo_ctrl
             .write(FIFO_CTRL::RXRST::SET + FIFO_CTRL::TXRST::SET);
@@ -246,6 +390,8 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
         self.rx_buffer.replace(rx_buffer);
         self.rx_len.set(rx_len);
+        self.rx_timeout.set(0);
+        self.rx_index.set(0);
 
         Ok(())
     }
@@ -256,5 +402,50 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)
+    }
+}
+
+impl<'a> hil::uart::ReceiveAdvanced<'a> for Uart<'a> {
+    fn receive_automatic(
+        &self,
+        rx_buffer: &'static mut [u8],
+        rx_len: usize,
+        interbyte_timeout: u8,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if rx_len == 0 || rx_len > rx_buffer.len() {
+            return Err((ErrorCode::SIZE, rx_buffer));
+        }
+
+        self.rx_buffer.replace(rx_buffer);
+        self.rx_len.set(rx_len);
+        self.rx_timeout.set(interbyte_timeout);
+        self.rx_index.set(0);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::div_round_bounded;
+    use kernel::ErrorCode;
+
+    #[test]
+    fn test_bounded_division() {
+        const TEST_VECTORS: [(u64, u64, Result<u64, ErrorCode>); 10] = [
+            (100, 4, Ok(25)),
+            (41, 40, Ok(1)),
+            (83, 40, Err(ErrorCode::INVAL)),
+            (105, 40, Err(ErrorCode::INVAL)),
+            (120, 40, Ok(3)),
+            (121, 40, Ok(3)),
+            (158, 40, Ok(4)),
+            (159, 40, Ok(4)),
+            (10, 3, Err(ErrorCode::INVAL)),
+            (120_795_955_200, 6_000_000, Ok(20132)),
+        ];
+        for (a, b, expected) in &TEST_VECTORS {
+            assert_eq!(div_round_bounded(*a, *b), *expected);
+        }
     }
 }
