@@ -820,37 +820,29 @@ impl Kernel {
                     // control to the process.
                     return;
                 }
+                if which == (YieldCall::NoWait as usize) {
+                    let upcall_triggered = process.has_tasks().into();
+                    // Set the "did I trigger upcalls" flag.
+                    //
+                    // # Safety
+                    //
+                    // If address is invalid, this does nothing. If it is valid,
+                    // we write into process memory, which is fine for the
+                    // kernel as long as no references to that memory exist. We
+                    // do not have a reference, so we can safely call
+                    // `set_byte()`. The process is expecting *address to be set
+                    // to 0 or 1, and converting a bool into a u8 gives a 0 or
+                    // 1.
+                    unsafe {
+                        process.set_byte(address, upcall_triggered);
+                    }
+                }
                 let wait = which == (YieldCall::Wait as usize);
                 // If this is a yield-no-wait AND there are no pending tasks,
                 // then return immediately. Otherwise, go into the yielded state
                 // and execute tasks now or when they arrive.
                 let return_now = !wait && !process.has_tasks();
-                if return_now {
-                    // Set the "did I trigger upcalls" flag to be 0, return
-                    // immediately. If address is invalid does nothing.
-                    //
-                    // # Safety
-                    //
-                    // This is fine as long as no references to the process's
-                    // memory exist. We do not have a reference, so we can
-                    // safely call `set_byte()`.
-                    unsafe {
-                        process.set_byte(address, 0);
-                    }
-                } else {
-                    // There are already enqueued upcalls to execute or we
-                    // should wait for them: handle in the next loop iteration
-                    // and set the "did I trigger upcalls" flag to be 1. If
-                    // address is invalid does nothing.
-                    //
-                    // # Safety
-                    //
-                    // This is fine as long as no references to the process's
-                    // memory exist. We do not have a reference, so we can
-                    // safely call `set_byte()`.
-                    unsafe {
-                        process.set_byte(address, 1);
-                    }
+                if !return_now {
                     process.set_yielded_state();
                 }
             }
