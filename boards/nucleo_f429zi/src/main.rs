@@ -58,6 +58,7 @@ struct NucleoF429ZI {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    dac: &'static capsules_extra::dac::Dac<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -92,6 +93,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
@@ -259,6 +261,11 @@ unsafe fn set_pin_primary_functions(
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF9 is CAN_TX
         pin.set_alternate_function(AlternateFunction::AF9);
+    });
+
+    // DAC Channel 1
+    gpio_ports.get_pin(PinId::PA04).map(|pin| {
+        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
     });
 }
 
@@ -580,6 +587,10 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // DAC
+    let dac = components::dac::DacComponent::new(&base_peripherals.dac)
+        .finalize(components::dac_component_static!());
+
     // RNG
     let rng = components::rng::RngComponent::new(
         board_kernel,
@@ -637,6 +648,7 @@ pub unsafe fn main() {
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
+        dac: dac,
         led: led,
         temperature: temp,
         button: button,
