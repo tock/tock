@@ -427,13 +427,24 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 }
             }
             State::Done => {
-                let accel_x = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
-                let accel_y = ((buffer[3] as u16) << 8) | (buffer[2] as u16);
-                let accel_z = ((buffer[5] as u16) << 8) | (buffer[4] as u16);
+                let gravity_earth = 9.80665 as f32;
+                let half_scale = 32768.0;
 
-                let gyro_x = ((buffer[7] as u16) << 8) | (buffer[6] as u16);
-                let gyro_y = ((buffer[9] as u16) << 8) | (buffer[8] as u16);
-                let gyro_z = ((buffer[11] as u16) << 8) | (buffer[10] as u16);
+                let accel_data_x = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
+                let accel_data_y = ((buffer[3] as u16) << 8) | (buffer[2] as u16);
+                let accel_data_z = ((buffer[5] as u16) << 8) | (buffer[4] as u16);
+
+                let accel_x = (gravity_earth * accel_data_x as f32 * 8.0) / half_scale;
+                let accel_y = (gravity_earth * accel_data_y as f32 * 8.0) / half_scale;
+                let accel_z = (gravity_earth * accel_data_z as f32 * 8.0) / half_scale;
+
+                let gyro_data_x = ((buffer[7] as u16) << 8) | (buffer[6] as u16);
+                let gyro_data_y = ((buffer[9] as u16) << 8) | (buffer[8] as u16);
+                let gyro_data_z = ((buffer[11] as u16) << 8) | (buffer[10] as u16);
+
+                let gyro_x = (2000.0 / half_scale) * gyro_data_x as f32;
+                let gyro_y = (2000.0 / half_scale) * gyro_data_y as f32;
+                let gyro_z = (2000.0 / half_scale) * gyro_data_z as f32;
 
                 self.buffer.replace(buffer);
                 self.i2c.disable();
