@@ -422,7 +422,7 @@ pub unsafe fn switch_to_user_arm_v7m(
     // r9 using r12, and then mark those as clobbered.
     mov r2, r6                        // r2 = r6
     mov r3, r7                        // r3 = r7
-    mov r12, r9                       // r12 = r8
+    mov r12, r9                       // r12 = r9
 
     // The arguments passed in are:
     // - `r0` is the bottom of the user stack
