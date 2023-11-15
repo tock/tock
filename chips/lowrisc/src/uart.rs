@@ -7,6 +7,7 @@
 use core::cell::Cell;
 use kernel::ErrorCode;
 
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
@@ -22,6 +23,7 @@ pub struct Uart<'a> {
     clock_frequency: u32,
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+    rx_deferred_call: DeferredCall,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
@@ -59,6 +61,7 @@ impl<'a> Uart<'a> {
             clock_frequency: clock_frequency,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
+            rx_deferred_call: DeferredCall::new(),
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
@@ -107,6 +110,13 @@ impl<'a> Uart<'a> {
         // Generate an interrupt if we get any value in the RX buffer
         regs.intr_enable.modify(INTR::RX_WATERMARK::SET);
         regs.fifo_ctrl.write(FIFO_CTRL::RXILVL.val(0_u32));
+
+        // In cases where the RX FIFO isn't empty the edge-triggered watermark will never trigger.
+        // If there is already data pending, set a deferred call to read the data instead.
+        if !regs.status.is_set(STATUS::RXEMPTY) {
+            self.rx_deferred_call.set();
+            self.disable_rx_interrupt();
+        }
     }
 
     fn disable_rx_interrupt(&self) {
@@ -422,6 +432,16 @@ impl<'a> hil::uart::ReceiveAdvanced<'a> for Uart<'a> {
         self.rx_index.set(0);
 
         Ok(())
+    }
+}
+
+impl<'a> DeferredCallClient for Uart<'a> {
+    fn handle_deferred_call(&self) {
+        self.consume_rx();
+    }
+
+    fn register(&'static self) {
+        self.rx_deferred_call.register(self);
     }
 }
 
