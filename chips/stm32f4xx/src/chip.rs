@@ -22,6 +22,7 @@ pub struct Stm32f4xx<'a, I: InterruptService + 'a> {
 
 pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub adc1: crate::adc::Adc<'a>,
+    pub dac: crate::dac::Dac<'a>,
     pub dma1_streams: [crate::dma::Stream<'a, dma::Dma1<'a>>; 8],
     pub dma2_streams: [crate::dma::Stream<'a, dma::Dma2<'a>>; 8],
     pub exti: &'a crate::exti::Exti<'a>,
@@ -47,6 +48,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
         Self {
             adc1: crate::adc::Adc::new(rcc),
             clocks: crate::clocks::Clocks::new(rcc),
+            dac: crate::dac::Dac::new(rcc),
             dma1_streams: dma::new_dma1_stream(dma1),
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,
