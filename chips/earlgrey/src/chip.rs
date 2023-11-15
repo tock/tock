@@ -78,6 +78,7 @@ impl<'a, CFG: EarlGreyConfig> EarlGreyDefaultPeripherals<'a, CFG> {
 
     pub fn init(&'static self) {
         kernel::deferred_call::DeferredCallClient::register(&self.aes);
+        kernel::deferred_call::DeferredCallClient::register(&self.uart0);
     }
 }
 
