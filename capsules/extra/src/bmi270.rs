@@ -295,7 +295,9 @@ enum State {
     CheckStatus,
 
     ConfAccel,
+    ConfAccelRange,
     ConfGyro,
+    ConfGyroRange,
     ConfPower,
     InitRead,
     Read,
@@ -375,12 +377,38 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                     self.ninedof_client
                         .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
+                    self.state.set(State::ConfAccelRange);
+                }
+            }
+            State::ConfAccelRange => {
+                buffer[0] = Registers::AccRange as u8;
+                buffer[1] = 0x00_u8;
+
+                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.ninedof_client
+                        .map(|client| client.callback(i2c_err as usize, 0, 0));
+                } else {
                     self.state.set(State::ConfGyro);
                 }
             }
             State::ConfGyro => {
                 buffer[0] = Registers::GyrConf as u8;
                 buffer[1] = 0xA9_u8;
+
+                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.ninedof_client
+                        .map(|client| client.callback(i2c_err as usize, 0, 0));
+                } else {
+                    self.state.set(State::ConfGyroRange);
+                }
+            }
+            State::ConfGyroRange => {
+                buffer[0] = Registers::GyrRange as u8;
+                buffer[1] = 0x00_u8;
 
                 if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                     self.state.set(State::Sleep);
@@ -434,9 +462,9 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 let accel_data_y = ((buffer[3] as u16) << 8) | (buffer[2] as u16);
                 let accel_data_z = ((buffer[5] as u16) << 8) | (buffer[4] as u16);
 
-                let accel_x = (gravity_earth * accel_data_x as f32 * 8.0) / half_scale;
-                let accel_y = (gravity_earth * accel_data_y as f32 * 8.0) / half_scale;
-                let accel_z = (gravity_earth * accel_data_z as f32 * 8.0) / half_scale;
+                let accel_x = (gravity_earth * accel_data_x as f32 * 2.0) / half_scale;
+                let accel_y = (gravity_earth * accel_data_y as f32 * 2.0) / half_scale;
+                let accel_z = (gravity_earth * accel_data_z as f32 * 2.0) / half_scale;
 
                 let gyro_data_x = ((buffer[7] as u16) << 8) | (buffer[6] as u16);
                 let gyro_data_y = ((buffer[9] as u16) << 8) | (buffer[8] as u16);
