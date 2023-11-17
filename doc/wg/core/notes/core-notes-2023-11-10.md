@@ -26,7 +26,7 @@ Tock Core Notes 2023-11-10
  * Branden: What's the purpose behind that?
  * Johnathan: Testing infrastructure. Make calls to a tock board to perform operations. Then run a check on some other board to see that it received it.
  * Brad: So the Tock board runs some userland app that receives the syscalls? (yes)
- * Johnathan: Right now it doesn't work with the "pin-based allow API"
+ * Johnathan: Right now it needs the pin-based allow API
  * Hudson: For the device under test here, how does it communicate over UART back to the host? Does it send additional system calls? Or does userspace have raw control of the underlying UART?
  * Johnathan: Just normal console calls. Works fine. Although it gets really confused if the host makes a console call.
  * Branden: I have some undergrad doing a similar thing: two microcontrollers running Tock which could send syscalls back and forth between them
