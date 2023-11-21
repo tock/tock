@@ -18,6 +18,8 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
@@ -540,7 +542,16 @@ pub unsafe fn start_particle_boron() -> (
     );
     base_peripherals.twi1.set_master_client(i2c_master_slave);
     base_peripherals.twi1.set_slave_client(i2c_master_slave);
-    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
+    // Note: strongly suggested to use external pull-ups for higher speeds
+    //       to maintain signal integrity.
+    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K100);
+
+    // I2C pin cfg for target
+    nrf52840_peripherals.gpio_port[I2C_SDA_PIN].set_i2c_pin_cfg();
+    nrf52840_peripherals.gpio_port[I2C_SCL_PIN].set_i2c_pin_cfg();
+    // Enable internal pull-ups
+    nrf52840_peripherals.gpio_port[I2C_SDA_PIN].set_floating_state(FloatingState::PullUp);
+    nrf52840_peripherals.gpio_port[I2C_SCL_PIN].set_floating_state(FloatingState::PullUp);
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
