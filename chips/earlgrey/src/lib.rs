@@ -13,6 +13,8 @@
 #![recursion_limit = "256"]
 
 pub mod chip_config;
+pub mod pinmux_config;
+
 mod interrupts;
 
 pub mod aes;
