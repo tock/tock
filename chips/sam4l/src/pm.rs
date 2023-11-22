@@ -576,7 +576,7 @@ pub struct PowerManager {
 impl PowerManager {
     pub const fn new() -> Self {
         Self {
-            /// Set to the RCSYS by default.
+            // Set to the RCSYS by default.
             system_clock_source: Cell::new(SystemClockSource::RcsysAt115kHz),
 
             system_on_clocks: Cell::new(ClockMask::RCSYS as u32),
