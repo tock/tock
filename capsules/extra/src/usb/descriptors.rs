@@ -30,7 +30,7 @@ pub struct Buffer64 {
 impl Default for Buffer64 {
     fn default() -> Self {
         Self {
-            buf: [(); 64].map(|_| VolatileCell::default()),
+            buf: [(); 64].map(|()| VolatileCell::default()),
         }
     }
 }

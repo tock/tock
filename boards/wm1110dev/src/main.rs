@@ -319,8 +319,8 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
 
     // Enable the power supply for the I2C bus and attached sensors.
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PWR].make_output();
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PWR].set();
+    nrf52840_peripherals.gpio_port[I2C_PWR].make_output();
+    nrf52840_peripherals.gpio_port[I2C_PWR].set();
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));

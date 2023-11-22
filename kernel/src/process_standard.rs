@@ -644,7 +644,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 Err(Error::AddressOutOfBounds)
             } else if new_break > self.kernel_memory_break.get() {
                 Err(Error::OutOfMemory)
-            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
                 new_break,
                 self.kernel_memory_break.get(),
                 mpu::Permissions::ReadWriteOnly,
@@ -2018,7 +2018,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         });
         match ukb_init_process {
             Ok(()) => {}
-            Err(_) => {
+            Err(()) => {
                 // We couldn't initialize the architecture-specific state for
                 // this process. This shouldn't happen since the app was able to
                 // be started before, but at this point the app is no longer
@@ -2110,7 +2110,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             } else if new_break > self.kernel_memory_break.get() {
                 None
                 // Verify this is compatible with the MPU.
-            } else if let Err(_) = self.chip.mpu().update_app_memory_region(
+            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
                 self.app_break.get(),
                 new_break,
                 mpu::Permissions::ReadWriteOnly,

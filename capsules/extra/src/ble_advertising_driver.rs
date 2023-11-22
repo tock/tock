@@ -637,7 +637,7 @@ where
                     .map_or_else(
                         |err| CommandReturn::failure(err.into()),
                         |res| match res {
-                            Ok(_) => {
+                            Ok(()) => {
                                 // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
                                 CommandReturn::success()
@@ -705,7 +705,7 @@ where
                     .map_or_else(
                         |err| err.into(),
                         |res| match res {
-                            Ok(_) => {
+                            Ok(()) => {
                                 // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
                                 CommandReturn::success()

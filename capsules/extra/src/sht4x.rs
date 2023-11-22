@@ -134,7 +134,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT4x<'a, A, I> {
 
             let _res = self.i2c.write(buffer, 1);
             match _res {
-                Ok(_) => Ok(()),
+                Ok(()) => Ok(()),
                 Err((error, data)) => {
                     self.buffer.replace(data);
                     self.state.set(State::Idle);

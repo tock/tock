@@ -206,15 +206,15 @@ unsafe fn setup() -> (
     pwr_ctrl.enable_ios();
 
     // Enable PinCfg
-    let _ = &peripherals
+    peripherals
         .gpio_port
         .enable_uart(&peripherals.gpio_port[48], &peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C2 (exposed via Qwiic)
-    let _ = &peripherals
+    peripherals
         .gpio_port
         .enable_i2c(&peripherals.gpio_port[25], &peripherals.gpio_port[27]);
     // Enable Main SPI
-    let _ = &peripherals.gpio_port.enable_spi(
+    peripherals.gpio_port.enable_spi(
         &peripherals.gpio_port[5],
         &peripherals.gpio_port[7],
         &peripherals.gpio_port[6],
@@ -304,8 +304,8 @@ unsafe fn setup() -> (
         )
     );
 
-    let _ = &peripherals.iom2.set_master_client(i2c_master);
-    let _ = &peripherals.iom2.enable();
+    peripherals.iom2.set_master_client(i2c_master);
+    peripherals.iom2.enable();
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom2, None)
         .finalize(components::i2c_mux_component_static!(apollo3::iom::Iom));
@@ -357,10 +357,10 @@ unsafe fn setup() -> (
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
     pwr_ctrl.enable_ble();
-    let _ = &peripherals.ble.setup_clocks();
+    peripherals.ble.setup_clocks();
     mcu_ctrl.reset_ble();
-    let _ = &peripherals.ble.power_up();
-    let _ = &peripherals.ble.ble_initialise();
+    peripherals.ble.power_up();
+    peripherals.ble.ble_initialise();
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,

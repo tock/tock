@@ -671,7 +671,7 @@ impl Kernel {
                             debug!("Making process {} runnable", process.get_process_name());
                         }
                         match process.enqueue_init_task(&self.init_cap) {
-                            Ok(_) => { /* All is good, do nothing. */ }
+                            Ok(()) => { /* All is good, do nothing. */ }
                             Err(e) => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!(
