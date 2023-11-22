@@ -75,13 +75,7 @@ struct STM32F3Discovery {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    l3gd20: &'static capsules_extra::l3gd20::L3gd20Spi<
-        'static,
-        capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
-            'static,
-            stm32f303xc::spi::Spi<'static>,
-        >,
-    >,
+    l3gd20: &'static L3GD20Sensor,
     lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<
