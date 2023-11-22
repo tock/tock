@@ -126,19 +126,29 @@ impl<'a> TWI<'a> {
         } else {
             self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
 
-            // If RX started and we don't have a buffer then report
-            // read_expected()
+            // If RX started (master started write) and we don't have a buffer then report
+            // write_expected()
             if self.registers.events_rxstarted.is_set(EVENT::EVENT) {
                 self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
-                self.slave_client
-                    .map(|client| match self.slave_read_buf.take() {
-                        None => {
-                            client.read_expected();
-                        }
-                        Some(_buf) => {}
-                    });
+                self.slave_client.map(|client| {
+                    if self.buf.is_none() {
+                        client.write_expected();
+                    }
+                });
             }
 
+            // If TX started (master started read) and we don't have a buffer then report
+            // read_expected()
+            if self.registers.events_txstarted.is_set(EVENT::EVENT) {
+                self.registers.events_txstarted.write(EVENT::EVENT::CLEAR);
+                self.slave_client.map(|client| {
+                    if self.slave_read_buf.is_none() {
+                        client.read_expected();
+                    }
+                });
+            }
+
+            // Write command received
             if self.registers.events_write.is_set(EVENT::EVENT) {
                 self.registers.events_write.write(EVENT::EVENT::CLEAR);
                 let length = self.registers.rxd_amount.read(AMOUNT::AMOUNT) as usize;
@@ -173,7 +183,6 @@ impl<'a> TWI<'a> {
 
         // We can blindly clear the following events since we're not using them.
         self.registers.events_suspended.write(EVENT::EVENT::CLEAR);
-        self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
         self.registers.events_lastrx.write(EVENT::EVENT::CLEAR);
         self.registers.events_lasttx.write(EVENT::EVENT::CLEAR);
     }
