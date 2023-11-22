@@ -178,6 +178,7 @@ CLIPPY_ARGS_PEDANTIC="
 -A clippy::verbose_bit_mask
 -A clippy::large_types_passed_by_value
 -A clippy::no_mangle_with_rust_abi
+-A clippy::struct_field_names
 
 
 -A clippy::cast_lossless
@@ -196,6 +197,7 @@ CLIPPY_ARGS_PEDANTIC="
 -A clippy::match_bool
 -A clippy::redundant_closure_for_method_calls
 -A clippy::no_effect_underscore_binding
+-A clippy::iter_without_into_iter
 
 
 -A clippy::semicolon_if_nothing_returned
@@ -211,4 +213,4 @@ CLIPPY_ARGS_PEDANTIC="
 # disallowed lints.
 # FIX="--fix --allow-dirty"
 
-cargo clippy $FIX -- $CLIPPY_ARGS $CLIPPY_ARGS_COMPLEXITY $CLIPPY_ARGS_STYLE $CLIPPY_ARGS_PERF $CLIPPY_ARGS_CARGO $CLIPPY_ARGS_NURSERY $CLIPPY_ARGS_PEDANTIC
+cargo clippy $FIX -- $CLIPPY_ARGS_COMPLEXITY $CLIPPY_ARGS_STYLE $CLIPPY_ARGS_PERF $CLIPPY_ARGS_CARGO $CLIPPY_ARGS_NURSERY $CLIPPY_ARGS_PEDANTIC $CLIPPY_ARGS
