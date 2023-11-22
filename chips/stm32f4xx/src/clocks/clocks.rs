@@ -288,7 +288,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// Get the current APB1 frequency
     pub fn get_apb1_frequency(&self) -> usize {
         // Every enum variant can be converted into a usize
-        let divider: usize = self.rcc.get_apb1_prescaler().try_into().unwrap();
+        let divider: usize = self.rcc.get_apb1_prescaler().into();
         self.get_ahb_frequency() / divider
     }
 
@@ -334,7 +334,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// Get the current APB2 frequency
     pub fn get_apb2_frequency(&self) -> usize {
         // Every enum variant can be converted into a usize
-        let divider: usize = self.rcc.get_apb2_prescaler().try_into().unwrap();
+        let divider: usize = self.rcc.get_apb2_prescaler().into();
         self.get_ahb_frequency() / divider
     }
 
