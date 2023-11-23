@@ -147,13 +147,13 @@ impl<'a> Hsi<'a> {
 /// First, import the [crate::clocks::hsi] module in the desired board main file:
 ///
 /// ```rust,ignore
-/// use stm32f429zi::hsi;
+/// use stm32f429zi::clocks::hsi;
 /// ```
 ///
 /// Then, to run the tests, put the following line before [kernel::process::load_processes]:
 ///
 /// ```rust,ignore
-/// hsi::tests::run_all(&peripherals.stm32f4.clocks.hsi);
+/// hsi::tests::run(&peripherals.stm32f4.clocks.hsi);
 /// ```
 ///
 /// If everything works as expected, the following message should be printed on the kernel console:

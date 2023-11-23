@@ -46,6 +46,9 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+/// Nucleo F429ZI HSE frequency in MHz
+pub const HSE_FREQUENCY_MHZ: usize = 8;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF429ZI {
@@ -307,6 +310,7 @@ unsafe fn create_peripherals() -> (
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
+    rcc.set_hse_frequency(HSE_FREQUENCY_MHZ);
 
     let syscfg = static_init!(
         stm32f429zi::syscfg::Syscfg,
