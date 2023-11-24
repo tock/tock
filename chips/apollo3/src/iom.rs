@@ -521,6 +521,56 @@ impl<'a> Iom<'_> {
 
         while regs.status.read(STATUS::IDLESET) != 1 {}
 
+        if irqs.is_set(INT::NAK) {
+            if self.op.get() == Operation::I2C {
+                // Disable interrupts
+                regs.inten.set(0x00);
+                self.i2c_reset_fifo();
+
+                self.i2c_master_client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.command_complete(buffer, Err(i2c::Error::DataNak));
+                    });
+                });
+
+                // Finished with SMBus
+                if self.smbus.get() {
+                    // Setup 400kHz
+                    regs.clkcfg.write(
+                        CLKCFG::TOTPER.val(0x1D)
+                            + CLKCFG::LOWPER.val(0xE)
+                            + CLKCFG::DIVEN.val(1)
+                            + CLKCFG::DIV3.val(0)
+                            + CLKCFG::FSEL.val(2)
+                            + CLKCFG::IOCLKEN::SET,
+                    );
+
+                    self.smbus.set(false);
+                }
+            } else {
+                // Disable interrupts
+                regs.inten.set(0x00);
+
+                // Clear CS
+                self.spi_cs.map(|cs| cs.set());
+
+                self.op.set(Operation::None);
+
+                self.spi_master_client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        let read_buffer = self.spi_read_buffer.take();
+                        client.read_write_done(
+                            buffer,
+                            read_buffer,
+                            self.write_len.get(),
+                            Err(ErrorCode::NOACK),
+                        );
+                    });
+                });
+            }
+            return;
+        }
+
         if self.op.get() == Operation::SPI {
             if let Some(buf) = self.spi_read_buffer.take() {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
