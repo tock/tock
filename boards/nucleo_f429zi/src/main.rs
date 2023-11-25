@@ -58,6 +58,7 @@ struct NucleoF429ZI {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    dac: &'static capsules_extra::dac::Dac<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -69,6 +70,10 @@ struct NucleoF429ZI {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
+    date_time: &'static capsules_extra::date_time::DateTimeCapsule<
+        'static,
+        stm32f429zi::rtc::Rtc<'static>,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -88,6 +93,8 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -255,6 +262,11 @@ unsafe fn set_pin_primary_functions(
         // AF9 is CAN_TX
         pin.set_alternate_function(AlternateFunction::AF9);
     });
+
+    // DAC Channel 1
+    gpio_ports.get_pin(PinId::PA04).map(|pin| {
+        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -262,6 +274,7 @@ unsafe fn setup_peripherals(
     tim2: &stm32f429zi::tim2::Tim2,
     trng: &stm32f429zi::trng::Trng,
     can1: &'static stm32f429zi::can::Can,
+    rtc: &'static stm32f429zi::rtc::Rtc,
 ) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
@@ -276,6 +289,9 @@ unsafe fn setup_peripherals(
 
     // CAN
     can1.enable_clock();
+
+    // RTC
+    rtc.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -321,7 +337,12 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2, &peripherals.trng, &peripherals.can1);
+    setup_peripherals(
+        &base_peripherals.tim2,
+        &peripherals.trng,
+        &peripherals.can1,
+        &peripherals.rtc,
+    );
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -566,6 +587,10 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // DAC
+    let dac = components::dac::DacComponent::new(&base_peripherals.dac)
+        .finalize(components::dac_component_static!());
+
     // RNG
     let rng = components::rng::RngComponent::new(
         board_kernel,
@@ -582,6 +607,21 @@ pub unsafe fn main() {
     )
     .finalize(components::can_component_static!(
         stm32f429zi::can::Can<'static>
+    ));
+
+    // RTC DATE TIME
+    match peripherals.rtc.rtc_init() {
+        Err(e) => debug!("{:?}", e),
+        _ => (),
+    };
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        &peripherals.rtc,
+    )
+    .finalize(components::date_time_component_static!(
+        stm32f429zi::rtc::Rtc<'static>
     ));
 
     // PROCESS CONSOLE
@@ -608,6 +648,7 @@ pub unsafe fn main() {
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
+        dac: dac,
         led: led,
         temperature: temp,
         button: button,
@@ -618,6 +659,7 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
         can: can,
+        date_time,
     };
 
     // // Optional kernel tests

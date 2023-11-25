@@ -13,6 +13,8 @@
 #![recursion_limit = "256"]
 
 pub mod chip_config;
+pub mod pinmux_config;
+
 mod interrupts;
 
 pub mod aes;
@@ -24,6 +26,7 @@ pub mod gpio;
 pub mod hmac;
 pub mod i2c;
 pub mod otbn;
+pub mod pinmux;
 pub mod plic;
 pub mod pwrmgr;
 pub mod registers;

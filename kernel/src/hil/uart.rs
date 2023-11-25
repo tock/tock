@@ -58,6 +58,9 @@ pub enum Error {
     /// UART hardware was reset
     ResetError,
 
+    /// UART hardware was disconnected
+    BreakError,
+
     /// Read or write was aborted early
     Aborted,
 }

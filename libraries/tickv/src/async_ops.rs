@@ -278,6 +278,26 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
         }
     }
 
+    /// Zeroizes the key in flash storage
+    ///
+    /// `hash`: A hashed key.
+    /// `key`: A unhashed key. This will be hashed internally.
+    ///
+    /// On success a `SuccessCode` will be returned.
+    /// On error a `ErrorCode` will be returned.
+    ///
+    /// If a power loss occurs before success is returned the data is
+    /// assumed to be lost.
+    pub fn zeroise_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
+        match self.tickv.zeroise_key(hash) {
+            Ok(_code) => Err(ErrorCode::WriteFail),
+            Err(_e) => {
+                self.key.replace(Some(hash));
+                Ok(SuccessCode::Queued)
+            }
+        }
+    }
+
     /// Perform a garbage collection on TicKV
     ///
     /// On success a `SuccessCode` will be returned.
@@ -338,6 +358,7 @@ impl<'a, C: FlashController<S>, const S: usize> AsyncTicKV<'a, C, S> {
                 }
             }
             State::InvalidateKey(_) => (self.tickv.invalidate_key(self.key.get().unwrap()), 0),
+            State::ZeroiseKey(_) => (self.tickv.zeroise_key(self.key.get().unwrap()), 0),
             State::GarbageCollect(_) => match self.tickv.garbage_collect() {
                 Ok(bytes_freed) => (Ok(SuccessCode::Complete), bytes_freed),
                 Err(e) => (Err(e), 0),

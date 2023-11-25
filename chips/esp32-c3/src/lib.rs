@@ -12,6 +12,7 @@
 pub mod chip;
 pub mod intc;
 pub mod interrupts;
+pub mod rng;
 pub mod sysreg;
 
 pub mod timg {

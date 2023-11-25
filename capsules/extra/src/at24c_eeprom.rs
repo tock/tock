@@ -186,9 +186,9 @@ impl I2CClient for AT24C<'static> {
                     self.buffer.replace(buffer);
                     self.flash_client.map(|client| {
                         if status.is_err() {
-                            client.read_complete(client_page, hil::flash::Error::FlashError);
+                            client.read_complete(client_page, Err(hil::flash::Error::FlashError));
                         } else {
-                            client.read_complete(client_page, hil::flash::Error::CommandComplete);
+                            client.read_complete(client_page, Ok(()));
                         }
                     });
                 }
@@ -200,9 +200,9 @@ impl I2CClient for AT24C<'static> {
                 self.flash_client.map(|client| {
                     if let Some(client_page) = self.client_page.take() {
                         if status.is_err() {
-                            client.write_complete(client_page, hil::flash::Error::FlashError);
+                            client.write_complete(client_page, Err(hil::flash::Error::FlashError));
                         } else {
-                            client.write_complete(client_page, hil::flash::Error::CommandComplete);
+                            client.write_complete(client_page, Ok(()));
                         }
                     }
                 });
@@ -213,9 +213,9 @@ impl I2CClient for AT24C<'static> {
                 self.i2c.disable();
                 self.flash_client.map(move |client| {
                     if status.is_err() {
-                        client.erase_complete(hil::flash::Error::FlashError);
+                        client.erase_complete(Err(hil::flash::Error::FlashError));
                     } else {
-                        client.erase_complete(hil::flash::Error::CommandComplete);
+                        client.erase_complete(Ok(()));
                     }
                 });
             }

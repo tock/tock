@@ -15,10 +15,16 @@ use rv32i::syscall::SysCall;
 
 use crate::chip_config::EarlGreyConfig;
 use crate::interrupts;
+use crate::pinmux_config::EarlGreyPinmuxConfig;
 use crate::plic::Plic;
 use crate::plic::PLIC;
 
-pub struct EarlGrey<'a, I: InterruptService + 'a, CFG: EarlGreyConfig + 'static> {
+pub struct EarlGrey<
+    'a,
+    I: InterruptService + 'a,
+    CFG: EarlGreyConfig + 'static,
+    PINMUX: EarlGreyPinmuxConfig,
+> {
     userspace_kernel_boundary: SysCall,
     pub pmp: PMP<8>,
     plic: &'a Plic,
@@ -26,9 +32,10 @@ pub struct EarlGrey<'a, I: InterruptService + 'a, CFG: EarlGreyConfig + 'static>
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
     plic_interrupt_service: &'a I,
     _cfg: PhantomData<CFG>,
+    _pinmux: PhantomData<PINMUX>,
 }
 
-pub struct EarlGreyDefaultPeripherals<'a, CFG: EarlGreyConfig> {
+pub struct EarlGreyDefaultPeripherals<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> {
     pub aes: crate::aes::Aes<'a>,
     pub hmac: lowrisc::hmac::Hmac<'a>,
     pub usb: lowrisc::usbdev::Usb<'a>,
@@ -42,9 +49,12 @@ pub struct EarlGreyDefaultPeripherals<'a, CFG: EarlGreyConfig> {
     pub rng: lowrisc::csrng::CsRng<'a>,
     pub watchdog: lowrisc::aon_timer::AonTimer,
     _cfg: PhantomData<CFG>,
+    _pinmux: PhantomData<PINMUX>,
 }
 
-impl<'a, CFG: EarlGreyConfig> EarlGreyDefaultPeripherals<'a, CFG> {
+impl<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
+    EarlGreyDefaultPeripherals<'a, CFG, PINMUX>
+{
     pub fn new() -> Self {
         Self {
             aes: crate::aes::Aes::new(),
@@ -52,7 +62,7 @@ impl<'a, CFG: EarlGreyConfig> EarlGreyDefaultPeripherals<'a, CFG> {
             usb: lowrisc::usbdev::Usb::new(crate::usbdev::USB0_BASE),
             uart0: lowrisc::uart::Uart::new(crate::uart::UART0_BASE, CFG::PERIPHERAL_FREQ),
             otbn: lowrisc::otbn::Otbn::new(crate::otbn::OTBN_BASE),
-            gpio_port: crate::gpio::Port::new(),
+            gpio_port: crate::gpio::Port::new::<PINMUX>(),
             i2c0: lowrisc::i2c::I2c::new(crate::i2c::I2C0_BASE, (1 / CFG::CPU_FREQ) * 1000 * 1000),
             spi_host0: lowrisc::spi_host::SpiHost::new(
                 crate::spi_host::SPIHOST0_BASE,
@@ -73,15 +83,19 @@ impl<'a, CFG: EarlGreyConfig> EarlGreyDefaultPeripherals<'a, CFG> {
                 CFG::CPU_FREQ,
             ),
             _cfg: PhantomData,
+            _pinmux: PhantomData,
         }
     }
 
     pub fn init(&'static self) {
         kernel::deferred_call::DeferredCallClient::register(&self.aes);
+        kernel::deferred_call::DeferredCallClient::register(&self.uart0);
     }
 }
 
-impl<'a, CFG: EarlGreyConfig> InterruptService for EarlGreyDefaultPeripherals<'a, CFG> {
+impl<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> InterruptService
+    for EarlGreyDefaultPeripherals<'a, CFG, PINMUX>
+{
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0_TX_WATERMARK..=interrupts::UART0_RX_PARITYERR => {
@@ -121,7 +135,9 @@ impl<'a, CFG: EarlGreyConfig> InterruptService for EarlGreyDefaultPeripherals<'a
     }
 }
 
-impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig> EarlGrey<'a, I, CFG> {
+impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
+    EarlGrey<'a, I, CFG, PINMUX>
+{
     pub unsafe fn new(
         plic_interrupt_service: &'a I,
         timer: &'static crate::timer::RvTimer<'_, CFG>,
@@ -134,6 +150,7 @@ impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig> EarlGrey<'a, I, CFG> {
             timer,
             plic_interrupt_service,
             _cfg: PhantomData,
+            _pinmux: PhantomData,
         }
     }
 
@@ -227,8 +244,8 @@ impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig> EarlGrey<'a, I, CFG> {
     }
 }
 
-impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig> kernel::platform::chip::Chip
-    for EarlGrey<'a, I, CFG>
+impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
+    kernel::platform::chip::Chip for EarlGrey<'a, I, CFG, PINMUX>
 {
     type MPU = PMP<8>;
     type UserspaceKernelBoundary = SysCall;
