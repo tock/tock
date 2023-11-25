@@ -49,8 +49,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Pressure as usize;
 /// Register values
 
 const REGISTER_AUTO_INCREMENT: u8 = 0x80;
-const CTRL_REG1_POWER_ON: u8 = 0x50;
-const CTRL_REG1_POWER_OFF: u8 = 0x00;
+const CTRL_REG1_ONE_SHOT: u8 = 0x00;
 
 #[allow(dead_code)]
 enum Registers {
@@ -94,7 +93,7 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
             i2c_bus: i2c_bus,
             pressure_client: OptionalCell::empty(),
             pending_pressure: Cell::new(false),
-            state: Cell::new(State::Idle),
+            state: Cell::new(State::Sleep),
         }
     }
 
@@ -104,15 +103,25 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
             .map(|buffer| {
                 self.i2c_bus.enable();
                 match self.state.get() {
+                    State::Sleep => {
+                        buffer[0] = Registers::WhoAmI as u8;
+
+                        if let Err((_error, buffer)) = self.i2c_bus.write_read(buffer, 1, 1) {
+                            self.buffer.replace(buffer);
+                            self.i2c_bus.disable();
+                        } else {
+                            self.state.set(State::PowerOn);
+                        }
+                    }
                     State::Idle => {
-                        buffer[0] = Registers::CtrlReg1 as u8;
-                        buffer[1] = CTRL_REG1_POWER_ON;
+                        buffer[0] = Registers::CtrlReg2 as u8;
+                        buffer[1] = 0x11 as u8;
 
                         if let Err((_error, buffer)) = self.i2c_bus.write(buffer, 2) {
                             self.buffer.replace(buffer);
                             self.i2c_bus.disable();
                         } else {
-                            self.state.set(State::ReadMeasurementInit);
+                            self.state.set(State::Status);
                         }
                     }
                     _ => {}
@@ -139,11 +148,14 @@ impl<'a, I: I2CDevice> PressureDriver<'a> for Lps22hb<'a, I> {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum State {
+    Sleep,
+    PowerOn,
     Idle,
+    ConfOut,
+    Status,
     ReadMeasurementInit,
     ReadMeasurement,
     GotMeasurement,
-    Done(u32),
 }
 
 impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
@@ -157,16 +169,71 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
         }
 
         match self.state.get() {
-            State::ReadMeasurementInit => {
-                buffer[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
+            State::PowerOn => {
+                if buffer[0] == 0xB1 {
+                    buffer[0] = Registers::CtrlReg1 as u8;
+                    buffer[1] = CTRL_REG1_ONE_SHOT;
 
-                if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 1) {
+                    if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 2) {
+                        self.state.set(State::Idle);
+                        self.buffer.replace(buffer);
+                        self.pressure_client
+                            .map(|client| client.callback(Err(i2c_err.into())));
+                    } else {
+                        self.state.set(State::ConfOut);
+                    }
+                } else {
+                    self.state.set(State::Sleep);
+                }
+            }
+            State::ConfOut => {
+                buffer[0] = Registers::CtrlReg2 as u8;
+                buffer[1] = 0x11 as u8;
+
+                if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 2) {
                     self.state.set(State::Idle);
                     self.buffer.replace(buffer);
                     self.pressure_client
                         .map(|client| client.callback(Err(i2c_err.into())));
                 } else {
-                    self.state.set(State::ReadMeasurement);
+                    self.state.set(State::Status);
+                }
+            }
+            State::Status => {
+                buffer[0] = Registers::CtrlReg2 as u8;
+
+                if let Err((i2c_err, buffer)) = self.i2c_bus.write_read(buffer, 1, 1) {
+                    self.state.set(State::Idle);
+                    self.buffer.replace(buffer);
+                    self.pressure_client
+                        .map(|client| client.callback(Err(i2c_err.into())));
+                } else {
+                    self.state.set(State::ReadMeasurementInit);
+                }
+            }
+            State::ReadMeasurementInit => {
+                if buffer[0] == 0x10 {
+                    buffer[0] = Registers::PressOutXl as u8 | REGISTER_AUTO_INCREMENT;
+
+                    if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 1) {
+                        self.state.set(State::Idle);
+                        self.buffer.replace(buffer);
+                        self.pressure_client
+                            .map(|client| client.callback(Err(i2c_err.into())));
+                    } else {
+                        self.state.set(State::ReadMeasurement);
+                    }
+                } else {
+                    buffer[0] = Registers::CtrlReg2 as u8;
+
+                    if let Err((i2c_err, buffer)) = self.i2c_bus.write_read(buffer, 1, 1) {
+                        self.state.set(State::Idle);
+                        self.buffer.replace(buffer);
+                        self.pressure_client
+                            .map(|client| client.callback(Err(i2c_err.into())));
+                    } else {
+                        self.state.set(State::ReadMeasurementInit);
+                    }
                 }
             }
             State::ReadMeasurement => {
@@ -180,23 +247,10 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
                 }
             }
             State::GotMeasurement => {
-                let pressure_raw =
-                    ((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32);
-                let pressure = pressure_raw / 4096;
+                let pressure =
+                    (((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32))
+                        / 4096;
 
-                buffer[0] = Registers::CtrlReg1 as u8;
-                buffer[1] = CTRL_REG1_POWER_OFF;
-
-                if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 2) {
-                    self.state.set(State::Idle);
-                    self.buffer.replace(buffer);
-                    self.pressure_client
-                        .map(|client| client.callback(Err(i2c_err.into())));
-                } else {
-                    self.state.set(State::Done(pressure));
-                }
-            }
-            State::Done(pressure) => {
                 self.buffer.replace(buffer);
                 self.i2c_bus.disable();
                 if self.pending_pressure.get() {
@@ -207,6 +261,7 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
 
                 self.state.set(State::Idle);
             }
+            State::Sleep => {}
             State::Idle => {}
         }
     }
