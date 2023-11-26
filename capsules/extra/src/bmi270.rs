@@ -42,9 +42,10 @@
 //! ```
 
 use core::cell::Cell;
+use kernel::debug;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
-use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::hil::sensors::{NineDof, NineDofClient};
+use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -192,15 +193,15 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
                         }
                     }
                     State::Idle => {
-                        buffer[0] = Registers::Data8 as u8;
+                        buffer[0] = Registers::Status as u8;
 
-                        if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
+                        if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 1) {
                             self.state.set(State::Sleep);
                             self.buffer.replace(buffer);
                             self.ninedof_client
                                 .map(|client| client.callback(i2c_err as usize, 0, 0));
                         } else {
-                            self.state.set(State::Read);
+                            self.state.set(State::InitRead);
                         }
                     }
                     _ => {}
@@ -210,38 +211,34 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
     }
 
     fn handle_alarm(&self) {
-        let _ = self.buffer
-        .take()
-        .map(|buffer| {
-            match self.state.get() {
-                State::WaitingForAlarm(us) => {
-                    if us == 450 {
-                        buffer[0] = Registers::InitCtrl as u8;
-                        buffer[1] = 0x00_u8;
-    
-                        if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
-                            self.state.set(State::Sleep);
-                            self.buffer.replace(buffer);
-                            self.ninedof_client
-                                .map(|client| client.callback(i2c_err as usize, 0, 0));
-                        } else {
-                            self.state.set(State::InitWriteConfig);
-                        }
-                    } else if us == 20000 {
-                        buffer[0] = Registers::InternalStatus as u8;
+        let _ = self.buffer.take().map(|buffer| match self.state.get() {
+            State::WaitingForAlarm(us) => {
+                if us == 450 {
+                    buffer[0] = Registers::InitCtrl as u8;
+                    buffer[1] = 0x00_u8;
 
-                        if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 1) {
-                            self.state.set(State::Sleep);
-                            self.buffer.replace(buffer);
-                            self.ninedof_client
-                                .map(|client| client.callback(i2c_err as usize, 0, 0));
-                        } else {
-                            self.state.set(State::CheckStatus);
-                        }
+                    if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
+                        self.state.set(State::Sleep);
+                        self.buffer.replace(buffer);
+                        self.ninedof_client
+                            .map(|client| client.callback(i2c_err as usize, 0, 0));
+                    } else {
+                        self.state.set(State::InitWriteConfig);
+                    }
+                } else if us == 20000 {
+                    buffer[0] = Registers::InternalStatus as u8;
+
+                    if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 1) {
+                        self.state.set(State::Sleep);
+                        self.buffer.replace(buffer);
+                        self.ninedof_client
+                            .map(|client| client.callback(i2c_err as usize, 0, 0));
+                    } else {
+                        self.state.set(State::CheckStatus);
                     }
                 }
-                _ => {}
             }
+            _ => {}
         });
     }
 }
@@ -299,6 +296,7 @@ enum State {
     ConfGyro,
     ConfGyroRange,
     ConfPower,
+    CheckConf,
     InitRead,
     Read,
     Done,
@@ -347,13 +345,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 }
             }
             State::CheckStatus => {
-                if buffer[0] == 0 {
-                    self.state.set(State::Sleep);
-                    self.buffer.replace(buffer);
-                    self.i2c.disable();
-                    self.ninedof_client
-                        .map(|client| client.callback(1, 0, 0));
-                } else {
+                if buffer[0] == 1 {
                     buffer[0] = Registers::PwrCtrl as u8;
                     buffer[1] = 0x0E_u8;
 
@@ -365,6 +357,11 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                     } else {
                         self.state.set(State::ConfAccel);
                     }
+                } else {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.i2c.disable();
+                    self.ninedof_client.map(|client| client.callback(1, 0, 0));
                 }
             }
             State::ConfAccel => {
@@ -382,7 +379,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
             }
             State::ConfAccelRange => {
                 buffer[0] = Registers::AccRange as u8;
-                buffer[1] = 0x00_u8;
+                buffer[1] = 0x01_u8;
 
                 if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                     self.state.set(State::Sleep);
@@ -395,7 +392,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
             }
             State::ConfGyro => {
                 buffer[0] = Registers::GyrConf as u8;
-                buffer[1] = 0xA9_u8;
+                buffer[1] = 0xA8_u8;
 
                 if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                     self.state.set(State::Sleep);
@@ -429,19 +426,45 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                     self.ninedof_client
                         .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
-                    self.state.set(State::InitRead);
+                    self.state.set(State::CheckConf);
                 }
             }
-            State::InitRead => {
-                buffer[0] = Registers::Data8 as u8;
+            State::CheckConf => {
+                buffer[0] = Registers::Event as u8;
 
-                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
+                if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 1) {
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.ninedof_client
                         .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
-                    self.state.set(State::Read);
+                    self.state.set(State::InitRead);
+                }
+            }
+            State::InitRead => {
+                if buffer[0] == 0 {
+                    buffer[0] = Registers::Data8 as u8;
+
+                    if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
+                        self.state.set(State::Sleep);
+                        self.buffer.replace(buffer);
+                        self.ninedof_client
+                            .map(|client| client.callback(i2c_err as usize, 0, 0));
+                    } else {
+                        self.state.set(State::Read);
+                    }
+                } else {
+                    buffer[0] = Registers::AccConf as u8;
+                    buffer[1] = 0xA8_u8;
+
+                    if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
+                        self.state.set(State::Sleep);
+                        self.buffer.replace(buffer);
+                        self.ninedof_client
+                            .map(|client| client.callback(i2c_err as usize, 0, 0));
+                    } else {
+                        self.state.set(State::ConfAccelRange);
+                    }
                 }
             }
             State::Read => {
@@ -458,17 +481,17 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 let gravity_earth = 9.80665 as f32;
                 let half_scale = 32768.0;
 
-                let accel_data_x = ((buffer[1] as u16) << 8) | (buffer[0] as u16);
-                let accel_data_y = ((buffer[3] as u16) << 8) | (buffer[2] as u16);
-                let accel_data_z = ((buffer[5] as u16) << 8) | (buffer[4] as u16);
+                let accel_data_x = ((buffer[1] as i16) << 8) | (buffer[0] as i16);
+                let accel_data_y = ((buffer[3] as i16) << 8) | (buffer[2] as i16);
+                let accel_data_z = ((buffer[5] as i16) << 8) | (buffer[4] as i16);
 
-                let accel_x = (gravity_earth * accel_data_x as f32 * 2.0) / half_scale;
-                let accel_y = (gravity_earth * accel_data_y as f32 * 2.0) / half_scale;
-                let accel_z = (gravity_earth * accel_data_z as f32 * 2.0) / half_scale;
+                let accel_x = (gravity_earth * accel_data_x as f32 * 4.0) / half_scale;
+                let accel_y = (gravity_earth * accel_data_y as f32 * 4.0) / half_scale;
+                let accel_z = (gravity_earth * accel_data_z as f32 * 4.0) / half_scale;
 
-                let gyro_data_x = ((buffer[7] as u16) << 8) | (buffer[6] as u16);
-                let gyro_data_y = ((buffer[9] as u16) << 8) | (buffer[8] as u16);
-                let gyro_data_z = ((buffer[11] as u16) << 8) | (buffer[10] as u16);
+                let gyro_data_x = ((buffer[7] as i16) << 8) | (buffer[6] as i16);
+                let gyro_data_y = ((buffer[9] as i16) << 8) | (buffer[8] as i16);
+                let gyro_data_z = ((buffer[11] as i16) << 8) | (buffer[10] as i16);
 
                 let gyro_x = (2000.0 / half_scale) * gyro_data_x as f32;
                 let gyro_y = (2000.0 / half_scale) * gyro_data_y as f32;
