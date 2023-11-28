@@ -115,7 +115,7 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
                     }
                     State::Idle => {
                         buffer[0] = Registers::CtrlReg2 as u8;
-                        buffer[1] = 0x11 as u8;
+                        buffer[1] = 0x11_u8;
 
                         if let Err((_error, buffer)) = self.i2c_bus.write(buffer, 2) {
                             self.buffer.replace(buffer);
