@@ -233,7 +233,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
             } else {
                 self.rcc.set_pll_clocks_source(PllSource::HSE);
             }
-            return Ok(());
+            Ok(())
         }
     }
 
