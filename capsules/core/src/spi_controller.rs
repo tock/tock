@@ -112,6 +112,7 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
                         start = cmp::min(start, end);
                         
                         // write buffer goes into kernel: 128 0 0 0 0 0
+                        // 0x80 00
                         for (i, c) in src[start..end].iter().enumerate() {
                             kwbuf[i] = c.get();
                             kernel::debug!("kwbuf byte {} in do_next_read_write {}", i, kwbuf[i]);
@@ -264,7 +265,6 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
                 CommandReturn::failure(ErrorCode::NOSUPPORT)
             }
             5 => {
-                kernel::debug!("command number 5 called");
                 // set baud rate
                 match self.spi_master.set_rate(arg1 as u32) {
                     Ok(()) => CommandReturn::success(),
@@ -354,6 +354,7 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                                 let dest_area = &dest[start..end];
                                 for (i, c) in src[0..real_len].iter().enumerate() {
                                     dest_area[i].set(*c);
+                                    kernel::debug!("read buffer byte {} in the callback: {}", i, c);
                                 }
                             })
                         });
