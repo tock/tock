@@ -394,6 +394,14 @@ pub unsafe fn start() -> (
     base_peripherals.spim0.set_polarity(ClockPolarity::IdleLow).ok();
     base_peripherals.spim0.set_phase(ClockPhase::SampleLeading).ok();
 
+    // #define LR1110_IRQ_PIN      40
+    // #define LR1110_NRESER_PIN	42
+    // #define LR1110_BUSY_PIN		43
+    // #define LR1110_SPI_NSS_PIN 	44
+    // #define LR1110_SPI_SCK_PIN	45
+    // #define LR1110_SPI_MOSI_PIN	46
+    // #define LR1110_SPI_MISO_PIN	47
+
     let lr1110_gpio = components::gpio::GpioComponent::new(
         board_kernel,
         LORA_GPIO_DRIVER_NUM,
@@ -404,6 +412,9 @@ pub unsafe fn start() -> (
             //2 => &nrf52840_peripherals.gpio_port[Pin::P1_08], // J9 - SX1262 Multipurpose digital I/O (DIO1)
             //3 => &nrf52840_peripherals.gpio_port[Pin::P1_04], // H9 - SX1262 Multipurpose digital I/O (DIO3)
             4 => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN], // J7 - SX1262 Reset
+            0x2c => &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+            0x2b => &nrf52840_peripherals.gpio_port[RADIO_BUSY_PIN],
+            0x2a => &nrf52840_peripherals.gpio_port[RADIO_RESET_PIN],
         ),
     )
     .finalize(components::gpio_component_static!(nrf52840::gpio::GPIOPin));
