@@ -188,7 +188,7 @@ impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
             }
             State::ConfOut => {
                 buffer[0] = Registers::CtrlReg2 as u8;
-                buffer[1] = 0x11 as u8;
+                buffer[1] = 0x11_u8;
 
                 if let Err((i2c_err, buffer)) = self.i2c_bus.write(buffer, 2) {
                     self.state.set(State::Idle);
