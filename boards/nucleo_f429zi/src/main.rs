@@ -47,7 +47,7 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// Nucleo F429ZI HSE frequency in MHz
-pub const HSE_FREQUENCY_MHZ: usize = 8;
+pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -310,7 +310,6 @@ unsafe fn create_peripherals() -> (
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
-    rcc.set_hse_frequency(HSE_FREQUENCY_MHZ);
 
     let syscfg = static_init!(
         stm32f429zi::syscfg::Syscfg,
@@ -340,6 +339,9 @@ pub unsafe fn main() {
     let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
+
+    let pll = &peripherals.stm32f4.clocks.pll;
+    pll.hse.set_frequency(NUCLEO_F429ZI_HSE_FREQUENCY_MHZ);
 
     setup_peripherals(
         &base_peripherals.tim2,

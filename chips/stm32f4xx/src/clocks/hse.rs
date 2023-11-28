@@ -51,11 +51,13 @@ use crate::rcc::HseMode;
 use crate::rcc::Rcc;
 
 use kernel::debug;
+use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 /// Main HSE clock structure
 pub struct Hse<'a> {
     rcc: &'a Rcc,
+    hse_frequency: OptionalCell<usize>,
 }
 
 impl<'a> Hse<'a> {
@@ -69,14 +71,17 @@ impl<'a> Hse<'a> {
     ///
     /// An instance of the HSE clock.
     pub(in crate::clocks) fn new(rcc: &'a Rcc) -> Self {
-        Self { rcc }
+        Self {
+            rcc,
+            hse_frequency: OptionalCell::empty(),
+        }
     }
 
     /// Start the HSE clock.
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::BUSY]\): disabling the HSE clock took to long. Retry to ensure it is
+    /// + [Err]\([ErrorCode::BUSY]\): disabling the HSE clock took to long. Retry to ensure it is running
     pub fn enable(&self, source: HseMode) -> Result<(), ErrorCode> {
         if source == HseMode::BYPASS {
             self.rcc.enable_hse_clock_bypass();
@@ -134,10 +139,19 @@ impl<'a> Hse<'a> {
     /// + [None]: if the HSE clock is disabled.
     pub fn get_frequency(&self) -> Option<usize> {
         if self.is_enabled() {
-            self.rcc.get_hse_frequency()
+            self.hse_frequency.get()
         } else {
             None
         }
+    }
+
+    /// Set the frequency in MHz of the HSE clock.
+    ///
+    /// # Parameters
+    ///
+    /// + frequency: HSE frequency in MHz
+    pub fn set_frequency(&self, frequency: usize) {
+        self.hse_frequency.set(frequency);
     }
 }
 

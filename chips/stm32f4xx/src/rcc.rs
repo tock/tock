@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -734,7 +733,6 @@ pub(crate) const DEFAULT_PLLQ_VALUE: PLLQ = match DEFAULT_PLLM_VALUE {
 
 pub struct Rcc {
     registers: StaticRef<RccRegisters>,
-    hse_frequency: OptionalCell<usize>,
 }
 
 pub enum RtcClockSource {
@@ -747,7 +745,6 @@ impl Rcc {
     pub fn new() -> Self {
         let rcc = Self {
             registers: RCC_BASE,
-            hse_frequency: OptionalCell::empty(),
         };
         rcc.init();
         rcc
@@ -830,14 +827,6 @@ impl Rcc {
     }
 
     /* HSE clock */
-    pub fn set_hse_frequency(&self, frequency: usize) {
-        self.hse_frequency.set(frequency);
-    }
-
-    pub fn get_hse_frequency(&self) -> Option<usize> {
-        self.hse_frequency.get()
-    }
-
     pub(crate) fn disable_hse_clock(&self) {
         self.registers.cr.modify(CR::HSEON::CLEAR);
         self.registers.cr.modify(CR::HSEBYP::CLEAR);

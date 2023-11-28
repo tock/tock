@@ -107,6 +107,7 @@
 //! [^doc_ref]: See 6.2.3 in the documentation.
 
 use crate::chip_specific::clock_constants;
+use crate::clocks::hse::Hse;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
@@ -123,6 +124,7 @@ use core::marker::PhantomData;
 /// Main PLL clock structure.
 pub struct Pll<'a, PllConstants> {
     rcc: &'a Rcc,
+    pub hse: Hse<'a>,
     frequency: OptionalCell<usize>,
     pll48_frequency: OptionalCell<usize>,
     pll48_calibrated: Cell<bool>,
@@ -153,6 +155,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         const PLLQ: usize = DEFAULT_PLLQ_VALUE as usize;
         Self {
             rcc,
+            hse: Hse::new(rcc),
             frequency: OptionalCell::new(HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLP),
             pll48_frequency: OptionalCell::new(
                 HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLQ,
@@ -213,19 +216,24 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     /// + [HSI_FREQUENCY_MHZ]: if the pll source is HSI
     /// + HSE frequency if the pll source is HSE
     fn get_pll_source_frequency(&self) -> usize {
-        if self.rcc.is_hsi_clock_system_clock() {
-            HSI_FREQUENCY_MHZ
+        if self.rcc.is_hse_clock_system_clock() {
+            self.hse.get_frequency().unwrap()
         } else {
-            self.rcc.get_hse_frequency().unwrap()
+            HSI_FREQUENCY_MHZ
         }
     }
 
     /// Set the PLL source clock according to the system clock
-    fn set_pll_source_clock(&self) {
-        if self.rcc.is_hsi_clock_system_clock() {
-            self.rcc.set_pll_clocks_source(PllSource::HSI);
+    fn set_pll_source_clock(&self) -> Result<(), ErrorCode> {
+        if self.is_enabled() {
+            Err(ErrorCode::FAIL)
         } else {
-            self.rcc.set_pll_clocks_source(PllSource::HSE);
+            if self.rcc.is_hsi_clock_system_clock() {
+                self.rcc.set_pll_clocks_source(PllSource::HSI);
+            } else {
+                self.rcc.set_pll_clocks_source(PllSource::HSE);
+            }
+            return Ok(());
         }
     }
 
@@ -335,7 +343,9 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         let source_frequency = self.get_pll_source_frequency();
 
         // Set source (HSI or HSE)
-        self.set_pll_source_clock();
+        if self.set_pll_source_clock() != Ok(()) {
+            return Err(ErrorCode::FAIL);
+        }
 
         // Compute PLLP
         let pllp = Self::compute_pllp(desired_frequency_mhz);

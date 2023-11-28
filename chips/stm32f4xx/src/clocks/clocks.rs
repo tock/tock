@@ -102,7 +102,6 @@
 //!
 //! Then, configure its frequency and enable it
 //! ```rust,ignore
-//! clocks.set_sys_clock_source(stm32f429zi::rcc::SysClockSource::HSI);
 //! pll.set_frequency(50);
 //! pll.enable();
 //! ```
@@ -156,7 +155,6 @@
 //! [^usage_note]: For the purpose of brevity, any error checking has been removed.
 
 use crate::chip_specific::ChipSpecs as ChipSpecsTrait;
-use crate::clocks::hse::Hse;
 use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::clocks::pll::Pll;
@@ -178,8 +176,6 @@ pub struct Clocks<'a, ChipSpecs> {
     flash: OptionalCell<&'a Flash<ChipSpecs>>,
     /// High speed internal clock
     pub hsi: Hsi<'a>,
-    /// High speed external clock
-    pub hse: Hse<'a>,
     /// Main phase loop-lock clock
     pub pll: Pll<'a, ChipSpecs>,
 }
@@ -191,7 +187,6 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
             rcc,
             flash: OptionalCell::empty(),
             hsi: Hsi::new(rcc),
-            hse: Hse::new(rcc),
             pll: Pll::new(rcc),
         }
     }
@@ -356,7 +351,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         // Ensure the source is enabled before configuring it as the system clock source
         if let false = match source {
             SysClockSource::HSI => self.hsi.is_enabled(),
-            SysClockSource::HSE => self.hse.is_enabled(),
+            SysClockSource::HSE => self.pll.hse.is_enabled(),
             SysClockSource::PLL => self.pll.is_enabled(),
         } {
             return Err(ErrorCode::FAIL);
@@ -368,7 +363,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         let alternate_frequency = match source {
             // The unwrap can't fail because the source clock status was checked before
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::HSE => self.hse.get_frequency().unwrap(),
+            SysClockSource::HSE => self.pll.hse.get_frequency().unwrap(),
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         };
 
@@ -427,7 +422,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
             // enabled. Also, Hsi and Pll structs ensure that the clocks can't be disabled when
             // they are configured as the system clock
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::HSE => self.hse.get_frequency().unwrap(),
+            SysClockSource::HSE => self.pll.hse.get_frequency().unwrap(),
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         }
     }
@@ -440,12 +435,12 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     pub fn set_mco1_clock_source(&self, source: MCO1Source) -> Result<(), ErrorCode> {
         match source {
             MCO1Source::HSE => {
-                if !self.hse.is_enabled() {
+                if !self.pll.hse.is_enabled() {
                     return Err(ErrorCode::FAIL);
                 }
             }
             MCO1Source::PLL => {
-                if !self.pll.is_enabled() {
+                if self.pll.is_enabled() {
                     return Err(ErrorCode::FAIL);
                 }
             }
