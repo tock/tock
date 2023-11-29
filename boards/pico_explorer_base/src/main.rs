@@ -67,6 +67,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
+type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
+
 /// Supported drivers by the platform
 pub struct PicoExplorerBase {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
@@ -78,7 +83,7 @@ pub struct PicoExplorerBase {
     gpio: &'static capsules_core::gpio::GPIO<'static, RPGpioPin<'static>>,
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     buzzer_driver: &'static capsules_extra::buzzer_driver::Buzzer<
         'static,
         capsules_extra::buzzer_pwm::PwmBuzzer<
@@ -442,15 +447,14 @@ pub unsafe fn main() {
         rp2040::adc::Adc
     ));
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
-
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureRp2040Sensor
+    ));
 
     //set CLK, MOSI and CS pins in SPI mode
     let spi_clk = peripherals.pins.get_pin(RPGpio::GPIO18);

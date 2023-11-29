@@ -64,13 +64,23 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 // Test access to sensors
-static mut BME280: Option<&'static capsules_extra::bme280::Bme280<'static>> = None;
+static mut BME280: Option<
+    &'static capsules_extra::bme280::Bme280<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+    >,
+> = None;
 static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+
+type BME280Sensor = components::bme280::Bme280ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -100,7 +110,7 @@ struct RedboardArtemisNano {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
@@ -302,7 +312,7 @@ unsafe fn setup() -> (
         capsules_extra::temperature::DRIVER_NUM,
         bme280,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(BME280Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,

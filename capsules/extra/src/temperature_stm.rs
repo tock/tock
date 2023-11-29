@@ -19,18 +19,18 @@ pub enum Status {
     Idle,
 }
 
-pub struct TemperatureSTM<'a> {
-    adc: &'a dyn adc::AdcChannel<'a>,
+pub struct TemperatureSTM<'a, A: adc::AdcChannel<'a>> {
+    adc: &'a A,
     slope: f32,
     v_25: f32,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     status: Cell<Status>,
 }
 
-impl<'a> TemperatureSTM<'a> {
+impl<'a, A: adc::AdcChannel<'a>> TemperatureSTM<'a, A> {
     /// slope - device specific slope found in datasheet
     /// v_25 - voltage at 25 degrees Celsius found in datasheet
-    pub fn new(adc: &'a dyn adc::AdcChannel<'a>, slope: f32, v_25: f32) -> TemperatureSTM<'a> {
+    pub fn new(adc: &'a A, slope: f32, v_25: f32) -> TemperatureSTM<'a, A> {
         TemperatureSTM {
             adc: adc,
             slope: slope,
@@ -41,7 +41,7 @@ impl<'a> TemperatureSTM<'a> {
     }
 }
 
-impl<'a> adc::Client for TemperatureSTM<'a> {
+impl<'a, A: adc::AdcChannel<'a>> adc::Client for TemperatureSTM<'a, A> {
     fn sample_ready(&self, sample: u16) {
         self.status.set(Status::Idle);
         self.temperature_client.map(|client| {
@@ -53,7 +53,7 @@ impl<'a> adc::Client for TemperatureSTM<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver<'a> for TemperatureSTM<'a> {
+impl<'a, A: adc::AdcChannel<'a>> sensors::TemperatureDriver<'a> for TemperatureSTM<'a, A> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }
