@@ -193,15 +193,15 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
                         }
                     }
                     State::Idle => {
-                        buffer[0] = Registers::Status as u8;
+                        buffer[0] = Registers::Data8 as u8;
 
-                        if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 1) {
+                        if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
                             self.state.set(State::Sleep);
                             self.buffer.replace(buffer);
                             self.ninedof_client
                                 .map(|client| client.callback(i2c_err as usize, 0, 0));
                         } else {
-                            self.state.set(State::InitRead);
+                            self.state.set(State::Read);
                         }
                     }
                     _ => {}
@@ -291,12 +291,12 @@ enum State {
 
     CheckStatus,
 
-    ConfAccel,
     ConfAccelRange,
     ConfGyro,
     ConfGyroRange,
     ConfPower,
     CheckConf,
+    Enable,
     InitRead,
     Read,
     Done,
@@ -346,8 +346,8 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
             }
             State::CheckStatus => {
                 if buffer[0] == 1 {
-                    buffer[0] = Registers::PwrCtrl as u8;
-                    buffer[1] = 0x0E_u8;
+                    buffer[0] = Registers::AccConf as u8;
+                    buffer[1] = 0xA8_u8;
 
                     if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                         self.state.set(State::Sleep);
@@ -355,26 +355,13 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                         self.ninedof_client
                             .map(|client| client.callback(i2c_err as usize, 0, 0));
                     } else {
-                        self.state.set(State::ConfAccel);
+                        self.state.set(State::ConfAccelRange);
                     }
                 } else {
                     self.state.set(State::Sleep);
                     self.buffer.replace(buffer);
                     self.i2c.disable();
                     self.ninedof_client.map(|client| client.callback(1, 0, 0));
-                }
-            }
-            State::ConfAccel => {
-                buffer[0] = Registers::AccConf as u8;
-                buffer[1] = 0xA8_u8;
-
-                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
-                    self.state.set(State::Sleep);
-                    self.buffer.replace(buffer);
-                    self.ninedof_client
-                        .map(|client| client.callback(i2c_err as usize, 0, 0));
-                } else {
-                    self.state.set(State::ConfAccelRange);
                 }
             }
             State::ConfAccelRange => {
@@ -438,20 +425,21 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                     self.ninedof_client
                         .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
-                    self.state.set(State::InitRead);
+                    self.state.set(State::Enable);
                 }
             }
-            State::InitRead => {
+            State::Enable => {
                 if buffer[0] == 0 {
-                    buffer[0] = Registers::Data8 as u8;
+                    buffer[0] = Registers::PwrCtrl as u8;
+                    buffer[1] = 0x06_u8;
 
-                    if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
+                    if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                         self.state.set(State::Sleep);
                         self.buffer.replace(buffer);
                         self.ninedof_client
                             .map(|client| client.callback(i2c_err as usize, 0, 0));
                     } else {
-                        self.state.set(State::Read);
+                        self.state.set(State::InitRead);
                     }
                 } else {
                     buffer[0] = Registers::AccConf as u8;
@@ -465,6 +453,18 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                     } else {
                         self.state.set(State::ConfAccelRange);
                     }
+                }
+            }
+            State::InitRead => {
+                buffer[0] = Registers::Data8 as u8;
+
+                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 1) {
+                    self.state.set(State::Sleep);
+                    self.buffer.replace(buffer);
+                    self.ninedof_client
+                        .map(|client| client.callback(i2c_err as usize, 0, 0));
+                } else {
+                    self.state.set(State::Read);
                 }
             }
             State::Read => {
