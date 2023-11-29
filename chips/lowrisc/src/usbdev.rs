@@ -884,7 +884,7 @@ impl<'a> Usb<'a> {
         }
 
         if irqs.is_set(INTR::PKT_RECEIVED) {
-            while !self.registers.usbstat.is_set(USBSTAT::RX_EMPTY) {
+            if !self.registers.usbstat.is_set(USBSTAT::RX_EMPTY) {
                 let rxinfo = self.registers.rxfifo.extract();
                 let buf = rxinfo.read(RXFIFO::BUFFER);
                 let size = rxinfo.read(RXFIFO::SIZE);
@@ -896,7 +896,6 @@ impl<'a> Usb<'a> {
                     0 => {
                         self.control_ep_receive(ep as usize, buf as usize, size, setup);
                         self.free_buffer(buf as usize);
-                        break;
                     }
                     1..=7 => {
                         let receive_size = match self.descriptors[ep as usize].state.get() {
@@ -908,7 +907,6 @@ impl<'a> Usb<'a> {
                         };
                         self.ep_receive(ep as usize, buf as usize, receive_size, setup);
                         self.free_buffer(buf as usize);
-                        break;
                     }
                     8 => unimplemented!("isochronous endpoint"),
                     _ => unimplemented!(),
