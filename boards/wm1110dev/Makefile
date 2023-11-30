@@ -25,8 +25,6 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 .PHONY: flash-bootloader
 flash-bootloader:
-	tockloader flash --address 0 wm1110_dev-bootloader.bin
-
-	curl -L --output /tmp/tock-bootloader.wm1110_dev.v1.1.3.bin https://github.com/tock/tock-bootloader/releases/download/wm1110_dev-v1.1.3/tock-bootloader.wm1110_dev.v1.1.3.bin
-	tockloader flash --address 0 /tmp/tock-bootloader.wm1110_dev.v1.1.3.bin
-	rm /tmp/tock-bootloader.wm1110_dev.v1.1.3.bin
+	curl -L --output /tmp/wm1110_dev-bootloader_v1.1.3.bin https://github.com/tock/tock-bootloader/releases/download/v1.1.3/wm1110_dev-bootloader_v1.1.3.bin
+	tockloader flash --address 0 /tmp/wm1110_dev-bootloader_v1.1.3.bin
+	rm /tmp/wm1110_dev-bootloader_v1.1.3.bin

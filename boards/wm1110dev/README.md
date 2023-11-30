@@ -8,11 +8,12 @@ Board](https://www.seeedstudio.com/Wio-WM1110-Dev-Kit-p-5677.html) is a
 multiradio location board for LoRa and location services based on the Nordic
 nRF52840 SoC. The board includes the following hardware:
 
-- LIS3DHTR: 3-Axis cccelerometer
+- LIS3DHTR: 3-Axis accelerometer
 - SHT41: Temperature and humidity sensor
-- GNSS
-- WiFi AP Scanning
 - Semtech LR1110
+  - LoRaWAN
+  - GNSS
+  - WiFi AP Scanning
 
 
 ## Getting Started
