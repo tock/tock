@@ -34,8 +34,6 @@ const LED_GREEN_PIN: Pin = Pin::P0_13;
 
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
-const GPIO_D0: Pin = Pin::P0_22;
-const GPIO_D1: Pin = Pin::P0_24;
 const GPIO_D2: Pin = Pin::P0_17;
 const GPIO_D3: Pin = Pin::P0_16;
 const GPIO_D4: Pin = Pin::P0_15;
@@ -255,8 +253,6 @@ pub unsafe fn start() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             nrf52840::gpio::GPIOPin,
-            0 => &nrf52840_peripherals.gpio_port[GPIO_D0],
-            1 => &nrf52840_peripherals.gpio_port[GPIO_D1],
             2 => &nrf52840_peripherals.gpio_port[GPIO_D2],
             3 => &nrf52840_peripherals.gpio_port[GPIO_D3],
             4 => &nrf52840_peripherals.gpio_port[GPIO_D4],
