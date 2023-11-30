@@ -11,6 +11,7 @@ use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use nrf52840::gpio::Pin;
+use nrf52840::uart::UARTE0_BASE;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -40,7 +41,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = nrf52840::uart::Uarte::new();
+        let uart = nrf52840::uart::Uarte::new(UARTE0_BASE);
 
         use kernel::hil::uart::Configure;
 

@@ -46,6 +46,8 @@ macro_rules! sht4x_component_static {
     };};
 }
 
+pub type SHT4xComponentType<A, I> = capsules_extra::sht4x::SHT4x<'static, A, I>;
+
 pub struct SHT4xComponent<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,

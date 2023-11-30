@@ -17,11 +17,11 @@ use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
+use kernel::hil::spi::SpiMaster;
+use kernel::hil::spi::{ClockPhase, ClockPolarity};
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::hil::spi::SpiMaster;
-use kernel::hil::spi::{ClockPhase, ClockPolarity};
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -51,15 +51,15 @@ const I2C_SDA_PIN: Pin = Pin::P0_27;
 const I2C_SCL_PIN: Pin = Pin::P0_26;
 
 // Pins for communicating with LR1110
-const SPI_CS_PIN: Pin = Pin::P1_12; // DIO1
-const SPI_SCK_PIN: Pin = Pin::P1_13; // DIO2
-const SPI_MOSI_PIN: Pin = Pin::P1_14; // DIO3
-const SPI_MISO_PIN: Pin = Pin::P1_15; // DIO4
-const RADIO_BUSY_PIN: Pin = Pin::P1_11; // DIO0
-const RADIO_RESET_PIN: Pin = Pin::P1_10; // NRESET
+const SPI_CS_PIN: Pin = Pin::P1_12;
+const SPI_SCK_PIN: Pin = Pin::P1_13;
+const SPI_MOSI_PIN: Pin = Pin::P1_14;
+const SPI_MISO_PIN: Pin = Pin::P1_15;
+const RADIO_BUSY_PIN: Pin = Pin::P1_11;
+const RADIO_RESET_PIN: Pin = Pin::P1_10;
 
-const LR_DIO7: Pin = Pin::P1_08;
-const LR_DIO9: Pin = Pin::P0_11;
+const _LR_DIO7: Pin = Pin::P1_08;
+const _LR_DIO9: Pin = Pin::P0_11;
 
 /// GPIO pin that controls VCC for the I2C bus and sensors.
 const I2C_PWR: Pin = Pin::P0_07;
@@ -90,6 +90,12 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type SHT4xSensor = components::sht4x::SHT4xComponentType<
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<SHT4xSensor>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
@@ -108,7 +114,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     lr1110_gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
     spi_controller: &'static capsules_core::spi_controller::Spi<
@@ -344,7 +350,7 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         sht4x,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(SHT4xSensor));
 
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
@@ -365,10 +371,9 @@ pub unsafe fn start() -> (
     // Enable the radio pins
     //let _ = &nrf52840_peripherals.gpio_port.enable_sx1262_radio_pins();
 
-    
     let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim0)
         .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
-    
+
     // // Create the SPI system call capsule.
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
@@ -385,14 +390,20 @@ pub unsafe fn start() -> (
         nrf52840::pinmux::Pinmux::new(SPI_MISO_PIN as u32),
         nrf52840::pinmux::Pinmux::new(SPI_SCK_PIN as u32),
     );
- 
+
     base_peripherals
         .spim0
         .specify_chip_select(&nrf52840_peripherals.gpio_port[SPI_CS_PIN])
         .unwrap();
     base_peripherals.spim0.set_rate(10000000).ok();
-    base_peripherals.spim0.set_polarity(ClockPolarity::IdleLow).ok();
-    base_peripherals.spim0.set_phase(ClockPhase::SampleLeading).ok();
+    base_peripherals
+        .spim0
+        .set_polarity(ClockPolarity::IdleLow)
+        .ok();
+    base_peripherals
+        .spim0
+        .set_phase(ClockPhase::SampleLeading)
+        .ok();
 
     // #define LR1110_IRQ_PIN      40
     // #define LR1110_NRESER_PIN	42
