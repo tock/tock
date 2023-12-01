@@ -18,7 +18,7 @@
 //!
 //! The different register types of a specific SoC configuration are
 //! combined using a
-//! [`LiteXSoCRegisterConfiguration`](crate::litex_registers::LiteXSoCRegisterConfiguration)
+//! [`LiteXSoCRegisterConfiguration`]
 //! structure, which can be used to adapt the register interfaces of
 //! peripherals to the different configurations.
 //!

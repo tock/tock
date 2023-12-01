@@ -5,7 +5,7 @@
 //! Hardware-independent kernel interface for deferred calls
 //!
 //! This allows any struct in the kernel which implements
-//! [DeferredCallClient](crate::deferred_call::DeferredCallClient)
+//! [DeferredCallClient]
 //! to set and receive deferred calls, Tock's version of software
 //! interrupts.
 //!
@@ -19,7 +19,7 @@
 //! -----
 //!
 //! The `DEFCALLS` array size determines how many
-//! [DeferredCall](crate::deferred_call::DeferredCall)s
+//! [DeferredCall]s
 //! may be registered. By default this is set to 32.
 //! To support more deferred calls, this file would need to be modified
 //! to use a larger variable for BITMASK (e.g. BITMASK could be a u64
