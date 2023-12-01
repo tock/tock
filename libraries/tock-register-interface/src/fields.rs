@@ -13,7 +13,7 @@
 //!
 //! A specific section (bitfield) in a register is described by the
 //! [`Field`] type, consisting of an unshifted bitmask over the base
-//! register [`UIntLike`](crate::UIntLike) type, and a shift
+//! register [`UIntLike`] type, and a shift
 //! parameter. It is further associated with a specific
 //! [`RegisterLongName`], which can prevent its use with incompatible
 //! registers.
@@ -27,7 +27,7 @@
 //! ## `register_bitfields` macro
 //!
 //! For defining register layouts with an associated
-//! [`RegisterLongName`](crate::RegisterLongName), along with
+//! [`RegisterLongName`], along with
 //! [`Field`]s and matching [`FieldValue`]s, a convenient macro-based
 //! interface can be used.
 //!
