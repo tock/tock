@@ -1369,11 +1369,6 @@ impl Rcc {
     }
 }
 
-pub(crate) enum PllSource {
-    HSI = 0b0,
-    HSE = 0b1,
-}
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum PLLP {
     DivideBy2 = 0b00,
@@ -1417,6 +1412,11 @@ pub enum SysClockSource {
     PLL = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR = 0b11, Uncomment this when support for PPLLR is added
+}
+
+pub enum PllSource {
+    HSI = 0b0,
+    HSE = 0b1,
 }
 
 pub enum MCO1Source {

@@ -41,7 +41,7 @@
 //! ## Start the clock with a given frequency
 //!
 //! ```rust,ignore
-//! pll.set_frequency(100); // 100MHz
+//! pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 100); // 100MHz
 //! pll.enable();
 //! ```
 //!
@@ -75,7 +75,7 @@
 //!
 //! ```rust,ignore
 //! pll.disable(); // The PLL clock can't be configured while running
-//! pll.set_frequency(50); // 50MHz
+//! pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 50); // 50MHz
 //! pll.enable();
 //! ```
 //!
@@ -83,7 +83,7 @@
 //! ```rust,ignore
 //! // The frequency of the PLL clock must be 1, 1.5, 2, 2.5, 3, 3.5 or 4 x 48MHz in order to get
 //! // 48MHz output. Otherwise, the driver will attempt to get the closest frequency lower than 48MHz
-//! pll.set_frequency(72); // 72MHz = 48MHz * 1.5
+//! pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 72); // 72MHz = 48MHz * 1.5
 //! pll.enable();
 //! ```
 //!
@@ -107,7 +107,6 @@
 //! [^doc_ref]: See 6.2.3 in the documentation.
 
 use crate::chip_specific::clock_constants;
-use crate::clocks::hse::Hse;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
@@ -124,7 +123,6 @@ use core::marker::PhantomData;
 /// Main PLL clock structure.
 pub struct Pll<'a, PllConstants> {
     rcc: &'a Rcc,
-    pub hse: Hse<'a>,
     frequency: OptionalCell<usize>,
     pll48_frequency: OptionalCell<usize>,
     pll48_calibrated: Cell<bool>,
@@ -155,7 +153,6 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         const PLLQ: usize = DEFAULT_PLLQ_VALUE as usize;
         Self {
             rcc,
-            hse: Hse::new(rcc),
             frequency: OptionalCell::new(HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLP),
             pll48_frequency: OptionalCell::new(
                 HSI_FREQUENCY_MHZ / PLLM * DEFAULT_PLLN_VALUE / PLLQ,
@@ -209,30 +206,12 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         unreachable!("The previous for loop should always return");
     }
 
-    /// Get the PLL source clock frequency in MHz
-    ///
-    /// # Returns
-    ///
-    /// + [HSI_FREQUENCY_MHZ]: if the pll source is HSI
-    /// + HSE frequency if the pll source is HSE
-    fn get_pll_source_frequency(&self) -> usize {
-        if self.rcc.is_hse_clock_system_clock() {
-            self.hse.get_frequency().unwrap()
-        } else {
-            HSI_FREQUENCY_MHZ
-        }
-    }
-
-    /// Set the PLL source clock according to the system clock
-    fn set_pll_source_clock(&self) -> Result<(), ErrorCode> {
+    /// Set the PLL source clock
+    fn set_pll_source_clock(&self, source: PllSource) -> Result<(), ErrorCode> {
         if self.is_enabled() {
             Err(ErrorCode::FAIL)
         } else {
-            if self.rcc.is_hsi_clock_system_clock() {
-                self.rcc.set_pll_clocks_source(PllSource::HSI);
-            } else {
-                self.rcc.set_pll_clocks_source(PllSource::HSE);
-            }
+            self.rcc.set_pll_clocks_source(source);
             Ok(())
         }
     }
@@ -313,6 +292,11 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     ///
     /// # Parameters
     ///
+    /// + pll_source: PLL source clock (HSI or HSE)
+    ///
+    /// + source_frequency: the frequency of the PLL source clock in MHz. For the HSI the frequency
+    /// is fixed to 16MHz. For the HSE, the frequency is hardware-dependent
+    ///
     /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 24-216MHz for
     /// STM32F401 and 13-216MHz for all the other chips
     ///
@@ -321,7 +305,12 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
     /// configuring it.
-    pub fn set_frequency(&self, desired_frequency_mhz: usize) -> Result<(), ErrorCode> {
+    pub fn set_frequency(
+        &self,
+        pll_source: PllSource,
+        source_frequency: usize,
+        desired_frequency_mhz: usize,
+    ) -> Result<(), ErrorCode> {
         // Check for errors:
         // + PLL clock running
         // + invalid frequency
@@ -339,11 +328,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         // PLL output frequency = VCO output frequency / PLLP
         // PLL48CLK = VCO output frequency / PLLQ
 
-        // Get source frequency
-        let source_frequency = self.get_pll_source_frequency();
-
-        // Set source (HSI or HSE)
-        if self.set_pll_source_clock() != Ok(()) {
+        // Set PLL source (HSI or HSE)
+        if self.set_pll_source_clock(pll_source) != Ok(()) {
             return Err(ErrorCode::FAIL);
         }
 
@@ -431,7 +417,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 /// To run all the available tests, add this line before **kernel::process::load_processes()**:
 ///
 /// ```rust,ignore
-/// pll::tests::run_all(&peripherals.stm32f4.clocks.pll);
+/// pll::tests::run(&peripherals.stm32f4.clocks.pll);
 /// ```
 ///
 /// If everything works as expected, the following message should be printed on the kernel console:
@@ -629,8 +615,14 @@ pub mod tests {
         assert!(!pll.is_enabled());
 
         // Attempting to configure the PLL with either too high or too low frequency
-        assert_eq!(Err(ErrorCode::INVAL), pll.set_frequency(12));
-        assert_eq!(Err(ErrorCode::INVAL), pll.set_frequency(217));
+        assert_eq!(
+            Err(ErrorCode::INVAL),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 12)
+        );
+        assert_eq!(
+            Err(ErrorCode::INVAL),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 217)
+        );
 
         // Start the PLL with the default configuration.
         assert_eq!(Ok(()), pll.enable());
@@ -645,13 +637,19 @@ pub mod tests {
         assert!(pll.is_pll48_calibrated());
 
         // Impossible to configure the PLL clock once it is enabled.
-        assert_eq!(Err(ErrorCode::FAIL), pll.set_frequency(50));
+        assert_eq!(
+            Err(ErrorCode::FAIL),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 50)
+        );
 
         // Stop the PLL in order to reconfigure it.
         assert_eq!(Ok(()), pll.disable());
 
         // Configure the PLL clock to run at 25MHz
-        assert_eq!(Ok(()), pll.set_frequency(25));
+        assert_eq!(
+            Ok(()),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 25)
+        );
 
         // Start the PLL with the new configuration
         assert_eq!(Ok(()), pll.enable());
@@ -675,7 +673,10 @@ pub mod tests {
         assert_eq!(None, pll.get_frequency_pll48());
 
         // Attempting to configure the PLL clock with a frequency multiple of 48MHz
-        assert_eq!(Ok(()), pll.set_frequency(144));
+        assert_eq!(
+            Ok(()),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 144)
+        );
         assert_eq!(Ok(()), pll.enable());
         assert_eq!(Some(144), pll.get_frequency());
 
@@ -685,7 +686,10 @@ pub mod tests {
 
         // Reconfigure the clock for 100MHz
         assert_eq!(Ok(()), pll.disable());
-        assert_eq!(Ok(()), pll.set_frequency(100));
+        assert_eq!(
+            Ok(()),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 100)
+        );
         assert_eq!(Ok(()), pll.enable());
         assert_eq!(Some(100), pll.get_frequency());
 
@@ -696,7 +700,10 @@ pub mod tests {
 
         // Configure the clock to 72MHz = 48MHz * 1.5
         assert_eq!(Ok(()), pll.disable());
-        assert_eq!(Ok(()), pll.set_frequency(72));
+        assert_eq!(
+            Ok(()),
+            pll.set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, 72)
+        );
         assert_eq!(Ok(()), pll.enable());
         assert_eq!(Some(72), pll.get_frequency());
 

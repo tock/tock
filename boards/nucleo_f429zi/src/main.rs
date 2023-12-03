@@ -340,9 +340,6 @@ pub unsafe fn main() {
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    let pll = &peripherals.stm32f4.clocks.pll;
-    pll.hse.set_frequency(NUCLEO_F429ZI_HSE_FREQUENCY_MHZ);
-
     setup_peripherals(
         &base_peripherals.tim2,
         &peripherals.trng,

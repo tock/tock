@@ -155,6 +155,7 @@
 //! [^usage_note]: For the purpose of brevity, any error checking has been removed.
 
 use crate::chip_specific::ChipSpecs as ChipSpecsTrait;
+use crate::clocks::hse::Hse;
 use crate::clocks::hsi::Hsi;
 use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 use crate::clocks::pll::Pll;
@@ -163,6 +164,7 @@ use crate::rcc::AHBPrescaler;
 use crate::rcc::APBPrescaler;
 use crate::rcc::MCO1Divider;
 use crate::rcc::MCO1Source;
+use crate::rcc::PllSource;
 use crate::rcc::Rcc;
 use crate::rcc::SysClockSource;
 
@@ -176,6 +178,8 @@ pub struct Clocks<'a, ChipSpecs> {
     flash: OptionalCell<&'a Flash<ChipSpecs>>,
     /// High speed internal clock
     pub hsi: Hsi<'a>,
+    /// High speed external clock
+    pub hse: Hse<'a>,
     /// Main phase loop-lock clock
     pub pll: Pll<'a, ChipSpecs>,
 }
@@ -187,6 +191,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
             rcc,
             flash: OptionalCell::empty(),
             hsi: Hsi::new(rcc),
+            hse: Hse::new(rcc),
             pll: Pll::new(rcc),
         }
     }
@@ -351,7 +356,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         // Ensure the source is enabled before configuring it as the system clock source
         if let false = match source {
             SysClockSource::HSI => self.hsi.is_enabled(),
-            SysClockSource::HSE => self.pll.hse.is_enabled(),
+            SysClockSource::HSE => self.hse.is_enabled(),
             SysClockSource::PLL => self.pll.is_enabled(),
         } {
             return Err(ErrorCode::FAIL);
@@ -363,7 +368,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         let alternate_frequency = match source {
             // The unwrap can't fail because the source clock status was checked before
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::HSE => self.pll.hse.get_frequency().unwrap(),
+            SysClockSource::HSE => self.hse.get_frequency().unwrap(),
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         };
 
@@ -422,9 +427,35 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
             // enabled. Also, Hsi and Pll structs ensure that the clocks can't be disabled when
             // they are configured as the system clock
             SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::HSE => self.pll.hse.get_frequency().unwrap(),
+            SysClockSource::HSE => self.hse.get_frequency().unwrap(),
             SysClockSource::PLL => self.pll.get_frequency().unwrap(),
         }
+    }
+
+    /// Set the frequency of the PLL clock.
+    ///
+    /// # Parameters
+    ///
+    /// + pll_source: PLL source clock (HSI or HSE)
+    ///
+    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 24-216MHz for
+    /// STM32F401 and 13-216MHz for all the other chips
+    ///
+    /// # Errors
+    ///
+    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
+    pub fn set_pll_frequency(
+        &self,
+        pll_source: PllSource,
+        desired_frequency_mhz: usize,
+    ) -> Result<(), ErrorCode> {
+        let source_frequency = match pll_source {
+            PllSource::HSI => HSI_FREQUENCY_MHZ,
+            PllSource::HSE => self.hse.get_frequency().unwrap(),
+        };
+        self.pll
+            .set_frequency(pll_source, source_frequency, desired_frequency_mhz)
     }
 
     /// Set the clock source for the microcontroller clock output 1 (MCO1)
@@ -435,7 +466,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     pub fn set_mco1_clock_source(&self, source: MCO1Source) -> Result<(), ErrorCode> {
         match source {
             MCO1Source::HSE => {
-                if !self.pll.hse.is_enabled() {
+                if !self.hse.is_enabled() {
                     return Err(ErrorCode::FAIL);
                 }
             }
@@ -612,7 +643,13 @@ pub mod tests {
     /// ```
     pub fn test_prescalers<ChipSpecs: ChipSpecsTrait>(clocks: &Clocks<ChipSpecs>) {
         // This test requires a bit of setup. A system clock running at HIGH_FREQUENCY is configured.
-        check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks
+                .pll
+                .set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, HIGH_FREQUENCY),
+            clocks
+        );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
         check_and_panic!(
             Ok(()),
@@ -740,7 +777,13 @@ pub mod tests {
 
         // Change the system clock source to a low frequency so that APB prescalers don't need to be
         // changed
-        check_and_panic!(Ok(()), clocks.pll.set_frequency(LOW_FREQUENCY), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks
+                .pll
+                .set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, LOW_FREQUENCY),
+            clocks
+        );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
         check_and_panic!(
             Ok(()),
@@ -768,7 +811,13 @@ pub mod tests {
         // prescaler (freq_APB1 <= APB1_FREQUENCY_LIMIT_MHZ) and APB2 prescaler
         // (freq_APB2 <= APB2_FREQUENCY_LIMIT_MHZ) must fail
         check_and_panic!(Ok(()), clocks.pll.disable(), clocks);
-        check_and_panic!(Ok(()), clocks.pll.set_frequency(HIGH_FREQUENCY), clocks);
+        check_and_panic!(
+            Ok(()),
+            clocks
+                .pll
+                .set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, HIGH_FREQUENCY),
+            clocks
+        );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
         check_and_panic!(
             Err(ErrorCode::SIZE),
