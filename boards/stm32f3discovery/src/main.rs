@@ -54,6 +54,14 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1700] = [0; 0x1700];
 
+type L3GD20Sensor = components::l3gd20::L3gd20ComponentType<
+    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+        'static,
+        stm32f303xc::spi::Spi<'static>,
+    >,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<L3GD20Sensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F3Discovery {
@@ -67,7 +75,7 @@ struct STM32F3Discovery {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    l3gd20: &'static capsules_extra::l3gd20::L3gd20Spi<'static>,
+    l3gd20: &'static L3GD20Sensor,
     lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<
@@ -75,7 +83,7 @@ struct STM32F3Discovery {
             stm32f303xc::i2c::I2C<'static>,
         >,
     >,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static TemperatureDriver,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
@@ -654,16 +662,13 @@ pub unsafe fn main() {
 
     l3gd20.power_on();
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
-
     // Comment this if you want to use the ADC MCU temp sensor
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        l3gd20,
+    )
+    .finalize(components::temperature_component_static!(L3GD20Sensor));
 
     // LSM303DLHC
 

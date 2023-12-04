@@ -75,18 +75,43 @@ impl<'a> TWI<'a> {
         self.registers.frequency.set(speed as u32);
     }
 
+    /// Clear all pending events
+    /// This is useful when switching between a master and slave mode to ensure
+    /// we start from a clean state.
+    pub fn clear_events(&self) {
+        self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
+        self.registers.events_error.write(EVENT::EVENT::CLEAR);
+        self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
+        self.registers.events_txstarted.write(EVENT::EVENT::CLEAR);
+        self.registers.events_write.write(EVENT::EVENT::CLEAR);
+        self.registers.events_read.write(EVENT::EVENT::CLEAR);
+        self.registers.events_suspended.write(EVENT::EVENT::CLEAR);
+        self.registers.events_lastrx.write(EVENT::EVENT::CLEAR);
+        self.registers.events_lasttx.write(EVENT::EVENT::CLEAR);
+    }
+
+    pub fn disable_interrupts(&self) {
+        // Disable all interrupts
+        self.registers.inten.set(0x00);
+        self.registers.intenclr.set(0xFFFF_FFFF);
+    }
+
     /// Enables hardware TWIM peripheral.
     fn enable_master(&self) {
+        self.clear_events();
         self.registers.enable.write(ENABLE::ENABLE::EnableMaster);
     }
 
     /// Enables hardware TWIS peripheral.
     fn enable_slave(&self) {
+        self.clear_events();
         self.registers.enable.write(ENABLE::ENABLE::EnableSlave);
     }
 
     /// Disables hardware TWIM/TWIS peripheral.
     fn disable(&self) {
+        self.clear_events();
+        self.disable_interrupts();
         self.registers.enable.write(ENABLE::ENABLE::Disable);
     }
 
@@ -98,6 +123,7 @@ impl<'a> TWI<'a> {
                 self.client.map(|client| match self.buf.take() {
                     None => (),
                     Some(buf) => {
+                        self.clear_events();
                         client.command_complete(buf, Ok(()));
                     }
                 });
@@ -119,6 +145,7 @@ impl<'a> TWI<'a> {
                         } else {
                             Ok(())
                         };
+                        self.clear_events();
                         client.command_complete(buf, status);
                     }
                 });
@@ -126,25 +153,36 @@ impl<'a> TWI<'a> {
         } else {
             self.registers.events_stopped.write(EVENT::EVENT::CLEAR);
 
-            // If RX started and we don't have a buffer then report
-            // read_expected()
+            // If RX started (master started write) and we don't have a buffer then report
+            // write_expected()
             if self.registers.events_rxstarted.is_set(EVENT::EVENT) {
                 self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
-                self.slave_client
-                    .map(|client| match self.slave_read_buf.take() {
-                        None => {
-                            client.read_expected();
-                        }
-                        Some(_buf) => {}
-                    });
+                self.slave_client.map(|client| {
+                    if self.buf.is_none() {
+                        client.write_expected();
+                    }
+                });
             }
 
+            // If TX started (master started read) and we don't have a buffer then report
+            // read_expected()
+            if self.registers.events_txstarted.is_set(EVENT::EVENT) {
+                self.registers.events_txstarted.write(EVENT::EVENT::CLEAR);
+                self.slave_client.map(|client| {
+                    if self.slave_read_buf.is_none() {
+                        client.read_expected();
+                    }
+                });
+            }
+
+            // Write command received
             if self.registers.events_write.is_set(EVENT::EVENT) {
                 self.registers.events_write.write(EVENT::EVENT::CLEAR);
                 let length = self.registers.rxd_amount.read(AMOUNT::AMOUNT) as usize;
                 self.slave_client.map(|client| match self.buf.take() {
                     None => (),
                     Some(buf) => {
+                        self.clear_events();
                         client.command_complete(
                             buf,
                             length,
@@ -161,6 +199,7 @@ impl<'a> TWI<'a> {
                     .map(|client| match self.slave_read_buf.take() {
                         None => (),
                         Some(buf) => {
+                            self.clear_events();
                             client.command_complete(
                                 buf,
                                 length,
@@ -173,7 +212,6 @@ impl<'a> TWI<'a> {
 
         // We can blindly clear the following events since we're not using them.
         self.registers.events_suspended.write(EVENT::EVENT::CLEAR);
-        self.registers.events_rxstarted.write(EVENT::EVENT::CLEAR);
         self.registers.events_lastrx.write(EVENT::EVENT::CLEAR);
         self.registers.events_lasttx.write(EVENT::EVENT::CLEAR);
     }

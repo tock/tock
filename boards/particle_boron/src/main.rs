@@ -18,6 +18,8 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::gpio::Configure;
+use kernel::hil::gpio::FloatingState;
 use kernel::hil::i2c::{I2CMaster, I2CSlave};
 use kernel::hil::led::LedLow;
 use kernel::hil::symmetric_encryption::AES128;
@@ -86,6 +88,9 @@ static mut NRF52_POWER: Option<&'static nrf52840::power::Power> = None;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -110,7 +115,7 @@ pub struct Platform {
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     rng: &'static capsules_core::rng::RngDriver<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
@@ -450,7 +455,9 @@ pub unsafe fn start_particle_boron() -> (
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBERS
@@ -540,7 +547,16 @@ pub unsafe fn start_particle_boron() -> (
     );
     base_peripherals.twi1.set_master_client(i2c_master_slave);
     base_peripherals.twi1.set_slave_client(i2c_master_slave);
-    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
+    // Note: strongly suggested to use external pull-ups for higher speeds
+    //       to maintain signal integrity.
+    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K100);
+
+    // I2C pin cfg for target
+    nrf52840_peripherals.gpio_port[I2C_SDA_PIN].set_i2c_pin_cfg();
+    nrf52840_peripherals.gpio_port[I2C_SCL_PIN].set_i2c_pin_cfg();
+    // Enable internal pull-ups
+    nrf52840_peripherals.gpio_port[I2C_SDA_PIN].set_floating_state(FloatingState::PullUp);
+    nrf52840_peripherals.gpio_port[I2C_SCL_PIN].set_floating_state(FloatingState::PullUp);
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
