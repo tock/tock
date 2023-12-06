@@ -305,7 +305,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
     /// configuring it.
-    pub fn set_frequency(
+    pub(super) fn set_frequency(
         &self,
         pll_source: PllSource,
         source_frequency: usize,
