@@ -85,7 +85,7 @@ impl EarlGreyPinmuxConfig for BoardPinmuxLayout {
     const OUTPUT: &'static [PinmuxOutsel; OUTPUT_NUM] = &[
         // __________  BANK IOA __________
         Out::ConstantHighZ, // Ioa0 (CW310Hyp Uart_RX / CW310 SAM3X)
-        Out::Uart0Tx,       // Ioa1 (CW310Hyp Uart_Tx / CW310 SAM3x)
+        Out::Uart3Tx,       // Ioa1 (CW310Hyp Uart_Tx / CW310 SAM3x)
         Out::GpioGpio0,     // Ioa2
         Out::GpioGpio1,     // Ioa3
         Out::ConstantHighZ, // Ioa4
@@ -112,7 +112,7 @@ impl EarlGreyPinmuxConfig for BoardPinmuxLayout {
         Out::GpioGpio11,    // Ioc1
         Out::GpioGpio12,    // Ioc2
         Out::ConstantHighZ, // Ioc3 UART3_RX
-        Out::Uart3Tx,       // Ioc4 UART3_TX
+        Out::Uart0Tx,       // Ioc4 UART3_TX
         Out::GpioGpio13,    // Ioc5
         Out::GpioGpio14,    // Ioc6
         Out::GpioGpio15,    // Ioc7
