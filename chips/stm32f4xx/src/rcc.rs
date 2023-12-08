@@ -778,7 +778,7 @@ impl Rcc {
     pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
         match self.registers.cfgr.read(CFGR::SWS) {
             0b00 => SysClockSource::HSI,
-            //0b01 => SysClockSource::HSE, Uncomment this when HSE support is added
+            0b01 => SysClockSource::HSE,
             _ => SysClockSource::PLL,
             // Uncomment this when PPLLR support is added. Also change the above match arm to
             // 0b10 => SysClockSource::PLL,
@@ -800,6 +800,13 @@ impl Rcc {
                 && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
     }
 
+    pub(crate) fn is_hse_clock_system_clock(&self) -> bool {
+        let system_clock_source = self.get_sys_clock_source();
+        system_clock_source == SysClockSource::HSE
+            || system_clock_source == SysClockSource::PLL
+                && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSE as u32
+    }
+
     /* HSI clock */
     // The HSI clock must not be configured as the system clock, either directly or indirectly.
     pub(crate) fn disable_hsi_clock(&self) {
@@ -817,6 +824,29 @@ impl Rcc {
     // Indicates whether the HSI oscillator is stable
     pub(crate) fn is_ready_hsi_clock(&self) -> bool {
         self.registers.cr.is_set(CR::HSIRDY)
+    }
+
+    /* HSE clock */
+    pub(crate) fn disable_hse_clock(&self) {
+        self.registers.cr.modify(CR::HSEON::CLEAR);
+        self.registers.cr.modify(CR::HSEBYP::CLEAR);
+    }
+
+    pub(crate) fn enable_hse_clock_bypass(&self) {
+        self.registers.cr.modify(CR::HSEBYP::SET);
+    }
+
+    pub(crate) fn enable_hse_clock(&self) {
+        self.registers.cr.modify(CR::HSEON::SET);
+    }
+
+    pub(crate) fn is_enabled_hse_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSEON)
+    }
+
+    // Indicates whether the HSE oscillator is stable
+    pub(crate) fn is_ready_hse_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSERDY)
     }
 
     /* Main PLL clock*/
@@ -933,7 +963,7 @@ impl Rcc {
             0b00 => MCO1Source::HSI,
             // When LSE or HSE are added, uncomment the following lines
             //0b01 => MCO1Source::LSE,
-            //0b10 => MCO1Source::HSE,
+            0b10 => MCO1Source::HSE,
             // 0b11 corresponds to MCO1Source::PLL
             _ => MCO1Source::PLL,
         }
@@ -1339,12 +1369,6 @@ impl Rcc {
     }
 }
 
-// NOTE: HSE is not yet supported as source clock.
-pub(crate) enum PllSource {
-    HSI = 0b0,
-    //HSE = 0b1,
-}
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum PLLP {
     DivideBy2 = 0b00,
@@ -1384,16 +1408,21 @@ pub(crate) enum PLLQ {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SysClockSource {
     HSI = 0b00,
-    //HSE = 0b01, Uncomment this when support for HSE is added
+    HSE = 0b01,
     PLL = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR = 0b11, Uncomment this when support for PPLLR is added
 }
 
+pub enum PllSource {
+    HSI = 0b0,
+    HSE = 0b1,
+}
+
 pub enum MCO1Source {
     HSI = 0b00,
     //LSE = 0b01, // When support for LSE is added, uncomment this
-    //HSE = 0b10, // When support for HSE is added, uncomment this
+    HSE = 0b10,
     PLL = 0b11,
 }
 
@@ -1403,6 +1432,13 @@ pub enum MCO1Divider {
     DivideBy3 = 0b101,
     DivideBy4 = 0b110,
     DivideBy5 = 0b111,
+}
+
+/// HSE Mode
+#[derive(PartialEq)]
+pub enum HseMode {
+    BYPASS,
+    CRYSTAL,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

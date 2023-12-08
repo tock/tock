@@ -55,6 +55,9 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
 
+/// Nucleo F429ZI HSE frequency in MHz
+pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF429ZI {

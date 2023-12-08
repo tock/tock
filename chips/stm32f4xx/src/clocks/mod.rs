@@ -5,6 +5,7 @@
 // Author: Ioan-Cristian CÎRSTEA <ioan.cirstea@oxidos.io>
 
 pub mod clocks;
+pub mod hse;
 pub mod hsi;
 pub mod pll;
 
