@@ -22,7 +22,7 @@ In addition, it describes the design overview.
 
 ## Designe overview of OTA app
 
-OTA (On The Air) app project starts with the aim to make OTA
+OTA (Over The Air) app project starts with the aim to make OTA
 as a general standard independent to specific operating systems.
 As IoT devices (e.g., smart watch, smart home appliance, smart farm,
 autonomous driving, smart building) are getting increased, we need to consider
