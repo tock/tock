@@ -26,7 +26,8 @@
 ## TickV Discussion (https://github.com/tock/tock/discussions/3709)
 - Andrew: Just as a heads up, some of the agenda emails have been going to junk.
 - Andrew: I have been focusing on TickV and key value for my team.
-- Andrew: TickV spec states that a limitation is fragmentation. If something is written to a region and never erased, the flash will show as filled up even if they have been erased.
+- Andrew: The TickV spec states that a limitation is fragmentation when something is written to a region in flash memory and is never removed.
+- Andrew: In such cases, even if the rest of the region is cleared, the flash memory might still indicate that the region is full, despite having only one valid entry. The current implementation of garbage collect is unable to solve this problem, which leads to the flash filling up while only having a few valid entries.
 - Andrew: I have been looking for a way to handle this and would love feedback.
 - Hudson: This could be helpful to place in the issues section on the main Tock repo.
 - Hudson: The two main people who have done development on this are Brad and Alistair.
