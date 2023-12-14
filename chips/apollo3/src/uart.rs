@@ -231,7 +231,7 @@ impl Uart<'_> {
         let regs = self.registers;
 
         regs.ier.modify(IER::TXIM::CLEAR + IER::TXCMPMIM::CLEAR);
-        regs.iec.modify(IEC::TXIC::SET);
+        regs.iec.modify(IEC::TXIC::SET + IEC::TXCMPMMIC::SET);
     }
 
     fn tx_progress(&self) {
