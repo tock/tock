@@ -304,7 +304,7 @@ impl hil::uart::Configure for Uart<'_> {
             .write(CR::UARTEN::CLEAR + CR::RXE::CLEAR + CR::TXE::CLEAR);
 
         // Enable the clocks
-        regs.cr.write(CR::CLKEN::SET + CR::CLKSEL::CLK_24MHZ);
+        regs.cr.modify(CR::CLKEN::SET + CR::CLKSEL::CLK_24MHZ);
 
         // Set the baud rate
         self.set_baud_rate(params.baud_rate);
@@ -319,6 +319,10 @@ impl hil::uart::Configure for Uart<'_> {
         // Enable the UART
         regs.cr
             .modify(CR::UARTEN::SET + CR::RXE::SET + CR::TXE::SET);
+
+        // Disable interrupts
+        regs.ier.set(0x00);
+        regs.iec.set(0xFF);
 
         Ok(())
     }
