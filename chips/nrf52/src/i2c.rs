@@ -629,7 +629,7 @@ register_bitfields![u32,
         MAXCNT OFFSET(0) NUMBITS(16)
     ],
     AMOUNT [
-        AMOUNT OFFSET(0) NUMBITS(7),
+        AMOUNT OFFSET(0) NUMBITS(16),
     ],
     ADDRESS [
         /// Address used in the TWI transfer
