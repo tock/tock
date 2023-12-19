@@ -34,6 +34,7 @@ fn trivial_assertion() {
     run_kernel_op(10000);
 }
 
-mod environmental_sensors;
+// Disabled unless the sensors are connected
+// mod environmental_sensors;
 mod multi_alarm;
 mod spi_controller;

@@ -42,8 +42,6 @@
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
-use components::bme280::Bme280Component;
-use components::ccs811::Ccs811Component;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
@@ -88,14 +86,6 @@ static mut PLATFORM: Option<&'static LoRaThingsPlus> = None;
 static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = None;
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
-// Test access to sensors
-static mut BME280: Option<
-    &'static capsules_extra::bme280::Bme280<
-        'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
-    >,
-> = None;
-static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -104,11 +94,6 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
-
-type BME280Sensor = components::bme280::Bme280ComponentType<
-    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
->;
-type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -146,9 +131,6 @@ struct LoRaThingsPlus {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    temperature: &'static TemperatureDriver,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
-    air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -169,9 +151,6 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             LORA_SPI_DRIVER_NUM => f(Some(self.sx1262_spi_controller)),
             LORA_GPIO_DRIVER_NUM => f(Some(self.sx1262_gpio)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
-            capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
             _ => f(None),
         }
     }
@@ -345,38 +324,6 @@ unsafe fn setup() -> (
     let _ = &peripherals.iom0.set_master_client(i2c_master);
     let _ = &peripherals.iom0.enable();
 
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None).finalize(
-        components::i2c_mux_component_static!(apollo3::iom::Iom<'static>),
-    );
-
-    let bme280 = Bme280Component::new(mux_i2c, 0x77).finalize(
-        components::bme280_component_static!(apollo3::iom::Iom<'static>),
-    );
-    let temperature = components::temperature::TemperatureComponent::new(
-        board_kernel,
-        capsules_extra::temperature::DRIVER_NUM,
-        bme280,
-    )
-    .finalize(components::temperature_component_static!(BME280Sensor));
-    let humidity = components::humidity::HumidityComponent::new(
-        board_kernel,
-        capsules_extra::humidity::DRIVER_NUM,
-        bme280,
-    )
-    .finalize(components::humidity_component_static!());
-    BME280 = Some(bme280);
-
-    let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
-        components::ccs811_component_static!(apollo3::iom::Iom<'static>),
-    );
-    let air_quality = components::air_quality::AirQualityComponent::new(
-        board_kernel,
-        capsules_extra::temperature::DRIVER_NUM,
-        ccs811,
-    )
-    .finalize(components::air_quality_component_static!());
-    CCS811 = Some(ccs811);
-
     // Init the broken out SPI controller
     let external_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom2).finalize(
         components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
@@ -478,9 +425,6 @@ unsafe fn setup() -> (
             sx1262_spi_controller,
             sx1262_gpio,
             ble_radio,
-            temperature,
-            humidity,
-            air_quality,
             scheduler,
             systick,
         }
