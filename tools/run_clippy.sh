@@ -69,7 +69,7 @@ CLIPPY_ARGS_COMPLEXITY="
 CLIPPY_ARGS_STYLE="
 -D clippy::style
 
--A clippy::blocks-in-if-conditions
+-A clippy::blocks_in_conditions
 -A clippy::collapsible_else_if
 -A clippy::collapsible_if
 -A clippy::collapsible_match
