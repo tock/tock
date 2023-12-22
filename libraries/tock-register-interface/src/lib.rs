@@ -130,3 +130,9 @@ pub trait RegisterLongName {}
 // Useful implementation for when no RegisterLongName is required
 // (e.g. no fields need to be accessed, just the raw register values)
 impl RegisterLongName for () {}
+
+#[cfg(feature = "debug_registers")]
+pub trait RegisterDebug {
+    type Value: UIntLike;
+    fn debug(f: &mut core::fmt::Formatter<'_>, value: Self::Value) -> core::fmt::Result;
+}

@@ -479,6 +479,95 @@ macro_rules! register_bitmasks {
     };
 }
 
+#[cfg(not(feature = "debug_registers"))]
+/// Helper macro for defining debugging of a field.
+#[macro_export]
+macro_rules! impl_register_debug {
+    ($($tokens:tt)*) => {};
+}
+
+#[cfg(feature = "debug_registers")]
+/// Helper macro for defining debugging of a field.
+#[macro_export]
+macro_rules! impl_register_debug {
+    {
+        // BITFIELD_NAME OFFSET(x)
+        $(#[$outer:meta])*
+        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+ $(,)?
+        ]
+    } => {
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, 1, []),*);
+    };
+    {
+        // BITFIELD_NAME OFFSET
+        // All fields are 1 bit
+        $(#[$outer:meta])*
+        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
+            $( $(#[$inner:meta])* $field:ident $offset:expr ),+ $(,)?
+        ]
+    } => {
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, 1, []),*);
+    };
+    {
+        // BITFIELD_NAME OFFSET(x) NUMBITS(y)
+        $(#[$outer:meta])*
+        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+ $(,)?
+        ]
+    } => {
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, $numbits, []),*);
+    };
+    {
+        // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
+        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
+               $values:tt ),+ $(,)?
+        ]
+    } => {
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, $numbits, $values),*);
+    };
+    (
+        @impl $valtype:ident, $reg_desc:ident, $reg_mod:ident, $(#[$outer:meta])*
+            $($field:ident, $numbits:tt, $values:tt),*
+    ) => {
+        impl $crate::RegisterDebug for $reg_desc {
+            type Value = $valtype;
+            fn debug(mut f: &mut ::core::fmt::Formatter<'_>, value: Self::Value) -> ::core::fmt::Result {
+                use $crate::fields::TryFromValue;
+
+                let mut s = f.debug_struct(stringify!($reg_mod));
+                $(
+                    $crate::impl_register_debug!(@impl_statements s, value, $field, $numbits, $values);
+                )*
+                s.finish()
+            }
+        }
+    };
+    {
+        @impl_statements $struct_fmt:ident, $value:ident, $field:ident, $numbits:tt,
+            [$( $(#[$inner:meta])* $_valname:ident = $_value:expr ),+ $(,)?]
+    } => {
+        let v = $field.read($value);
+        if let Some(v) = $field::Value::try_from_value(v) {
+            $struct_fmt.field(stringify!($field), &v);
+        } else {
+            $struct_fmt.field(stringify!($field), &v);
+        }
+    };
+    {
+        // if its 1 bit, treat it as a bool
+        @impl_statements $struct_fmt:ident, $value:ident, $field:ident, 1, []
+    } => {
+        $struct_fmt.field(stringify!($field), &($field.read($value) != 0));
+    };
+    {
+        @impl_statements $struct_fmt:ident, $value:ident, $field:ident, $numbits:tt, []
+    } => {
+        $struct_fmt.field(stringify!($field), &$field.read($value));
+    };
+}
+
 /// Define register types and fields.
 #[macro_export]
 macro_rules! register_bitfields {
@@ -497,6 +586,8 @@ macro_rules! register_bitfields {
                 #[derive(Clone, Copy)]
                 pub struct Register;
                 impl $crate::RegisterLongName for Register {}
+
+                $crate::impl_register_debug!( $valtype, Register, $reg, $fields );
 
                 use $crate::fields::Field;
 

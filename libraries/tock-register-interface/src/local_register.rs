@@ -117,9 +117,20 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     }
 }
 
+#[cfg(not(feature = "debug_registers"))]
 impl<T: UIntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.value)
+    }
+}
+
+#[cfg(feature = "debug_registers")]
+impl<T: UIntLike, R> fmt::Debug for LocalRegisterCopy<T, R>
+where
+    R: RegisterLongName + crate::RegisterDebug<Value = T>,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        R::debug(f, self.value)
     }
 }
 
