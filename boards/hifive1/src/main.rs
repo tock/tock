@@ -128,21 +128,6 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     }
 }
 
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
-/// Additionally, this function should only ever be called once, as it is declaring and
-/// initializing static memory for system peripherals.
-#[inline(never)]
-unsafe fn create_peripherals(
-    clock_frequency: u32,
-) -> &'static mut E310G002DefaultPeripherals<'static> {
-    static_init!(
-        E310G002DefaultPeripherals,
-        E310G002DefaultPeripherals::new(clock_frequency)
-    )
-}
-
 /// For the HiFive1, if load_process is inlined, it leads to really large stack utilization in
 /// main. By wrapping it in a non-inlined function, this reduces the stack utilization once
 /// processes are running.
@@ -190,16 +175,23 @@ fn load_processes_not_inlined<C: Chip>(board_kernel: &'static Kernel, chip: &'st
     });
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// setup and RAM initialization.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    HiFive1,
+    &'static e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<'static>>,
+) {
     // only machine mode
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
 
-    let peripherals = create_peripherals(344_000_000);
+    let peripherals = static_init!(
+        E310G002DefaultPeripherals,
+        E310G002DefaultPeripherals::new(344_000_000)
+    );
+
     peripherals.init();
 
     peripherals.e310x.watchdog.disable();
@@ -213,8 +205,6 @@ pub unsafe fn main() {
         .e310x
         .prci
         .set_clock_frequency(sifive::prci::ClockFrequency::Freq344Mhz);
-
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -356,5 +346,19 @@ pub unsafe fn main() {
 
     load_processes_not_inlined(board_kernel, chip);
 
-    board_kernel.kernel_loop(&hifive1, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
+    (board_kernel, hifive1, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(
+        &board,
+        chip,
+        None::<&kernel::ipc::IPC<0>>,
+        &main_loop_capability,
+    );
 }
