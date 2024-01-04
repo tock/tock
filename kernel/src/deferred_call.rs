@@ -230,6 +230,10 @@ impl DeferredCall {
     /// that DeferredCalls will actually be delivered as expected. This function costs about 300
     /// bytes, so you can remove it if you are confident your setup will not exceed 32 deferred
     /// calls, and that all of your components register their deferred calls.
+    // Ignore the clippy warning for using `.filter(|opt| opt.is_some())` since
+    // we don't actually have an Option (we have an OptionalCell) and
+    // IntoIterator is not implemented for OptionalCell.
+    #[allow(clippy::iter_filter_is_some)]
     pub fn verify_setup() {
         // SAFETY: No accesses to CTR/DEFCALLS are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
