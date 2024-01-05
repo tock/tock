@@ -513,7 +513,7 @@ macro_rules! impl_register_debug {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y)
         $(#[$outer:meta])*
         $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+ $(,)?
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:tt) ),+ $(,)?
         ]
     } => {
         $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, $numbits, []),*);
@@ -521,7 +521,7 @@ macro_rules! impl_register_debug {
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
         $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:tt)
                $values:tt ),+ $(,)?
         ]
     } => {
