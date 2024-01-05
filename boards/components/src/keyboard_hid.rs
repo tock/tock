@@ -57,6 +57,11 @@ macro_rules! keyboard_hid_component_static {
     };};
 }
 
+pub type KeyboardHidComponentType<U> = capsules_extra::usb_hid_driver::UsbHidDriver<
+    'static,
+    capsules_extra::usb::keyboard_hid::KeyboardHid<'static, U>,
+>;
+
 pub struct KeyboardHidComponent<U: 'static + hil::usb::UsbController<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
