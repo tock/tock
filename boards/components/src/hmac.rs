@@ -36,6 +36,8 @@ macro_rules! hmac_component_static {
     };};
 }
 
+pub type HmacComponentType<H, const L: usize> = capsules_extra::hmac::HmacDriver<'static, H, L>;
+
 pub struct HmacComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -103,6 +105,9 @@ macro_rules! hmac_sha256_software_component_static {
         (hmac_sha256, data_buffer, verify_buffer)
     };};
 }
+
+pub type HmacSha256SoftwareComponentType<S> =
+    capsules_extra::hmac_sha256::HmacSha256Software<'static, S>;
 
 pub struct HmacSha256SoftwareComponent<
     S: digest::Sha256 + digest::DigestDataHash<'static, 32> + digest::Digest<'static, 32> + 'static,
