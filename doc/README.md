@@ -23,6 +23,7 @@ Tock Guides
 - **[Memory Isolation](Memory_Isolation.md)** - How memory is isolated in Tock.
 - **[Registers](../libraries/tock-register-interface/README.md)** - How memory-mapped registers are handled in Tock.
 - **[Startup](Startup.md)** - What happens when Tock boots.
+- **[Scheduling](Scheduling.md)** - How the Tock scheduler works.
 - **[Syscalls](Syscalls.md)** - Kernel/Userland abstraction.
 - **[Userland](Userland.md)** - Description of userland applications.
 - **[Networking Stack](Networking_Stack.md)** - Design of the networking stack in Tock.
