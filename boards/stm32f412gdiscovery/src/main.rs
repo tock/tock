@@ -63,7 +63,7 @@ struct STM32F412GDiscovery {
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f412g::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     touch: &'static capsules_extra::touch::Touch<'static>,
-    screen: &'static capsules_extra::screen::Screen<'static>,
+    screen: &'static capsules_extra::graphics_display::Screen<'static>,
     temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
     rng: &'static capsules_core::rng::RngDriver<'static>,
 
@@ -86,7 +86,7 @@ impl SyscallDriverLookup for STM32F412GDiscovery {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::touch::DRIVER_NUM => f(Some(self.touch)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::graphics_display::DRIVER_NUM => f(Some(self.screen)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
@@ -645,7 +645,7 @@ pub unsafe fn main() {
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules_extra::screen::DRIVER_NUM,
+        capsules_extra::graphics_display::DRIVER_NUM,
         tft,
         Some(tft),
     )
