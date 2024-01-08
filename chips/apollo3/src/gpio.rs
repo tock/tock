@@ -145,8 +145,16 @@ impl Port<'_> {
         match rx_pin.pin as usize {
             49 => {
                 regs.padkey.set(115);
-                regs.padreg[12].modify(PADREG::PAD1INPEN::SET);
-                regs.cfg[6].modify(CFG::GPIO1INTD.val(0x00) + CFG::GPIO1OUTCFG.val(0x00));
+                regs.padreg[12].modify(
+                    PADREG::PAD1PULL::CLEAR
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::CLEAR
+                        + PADREG::PAD1FNCSEL::CLEAR
+                        + PADREG::PAD1RSEL::CLEAR,
+                );
+                regs.cfg[6].modify(
+                    CFG::GPIO1INCFG::CLEAR + CFG::GPIO1INTD.val(0x00) + CFG::GPIO1OUTCFG.val(0x00),
+                );
                 regs.altpadcfgm
                     .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
                 regs.padkey.set(0x00);

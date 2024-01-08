@@ -8,6 +8,7 @@ use core::cell::Cell;
 use kernel::ErrorCode;
 
 use kernel::hil;
+use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -172,6 +173,10 @@ pub struct Uart<'a> {
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
+
+    rx_buffer: TakeCell<'static, [u8]>,
+    rx_len: Cell<usize>,
+    rx_index: Cell<usize>,
 }
 
 #[derive(Copy, Clone)]
@@ -190,6 +195,9 @@ impl Uart<'_> {
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
         }
     }
 
@@ -203,6 +211,9 @@ impl Uart<'_> {
             tx_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             tx_index: Cell::new(0),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
         }
     }
 
@@ -231,7 +242,23 @@ impl Uart<'_> {
         let regs = self.registers;
 
         regs.ier.modify(IER::TXIM::CLEAR + IER::TXCMPMIM::CLEAR);
-        regs.iec.modify(IEC::TXIC::SET);
+        regs.iec.modify(IEC::TXIC::SET + IEC::TXCMPMMIC::SET);
+    }
+
+    fn enable_rx_interrupt(&self) {
+        let regs = self.registers;
+
+        // Set RX FIFO to fire at 1
+        regs.ifls.modify(IFLS::RXIFLSEL.val(1));
+
+        regs.ier.modify(IER::RXIM::SET + IER::RTIM::SET);
+    }
+
+    fn disable_rx_interrupt(&self) {
+        let regs = self.registers;
+
+        regs.ier.modify(IER::RXIM::CLEAR + IER::RTIM::CLEAR);
+        regs.iec.modify(IEC::RXIC::SET + IEC::RTIC::SET);
     }
 
     fn tx_progress(&self) {
@@ -263,6 +290,38 @@ impl Uart<'_> {
         }
     }
 
+    fn rx_progress(&self) {
+        let regs = self.registers;
+        let idx = self.rx_index.get();
+        let len = self.rx_len.get();
+
+        if idx < len {
+            // Read from the transmit buffer and send bytes to the UART hardware
+            // until either the buffer is empty or the UART hardware is full.
+            self.rx_buffer.map(|rx_buf| {
+                let rx_len = len - idx;
+
+                for i in 0..rx_len {
+                    if regs.fr.is_set(FR::RXFE) {
+                        break;
+                    }
+
+                    let rx_idx = idx + i;
+                    let charecter = regs.dr.read(DR::DATA);
+
+                    rx_buf[rx_idx] = charecter as u8;
+
+                    self.rx_index.set(rx_idx + 1)
+                }
+            });
+        }
+
+        if self.rx_index.get() < self.rx_len.get() {
+            // Enable interrupts to get future events
+            self.enable_rx_interrupt();
+        }
+    }
+
     pub fn handle_interrupt(&self) {
         let regs = self.registers;
         let irq = regs.ies.extract();
@@ -282,6 +341,25 @@ impl Uart<'_> {
             } else {
                 // We have more to transmit, so continue in tx_progress().
                 self.tx_progress();
+            }
+        }
+
+        if irq.is_set(IES::RXIS) || irq.is_set(IES::RTIS) {
+            self.disable_rx_interrupt();
+
+            self.rx_progress();
+
+            if self.rx_index.get() >= self.rx_len.get() {
+                self.rx_client.map(|client| {
+                    self.rx_buffer.take().map(|rx_buf| {
+                        client.received_buffer(
+                            rx_buf,
+                            self.rx_len.get(),
+                            Ok(()),
+                            uart::Error::None,
+                        );
+                    });
+                });
             }
         }
     }
@@ -304,7 +382,7 @@ impl hil::uart::Configure for Uart<'_> {
             .write(CR::UARTEN::CLEAR + CR::RXE::CLEAR + CR::TXE::CLEAR);
 
         // Enable the clocks
-        regs.cr.write(CR::CLKEN::SET + CR::CLKSEL::CLK_24MHZ);
+        regs.cr.modify(CR::CLKEN::SET + CR::CLKSEL::CLK_24MHZ);
 
         // Set the baud rate
         self.set_baud_rate(params.baud_rate);
@@ -319,6 +397,10 @@ impl hil::uart::Configure for Uart<'_> {
         // Enable the UART
         regs.cr
             .modify(CR::UARTEN::SET + CR::RXE::SET + CR::TXE::SET);
+
+        // Disable interrupts
+        regs.ier.set(0x00);
+        regs.iec.set(0xFF);
 
         Ok(())
     }
@@ -366,9 +448,21 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
     fn receive_buffer(
         &self,
         rx_buffer: &'static mut [u8],
-        _rx_len: usize,
+        rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        Err((ErrorCode::FAIL, rx_buffer))
+        if rx_len == 0 || rx_len > rx_buffer.len() {
+            Err((ErrorCode::SIZE, rx_buffer))
+        } else if self.tx_buffer.is_some() {
+            Err((ErrorCode::BUSY, rx_buffer))
+        } else {
+            // Save the buffer so we can keep sending it.
+            self.rx_buffer.replace(rx_buffer);
+            self.rx_len.set(rx_len);
+            self.rx_index.set(0);
+
+            self.rx_progress();
+            Ok(())
+        }
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
