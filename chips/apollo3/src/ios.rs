@@ -283,8 +283,8 @@ impl<'a> I2CSlave<'a> for Ios<'a> {
         data: &'static mut [u8],
         max_len: usize,
     ) -> Result<(), (Error, &'static mut [u8])> {
+        self.write_len.set(max_len.min(data.len()));
         self.write_buf.replace(data);
-        self.write_len.set(max_len);
 
         Ok(())
     }
@@ -300,8 +300,8 @@ impl<'a> I2CSlave<'a> for Ios<'a> {
             }
         }
 
+        self.read_len.set(max_len.min(data.len()));
         self.read_buf.replace(data);
-        self.read_len.set(max_len);
 
         Ok(())
     }
