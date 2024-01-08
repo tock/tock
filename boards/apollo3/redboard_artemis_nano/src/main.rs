@@ -203,6 +203,7 @@ unsafe fn setup() -> (
     pwr_ctrl.enable_uart0();
     pwr_ctrl.enable_iom0();
     pwr_ctrl.enable_iom2();
+    pwr_ctrl.enable_ios();
 
     // Enable PinCfg
     let _ = &peripherals
@@ -218,6 +219,10 @@ unsafe fn setup() -> (
         &peripherals.gpio_port[7],
         &peripherals.gpio_port[6],
     );
+    // Enable I2C slave device
+    peripherals
+        .gpio_port
+        .enable_i2c_slave(&peripherals.gpio_port[1], &peripherals.gpio_port[0]);
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
