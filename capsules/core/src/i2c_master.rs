@@ -191,7 +191,7 @@ impl<'a, I: i2c::I2CMaster<'a>> SyscallDriver for I2CMasterDriver<'a, I> {
 }
 
 impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
-    fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
+    fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.processid, |_, kernel_data| {
                 if let Some(read_len) = tx.read_len.take() {
@@ -205,7 +205,16 @@ impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I
                 }
 
                 // signal to driver that tx complete
-                kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
+                kernel_data
+                    .schedule_upcall(
+                        0,
+                        (
+                            kernel::errorcode::into_statuscode(status.map_err(|e| e.into())),
+                            0,
+                            0,
+                        ),
+                    )
+                    .ok();
             })
         });
 
