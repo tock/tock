@@ -98,7 +98,7 @@ The first line of license text SHOULD appear as-follows:
 
 > Licensed under the Apache License, Version 2.0 or the MIT License.
 
-The second line of license SHOULD adhere to the [SPDX](https//spdx.dev)
+The second line of license SHOULD adhere to the [SPDX](https://spdx.dev)
 specification for license description. As of this writing, it SHOULD
 appear as-follows:
 
