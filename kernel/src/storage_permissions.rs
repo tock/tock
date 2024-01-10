@@ -3,6 +3,9 @@
 // Copyright Tock Contributors 2022.
 
 //! Mechanism for managing storage read & write permissions.
+//!
+//! These permissions are intended for userspace applications so the kernel can
+//! restrict which stored elements the apps have access to.
 
 use core::cmp;
 use core::num::NonZeroU32;
@@ -40,7 +43,7 @@ pub struct StoragePermissions {
     write_id: Option<NonZeroU32>,
     /// If `kerneluser` is true, this permission grants access to all objects
     /// stored stored with `write_id` 0. New items created with `kerneluser ==
-    /// true` will use the specified ID if  `write_id.is_some()`, otherwise new
+    /// true` will use the specified ID if `write_id.is_some()`, otherwise new
     /// items will be created with the reserved ID (i.e., 0).
     kerneluser: bool,
 }
