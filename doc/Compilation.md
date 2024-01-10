@@ -94,11 +94,11 @@ commands.
 
 #### Platform Build Scripts
 
-Cargo supports [build
-scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html) when
-compiling crates, and each Tock platform crate includes a `build.rs` build
-script. In Tock, these build scripts are primarily used to instruct cargo to
-rebuild the kernel if a linker script changes.
+Cargo supports
+[build scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html)
+when compiling crates, and Tock provides the `boards/build.rs` build script. In
+Tock, these build scripts are primarily used to instruct cargo to rebuild the
+kernel if a linker script changes.
 
 Cargo's `build.rs` scripts are small Rust programs that must be compiled as part
 of the kernel build process. Since these scripts execute on the host machine,

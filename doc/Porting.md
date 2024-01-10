@@ -352,9 +352,11 @@ file named `io.rs` adjacent to the board's `main.rs` file.
 
 Every board crate must author a top-level manifest, `Cargo.toml`. In general,
 you can probably simply copy this from another board, modifying the board name
-and author(s) as appropriate. Note that Tock also includes a build script,
-`build.rs`, that you should also copy. The build script simply adds a dependency
-on the kernel layout.
+and author(s) as appropriate.
+
+Note that Tock also provides a build script, `boards/build.rs`, that you should
+add to your `Cargo.toml` manifest. The build script simply adds a dependency
+on any link scripts to ensure the board is rebuilt when any changes.
 
 ##### Board Makefile
 
