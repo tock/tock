@@ -14,17 +14,37 @@
 //! build = "../path/to/build.rs"
 //! ```
 
+use std::env;
 use std::fs;
 use std::path::Path;
 
 const LINKER_SCRIPT: &str = "layout.ld";
 
 fn main() {
-    if !Path::new(LINKER_SCRIPT).exists() {
-        panic!("Boards must provide a `layout.ld` link script file");
-    }
+    assert!(
+        Path::new(LINKER_SCRIPT).exists(),
+        "Boards must provide a `{LINKER_SCRIPT}` linker script file"
+    );
 
+    // Provide the linker script, ensuring the build reruns when it changes.
     track_linker_script(LINKER_SCRIPT);
+    println!("cargo:rustc-link-arg=-T{LINKER_SCRIPT}");
+
+    // Allow the linker script to use paths relative to the board crate's root
+    // (the directory that contains `Cargo.toml`).
+    //
+    // The following flag should only be passed to the board's binary crate, but
+    // not to any of its dependencies (the kernel, capsules, chips, etc.). The
+    // dependencies wouldn't use it, but because the link path is different for
+    // each board, Cargo wouldn't be able to cache builds of the dependencies.
+    //
+    // Indeed, as far as Cargo is concerned, building the kernel with `-C
+    // link-arg=-L/tock/boards/imix` is different than building the kernel with
+    // `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the
+    // kernel for each board instead of caching it per board (even if in reality
+    // the same kernel is built because the link-arg isn't used by the kernel).
+    let cwd = env::current_dir().expect("failed to read current directory");
+    println!("cargo:rustc-link-arg-bins=-L{}", cwd.display());
 }
 
 /// Track the given linker script and all of its `INCLUDE`s so that the build

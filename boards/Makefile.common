@@ -46,7 +46,6 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 # RUSTC_FLAGS allows boards to define board-specific options.
 # This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
 #
-# - `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
 # - `linker=rust-lld`: Tell rustc to use the LLVM linker. This avoids needing
 #   GCC as a dependency to build the kernel.
 # - `linker-flavor=ld.lld`: Use the LLVM lld executable with the `-flavor gnu`
@@ -64,7 +63,6 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 #   See https://github.com/rust-lang/rust/issues/60705 and
 #   https://github.com/tock/tock/issues/3529.
 RUSTC_FLAGS ?= \
-  -C link-arg=-Tlayout.ld \
   -C linker=rust-lld \
   -C linker-flavor=ld.lld \
   -C relocation-model=static \
@@ -102,27 +100,6 @@ RUSTC_FLAGS_TOCK ?= \
 ifeq ($(NOWARNINGS),true)
   RUSTC_FLAGS_TOCK += -D warnings
 endif
-
-# The following flags should only be passed to the board's binary crate, but
-# not to any of its dependencies (the kernel, capsules, chips, etc.). The
-# dependencies wouldn't use it, but because the link path is different for each
-# board, Cargo wouldn't be able to cache builds of the dependencies.
-#
-# Indeed, as far as Cargo is concerned, building the kernel with
-# `-C link-arg=-L/tock/boards/imix` is different than building the kernel with
-# `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the kernel
-# for each board instead of caching it per board (even if in reality the same
-# kernel is built because the link-arg isn't used by the kernel).
-#
-# Ultimately, this should move to the Cargo.toml, for example when
-# https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
-#
-# The difference between `RUSTC_FLAGS_TOCK` and `RUSTC_FLAGS_FOR_BIN` is that
-# the former is forwarded to all the dependencies (being passed to cargo via
-# the `RUSTFLAGS` environment variable), whereas the latter is only applied to
-# the final binary crate (being passed as parameter to `cargo rustc`).
-RUSTC_FLAGS_FOR_BIN ?= \
-  -C link-arg=-L$(abspath .) \
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
