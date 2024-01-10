@@ -6,7 +6,7 @@
 name = "msp-exp432p401r"
 version.workspace = true
 authors.workspace = true
-build = "build.rs"
+build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
