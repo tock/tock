@@ -18,7 +18,12 @@ use crate::ErrorCode;
 /// This contains the driver number and the subscribe number within the driver.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct UpcallId {
+    /// The [`SyscallDriver`](crate::syscall_driver::SyscallDriver)
+    /// implementation this upcall corresponds to.
     pub driver_num: usize,
+    /// The subscription index the upcall corresponds to. Subscribe numbers
+    /// start at 0 and increment for each upcall defined for a particular
+    /// [`SyscallDriver`](crate::syscall_driver::SyscallDriver).
     pub subscribe_num: usize,
 }
 
@@ -75,11 +80,11 @@ pub(crate) struct Upcall {
     /// driver_num and subdriver_num used to submit it.
     pub(crate) upcall_id: UpcallId,
 
-    /// The application data passed by the app when `subscribe()` was called
+    /// The application data passed by the app when `subscribe()` was called.
     pub(crate) appdata: usize,
 
-    /// A pointer to the first instruction of a function in the app
-    /// associated with processid.
+    /// A pointer to the first instruction of the function in the app that
+    /// corresponds to this upcall.
     ///
     /// If this value is `None`, this is a null upcall, which cannot actually be
     /// scheduled. An `Upcall` can be null when it is first created, or after an
