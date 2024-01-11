@@ -41,7 +41,9 @@
 //! the driver. Successive writes must call `allow` each time a buffer is to be
 //! written.
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
+use kernel::grant::{
+    AllowRoCount, AllowRwCount, AllowUrCount, Grant, GrantKernelData, UpcallCount,
+};
 use kernel::hil::uart;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -106,6 +108,7 @@ pub struct Console<'a> {
         UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
+        AllowUrCount<0>,
     >,
     tx_in_progress: OptionalCell<ProcessId>,
     tx_buffer: TakeCell<'static, [u8]>,
@@ -123,6 +126,7 @@ impl<'a> Console<'a> {
             UpcallCount<{ upcall::COUNT }>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
+            AllowUrCount<0>,
         >,
     ) -> Console<'a> {
         Console {

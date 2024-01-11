@@ -7,7 +7,7 @@
 
 use core::cell::Cell;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
@@ -41,14 +41,26 @@ impl Default for AlarmData {
 pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     num_armed: Cell<usize>,
-    app_alarms: Grant<AlarmData, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
+    app_alarms: Grant<
+        AlarmData,
+        UpcallCount<NUM_UPCALLS>,
+        AllowRoCount<0>,
+        AllowRwCount<0>,
+        AllowUrCount<0>,
+    >,
     next_alarm: Cell<Expiration>,
 }
 
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     pub const fn new(
         alarm: &'a A,
-        grant: Grant<AlarmData, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<
+            AlarmData,
+            UpcallCount<NUM_UPCALLS>,
+            AllowRoCount<0>,
+            AllowRwCount<0>,
+            AllowUrCount<0>,
+        >,
     ) -> AlarmDriver<'a, A> {
         AlarmDriver {
             alarm: alarm,

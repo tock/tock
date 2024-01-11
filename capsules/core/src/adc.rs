@@ -56,7 +56,7 @@ use core::cell::Cell;
 use core::cmp;
 use core::convert::TryFrom;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -73,7 +73,7 @@ pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 /// requests are queued. Does not support continuous or high-speed sampling.
 pub struct AdcVirtualized<'a> {
     drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
-    apps: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     current_process: OptionalCell<ProcessId>,
 }
 
@@ -91,7 +91,7 @@ pub struct AdcDedicated<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> {
     mode: Cell<AdcMode>,
 
     // App state
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>, AllowUrCount<0>>,
     processid: OptionalCell<ProcessId>,
     channel: Cell<usize>,
 
@@ -164,7 +164,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
     /// - `adc_buf2` - second buffer used when continuously sampling ADC
     pub fn new(
         adc: &'a A,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<2>, AllowUrCount<0>>,
         channels: &'a [<A as hil::adc::Adc<'a>>::Channel],
         adc_buf1: &'static mut [u16; 128],
         adc_buf2: &'static mut [u16; 128],
@@ -640,7 +640,7 @@ impl<'a> AdcVirtualized<'a> {
     /// - `drivers` - Virtual ADC drivers to provide application access to
     pub fn new(
         drivers: &'a [&'a dyn hil::adc::AdcChannel<'a>],
-        grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
             drivers: drivers,

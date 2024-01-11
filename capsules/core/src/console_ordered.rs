@@ -75,7 +75,9 @@ use core::cmp;
 use kernel::debug::debug_available_len;
 use kernel::debug_process_slice;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
+use kernel::grant::{
+    AllowRoCount, AllowRwCount, AllowUrCount, Grant, GrantKernelData, UpcallCount,
+};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::hil::uart;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
@@ -125,6 +127,7 @@ pub struct ConsoleOrdered<'a, A: Alarm<'a>> {
         UpcallCount<3>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
+        AllowUrCount<0>,
     >,
     tx_in_progress: Cell<bool>, // If true there's an ongoing write so others must wait
     tx_counter: Cell<usize>,    // Sequence number for writes from different processes
@@ -156,6 +159,7 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
             UpcallCount<3>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
+            AllowUrCount<0>,
         >,
         atomic_size: usize,
         retry_timer: u32,

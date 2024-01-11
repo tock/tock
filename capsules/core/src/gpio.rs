@@ -55,7 +55,7 @@
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Gpio as usize;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue, Output};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -69,13 +69,13 @@ const UPCALL_NUM: usize = 0;
 
 pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-    apps: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
 }
 
 impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
-        grant: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     ) -> Self {
         for (i, maybe_pin) in pins.iter().enumerate() {
             if let Some(pin) = maybe_pin {

@@ -61,7 +61,7 @@
 //!      // Setup the UART bus for nRF51 serialization..
 //!     ```
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -75,12 +75,12 @@ pub struct App {
 }
 
 pub struct TestGrantDoubleEntry {
-    grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+    grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
 }
 
 impl TestGrantDoubleEntry {
     pub fn new(
-        grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     ) -> TestGrantDoubleEntry {
         TestGrantDoubleEntry { grant }
     }

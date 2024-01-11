@@ -26,7 +26,7 @@
 
 use core::cell::Cell;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil::entropy;
 use kernel::hil::entropy::{Entropy32, Entropy8};
 use kernel::hil::rng;
@@ -55,14 +55,26 @@ pub struct App {
 
 pub struct RngDriver<'a> {
     rng: &'a dyn Rng<'a>,
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
+    apps: Grant<
+        App,
+        UpcallCount<1>,
+        AllowRoCount<0>,
+        AllowRwCount<{ rw_allow::COUNT }>,
+        AllowUrCount<0>,
+    >,
     getting_randomness: Cell<bool>,
 }
 
 impl<'a> RngDriver<'a> {
     pub fn new(
         rng: &'a dyn Rng<'a>,
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
+        grant: Grant<
+            App,
+            UpcallCount<1>,
+            AllowRoCount<0>,
+            AllowRwCount<{ rw_allow::COUNT }>,
+            AllowUrCount<0>,
+        >,
     ) -> RngDriver<'a> {
         RngDriver {
             rng: rng,

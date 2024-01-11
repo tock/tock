@@ -8,7 +8,9 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
+use kernel::grant::{
+    AllowRoCount, AllowRwCount, AllowUrCount, Grant, GrantKernelData, UpcallCount,
+};
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiSlaveClient, SpiSlaveDevice};
@@ -59,6 +61,7 @@ pub struct SpiPeripheral<'a, S: SpiSlaveDevice<'a>> {
         UpcallCount<2>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
+        AllowUrCount<0>,
     >,
     current_process: OptionalCell<ProcessId>,
 }
@@ -71,6 +74,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
             UpcallCount<2>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
+            AllowUrCount<0>,
         >,
     ) -> SpiPeripheral<'a, S> {
         SpiPeripheral {

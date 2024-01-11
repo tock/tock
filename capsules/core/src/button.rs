@@ -57,7 +57,7 @@
 
 use core::cell::Cell;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -88,7 +88,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
@@ -98,7 +98,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             gpio::ActivationMode,
             gpio::FloatingState,
         )],
-        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     ) -> Self {
         for (i, &(pin, _, floating_state)) in pins.iter().enumerate() {
             pin.make_input();

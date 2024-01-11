@@ -24,7 +24,7 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 
 pub const BUFFER_LENGTH: usize = 256;
 
@@ -71,6 +71,7 @@ pub struct I2CMasterSlaveDriver<'a, I: hil::i2c::I2CMasterSlave<'a>> {
         UpcallCount<1>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
+        AllowUrCount<0>,
     >,
 }
 
@@ -85,6 +86,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> I2CMasterSlaveDriver<'a, I> {
             UpcallCount<1>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
+            AllowUrCount<0>,
         >,
     ) -> I2CMasterSlaveDriver<'a, I> {
         I2CMasterSlaveDriver {

@@ -9,7 +9,7 @@ mod fmt;
 
 use core::cell::Cell;
 
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil::uart::{Transmit, TransmitClient};
 use kernel::syscall::CommandReturn;
 use kernel::{ErrorCode, ProcessId};
@@ -21,7 +21,7 @@ pub const DRIVER_NUM: usize = crate::driver::NUM::LowLevelDebug as usize;
 
 pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     buffer: Cell<Option<&'static mut [u8]>>,
-    grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+    grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     // grant_failed is set to true when LowLevelDebug fails to allocate an app's
     // grant region. When it has a chance, LowLevelDebug will print a message
     // indicating a grant initialization has failed, then set this back to
@@ -36,7 +36,7 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     pub fn new(
         buffer: &'static mut [u8],
         uart: &'u U,
-        grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<0>>,
     ) -> LowLevelDebug<'u, U> {
         LowLevelDebug {
             buffer: Cell::new(Some(buffer)),
