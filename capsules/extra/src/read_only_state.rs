@@ -33,11 +33,11 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use kernel::hil::time::{Ticks, Time};
 use kernel::platform::ContextSwitchCallback;
 use kernel::process::{self, ProcessId};
-use kernel::processbuffer::{UserspaceReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::WriteableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::ErrorCode;
 
@@ -48,13 +48,13 @@ const VERSION: u32 = 1;
 pub struct ReadOnlyStateDriver<'a, T: Time> {
     timer: &'a T,
 
-    apps: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<1>>,
 }
 
 impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
     pub fn new(
         timer: &'a T,
-        grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
+        grant: Grant<App, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>, AllowUrCount<1>>,
     ) -> ReadOnlyStateDriver<'a, T> {
         ReadOnlyStateDriver { timer, apps: grant }
     }
@@ -66,21 +66,23 @@ impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
         let pending_tasks = process.pending_tasks();
 
         self.apps
-            .enter(processid, |app, _| {
+            .enter(processid, |app, kernel_data| {
                 let count = app.count.get();
 
-                let _ = app.mem_region.mut_enter(|buf| {
-                    if buf.len() >= 4 {
-                        buf[0..4].copy_from_slice(&count.to_le_bytes());
-                    }
-                    if buf.len() >= 8 {
-                        buf[4..8].copy_from_slice(&(pending_tasks as u32).to_le_bytes());
-                    }
-                    if buf.len() >= 16 {
-                        let now = self.timer.now().into_usize() as u64;
-                        buf[8..16].copy_from_slice(&now.to_le_bytes());
-                    }
-                });
+                let _ = kernel_data
+                    .get_userspace_readable_processbuffer(0)
+                    .mut_enter(|buf| {
+                        if buf.len() >= 4 {
+                            buf[0..4].copy_from_slice(&count.to_le_bytes());
+                        }
+                        if buf.len() >= 8 {
+                            buf[4..8].copy_from_slice(&(pending_tasks as u32).to_le_bytes());
+                        }
+                        if buf.len() >= 16 {
+                            let now = self.timer.now().into_usize() as u64;
+                            buf[8..16].copy_from_slice(&now.to_le_bytes());
+                        }
+                    });
 
                 app.count.set(count.wrapping_add(1));
             })
@@ -89,31 +91,6 @@ impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
 }
 
 impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
-    /// Specify memory regions to be used.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `0`: Allow a buffer for the kernel to stored syscall values.
-    ///        This should only be read by the app and written by the capsule.
-    fn allow_userspace_readable(
-        &self,
-        processid: ProcessId,
-        which: usize,
-        mut slice: UserspaceReadableProcessBuffer,
-    ) -> Result<UserspaceReadableProcessBuffer, (UserspaceReadableProcessBuffer, ErrorCode)> {
-        if which == 0 {
-            let res = self.apps.enter(processid, |data, _| {
-                core::mem::swap(&mut data.mem_region, &mut slice);
-            });
-            match res {
-                Ok(_) => Ok(slice),
-                Err(e) => Err((slice, e.into())),
-            }
-        } else {
-            Err((slice, ErrorCode::NOSUPPORT))
-        }
-    }
-
     /// Commands for ReadOnlyStateDriver.
     ///
     /// ### `command_num`
@@ -146,6 +123,5 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
 
 #[derive(Default)]
 pub struct App {
-    mem_region: UserspaceReadableProcessBuffer,
     count: Cell<u32>,
 }
