@@ -92,7 +92,7 @@ jobs:
           # The pinned revision is different from the targeted release as
           # documented in the LiteX boards, as the CI requires special patches
           # to LiteX for interacting with the simulation:
-          ref: 2022081701-tock-ci-0
+          ref: 2024011101-tock-ci-1
           path: tock-litex
 
       # Install all of the required Python packages from the tock-litex'
