@@ -160,6 +160,34 @@ applications will need permissions in the TBF headers to use this interface.
 
   The third argument `unused` is always 0.
 
+  ##### `Statuscode` Values
+
+  If the operation succeeded `s` will be `SUCCESS`.
+
+  On failure, the following errors will be returned:
+
+  - For GET:
+    - `SIZE`: The value is longer than the provided buffer.
+    - `NOSUPPORT`: The key could not be found or the app does not have
+      permission to read this key.
+    - `FAIL`: An internal error occurred.
+  - For SET:
+    - `NOSUPPORT`: The app does not have permission to store this key.
+  - For ADD:
+    - `NOSUPPORT`: The key already exists and cannot be added or the app does
+      not have permission to add this key.
+  - For UPDATE:
+    - `NOSUPPORT`: The key does not already exist and cannot be modified or the
+      app does not have permission to modify this key.
+  - For SET/ADD/UPDATE:
+    - `NOMEM`: The key could not be updated because the KV store is full.
+    - `SIZE`: The key or value is too many bytes.
+    - `FAIL`: An internal error occurred.
+  - For DELETE:
+    - `NOSUPPORT`: The key does not exist or the app does not have permission to
+      delete this key.
+    - `FAIL`: An internal error occurred.
+
 ## Read-Only Allow
 
 - ### RO Allow number: `0`
