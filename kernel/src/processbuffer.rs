@@ -636,6 +636,13 @@ impl Deref for ReadWriteProcessBufferRef<'_> {
 // type so we alias it as `ReadWriteProcessBuffer`.
 pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
 
+/// Provides access to a `UserspaceReadableProcessBuffer` with a restricted
+/// lifetime. This automatically dereferences into a
+/// UserspaceReadableProcessBuffer.
+// We currently don't need any special functionality in the kernel for this
+// type so we alias it as `ReadWriteProcessBufferRef`.
+pub type UserspaceReadableProcessBufferRef<'a> = ReadWriteProcessBufferRef<'a>;
+
 /// Read-only wrapper around a [`Cell`]
 ///
 /// This type is used in providing the [`ReadableProcessSlice`]. The

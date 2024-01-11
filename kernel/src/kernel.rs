@@ -18,7 +18,7 @@ use crate::config;
 use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
-use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
+use crate::grant::{AllowRoSize, AllowRwSize, AllowUrSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
 use crate::platform::chip::Chip;
@@ -290,11 +290,12 @@ impl Kernel {
         Upcalls: UpcallSize,
         AllowROs: AllowRoSize,
         AllowRWs: AllowRwSize,
+        AllowURs: AllowUrSize,
     >(
         &'static self,
         driver_num: usize,
         _capability: &dyn capabilities::MemoryAllocationCapability,
-    ) -> Grant<T, Upcalls, AllowROs, AllowRWs> {
+    ) -> Grant<T, Upcalls, AllowROs, AllowRWs, AllowURs> {
         if self.grants_finalized.get() {
             panic!("Grants finalized. Cannot create a new grant.");
         }
@@ -1141,50 +1142,89 @@ impl Kernel {
                         allow_size,
                     } => {
                         let res = match driver {
-                            Some(d) => {
-                                // Try to create an appropriate
-                                // [`UserspaceReadableProcessBuffer`]. This method
-                                // will ensure that the memory in question is
-                                // located in the process-accessible memory space.
+                            Some(driver) => {
+                                // Try to create an appropriate [`UserspaceReadableProcessBuffer`]. This
+                                // method will ensure that the memory in question is located in
+                                // the process-accessible memory space.
                                 match process
                                     .build_readwrite_process_buffer(allow_address, allow_size)
                                 {
-                                    Ok(rw_pbuf) => {
-                                        // Creating the
-                                        // [`UserspaceReadableProcessBuffer`]
-                                        // worked, provide it to the capsule.
-                                        match d.allow_userspace_readable(
-                                            process.processid(),
+                                    Ok(ur_pbuf) => {
+                                        // Creating the [`UserspaceReadableProcessBuffer`] worked, try
+                                        // to set in grant.
+                                        match crate::grant::allow_ur(
+                                            process,
+                                            driver_number,
                                             subdriver_number,
-                                            rw_pbuf,
+                                            ur_pbuf,
                                         ) {
-                                            Ok(returned_pbuf) => {
-                                                // The capsule has accepted the
-                                                // allow operation. Pass the
-                                                // previous buffer information back
-                                                // to the process.
-                                                let (ptr, len) = returned_pbuf.consume();
-                                                SyscallReturn::UserspaceReadableAllowSuccess(
-                                                    ptr, len,
-                                                )
+                                            Ok(ur_pbuf) => {
+                                                let (ptr, len) = ur_pbuf.consume();
+                                                SyscallReturn::AllowReadWriteSuccess(ptr, len)
                                             }
-                                            Err((rejected_pbuf, err)) => {
-                                                // The capsule has rejected the
-                                                // allow operation. Pass the new
-                                                // buffer information back to the
-                                                // process.
-                                                let (ptr, len) = rejected_pbuf.consume();
-                                                SyscallReturn::UserspaceReadableAllowFailure(
-                                                    err, ptr, len,
-                                                )
+                                            Err((ur_pbuf, err @ ErrorCode::NOMEM)) => {
+                                                // If we get a memory error, we always try to
+                                                // allocate the grant since this could be the
+                                                // first time the grant is getting accessed.
+                                                match try_allocate_grant(driver, process) {
+                                                    AllocResult::NewAllocation => {
+                                                        // If we actually allocated a new grant,
+                                                        // try again and honor the result.
+                                                        match crate::grant::allow_ur(
+                                                            process,
+                                                            driver_number,
+                                                            subdriver_number,
+                                                            ur_pbuf,
+                                                        ) {
+                                                            Ok(ur_pbuf) => {
+                                                                let (ptr, len) = ur_pbuf.consume();
+                                                                SyscallReturn::AllowReadWriteSuccess(
+                                                                    ptr, len,
+                                                                )
+                                                            }
+                                                            Err((ur_pbuf, err)) => {
+                                                                let (ptr, len) = ur_pbuf.consume();
+                                                                SyscallReturn::AllowReadWriteFailure(
+                                                                    err, ptr, len,
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    alloc_failure => {
+                                                        // We didn't actually create a new
+                                                        // alloc, so just error.
+                                                        match (
+                                                            config::CONFIG.trace_syscalls,
+                                                            alloc_failure,
+                                                        ) {
+                                                            (true, AllocResult::NoAllocation) => {
+                                                                debug!("[{:?}] WARN driver #{:x} did not allocate grant",
+                                                                           process.processid(), driver_number);
+                                                            }
+                                                            (true, AllocResult::SameAllocation) => {
+                                                                debug!("[{:?}] ERROR driver #{:x} allocated wrong grant counts",
+                                                                           process.processid(), driver_number);
+                                                            }
+                                                            _ => {}
+                                                        }
+                                                        let (ptr, len) = ur_pbuf.consume();
+                                                        SyscallReturn::AllowReadWriteFailure(
+                                                            err, ptr, len,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Err((ur_pbuf, err)) => {
+                                                let (ptr, len) = ur_pbuf.consume();
+                                                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
                                             }
                                         }
                                     }
                                     Err(allow_error) => {
                                         // There was an error creating the
-                                        // [`UserspaceReadableProcessBuffer`].
-                                        // Report back to the process.
-                                        SyscallReturn::UserspaceReadableAllowFailure(
+                                        // [`UserspaceReadableProcessBuffer`]. Report back to the
+                                        // process with the original parameters.
+                                        SyscallReturn::AllowReadWriteFailure(
                                             allow_error,
                                             allow_address,
                                             allow_size,
@@ -1192,8 +1232,7 @@ impl Kernel {
                                     }
                                 }
                             }
-
-                            None => SyscallReturn::UserspaceReadableAllowFailure(
+                            None => SyscallReturn::AllowReadWriteFailure(
                                 ErrorCode::NODEVICE,
                                 allow_address,
                                 allow_size,

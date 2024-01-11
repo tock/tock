@@ -183,10 +183,10 @@ impl From<process::Error> for CommandReturn {
 /// and what they represents) are specific to the peripheral system call
 /// driver.
 ///
-/// Note about **subscribe**, **read-only allow**, and *read-write allow**
-/// syscalls:
-/// those are handled entirely by the core kernel, and there is no
-/// corresponding function for capsules to implement.
+/// Note about **subscribe**, **read-only allow**, **read-write allow**,
+/// **userspace readable allow** syscalls: those are handled entirely by the
+/// core kernel, and there is no corresponding function for capsules to
+/// implement.
 #[allow(unused_variables)]
 pub trait SyscallDriver {
     /// System call for a process to perform a short synchronous operation
@@ -202,24 +202,6 @@ pub trait SyscallDriver {
         process_id: ProcessId,
     ) -> CommandReturn {
         CommandReturn::failure(ErrorCode::NOSUPPORT)
-    }
-
-    /// System call for a process to pass a buffer (a
-    /// UserspaceReadableProcessBuffer) to the kernel that the kernel can either
-    /// read or write. The kernel calls this method only after it checks that
-    /// the entire buffer is within memory the process can both read and write.
-    ///
-    /// This is different to `allow_readwrite()` in that the app is allowed
-    /// to read the buffer once it has been passed to the kernel.
-    /// For more details on how this can be done safely see the userspace
-    /// readable allow syscalls TRDXXX.
-    fn allow_userspace_readable(
-        &self,
-        app: ProcessId,
-        which: usize,
-        slice: UserspaceReadableProcessBuffer,
-    ) -> Result<UserspaceReadableProcessBuffer, (UserspaceReadableProcessBuffer, ErrorCode)> {
-        Err((slice, ErrorCode::NOSUPPORT))
     }
 
     /// Request to allocate a capsule's grant for a specific process.

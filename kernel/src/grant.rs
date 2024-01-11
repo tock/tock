@@ -119,8 +119,9 @@
 //! mutable access.         │ }                          │
 //! GrantKernelData         │ struct GrantKernelData {   │
 //! provides access to      │   upcalls: [SavedUpcall]   │
-//! scheduling upcalls      │   allow_ro: [SavedAllowRo] │
+//! scheduling upcalls      │   allow_ro: [SavedAllowRO] │
 //! and process buffers.    │   allow_rw: [SavedAllowRW] │
+//!                         │   allow_ur: [SavedAllowUR] │
 //!                         │ }                          │
 //!                         └──┬─────────────────────────┘
 //! The actual object T can    │
@@ -137,8 +138,9 @@ use core::slice;
 
 use crate::kernel::Kernel;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
-use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
-use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
+use crate::processbuffer::{ReadOnlyProcessBuffer, ReadOnlyProcessBufferRef};
+use crate::processbuffer::{ReadWriteProcessBuffer, ReadWriteProcessBufferRef};
+use crate::processbuffer::{UserspaceReadableProcessBuffer, UserspaceReadableProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
 
@@ -179,17 +181,36 @@ impl<const NUM: u8> AllowRwSize for AllowRwCount<NUM> {
     const COUNT: u8 = NUM;
 }
 
+/// Tracks how many userspace readable allows a grant instance supports
+/// automatically.
+pub trait AllowUrSize {
+    /// The number of userspace readable allows the grant supports.
+    const COUNT: u8;
+}
+
+/// Specifies how many userspace readable allows a grant instance supports
+/// automatically.
+pub struct AllowUrCount<const NUM: u8>;
+impl<const NUM: u8> AllowUrSize for AllowUrCount<NUM> {
+    const COUNT: u8 = NUM;
+}
+
 /// Helper that calculated offsets within the kernel owned memory (i.e. the
 /// non-T part of grant).
 ///
 /// Example layout of full grant belonging to a single app and driver:
 ///
 /// ```text,ignore
-/// 0x003FFC8  ┌────────────────────────────────────┐
+/// 0x003FFD4  ┌────────────────────────────────────┐
 ///            │   T                                |
-/// 0x003FFxx  ├  ───────────────────────── ┐ K     |
-///            │   Padding (ensure T aligns)| e     |
-/// 0x003FF44  ├  ───────────────────────── | r     |
+/// 0x003FFxx  ├  ───────────────────────── ┐       |
+///            │   Padding (ensure T aligns)|       |
+/// 0x003FF6C  ├  ───────────────────────── |       |
+///            │   SavedAllowUrN            |       |
+///            │   ...                      |       |
+///            │   SavedAllowUr1            | K     |
+///            │   SavedAllowUr0            | e     |
+/// 0x003FF58  ├  ───────────────────────── | r     |
 ///            │   SavedAllowRwN            | n     |
 ///            │   ...                      | e     | G
 ///            │   SavedAllowRw1            | l     | r
@@ -213,9 +234,9 @@ impl<const NUM: u8> AllowRwSize for AllowRwCount<NUM> {
 ///
 /// ```text,ignore
 /// 0             1             2             3         bytes
-/// |-------------|-------------|-------------|-------------|
-/// | # Upcalls   | # RO Allows | # RW Allows | [unused]    |
-/// |-------------|-------------|-------------|-------------|
+/// +-------------+-------------+-------------+-------------+
+/// | # Upcalls   | # RO Allows | # RW Allows | # UR Allows |
+/// +-------------+-------------+-------------+-------------+
 /// ```
 ///
 /// This type is created whenever a grant is entered, and is responsible for
@@ -239,6 +260,8 @@ struct EnteredGrantKernelManagedLayout<'a> {
     allow_ro_array: *mut SavedAllowRo,
     /// Pointer to the array of saved read-write allows.
     allow_rw_array: *mut SavedAllowRw,
+    /// Pointer to the array of saved userspace readable allows.
+    allow_ur_array: *mut SavedAllowUr,
 }
 
 /// Represents the number of the upcall elements in the kernel owned section of
@@ -253,6 +276,10 @@ struct AllowRoItems(u8);
 /// section of the grant.
 #[derive(Copy, Clone)]
 struct AllowRwItems(u8);
+/// Represents the number of the userspace readable allow elements in the kernel
+/// owned section of the grant.
+#[derive(Copy, Clone)]
+struct AllowUrItems(u8);
 /// Represents the size data (in bytes) T within the grant.
 #[derive(Copy, Clone)]
 struct GrantDataSize(usize);
@@ -280,13 +307,14 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         let counters_val = counters_ptr.read();
 
         // Parse the counters field for each of the fields
-        let [_, _, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
+        let [_, allow_rw_num, allow_ro_num, upcalls_num] = u32::to_be_bytes(counters_val as u32);
 
         // Skip over the counter usize, then the stored array of `SavedAllowRo`
         // items and `SavedAllowRw` items.
         let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
         let allow_ro_array = upcalls_array.add(upcalls_num as usize) as *mut SavedAllowRo;
         let allow_rw_array = allow_ro_array.add(allow_ro_num as usize) as *mut SavedAllowRw;
+        let allow_ur_array = allow_rw_array.add(allow_rw_num as usize) as *mut SavedAllowUr;
 
         Self {
             process,
@@ -295,6 +323,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             upcalls_array,
             allow_ro_array,
             allow_rw_array,
+            allow_ur_array,
         }
     }
 
@@ -313,6 +342,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         upcalls_num_val: UpcallItems,
         allow_ro_num_val: AllowRoItems,
         allow_rw_num_val: AllowRwItems,
+        allow_ur_num_val: AllowUrItems,
         process: &'a dyn Process,
         grant_num: usize,
     ) -> Self {
@@ -320,18 +350,23 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
         // Create the counters usize value by correctly packing the various
         // counts into 8 bit fields.
-        let counter: usize =
-            u32::from_be_bytes([0, allow_rw_num_val.0, allow_ro_num_val.0, upcalls_num_val.0])
-                as usize;
+        let counter: usize = u32::from_be_bytes([
+            allow_ur_num_val.0,
+            allow_rw_num_val.0,
+            allow_ro_num_val.0,
+            upcalls_num_val.0,
+        ]) as usize;
 
         let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
         let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()) as *mut SavedAllowRo;
         let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0.into()) as *mut SavedAllowRw;
+        let allow_ur_array = allow_rw_array.add(allow_rw_num_val.0.into()) as *mut SavedAllowUr;
 
         counters_ptr.write(counter);
         write_default_array(upcalls_array, upcalls_num_val.0.into());
         write_default_array(allow_ro_array, allow_ro_num_val.0.into());
         write_default_array(allow_rw_array, allow_rw_num_val.0.into());
+        write_default_array(allow_ur_array, allow_ur_num_val.0.into());
 
         Self {
             process,
@@ -340,6 +375,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             upcalls_array,
             allow_ro_array,
             allow_rw_array,
+            allow_ur_array,
         }
     }
 
@@ -350,13 +386,15 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
         allow_rw_num: AllowRwItems,
+        allow_ur_num: AllowUrItems,
         grant_t_size: GrantDataSize,
         grant_t_align: GrantDataAlign,
     ) -> usize {
         let kernel_managed_size = size_of::<usize>()
             + upcalls_num.0 as usize * size_of::<SavedUpcall>()
             + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
-            + allow_rw_num.0 as usize * size_of::<SavedAllowRw>();
+            + allow_rw_num.0 as usize * size_of::<SavedAllowRw>()
+            + allow_ur_num.0 as usize * size_of::<SavedAllowUr>();
         // We know that grant_t_align is a power of 2, so we can make a mask
         // that will save only the remainder bits.
         let grant_t_align_mask = grant_t_align.0 - 1;
@@ -424,6 +462,12 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         self.get_counter_offset(16)
     }
 
+    /// Return the number of userspace readable allow buffers stored by the core
+    /// kernel for this grant.
+    fn get_allow_ur_number(&self) -> usize {
+        self.get_counter_offset(24)
+    }
+
     /// Return mutable access to the slice of stored upcalls for this grant.
     /// This is necessary for storing a new upcall.
     fn get_upcalls_slice(&mut self) -> &mut [SavedUpcall] {
@@ -454,10 +498,28 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         unsafe { slice::from_raw_parts_mut(self.allow_rw_array, self.get_allow_rw_number()) }
     }
 
+    /// Return mutable access to the slice of stored userspace readable allow
+    /// buffers for this grant. This is necessary for storing a new userspace
+    /// readable allow.
+    fn get_allow_ur_slice(&mut self) -> &mut [SavedAllowUr] {
+        // # Safety
+        //
+        // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
+        // pointer to the UR allow array is valid.
+        unsafe { slice::from_raw_parts_mut(self.allow_ur_array, self.get_allow_ur_number()) }
+    }
+
     /// Return slices to the kernel managed upcalls and allow buffers. This
     /// permits using upcalls and allow buffers when a capsule is accessing a
     /// grant.
-    fn get_resource_slices(&self) -> (&[SavedUpcall], &[SavedAllowRo], &[SavedAllowRw]) {
+    fn get_resource_slices(
+        &self,
+    ) -> (
+        &[SavedUpcall],
+        &[SavedAllowRo],
+        &[SavedAllowRw],
+        &[SavedAllowUr],
+    ) {
         // # Safety
         //
         // Creating a `EnteredGrantKernelManagedLayout` object ensures that the
@@ -479,7 +541,14 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         let allow_rw_slice =
             unsafe { slice::from_raw_parts(self.allow_rw_array, self.get_allow_rw_number()) };
 
-        (upcall_slice, allow_ro_slice, allow_rw_slice)
+        // # Safety
+        //
+        // Creating a `KernelManagedLayout` object ensures that the pointer to
+        // the UR allow array is valid.
+        let allow_ur_slice =
+            unsafe { slice::from_raw_parts(self.allow_ur_array, self.get_allow_ur_number()) };
+
+        (upcall_slice, allow_ro_slice, allow_rw_slice, allow_ur_slice)
     }
 }
 
@@ -557,6 +626,10 @@ pub struct GrantKernelData<'a> {
     /// A reference to the actual read write allow slice stored in the grant.
     allow_rw: &'a [SavedAllowRw],
 
+    /// A reference to the actual userspace readable allow slice stored in the
+    /// grant.
+    allow_ur: &'a [SavedAllowUr],
+
     /// We need to keep track of the driver number so we can properly identify
     /// the Upcall that is called. We need to keep track of its source so we can
     /// remove it if the Upcall is unsubscribed.
@@ -574,6 +647,7 @@ impl<'a> GrantKernelData<'a> {
         upcalls: &'a [SavedUpcall],
         allow_ro: &'a [SavedAllowRo],
         allow_rw: &'a [SavedAllowRw],
+        allow_ur: &'a [SavedAllowUr],
         driver_num: usize,
         process: &'a dyn Process,
     ) -> GrantKernelData<'a> {
@@ -581,6 +655,7 @@ impl<'a> GrantKernelData<'a> {
             upcalls,
             allow_ro,
             allow_rw,
+            allow_ur,
             driver_num,
             process,
         }
@@ -688,6 +763,41 @@ impl<'a> GrantKernelData<'a> {
             },
         )
     }
+
+    /// Returns a lifetime limited reference to the requested
+    /// `UserspaceReadableProcessBuffer`.
+    ///
+    /// The `UserspaceReadableProcessBuffer` is only valid for as long as this
+    /// object is valid, i.e. the lifetime of the app enter closure.
+    ///
+    /// If the specified allow number is invalid, then a AddressOutOfBounds will
+    /// be return. This returns a process::Error to allow for easy chaining of
+    /// this function with the `UserspaceReadableProcessBuffer::enter()`
+    /// function with `.and_then`.
+    pub fn get_userspace_readable_processbuffer(
+        &self,
+        allow_ur_num: usize,
+    ) -> Result<UserspaceReadableProcessBufferRef, crate::process::Error> {
+        self.allow_ur.get(allow_ur_num).map_or(
+            Err(crate::process::Error::AddressOutOfBounds),
+            |saved_ur| {
+                // # Safety
+                //
+                // This is the saved process buffer data has been validated to
+                // be wholly contained within this process before it was stored.
+                // The lifetime of the UserspaceReadableProcessBuffer is bound
+                // to the lifetime of self, which correctly limits dereferencing
+                // this saved pointer to only when it is valid.
+                unsafe {
+                    Ok(UserspaceReadableProcessBufferRef::new(
+                        saved_ur.ptr,
+                        saved_ur.len,
+                        self.process.processid(),
+                    ))
+                }
+            },
+        )
+    }
 }
 
 /// A minimal representation of an upcall, used for storing an upcall in a
@@ -728,6 +838,24 @@ struct SavedAllowRw {
 }
 
 impl Default for SavedAllowRw {
+    fn default() -> Self {
+        Self {
+            ptr: core::ptr::null_mut(),
+            len: 0,
+        }
+    }
+}
+
+/// A minimal representation of a userspace readable allow from app, used for
+/// storing a userspace readable allow in a process' kernel managed grant space
+/// without wasting memory duplicating information such as process ID.
+#[repr(C)]
+struct SavedAllowUr {
+    ptr: *mut u8,
+    len: usize,
+}
+
+impl Default for SavedAllowUr {
     fn default() -> Self {
         Self {
             ptr: core::ptr::null_mut(),
@@ -922,6 +1050,55 @@ pub(crate) fn allow_rw(
     }
 }
 
+/// Stores the specified userspace readable process buffer in the kernel managed
+/// grant region for this process and driver. The previous userspace readable
+/// process buffer stored at the same `allow_num` ID is returned.
+pub(crate) fn allow_ur(
+    process: &dyn Process,
+    driver_num: usize,
+    allow_num: usize,
+    buffer: UserspaceReadableProcessBuffer,
+) -> Result<UserspaceReadableProcessBuffer, (UserspaceReadableProcessBuffer, ErrorCode)> {
+    // Enter grant and keep it open until `_grant_open` goes out of scope.
+    let mut layout = match enter_grant_kernel_managed(process, driver_num) {
+        Ok(val) => val,
+        Err(e) => return Err((buffer, e)),
+    };
+
+    // Create the saved allow rw slice from the grant memory.
+    //
+    // # Safety
+    //
+    // This is safe because of how the grant was initially allocated and that
+    // because we were able to enter the grant the grant region must be valid
+    // and initialized. We are also holding the grant open until `_grant_open`
+    // goes out of scope.
+    let saved_allow_ur_slice = layout.get_allow_ur_slice();
+
+    // Index into the saved slice to get the old value. Use `.get()` in case
+    // userspace passed us a bad allow number.
+    match saved_allow_ur_slice.get_mut(allow_num) {
+        Some(saved) => {
+            // # Safety
+            //
+            // The pointer has already been validated to be within application
+            // memory before storing the values in the saved slice.
+            let old_allow = unsafe {
+                UserspaceReadableProcessBuffer::new(saved.ptr, saved.len, process.processid())
+            };
+
+            // Replace old values with current buffer.
+            let (ptr, len) = buffer.consume();
+            saved.ptr = ptr;
+            saved.len = len;
+
+            // Success!
+            Ok(old_allow)
+        }
+        None => Err((buffer, ErrorCode::NOSUPPORT)),
+    }
+}
+
 /// An instance of a grant allocated for a particular process.
 ///
 /// `ProcessGrant` is a handle to an instance of a grant that has been allocated
@@ -936,6 +1113,7 @@ pub struct ProcessGrant<
     Upcalls: UpcallSize,
     AllowROs: AllowRoSize,
     AllowRWs: AllowRwSize,
+    AllowURs: AllowUrSize,
 > {
     /// The process the grant is applied to.
     ///
@@ -952,11 +1130,17 @@ pub struct ProcessGrant<
     grant_num: usize,
 
     /// Used to store Rust types for grant.
-    _phantom: PhantomData<(T, Upcalls, AllowROs, AllowRWs)>,
+    _phantom: PhantomData<(T, Upcalls, AllowROs, AllowRWs, AllowURs)>,
 }
 
-impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
-    ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>
+impl<
+        'a,
+        T: Default,
+        Upcalls: UpcallSize,
+        AllowROs: AllowRoSize,
+        AllowRWs: AllowRwSize,
+        AllowURs: AllowUrSize,
+    > ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs, AllowURs>
 {
     /// Create a `ProcessGrant` for the given Grant in the given Process's grant
     /// region.
@@ -970,7 +1154,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// is valid, this returns `Ok(ProcessGrant)`. Otherwise it returns a
     /// relevant error.
     fn new(
-        grant: &Grant<T, Upcalls, AllowROs, AllowRWs>,
+        grant: &Grant<T, Upcalls, AllowROs, AllowRWs, AllowURs>,
         processid: ProcessId,
     ) -> Result<Self, Error> {
         // Moves non-generic code from new() into non-generic function to reduce
@@ -987,6 +1171,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             num_upcalls: UpcallItems,
             num_allow_ros: AllowRoItems,
             num_allow_rws: AllowRwItems,
+            num_allow_urs: AllowUrItems,
             processid: ProcessId,
         ) -> Result<(Option<NonNull<u8>>, &'a dyn Process), Error> {
             // Here is an example of how the grants are laid out in the grant
@@ -1034,6 +1219,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                         num_upcalls,
                         num_allow_ros,
                         num_allow_rws,
+                        num_allow_urs,
                         grant_t_size,
                         grant_t_align,
                     );
@@ -1067,6 +1253,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                             num_upcalls,
                             num_allow_ros,
                             num_allow_rws,
+                            num_allow_urs,
                             process,
                             grant_num,
                         );
@@ -1107,6 +1294,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             UpcallItems(Upcalls::COUNT),
             AllowRoItems(AllowROs::COUNT),
             AllowRwItems(AllowRWs::COUNT),
+            AllowUrItems(AllowURs::COUNT),
             processid,
         )?;
 
@@ -1154,7 +1342,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// valid and that process grant has already been allocated, or `None`
     /// otherwise.
     fn new_if_allocated(
-        grant: &Grant<T, Upcalls, AllowROs, AllowRWs>,
+        grant: &Grant<T, Upcalls, AllowROs, AllowRWs, AllowURs>,
         process: &'a dyn Process,
     ) -> Option<Self> {
         if let Some(is_allocated) = process.grant_is_allocated(grant.grant_num) {
@@ -1386,6 +1574,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             UpcallItems(Upcalls::COUNT),
             AllowRoItems(AllowROs::COUNT),
             AllowRwItems(AllowRWs::COUNT),
+            AllowUrItems(AllowURs::COUNT),
             grant_t_size,
             grant_t_align,
         );
@@ -1413,7 +1602,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         //   Mutable reference to this memory are only created through the
         //   kernel in the syscall interface which is serialized in time with
         //   this call.
-        let (saved_upcalls_slice, saved_allow_ro_slice, saved_allow_rw_slice) =
+        let (saved_upcalls_slice, saved_allow_ro_slice, saved_allow_rw_slice, saved_allow_ur_slice) =
             layout.get_resource_slices();
         let grant_data = unsafe {
             EnteredGrantKernelManagedLayout::offset_of_grant_data_t(
@@ -1431,6 +1620,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             saved_upcalls_slice,
             saved_allow_ro_slice,
             saved_allow_rw_slice,
+            saved_allow_ur_slice,
             self.driver_num,
             self.process,
         );
@@ -1649,7 +1839,13 @@ impl GrantRegionAllocator {
 /// belonging to the process that the object is allocated for. The `Grant` type
 /// is used to get access to `ProcessGrant`s, which are tied to a specific
 /// process and provide access to the memory object allocated for that process.
-pub struct Grant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> {
+pub struct Grant<
+    T: Default,
+    Upcalls: UpcallSize,
+    AllowROs: AllowRoSize,
+    AllowRWs: AllowRwSize,
+    AllowURs: AllowUrSize,
+> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
 
@@ -1664,11 +1860,16 @@ pub struct Grant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRW
     grant_num: usize,
 
     /// Used to store the Rust types for grant.
-    ptr: PhantomData<(T, Upcalls, AllowROs, AllowRWs)>,
+    ptr: PhantomData<(T, Upcalls, AllowROs, AllowRWs, AllowURs)>,
 }
 
-impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
-    Grant<T, Upcalls, AllowROs, AllowRWs>
+impl<
+        T: Default,
+        Upcalls: UpcallSize,
+        AllowROs: AllowRoSize,
+        AllowRWs: AllowRwSize,
+        AllowURs: AllowUrSize,
+    > Grant<T, Upcalls, AllowROs, AllowRWs, AllowURs>
 {
     /// Create a new `Grant` type which allows a capsule to store
     /// process-specific data for each process in the process's memory region.
@@ -1753,7 +1954,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// Calling this function when an `ProcessGrant` for a process is currently
     /// entered will result in a panic.
-    pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs> {
+    pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs, AllowURs> {
         Iter {
             grant: self,
             subiter: self.kernel.get_process_iter(),
@@ -1768,9 +1969,10 @@ pub struct Iter<
     Upcalls: UpcallSize,
     AllowROs: AllowRoSize,
     AllowRWs: AllowRwSize,
+    AllowURs: AllowUrSize,
 > {
     /// The grant type to use.
-    grant: &'a Grant<T, Upcalls, AllowROs, AllowRWs>,
+    grant: &'a Grant<T, Upcalls, AllowROs, AllowRWs, AllowURs>,
 
     /// Iterator over valid processes.
     subiter: core::iter::FilterMap<
@@ -1779,10 +1981,16 @@ pub struct Iter<
     >,
 }
 
-impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
-    for Iter<'a, T, Upcalls, AllowROs, AllowRWs>
+impl<
+        'a,
+        T: Default,
+        Upcalls: UpcallSize,
+        AllowROs: AllowRoSize,
+        AllowRWs: AllowRwSize,
+        AllowURs: AllowUrSize,
+    > Iterator for Iter<'a, T, Upcalls, AllowROs, AllowRWs, AllowURs>
 {
-    type Item = ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>;
+    type Item = ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs, AllowURs>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;

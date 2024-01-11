@@ -8,7 +8,7 @@
 //! share memory.
 
 use crate::capabilities::MemoryAllocationCapability;
-use crate::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use crate::grant::{AllowRoCount, AllowRwCount, AllowUrCount, Grant, UpcallCount};
 use crate::kernel::Kernel;
 use crate::process;
 use crate::process::ProcessId;
@@ -49,6 +49,7 @@ pub struct IPC<const NUM_PROCS: u8> {
         UpcallCount<NUM_PROCS>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<NUM_PROCS>,
+        AllowUrCount<0>,
     >,
 }
 
