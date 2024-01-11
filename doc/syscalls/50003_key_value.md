@@ -71,7 +71,7 @@ applications will need permissions in the TBF headers to use this interface.
 
   **DELETE**. Delete a key-value pair from the database.
 
-  Use RO allow 0 to set the key and RO allow 1 to set the value.
+  Use RO allow 0 to set the key.
 
   #### Arguments
 
@@ -80,7 +80,7 @@ applications will need permissions in the TBF headers to use this interface.
 
   #### Returns
 
-  `SUCCESS` if the add command was accepted. On error, returns:
+  `SUCCESS` if the delete command was accepted. On error, returns:
 
   - `NOMEM`: Already a pending request for this application.
   - `RESERVE`: Error in the driver, requesting process not set.
@@ -126,7 +126,7 @@ applications will need permissions in the TBF headers to use this interface.
 
   #### Returns
 
-  `SUCCESS` if the add command was accepted. On error, returns:
+  `SUCCESS` if the update command was accepted. On error, returns:
 
   - `NOMEM`: Already a pending request for this application or no room
     in internal buffers to store value.
