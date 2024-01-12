@@ -42,6 +42,7 @@ use kernel::hil::screen::{
 };
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;
@@ -525,7 +526,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                             self.client.map(|client| {
                                 if self.write_buffer.is_some() {
                                     self.write_buffer.take().map(|buffer| {
-                                        client.write_complete(buffer, Ok(()));
+                                        let data = SubSliceMut::new(buffer);
+                                        client.write_complete(data, Ok(()));
                                     });
                                 } else {
                                     client.command_complete(Ok(()));
@@ -599,7 +601,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     self.client.map(|client| {
                         if self.write_buffer.is_some() {
                             self.write_buffer.take().map(|buffer| {
-                                client.write_complete(buffer, Err(error));
+                                let data = SubSliceMut::new(buffer);
+                                client.write_complete(data, Err(error));
                             });
                         } else {
                             client.command_complete(Err(error));
@@ -681,12 +684,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
 }
 
 impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup<'a> for ST77XX<'a, A, B, P> {
-    fn set_client(&self, setup_client: Option<&'a dyn ScreenSetupClient>) {
-        if let Some(setup_client) = setup_client {
-            self.setup_client.set(setup_client);
-        } else {
-            self.setup_client.clear();
-        }
+    fn set_client(&self, setup_client: &'a dyn ScreenSetupClient) {
+        self.setup_client.set(setup_client);
     }
 
     fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode> {
@@ -791,10 +790,11 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, 
         }
     }
 
-    fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
+    fn write(&self, data: SubSliceMut<'static, u8>) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
-            self.write_buffer.replace(buffer);
+            let len = data.len();
+            self.write_buffer.replace(data.take());
             let buffer_len = self.buffer.map_or_else(
                 || panic!("st77xx: buffer is not available"),
                 |buffer| buffer.len(),
@@ -818,26 +818,11 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, 
         }
     }
 
-    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
-        if self.status.get() == Status::Idle {
-            self.setup_command.set(false);
-            self.write_buffer.replace(buffer);
-            self.send_parameters_slice(len);
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
+    fn set_client(&self, client: &'a dyn ScreenClient) {
+        self.client.set(client);
     }
 
-    fn set_client(&self, client: Option<&'a dyn ScreenClient>) {
-        if let Some(client) = client {
-            self.client.set(client);
-        } else {
-            self.client.clear();
-        }
-    }
-
-    fn set_brightness(&self, _brightness: usize) -> Result<(), ErrorCode> {
+    fn set_brightness(&self, _brightness: u16) -> Result<(), ErrorCode> {
         Ok(())
     }
 
