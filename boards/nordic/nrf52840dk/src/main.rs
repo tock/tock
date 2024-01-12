@@ -868,19 +868,19 @@ pub unsafe fn main() {
     // ctap.enable();
     // ctap.attach();
 
-    // Keyboard HID Example
-    //
+    // // Keyboard HID Example
+    // type UsbHw = nrf52840::usbd::Usbd<'static>;
+    // let usb_device = &nrf52840_peripherals.usbd;
+
     // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
     //     board_kernel,
     //     capsules_core::driver::NUM::KeyboardHid as usize,
-    //     &nrf52840_peripherals.usbd,
+    //     usb_device,
     //     0x1915, // Nordic Semiconductor
     //     0x503a,
     //     strings,
     // )
-    // .finalize(components::keyboard_hid_component_static!(
-    //     nrf52840::usbd::Usbd
-    // ));
+    // .finalize(components::keyboard_hid_component_static!(UsbHw));
 
     // keyboard_hid.enable();
     // keyboard_hid.attach();
