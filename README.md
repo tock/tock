@@ -2,6 +2,7 @@
 
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
+[![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
 Tock is an embedded operating system designed for running multiple concurrent,
 mutually distrustful applications on Cortex-M and RISC-V based embedded
@@ -39,8 +40,9 @@ How would you like to get started?
 
 ### Learn How Tock Works
 
-Tock is documented in the [doc](doc) folder. Read through the guides there to
-learn about the overview and design of Tock, its implementation, and much more.
+Tock is documented in the [Tock Book][tock-book]. Read through the guides there
+to learn about the overview and design of Tock, its implementation, and much
+more.
 
 
 ### Use Tock
@@ -89,6 +91,7 @@ to see discussions on Tock development.
 
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 
+[tock-book]: https://book.tockos.org
 
 Code of Conduct
 ---------------
