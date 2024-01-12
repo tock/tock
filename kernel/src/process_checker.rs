@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Traits and types for application credentials checkers, used to
-//! decide whether an application can be loaded. See
-//| the [AppID TRD](../../doc/reference/trd-appid.md).
+//! Traits and types for application credentials checkers, used to decide
+//! whether an application can be loaded.
+//!
+//! See the [AppID TRD](../../doc/reference/trd-appid.md).
 
 pub mod basic;
 

@@ -27,8 +27,9 @@ macro_rules! create_capability {
 }
 
 /// Count the number of passed expressions.
+///
 /// Useful for constructing variable sized arrays in other macros.
-/// Taken from the Little Book of Rust Macros
+/// Taken from the Little Book of Rust Macros.
 ///
 /// ```ignore
 /// use kernel:count_expressions;

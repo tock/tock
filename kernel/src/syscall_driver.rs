@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! System call interface for userspace processes.
+//! System call interface for userspace processes implemented by capsules.
 //!
 //! Drivers implement these interfaces to expose operations to processes.
 //!
@@ -10,7 +10,7 @@
 //!
 //! Tock supports six system calls. The `allow_readonly`, `allow_readwrite`,
 //! `subscribe`, `yield`, and `memop` system calls are handled by the core
-//! kernel, while `command`is implemented by drivers. The main system calls:
+//! kernel, while `command` is implemented by drivers. The main system calls:
 //!
 //!   * `subscribe` passes a upcall to the driver which it can
 //!   invoke on the process later, when an event has occurred or data
@@ -56,7 +56,7 @@
 //! upcalls for the process. If there are pending upcalls, it
 //! pushes one upcall onto the process stack. If there are no
 //! pending upcalls, `yield-wait` will cause the process to sleep
-//! until a upcall is trigered, while `yield-no-wait` returns
+//! until a upcall is triggered, while `yield-no-wait` returns
 //! immediately.
 //!
 //! # Method result types
@@ -90,7 +90,7 @@ use crate::syscall::SyscallReturn;
 ///
 /// This is just a wrapper around
 /// [`SyscallReturn`](SyscallReturn) since a
-/// `command` driver method may only return primitve integer types as
+/// `command` driver method may only return primitive integer types as
 /// payload.
 ///
 /// It is important for this wrapper to only be constructable over
@@ -205,9 +205,10 @@ pub trait SyscallDriver {
     }
 
     /// System call for a process to pass a buffer (a
-    /// UserspaceReadableProcessBuffer) to the kernel that the kernel can either
-    /// read or write. The kernel calls this method only after it checks that
-    /// the entire buffer is within memory the process can both read and write.
+    /// `UserspaceReadableProcessBuffer`) to the kernel that the kernel can
+    /// either read or write. The kernel calls this method only after it checks
+    /// that the entire buffer is within memory the process can both read and
+    /// write.
     ///
     /// This is different to `allow_readwrite()` in that the app is allowed
     /// to read the buffer once it has been passed to the kernel.
@@ -288,7 +289,7 @@ pub trait SyscallDriver {
     //    drivers in the grant region. When each grant is created it could tell
     //    the kernel how many upcalls it will use and the kernel could easily
     //    keep track of the total. Then, when a process's memory is allocated
-    //    the kernel would reserve rooom for that many upcalls. There are two
+    //    the kernel would reserve room for that many upcalls. There are two
     //    issues, however. The kernel would not know how many upcalls each
     //    driver individually requires, so it would not be able to index into
     //    this array properly to store each upcall. Second, the upcall array
