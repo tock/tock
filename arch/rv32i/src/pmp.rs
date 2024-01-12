@@ -569,19 +569,6 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 {
     type MpuConfig = PMPUserMPUConfig<MAX_REGIONS>;
 
-    fn clear_mpu(&self) {
-        self.disable_app_mpu();
-        self.pmp
-            .configure_pmp(
-                &[(
-                    TORUserPMPCFG::OFF,
-                    core::ptr::null::<u8>(),
-                    core::ptr::null::<u8>(),
-                ); MAX_REGIONS],
-            )
-            .unwrap()
-    }
-
     fn enable_app_mpu(&self) {
         // TODO: This operation may fail when the PMP is not exclusively used
         // for userspace. Instead of panicing, we should handle this case more

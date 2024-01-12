@@ -92,17 +92,6 @@ pub trait MPU {
     /// current state to help with debugging.
     type MpuConfig: Display;
 
-    /// Clears the MPU.
-    ///
-    /// This function will clear any access control enforced by the
-    /// MPU where possible.
-    /// On some hardware it is impossible to reset the MPU after it has
-    /// been locked, in this case this function wont change those regions.
-    ///
-    /// TODO: adjust this comment
-    /// TODO: remove?
-    fn clear_mpu(&self);
-
     /// Enables the MPU for userspace apps.
     ///
     /// This function must enable the permission restrictions on the various
@@ -275,8 +264,6 @@ pub trait MPU {
 /// Implement default MPU trait for unit.
 impl MPU for () {
     type MpuConfig = MpuConfigDefault;
-
-    fn clear_mpu(&self) {}
 
     fn enable_app_mpu(&self) {}
 
