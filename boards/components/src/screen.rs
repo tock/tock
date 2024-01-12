@@ -46,6 +46,8 @@ macro_rules! screen_component_static {
     };};
 }
 
+pub type ScreenComponentType = capsules_extra::screen::Screen<'static>;
+
 pub struct ScreenComponent<const SCREEN_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
