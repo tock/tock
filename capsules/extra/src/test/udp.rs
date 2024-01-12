@@ -168,7 +168,7 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
                     dgram,
                     self.net_cap.get(),
                 ) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(mut buf) => {
                         buf.reset();
                         self.udp_dgram.replace(buf);

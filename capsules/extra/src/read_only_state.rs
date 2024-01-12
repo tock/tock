@@ -106,7 +106,7 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
                 core::mem::swap(&mut data.mem_region, &mut slice);
             });
             match res {
-                Ok(_) => Ok(slice),
+                Ok(()) => Ok(slice),
                 Err(e) => Err((slice, e.into())),
             }
         } else {

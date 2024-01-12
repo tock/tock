@@ -3,5 +3,3 @@
 // Copyright Tock Contributors 2022.
 
 pub mod mock_udp;
-
-pub use self::mock_udp::MockUDPComponent;

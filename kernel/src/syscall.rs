@@ -272,7 +272,7 @@ pub enum SyscallReturnVariant {
 /// types
 /// (e.g. [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer)
 /// and `GrantKernelData`) or wrappers around this struct
-/// ([`CommandReturn`](crate::syscall_driver::CommandReturn)) which limit the
+/// ([`CommandReturn`]) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallReturn {

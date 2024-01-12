@@ -125,7 +125,7 @@ pub enum Tlv<'a> {
 
 pub fn unwrap_tlv_offset(res: SResult) -> usize {
     match res {
-        SResult::Done(val, _) => val,
+        SResult::Done(val, ()) => val,
         _ => 0,
     }
 }

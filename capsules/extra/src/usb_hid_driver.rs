@@ -239,7 +239,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                         app.can_receive.set(true);
                         if let Some(buf) = self.recv_buffer.take() {
                             match usb.receive_buffer(buf) {
-                                Ok(_) => CommandReturn::success(),
+                                Ok(()) => CommandReturn::success(),
                                 Err((err, buffer)) => {
                                     self.recv_buffer.replace(buffer);
                                     CommandReturn::failure(err)
@@ -317,7 +317,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                             app.can_receive.set(true);
                             if let Some(buf) = self.recv_buffer.take() {
                                 match usb.receive_buffer(buf) {
-                                    Ok(_) => CommandReturn::success(),
+                                    Ok(()) => CommandReturn::success(),
                                     Err((err, buffer)) => {
                                         self.recv_buffer.replace(buffer);
                                         return CommandReturn::failure(err);

@@ -429,7 +429,7 @@ pub unsafe fn main() {
     peripherals.adc.init();
 
     // Set PWM function for Buzzer.
-    let _ = &peripherals
+    peripherals
         .pins
         .get_pin(RPGpio::GPIO2)
         .set_function(GpioFunction::PWM);

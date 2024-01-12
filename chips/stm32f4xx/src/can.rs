@@ -758,7 +758,7 @@ impl<'a> Can<'a> {
                         .can_tir
                         .modify(CAN_TIxR::TXRQ::SET);
                 }) {
-                    Some(_) => Ok(()),
+                    Some(()) => Ok(()),
                     None => Err(kernel::ErrorCode::FAIL),
                 }
             } else {
@@ -1252,7 +1252,7 @@ impl can::Controller for Can<'_> {
                     } else {
                         // set an Enable or an EnableError deferred action
                         match r {
-                            Ok(_) => {
+                            Ok(()) => {
                                 self.deferred_action.set(AsyncAction::Enable);
                             }
                             Err(err) => {
@@ -1322,7 +1322,7 @@ impl can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
                 self.enable_irq(CanInterruptMode::TransmitInterrupt);
                 self.can_state.set(CanState::Normal);
                 match self.send_8byte_message(id, len, 0) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err((err, self.tx_buffer.take().unwrap())),
                 }
             }

@@ -1303,7 +1303,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 
     fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
         match RadioChannel::try_from(chan) {
-            Err(_) => Err(ErrorCode::NOSUPPORT),
+            Err(()) => Err(ErrorCode::NOSUPPORT),
             Ok(res) => {
                 self.channel.set(res);
                 Ok(())
@@ -1315,7 +1315,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         // Convert u8 to TxPower
         match nrf52::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
-            Err(_) => Err(ErrorCode::NOSUPPORT),
+            Err(()) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);

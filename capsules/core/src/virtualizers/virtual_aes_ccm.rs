@@ -300,7 +300,7 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
                     SResult::Needed(_) => {
                         return Err(ErrorCode::NOMEM);
                     }
-                    SResult::Error(_) => {
+                    SResult::Error(()) => {
                         return Err(ErrorCode::FAIL);
                     }
                 };

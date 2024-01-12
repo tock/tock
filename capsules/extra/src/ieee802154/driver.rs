@@ -765,7 +765,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
             18 => match self.remove_neighbor(arg1) {
-                Ok(_) => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 Err(e) => CommandReturn::failure(e),
             },
             19 => {
@@ -906,7 +906,7 @@ impl SyscallDriver for RadioDriver<'_> {
                     .map_or_else(
                         |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
-                            Ok(_) => self.do_next_tx_sync(processid).into(),
+                            Ok(()) => self.do_next_tx_sync(processid).into(),
                             Err(e) => CommandReturn::failure(e),
                         },
                     )

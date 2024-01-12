@@ -34,7 +34,7 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let panic_led = PANIC_REFERENCES
         .led_controller
         .and_then(|ctrl| ctrl.panic_led(0));

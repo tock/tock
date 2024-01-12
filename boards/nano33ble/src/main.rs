@@ -481,8 +481,8 @@ pub unsafe fn start() -> (
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960 = components::apds9960::Apds9960Component::new(
         sensors_i2c_bus,

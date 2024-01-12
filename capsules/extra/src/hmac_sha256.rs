@@ -425,7 +425,7 @@ impl<'a, S: hil::digest::Sha256 + hil::digest::DigestDataHash<'a, 32>> hil::dige
                     // self.verify_client.map(|c| {
                     self.client.map(|c| {
                         // Convert to Result<bool, ErrorCode>
-                        c.verification_done(error.map(|_| false), compare);
+                        c.verification_done(error.map(|()| false), compare);
                     })
                 }
             }

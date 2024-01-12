@@ -38,7 +38,7 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led = sifive::gpio::GpioPin::new(
         e310_g003::gpio::GPIO0_BASE,
         sifive::gpio::pins::pin22,

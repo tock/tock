@@ -348,7 +348,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration, F: Frequency> Timer<'a> for LiteXTime
 /// LiteX does not have an [`Alarm`] compatible hardware peripheral,
 /// so an [`Alarm`] is emulated using a repeatedly set [`LiteXTimer`],
 /// comparing the current time against the [`LiteXTimerUptime`] (which
-/// is also exposed as [`Time::now`](Time::now).
+/// is also exposed as [`Time::now`].
 pub struct LiteXAlarm<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> {
     uptime: &'t LiteXTimerUptime<'t, R, F>,
     timer: &'t LiteXTimer<'t, R, F>,

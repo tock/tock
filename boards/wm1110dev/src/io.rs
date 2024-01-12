@@ -72,7 +72,7 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // Red Led
     let led_red_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);

@@ -1537,7 +1537,6 @@ impl<'a, A: hil::time::Alarm<'a>> SDCardClient for SDCardDriver<'a, A> {
                         .get_readwrite_processbuffer(rw_allow::READ)
                         .and_then(|read| {
                             read.mut_enter(|read_buffer| {
-                                let read_buffer = read_buffer;
                                 // copy bytes to user buffer
                                 // Limit to minimum length between read_buffer, data, and
                                 // len field

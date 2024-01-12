@@ -46,7 +46,7 @@ use kernel::hil::led;
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
         earlgrey::gpio::GPIO_BASE,
         earlgrey::pinmux::PadConfig::Output(
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 #[cfg(test)]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     #[cfg(feature = "sim_verilator")]

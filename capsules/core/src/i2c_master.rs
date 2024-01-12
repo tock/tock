@@ -94,7 +94,7 @@ impl<'a, I: i2c::I2CMaster<'a>> I2CMasterDriver<'a, I> {
                             Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
                         };
                         match res {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err((error, data)) => {
                                 self.buf.put(Some(data));
                                 Err(error.into())

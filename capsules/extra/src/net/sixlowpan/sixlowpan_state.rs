@@ -487,7 +487,7 @@ impl<'a> TxState<'a> {
                 self.dst_mac_addr.get(),
                 &mut lowpan_packet,
             ) {
-                Err(_) => return Err((Err(ErrorCode::FAIL), frame.into_buf())),
+                Err(()) => return Err((Err(ErrorCode::FAIL), frame.into_buf())),
                 Ok(result) => result,
             }
         };
@@ -735,7 +735,7 @@ impl<'a> RxState<'a> {
                 dgram_size,
                 true,
             )
-            .map_err(|_| Err(ErrorCode::FAIL))?;
+            .map_err(|()| Err(ErrorCode::FAIL))?;
             let remaining = payload_len - consumed;
             packet[written..written + remaining]
                 .copy_from_slice(&payload[consumed..consumed + remaining]);
@@ -955,7 +955,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
                     // Want dgram_size to contain decompressed size of packet
                     state.dgram_size.set((written + remaining) as u16);
                 }
-                Err(_) => {
+                Err(()) => {
                     return (None, Err(ErrorCode::FAIL));
                 }
             }

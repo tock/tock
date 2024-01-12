@@ -366,7 +366,7 @@ impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
                         if self.current_process.is_none() {
                             self.next_request().map_or_else(
                                 |e| CommandReturn::failure(ErrorCode::into(e)),
-                                |_| CommandReturn::success(),
+                                |()| CommandReturn::success(),
                             )
                         } else {
                             // Another request is ongoing. We've enqueued this one,
