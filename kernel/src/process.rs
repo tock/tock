@@ -180,6 +180,21 @@ impl ProcessId {
         self.identifier
     }
 
+    /// Get the `ShortID` for this application this process is an execution of.
+    ///
+    /// The `ShortID` is an identifier for the _application_, not the particular
+    /// execution (i.e. the currently running process). This makes `ShortID`
+    /// distinct from `ProcessId`.
+    ///
+    /// This function is a helper function as capsules typically use `ProcessId`
+    /// as a handle to the running process and corresponding app.
+    pub fn short_app_id(&self) -> ShortID {
+        self.kernel
+            .process_map_or(ShortID::LocallyUnique, *self, |process| {
+                process.short_app_id()
+            })
+    }
+
     /// Returns the full address of the start and end of the flash region that
     /// the app owns and can write to. This includes the app's code and data and
     /// any padding at the end of the app. It does not include the TBF header,
