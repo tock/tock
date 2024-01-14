@@ -91,6 +91,7 @@ type SHT4xSensor = components::sht4x::SHT4xComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<SHT4xSensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<SHT4xSensor>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -111,7 +112,7 @@ pub struct Platform {
         >,
     >,
     temperature: &'static TemperatureDriver,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    humidity: &'static HumidityDriver,
     lr1110_gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
     lr1110_spi: &'static capsules_core::spi_controller::Spi<
         'static,
@@ -351,7 +352,7 @@ pub unsafe fn start() -> (
         capsules_extra::humidity::DRIVER_NUM,
         sht4x,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(SHT4xSensor));
 
     //--------------------------------------------------------------------------
     // LoRa (SPI + GPIO)
