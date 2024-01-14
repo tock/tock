@@ -12,10 +12,13 @@ use crate::hil::digest::{DigestDataVerify, Sha256};
 use crate::process::{Process, ShortID};
 use crate::process_checker::{AppCredentialsChecker, AppUniqueness};
 use crate::process_checker::{CheckResult, Client, Compress};
+use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::OptionalCell;
 use crate::utilities::cells::TakeCell;
 use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use crate::ErrorCode;
+use core::cell::Cell;
+use core::num::NonZeroU32;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
@@ -95,6 +98,105 @@ impl AppUniqueness for AppCheckerSimulated<'_> {
 impl Compress for AppCheckerSimulated<'_> {
     fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
         ShortID::LocallyUnique
+    }
+}
+
+/// A sample Credentials Checking Policy that loads and runs Userspace Binaries
+/// with unique process names. If it encounters a Userspace Binary with the same
+/// process name as an existing one it fails the uniqueness check and is not
+/// run.
+///
+/// ShortIDs are assigned as incrementing numbers, starting at 1.
+///
+/// Note, this checker relies on there being at least one credential (of any
+/// type) installed so that we can accept the credential and `to_short_id()`
+/// will be called.
+///
+/// ### Usage
+///
+/// ```ignore
+/// let checker = static_init!(
+///     kernel::process_checker::basic::AppCheckerUniqueNamesIncrementingIds,
+///     kernel::process_checker::basic::AppCheckerUniqueNamesIncrementingIds::new()
+/// );
+/// kernel::deferred_call::DeferredCallClient::register(checker);
+/// ```
+pub struct AppCheckerUniqueNamesIncrementingIds<'a> {
+    deferred_call: DeferredCall,
+    client: OptionalCell<&'a dyn Client<'a>>,
+    credentials: OptionalCell<TbfFooterV2Credentials>,
+    binary: OptionalCell<&'a [u8]>,
+    counter: Cell<usize>,
+}
+
+impl<'a> AppCheckerUniqueNamesIncrementingIds<'a> {
+    pub fn new() -> Self {
+        Self {
+            deferred_call: DeferredCall::new(),
+            client: OptionalCell::empty(),
+            credentials: OptionalCell::empty(),
+            binary: OptionalCell::empty(),
+            counter: Cell::new(1),
+        }
+    }
+}
+
+impl<'a> DeferredCallClient for AppCheckerUniqueNamesIncrementingIds<'a> {
+    fn handle_deferred_call(&self) {
+        self.client.map(|c| {
+            c.check_done(
+                Ok(CheckResult::Accept),
+                self.credentials.take().unwrap(),
+                self.binary.take().unwrap(),
+            )
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+}
+
+impl<'a> AppCredentialsChecker<'a> for AppCheckerUniqueNamesIncrementingIds<'a> {
+    fn require_credentials(&self) -> bool {
+        false
+    }
+
+    fn check_credentials(
+        &self,
+        credentials: TbfFooterV2Credentials,
+        binary: &'a [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
+    }
+
+    fn set_client(&self, client: &'a dyn Client<'a>) {
+        self.client.replace(client);
+    }
+}
+
+impl AppUniqueness for AppCheckerUniqueNamesIncrementingIds<'_> {
+    // This checker doesn't allow you to run two processes with the
+    // same name.
+    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
+        let a = process_a.get_process_name();
+        let b = process_b.get_process_name();
+        !a.eq(b)
+    }
+}
+
+impl Compress for AppCheckerUniqueNamesIncrementingIds<'_> {
+    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+        let short_id = ShortID::Fixed(NonZeroU32::new(self.counter.get() as u32).unwrap());
+        self.counter.increment();
+        short_id
     }
 }
 
