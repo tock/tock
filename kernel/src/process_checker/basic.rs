@@ -259,6 +259,100 @@ impl Compress for AppCheckerSha256 {
     }
 }
 
+/// A sample Credentials Checking Policy that loads and runs all processes and
+/// assigns pseudo-unique ShortIDs.
+///
+/// ShortIDs are assigned as a non-secure hash of the process name.
+///
+/// Note, this checker relies on there being at least one credential (of any
+/// type) installed so that we can accept the credential and `to_short_id()`
+/// will be called.
+///
+/// ### Usage
+///
+/// ```rust
+/// let checker = static_init!(
+///     kernel::process_checker::basic::AppCheckerNames,
+///     kernel::process_checker::basic::AppCheckerNames::new()
+/// );
+/// kernel::deferred_call::DeferredCallClient::register(checker);
+/// ```
+pub struct AppCheckerNames<'a> {
+    deferred_call: DeferredCall,
+    client: OptionalCell<&'a dyn Client<'a>>,
+    credentials: OptionalCell<TbfFooterV2Credentials>,
+    binary: OptionalCell<&'a [u8]>,
+}
+
+impl<'a> AppCheckerNames<'a> {
+    pub fn new() -> Self {
+        Self {
+            deferred_call: DeferredCall::new(),
+            client: OptionalCell::empty(),
+            credentials: OptionalCell::empty(),
+            binary: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a> DeferredCallClient for AppCheckerNames<'a> {
+    fn handle_deferred_call(&self) {
+        self.client.map(|c| {
+            c.check_done(
+                Ok(CheckResult::Accept),
+                self.credentials.take().unwrap(),
+                self.binary.take().unwrap(),
+            )
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+}
+
+impl<'a> AppCredentialsChecker<'a> for AppCheckerNames<'a> {
+    fn require_credentials(&self) -> bool {
+        false
+    }
+
+    fn check_credentials(
+        &self,
+        credentials: TbfFooterV2Credentials,
+        binary: &'a [u8],
+    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
+        if self.credentials.is_none() {
+            self.credentials.replace(credentials);
+            self.binary.replace(binary);
+            self.deferred_call.set();
+            Ok(())
+        } else {
+            Err((ErrorCode::BUSY, credentials, binary))
+        }
+    }
+
+    fn set_client(&self, client: &'a dyn Client<'a>) {
+        self.client.replace(client);
+    }
+}
+
+impl AppUniqueness for AppCheckerNames<'_> {
+    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
+        true
+    }
+}
+
+impl Compress for AppCheckerNames<'_> {
+    fn to_short_id(&self, process: &dyn Process, _credentials: &TbfFooterV2Credentials) -> ShortID {
+        let name = process.get_process_name();
+        let sum = crate::utilities::helpers::addhash_str(name);
+        match NonZeroU32::new(sum) {
+            Some(id) => ShortID::Fixed(id),
+            None => ShortID::LocallyUnique,
+        }
+    }
+}
+
 /// A sample Credentials Checking Policy that loads and runs Userspace
 /// Binaries that have RSA3072 or RSA4096 credentials. It uses the
 /// public key stored in the credentials as the Application
