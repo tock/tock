@@ -93,7 +93,11 @@ impl AppUniqueness for AppCheckerSimulated<'_> {
 }
 
 impl Compress for AppCheckerSimulated<'_> {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+    fn to_short_id(
+        &self,
+        _process: &dyn Process,
+        _credentials: &TbfFooterV2Credentials,
+    ) -> ShortID {
         ShortID::LocallyUnique
     }
 }
@@ -242,7 +246,7 @@ impl Compress for AppCheckerSha256 {
     // hash and sets the first bit to be 1 to ensure it is non-zero.
     // Note that since these identifiers are only 31 bits, they do not
     // provide sufficient collision resistance to verify a unique identity.
-    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
+    fn to_short_id(&self, _process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID {
         let id: u32 = 0x8000000_u32
             | (credentials.data()[0] as u32) << 24
             | (credentials.data()[1] as u32) << 16
@@ -365,7 +369,7 @@ impl AppUniqueness for AppCheckerRsaSimulated<'_> {
 }
 
 impl Compress for AppCheckerRsaSimulated<'_> {
-    fn to_short_id(&self, credentials: &TbfFooterV2Credentials) -> ShortID {
+    fn to_short_id(&self, _process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID {
         // Should never trigger, as we only approve RSA3072 and RSA4096 credentials.
         let data = credentials.data();
         if data.len() < 4 {
