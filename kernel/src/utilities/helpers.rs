@@ -42,3 +42,17 @@ macro_rules! count_expressions {
     ($head:expr $(,)?) => (1usize);
     ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
 }
+
+/// A very simple hashing algorithm "AddHash".
+///
+/// This just adds the ASCII character values from a string to create a 32 bit
+/// hash value. To make different orders of the same characters more likely to
+/// hash to different values, the characters are shifted left incrementally
+/// before summing.
+pub fn addhash_str(s: &'static str) -> u32 {
+    let mut sum = 0_u32;
+    for (i, c) in s.chars().enumerate() {
+        sum += ((c as u8) as u32) << (i % 25);
+    }
+    sum
+}
