@@ -5,6 +5,7 @@
 //! Module containing the [`LocalRegisterCopy`] type. Please refer to
 //! its documentation.
 
+use core::fmt;
 use core::marker::PhantomData;
 
 use crate::fields::{Field, FieldValue, TryFromValue};
@@ -125,6 +126,12 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
             data: self.get(),
             _reg: core::marker::PhantomData,
         }
+    }
+}
+
+impl<T: UIntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.value)
     }
 }
 
